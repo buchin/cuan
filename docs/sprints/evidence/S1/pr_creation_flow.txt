@@ -22,7 +22,16 @@ DoD Requirement: Menghasilkan commit & PR nyata di repo Cuan dengan diff, instru
        * ## Verification & Testing Instructions
        * ## Targeted Test Status (with exit code)
 
-3. Automated Test Verification:
+3. Real GitHub Pull Request Verification:
+   - Repository: buchin/cuan
+   - Branch: task/lzzofiyzscrkntvgfcbhryfn
+   - Real Pull Request URL: https://github.com/buchin/cuan/pull/1
+   - Pull Request Number: 1
+   - Initial Commit SHA: 2974d7e294747666d599ed6d2f36b944efb28d4c
+   - Author: Buchin <buchin@dropsugar.com>
+   - Committer: Buchin <buchin@dropsugar.com>
+
+4. Automated Test Verification:
    - Test: github.com/buchin/cuan/internal/server.TestVerifyT6_FullGitAndPRCycle
    - Test: github.com/buchin/cuan/internal/git.TestCreateOrUpdatePullRequest_Cycle
    - Outcome: PASS (1.67s / 1.19s)

@@ -44,4 +44,11 @@ DoD Requirement: Support alur revisi pada task yang sama (Review -> Doing -> Upd
    - Test: github.com/buchin/cuan/internal/git.TestWorkspaceRevisionResume
    - Outcome: PASS (1.67s / 0.09s)
 
+3. Live Repository Verification on buchin/cuan:
+   - Task Branch: task/lzzofiyzscrkntvgfcbhryfn
+   - Pull Request: https://github.com/buchin/cuan/pull/1 (PR #1)
+   - Initial Commit SHA: 2974d7e294747666d599ed6d2f36b944efb28d4c
+   - Revision Updates: Pushed to origin/task/lzzofiyzscrkntvgfcbhryfn and attached to PR #1 without duplicate PRs.
+
 === RESULT: PASS (Siklus revisi nyata terbukti tuntas: resume workspace, commit revisi, PR ter-update otomatis tanpa duplikat) ===
+
