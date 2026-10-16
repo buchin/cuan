@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/mail"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,6 +23,7 @@ var (
 	ErrInvalidEmail          = errors.New("format email tidak valid")
 	ErrInvalidBrandName      = errors.New("nama brand tidak boleh kosong")
 	ErrInvalidWebsiteURL     = errors.New("URL website tidak valid")
+	ErrAmountTooLow          = errors.New("nominal Pay-What-You-Want minimal Rp 10.000")
 )
 
 type WebhookResult struct {
@@ -43,6 +45,8 @@ type CreateSponsorRequest struct {
 	LogoPath     string `json:"logo_path"`
 	ContactEmail string `json:"contact_email"`
 	ContactWA    string `json:"contact_wa"`
+	AmountIDR    int64  `json:"amount_idr,omitempty"`
+	ReturnURL    string `json:"return_url,omitempty"`
 }
 
 type CreateOrderRequest struct {
@@ -108,19 +112,32 @@ func (d *HTTPDojoDispatcher) DispatchWaitingListSignup(ctx context.Context, lead
 }
 
 type Service struct {
-	store          Store
-	logoStorage    *LogoStorage
-	webhookSecret  string
-	dojoWebhookURL string
-	dojoDispatcher DojoDispatcher
+	store           Store
+	logoStorage     *LogoStorage
+	webhookSecret   string
+	dojoWebhookURL  string
+	checkoutBaseURL string
+	dojoDispatcher  DojoDispatcher
 }
 
 func NewService(store Store, logoStorage *LogoStorage, webhookSecret string) *Service {
 	return &Service{
-		store:         store,
-		logoStorage:   logoStorage,
-		webhookSecret: strings.TrimSpace(webhookSecret),
+		store:           store,
+		logoStorage:     logoStorage,
+		webhookSecret:   strings.TrimSpace(webhookSecret),
+		checkoutBaseURL: "https://checkout.dojo.id/products/cuan-founding-backer",
 	}
+}
+
+func (s *Service) CheckoutBaseURL() string {
+	if s.checkoutBaseURL != "" {
+		return s.checkoutBaseURL
+	}
+	return "https://checkout.dojo.id/products/cuan-founding-backer"
+}
+
+func (s *Service) SetCheckoutBaseURL(u string) {
+	s.checkoutBaseURL = strings.TrimSpace(u)
 }
 
 func (s *Service) WebhookSecret() string {
@@ -188,26 +205,23 @@ func (s *Service) ListBatches(ctx context.Context) ([]*Batch, error) {
 
 // Sponsors
 func (s *Service) CreateSponsor(ctx context.Context, req CreateSponsorRequest) (*Sponsor, error) {
-	brandName := strings.TrimSpace(req.BrandName)
+	brandName := SanitizeText(req.BrandName)
 	if brandName == "" {
 		return nil, ErrInvalidBrandName
 	}
 
-	websiteURL := strings.TrimSpace(req.WebsiteURL)
-	if websiteURL == "" {
-		return nil, ErrInvalidWebsiteURL
-	}
-	if !strings.HasPrefix(websiteURL, "http://") && !strings.HasPrefix(websiteURL, "https://") {
-		websiteURL = "https://" + websiteURL
-	}
-	if _, err := url.ParseRequestURI(websiteURL); err != nil {
-		return nil, ErrInvalidWebsiteURL
+	websiteURL, err := ValidateAndFormatURL(req.WebsiteURL)
+	if err != nil {
+		return nil, err
 	}
 
 	email := strings.TrimSpace(req.ContactEmail)
-	if _, err := mail.ParseAddress(email); err != nil {
-		return nil, ErrInvalidEmail
+	if err := ValidateContactEmail(email); err != nil {
+		return nil, err
 	}
+
+	slogan := SanitizeText(req.Slogan)
+	contactWA := SanitizeText(req.ContactWA)
 
 	batchID := strings.TrimSpace(req.BatchID)
 	if batchID == "" {
@@ -224,10 +238,10 @@ func (s *Service) CreateSponsor(ctx context.Context, req CreateSponsorRequest) (
 		BatchID:      batchID,
 		BrandName:    brandName,
 		WebsiteURL:   websiteURL,
-		Slogan:       strings.TrimSpace(req.Slogan),
+		Slogan:       slogan,
 		LogoPath:     strings.TrimSpace(req.LogoPath),
 		ContactEmail: email,
-		ContactWA:    strings.TrimSpace(req.ContactWA),
+		ContactWA:    contactWA,
 		Status:       SponsorStatusPendingReview,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -246,6 +260,141 @@ func (s *Service) CreateSponsor(ctx context.Context, req CreateSponsorRequest) (
 	})
 
 	return sp, nil
+}
+
+// CreateCheckoutSession handles PWYW checkout intake, generating an order and Dojo redirect URL.
+func (s *Service) CreateCheckoutSession(ctx context.Context, req CreateCheckoutRequest) (*CheckoutResult, error) {
+	if req.AmountIDR < MinSponsorAmountIDR {
+		return nil, ErrAmountTooLow
+	}
+
+	sp, err := s.CreateSponsor(ctx, CreateSponsorRequest{
+		BatchID:      req.BatchID,
+		BrandName:    req.BrandName,
+		WebsiteURL:   req.WebsiteURL,
+		Slogan:       req.Slogan,
+		LogoPath:     req.LogoPath,
+		ContactEmail: req.ContactEmail,
+		ContactWA:    req.ContactWA,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	dojoOrderID := fmt.Sprintf("dojo_%s_%d", sp.ID, now.Unix())
+	cuanOrderID := generateID("ord")
+
+	order := &Order{
+		ID:          cuanOrderID,
+		SponsorID:   &sp.ID,
+		DojoOrderID: dojoOrderID,
+		AmountIDR:   req.AmountIDR,
+		Status:      OrderStatusPending,
+		CreatedAt:   now,
+	}
+
+	if err := s.store.CreateOrder(ctx, order); err != nil {
+		return nil, fmt.Errorf("create checkout order: %w", err)
+	}
+
+	_ = s.store.CreateActivity(ctx, &ActivityLog{
+		SponsorID: sp.ID,
+		OrderID:   &order.ID,
+		Action:    ActivityActionOrderCreated,
+		Details:   fmt.Sprintf("Order checkout PWYW dibuat senilai Rp %d (dojo: %s)", order.AmountIDR, dojoOrderID),
+		Actor:     "checkout_flow",
+		CreatedAt: now,
+	})
+
+	baseURL := s.CheckoutBaseURL()
+	returnURL := strings.TrimSpace(req.ReturnURL)
+	if returnURL == "" {
+		returnURL = "/sponsor/pending?order_id=" + dojoOrderID
+	}
+
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		u, _ = url.Parse("https://checkout.dojo.id/products/cuan-founding-backer")
+	}
+	q := u.Query()
+	q.Set("order_id", dojoOrderID)
+	q.Set("cuan_order_id", order.ID)
+	q.Set("sponsor_id", sp.ID)
+	q.Set("amount", strconv.FormatInt(req.AmountIDR, 10))
+	q.Set("brand", sp.BrandName)
+	q.Set("return_url", returnURL)
+	u.RawQuery = q.Encode()
+
+	return &CheckoutResult{
+		Status:       "success",
+		CheckoutURL:  u.String(),
+		DojoOrderID:  dojoOrderID,
+		OrderID:      order.ID,
+		AmountIDR:    req.AmountIDR,
+		Sponsor:      sp,
+		Order:        order,
+		MinAmountIDR: MinSponsorAmountIDR,
+		PendingURL:   "/sponsor/pending?order_id=" + dojoOrderID,
+		Message:      "Sesi checkout Dojo berhasil disiapkan",
+	}, nil
+}
+
+// GetSponsorshipStatus checks current payment and curation status for an order or sponsor.
+func (s *Service) GetSponsorshipStatus(ctx context.Context, orderID, sponsorID string) (*SponsorshipStatusResult, error) {
+	var ord *Order
+	var sp *Sponsor
+	var err error
+
+	orderID = strings.TrimSpace(orderID)
+	sponsorID = strings.TrimSpace(sponsorID)
+
+	if orderID != "" {
+		ord, err = s.store.GetOrderByDojoID(ctx, orderID)
+		if err != nil || ord == nil {
+			ord, err = s.store.GetOrder(ctx, orderID)
+		}
+	}
+
+	if ord != nil && ord.SponsorID != nil && *ord.SponsorID != "" {
+		sp, _ = s.store.GetSponsor(ctx, *ord.SponsorID)
+	} else if sponsorID != "" {
+		sp, _ = s.store.GetSponsor(ctx, sponsorID)
+	}
+
+	if ord == nil && sp == nil {
+		return &SponsorshipStatusResult{
+			Found:   false,
+			Status:  "not_found",
+			Message: "Order atau sponsor tidak ditemukan",
+		}, nil
+	}
+
+	status := "pending_payment"
+	message := "Menunggu konfirmasi pembayaran dari Dojo"
+
+	if ord != nil && ord.Status == OrderStatusPaid {
+		status = "pending_review"
+		message = "Pembayaran sukses terverifikasi. Profil sponsor dalam tahap kurasi owner anti-judol."
+	}
+	if sp != nil {
+		if sp.Status == SponsorStatusApproved {
+			status = "approved"
+			message = "Profil sponsor telah disetujui owner dan aktif di Leaderboard publik!"
+		} else if sp.Status == SponsorStatusRejected {
+			status = "rejected"
+			message = "Profil sponsor ditolak: " + sp.RejectionReason
+		}
+	}
+
+	return &SponsorshipStatusResult{
+		Found:          true,
+		Status:         status,
+		Message:        message,
+		Order:          ord,
+		Sponsor:        sp,
+		LeaderboardURL: "/sponsor",
+	}, nil
 }
 
 func (s *Service) GetSponsor(ctx context.Context, id string) (*Sponsor, error) {

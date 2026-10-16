@@ -132,3 +132,44 @@ func (p *DojoWebhookPayload) EffectiveAmountIDR() int64 {
 	}
 	return p.Amount
 }
+
+// MinSponsorAmountIDR defines the minimum Pay-What-You-Want nominal for Cuan v1.0 (Rp 10.000).
+const MinSponsorAmountIDR = int64(10000)
+
+// CreateCheckoutRequest defines the intake and checkout request payload.
+type CreateCheckoutRequest struct {
+	BatchID      string `json:"batch_id,omitempty"`
+	BrandName    string `json:"brand_name"`
+	WebsiteURL   string `json:"website_url"`
+	Slogan       string `json:"slogan"`
+	LogoPath     string `json:"logo_path"`
+	ContactEmail string `json:"contact_email"`
+	ContactWA    string `json:"contact_wa"`
+	AmountIDR    int64  `json:"amount_idr"`
+	ReturnURL    string `json:"return_url,omitempty"`
+}
+
+// CheckoutResult represents the generated order and Dojo checkout redirection details.
+type CheckoutResult struct {
+	Status       string   `json:"status"`
+	CheckoutURL  string   `json:"checkout_url"`
+	DojoOrderID  string   `json:"dojo_order_id"`
+	OrderID      string   `json:"order_id"`
+	AmountIDR    int64    `json:"amount_idr"`
+	Sponsor      *Sponsor `json:"sponsor"`
+	Order        *Order   `json:"order"`
+	MinAmountIDR int64    `json:"min_amount_idr"`
+	PendingURL   string   `json:"pending_url"`
+	Message      string   `json:"message"`
+}
+
+// SponsorshipStatusResult provides real-time status of an order and linked sponsor profile.
+type SponsorshipStatusResult struct {
+	Found          bool     `json:"found"`
+	Status         string   `json:"status"` // pending_payment, pending_review, approved, rejected, failed
+	Message        string   `json:"message"`
+	Order          *Order   `json:"order,omitempty"`
+	Sponsor        *Sponsor `json:"sponsor,omitempty"`
+	LeaderboardURL string   `json:"leaderboard_url,omitempty"`
+}
+

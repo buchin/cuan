@@ -472,6 +472,111 @@ func TestLandingPageAndSponsorRoutes(t *testing.T) {
 	}
 }
 
+func TestSponsorCheckoutAndStatusHTTP(t *testing.T) {
+	s, cleanup := setupTestServerWithSponsorship(t)
+	defer cleanup()
+
+	// 1. Min nominal rejection (< Rp 10.000)
+	bodyBad := map[string]interface{}{
+		"brand_name":    "Acme Corp",
+		"website_url":   "https://acme.com",
+		"contact_email": "hello@acme.com",
+		"amount_idr":    5000,
+	}
+	bBad, _ := json.Marshal(bodyBad)
+	req := httptest.NewRequest(http.MethodPost, "/api/sponsors/checkout", bytes.NewReader(bBad))
+	rec := httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for amount < 10000, got %d", rec.Code)
+	}
+
+	// 2. Successful checkout creation (min Rp 10.000)
+	bodyGood := map[string]interface{}{
+		"brand_name":    "Acme Corp <script>xss()</script>",
+		"website_url":   "acme.com",
+		"slogan":        "Empowering <b>builders</b>",
+		"contact_email": "hello@acme.com",
+		"contact_wa":    "08123456789",
+		"amount_idr":    100000,
+	}
+	bGood, _ := json.Marshal(bodyGood)
+	req = httptest.NewRequest(http.MethodPost, "/api/sponsors/checkout", bytes.NewReader(bGood))
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on /api/sponsors/checkout, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res sponsorship.CheckoutResult
+	if err := json.NewDecoder(rec.Body).Decode(&res); err != nil {
+		t.Fatalf("failed to decode checkout result: %v", err)
+	}
+
+	if res.Status != "success" || res.AmountIDR != 100000 {
+		t.Errorf("unexpected checkout response: %+v", res)
+	}
+	if !strings.Contains(res.CheckoutURL, "order_id="+res.DojoOrderID) {
+		t.Errorf("expected checkout_url to contain order_id, got %s", res.CheckoutURL)
+	}
+	if res.Sponsor.BrandName != "Acme Corp xss()" {
+		t.Errorf("expected sanitized brand, got %q", res.Sponsor.BrandName)
+	}
+
+	// 3. Status check endpoint (pending_payment)
+	req = httptest.NewRequest(http.MethodGet, "/api/sponsors/status?order_id="+res.DojoOrderID, nil)
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /api/sponsors/status, got %d", rec.Code)
+	}
+
+	var statusRes sponsorship.SponsorshipStatusResult
+	if err := json.NewDecoder(rec.Body).Decode(&statusRes); err != nil {
+		t.Fatalf("failed to decode status: %v", err)
+	}
+	if !statusRes.Found || statusRes.Status != "pending_payment" {
+		t.Errorf("expected status pending_payment, got %+v", statusRes)
+	}
+
+	// 4. Test v1 alias /api/v1/sponsors/checkout
+	bodyV1 := map[string]interface{}{
+		"brand_name":    "V1 Sponsor",
+		"website_url":   "https://v1sponsor.org",
+		"contact_email": "admin@v1sponsor.org",
+		"amount_idr":    250000,
+	}
+	bV1, _ := json.Marshal(bodyV1)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/sponsors/checkout", bytes.NewReader(bV1))
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on /api/v1/sponsors/checkout, got %d", rec.Code)
+	}
+}
+
+func TestSponsorBatchesHTTP(t *testing.T) {
+	s, cleanup := setupTestServerWithSponsorship(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sponsors/batches", nil)
+	rec := httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /api/sponsors/batches, got %d", rec.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to parse batches response: %v", err)
+	}
+	batches, ok := resp["batches"].([]interface{})
+	if !ok || len(batches) == 0 {
+		t.Fatalf("expected at least 1 batch, got %+v", resp)
+	}
+}
+
 // Unused import guard
 var _ = time.Now
 var _ = io.Discard

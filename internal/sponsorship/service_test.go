@@ -422,3 +422,106 @@ func TestHTTPDojoDispatcher(t *testing.T) {
 		t.Errorf("expected action send_welcome_email, got %v", receivedBody["action"])
 	}
 }
+
+func TestCreateCheckoutSession(t *testing.T) {
+	svc, cleanup := setupTestService(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// 1. Minimum amount rejection (< 10000)
+	_, err := svc.CreateCheckoutSession(ctx, CreateCheckoutRequest{
+		BrandName:    "Indie Co",
+		WebsiteURL:   "https://indie.co",
+		ContactEmail: "founder@indie.co",
+		AmountIDR:    5000,
+	})
+	if err == nil || !strings.Contains(err.Error(), "minimal Rp 10.000") {
+		t.Fatalf("expected ErrAmountTooLow, got %v", err)
+	}
+
+	// 2. Valid checkout session (min 10000)
+	res, err := svc.CreateCheckoutSession(ctx, CreateCheckoutRequest{
+		BrandName:    "Indie Co <script>evil()</script>",
+		WebsiteURL:   "indie.co",
+		Slogan:       "<b>Super SaaS</b> for developers",
+		ContactEmail: "founder@indie.co",
+		AmountIDR:    50000,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating checkout session: %v", err)
+	}
+
+	if res.Status != "success" {
+		t.Errorf("expected status success, got %s", res.Status)
+	}
+	if res.AmountIDR != 50000 {
+		t.Errorf("expected amount 50000, got %d", res.AmountIDR)
+	}
+	// Verify sanitization of brand and slogan
+	if res.Sponsor.BrandName != "Indie Co evil()" {
+		t.Errorf("expected sanitized brand 'Indie Co evil()', got %q", res.Sponsor.BrandName)
+	}
+	if res.Sponsor.Slogan != "Super SaaS for developers" {
+		t.Errorf("expected sanitized slogan 'Super SaaS for developers', got %q", res.Sponsor.Slogan)
+	}
+	if res.Sponsor.WebsiteURL != "https://indie.co" {
+		t.Errorf("expected formatted website url 'https://indie.co', got %q", res.Sponsor.WebsiteURL)
+	}
+
+	// Verify checkout URL contains required tracking metadata
+	if !strings.Contains(res.CheckoutURL, "order_id="+res.DojoOrderID) {
+		t.Errorf("checkout URL missing order_id: %s", res.CheckoutURL)
+	}
+	if !strings.Contains(res.CheckoutURL, "amount=50000") {
+		t.Errorf("checkout URL missing amount: %s", res.CheckoutURL)
+	}
+	if !strings.Contains(res.CheckoutURL, "return_url=") {
+		t.Errorf("checkout URL missing return_url: %s", res.CheckoutURL)
+	}
+
+	// 3. Status retrieval before payment
+	statusRes, err := svc.GetSponsorshipStatus(ctx, res.DojoOrderID, res.Sponsor.ID)
+	if err != nil {
+		t.Fatalf("failed to get status: %v", err)
+	}
+	if !statusRes.Found {
+		t.Errorf("expected status to be found")
+	}
+	if statusRes.Status != "pending_payment" {
+		t.Errorf("expected status pending_payment, got %s", statusRes.Status)
+	}
+
+	// 4. Process payment webhook
+	_, err = svc.ProcessDojoWebhook(ctx, "dojo-test-secret-12345", &DojoWebhookPayload{
+		OrderID:   res.DojoOrderID,
+		AmountIDR: 50000,
+		Status:    "paid",
+		SponsorID: res.Sponsor.ID,
+	})
+	if err != nil {
+		t.Fatalf("failed to process payment webhook: %v", err)
+	}
+
+	// 5. Status retrieval after payment -> pending_review
+	statusRes2, err := svc.GetSponsorshipStatus(ctx, res.DojoOrderID, res.Sponsor.ID)
+	if err != nil {
+		t.Fatalf("failed to get status after payment: %v", err)
+	}
+	if statusRes2.Status != "pending_review" {
+		t.Errorf("expected status pending_review after payment, got %s", statusRes2.Status)
+	}
+
+	// 6. Owner approves -> approved
+	err = svc.ApproveSponsor(ctx, res.Sponsor.ID, "owner")
+	if err != nil {
+		t.Fatalf("failed to approve sponsor: %v", err)
+	}
+	statusRes3, err := svc.GetSponsorshipStatus(ctx, res.DojoOrderID, res.Sponsor.ID)
+	if err != nil {
+		t.Fatalf("failed to get status after approve: %v", err)
+	}
+	if statusRes3.Status != "approved" {
+		t.Errorf("expected status approved, got %s", statusRes3.Status)
+	}
+}

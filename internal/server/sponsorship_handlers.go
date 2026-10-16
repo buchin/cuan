@@ -169,6 +169,71 @@ func (s *Server) handleSponsorIntake(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, sp)
 }
 
+// handleSponsorCheckout handles PWYW sponsorship intake and creates checkout session.
+func (s *Server) handleSponsorCheckout(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		return
+	}
+
+	var req sponsorship.CreateCheckoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "format json tidak valid: "+err.Error())
+		return
+	}
+
+	result, err := s.sponsorshipSvc.CreateCheckoutSession(r.Context(), req)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, result)
+}
+
+// handleGetSponsorshipStatus returns real-time order and sponsor curation status.
+func (s *Server) handleGetSponsorshipStatus(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		return
+	}
+
+	orderID := r.URL.Query().Get("order_id")
+	sponsorID := r.URL.Query().Get("sponsor_id")
+
+	status, err := s.sponsorshipSvc.GetSponsorshipStatus(r.Context(), orderID, sponsorID)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "gagal memeriksa status sponsorship: "+err.Error())
+		return
+	}
+
+	if !status.Found {
+		respondJSON(w, http.StatusNotFound, status)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, status)
+}
+
+// handleListBatches returns all sponsorship batches for directory archive filtering.
+func (s *Server) handleListBatches(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		return
+	}
+
+	batches, err := s.sponsorshipSvc.ListBatches(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "gagal memuat daftar batch: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"batches": batches,
+		"count":   len(batches),
+	})
+}
+
 // handleListCurrentSponsors lists approved sponsors for public leaderboard (ORDER BY amount DESC, paid_at ASC).
 func (s *Server) handleListCurrentSponsors(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {

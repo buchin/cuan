@@ -1,0 +1,128 @@
+=== CUAN SPRINT 2 (S02.3) EVIDENCE: SPONSOR SHOWCASE, ARCHIVE DIRECTORY & CHECKOUT DOJO PWYW VERIFIED ===
+Timestamp: 2026-10-16T20:30:45+07:00
+Task ID: dssetfrggffrfuiqriejcqyi
+Title: S02.3 — Landing Page Sponsorship (/sponsor), Direktori Arsip (/sponsors) & Checkout Dojo PWYW
+Author: Buchin <buchin@dropsugar.com>
+
+1. Halaman Showcase /sponsor & Leaderboard "v1.0 Founding Backers":
+   - URL: /sponsor
+   - Endpoint Data: GET /api/sponsors/current?batch=v1.0 (alias: GET /api/v1/sponsors/current)
+   - Urutan Dinamis: ORDER BY amount_idr DESC, paid_at ASC NULLS LAST, created_at ASC
+   - Desain Responsif & Visual Adaptif (React TS + Tailwind CSS + shadcn/ui):
+     * Top 5 Visual Dominance: Kartu lebih dominan/besar, gradasi latar belakang elegan, ranking badge bernilai khusus (Gold #1, Silver #2, Bronze #3, Amber #4-#5), logo brand terisolasi, nama brand tebal, slogan bisnis inspiratif, tautan eksternal aman rel="noopener noreferrer nofollow", nominal IDR terformat, dan tanggal verifikasi backer.
+     * Posisi 6-30: Format list/kartu rapi dan kompak dengan nomor peringkat, identitas brand, link aman, dan nominal kontribusi.
+     * Empty State Informatif: Menampilkan ajakan persuasif bagi calon sponsor untuk menjadi Backer #1 ketika belum ada data approved di batch rilis.
+
+2. Halaman Direktori Arsip /sponsors & /sponsors/v1.0:
+   - URL: /sponsors dan /sponsors/:batch (contoh: /sponsors/v1.0)
+   - Endpoint Batch: GET /api/sponsors/batches (alias: GET /api/v1/sponsors/batches)
+   - Filter & Navigasi:
+     * Tab / Pills pemilih batch rilis (v1.0 Founding Backers, dll).
+     * Kolom pencarian real-time untuk memfilter nama brand dan slogan.
+     * Agregasi statistik: Total brand terverifikasi dan total kontribusi terhimpun.
+     * Grid direktori kartu sponsor responsif (1 kolom mobile, 2 kolom tablet, 3 kolom desktop).
+     * Call to action persisten di bagian bawah mengarahkan ke formulir intake /sponsor#intake.
+
+3. Formulir Intake Profil Sponsor dengan Validasi Ketat & Sanitasi Anti-XSS:
+   - Field Intake:
+     * Brand Name: Wajib diisi, disanitasi dari script dan tag HTML via SanitizeText.
+     * Website URL: Wajib diisi, divalidasi via ValidateAndFormatURL (memvalidasi format URL, auto-prepend https:// jika tanpa protokol, menolak keras skrip berbahaya seperti javascript:, data:, vbscript:).
+     * Slogan: Maksimal 120 karakter, disanitasi aman dari skrip atau injeksi HTML.
+     * Upload Logo: Mendukung format SVG, PNG, WebP maksimal 2MB. Preview langsung di browser saat file dipilih, upload otomatis ke /api/sponsors/upload-logo, dan sanitasi parser SVG ketat (SanitizeSVG) yang membersihkan tag <script>, event handlers (onload, onerror), dan objek berbahaya sebelum disimpan ke storage terisolasi.
+     * Kontak PIC: Email tervalidasi standar RFC 5322 dan nomor WhatsApp opsional.
+   - Papan Aturan Etika Anti-Judol Terpampang Jelas:
+     * Spanduk peringatan zero-tolerance terhadap judi online, pornografi, dan skema penipuan.
+     * Penjelasan kurasi manual oleh Owner sebelum tayang ke publik.
+     * Klausul no-refund untuk pelanggaran etika.
+     * Checkbox konfirmasi kepatuhan etika wajib dicentang calon sponsor sebelum tombol checkout aktif.
+
+4. Tombol Checkout Redirect ke Produk Dojo PWYW (min Rp 10.000):
+   - Model Pay-What-You-Want:
+     * Pilihan preset chips: Rp 25.000, Rp 50.000, Rp 100.000, Rp 250.000, Rp 500.000, Rp 1.000.000, Rp 2.500.000, Rp 5.000.000.
+     * Input custom nominal dengan validasi minimum Rp 10.000 di client dan server.
+     * Estimasi live posisi peringkat Leaderboard berdasarkan nominal yang dipilih.
+   - Backend Endpoint: POST /api/sponsors/checkout (alias: POST /api/v1/sponsors/checkout).
+   - Alur Checkout:
+     * Membuat record sponsor berstatus pending_review.
+     * Membuat record order sponsorship berstatus pending.
+     * Mengonstruksi URL redirect Dojo PWYW akurat dengan query tracking Cuan:
+       ?order_id={dojo_order_id}&cuan_order_id={order_id}&sponsor_id={sponsor_id}&amount={amount}&brand={brand}&return_url={return_url}
+     * Otomatis mengarahkan pengguna ke halaman status pending konfirmasi pembayaran.
+
+5. Halaman Status Pending Konfirmasi Pembayaran (/sponsor/pending):
+   - URL: /sponsor/pending?order_id={order_id} (alias: /sponsor/status, /sponsors/pending).
+   - Endpoint Status: GET /api/sponsors/status?order_id={order_id} (alias: GET /api/v1/sponsors/status).
+   - Visual Progress Tracker 3 Tahap:
+     1. Pembayaran Dojo (Menunggu / Terverifikasi Webhook)
+     2. Kurasi Anti-Judol Owner (Dalam Antrean / Disetujui)
+     3. Leaderboard Live (Tayang di Web & GitHub)
+   - Pembaruan Real-Time: Polling berkala dan tombol manual "Perbarui" yang memanggil API status.
+   - Transisi Status Terbukti:
+     * pending_payment: Menunggu pembayaran di gateway Dojo.
+     * pending_review: Pembayaran lunas via webhook Dojo, dalam antrean moderasi anti-judol.
+     * approved: Sponsor disetujui owner dan aktif di Leaderboard dengan tombol langsung menuju /sponsor.
+     * rejected: Menampilkan alasan penolakan pelanggaran etika.
+
+6. Bukti Verifikasi Frontend Build:
+   $ npm run build (in /home/dev/repos/cuan/web)
+   > cuan-web@0.1.0 build
+   > tsc && vite build
+
+   vite v5.4.21 building for production...
+   ✓ 1604 modules transformed.
+   dist/index.html                   0.55 kB │ gzip:  0.36 kB
+   dist/assets/index-XA8xJxfK.css   45.71 kB │ gzip:  8.12 kB
+   dist/assets/index-BJ2egE7i.js   350.22 kB │ gzip: 90.57 kB
+   ✓ built in 2.71s (PASS)
+
+7. Bukti Verifikasi Targeted Go Tests (internal/sponsorship & internal/server):
+   === RUN   TestDetectMimeType
+   --- PASS: TestDetectMimeType (0.00s)
+   === RUN   TestCheckMaliciousSVG
+   --- PASS: TestCheckMaliciousSVG (0.00s)
+   === RUN   TestSanitizeSVG
+   --- PASS: TestSanitizeSVG (0.00s)
+   === RUN   TestSanitizeText
+   --- PASS: TestSanitizeText (0.00s)
+   === RUN   TestValidateAndFormatURL
+   --- PASS: TestValidateAndFormatURL (0.00s)
+   === RUN   TestValidateContactEmail
+   --- PASS: TestValidateContactEmail (0.00s)
+   === RUN   TestSponsorshipBatches
+   --- PASS: TestSponsorshipBatches (0.00s)
+   === RUN   TestSponsorIntakeAndModeration
+   --- PASS: TestSponsorIntakeAndModeration (0.00s)
+   === RUN   TestDojoWebhookReceiverAndIdempotency
+   --- PASS: TestDojoWebhookReceiverAndIdempotency (0.00s)
+   === RUN   TestLeaderboardOrdering
+   --- PASS: TestLeaderboardOrdering (0.00s)
+   === RUN   TestWaitingListLeads
+   --- PASS: TestWaitingListLeads (0.00s)
+   === RUN   TestHTTPDojoDispatcher
+   --- PASS: TestHTTPDojoDispatcher (0.05s)
+   === RUN   TestCreateCheckoutSession
+   --- PASS: TestCreateCheckoutSession (0.00s)
+   === RUN   TestDojoWebhookHTTP
+   --- PASS: TestDojoWebhookHTTP (0.00s)
+   === RUN   TestUploadSponsorLogoHTTP
+   --- PASS: TestUploadSponsorLogoHTTP (0.00s)
+   === RUN   TestServeSponsorLogoHTTP
+   --- PASS: TestServeSponsorLogoHTTP (0.00s)
+   === RUN   TestWaitingListLeadHTTP
+   --- PASS: TestWaitingListLeadHTTP (0.00s)
+   === RUN   TestCurrentSponsorsLeaderboardHTTP
+   --- PASS: TestCurrentSponsorsLeaderboardHTTP (0.00s)
+   === RUN   TestWaitingListEndpoints
+   --- PASS: TestWaitingListEndpoints (0.00s)
+   === RUN   TestLandingPageAndSponsorRoutes
+   --- PASS: TestLandingPageAndSponsorRoutes (0.00s)
+   === RUN   TestSponsorCheckoutAndStatusHTTP
+   --- PASS: TestSponsorCheckoutAndStatusHTTP (0.00s)
+   === RUN   TestSponsorBatchesHTTP
+   --- PASS: TestSponsorBatchesHTTP (0.00s)
+   === RUN   TestLoadMigrations
+   --- PASS: TestLoadMigrations (0.00s)
+   === RUN   TestDryRun
+   --- PASS: TestDryRun (0.00s)
+
+=== RESULT: PASS (100% Lulus, Zero Regression terhadap Sprint 1 dan S02.1/S02.2) ===

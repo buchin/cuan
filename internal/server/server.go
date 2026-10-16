@@ -94,6 +94,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	if cfg.DojoWaitingListWebhookURL != "" {
 		spSvc.SetDojoWebhookURL(cfg.DojoWaitingListWebhookURL)
 	}
+	if cfg.DojoCheckoutURL != "" {
+		spSvc.SetCheckoutBaseURL(cfg.DojoCheckoutURL)
+	}
 
 	s := &Server{
 		cfg:            cfg,
@@ -163,7 +166,10 @@ func (s *Server) routes() {
 	// Public Sponsorship, Waiting List, and Logo Endpoints
 	s.router.Post("/api/sponsors/upload-logo", s.handleUploadSponsorLogo)
 	s.router.Post("/api/sponsors/intake", s.handleSponsorIntake)
+	s.router.Post("/api/sponsors/checkout", s.handleSponsorCheckout)
 	s.router.Get("/api/sponsors/current", s.handleListCurrentSponsors)
+	s.router.Get("/api/sponsors/status", s.handleGetSponsorshipStatus)
+	s.router.Get("/api/sponsors/batches", s.handleListBatches)
 	s.router.Post("/api/leads", s.handleCreateLead)
 	s.router.Post("/api/waiting-list", s.handleCreateLead)
 	s.router.Get("/uploads/sponsors/logos/*", s.handleServeSponsorLogo)
@@ -182,7 +188,10 @@ func (s *Server) routes() {
 		// Public sponsorship endpoints in v1
 		r.Post("/sponsors/upload-logo", s.handleUploadSponsorLogo)
 		r.Post("/sponsors/intake", s.handleSponsorIntake)
+		r.Post("/sponsors/checkout", s.handleSponsorCheckout)
 		r.Get("/sponsors/current", s.handleListCurrentSponsors)
+		r.Get("/sponsors/status", s.handleGetSponsorshipStatus)
+		r.Get("/sponsors/batches", s.handleListBatches)
 		r.Post("/leads", s.handleCreateLead)
 		r.Post("/waiting-list", s.handleCreateLead)
 

@@ -1,6 +1,8 @@
 import { useEffect, useState, FormEvent } from 'react'
 import { LandingPage } from './components/landing/LandingPage'
-import { SponsorBridge } from './components/sponsor/SponsorBridge'
+import { SponsorShowcase } from './components/sponsor/SponsorShowcase'
+import { SponsorArchive } from './components/sponsor/SponsorArchive'
+import { SponsorPending } from './components/sponsor/SponsorPending'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './components/ui/card'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
@@ -996,8 +998,24 @@ export function App() {
     return <LandingPage onNavigate={navigate} />
   }
 
-  if (currentPath === '/sponsor' || currentPath === '/sponsors') {
-    return <SponsorBridge onNavigate={navigate} />
+  // Sponsorship Pending Confirmation Route
+  if (
+    currentPath === '/sponsor/pending' ||
+    currentPath === '/sponsors/pending' ||
+    currentPath === '/sponsor/status' ||
+    (currentPath === '/sponsor' && window.location.search.includes('status='))
+  ) {
+    return <SponsorPending onNavigate={navigate} />
+  }
+
+  // Sponsorship Showcase Route (/sponsor)
+  if (currentPath === '/sponsor') {
+    return <SponsorShowcase onNavigate={navigate} />
+  }
+
+  // Sponsorship Archive & Directory Route (/sponsors and /sponsors/:batch)
+  if (currentPath === '/sponsors' || currentPath.startsWith('/sponsors/')) {
+    return <SponsorArchive onNavigate={navigate} />
   }
 
   if (loading && setupRequired === null) {
