@@ -70,6 +70,7 @@ type DeploymentRequest struct {
 	Slug         string                 `json:"slug"`
 	SourceType   string                 `json:"source_type"` // 'zip', 'git'
 	SourceRef    string                 `json:"source_ref"`
+	Branch       string                 `json:"branch,omitempty"`
 	Runtime      string                 `json:"runtime"` // optional; auto-detected if empty or 'custom'
 	InternalPort int                    `json:"internal_port"`
 	Domain       string                 `json:"domain"`

@@ -4,6 +4,7 @@ import { SponsorShowcase } from './components/sponsor/SponsorShowcase'
 import { SponsorArchive } from './components/sponsor/SponsorArchive'
 import { SponsorPending } from './components/sponsor/SponsorPending'
 import { AdminSponsorPanel } from './components/sponsor/AdminSponsorPanel'
+import { StudioDashboard } from './components/studio/StudioDashboard'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './components/ui/card'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
@@ -44,7 +45,8 @@ import {
   RotateCcw,
   Square,
   Terminal,
-  Activity
+  Activity,
+  Sparkles
 } from 'lucide-react'
 
 interface OwnerInfo {
@@ -1025,6 +1027,11 @@ export function App() {
     return <SponsorArchive onNavigate={navigate} />
   }
 
+  // Studio Dashboard & Universal Deployer Route (/studio)
+  if (currentPath === '/studio' || currentPath.startsWith('/studio/')) {
+    return <StudioDashboard onNavigate={navigate} />
+  }
+
   if (loading && setupRequired === null) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -1310,6 +1317,16 @@ export function App() {
           >
             <ShieldCheck className="h-4 w-4 text-emerald-500" />
             Kurasi Sponsor Anti-Judol (/admin/sponsors)
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/studio')}
+            className="gap-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
+          >
+            <Sparkles className="h-4 w-4 text-emerald-600" />
+            Studio Deployer (/studio)
           </Button>
 
           <Button

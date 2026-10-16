@@ -149,11 +149,18 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
               Founding Sponsor
             </button>
             <button
+              onClick={() => onNavigate('/studio')}
+              className="hover:text-emerald-400 transition-colors text-slate-300 font-medium flex items-center gap-1"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              Studio Deployer
+            </button>
+            <button
               onClick={() => onNavigate('/app')}
               className="hover:text-white transition-colors text-slate-400 flex items-center gap-1"
             >
               <Lock className="h-3.5 w-3.5" />
-              Studio Dashboard
+              Owner Console
             </button>
           </div>
 
@@ -212,12 +219,22 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             <button
               onClick={() => {
                 setMobileMenuOpen(false)
+                onNavigate('/studio')
+              }}
+              className="w-full text-left py-2 text-sm text-emerald-400 font-medium flex items-center gap-1.5"
+            >
+              <Sparkles className="h-4 w-4" />
+              Studio Deployer (/studio)
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false)
                 onNavigate('/app')
               }}
               className="w-full text-left py-2 text-sm text-slate-300 flex items-center gap-1.5"
             >
               <Lock className="h-4 w-4" />
-              Masuk ke Studio Dashboard
+              Owner Console (/admin)
             </button>
             <div className="pt-2">
               <a
@@ -671,8 +688,11 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             <button onClick={() => onNavigate('/sponsors')} className="hover:text-emerald-400 transition-colors">
               Direktori Backers
             </button>
+            <button onClick={() => onNavigate('/studio')} className="hover:text-emerald-400 text-emerald-400 transition-colors font-semibold">
+              Studio Deployer
+            </button>
             <button onClick={() => onNavigate('/app')} className="hover:text-emerald-400 transition-colors">
-              Studio Dashboard
+              Console
             </button>
             <a
               href="https://github.com/buchin/cuan"

@@ -18,6 +18,7 @@ import (
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/config"
+	"github.com/buchin/cuan/internal/deployer"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
@@ -33,6 +34,7 @@ type Server struct {
 	taskSvc        *task.Service
 	runnerSvc      *runner.RunnerService
 	sponsorshipSvc *sponsorship.Service
+	deployerDriver deployer.DeployDriver
 	router         *chi.Mux
 }
 
@@ -108,6 +110,24 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		spSvc.SetSyncer(syncer)
 	}
 
+	var depStore deployer.Store
+	if db != nil {
+		depStore = deployer.NewDBStore(db)
+	} else {
+		depStore = deployer.NewMemoryStore()
+	}
+	deploymentsDir := filepath.Join("data", "deployments")
+	depStorage, _ := deployer.NewStorageEngine(deploymentsDir)
+	caddyCfg := deployer.DefaultCaddyConfig()
+	if cfg.BaseDomain != "" {
+		caddyCfg.BaseDomain = cfg.BaseDomain
+	}
+	if cfg.CaddyAdminURL != "" {
+		caddyCfg.AdminURL = cfg.CaddyAdminURL
+	}
+	caddyRouter := deployer.NewCaddyRouter(caddyCfg)
+	depDriver := deployer.NewLocalDriverWithRouter(depStorage, depStore, deployer.NewPortPool(), caddyRouter)
+
 	s := &Server{
 		cfg:            cfg,
 		db:             db,
@@ -116,6 +136,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		taskSvc:        tSvc,
 		runnerSvc:      rSvc,
 		sponsorshipSvc: spSvc,
+		deployerDriver: depDriver,
 		router:         r,
 	}
 
@@ -164,6 +185,15 @@ func (s *Server) SetSponsorshipService(svc *sponsorship.Service) {
 	s.sponsorshipSvc = svc
 }
 
+func (s *Server) DeployerDriver() deployer.DeployDriver {
+	return s.deployerDriver
+}
+
+func (s *Server) SetDeployerDriver(d deployer.DeployDriver) {
+	s.deployerDriver = d
+}
+
+
 
 func (s *Server) routes() {
 	// Public Health & Readiness
@@ -184,6 +214,19 @@ func (s *Server) routes() {
 	s.router.Post("/api/waiting-list", s.handleCreateLead)
 	s.router.Get("/uploads/sponsors/logos/*", s.handleServeSponsorLogo)
 
+	// Studio Deployments Engine Endpoints (Sprint 3)
+	s.router.Get("/api/deployments", s.handleListDeployments)
+	s.router.Post("/api/deployments/upload", s.handleUploadDeploymentZip)
+	s.router.Post("/api/deployments/git", s.handleCreateDeploymentGit)
+	s.router.Post("/api/deployments", s.handleCreateDeployment)
+	s.router.Get("/api/deployments/{id}", s.handleGetDeployment)
+	s.router.Post("/api/deployments/{id}/start", s.handleStartDeployment)
+	s.router.Post("/api/deployments/{id}/stop", s.handleStopDeployment)
+	s.router.Post("/api/deployments/{id}/restart", s.handleRestartDeployment)
+	s.router.Delete("/api/deployments/{id}", s.handleDeleteDeployment)
+	s.router.Get("/api/deployments/{id}/logs", s.handleGetDeploymentLogs)
+	s.router.Get("/api/deployments/{id}/health", s.handleGetDeploymentHealth)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -193,6 +236,21 @@ func (s *Server) routes() {
 		ar.Post("/api/admin/sponsors/sync-readme", s.handleAdminSyncReadme)
 		ar.Get("/api/admin/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
 		ar.Get("/api/admin/leads", s.handleAdminListLeads)
+	})
+
+	// Studio Deployments route group in /api/v1
+	s.router.Route("/api/v1/deployments", func(dr chi.Router) {
+		dr.Get("/", s.handleListDeployments)
+		dr.Post("/upload", s.handleUploadDeploymentZip)
+		dr.Post("/git", s.handleCreateDeploymentGit)
+		dr.Post("/", s.handleCreateDeployment)
+		dr.Get("/{id}", s.handleGetDeployment)
+		dr.Post("/{id}/start", s.handleStartDeployment)
+		dr.Post("/{id}/stop", s.handleStopDeployment)
+		dr.Post("/{id}/restart", s.handleRestartDeployment)
+		dr.Delete("/{id}", s.handleDeleteDeployment)
+		dr.Get("/{id}/logs", s.handleGetDeploymentLogs)
+		dr.Get("/{id}/health", s.handleGetDeploymentHealth)
 	})
 
 	s.router.Route("/api/v1", func(r chi.Router) {

@@ -140,10 +140,23 @@ func (d *LocalDriver) Deploy(ctx context.Context, req DeploymentRequest) (*Deplo
 		}
 		detectedRuntime = rt
 		appDir = extracted
+	} else if req.SourceType == SourceTypeGit && req.SourceRef != "" {
+		appDir = d.storage.GetAppDir(req.ID)
+		if err := cloneGitRepository(ctx, req.SourceRef, req.Branch, appDir); err != nil {
+			return nil, err
+		}
+		rt, err := DetectRuntime(appDir)
+		if err == nil && rt != "" {
+			detectedRuntime = rt
+		}
 	} else {
 		// Just ensure app directory exists
 		if _, err := d.storage.PrepareDeploymentDir(req.ID); err != nil {
 			return nil, err
+		}
+		rt, err := DetectRuntime(appDir)
+		if err == nil && rt != "" {
+			detectedRuntime = rt
 		}
 	}
 
@@ -765,5 +778,52 @@ func FileExists(p string) bool {
 	return err == nil && !info.IsDir()
 }
 
+// List retrieves all deployments from the underlying store.
+func (d *LocalDriver) List(ctx context.Context) ([]Deployment, error) {
+	return d.store.ListDeployments(ctx)
+}
+
+// Get retrieves an individual deployment record by its ID.
+func (d *LocalDriver) Get(ctx context.Context, id string) (*Deployment, error) {
+	return d.store.GetDeployment(ctx, id)
+}
+
+// cloneGitRepository performs a shallow git clone into targetDir.
+func cloneGitRepository(ctx context.Context, repoURL, branch, targetDir string) error {
+	_ = os.RemoveAll(targetDir)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("create target directory: %w", err)
+	}
+
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		return fmt.Errorf("git binary not found in PATH: %w", err)
+	}
+
+	actualURL := repoURL
+	actualBranch := branch
+	if actualBranch == "" && strings.Contains(actualURL, "#") {
+		parts := strings.SplitN(actualURL, "#", 2)
+		actualURL = parts[0]
+		actualBranch = parts[1]
+	}
+
+	args := []string{"clone", "--depth", "1"}
+	if actualBranch != "" {
+		args = append(args, "-b", actualBranch)
+	}
+	args = append(args, actualURL, targetDir)
+
+	cmd := exec.CommandContext(ctx, gitBin, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git clone failed: %w (output: %s)", err, out.String())
+	}
+	return nil
+}
+
 // Ensure interface compliance at compile-time
 var _ DeployDriver = (*LocalDriver)(nil)
+
