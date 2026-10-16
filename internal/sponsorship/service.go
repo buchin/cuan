@@ -1,12 +1,15 @@
 package sponsorship
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/mail"
 	"net/url"
 	"strings"
@@ -49,10 +52,67 @@ type CreateOrderRequest struct {
 	Status      string  `json:"status,omitempty"`
 }
 
+// DojoDispatcher defines interface for forwarding waiting list signups to Dojo.
+type DojoDispatcher interface {
+	DispatchWaitingListSignup(ctx context.Context, lead *WaitingListLead) error
+}
+
+// HTTPDojoDispatcher dispatches waiting list signups to Dojo webhook over HTTP.
+type HTTPDojoDispatcher struct {
+	WebhookURL    string
+	WebhookSecret string
+	Client        *http.Client
+}
+
+func (d *HTTPDojoDispatcher) DispatchWaitingListSignup(ctx context.Context, lead *WaitingListLead) error {
+	if d.WebhookURL == "" {
+		return nil
+	}
+	payload := map[string]interface{}{
+		"event":         "waiting_list.signup",
+		"lead_id":       lead.ID,
+		"email":         lead.Email,
+		"source":        lead.Source,
+		"timestamp":     lead.CreatedAt.UTC().Format(time.RFC3339),
+		"action":        "send_welcome_email",
+		"trigger_email": true,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.WebhookURL, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Cuan-WaitingList/1.0")
+	if d.WebhookSecret != "" {
+		req.Header.Set("X-Dojo-Secret", d.WebhookSecret)
+		req.Header.Set("Authorization", "Bearer "+d.WebhookSecret)
+	}
+
+	client := d.Client
+	if client == nil {
+		client = &http.Client{Timeout: 5 * time.Second}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("dojo webhook error: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("dojo webhook rejected with status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 type Service struct {
-	store         Store
-	logoStorage   *LogoStorage
-	webhookSecret string
+	store          Store
+	logoStorage    *LogoStorage
+	webhookSecret  string
+	dojoWebhookURL string
+	dojoDispatcher DojoDispatcher
 }
 
 func NewService(store Store, logoStorage *LogoStorage, webhookSecret string) *Service {
@@ -69,6 +129,36 @@ func (s *Service) WebhookSecret() string {
 
 func (s *Service) SetWebhookSecret(secret string) {
 	s.webhookSecret = strings.TrimSpace(secret)
+	if s.dojoWebhookURL != "" {
+		s.dojoDispatcher = &HTTPDojoDispatcher{
+			WebhookURL:    s.dojoWebhookURL,
+			WebhookSecret: s.webhookSecret,
+		}
+	}
+}
+
+func (s *Service) SetDojoDispatcher(dispatcher DojoDispatcher) {
+	s.dojoDispatcher = dispatcher
+}
+
+func (s *Service) DojoDispatcher() DojoDispatcher {
+	return s.dojoDispatcher
+}
+
+func (s *Service) SetDojoWebhookURL(url string) {
+	s.dojoWebhookURL = strings.TrimSpace(url)
+	if s.dojoWebhookURL != "" {
+		s.dojoDispatcher = &HTTPDojoDispatcher{
+			WebhookURL:    s.dojoWebhookURL,
+			WebhookSecret: s.webhookSecret,
+		}
+	} else {
+		s.dojoDispatcher = nil
+	}
+}
+
+func (s *Service) DojoWebhookURL() string {
+	return s.dojoWebhookURL
 }
 
 func (s *Service) LogoStorage() *LogoStorage {
@@ -390,7 +480,15 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 // Waiting List
 func (s *Service) SubmitWaitingListLead(ctx context.Context, email, source string) (*WaitingListLead, error) {
 	trimmedEmail := strings.TrimSpace(email)
-	if _, err := mail.ParseAddress(trimmedEmail); err != nil {
+	if trimmedEmail == "" || len(trimmedEmail) > 254 {
+		return nil, ErrInvalidEmail
+	}
+	addr, err := mail.ParseAddress(trimmedEmail)
+	if err != nil || addr.Address != trimmedEmail {
+		return nil, ErrInvalidEmail
+	}
+	parts := strings.Split(trimmedEmail, "@")
+	if len(parts) != 2 || !strings.Contains(parts[1], ".") || strings.HasPrefix(parts[1], ".") || strings.HasSuffix(parts[1], ".") {
 		return nil, ErrInvalidEmail
 	}
 
@@ -408,6 +506,11 @@ func (s *Service) SubmitWaitingListLead(ctx context.Context, email, source strin
 
 	if err := s.store.CreateLead(ctx, lead); err != nil {
 		return nil, fmt.Errorf("save waiting list lead: %w", err)
+	}
+
+	// Forward to Dojo webhook if configured
+	if s.dojoDispatcher != nil {
+		_ = s.dojoDispatcher.DispatchWaitingListSignup(ctx, lead)
 	}
 
 	return lead, nil

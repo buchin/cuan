@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,8 @@ func setupTestServerWithSponsorship(t *testing.T) (*Server, func()) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
+
+	_ = os.WriteFile(filepath.Join(tempDir, "index.html"), []byte("<!DOCTYPE html><html><body><div id=\"root\">Cuan Landing Page</div></body></html>"), 0644)
 
 	cfg := &config.Config{
 		Environment:       "test",
@@ -350,6 +353,122 @@ func TestCurrentSponsorsLeaderboardHTTP(t *testing.T) {
 	_ = json.NewDecoder(rec.Body).Decode(&respAfter)
 	if int(respAfter["total"].(float64)) != 1 {
 		t.Fatalf("expected 1 sponsor on leaderboard, got %v", respAfter["total"])
+	}
+}
+
+func TestWaitingListEndpoints(t *testing.T) {
+	s, cleanup := setupTestServerWithSponsorship(t)
+	defer cleanup()
+
+	// 1. Test POST /api/waiting-list (valid email)
+	body := map[string]string{
+		"email":  "indie.founder@example.com",
+		"source": "hero_cta",
+	}
+	b, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/waiting-list", bytes.NewReader(b))
+	rec := httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on /api/waiting-list, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["status"] != "success" {
+		t.Errorf("expected status 'success', got %v", resp["status"])
+	}
+	leadMap, ok := resp["lead"].(map[string]interface{})
+	if !ok || leadMap["email"] != "indie.founder@example.com" {
+		t.Errorf("expected lead email indie.founder@example.com, got %v", leadMap)
+	}
+
+	// 2. Test alias POST /api/v1/waiting-list
+	body2 := map[string]string{
+		"email":  "member.dojo@dropsugar.com",
+		"source": "footer_cta",
+	}
+	b2, _ := json.Marshal(body2)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/waiting-list", bytes.NewReader(b2))
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on /api/v1/waiting-list, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 3. Test alias POST /api/leads
+	body3 := map[string]string{
+		"email":  "developer@indiehacker.id",
+		"source": "landing_page",
+	}
+	b3, _ := json.Marshal(body3)
+	req = httptest.NewRequest(http.MethodPost, "/api/leads", bytes.NewReader(b3))
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on /api/leads, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 4. Test invalid email format rejection (400 Bad Request)
+	badBody := map[string]string{
+		"email": "not-an-email",
+	}
+	badB, _ := json.Marshal(badBody)
+	req = httptest.NewRequest(http.MethodPost, "/api/waiting-list", bytes.NewReader(badB))
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on invalid email, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 5. Test empty email rejection (400 Bad Request)
+	emptyBody := map[string]string{
+		"email": "   ",
+	}
+	emptyB, _ := json.Marshal(emptyBody)
+	req = httptest.NewRequest(http.MethodPost, "/api/waiting-list", bytes.NewReader(emptyB))
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on empty email, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestLandingPageAndSponsorRoutes(t *testing.T) {
+	s, cleanup := setupTestServerWithSponsorship(t)
+	defer cleanup()
+
+	// 1. Root route /
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /, got %d", rec.Code)
+	}
+
+	// 2. /sponsor route (SPA fallback)
+	req = httptest.NewRequest(http.MethodGet, "/sponsor", nil)
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /sponsor, got %d", rec.Code)
+	}
+
+	// 3. /sponsors route (SPA fallback)
+	req = httptest.NewRequest(http.MethodGet, "/sponsors", nil)
+	rec = httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /sponsors, got %d", rec.Code)
 	}
 }
 

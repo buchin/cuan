@@ -217,9 +217,10 @@ func (s *Server) handleCreateLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
-		"status":  "success",
-		"message": "Terima kasih telah bergabung di Waiting List Cuan v1.0",
-		"lead":    lead,
+		"status":         "success",
+		"message":        "Terima kasih telah bergabung di Waiting List Cuan v1.0",
+		"lead":           lead,
+		"dojo_forwarded": s.sponsorshipSvc.DojoDispatcher() != nil,
 	})
 }
 

@@ -2,7 +2,11 @@ package sponsorship
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -311,27 +315,110 @@ func TestWaitingListLeads(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Valid lead
-	lead, err := svc.SubmitWaitingListLead(ctx, "prospect@example.com", "hero_cta")
+	// 1. Mock dispatcher to verify Dojo forwarding
+	var dispatchedLead *WaitingListLead
+	mockDispatcher := &testMockDispatcher{
+		onDispatch: func(lead *WaitingListLead) {
+			dispatchedLead = lead
+		},
+	}
+	svc.SetDojoDispatcher(mockDispatcher)
+
+	// Valid lead with spaces that should be trimmed
+	lead, err := svc.SubmitWaitingListLead(ctx, "   prospect@example.com   ", "hero_cta")
 	if err != nil {
 		t.Fatalf("failed to submit lead: %v", err)
 	}
 	if lead.Email != "prospect@example.com" {
-		t.Fatalf("expected email match, got %s", lead.Email)
+		t.Fatalf("expected email trimmed match, got %s", lead.Email)
 	}
 	if lead.Status != LeadStatusPending {
 		t.Fatalf("expected status pending, got %s", lead.Status)
 	}
-
-	// Invalid email
-	_, err = svc.SubmitWaitingListLead(ctx, "invalid-email", "hero_cta")
-	if err != ErrInvalidEmail {
-		t.Fatalf("expected ErrInvalidEmail, got %v", err)
+	if dispatchedLead == nil || dispatchedLead.Email != "prospect@example.com" {
+		t.Fatalf("expected mock dispatcher to receive dispatched lead, got %v", dispatchedLead)
 	}
 
-	// List leads
+	// 2. Strict email validation test table
+	invalidEmails := []string{
+		"",
+		"   ",
+		"invalid-email",
+		"@nodomain.com",
+		"user@",
+		"user@domain",
+		"user@.com",
+		"user@domain.",
+		"user name@domain.com",
+		strings.Repeat("a", 250) + "@domain.com",
+	}
+
+	for _, badEmail := range invalidEmails {
+		_, err := svc.SubmitWaitingListLead(ctx, badEmail, "hero_cta")
+		if err != ErrInvalidEmail {
+			t.Errorf("expected ErrInvalidEmail for %q, got %v", badEmail, err)
+		}
+	}
+
+	// 3. List leads
 	leads, err := svc.ListWaitingListLeads(ctx)
 	if err != nil || len(leads) != 1 {
 		t.Fatalf("expected 1 lead in store, got %d, err: %v", len(leads), err)
+	}
+}
+
+type testMockDispatcher struct {
+	onDispatch func(lead *WaitingListLead)
+}
+
+func (m *testMockDispatcher) DispatchWaitingListSignup(ctx context.Context, lead *WaitingListLead) error {
+	if m.onDispatch != nil {
+		m.onDispatch(lead)
+	}
+	return nil
+}
+
+func TestHTTPDojoDispatcher(t *testing.T) {
+	var receivedHeaderSecret string
+	var receivedBody map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaderSecret = r.Header.Get("X-Dojo-Secret")
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	dispatcher := &HTTPDojoDispatcher{
+		WebhookURL:    server.URL,
+		WebhookSecret: "test-secret-456",
+		Client:        server.Client(),
+	}
+
+	lead := &WaitingListLead{
+		ID:        "lead_test_01",
+		Email:     "developer@cuan.co",
+		Source:    "landing_page",
+		Status:    LeadStatusPending,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	err := dispatcher.DispatchWaitingListSignup(context.Background(), lead)
+	if err != nil {
+		t.Fatalf("expected dispatcher success, got %v", err)
+	}
+
+	if receivedHeaderSecret != "test-secret-456" {
+		t.Errorf("expected secret header 'test-secret-456', got %s", receivedHeaderSecret)
+	}
+	if receivedBody["event"] != "waiting_list.signup" {
+		t.Errorf("expected event waiting_list.signup, got %v", receivedBody["event"])
+	}
+	if receivedBody["email"] != "developer@cuan.co" {
+		t.Errorf("expected email developer@cuan.co, got %v", receivedBody["email"])
+	}
+	if receivedBody["action"] != "send_welcome_email" {
+		t.Errorf("expected action send_welcome_email, got %v", receivedBody["action"])
 	}
 }

@@ -91,6 +91,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 	logoStorage, _ := sponsorship.NewLogoStorage(logosDir)
 	spSvc := sponsorship.NewService(spStore, logoStorage, cfg.DojoWebhookSecret)
+	if cfg.DojoWaitingListWebhookURL != "" {
+		spSvc.SetDojoWebhookURL(cfg.DojoWaitingListWebhookURL)
+	}
 
 	s := &Server{
 		cfg:            cfg,
@@ -162,6 +165,7 @@ func (s *Server) routes() {
 	s.router.Post("/api/sponsors/intake", s.handleSponsorIntake)
 	s.router.Get("/api/sponsors/current", s.handleListCurrentSponsors)
 	s.router.Post("/api/leads", s.handleCreateLead)
+	s.router.Post("/api/waiting-list", s.handleCreateLead)
 	s.router.Get("/uploads/sponsors/logos/*", s.handleServeSponsorLogo)
 
 	s.router.Route("/api/v1", func(r chi.Router) {
@@ -180,6 +184,7 @@ func (s *Server) routes() {
 		r.Post("/sponsors/intake", s.handleSponsorIntake)
 		r.Get("/sponsors/current", s.handleListCurrentSponsors)
 		r.Post("/leads", s.handleCreateLead)
+		r.Post("/waiting-list", s.handleCreateLead)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {

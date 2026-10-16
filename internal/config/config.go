@@ -27,8 +27,9 @@ type Config struct {
 	GitAuthorEmail      string
 	WorkspacesDir       string
 	AppVersion          string
-	DojoWebhookSecret   string
-	SponsorLogosDir     string
+	DojoWebhookSecret         string
+	DojoWaitingListWebhookURL string
+	SponsorLogosDir           string
 }
 
 func Load() *Config {
@@ -45,6 +46,7 @@ func Load() *Config {
 	workspacesDir := getEnv("CUAN_WORKSPACES_DIR", "data/workspaces")
 	appVersion := getEnv("CUAN_APP_VERSION", "0.1.0")
 	dojoWebhookSecret := getEnv("DOJO_WEBHOOK_SECRET", "dev-dojo-secret")
+	dojoWaitingListWebhookURL := getEnv("DOJO_WAITING_LIST_WEBHOOK_URL", "")
 	sponsorLogosDir := getEnv("CUAN_SPONSOR_LOGOS_DIR", "data/sponsors/logos")
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
@@ -104,9 +106,10 @@ func Load() *Config {
 		GitAuthorName:       gitAuthorName,
 		GitAuthorEmail:      gitAuthorEmail,
 		WorkspacesDir:       workspacesDir,
-		AppVersion:          appVersion,
-		DojoWebhookSecret:   dojoWebhookSecret,
-		SponsorLogosDir:     sponsorLogosDir,
+		AppVersion:                appVersion,
+		DojoWebhookSecret:         dojoWebhookSecret,
+		DojoWaitingListWebhookURL: dojoWaitingListWebhookURL,
+		SponsorLogosDir:           sponsorLogosDir,
 	}
 }
 

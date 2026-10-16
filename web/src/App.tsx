@@ -1,4 +1,6 @@
 import { useEffect, useState, FormEvent } from 'react'
+import { LandingPage } from './components/landing/LandingPage'
+import { SponsorBridge } from './components/sponsor/SponsorBridge'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './components/ui/card'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
@@ -166,6 +168,21 @@ interface LogRecord {
 }
 
 export function App() {
+  const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/')
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname || '/')
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const navigate = (path: string) => {
+    window.history.pushState({}, '', path)
+    setCurrentPath(path)
+  }
+
   const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
   const [owner, setOwner] = useState<OwnerInfo | null>(null)
   const [token, setToken] = useState<string>(() => localStorage.getItem('cuan_token') || '')
@@ -974,6 +991,15 @@ export function App() {
     }
   }
 
+  // Public Landing Page & Sponsorship routes (Zero Layout Shift)
+  if (currentPath === '/' || currentPath === '/home') {
+    return <LandingPage onNavigate={navigate} />
+  }
+
+  if (currentPath === '/sponsor' || currentPath === '/sponsors') {
+    return <SponsorBridge onNavigate={navigate} />
+  }
+
   if (loading && setupRequired === null) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -1060,7 +1086,7 @@ export function App() {
                   </p>
                 </div>
               </CardContent>
-              <CardFooter className="pt-2">
+              <CardFooter className="pt-2 flex flex-col gap-2">
                 <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={authLoading}>
                   {authLoading ? (
                     <>
@@ -1071,6 +1097,13 @@ export function App() {
                     'Inisialisasi & Amankan Instance'
                   )}
                 </Button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="text-xs text-slate-500 hover:text-slate-800 underline pt-1"
+                >
+                  ← Kembali ke Landing Page
+                </button>
               </CardFooter>
             </form>
           </Card>
@@ -1141,7 +1174,7 @@ export function App() {
                   <span>PostgreSQL Persistent</span>
                 </div>
               </CardContent>
-              <CardFooter className="pt-2">
+              <CardFooter className="pt-2 flex flex-col gap-2">
                 <Button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white" disabled={authLoading}>
                   {authLoading ? (
                     <>
@@ -1152,6 +1185,13 @@ export function App() {
                     'Masuk ke Dashboard'
                   )}
                 </Button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="text-xs text-slate-500 hover:text-slate-800 underline pt-1"
+                >
+                  ← Kembali ke Landing Page
+                </button>
               </CardFooter>
             </form>
           </Card>
@@ -1171,18 +1211,23 @@ export function App() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-black tracking-tight text-slate-900">Cuan</h1>
               <Badge variant="success" className="text-xs uppercase">
-                Sprint 1: Running
+                Sprint 2: Running
               </Badge>
-              <Badge variant="outline" className="text-xs font-mono bg-blue-50 text-blue-700 border-blue-200">
-                T3: GitHub Existing Repo
+              <Badge variant="outline" className="text-xs font-mono bg-emerald-50 text-emerald-700 border-emerald-200">
+                S02.2: Landing Page PAS
               </Badge>
             </div>
             <p className="text-xs text-slate-500">
-              Agentic project management for self-hosted teams. Develop Cuan using Cuan.
+              Digital Project Studio for self-hosted teams. Develop Cuan using Cuan.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => navigate('/')} className="gap-1.5 text-xs text-slate-700 hover:text-emerald-700">
+              <Globe className="h-3.5 w-3.5 text-emerald-600" />
+              Landing Page (/)
+            </Button>
+
             <div className="text-right hidden sm:block">
               <div className="text-xs font-bold text-slate-800">{owner.email}</div>
               <div className="text-[11px] text-emerald-600 font-medium">Owner Terautentikasi</div>
