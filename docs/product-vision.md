@@ -7,15 +7,15 @@
 * **Kategori Industri (Category King):** **Digital Project Studio**
 * **Brand Statement:**
   > **Cuan: Digital Project Studio for Entrepreneurs**
-* **Positioning untuk Pengguna:** Mengelola **aset digital (digital assets)** — website, WordPress, aplikasi, dan web tools — dalam satu tempat. Istilah **Digital Project Studio** tetap menjadi kategori produk; objek utama pada antarmuka pengguna disebut **Asset**.
+* **Positioning untuk Pengguna:** Membangun, meluncurkan, dan mengelola **digital projects** — website, WordPress, aplikasi, dan web tools — dalam satu tempat. **Digital Project Studio** menjadi kategori produk; objek utama pada antarmuka pengguna disebut **Project**. Istilah **digital projects** dipilih agar familiar dan menghindari asosiasi kripto/NFT dari istilah **digital assets**. Istilah aset tetap digunakan saat membahas nilai bisnis, kepemilikan, dan portabilitas.
 * **Headline (English):**
-  > **Build, manage, and grow your digital assets.**
+  > **Build, launch, and manage your digital projects.**
 * **Headline (Bahasa Indonesia):**
-  > **Bangun, kelola, dan kembangkan aset digital ente.**
+  > **Bangun, luncurkan, dan kelola proyek digital ente.**
 * **Sub-deskripsi (Hero Copywriting):**
   > *"Launch the scripts you bought, update your websites with AI, and manage everything in one place—without the technical headaches."*
 * **Dasar Copywriting:** Subheadline menjawab script terbeli yang belum bisa dijalankan, ketergantungan pada bantuan teknis untuk perubahan website, dan aset yang tercecer. Pesan utama berfokus pada hasil bagi pengguna, bukan pengaturan task dan pelacakan progres.
-* **Istilah Dashboard:** Gunakan **New Asset** untuk menambahkan website/aplikasi yang dikelola. Judul form: **What are you building?** Istilah **project** dapat digunakan untuk pekerjaan pengembangan di dalam aset, misalnya rilis versi baru atau redesign. Ini adalah arah UX untuk planning berikutnya; bukan perubahan scope sprint yang sedang running atau klaim UI yang sudah tersedia.
+* **Istilah Dashboard:** Gunakan **New Project** untuk menambahkan website/aplikasi yang dikelola. Judul form: **What are you building?** Pekerjaan pengembangan di dalam project, misalnya rilis versi baru atau redesign, dikelola sebagai task. Arahan copy dan UX ini tidak menambah scope sprint yang sedang running atau mengklaim fitur roadmap sudah tersedia.
 
 ---
 
@@ -37,7 +37,7 @@
 
 ## 4. Nilai Inti Produk: "Project-Based with Clear Progress"
 
-Cuan memperlakukan setiap aset digital sebagai **1 Asset** mandiri pada antarmuka pengguna. Fondasi teknis saat ini menggunakan entitas `project`; perubahan istilah UI tidak dengan sendirinya mengubah model data atau API:
+Cuan memperlakukan setiap website/aplikasi yang dikelola sebagai **1 Project** mandiri pada antarmuka pengguna, konsisten dengan entitas teknis `project`. Project tersebut merupakan aset bisnis milik pengguna:
 * **Universal Input (GitHub BUKAN Keharusan):**
   - Pengguna non-tech cukup **Upload ZIP** (file script/theme dari CodeCanyon/Dojo/Envato) atau pilih **1-Click Blueprint**.
   - GitHub bersifat **opsional**; pengguna dapat menghubungkan repo yang sudah dimiliki atau memilih menyimpan salinan kode ke akun GitHub pribadi melalui onboarding yang dipandu.
@@ -71,7 +71,7 @@ Prinsip produk: **pengguna dapat meninggalkan Cuan dengan membawa kode, data, da
   Membangun arsitektur Go backend, runner agent headless yang cancelable, persistent queue/lease, integrasi Git/GitHub, Docker compose, dan Task Board. Sprint 1 adalah fondasi teknis yang wajib ada agar engine Cuan stabil dan aman.
 * **Sprint 2+ (Lapisan Studio & Non-Tech UX):**
   Membangun lapisan antarmuka *Digital Project Studio*:
-  - Fitur New Asset: Upload ZIP pihak ketiga & template blueprint (Web Tool, Content/AdSense, dsb.).
+  - Fitur New Project: Upload ZIP pihak ketiga & template blueprint (Web Tool, Content/AdSense, dsb.).
   - Visual environment editor (pengganti edit `.env` manual).
   - Multi-project portfolio overview & status health monitor.
   - Conversational customizer interface.
