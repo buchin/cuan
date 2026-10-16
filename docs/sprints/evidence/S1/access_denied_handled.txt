@@ -1,0 +1,90 @@
+=== BUKTI VERIFIKASI DOD T3: INFORMATIVE ERROR HANDLING (404 & 401/403) ===
+Sprint: S1 (T3 — Hubungkan repository GitHub existing)
+Timestamp: 2026-10-16T14:16:19+07:00
+
+Kriteria DoD:
+Error handling jika repo tidak ditemukan (404) atau akses ditolak (401/403) ditampilkan secara informatif di UI dan API dengan saran tindakan yang jelas bagi user.
+
+================================================================================
+KASUS 1: REPOSITORY TIDAK DITEMUKAN (404 NOT FOUND)
+================================================================================
+Uji coba menghubungkan repository yang tidak ada di GitHub: `buchin/nonexistent-cuan-repo-99999`.
+
+HTTP Request:
+  POST /api/v1/projects HTTP/1.1
+  Host: localhost:8080
+  Authorization: Bearer <owner_session_token>
+  Content-Type: application/json
+
+  {
+    "repo_url": "buchin/nonexistent-cuan-repo-99999"
+  }
+
+HTTP Response Status: 404 Not Found
+HTTP Response Body:
+  {
+    "error": "Repository tidak ditemukan di GitHub. Pastikan nama owner/repo sudah benar dan jika repo bersifat private, sertakan Personal Access Token (PAT)."
+  }
+
+Tampilan UI:
+  Banner merah (Alert variant="destructive") menampilkan judul "Koneksi Gagal" beserta teks penjelasan bahwa repositori tidak ditemukan atau membutuhkan PAT jika private.
+
+================================================================================
+KASUS 2: AKSES DITOLAK / TOKEN KEDALUWARSA / BAD CREDENTIALS (401/403)
+================================================================================
+Uji coba menghubungkan repositori private dengan token yang tidak valid atau tidak memiliki scope repo:
+
+HTTP Request:
+  POST /api/v1/projects HTTP/1.1
+  Host: localhost:8080
+  Authorization: Bearer <owner_session_token>
+  Content-Type: application/json
+
+  {
+    "repo_url": "https://github.com/buchin/private-fixture-repo",
+    "token": "ghp_invalid_token_sample_12345678"
+  }
+
+HTTP Response Status: 403 Forbidden
+HTTP Response Body:
+  {
+    "error": "Akses ke repository GitHub ditolak (401/403). Periksa kevalidan Personal Access Token (PAT) dan izin scope 'repo'."
+  }
+
+Tampilan UI:
+  Banner Alert menampilkan pesan penolakan akses dan tombol "Panduan Token & Revoke" yang mengarahkan user untuk memeriksa scope 'repo' di GitHub Developer Settings.
+
+================================================================================
+KASUS 3: FORMAT URL REPOSITORY TIDAK VALID (400 BAD REQUEST)
+================================================================================
+Uji coba mengirim string URL yang rusak / tidak sesuai:
+
+HTTP Request:
+  POST /api/v1/projects HTTP/1.1
+  Host: localhost:8080
+  Authorization: Bearer <owner_session_token>
+  Content-Type: application/json
+
+  {
+    "repo_url": "not-a-valid-url"
+  }
+
+HTTP Response Status: 400 Bad Request
+HTTP Response Body:
+  {
+    "error": "URL repository GitHub tidak valid. Gunakan format 'https://github.com/owner/repo' atau 'owner/repo'."
+  }
+
+================================================================================
+KASUS 4: DUPLIKASI KONEKSI PROYEK (409 CONFLICT)
+================================================================================
+Uji coba menghubungkan kembali repository yang sudah terdaftar:
+
+HTTP Response Status: 409 Conflict
+HTTP Response Body:
+  {
+    "error": "Repository GitHub ini sudah pernah dihubungkan sebagai proyek di Cuan."
+  }
+
+Kesimpulan DoD:
+  Seluruh kasus kegagalan (404, 401/403, 400, 409) ditangani secara anggun dengan status code HTTP yang akurat dan pesan informatif yang membantu user memulihkan kesalahan secara mandiri.

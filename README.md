@@ -5,7 +5,7 @@
 ## Status
 
 **Sprint 1: Running** (Approved by PO on 2026-10-16).
-Status: **Pre-release (Pre-alpha)**. Monorepo foundation, official agent adapter spike, baseline migrations, persistent PostgreSQL installation, and single-owner authentication are implemented.
+Status: **Pre-release (Pre-alpha)**. Monorepo foundation, official agent adapter, baseline migrations, persistent PostgreSQL installation, single-owner authentication, and GitHub existing repository integration (T3) are implemented.
 
 Single Source of Truth (SSOT): [docs/sprints/S1.md](docs/sprints/S1.md).
 
@@ -16,11 +16,17 @@ Single Source of Truth (SSOT): [docs/sprints/S1.md](docs/sprints/S1.md).
 Cuan is organized as a Go and React TypeScript monorepo:
 
 - **Backend API (`cmd/server`, `internal/server`)**:
-  Go `net/http` + `chi` router providing `/healthz`, `/readyz`, `/api/v1/info`, authentication, and task management APIs. Serves the production React SPA frontend directly at root `/`.
+  Go `net/http` + `chi` router providing `/healthz`, `/readyz`, `/api/v1/info`, authentication, projects, and task management APIs. Serves the production React SPA frontend directly at root `/`.
+- **GitHub & Git Engine (`internal/git`)**:
+  Pre-flight validation of repository existence, remote branch inspection, clone/fetch workspace management, and automatic secret masking on git process outputs.
+- **Projects Management (`internal/project`)**:
+  Project connection lifecycle, remote metadata synchronization, branch listing, and non-destructive project deletion (removes Cuan records while keeping remote GitHub repositories intact).
+- **Credential Security & Encryption (`internal/crypto`)**:
+  Industry-standard **AES-256-GCM** at-rest encryption for GitHub Personal Access Tokens (PATs). Zero plain text exposure in API responses and zero credentials in logs.
 - **Single-Owner Authentication (`internal/auth`)**:
   Secure single-owner system with bcrypt password hashing, cryptographic session tokens, HttpOnly cookies, and strict takeover protection (subsequent setup attempts return `403 Forbidden`).
 - **Database & Persistent Storage (`internal/db`, `migrations/`, Docker Volume)**:
-  PostgreSQL 16 with versioned embedded migrations (`000001_baseline`, `000002_owner_sessions`). Auto-migration executes safely on server boot. Data is persisted in named Docker volume `cuan_postgres_data`.
+  PostgreSQL 16 with versioned embedded migrations (`000001_baseline`, `000002_owner_sessions`, `000003_projects_github`). Auto-migration executes safely on server boot. Data is persisted in named Docker volume `cuan_postgres_data`.
 - **Network Isolation & Security**:
   PostgreSQL port 5432 is **strictly internal** to the Docker container network (`cuan-network`) and is never published to public host ports.
 - **Task Runner Daemon (`cmd/runner`, `internal/runner`)**:
@@ -28,9 +34,10 @@ Cuan is organized as a Go and React TypeScript monorepo:
 - **Coding Agent Adapter (`internal/agent`)**:
   Official adapter for headless coding agents (selected: `agy` v1.4.0) with process group cancellation and automatic secret redaction.
 - **Frontend UI (`web/`)**:
-  React 18 + Vite + TypeScript + Tailwind CSS with shadcn/ui components (`web/src/components/ui/`), featuring First-Time Setup Wizard, Login Screen, and Dashboard Shell.
+  React 18 + Vite + TypeScript + Tailwind CSS with shadcn/ui components (`web/src/components/ui/`), featuring First-Time Setup Wizard, Login Screen, Projects & Project Detail Management, and Tasks Board.
 - **HTTPS Reverse Proxy (`Caddyfile`, `docker-compose.yml`)**:
   Zero-config automatic HTTPS via Caddy (Let's Encrypt) or flexible integration with existing host reverse proxies (Nginx / Traefik).
+
 
 ---
 
@@ -194,10 +201,16 @@ export DATABASE_URL="postgres://cuan:cuan@localhost:5432/cuan?sslmode=disable"
 ## Verification Evidence
 
 All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S1/`:
+- [github_connection_verified.txt](docs/sprints/evidence/S1/github_connection_verified.txt): Real GitHub repository connection verification (`buchin/cuan`), default branch detection, and remote branches retrieval.
+- [access_denied_handled.txt](docs/sprints/evidence/S1/access_denied_handled.txt): Informative error handling for 404 (Repo Not Found), 401/403 (Access Denied / Bad PAT), and 400 (Invalid URL).
+- [credential_security_audit.txt](docs/sprints/evidence/S1/credential_security_audit.txt): AES-256-GCM encryption audit, zero-leak API response audit, git secret masking, and remote protection verification.
+- [projects_ui_walkthrough.md](docs/sprints/evidence/S1/projects_ui_walkthrough.md): Comprehensive walkthrough of the Projects list, Connect Repository modal, and Project Detail UI.
+- [github_token_guide.md](docs/guides/github_token_guide.md): Owner guide for generating, configuring, and revoking GitHub Personal Access Tokens.
 - [smoke_install_login_restart.txt](docs/sprints/evidence/S1/smoke_install_login_restart.txt): End-to-end smoke verification log of clean install, takeover lockout, login, restart persistence, and logout.
 - [health_readiness_response.txt](docs/sprints/evidence/S1/health_readiness_response.txt): HTTP responses for `/healthz`, `/readyz`, and container healthcheck CLI.
 - [https_proxy_guide.md](docs/sprints/evidence/S1/https_proxy_guide.md): Reverse proxy HTTPS architecture, port allocations, and Nginx/Caddy guides.
 - [configuration_clean.txt](docs/sprints/evidence/S1/configuration_clean.txt): Audit report verifying zero credential leakage.
+
 
 ---
 

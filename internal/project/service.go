@@ -1,0 +1,230 @@
+package project
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/buchin/cuan/internal/crypto"
+	"github.com/buchin/cuan/internal/git"
+)
+
+type Service struct {
+	store      Store
+	gitClient  *git.Client
+	authSecret string
+	baseDir    string
+}
+
+func NewService(store Store, gitClient *git.Client, authSecret, baseDir string) *Service {
+	if gitClient == nil {
+		gitClient = git.NewClient()
+	}
+	if baseDir == "" {
+		baseDir = "data/projects"
+	}
+	return &Service{
+		store:      store,
+		gitClient:  gitClient,
+		authSecret: authSecret,
+		baseDir:    baseDir,
+	}
+}
+
+// Connect validates and connects an existing GitHub repository to Cuan.
+func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*ProjectResponse, error) {
+	trimmedURL := strings.TrimSpace(req.RepoURL)
+	if trimmedURL == "" {
+		return nil, errors.New("repository URL is required")
+	}
+
+	owner, repo, err := git.ParseGitHubURL(trimmedURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Check if project already exists
+	if existing, err := s.store.GetProjectByRepo(ctx, owner, repo); err == nil && existing != nil {
+		return nil, ErrProjectAlreadyExists
+	}
+
+	token := strings.TrimSpace(req.Token)
+
+	// 2. Pre-flight verification with GitHub (validates permissions & existence)
+	repoInfo, err := s.gitClient.ValidateRepository(ctx, fmt.Sprintf("%s/%s", owner, repo), token)
+	if err != nil {
+		return nil, err
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = repo
+	}
+
+	defaultBranch := strings.TrimSpace(req.DefaultBranch)
+	if defaultBranch == "" {
+		defaultBranch = repoInfo.DefaultBranch
+	}
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+
+	// 3. Encrypt GitHub access token for safe storage
+	encryptedToken, err := crypto.Encrypt(token, s.authSecret)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt token: %w", err)
+	}
+	tokenPreview := crypto.TokenPreview(token)
+
+	// Generate project ID
+	randBytes := make([]byte, 6)
+	_, _ = rand.Read(randBytes)
+	projectID := fmt.Sprintf("proj_%s", hex.EncodeToString(randBytes))
+
+	localPath := filepath.Join(s.baseDir, projectID)
+
+	now := time.Now().UTC()
+	p := &Project{
+		ID:             projectID,
+		Name:           name,
+		RepoURL:        fmt.Sprintf("https://github.com/%s/%s", owner, repo),
+		RepoOwner:      owner,
+		RepoName:       repo,
+		DefaultBranch:  defaultBranch,
+		LocalPath:      localPath,
+		EncryptedToken: encryptedToken,
+		TokenPreview:   tokenPreview,
+		CloneStatus:    "connected",
+		LastFetchedAt:  &now,
+		LastError:      "",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	// 4. Perform initial clone or fetch
+	if err := s.gitClient.CloneOrFetch(ctx, owner, repo, token, localPath); err != nil {
+		// If clone fails, record error but save project so owner can see status
+		p.CloneStatus = "failed"
+		p.LastError = err.Error()
+	} else {
+		p.CloneStatus = "synced"
+	}
+
+	if err := s.store.CreateProject(ctx, p); err != nil {
+		return nil, err
+	}
+
+	return p.ToResponse(), nil
+}
+
+// Get returns the project by ID.
+func (s *Service) Get(ctx context.Context, id string) (*ProjectResponse, error) {
+	p, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return p.ToResponse(), nil
+}
+
+// List returns all connected projects.
+func (s *Service) List(ctx context.Context) ([]*ProjectResponse, error) {
+	list, err := s.store.ListProjects(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []*ProjectResponse
+	for _, p := range list {
+		res = append(res, p.ToResponse())
+	}
+	return res, nil
+}
+
+// Sync triggers a fetch / sync against the remote GitHub repository.
+func (s *Service) Sync(ctx context.Context, id string) (*ProjectResponse, error) {
+	p, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var token string
+	if p.EncryptedToken != "" {
+		decrypted, err := crypto.Decrypt(p.EncryptedToken, s.authSecret)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt credentials: %w", err)
+		}
+		token = decrypted
+	}
+
+	now := time.Now().UTC()
+	if err := s.gitClient.CloneOrFetch(ctx, p.RepoOwner, p.RepoName, token, p.LocalPath); err != nil {
+		p.CloneStatus = "failed"
+		p.LastError = err.Error()
+		p.UpdatedAt = now
+		_ = s.store.UpdateProject(ctx, p)
+		return p.ToResponse(), err
+	}
+
+	p.CloneStatus = "synced"
+	p.LastFetchedAt = &now
+	p.LastError = ""
+	p.UpdatedAt = now
+
+	if err := s.store.UpdateProject(ctx, p); err != nil {
+		return nil, err
+	}
+
+	return p.ToResponse(), nil
+}
+
+// GetBranches returns the remote branch list from GitHub.
+func (s *Service) GetBranches(ctx context.Context, id string) ([]string, string, error) {
+	p, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var token string
+	if p.EncryptedToken != "" {
+		decrypted, err := crypto.Decrypt(p.EncryptedToken, s.authSecret)
+		if err != nil {
+			return nil, "", fmt.Errorf("decrypt credentials: %w", err)
+		}
+		token = decrypted
+	}
+
+	branches, err := s.gitClient.FetchRemoteBranches(ctx, p.RepoOwner, p.RepoName, token)
+	if err != nil {
+		return []string{p.DefaultBranch}, p.DefaultBranch, nil
+	}
+
+	return branches, p.DefaultBranch, nil
+}
+
+// Delete removes the project from Cuan database and cleans up local caches.
+// IMPORTANT: This operation DOES NOT delete or modify the remote GitHub repository.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	p, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// 1. Remove from database
+	if err := s.store.DeleteProject(ctx, id); err != nil {
+		return err
+	}
+
+	// 2. Clean up local path cache if exists
+	if p.LocalPath != "" && strings.HasPrefix(p.LocalPath, s.baseDir) {
+		_ = os.RemoveAll(p.LocalPath)
+	}
+
+	// Remote repository is untouched and remains safe on GitHub
+	return nil
+}
