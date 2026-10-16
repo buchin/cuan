@@ -1,0 +1,26 @@
+# Binaries and build outputs
+bin/
+cuan-server
+cuan-runner
+cuan-migrate
+*.exe
+*.test
+*.out
+
+# Node / Frontend
+node_modules/
+web/node_modules/
+web/dist/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary and local
+tmp/
+*.log
+.DS_Store
+.idea/
+.vscode/
