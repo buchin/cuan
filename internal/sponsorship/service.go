@@ -414,20 +414,18 @@ func (s *Service) ApproveSponsor(ctx context.Context, id, actor string) error {
 	if err != nil {
 		return err
 	}
-	if err := s.store.UpdateSponsorStatus(ctx, id, SponsorStatusApproved, ""); err != nil {
-		return err
-	}
 	if actor == "" {
 		actor = "owner"
 	}
-	_ = s.store.CreateActivity(ctx, &ActivityLog{
+	now := time.Now().UTC()
+	act := &ActivityLog{
 		SponsorID: id,
 		Action:    ActivityActionSponsorApprove,
 		Details:   fmt.Sprintf("Sponsor %s di-approve oleh %s (tampil di leaderboard)", sp.BrandName, actor),
 		Actor:     actor,
-		CreatedAt: time.Now().UTC(),
-	})
-	return nil
+		CreatedAt: now,
+	}
+	return s.store.ModerateSponsor(ctx, id, SponsorStatusApproved, "", act)
 }
 
 func (s *Service) RejectSponsor(ctx context.Context, id, reason, actor string) error {
@@ -438,20 +436,22 @@ func (s *Service) RejectSponsor(ctx context.Context, id, reason, actor string) e
 	if reason == "" {
 		reason = "Melanggar etika dan pedoman anti-judol Cuan"
 	}
-	if err := s.store.UpdateSponsorStatus(ctx, id, SponsorStatusRejected, reason); err != nil {
-		return err
-	}
 	if actor == "" {
 		actor = "owner"
 	}
-	_ = s.store.CreateActivity(ctx, &ActivityLog{
+	now := time.Now().UTC()
+	act := &ActivityLog{
 		SponsorID: id,
 		Action:    ActivityActionSponsorReject,
 		Details:   fmt.Sprintf("Sponsor %s ditolak oleh %s. Alasan: %s", sp.BrandName, actor, reason),
 		Actor:     actor,
-		CreatedAt: time.Now().UTC(),
-	})
-	return nil
+		CreatedAt: now,
+	}
+	return s.store.ModerateSponsor(ctx, id, SponsorStatusRejected, reason, act)
+}
+
+func (s *Service) ListActivities(ctx context.Context, sponsorID string) ([]*ActivityLog, error) {
+	return s.store.ListActivities(ctx, sponsorID)
 }
 
 // Orders & Dojo Webhook

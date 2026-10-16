@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/sponsorship"
 )
 
@@ -289,7 +290,7 @@ func (s *Server) handleCreateLead(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleAdminListSponsors lists all sponsors with status filter for owner curation.
+// handleAdminListSponsors lists all sponsors with status filter and status counters for owner curation.
 func (s *Server) handleAdminListSponsors(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
@@ -298,6 +299,9 @@ func (s *Server) handleAdminListSponsors(w http.ResponseWriter, r *http.Request)
 
 	batchID := r.URL.Query().Get("batch_id")
 	status := r.URL.Query().Get("status")
+	if status == "all" {
+		status = ""
+	}
 
 	sponsors, err := s.sponsorshipSvc.ListSponsors(r.Context(), batchID, status)
 	if err != nil {
@@ -305,9 +309,32 @@ func (s *Server) handleAdminListSponsors(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Calculate counts across all statuses for dashboard badge indicators
+	var pendingCount, approvedCount, rejectedCount, totalCount int
+	allSponsors, errAll := s.sponsorshipSvc.ListSponsors(r.Context(), batchID, "")
+	if errAll == nil {
+		totalCount = len(allSponsors)
+		for _, sp := range allSponsors {
+			switch sp.Status {
+			case sponsorship.SponsorStatusPendingReview:
+				pendingCount++
+			case sponsorship.SponsorStatusApproved:
+				approvedCount++
+			case sponsorship.SponsorStatusRejected:
+				rejectedCount++
+			}
+		}
+	} else {
+		totalCount = len(sponsors)
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"sponsors": sponsors,
-		"count":    len(sponsors),
+		"sponsors":       sponsors,
+		"count":          len(sponsors),
+		"pending_count":  pendingCount,
+		"approved_count": approvedCount,
+		"rejected_count": rejectedCount,
+		"total_count":    totalCount,
 	})
 }
 
@@ -319,7 +346,16 @@ func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Reques
 	}
 
 	id := chi.URLParam(r, "id")
-	if err := s.sponsorshipSvc.ApproveSponsor(r.Context(), id, "owner"); err != nil {
+	actor := "owner"
+	if o := auth.GetOwnerFromContext(r.Context()); o != nil && o.Email != "" {
+		actor = o.Email
+	}
+
+	if err := s.sponsorshipSvc.ApproveSponsor(r.Context(), id, actor); err != nil {
+		if errors.Is(err, sponsorship.ErrSponsorNotFound) {
+			respondJSONError(w, http.StatusNotFound, "sponsor tidak ditemukan")
+			return
+		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -327,6 +363,7 @@ func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "approved",
 		"id":      id,
+		"actor":   actor,
 		"message": "Sponsor berhasil disetujui dan live di leaderboard",
 	})
 }
@@ -344,7 +381,16 @@ func (s *Server) handleAdminRejectSponsor(w http.ResponseWriter, r *http.Request
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	if err := s.sponsorshipSvc.RejectSponsor(r.Context(), id, req.Reason, "owner"); err != nil {
+	actor := "owner"
+	if o := auth.GetOwnerFromContext(r.Context()); o != nil && o.Email != "" {
+		actor = o.Email
+	}
+
+	if err := s.sponsorshipSvc.RejectSponsor(r.Context(), id, req.Reason, actor); err != nil {
+		if errors.Is(err, sponsorship.ErrSponsorNotFound) {
+			respondJSONError(w, http.StatusNotFound, "sponsor tidak ditemukan")
+			return
+		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -353,7 +399,29 @@ func (s *Server) handleAdminRejectSponsor(w http.ResponseWriter, r *http.Request
 		"status":  "rejected",
 		"id":      id,
 		"reason":  req.Reason,
+		"actor":   actor,
 		"message": "Sponsor berhasil ditolak",
+	})
+}
+
+// handleAdminListSponsorActivities returns audit activity logs for a sponsor.
+func (s *Server) handleAdminListSponsorActivities(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	activities, err := s.sponsorshipSvc.ListActivities(r.Context(), id)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"sponsor_id": id,
+		"activities": activities,
+		"count":      len(activities),
 	})
 }
 

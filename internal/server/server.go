@@ -174,6 +174,16 @@ func (s *Server) routes() {
 	s.router.Post("/api/waiting-list", s.handleCreateLead)
 	s.router.Get("/uploads/sponsors/logos/*", s.handleServeSponsorLogo)
 
+	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
+	s.router.Group(func(ar chi.Router) {
+		ar.Use(auth.Middleware(s.authSvc))
+		ar.Get("/api/admin/sponsors", s.handleAdminListSponsors)
+		ar.Post("/api/admin/sponsors/{id}/approve", s.handleAdminApproveSponsor)
+		ar.Post("/api/admin/sponsors/{id}/reject", s.handleAdminRejectSponsor)
+		ar.Get("/api/admin/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
+		ar.Get("/api/admin/leads", s.handleAdminListLeads)
+	})
+
 	s.router.Route("/api/v1", func(r chi.Router) {
 		// Public endpoints
 		r.Get("/info", s.handleInfo)
@@ -237,9 +247,14 @@ func (s *Server) routes() {
 			pr.Get("/projects/{id}/branches", s.handleGetProjectBranches)
 
 			// Sponsorship Moderation endpoints (S02.4)
+			pr.Get("/admin/sponsors", s.handleAdminListSponsors)
+			pr.Post("/admin/sponsors/{id}/approve", s.handleAdminApproveSponsor)
+			pr.Post("/admin/sponsors/{id}/reject", s.handleAdminRejectSponsor)
+			pr.Get("/admin/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
 			pr.Get("/sponsors", s.handleAdminListSponsors)
 			pr.Post("/sponsors/{id}/approve", s.handleAdminApproveSponsor)
 			pr.Post("/sponsors/{id}/reject", s.handleAdminRejectSponsor)
+			pr.Get("/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
 			pr.Get("/leads", s.handleAdminListLeads)
 		})
 	})

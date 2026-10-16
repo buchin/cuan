@@ -3,6 +3,7 @@ import { LandingPage } from './components/landing/LandingPage'
 import { SponsorShowcase } from './components/sponsor/SponsorShowcase'
 import { SponsorArchive } from './components/sponsor/SponsorArchive'
 import { SponsorPending } from './components/sponsor/SponsorPending'
+import { AdminSponsorPanel } from './components/sponsor/AdminSponsorPanel'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './components/ui/card'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
@@ -202,7 +203,13 @@ export function App() {
   const [logsLoading, setLogsLoading] = useState(false)
   
   // Navigation
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'tasks' | 'runners'>('tasks')
+  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'tasks' | 'runners' | 'sponsors'>('tasks')
+
+  useEffect(() => {
+    if (currentPath === '/admin/sponsors' || currentPath === '/admin') {
+      setActiveTab('sponsors')
+    }
+  }, [currentPath])
   const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null)
   const [projectBranches, setProjectBranches] = useState<string[]>([])
   const [branchesLoading, setBranchesLoading] = useState(false)
@@ -1154,6 +1161,18 @@ export function App() {
             </CardHeader>
             <form onSubmit={handleLogin}>
               <CardContent className="space-y-4">
+                {currentPath === '/admin/sponsors' && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-amber-950">Akses Panel Kurasi Terproteksi (/admin/sponsors)</span>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Area moderasi sponsor anti-judol dilindungi oleh autentikasi pemilik tunggal. Masuk dengan akun Pemilik Cuan.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {errorMessage && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -1232,7 +1251,7 @@ export function App() {
                 Sprint 2: Running
               </Badge>
               <Badge variant="outline" className="text-xs font-mono bg-emerald-50 text-emerald-700 border-emerald-200">
-                S02.2: Landing Page PAS
+                S02.4: Moderasi Sponsor Anti-Judol
               </Badge>
             </div>
             <p className="text-xs text-slate-500">
@@ -1241,8 +1260,13 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => navigate('/')} className="gap-1.5 text-xs text-slate-700 hover:text-emerald-700">
+            <Button variant="outline" size="sm" onClick={() => navigate('/sponsor')} className="gap-1.5 text-xs text-slate-700 hover:text-emerald-700">
               <Globe className="h-3.5 w-3.5 text-emerald-600" />
+              Grid Sponsor (/sponsor)
+            </Button>
+
+            <Button variant="outline" size="sm" onClick={() => navigate('/')} className="gap-1.5 text-xs text-slate-700 hover:text-emerald-700">
+              <ExternalLink className="h-3.5 w-3.5 text-slate-500" />
               Landing Page (/)
             </Button>
 
@@ -1277,21 +1301,21 @@ export function App() {
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
           <Button
-            variant={activeTab === 'projects' ? 'default' : 'ghost'}
+            variant={activeTab === 'sponsors' ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => { setActiveTab('projects'); setSelectedProject(null); }}
-            className={`gap-1.5 text-xs ${activeTab === 'projects' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            onClick={() => { setActiveTab('sponsors'); setSelectedProject(null); navigate('/admin/sponsors'); }}
+            className={`gap-1.5 text-xs font-semibold ${activeTab === 'sponsors' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-emerald-700'}`}
           >
-            <FolderGit2 className="h-4 w-4" />
-            Projects ({projects.length})
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            Kurasi Sponsor Anti-Judol (/admin/sponsors)
           </Button>
 
           <Button
             variant={activeTab === 'tasks' ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => { setActiveTab('tasks'); setSelectedProject(null); }}
+            onClick={() => { setActiveTab('tasks'); setSelectedProject(null); navigate('/admin'); }}
             className={`gap-1.5 text-xs ${activeTab === 'tasks' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
           >
             <GitBranch className="h-4 w-4" />
@@ -1299,9 +1323,19 @@ export function App() {
           </Button>
 
           <Button
+            variant={activeTab === 'projects' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => { setActiveTab('projects'); setSelectedProject(null); navigate('/admin'); }}
+            className={`gap-1.5 text-xs ${activeTab === 'projects' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          >
+            <FolderGit2 className="h-4 w-4" />
+            Projects ({projects.length})
+          </Button>
+
+          <Button
             variant={activeTab === 'runners' ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => { setActiveTab('runners'); setSelectedProject(null); }}
+            onClick={() => { setActiveTab('runners'); setSelectedProject(null); navigate('/admin'); }}
             className={`gap-1.5 text-xs ${activeTab === 'runners' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
           >
             <Cpu className="h-4 w-4" />
@@ -1311,7 +1345,7 @@ export function App() {
           <Button
             variant={activeTab === 'overview' ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => { setActiveTab('overview'); setSelectedProject(null); }}
+            onClick={() => { setActiveTab('overview'); setSelectedProject(null); navigate('/admin'); }}
             className={`gap-1.5 text-xs ${activeTab === 'overview' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
           >
             <Server className="h-4 w-4" />
@@ -3154,6 +3188,18 @@ export function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 5: PANEL KURASI & MODERASI SPONSOR ANTI-JUDOL (S02.4)      */}
+        {/* ============================================================== */}
+        {activeTab === 'sponsors' && (
+          <AdminSponsorPanel
+            token={token}
+            onNavigate={navigate}
+            onNotify={(msg) => setSuccessNotification(msg)}
+            ownerEmail={owner.email}
+          />
         )}
 
         {/* ============================================================== */}

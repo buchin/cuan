@@ -30,6 +30,7 @@ type Store interface {
 	ListApprovedSponsors(ctx context.Context, batchSlug string) ([]*Sponsor, error)
 	UpdateSponsor(ctx context.Context, s *Sponsor) error
 	UpdateSponsorStatus(ctx context.Context, id, status, rejectionReason string) error
+	ModerateSponsor(ctx context.Context, id, status, rejectionReason string, activity *ActivityLog) error
 
 	// Orders
 	CreateOrder(ctx context.Context, o *Order) error

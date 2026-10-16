@@ -131,10 +131,10 @@ func (s *DBStore) GetSponsor(ctx context.Context, id string) (*Sponsor, error) {
 		SELECT s.id, s.batch_id, s.brand_name, s.website_url, s.slogan, s.logo_path,
 		       s.contact_email, s.contact_wa, s.status, COALESCE(s.rejection_reason, ''),
 		       s.created_at, s.updated_at,
-		       COALESCE(MAX(o.amount_idr), 0) as amount_idr,
-		       MIN(o.paid_at) as paid_at
+		       COALESCE(MAX(CASE WHEN o.status = 'paid' THEN o.amount_idr ELSE 0 END), MAX(o.amount_idr), 0) as amount_idr,
+		       MIN(CASE WHEN o.status = 'paid' THEN o.paid_at ELSE NULL END) as paid_at
 		FROM sponsors s
-		LEFT JOIN sponsorship_orders o ON s.id = o.sponsor_id AND o.status = 'paid'
+		LEFT JOIN sponsorship_orders o ON s.id = o.sponsor_id
 		WHERE s.id = $1
 		GROUP BY s.id, s.batch_id, s.brand_name, s.website_url, s.slogan, s.logo_path,
 		         s.contact_email, s.contact_wa, s.status, s.rejection_reason, s.created_at, s.updated_at
@@ -159,10 +159,10 @@ func (s *DBStore) ListSponsorsByBatch(ctx context.Context, batchID string, statu
 		SELECT s.id, s.batch_id, s.brand_name, s.website_url, s.slogan, s.logo_path,
 		       s.contact_email, s.contact_wa, s.status, COALESCE(s.rejection_reason, ''),
 		       s.created_at, s.updated_at,
-		       COALESCE(MAX(o.amount_idr), 0) as amount_idr,
-		       MIN(o.paid_at) as paid_at
+		       COALESCE(MAX(CASE WHEN o.status = 'paid' THEN o.amount_idr ELSE 0 END), MAX(o.amount_idr), 0) as amount_idr,
+		       MIN(CASE WHEN o.status = 'paid' THEN o.paid_at ELSE NULL END) as paid_at
 		FROM sponsors s
-		LEFT JOIN sponsorship_orders o ON s.id = o.sponsor_id AND o.status = 'paid'
+		LEFT JOIN sponsorship_orders o ON s.id = o.sponsor_id
 		WHERE ($1 = '' OR s.batch_id = $1)
 		  AND ($2 = '' OR s.status = $2)
 		GROUP BY s.id, s.batch_id, s.brand_name, s.website_url, s.slogan, s.logo_path,
@@ -265,6 +265,54 @@ func (s *DBStore) UpdateSponsorStatus(ctx context.Context, id, status, rejection
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return ErrSponsorNotFound
+	}
+	return nil
+}
+
+// ModerateSponsor atomically transitions sponsor status and writes the audit activity log in a single DB transaction.
+func (s *DBStore) ModerateSponsor(ctx context.Context, id, status, rejectionReason string, activity *ActivityLog) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin moderation tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now().UTC()
+	query := `
+		UPDATE sponsors
+		SET status = $1, rejection_reason = $2, updated_at = $3
+		WHERE id = $4
+	`
+	res, err := tx.ExecContext(ctx, query, status, rejectionReason, now, id)
+	if err != nil {
+		return fmt.Errorf("update sponsor status in tx: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check rows affected in tx: %w", err)
+	}
+	if n == 0 {
+		return ErrSponsorNotFound
+	}
+
+	if activity != nil {
+		if activity.CreatedAt.IsZero() {
+			activity.CreatedAt = now
+		}
+		actQuery := `
+			INSERT INTO sponsorship_activities (sponsor_id, order_id, action, details, actor, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id
+		`
+		if err := tx.QueryRowContext(ctx, actQuery,
+			id, activity.OrderID, activity.Action, activity.Details, activity.Actor, activity.CreatedAt,
+		).Scan(&activity.ID); err != nil {
+			return fmt.Errorf("create activity log in tx: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit moderation transaction: %w", err)
 	}
 	return nil
 }

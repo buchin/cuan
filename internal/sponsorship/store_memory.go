@@ -111,7 +111,24 @@ func (m *MemoryStore) GetSponsor(ctx context.Context, id string) (*Sponsor, erro
 	if !ok {
 		return nil, ErrSponsorNotFound
 	}
-	return s, nil
+	cp := *s
+	var highestAmount int64
+	var earliestPaidAt *time.Time
+	for _, o := range m.orders {
+		if o.SponsorID != nil && *o.SponsorID == s.ID {
+			if o.Status == OrderStatusPaid && o.AmountIDR > highestAmount {
+				highestAmount = o.AmountIDR
+			} else if highestAmount == 0 && o.AmountIDR > highestAmount {
+				highestAmount = o.AmountIDR
+			}
+			if o.PaidAt != nil && (earliestPaidAt == nil || o.PaidAt.Before(*earliestPaidAt)) {
+				earliestPaidAt = o.PaidAt
+			}
+		}
+	}
+	cp.AmountIDR = highestAmount
+	cp.PaidAt = earliestPaidAt
+	return &cp, nil
 }
 
 func (m *MemoryStore) ListSponsorsByBatch(ctx context.Context, batchID string, status string) ([]*Sponsor, error) {
@@ -125,8 +142,28 @@ func (m *MemoryStore) ListSponsorsByBatch(ctx context.Context, batchID string, s
 		if status != "" && s.Status != status {
 			continue
 		}
-		list = append(list, s)
+		cp := *s
+		var highestAmount int64
+		var earliestPaidAt *time.Time
+		for _, o := range m.orders {
+			if o.SponsorID != nil && *o.SponsorID == s.ID {
+				if o.Status == OrderStatusPaid && o.AmountIDR > highestAmount {
+					highestAmount = o.AmountIDR
+				} else if highestAmount == 0 && o.AmountIDR > highestAmount {
+					highestAmount = o.AmountIDR
+				}
+				if o.PaidAt != nil && (earliestPaidAt == nil || o.PaidAt.Before(*earliestPaidAt)) {
+					earliestPaidAt = o.PaidAt
+				}
+			}
+		}
+		cp.AmountIDR = highestAmount
+		cp.PaidAt = earliestPaidAt
+		list = append(list, &cp)
 	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].CreatedAt.After(list[j].CreatedAt)
+	})
 	return list, nil
 }
 
@@ -212,6 +249,31 @@ func (m *MemoryStore) UpdateSponsorStatus(ctx context.Context, id, status, rejec
 	s.Status = status
 	s.RejectionReason = rejectionReason
 	s.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// ModerateSponsor atomically transitions sponsor status and records the audit log.
+func (m *MemoryStore) ModerateSponsor(ctx context.Context, id, status, rejectionReason string, activity *ActivityLog) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sponsors[id]
+	if !ok {
+		return ErrSponsorNotFound
+	}
+	now := time.Now().UTC()
+	s.Status = status
+	s.RejectionReason = rejectionReason
+	s.UpdatedAt = now
+
+	if activity != nil {
+		if activity.CreatedAt.IsZero() {
+			activity.CreatedAt = now
+		}
+		m.actSeq++
+		activity.ID = m.actSeq
+		activity.SponsorID = id
+		m.activities = append(m.activities, activity)
+	}
 	return nil
 }
 

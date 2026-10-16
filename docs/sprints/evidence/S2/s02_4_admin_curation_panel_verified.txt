@@ -1,0 +1,109 @@
+=== CUAN SPRINT 2 (S02.4) EVIDENCE: PANEL KURASI & MODERASI SPONSOR ANTI-JUDOL VERIFIED ===
+Timestamp: 2026-10-16T20:51:30+07:00
+Task ID: ykkoiwcrdvjyygqutcmpdipw
+Title: S02.4 — Panel Kurasi & Moderasi Sponsor Anti-Judol bagi Owner di Dashboard Cuan
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. MENU INTERNAL /admin/sponsors & DASHBOARD TERPROTEKSI SINGLE-OWNER AUTH:
+   - URL Route: /admin/sponsors (dan tab "Kurasi Sponsor Anti-Judol" di Dashboard internal).
+   - Proteksi Auth:
+     * Endpoint API terproteksi via middleware Go `auth.Middleware(s.authSvc)` yang memvalidasi token sesi Bearer JWT/token hash owner tunggal.
+     * Akses tanpa token menghasilkan HTTP 401 Unauthorized (`unauthorized: authentication required`).
+     * Akses dengan token tidak valid/kadaluarsa menghasilkan HTTP 401 Unauthorized (`unauthorized: invalid or expired session`).
+     * Di antarmuka web, pengguna unauthenticated diarahkan ke layar login dengan pemberitahuan khusus: "Akses Panel Kurasi Terproteksi (/admin/sponsors) dilindungi oleh autentikasi pemilik tunggal. Masuk dengan akun Pemilik Cuan."
+     * Setelah login, owner secara instan dapat mengakses tab kurasi sponsor dengan badge status single-owner aktif.
+
+2. TAMPILAN ANTREAN MODERASI ORDER TERBAYAR (pending_review):
+   - Menampilkan antrean lengkap profil sponsor yang telah membayar via checkout Dojo webhook:
+     * Brand Name: Nama brand tersanitasi aman dari script/HTML.
+     * Logo Preview: Wadah logo aman dengan preview gambar ber-header keamanan (nosniff, default-src 'none') dan fallback inisial brand jika logo belum ada.
+     * Slogan: Pesan/tagline sponsor tersanitasi.
+     * Website URL: Tautan eksternal yang dapat diklik langsung dengan rel="nofollow noopener noreferrer" dan ikon link.
+     * Kontak PIC: Email mailto dan nomor WhatsApp dengan link wa.me langsung.
+     * Nominal IDR: Nilai Pay-What-You-Want terformat standar Rupiah (contoh: Rp 2.500.000).
+     * Tanggal Bayar: Tanggal dan jam konfirmasi webhook Dojo terformat rapi (contoh: 16 Okt 2026, 20:45).
+     * Status Badge: Indikator kuning/amber "Pending Review", hijau "Approved & Live di /sponsor", dan merah "Ditolak (Blacklist Judol)".
+
+3. AKSI 1-KLIK APPROVE & PUBLIKASI LIVE ATOMIK:
+   - Aksi: Tombol hijau "1-Klik Approve" pada antrean sponsor.
+   - Endpoint: POST /api/admin/sponsors/:id/approve (alias: POST /api/v1/admin/sponsors/:id/approve).
+   - Mekanisme Atomik:
+     * Dieksekusi melalui transaksi database atomik (`ModerateSponsor` di Store).
+     * Mengubah status sponsor menjadi 'approved' dan menyetel updated_at.
+     * Menyimpan rekaman audit log `sponsor_approved` dalam transaksi yang sama.
+     * Begitu disetujui, sponsor seketika aktif dan tampil di endpoint publik GET /api/sponsors/current serta Leaderboard live /sponsor, dan siap disinkronisasi ke README.md.
+
+4. AKSI REJECT DENGAN MODAL INPUT ALASAN & BLACKLIST JUDOL:
+   - Aksi: Tombol merah "Tolak (Judol)" membuka Modal Konfirmasi Karantina.
+   - Endpoint: POST /api/admin/sponsors/:id/reject (alias: POST /api/v1/admin/sponsors/:id/reject).
+   - Fitur Modal Penolakan:
+     * Pilihan template cepat alasan pelanggaran:
+       1. Terindikasi Situs Judi Online / Slot / Kasino (Blacklist Judol)
+       2. Melanggar Etika dan Panduan Integritas Komunitas Cuan
+       3. Konten Dewasa / Pornografi / Aktivitas Ilegal
+       4. URL Website Palsu / Phishing / Terindikasi Penipuan
+       5. Logo atau Materi Mengandung Unsur Hak Cipta Ilegal
+     * Area teks kustomisasi alasan penolakan.
+     * Klausul jaminan keamanan: Mengarantina sponsor dan mencatat pelanggaran di audit log.
+   - Mekanisme Atomik:
+     * Dieksekusi via transaksi database atomik: status menjadi 'rejected', rejection_reason tersimpan, dan audit log `sponsor_rejected` tercatat.
+     * Menampilkan kotak peringatan merah di panel admin berisi alasan penolakan.
+     * Sponsor 100% dicegah dan dikeluarkan dari leaderboard publik.
+
+5. FILTER TAB DAN PENCARIAN REAL-TIME:
+   - Filter Tab Antrean:
+     * Pending Review: Menampilkan antrean order terbayar yang butuh moderasi dengan badge counter live.
+     * Approved: Menampilkan sponsor yang telah disetujui dan live di publik.
+     * Rejected: Menampilkan sponsor yang ditolak/dikarantina dengan alasan pelanggaran.
+     * Semua: Menampilkan seluruh riwayat sponsor dengan total count.
+   - Pencarian Real-Time: Input teks responsif yang memfilter nama brand, website URL, email, WA, dan slogan seketika.
+
+6. PENCEGAHAN KEBOCORAN 100% KE ENDPOINT PUBLIK (DOD VALIDATED):
+   - Endpoint publik GET /api/sponsors/current dan direktori arsip /sponsors diuji secara ketat.
+   - Query publik menerapkan filter absolut `WHERE s.status = 'approved'`.
+   - Sponsor berstatus `pending_review` terbukti 0% bocor ke publik sebelum owner mengeklik Approve.
+   - Sponsor berstatus `rejected` terbukti 0% bocor ke publik dan seketika hilang dari leaderboard jika sebelumnya approved.
+
+7. AUDIT TRAIL LENGKAP:
+   - Tabel: `sponsorship_activities`
+   - Endpoint: GET /api/admin/sponsors/:id/activities (alias: GET /api/v1/admin/sponsors/:id/activities).
+   - Mencatat seluruh riwayat:
+     * `order_created`: Pembuatan order sponsor.
+     * `order_paid`: Pembayaran terverifikasi via Dojo webhook.
+     * `sponsor_approved`: Persetujuan oleh owner dengan identitas email (`owner@cuan.dev`).
+     * `sponsor_rejected`: Penolakan dan alasan blacklist judol oleh owner.
+   - UI Audit Modal: Dialog visual yang menampilkan riwayat linimasa aktivitas, detail tindakan, aktor pengubah, dan stempel waktu UTC.
+
+8. BUKTI PENGUJIAN TARGETED TESTS GO:
+Command: go test -v ./internal/server -run "TestAdminSponsors"
+Output:
+=== RUN   TestAdminSponsors_AuthGuard
+--- PASS: TestAdminSponsors_AuthGuard (0.06s)
+=== RUN   TestAdminSponsors_AtomicApproveAndLeaderboardLive
+--- PASS: TestAdminSponsors_AtomicApproveAndLeaderboardLive (0.06s)
+=== RUN   TestAdminSponsors_AtomicRejectWithReasonAndJudolBlacklist
+--- PASS: TestAdminSponsors_AtomicRejectWithReasonAndJudolBlacklist (0.06s)
+=== RUN   TestAdminSponsors_FilterTabsAndCounters
+--- PASS: TestAdminSponsors_FilterTabsAndCounters (0.06s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.239s
+
+Full Regression Test:
+Command: go test -v ./...
+Status: PASS (Semua package internal/sponsorship, internal/server, internal/auth, internal/task lulus 100%).
+
+9. BUKTI VERIFIKASI BUILD FRONTEND:
+Command: npm run build (di direktori web/)
+Output:
+> cuan-web@0.1.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+✓ 1605 modules transformed.
+dist/index.html                   0.55 kB │ gzip:  0.37 kB
+dist/assets/index-D5BVLMGE.css   47.98 kB │ gzip:  8.44 kB
+dist/assets/index-CYJfsgC_.js   372.82 kB │ gzip: 95.33 kB
+✓ built in 2.95s
+Status: Berhasil 100% tanpa error TypeScript dan tanpa warning.
