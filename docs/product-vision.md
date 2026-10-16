@@ -38,7 +38,7 @@
 Cuan memperlakukan setiap aset digital sebagai **1 Digital Project** mandiri:
 * **Universal Input (GitHub BUKAN Keharusan):**
   - Pengguna non-tech cukup **Upload ZIP** (file script/theme dari CodeCanyon/Dojo/Envato) atau pilih **1-Click Blueprint**.
-  - GitHub bersifat **opsional** (hanya bagi pengguna teknis yang punya repo).
+  - GitHub bersifat **opsional**; pengguna dapat menghubungkan repo yang sudah dimiliki atau memilih menyimpan salinan kode ke akun GitHub pribadi melalui onboarding yang dipandu.
   - Di belakang layar, Cuan tetap membuat repository Git lokal secara otomatis untuk tracking versi dan rollback aman tanpa pengguna perlu tahu apa itu Git.
 * **First-Class WordPress & Script Support:**
   - Mendukung proyek **WordPress 1-Click Deploy** (container WordPress + MySQL/MariaDB + Caddy auto-SSL).
@@ -48,6 +48,18 @@ Cuan memperlakukan setiap aset digital sebagai **1 Digital Project** mandiri:
 * **Visual Config Wizard:** Mengubah kerumitan file `.env` dan konfigurasi database menjadi formulir visual yang ramah manusia.
 * **1-Click Turnkey Cloud:** Auto-provisioning VPS/Cloud dengan Docker, persistent database, dan reverse proxy HTTPS (Caddy) otomatis.
 * **Agentic Co-Pilot (Chat-to-Modify):** Modifikasi kode dan tambah fitur cukup dengan prompt bahasa manusia biasa, diuji pada staging preview sebelum di-publish ke live.
+
+### Prinsip Kepemilikan & Portabilitas Aset
+
+Prinsip produk: **pengguna dapat meninggalkan Cuan dengan membawa kode, data, dan panduan untuk menjalankan asetnya di luar Cuan.** Ketentuan berikut adalah arah desain untuk planning sprint berikutnya; bukan klaim fitur yang sudah tersedia dan tidak menambah scope sprint yang sedang running.
+
+* **Kepemilikan pengguna:** Kode, data, dan konfigurasi aset dapat diekspor dalam format standar, dengan tetap mengikuti lisensi software pihak ketiga. Ekspor dilengkapi panduan deployment, kebutuhan lingkungan, serta prosedur pemulihan agar dapat digunakan tanpa AgentSession internal.
+* **Git otomatis, GitHub opsional:** Setiap project software yang kodenya dikelola Cuan memiliki repo Git lokal otomatis untuk riwayat perubahan. Koneksi GitHub ditawarkan sebagai pilihan saat onboarding tanpa menghalangi pengguna memulai. Repo eksternal berada di akun pengguna; Cuan hanya diberi akses ke repo yang dipilih. GitHub membantu kepemilikan salinan dan portabilitas, tetapi bukan layanan terdesentralisasi.
+* **Pengembangan software:** Pengguna dapat memodifikasi software dan menambah fitur melalui AI. Perubahan kode dilacak di Git, diuji di staging preview, dan dipublikasikan setelah persetujuan pengguna. Pemulihan kode tidak otomatis memulihkan database atau file unggahan.
+* **WordPress sebagai satu aset:** Satu instalasi WordPress dikelola sebagai satu aset. Kode kustom, seperti child theme dan plugin khusus, dilacak di Git. Artikel, halaman, pengaturan, dan akun berada dalam backup database; media dan file unggahan berada dalam backup uploads. Pemulihan website menggabungkan versi kode, database, dan uploads yang konsisten, beserta versi dependensi yang diperlukan.
+* **Backup milik pengguna:** Sediakan ekspor dan pilihan tujuan backup di penyimpanan milik pengguna, misalnya S3/R2. GitHub menjadi salinan kode dan tidak menggantikan backup database atau uploads. Detail integrasi dan verifikasi restore ditentukan saat sprint planning.
+* **Secrets di luar repo:** Password, token, kredensial, dan konfigurasi rahasia disimpan melalui mekanisme secrets, tidak di-commit ke Git atau GitHub. Panduan migrasi menjelaskan cara mengonfigurasi ulang secrets secara aman.
+* **UX nonteknis:** Pengguna mengakses Website/Aplikasi, Riwayat Perubahan, Preview, Backup, Pulihkan, dan Ekspor melalui antarmuka yang jelas. Pemahaman Git tidak menjadi syarat penggunaan.
 
 ---
 
