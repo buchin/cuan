@@ -50,6 +50,12 @@ type Task struct {
 	Status        string    `json:"status"`         // backlog, doing, review, done, blocked
 	Priority      string    `json:"priority"`       // low, normal, high, urgent
 	AssignedAgent string    `json:"assigned_agent"` // e.g. agy
+	BranchName    string    `json:"branch_name,omitempty"`
+	PRURL         string    `json:"pr_url,omitempty"`
+	PRNumber      int       `json:"pr_number,omitempty"`
+	CommitSHA     string    `json:"commit_sha,omitempty"`
+	DiffSummary   string    `json:"diff_summary,omitempty"`
+	TestSummary   string    `json:"test_summary,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -128,6 +134,12 @@ type UpdateTaskRequest struct {
 	Status        *string `json:"status,omitempty"`
 	Priority      *string `json:"priority,omitempty"`
 	AssignedAgent *string `json:"assigned_agent,omitempty"`
+	BranchName    *string `json:"branch_name,omitempty"`
+	PRURL         *string `json:"pr_url,omitempty"`
+	PRNumber      *int    `json:"pr_number,omitempty"`
+	CommitSHA     *string `json:"commit_sha,omitempty"`
+	DiffSummary   *string `json:"diff_summary,omitempty"`
+	TestSummary   *string `json:"test_summary,omitempty"`
 }
 
 type CreateCommentRequest struct {

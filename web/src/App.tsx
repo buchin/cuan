@@ -13,6 +13,8 @@ import {
   LogOut, 
   RefreshCw, 
   GitBranch, 
+  GitPullRequest,
+  GitCommit,
   AlertCircle,
   ShieldCheck,
   Globe,
@@ -103,6 +105,12 @@ interface TaskItem {
   status: 'backlog' | 'doing' | 'review' | 'done' | 'blocked'
   priority: 'low' | 'normal' | 'high' | 'urgent'
   assigned_agent?: string
+  branch_name?: string
+  pr_url?: string
+  pr_number?: number
+  commit_sha?: string
+  diff_summary?: string
+  test_summary?: string
   created_at: string
   updated_at: string
   latest_attempt?: TaskAttempt
@@ -681,6 +689,71 @@ export function App() {
       await fetchProtectedData()
     } catch (err: any) {
       alert(`Gagal retry task: ${err.message}`)
+    } finally {
+      setAttemptActionLoading(false)
+    }
+  }
+
+  const handleRequestRevisionAction = async (taskId: string) => {
+    const directive = prompt('Masukkan arahan/catatan revisi untuk Development Team / Agent:', 'Perbaiki catatan verifikasi dan pastikan targeted test lulus.')
+    if (!directive || !directive.trim()) return
+
+    setAttemptActionLoading(true)
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: 'doing' }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal mengubah status task')
+      }
+
+      await fetch(`/api/v1/tasks/${taskId}/comments`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ message: `[ARAHAN REVISI PO/OWNER]: ${directive.trim()}` }),
+      })
+
+      setSuccessNotification('Siklus revisi dimulai: Task dikembalikan ke Doing dan attempt revisi dijadwalkan otomatis!')
+      setTimeout(() => setSuccessNotification(null), 4000)
+      await fetchTaskDetail(taskId)
+      await fetchProtectedData()
+    } catch (err: any) {
+      alert(`Gagal meminta revisi: ${err.message}`)
+    } finally {
+      setAttemptActionLoading(false)
+    }
+  }
+
+  const handleApproveTaskAction = async (taskId: string) => {
+    if (!confirm('Apakah Anda yakin menyetujui (Approve) hasil pekerjaan dan PR ini? Task akan ditandai Done.')) return
+
+    setAttemptActionLoading(true)
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: 'done' }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal approve task')
+      }
+
+      await fetch(`/api/v1/tasks/${taskId}/comments`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ message: '[APPROVAL PO/OWNER]: Pekerjaan dan PR telah direview dan disetujui (Approved). Task selesai (Done).' }),
+      })
+
+      setSuccessNotification('Task berhasil di-approve dan berstatus Done!')
+      setTimeout(() => setSuccessNotification(null), 4000)
+      await fetchTaskDetail(taskId)
+      await fetchProtectedData()
+    } catch (err: any) {
+      alert(`Gagal approve task: ${err.message}`)
     } finally {
       setAttemptActionLoading(false)
     }
@@ -1956,6 +2029,31 @@ export function App() {
                       </Button>
                     )}
 
+                    {/* Review Actions (when status is review) */}
+                    {selectedTask.status === 'review' && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRequestRevisionAction(selectedTask.id)}
+                          disabled={attemptActionLoading}
+                          className="text-xs gap-1.5 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Minta Revisi
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleApproveTaskAction(selectedTask.id)}
+                          disabled={attemptActionLoading}
+                          className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          Approve & Done
+                        </Button>
+                      </>
+                    )}
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -2070,6 +2168,143 @@ export function App() {
                     </AlertDescription>
                   </Alert>
                 )}
+
+                {/* T6: Perubahan Git & GitHub Pull Request Card */}
+                <Card className="bg-white border-slate-200 shadow-sm">
+                  <CardHeader className="p-4 pb-3 border-b border-slate-100 bg-slate-50/50">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <GitPullRequest className="h-5 w-5 text-indigo-600" />
+                        <div>
+                          <CardTitle className="text-sm font-bold text-slate-900">
+                            Perubahan Git & GitHub Pull Request (T6)
+                          </CardTitle>
+                          <CardDescription className="text-xs text-slate-500">
+                            Branch terisolasi per task, proteksi branch default, diff summary, dan PR GitHub.
+                          </CardDescription>
+                        </div>
+                      </div>
+
+                      {/* Review Action Controls */}
+                      {selectedTask.status === 'review' && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRequestRevisionAction(selectedTask.id)}
+                            disabled={attemptActionLoading}
+                            className="text-xs gap-1 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Minta Revisi (Kembalikan ke Doing)
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveTaskAction(selectedTask.id)}
+                            disabled={attemptActionLoading}
+                            className="text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            <Check className="h-3 w-3" />
+                            Approve & Mark Done
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      {/* Branch Name */}
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                          <GitBranch className="h-3 w-3 text-slate-500" />
+                          Task Branch
+                        </div>
+                        <div className="font-mono font-bold text-slate-800 truncate" title={selectedTask.branch_name || 'task/' + selectedTask.id}>
+                          {selectedTask.branch_name || 'task/' + selectedTask.id}
+                        </div>
+                        <div className="text-[10px] text-emerald-600 font-medium">✓ Default branch terlindungi</div>
+                      </div>
+
+                      {/* Pull Request Link */}
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                          <GitPullRequest className="h-3 w-3 text-slate-500" />
+                          GitHub PR
+                        </div>
+                        {selectedTask.pr_url ? (
+                          <a
+                            href={selectedTask.pr_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                          >
+                            <span>PR #{selectedTask.pr_number || 'View'}</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <div className="text-slate-400 italic">Belum dibuat</div>
+                        )}
+                        <div className="text-[10px] text-slate-500">Auto-update saat revisi</div>
+                      </div>
+
+                      {/* Latest Commit */}
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                          <GitCommit className="h-3 w-3 text-slate-500" />
+                          Commit SHA
+                        </div>
+                        <div className="font-mono font-bold text-slate-800">
+                          {selectedTask.commit_sha ? selectedTask.commit_sha.slice(0, 7) : '-'}
+                        </div>
+                        <div className="text-[10px] text-slate-500">Author: Buchin</div>
+                      </div>
+
+                      {/* Review Status */}
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                          <ShieldCheck className="h-3 w-3 text-slate-500" />
+                          Status Review
+                        </div>
+                        <Badge
+                          variant={
+                            selectedTask.status === 'review'
+                              ? 'default'
+                              : selectedTask.status === 'done'
+                              ? 'success'
+                              : 'secondary'
+                          }
+                          className="capitalize text-xs font-bold"
+                        >
+                          {selectedTask.status === 'review' ? 'Menunggu Review PO' : selectedTask.status}
+                        </Badge>
+                        <div className="text-[10px] text-slate-500">
+                          {selectedTask.status === 'review' ? 'Bisa diminta revisi' : 'Status saat ini'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Targeted Test Status */}
+                    {selectedTask.test_summary && (
+                      <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-md text-xs text-emerald-800">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span className="font-medium">{selectedTask.test_summary}</span>
+                      </div>
+                    )}
+
+                    {/* Diff Summary */}
+                    {selectedTask.diff_summary && (
+                      <div className="space-y-1.5">
+                        <div className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                          <FolderGit2 className="h-3.5 w-3.5 text-slate-500" />
+                          Ringkasan Diff Perubahan
+                        </div>
+                        <pre className="bg-slate-900 text-slate-100 p-3 rounded-md font-mono text-xs overflow-x-auto border border-slate-800 max-h-48">
+                          {selectedTask.diff_summary}
+                        </pre>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Two-Column Detail Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

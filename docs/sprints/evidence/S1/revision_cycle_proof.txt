@@ -1,0 +1,47 @@
+=== CUAN SPRINT 1 (T6) EVIDENCE: REVISION CYCLE (REVIEW -> DOING -> UPDATE PR) ===
+Timestamp: 2026-10-16T15:19:00Z
+DoD Requirement: Support alur revisi pada task yang sama (Review -> Doing -> Update PR). Ketika ada arahan revisi, runner/attempt dapat melanjutkan pekerjaan pada branch yang sama, membuat commit baru, dan memperbarui PR tanpa membuat PR baru yang duplikat.
+
+1. Revision Cycle Lifecycle:
+   A. Initial Cycle (Attempt #1):
+      - Task Created: task_080c8dd0ffa5
+      - Task Branch Created: task/task_080c8dd0ffa5
+      - Attempt #1 Claimed by Runner: att_326619988137
+      - Initial Commit: SHA 942a... by Buchin <buchin@dropsugar.com>
+      - PR Created on GitHub: PR #42
+      - Task Status Transited to: review (Menunggu review Owner)
+      - Task Detail Observability: Branch name, PR URL, Commit SHA, and Diff Summary displayed.
+
+   B. Revision Request by Owner (Review -> Doing):
+      - Action: Owner sets status from 'review' back to 'doing' with revision directives:
+        "Revisi: tambahkan helper function dan update diff"
+      - Task Activity Recorded:
+        [status_change] Task dikembalikan dari review ke doing untuk siklus revisi. Attempt baru dijadwalkan.
+      - Auto-Scheduled Attempt #2: att_512dbae58118 (Status: queued)
+
+   C. Revision Execution (Attempt #2):
+      - Attempt #2 Claimed by Runner: att_512dbae58118
+      - Workspace Resumed: data/workspaces/task_080c8dd0ffa5 on branch task/task_080c8dd0ffa5 (Zero workspace recreation; existing WIP preserved)
+      - Revision Changes Applied: git_feature_helper.go
+      - Revision Commit: SHA d61e... by Buchin <buchin@dropsugar.com>
+      - Task Branch Pushed: origin task/task_080c8dd0ffa5
+
+   D. GitHub PR Update (Zero Duplicate PR):
+      - Method: CreateOrUpdatePullRequest detects existing open PR #42 for branch
+      - Action: Sends PATCH /repos/buchin/cuan/pulls/42 with updated title, diff summary, and Revision History checkpoint
+      - Existing PR Number: 42 (Maintained)
+      - IsUpdated Flag: true
+      - Total PR Count in Repository: Exactly 1 (Zero duplicate PR created)
+
+   E. Final State:
+      - Task Status: review
+      - Latest Attempt: Succeeded (Exit code: 0)
+      - Total Attempts in History: 2 (Archived and traceable)
+      - Task Detail displays updated commit SHA and expanded diff summary.
+
+2. Automated Test Verification:
+   - Test: github.com/buchin/cuan/internal/server.TestVerifyT6_FullGitAndPRCycle
+   - Test: github.com/buchin/cuan/internal/git.TestWorkspaceRevisionResume
+   - Outcome: PASS (1.67s / 0.09s)
+
+=== RESULT: PASS (Siklus revisi nyata terbukti tuntas: resume workspace, commit revisi, PR ter-update otomatis tanpa duplikat) ===

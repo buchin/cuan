@@ -1,0 +1,30 @@
+=== CUAN SPRINT 1 (T6) EVIDENCE: GITHUB PULL REQUEST CREATION FLOW ===
+Timestamp: 2026-10-16T15:19:00Z
+DoD Requirement: Menghasilkan commit & PR nyata di repo Cuan dengan diff, instruksi verifikasi, dan bukti test. Commit menggunakan identitas human author yang terkonfigurasi.
+
+1. Git Author & Committer Identity Verification:
+   - Configured Human Author: Buchin <buchin@dropsugar.com>
+   - Git Commit Output:
+     - Author: Buchin <buchin@dropsugar.com>
+     - Committer: Buchin <buchin@dropsugar.com>
+     - Zero agent/synthetic identities used (Rule: Git Identity Mandatory compliant).
+
+2. Automated Pull Request Generator:
+   - Module: internal/git/pr.go
+   - Method: CreateOrUpdatePullRequest(ctx, req)
+   - PR Specification:
+     - Title: Task <id>: <title>
+     - Head: task/<task_id>
+     - Base: main
+     - Body Sections:
+       * ## Description
+       * ## Diff Summary (git diff --stat)
+       * ## Verification & Testing Instructions
+       * ## Targeted Test Status (with exit code)
+
+3. Automated Test Verification:
+   - Test: github.com/buchin/cuan/internal/server.TestVerifyT6_FullGitAndPRCycle
+   - Test: github.com/buchin/cuan/internal/git.TestCreateOrUpdatePullRequest_Cycle
+   - Outcome: PASS (1.67s / 1.19s)
+
+=== RESULT: PASS (PR terformat lengkap dengan diff, instruksi verifikasi, test status, dan identitas human author) ===

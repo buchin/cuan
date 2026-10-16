@@ -60,12 +60,16 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
-	Claimed      bool              `json:"claimed"`
-	Attempt      *task.TaskAttempt `json:"attempt,omitempty"`
-	Task         *task.Task        `json:"task,omitempty"`
-	ProjectRepo  string            `json:"project_repo,omitempty"`
-	WorkingDir   string            `json:"working_dir,omitempty"`
-	LeaseExpires time.Time         `json:"lease_expires"`
+	Claimed       bool              `json:"claimed"`
+	Attempt       *task.TaskAttempt `json:"attempt,omitempty"`
+	Task          *task.Task        `json:"task,omitempty"`
+	ProjectRepo   string            `json:"project_repo,omitempty"`
+	RepoOwner     string            `json:"repo_owner,omitempty"`
+	RepoName      string            `json:"repo_name,omitempty"`
+	RepoURL       string            `json:"repo_url,omitempty"`
+	DefaultBranch string            `json:"default_branch,omitempty"`
+	WorkingDir    string            `json:"working_dir,omitempty"`
+	LeaseExpires  time.Time         `json:"lease_expires"`
 }
 
 // StreamLogsRequest is used by runner to stream batches of output lines to the server.
@@ -82,4 +86,10 @@ type CompleteAttemptRequest struct {
 	ExitCode     int    `json:"exit_code"`
 	PeakRSSBytes int64  `json:"peak_rss_bytes"`
 	ErrorMessage string `json:"error_message,omitempty"`
+	BranchName   string `json:"branch_name,omitempty"`
+	PRURL        string `json:"pr_url,omitempty"`
+	PRNumber     int    `json:"pr_number,omitempty"`
+	CommitSHA    string `json:"commit_sha,omitempty"`
+	DiffSummary  string `json:"diff_summary,omitempty"`
+	TestSummary  string `json:"test_summary,omitempty"`
 }

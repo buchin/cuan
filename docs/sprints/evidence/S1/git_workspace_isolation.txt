@@ -1,0 +1,27 @@
+=== CUAN SPRINT 1 (T6) EVIDENCE: TASK WORKSPACE ISOLATION ===
+Timestamp: 2026-10-16T15:19:00Z
+DoD Requirement: Workspace/checkout terisolasi per task. Agent mengeksekusi di ruang kerja terisolasi, tidak mengutak-atik instance Stable atau workspace task lain.
+
+1. Architecture & Mechanism:
+   - Base Repository: Cloned under data/projects/{project_id} (or custom base directory)
+   - Task Workspaces: Provisioned under data/workspaces/{task_id}
+   - Isolation Technique: Dedicated Git clone with local hardlink object sharing (fast provisioning < 60ms) and independent .git directory, independent index, and independent HEAD.
+   - Branch Allocation: Each workspace checks out a unique task branch: task/{task_id}.
+
+2. Verification Drill:
+   - Base Repository Path: data/projects/proj_cuan_test (Clean stable baseline)
+   - Workspace Task 1: data/workspaces/task_001 (Branch: task/task_001)
+   - Workspace Task 2: data/workspaces/task_002 (Branch: task/task_002)
+
+3. File Mutation Audit:
+   - Action: Task 1 creates feature_1.txt and modifies README.md
+   - Result in Base Repo (README.md): Untouched (Content matches stable baseline)
+   - Result in Base Repo (feature_1.txt): File does NOT exist (Zero leakage)
+   - Result in Workspace 2 (README.md): Untouched (Content matches stable baseline)
+   - Result in Workspace 2 (feature_1.txt): File does NOT exist (Zero cross-task contamination)
+
+4. Automated Test Verification:
+   - Test: github.com/buchin/cuan/internal/git.TestWorkspaceIsolation
+   - Outcome: PASS (0.09s)
+
+=== RESULT: PASS (Isolasi workspace per task terbukti 100% aman; stable instance dan task lain terlindungi) ===

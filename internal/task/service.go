@@ -262,12 +262,60 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 		}
 	}
 
+	if req.BranchName != nil {
+		t.BranchName = strings.TrimSpace(*req.BranchName)
+	}
+	if req.PRURL != nil {
+		t.PRURL = strings.TrimSpace(*req.PRURL)
+	}
+	if req.PRNumber != nil {
+		t.PRNumber = *req.PRNumber
+	}
+	if req.CommitSHA != nil {
+		t.CommitSHA = strings.TrimSpace(*req.CommitSHA)
+	}
+	if req.DiffSummary != nil {
+		t.DiffSummary = strings.TrimSpace(*req.DiffSummary)
+	}
+	if req.TestSummary != nil {
+		t.TestSummary = strings.TrimSpace(*req.TestSummary)
+	}
+
 	t.UpdatedAt = time.Now().UTC()
 	if err := s.store.UpdateTask(ctx, t); err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
 	}
 
+	// Auto-schedule revision attempt when returning from review to doing
+	if oldStatus == TaskStatusReview && newStatus == TaskStatusDoing {
+		existingAttempts, _ := s.store.ListAttempts(ctx, t.ID)
+		hasActive := false
+		for _, a := range existingAttempts {
+			if a.Status == AttemptStatusQueued || a.Status == AttemptStatusRunning {
+				hasActive = true
+				break
+			}
+		}
+		if !hasActive {
+			attemptNum := len(existingAttempts) + 1
+			revAttempt := &TaskAttempt{
+				ID:            generateID("att"),
+				TaskID:        t.ID,
+				RunnerID:      "",
+				AgentName:     t.AssignedAgent,
+				Status:        AttemptStatusQueued,
+				AttemptNumber: attemptNum,
+				CreatedAt:     t.UpdatedAt,
+			}
+			_ = s.store.CreateAttempt(ctx, revAttempt)
+		}
+	}
+
 	if statusChanged {
+		actMsg := fmt.Sprintf("Status task diubah dari '%s' ke '%s'.", oldStatus, newStatus)
+		if oldStatus == TaskStatusReview && newStatus == TaskStatusDoing {
+			actMsg = "Task dikembalikan dari review ke doing untuk siklus revisi. Attempt baru dijadwalkan."
+		}
 		act := &TaskActivity{
 			ID:           generateID("act"),
 			TaskID:       t.ID,
@@ -275,7 +323,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 			Author:       author,
 			OldStatus:    oldStatus,
 			NewStatus:    newStatus,
-			Message:      fmt.Sprintf("Status task diubah dari '%s' ke '%s'.", oldStatus, newStatus),
+			Message:      actMsg,
 			CreatedAt:    t.UpdatedAt,
 		}
 		_ = s.store.CreateActivity(ctx, act)

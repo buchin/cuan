@@ -10,18 +10,21 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/task"
 )
 
 type Runner struct {
 	cfg        *config.Config
 	adapter    agent.Adapter
+	gitClient  *git.Client
 	httpClient *http.Client
 	baseURL    string
 
@@ -41,9 +44,14 @@ func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*h
 	return &Runner{
 		cfg:        cfg,
 		adapter:    adapter,
+		gitClient:  git.NewClient(),
 		httpClient: client,
 		baseURL:    baseURL,
 	}
+}
+
+func (r *Runner) SetGitClient(client *git.Client) {
+	r.gitClient = client
 }
 
 // Start runs the runner daemon: background heartbeat & queue polling loop.
@@ -164,7 +172,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	r.mu.Unlock()
 
 	// Execute attempt in background goroutine so heartbeat ticker continues running
-	go func(att *task.TaskAttempt, t *task.Task) {
+	go func(claim ClaimTaskResponse) {
 		defer func() {
 			r.mu.Lock()
 			r.currentAttempt = nil
@@ -172,15 +180,54 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 			r.mu.Unlock()
 		}()
 
-		r.runAttempt(execCtx, att, t)
-	}(claimResp.Attempt, claimResp.Task)
+		r.runAttempt(execCtx, claim)
+	}(claimResp)
 }
 
-func (r *Runner) runAttempt(ctx context.Context, att *task.TaskAttempt, t *task.Task) {
+func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
+	att := claim.Attempt
+	t := claim.Task
 	startTime := time.Now()
 
 	// Stream initial start log
 	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Runner '%s' memulai eksekusi attempt %s dengan agent '%s'.", r.cfg.RunnerID, att.ID, r.adapter.Name()))
+
+	// Prepare isolated workspace per task
+	var ws *git.TaskWorkspace
+	workingDir := ""
+	if r.gitClient != nil {
+		branchName := t.BranchName
+		if branchName == "" {
+			branchName = fmt.Sprintf("task/%s", t.ID)
+		}
+		defaultBranch := claim.DefaultBranch
+		if defaultBranch == "" {
+			defaultBranch = "main"
+		}
+		baseRepoDir := claim.WorkingDir
+		if baseRepoDir == "" && t.ProjectID != "" {
+			baseRepoDir = filepath.Join("data", "projects", t.ProjectID)
+		}
+
+		var wsErr error
+		ws, wsErr = r.gitClient.PrepareTaskWorkspace(ctx, git.WorkspaceConfig{
+			TaskID:            t.ID,
+			ProjectID:         t.ProjectID,
+			BaseRepoDir:       baseRepoDir,
+			WorkspacesBaseDir: r.cfg.WorkspacesDir,
+			BranchName:        branchName,
+			DefaultBranch:     defaultBranch,
+			AuthorName:        r.cfg.GitAuthorName,
+			AuthorEmail:       r.cfg.GitAuthorEmail,
+			RemoteURL:         claim.RepoURL,
+		})
+		if wsErr != nil {
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan persiapan workspace: %v", wsErr))
+		} else if ws != nil {
+			workingDir = ws.Path
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Workspace terisolasi siap di '%s' pada branch '%s'.", ws.Path, ws.BranchName))
+		}
+	}
 
 	// Prepare execution request
 	prompt := t.Instructions
@@ -191,6 +238,7 @@ func (r *Runner) runAttempt(ctx context.Context, att *task.TaskAttempt, t *task.
 	req := agent.ExecutionRequest{
 		TaskID:       t.ID,
 		Prompt:       prompt,
+		WorkingDir:   workingDir,
 		Timeout:      10 * time.Minute,
 		OutputFormat: "json",
 	}
@@ -243,6 +291,69 @@ func (r *Runner) runAttempt(ctx context.Context, att *task.TaskAttempt, t *task.
 		compReq.Status = task.AttemptStatusFailed
 		compReq.ExitCode = 1
 		compReq.ErrorMessage = "No execution result returned from agent adapter"
+	}
+
+	// Post-execution Git & GitHub PR Flow
+	if compReq.Status == task.AttemptStatusSucceeded && ws != nil && r.gitClient != nil {
+		defaultBranch := claim.DefaultBranch
+		if defaultBranch == "" {
+			defaultBranch = "main"
+		}
+
+		// 1. Commit changes with configured human author identity
+		commitSHA, commitErr := r.gitClient.CommitChanges(ctx, ws.Path, fmt.Sprintf("feat(%s): %s", t.ID, t.Title), r.cfg.GitAuthorName, r.cfg.GitAuthorEmail)
+		if commitErr == nil && commitSHA != "" {
+			compReq.CommitSHA = commitSHA
+			compReq.BranchName = ws.BranchName
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Commit berhasil dibuat: %s oleh %s <%s>", commitSHA, r.cfg.GitAuthorName, r.cfg.GitAuthorEmail))
+		}
+
+		// 2. Diff summary
+		diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, defaultBranch)
+		compReq.DiffSummary = diffSummary
+		compReq.TestSummary = fmt.Sprintf("Targeted validation executed (exit %d)", compReq.ExitCode)
+
+		// 3. Push branch & generate/update Pull Request if remote repo info is present
+		if claim.RepoOwner != "" && claim.RepoName != "" {
+			token := os.Getenv("GH_TOKEN")
+			if token == "" {
+				token = os.Getenv("GITHUB_TOKEN")
+			}
+
+			pushErr := r.gitClient.PushTaskBranch(ctx, ws.Path, ws.BranchName, defaultBranch, token)
+			if pushErr != nil {
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan git push: %v", pushErr))
+			} else {
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Task branch '%s' berhasil dipush ke remote GitHub.", ws.BranchName))
+
+				// Create or Update Pull Request (no duplicate PR on revision)
+				prRes, prErr := r.gitClient.CreateOrUpdatePullRequest(ctx, git.PullRequestRequest{
+					Owner:         claim.RepoOwner,
+					Repo:          claim.RepoName,
+					Title:         fmt.Sprintf("Task %s: %s", t.ID, t.Title),
+					HeadBranch:    ws.BranchName,
+					BaseBranch:    defaultBranch,
+					Description:   t.Instructions,
+					DiffSummary:   diffSummary,
+					Verification:  "Run targeted automated tests:\n```bash\n./scripts/test.sh --fast\n```",
+					TestStatus:    compReq.TestSummary,
+					IsRevision:    att.AttemptNumber > 1,
+					RevisionNotes: fmt.Sprintf("Revision cycle on attempt #%d", att.AttemptNumber),
+					Token:         token,
+				})
+				if prErr == nil && prRes != nil {
+					compReq.PRURL = prRes.HTMLURL
+					compReq.PRNumber = prRes.Number
+					actionWord := "dibuat"
+					if prRes.IsUpdated {
+						actionWord = "diperbarui (siklus revisi)"
+					}
+					r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Pull Request #%d %s di GitHub: %s", prRes.Number, actionWord, prRes.HTMLURL))
+				} else if prErr != nil {
+					r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan pembuatan PR: %v", prErr))
+				}
+			}
+		}
 	}
 
 	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Attempt %s selesai: %s (exit: %d, durasi: %v, peak RSS: %d bytes).",

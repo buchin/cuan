@@ -5,19 +5,34 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
-type RunnerService struct {
-	store     Store
-	taskStore task.Store
+type ProjectFinder interface {
+	Get(ctx context.Context, id string) (*project.ProjectResponse, error)
 }
 
-func NewService(store Store, taskStore task.Store) *RunnerService {
-	return &RunnerService{
-		store:     store,
-		taskStore: taskStore,
+type RunnerService struct {
+	store         Store
+	taskStore     task.Store
+	projectFinder ProjectFinder
+}
+
+func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinder) *RunnerService {
+	var pf ProjectFinder
+	if len(projectFinder) > 0 {
+		pf = projectFinder[0]
 	}
+	return &RunnerService{
+		store:         store,
+		taskStore:     taskStore,
+		projectFinder: pf,
+	}
+}
+
+func (s *RunnerService) SetProjectFinder(f ProjectFinder) {
+	s.projectFinder = f
 }
 
 // Heartbeat processes heartbeat and lease renewal from a runner daemon.
@@ -85,12 +100,25 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		leaseExpires = *att.LeaseExpiresAt
 	}
 
-	return &ClaimTaskResponse{
+	resp := &ClaimTaskResponse{
 		Claimed:      true,
 		Attempt:      att,
 		Task:         t,
 		LeaseExpires: leaseExpires,
-	}, nil
+	}
+
+	if s.projectFinder != nil && t.ProjectID != "" {
+		if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+			resp.ProjectRepo = fmt.Sprintf("%s/%s", p.RepoOwner, p.RepoName)
+			resp.RepoOwner = p.RepoOwner
+			resp.RepoName = p.RepoName
+			resp.RepoURL = p.RepoURL
+			resp.DefaultBranch = p.DefaultBranch
+			resp.WorkingDir = p.LocalPath
+		}
+	}
+
+	return resp, nil
 }
 
 // Complete handles completion report from a runner daemon.
@@ -128,10 +156,35 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		} else if status == task.AttemptStatusFailed || status == task.AttemptStatusCanceled {
 			t.Status = task.TaskStatusBlocked
 		}
+
+		if req.BranchName != "" {
+			t.BranchName = req.BranchName
+		}
+		if req.PRURL != "" {
+			t.PRURL = req.PRURL
+		}
+		if req.PRNumber > 0 {
+			t.PRNumber = req.PRNumber
+		}
+		if req.CommitSHA != "" {
+			t.CommitSHA = req.CommitSHA
+		}
+		if req.DiffSummary != "" {
+			t.DiffSummary = req.DiffSummary
+		}
+		if req.TestSummary != "" {
+			t.TestSummary = req.TestSummary
+		}
+
 		t.UpdatedAt = now
 		_ = s.taskStore.UpdateTask(ctx, t)
 
 		// Record activity
+		msg := fmt.Sprintf("Attempt %s selesai dengan status '%s' (exit code: %d, peak RSS: %d bytes).", att.ID, status, req.ExitCode, req.PeakRSSBytes)
+		if t.PRURL != "" {
+			msg = fmt.Sprintf("Attempt %s selesai: %s. Branch: %s, PR: %s (commit: %s).", att.ID, status, t.BranchName, t.PRURL, t.CommitSHA)
+		}
+
 		act := &task.TaskActivity{
 			ID:           fmt.Sprintf("act_%d", time.Now().UnixNano()),
 			TaskID:       t.ID,
@@ -140,7 +193,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			Author:       req.RunnerID,
 			OldStatus:    oldStatus,
 			NewStatus:    t.Status,
-			Message:      fmt.Sprintf("Attempt %s selesai dengan status '%s' (exit code: %d, peak RSS: %d bytes).", att.ID, status, req.ExitCode, req.PeakRSSBytes),
+			Message:      msg,
 			CreatedAt:    now,
 		}
 		_ = s.taskStore.CreateActivity(ctx, act)
