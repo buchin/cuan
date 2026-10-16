@@ -5,10 +5,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/db"
 )
@@ -445,7 +450,7 @@ func TestLocalDriverLifecycle(t *testing.T) {
 	}
 
 	// 5. Inspect logs
-	logs, err := driver.GetLogs(ctx, depID, 10)
+	logs, err := driver.GetLogs(ctx, depID, 50)
 	if err != nil {
 		t.Fatalf("GetLogs error: %v", err)
 	}
@@ -470,6 +475,8 @@ func TestLocalDriverLifecycle(t *testing.T) {
 	if !foundInit || !foundStart || !foundStop {
 		t.Errorf("missing expected lifecycle logs: init=%v, start=%v, stop=%v", foundInit, foundStart, foundStop)
 	}
+
+	_ = driver.Stop(ctx, depID)
 }
 
 // TestStorageEngine_Isolation verifies that deployments are completely isolated in their subdirectories.
@@ -515,3 +522,471 @@ func TestStorageEngine_Isolation(t *testing.T) {
 		t.Fatalf("dep2 directory was unexpectedly removed")
 	}
 }
+
+// TestPortPool_ZeroCollision tests concurrent port allocation to guarantee thread safety,
+// anti-collision, real socket availability, and port pool exhaustion handling.
+func TestPortPool_ZeroCollision(t *testing.T) {
+	pool := NewPortPool()
+	concurrency := 100
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+
+	portsChan := make(chan int, concurrency)
+	errorsChan := make(chan error, concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		depID := fmt.Sprintf("dep_concurrent_%03d", i)
+		go func(id string) {
+			defer wg.Done()
+			port, err := pool.Allocate(id)
+			if err != nil {
+				errorsChan <- err
+				return
+			}
+			portsChan <- port
+		}(depID)
+	}
+
+	wg.Wait()
+	close(portsChan)
+	close(errorsChan)
+
+	if len(errorsChan) > 0 {
+		for err := range errorsChan {
+			t.Errorf("concurrent allocate error: %v", err)
+		}
+		t.FailNow()
+	}
+
+	// Verify all allocated ports are unique (zero collision) and in range 9000-9999
+	seen := make(map[int]bool)
+	for port := range portsChan {
+		if port < DefaultMinPort || port > DefaultMaxPort {
+			t.Errorf("allocated port %d outside range [%d, %d]", port, DefaultMinPort, DefaultMaxPort)
+		}
+		if seen[port] {
+			t.Fatalf("PORT COLLISION DETECTED: port %d allocated more than once!", port)
+		}
+		seen[port] = true
+	}
+
+	if len(seen) != concurrency {
+		t.Fatalf("expected %d unique ports allocated, got %d", concurrency, len(seen))
+	}
+
+	// Verify IsLeased
+	for port := range seen {
+		if !pool.IsLeased(port) {
+			t.Errorf("expected port %d to be marked as leased", port)
+		}
+	}
+
+	// Release all ports
+	for i := 0; i < concurrency; i++ {
+		depID := fmt.Sprintf("dep_concurrent_%03d", i)
+		port, released := pool.Release(depID)
+		if !released {
+			t.Errorf("failed to release port for %s", depID)
+		}
+		if pool.IsLeased(port) {
+			t.Errorf("port %d still marked as leased after release", port)
+		}
+	}
+
+	if len(pool.ActiveLeases()) != 0 {
+		t.Errorf("expected active leases to be 0 after full release, got %d", len(pool.ActiveLeases()))
+	}
+
+	// Test pool exhaustion with a small pool range
+	t.Run("PoolExhaustionHandling", func(t *testing.T) {
+		smallPool := NewPortPoolWithRange(9500, 9502) // exactly 3 ports
+		smallPool.SetCheckSocket(false)               // test logical pool boundary
+
+		p1, err := smallPool.Allocate("dep_1")
+		if err != nil || p1 != 9500 {
+			t.Fatalf("alloc dep_1 failed: %v, port=%d", err, p1)
+		}
+		p2, err := smallPool.Allocate("dep_2")
+		if err != nil || p2 != 9501 {
+			t.Fatalf("alloc dep_2 failed: %v, port=%d", err, p2)
+		}
+		p3, err := smallPool.Allocate("dep_3")
+		if err != nil || p3 != 9502 {
+			t.Fatalf("alloc dep_3 failed: %v, port=%d", err, p3)
+		}
+
+		// 4th allocate must return ErrPortPoolExhausted
+		_, err = smallPool.Allocate("dep_4")
+		if !errors.Is(err, ErrPortPoolExhausted) {
+			t.Fatalf("expected ErrPortPoolExhausted, got %v", err)
+		}
+
+		// Release dep_2, then allocate dep_4 should succeed
+		smallPool.Release("dep_2")
+		p4, err := smallPool.Allocate("dep_4")
+		if err != nil || p4 != 9501 {
+			t.Fatalf("alloc dep_4 after release failed: %v, port=%d", err, p4)
+		}
+	})
+}
+
+// TestLocalDriver_Lifecycle tests the full lifecycle (Start -> Running -> Health -> Stop -> Stopped)
+// across Static, PHP, and Node.js runtimes, including dynamic port allocation, HTTP responsiveness,
+// and graceful process termination.
+func TestLocalDriver_Lifecycle(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("StaticRuntime_Lifecycle", func(t *testing.T) {
+		tempDir := t.TempDir()
+		storage, err := NewStorageEngine(filepath.Join(tempDir, "deployments"))
+		if err != nil {
+			t.Fatalf("NewStorageEngine: %v", err)
+		}
+		store := NewMemoryStore()
+		driver := NewLocalDriver(storage, store)
+
+		zipData, size := buildZip(t, map[string]string{
+			"index.html": "<!DOCTYPE html><html><body><h1>Cuan Static Runner Test</h1></body></html>",
+			"test.txt":   "static file content",
+		})
+
+		req := DeploymentRequest{
+			ProjectName: "Static Landing",
+			Slug:        "static-landing",
+			SourceType:  SourceTypeZip,
+			ZipReader:   bytes.NewReader(zipData),
+			ZipSize:     size,
+		}
+
+		res, err := driver.Deploy(ctx, req)
+		if err != nil {
+			t.Fatalf("Deploy error: %v", err)
+		}
+		if res.DetectedRuntime != RuntimeStatic {
+			t.Fatalf("expected runtime %s, got %s", RuntimeStatic, res.DetectedRuntime)
+		}
+		depID := res.Deployment.ID
+
+		// 1. Start: transitions to Running, allocates port in 9000-9999, spawns process PID > 0
+		if err := driver.Start(ctx, depID); err != nil {
+			t.Fatalf("Start error: %v", err)
+		}
+
+		dep, err := store.GetDeployment(ctx, depID)
+		if err != nil {
+			t.Fatalf("GetDeployment error: %v", err)
+		}
+		if dep.Status != StatusRunning {
+			t.Errorf("expected status %s, got %s", StatusRunning, dep.Status)
+		}
+		if dep.ProcessPID <= 0 {
+			t.Errorf("expected ProcessPID > 0, got %d", dep.ProcessPID)
+		}
+		if dep.InternalPort < DefaultMinPort || dep.InternalPort > DefaultMaxPort {
+			t.Errorf("expected InternalPort in range [%d, %d], got %d", DefaultMinPort, DefaultMaxPort, dep.InternalPort)
+		}
+
+		// 2. Health: process alive, port responding, responds to HTTP GET
+		hs, err := driver.Health(ctx, depID)
+		if err != nil {
+			t.Fatalf("Health error: %v", err)
+		}
+		if !hs.Alive {
+			t.Errorf("expected health Alive=true, got false (err: %s)", hs.Error)
+		}
+		if hs.PID != dep.ProcessPID {
+			t.Errorf("health PID mismatch: expected %d, got %d", dep.ProcessPID, hs.PID)
+		}
+
+		// Verify HTTP response from the running static server
+		httpURL := fmt.Sprintf("http://127.0.0.1:%d/index.html", dep.InternalPort)
+		client := &http.Client{Timeout: 2 * time.Second}
+		resp, httpErr := client.Get(httpURL)
+		if httpErr != nil {
+			t.Fatalf("HTTP GET %s failed: %v", httpURL, httpErr)
+		}
+		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(bodyBytes), "Cuan Static Runner Test") {
+			t.Errorf("unexpected HTTP response body: %s", string(bodyBytes))
+		}
+
+		// 3. Restart: stops and starts cleanly
+		if err := driver.Restart(ctx, depID); err != nil {
+			t.Fatalf("Restart error: %v", err)
+		}
+		restartedDep, _ := store.GetDeployment(ctx, depID)
+		if restartedDep.Status != StatusRunning || restartedDep.ProcessPID <= 0 {
+			t.Errorf("restart failed: status=%s, pid=%d", restartedDep.Status, restartedDep.ProcessPID)
+		}
+
+		// 4. Stop: terminates process, releases port, sets status 'stopped'
+		if err := driver.Stop(ctx, depID); err != nil {
+			t.Fatalf("Stop error: %v", err)
+		}
+
+		stoppedDep, _ := store.GetDeployment(ctx, depID)
+		if stoppedDep.Status != StatusStopped {
+			t.Errorf("expected status %s, got %s", StatusStopped, stoppedDep.Status)
+		}
+		if stoppedDep.ProcessPID != 0 {
+			t.Errorf("expected ProcessPID=0, got %d", stoppedDep.ProcessPID)
+		}
+
+		// Verify Health after stop reports not alive
+		hsAfterStop, _ := driver.Health(ctx, depID)
+		if hsAfterStop != nil && hsAfterStop.Alive {
+			t.Errorf("expected health Alive=false after stop, got true")
+		}
+
+		// Verify port is released in pool
+		if driver.PortPool().IsLeased(dep.InternalPort) {
+			t.Errorf("expected port %d to be released from pool", dep.InternalPort)
+		}
+	})
+
+	t.Run("PHPRuntime_Lifecycle", func(t *testing.T) {
+		tempDir := t.TempDir()
+		storage, err := NewStorageEngine(filepath.Join(tempDir, "deployments"))
+		if err != nil {
+			t.Fatalf("NewStorageEngine: %v", err)
+		}
+		store := NewMemoryStore()
+		driver := NewLocalDriver(storage, store)
+
+		zipData, size := buildZip(t, map[string]string{
+			"index.php": "<?php echo 'PHP Runner Lifecycle OK'; ?>",
+		})
+
+		req := DeploymentRequest{
+			ProjectName: "PHP Script",
+			Slug:        "php-script",
+			SourceType:  SourceTypeZip,
+			ZipReader:   bytes.NewReader(zipData),
+			ZipSize:     size,
+		}
+
+		res, err := driver.Deploy(ctx, req)
+		if err != nil {
+			t.Fatalf("Deploy error: %v", err)
+		}
+		if res.DetectedRuntime != RuntimePHP {
+			t.Fatalf("expected runtime %s, got %s", RuntimePHP, res.DetectedRuntime)
+		}
+		depID := res.Deployment.ID
+
+		// Start PHP process
+		if err := driver.Start(ctx, depID); err != nil {
+			t.Fatalf("Start PHP error: %v", err)
+		}
+
+		dep, _ := store.GetDeployment(ctx, depID)
+		if dep.Status != StatusRunning || dep.ProcessPID <= 0 {
+			t.Fatalf("PHP not running: status=%s, pid=%d", dep.Status, dep.ProcessPID)
+		}
+
+		// Verify health & HTTP response
+		hs, err := driver.Health(ctx, depID)
+		if err != nil || !hs.Alive {
+			t.Fatalf("Health check failed for PHP runner: %v, hs=%+v", err, hs)
+		}
+
+		httpURL := fmt.Sprintf("http://127.0.0.1:%d/index.php", dep.InternalPort)
+		client := &http.Client{Timeout: 2 * time.Second}
+		resp, httpErr := client.Get(httpURL)
+		if httpErr != nil {
+			t.Fatalf("HTTP GET PHP %s failed: %v", httpURL, httpErr)
+		}
+		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(bodyBytes), "PHP Runner Lifecycle OK") {
+			t.Errorf("unexpected PHP response: %s", string(bodyBytes))
+		}
+
+		// Stop PHP process
+		if err := driver.Stop(ctx, depID); err != nil {
+			t.Fatalf("Stop PHP error: %v", err)
+		}
+
+		stoppedDep, _ := store.GetDeployment(ctx, depID)
+		if stoppedDep.Status != StatusStopped {
+			t.Errorf("expected stopped status, got %s", stoppedDep.Status)
+		}
+	})
+
+	t.Run("NodeJSRuntime_Lifecycle", func(t *testing.T) {
+		tempDir := t.TempDir()
+		storage, err := NewStorageEngine(filepath.Join(tempDir, "deployments"))
+		if err != nil {
+			t.Fatalf("NewStorageEngine: %v", err)
+		}
+		store := NewMemoryStore()
+		driver := NewLocalDriver(storage, store)
+
+		serverJS := `
+const http = require('http');
+const port = process.env.PORT || 9000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200, {'Content-Type': 'text/plain'});
+  res.end('Node Runner Lifecycle OK');
+});
+server.listen(port, '127.0.0.1');
+`
+		zipData, size := buildZip(t, map[string]string{
+			"package.json": `{"name":"node-app","scripts":{"start":"node server.js"}}`,
+			"server.js":    serverJS,
+		})
+
+		req := DeploymentRequest{
+			ProjectName: "Node App",
+			Slug:        "node-app",
+			SourceType:  SourceTypeZip,
+			ZipReader:   bytes.NewReader(zipData),
+			ZipSize:     size,
+		}
+
+		res, err := driver.Deploy(ctx, req)
+		if err != nil {
+			t.Fatalf("Deploy error: %v", err)
+		}
+		if res.DetectedRuntime != RuntimeNodeJS {
+			t.Fatalf("expected runtime %s, got %s", RuntimeNodeJS, res.DetectedRuntime)
+		}
+		depID := res.Deployment.ID
+
+		// Start Node.js process
+		if err := driver.Start(ctx, depID); err != nil {
+			t.Fatalf("Start Node error: %v", err)
+		}
+
+		dep, _ := store.GetDeployment(ctx, depID)
+		if dep.Status != StatusRunning || dep.ProcessPID <= 0 {
+			t.Fatalf("Node not running: status=%s, pid=%d", dep.Status, dep.ProcessPID)
+		}
+
+		// Verify health & HTTP response
+		hs, err := driver.Health(ctx, depID)
+		if err != nil || !hs.Alive {
+			t.Fatalf("Health check failed for Node runner: %v, hs=%+v", err, hs)
+		}
+
+		httpURL := fmt.Sprintf("http://127.0.0.1:%d/", dep.InternalPort)
+		client := &http.Client{Timeout: 2 * time.Second}
+		resp, httpErr := client.Get(httpURL)
+		if httpErr != nil {
+			t.Fatalf("HTTP GET Node %s failed: %v", httpURL, httpErr)
+		}
+		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(bodyBytes), "Node Runner Lifecycle OK") {
+			t.Errorf("unexpected Node response: %s", string(bodyBytes))
+		}
+
+		// Stop Node.js process
+		if err := driver.Stop(ctx, depID); err != nil {
+			t.Fatalf("Stop Node error: %v", err)
+		}
+
+		stoppedDep, _ := store.GetDeployment(ctx, depID)
+		if stoppedDep.Status != StatusStopped {
+			t.Errorf("expected stopped status, got %s", stoppedDep.Status)
+		}
+	})
+}
+
+// TestLogStreamer verifies that process stdout and stderr streams are captured in real-time,
+// stored in both the in-memory circular buffer and persistent database store, and broadcasted
+// to active subscriber channels.
+func TestLogStreamer(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+
+	// Create dummy deployment in store to satisfy foreign key in append
+	dep := &Deployment{
+		ID:          "dep_stream_test",
+		ProjectName: "Stream Test",
+		Slug:        "stream-test",
+		Runtime:     RuntimeStatic,
+		Status:      StatusRunning,
+	}
+	if err := store.CreateDeployment(ctx, dep); err != nil {
+		t.Fatalf("CreateDeployment error: %v", err)
+	}
+
+	streamer := NewLogStreamer("dep_stream_test", store, 20)
+	defer streamer.Close()
+
+	// 1. Subscribe to live stream channel
+	subCh, unsub := streamer.Subscribe()
+	defer unsub()
+
+	// 2. Stream simulated stdout lines
+	stdoutR, stdoutW := io.Pipe()
+	go func() {
+		defer stdoutW.Close()
+		for i := 1; i <= 5; i++ {
+			_, _ = fmt.Fprintf(stdoutW, "stdout log line %d\n", i)
+		}
+	}()
+
+	if err := streamer.Stream(ctx, StreamStdout, stdoutR); err != nil {
+		t.Fatalf("Stream stdout: %v", err)
+	}
+
+	// 3. Stream simulated stderr lines
+	stderrR, stderrW := io.Pipe()
+	go func() {
+		defer stderrW.Close()
+		for i := 1; i <= 3; i++ {
+			_, _ = fmt.Fprintf(stderrW, "stderr error line %d\n", i)
+		}
+	}()
+
+	if err := streamer.Stream(ctx, StreamStderr, stderrR); err != nil {
+		t.Fatalf("Stream stderr: %v", err)
+	}
+
+	// 4. Verify subscriber received all 8 entries
+	receivedCount := 0
+	timeout := time.After(1 * time.Second)
+	for receivedCount < 8 {
+		select {
+		case entry := <-subCh:
+			receivedCount++
+			if entry.DeploymentID != "dep_stream_test" {
+				t.Errorf("unexpected deployment ID in entry: %s", entry.DeploymentID)
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for subscriber entries: got %d/8", receivedCount)
+		}
+	}
+
+	// 5. Verify in-memory buffer via GetRecent
+	recentLogs := streamer.GetRecent(10)
+	if len(recentLogs) != 8 {
+		t.Fatalf("expected 8 recent logs in buffer, got %d", len(recentLogs))
+	}
+
+	stdoutFound := 0
+	stderrFound := 0
+	for _, l := range recentLogs {
+		if l.Stream == StreamStdout {
+			stdoutFound++
+		} else if l.Stream == StreamStderr {
+			stderrFound++
+		}
+	}
+	if stdoutFound != 5 || stderrFound != 3 {
+		t.Errorf("buffer stream count mismatch: stdout=%d, stderr=%d", stdoutFound, stderrFound)
+	}
+
+	// 6. Verify persistence in Store
+	persistedLogs, err := store.GetLogs(ctx, "dep_stream_test", 50)
+	if err != nil {
+		t.Fatalf("store.GetLogs: %v", err)
+	}
+	if len(persistedLogs) != 8 {
+		t.Fatalf("expected 8 persisted logs in store, got %d", len(persistedLogs))
+	}
+}
+
