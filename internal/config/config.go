@@ -35,6 +35,8 @@ type Config struct {
 	SponsorsArchiveDir        string
 	AutoSyncReadme            bool
 	SyncGitCommit             bool
+	BaseDomain                string
+	CaddyAdminURL             string
 }
 
 func Load() *Config {
@@ -58,6 +60,8 @@ func Load() *Config {
 	sponsorsArchiveDir := getEnv("CUAN_SPONSORS_ARCHIVE_DIR", "sponsors")
 	autoSyncReadme := getEnv("CUAN_AUTO_SYNC_README", "true") != "false"
 	syncGitCommit := getEnv("CUAN_SYNC_GIT_COMMIT", "false") == "true"
+	baseDomain := getEnv("BASE_DOMAIN", getEnv("CUAN_BASE_DOMAIN", "cuan.dojo.cc"))
+	caddyAdminURL := getEnv("CADDY_ADMIN_URL", "http://localhost:2019")
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
 	if intervalSec < 1 {
@@ -125,6 +129,8 @@ func Load() *Config {
 		SponsorsArchiveDir:        sponsorsArchiveDir,
 		AutoSyncReadme:            autoSyncReadme,
 		SyncGitCommit:             syncGitCommit,
+		BaseDomain:                baseDomain,
+		CaddyAdminURL:             caddyAdminURL,
 	}
 }
 

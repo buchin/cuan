@@ -38,6 +38,7 @@ type LocalDriver struct {
 	storage         *StorageEngine
 	store           Store
 	portPool        *PortPool
+	router          Router
 	staticBinPath   string
 	activeProcesses map[string]*ManagedProcess
 	mu              sync.RWMutex
@@ -45,15 +46,21 @@ type LocalDriver struct {
 
 // NewLocalDriver instantiates a LocalDriver with storage and persistent store.
 func NewLocalDriver(storage *StorageEngine, store Store) *LocalDriver {
-	return NewLocalDriverWithPortPool(storage, store, NewPortPool())
+	return NewLocalDriverWithRouter(storage, store, NewPortPool(), NewCaddyRouter(DefaultCaddyConfig()))
 }
 
 // NewLocalDriverWithPortPool instantiates a LocalDriver with a custom PortPool.
 func NewLocalDriverWithPortPool(storage *StorageEngine, store Store, pool *PortPool) *LocalDriver {
+	return NewLocalDriverWithRouter(storage, store, pool, NewCaddyRouter(DefaultCaddyConfig()))
+}
+
+// NewLocalDriverWithRouter instantiates a LocalDriver with custom PortPool and dynamic Router.
+func NewLocalDriverWithRouter(storage *StorageEngine, store Store, pool *PortPool, router Router) *LocalDriver {
 	return &LocalDriver{
 		storage:         storage,
 		store:           store,
 		portPool:        pool,
+		router:          router,
 		activeProcesses: make(map[string]*ManagedProcess),
 	}
 }
@@ -71,6 +78,11 @@ func (d *LocalDriver) Store() Store {
 // PortPool returns the underlying PortPool.
 func (d *LocalDriver) PortPool() *PortPool {
 	return d.portPool
+}
+
+// Router returns the underlying dynamic virtual host Router engine.
+func (d *LocalDriver) Router() Router {
+	return d.router
 }
 
 // GetStreamer returns the active LogStreamer for a deployment if currently running.
@@ -141,6 +153,10 @@ func (d *LocalDriver) Deploy(ctx context.Context, req DeploymentRequest) (*Deplo
 		} else {
 			req.Runtime = RuntimeCustom
 		}
+	}
+
+	if req.Domain == "" && d.router != nil {
+		req.Domain = d.router.FormatDomain(req.Slug)
 	}
 
 	dep := &Deployment{
@@ -339,6 +355,30 @@ func (d *LocalDriver) Start(ctx context.Context, id string) error {
 	// Wait briefly for process to bind socket
 	waitForSocket(port, 300*time.Millisecond)
 
+	// 9. Register dynamic virtual host route in Caddy
+	if d.router != nil {
+		domain := d.router.FormatDomain(dep.Slug)
+		if dep.Domain != domain {
+			dep.Domain = domain
+			_ = d.store.UpdateDeployment(ctx, dep)
+		}
+		if err := d.router.RegisterRoute(ctx, dep.Slug, port); err != nil {
+			_ = d.store.AppendLog(ctx, &LogEntry{
+				DeploymentID: id,
+				Stream:       StreamSystem,
+				Message:      fmt.Sprintf("Warning: could not register dynamic Caddy route for %s: %v", dep.Slug, err),
+				Timestamp:    time.Now().UTC(),
+			})
+		} else {
+			_ = d.store.AppendLog(ctx, &LogEntry{
+				DeploymentID: id,
+				Stream:       StreamSystem,
+				Message:      fmt.Sprintf("Dynamic Caddy route registered: %s -> 127.0.0.1:%d", domain, port),
+				Timestamp:    time.Now().UTC(),
+			})
+		}
+	}
+
 	return nil
 }
 
@@ -415,6 +455,25 @@ func (d *LocalDriver) Stop(ctx context.Context, id string) error {
 		return err
 	}
 
+	// Revoke dynamic virtual host route in Caddy
+	if d.router != nil {
+		if err := d.router.UnregisterRoute(ctx, dep.Slug); err != nil {
+			_ = d.store.AppendLog(ctx, &LogEntry{
+				DeploymentID: id,
+				Stream:       StreamSystem,
+				Message:      fmt.Sprintf("Warning: could not unregister dynamic Caddy route for %s: %v", dep.Slug, err),
+				Timestamp:    time.Now().UTC(),
+			})
+		} else {
+			_ = d.store.AppendLog(ctx, &LogEntry{
+				DeploymentID: id,
+				Stream:       StreamSystem,
+				Message:      fmt.Sprintf("Dynamic Caddy route revoked for %s", dep.Slug),
+				Timestamp:    time.Now().UTC(),
+			})
+		}
+	}
+
 	_ = d.store.AppendLog(ctx, &LogEntry{
 		DeploymentID: id,
 		Stream:       StreamSystem,
@@ -432,6 +491,28 @@ func (d *LocalDriver) Restart(ctx context.Context, id string) error {
 	}
 	time.Sleep(100 * time.Millisecond)
 	return d.Start(ctx, id)
+}
+
+// Delete cleanly terminates any running process, revokes virtual host routes, releases port, and removes stored resources.
+func (d *LocalDriver) Delete(ctx context.Context, id string) error {
+	dep, err := d.store.GetDeployment(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Stop any active process and release port
+	_ = d.Stop(ctx, id)
+
+	// Ensure dynamic route is revoked
+	if d.router != nil {
+		_ = d.router.UnregisterRoute(ctx, dep.Slug)
+	}
+
+	// Purge local storage directory
+	_ = d.storage.DeleteDeploymentDir(id)
+
+	// Delete record from store
+	return d.store.DeleteDeployment(ctx, id)
 }
 
 // Health checks if the deployment process is currently alive via PID signal probing

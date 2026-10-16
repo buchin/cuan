@@ -37,4 +37,8 @@ type DeployDriver interface {
 
 	// GetLogs retrieves recent log entries for the specified deployment.
 	GetLogs(ctx context.Context, id string, limit int) ([]LogEntry, error)
+
+	// Delete cleanly terminates any running process, revokes virtual host routes, and removes stored resources.
+	Delete(ctx context.Context, id string) error
 }
+
