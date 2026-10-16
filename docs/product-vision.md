@@ -31,9 +31,16 @@
 ## 4. Nilai Inti Produk: "Project-Based with Clear Progress"
 
 Cuan memperlakukan setiap aset digital sebagai **1 Digital Project** mandiri:
-* **Universal Input:** Bawa software melalui Upload ZIP atau Connect Git repository.
-* **Smart Stack Detection:** Deteksi otomatis teknologi (Laravel, Node.js, Next.js, Python, Docker).
-* **Visual Config Wizard:** Mengubah kerumitan file `.env` menjadi formulir visual yang ramah manusia.
+* **Universal Input (GitHub BUKAN Keharusan):**
+  - Pengguna non-tech cukup **Upload ZIP** (file script/theme dari CodeCanyon/Dojo/Envato) atau pilih **1-Click Blueprint**.
+  - GitHub bersifat **opsional** (hanya bagi pengguna teknis yang punya repo).
+  - Di belakang layar, Cuan tetap membuat repository Git lokal secara otomatis untuk tracking versi dan rollback aman tanpa pengguna perlu tahu apa itu Git.
+* **First-Class WordPress & Script Support:**
+  - Mendukung proyek **WordPress 1-Click Deploy** (container WordPress + MySQL/MariaDB + Caddy auto-SSL).
+  - Upload theme/plugin via ZIP secara instan tanpa perlu akses cPanel/FTP.
+  - Asisten AI bertindak sebagai *AI Webmaster* untuk inject tracking script, edit `functions.php`, tweak konfigurasi, dan optimasi performa.
+* **Smart Stack Detection:** Deteksi otomatis teknologi (WordPress/PHP, Laravel, Node.js, Next.js, Python, Dockerfile).
+* **Visual Config Wizard:** Mengubah kerumitan file `.env` dan konfigurasi database menjadi formulir visual yang ramah manusia.
 * **1-Click Turnkey Cloud:** Auto-provisioning VPS/Cloud dengan Docker, persistent database, dan reverse proxy HTTPS (Caddy) otomatis.
 * **Agentic Co-Pilot (Chat-to-Modify):** Modifikasi kode dan tambah fitur cukup dengan prompt bahasa manusia biasa, diuji pada staging preview sebelum di-publish ke live.
 

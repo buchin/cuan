@@ -35,8 +35,8 @@ func TestLoadMigrations(t *testing.T) {
 		t.Errorf("expected baseline DownSQL to drop tables")
 	}
 
-	if len(migs) < 2 {
-		t.Fatalf("expected at least 2 migrations, got %d", len(migs))
+	if len(migs) < 7 {
+		t.Fatalf("expected at least 7 migrations, got %d", len(migs))
 	}
 	sessionsMig := migs[1]
 	if sessionsMig.Version != "000002" {
@@ -44,6 +44,23 @@ func TestLoadMigrations(t *testing.T) {
 	}
 	if !strings.Contains(sessionsMig.UpSQL, "owner_sessions") {
 		t.Errorf("expected 000002 UpSQL to create owner_sessions table")
+	}
+
+	sponsorshipMig := migs[6]
+	if sponsorshipMig.Version != "000007" {
+		t.Errorf("expected version 000007, got %s", sponsorshipMig.Version)
+	}
+	if !strings.Contains(sponsorshipMig.UpSQL, "sponsorship_batches") {
+		t.Errorf("expected 000007 UpSQL to create sponsorship_batches table")
+	}
+	if !strings.Contains(sponsorshipMig.UpSQL, "sponsors") {
+		t.Errorf("expected 000007 UpSQL to create sponsors table")
+	}
+	if !strings.Contains(sponsorshipMig.UpSQL, "sponsorship_orders") {
+		t.Errorf("expected 000007 UpSQL to create sponsorship_orders table")
+	}
+	if !strings.Contains(sponsorshipMig.UpSQL, "waiting_list_leads") {
+		t.Errorf("expected 000007 UpSQL to create waiting_list_leads table")
 	}
 }
 

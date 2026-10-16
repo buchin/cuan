@@ -27,6 +27,8 @@ type Config struct {
 	GitAuthorEmail      string
 	WorkspacesDir       string
 	AppVersion          string
+	DojoWebhookSecret   string
+	SponsorLogosDir     string
 }
 
 func Load() *Config {
@@ -42,6 +44,8 @@ func Load() *Config {
 	gitAuthorEmail := getEnv("GIT_AUTHOR_EMAIL", "buchin@dropsugar.com")
 	workspacesDir := getEnv("CUAN_WORKSPACES_DIR", "data/workspaces")
 	appVersion := getEnv("CUAN_APP_VERSION", "0.1.0")
+	dojoWebhookSecret := getEnv("DOJO_WEBHOOK_SECRET", "dev-dojo-secret")
+	sponsorLogosDir := getEnv("CUAN_SPONSOR_LOGOS_DIR", "data/sponsors/logos")
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
 	if intervalSec < 1 {
@@ -101,6 +105,8 @@ func Load() *Config {
 		GitAuthorEmail:      gitAuthorEmail,
 		WorkspacesDir:       workspacesDir,
 		AppVersion:          appVersion,
+		DojoWebhookSecret:   dojoWebhookSecret,
+		SponsorLogosDir:     sponsorLogosDir,
 	}
 }
 

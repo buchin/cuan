@@ -21,17 +21,19 @@ import (
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
+	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/task"
 )
 
 type Server struct {
-	cfg        *config.Config
-	db         *sql.DB
-	authSvc    *auth.Service
-	projectSvc *project.Service
-	taskSvc    *task.Service
-	runnerSvc  *runner.RunnerService
-	router     *chi.Mux
+	cfg            *config.Config
+	db             *sql.DB
+	authSvc        *auth.Service
+	projectSvc     *project.Service
+	taskSvc        *task.Service
+	runnerSvc      *runner.RunnerService
+	sponsorshipSvc *sponsorship.Service
+	router         *chi.Mux
 }
 
 
@@ -77,14 +79,28 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 	rSvc := runner.NewService(rStore, tStore, pSvc)
 
+	var spStore sponsorship.Store
+	if db != nil {
+		spStore = sponsorship.NewDBStore(db)
+	} else {
+		spStore = sponsorship.NewMemoryStore()
+	}
+	logosDir := cfg.SponsorLogosDir
+	if logosDir == "" {
+		logosDir = filepath.Join("data", "sponsors", "logos")
+	}
+	logoStorage, _ := sponsorship.NewLogoStorage(logosDir)
+	spSvc := sponsorship.NewService(spStore, logoStorage, cfg.DojoWebhookSecret)
+
 	s := &Server{
-		cfg:        cfg,
-		db:         db,
-		authSvc:    svc,
-		projectSvc: pSvc,
-		taskSvc:    tSvc,
-		runnerSvc:  rSvc,
-		router:     r,
+		cfg:            cfg,
+		db:             db,
+		authSvc:        svc,
+		projectSvc:     pSvc,
+		taskSvc:        tSvc,
+		runnerSvc:      rSvc,
+		sponsorshipSvc: spSvc,
+		router:         r,
 	}
 
 	s.routes()
@@ -124,11 +140,29 @@ func (s *Server) SetRunnerService(svc *runner.RunnerService) {
 	s.runnerSvc = svc
 }
 
+func (s *Server) SponsorshipService() *sponsorship.Service {
+	return s.sponsorshipSvc
+}
+
+func (s *Server) SetSponsorshipService(svc *sponsorship.Service) {
+	s.sponsorshipSvc = svc
+}
+
 
 func (s *Server) routes() {
 	// Public Health & Readiness
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
+
+	// Dojo Webhook Receiver (SSOT S02.1 spec: /api/webhooks/dojo)
+	s.router.Post("/api/webhooks/dojo", s.handleDojoWebhook)
+
+	// Public Sponsorship, Waiting List, and Logo Endpoints
+	s.router.Post("/api/sponsors/upload-logo", s.handleUploadSponsorLogo)
+	s.router.Post("/api/sponsors/intake", s.handleSponsorIntake)
+	s.router.Get("/api/sponsors/current", s.handleListCurrentSponsors)
+	s.router.Post("/api/leads", s.handleCreateLead)
+	s.router.Get("/uploads/sponsors/logos/*", s.handleServeSponsorLogo)
 
 	s.router.Route("/api/v1", func(r chi.Router) {
 		// Public endpoints
@@ -137,6 +171,15 @@ func (s *Server) routes() {
 		r.Post("/auth/setup", s.handleAuthSetup)
 		r.Post("/auth/login", s.handleAuthLogin)
 		r.Post("/auth/logout", s.handleAuthLogout)
+
+		// Webhook Dojo alias in v1
+		r.Post("/webhooks/dojo", s.handleDojoWebhook)
+
+		// Public sponsorship endpoints in v1
+		r.Post("/sponsors/upload-logo", s.handleUploadSponsorLogo)
+		r.Post("/sponsors/intake", s.handleSponsorIntake)
+		r.Get("/sponsors/current", s.handleListCurrentSponsors)
+		r.Post("/leads", s.handleCreateLead)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {
@@ -178,6 +221,12 @@ func (s *Server) routes() {
 			pr.Post("/projects/{id}/sync", s.handleSyncProject)
 			pr.Delete("/projects/{id}", s.handleDeleteProject)
 			pr.Get("/projects/{id}/branches", s.handleGetProjectBranches)
+
+			// Sponsorship Moderation endpoints (S02.4)
+			pr.Get("/sponsors", s.handleAdminListSponsors)
+			pr.Post("/sponsors/{id}/approve", s.handleAdminApproveSponsor)
+			pr.Post("/sponsors/{id}/reject", s.handleAdminRejectSponsor)
+			pr.Get("/leads", s.handleAdminListLeads)
 		})
 	})
 }
@@ -193,7 +242,7 @@ func (s *Server) setupStaticRoutes() {
 		fileServer := http.FileServer(http.Dir(staticDir))
 		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 			path := filepath.Clean(r.URL.Path)
-			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") {
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") {
 				http.NotFound(w, r)
 				return
 			}
@@ -209,7 +258,7 @@ func (s *Server) setupStaticRoutes() {
 	} else {
 		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 			path := filepath.Clean(r.URL.Path)
-			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") {
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") {
 				http.NotFound(w, r)
 				return
 			}
