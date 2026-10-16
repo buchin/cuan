@@ -62,6 +62,23 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(sponsorshipMig.UpSQL, "waiting_list_leads") {
 		t.Errorf("expected 000007 UpSQL to create waiting_list_leads table")
 	}
+
+	if len(migs) < 8 {
+		t.Fatalf("expected at least 8 migrations, got %d", len(migs))
+	}
+	deployerMig := migs[7]
+	if deployerMig.Version != "000008" {
+		t.Errorf("expected version 000008, got %s", deployerMig.Version)
+	}
+	if !strings.Contains(deployerMig.UpSQL, "deployments") {
+		t.Errorf("expected 000008 UpSQL to create deployments table")
+	}
+	if !strings.Contains(deployerMig.UpSQL, "deployment_logs") {
+		t.Errorf("expected 000008 UpSQL to create deployment_logs table")
+	}
+	if !strings.Contains(deployerMig.DownSQL, "DROP TABLE IF EXISTS deployments") {
+		t.Errorf("expected 000008 DownSQL to drop deployments table")
+	}
 }
 
 func TestDryRun(t *testing.T) {
