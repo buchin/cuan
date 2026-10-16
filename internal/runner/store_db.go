@@ -202,7 +202,10 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 			a.id, a.task_id, a.runner_id, a.agent_name, a.status, a.exit_code, a.peak_rss_bytes,
 			a.lease_expires_at, COALESCE(a.cancel_requested, false), a.canceled_at, a.interrupted_at,
 			COALESCE(a.attempt_number, 1), a.started_at, a.finished_at, COALESCE(a.error_message, ''), a.created_at,
-			t.id, t.project_id, t.title, t.instructions, t.status, t.priority, COALESCE(t.assigned_agent, 'agy'), t.created_at, t.updated_at
+			t.id, t.project_id, t.title, t.instructions, t.status, t.priority, COALESCE(t.assigned_agent, 'agy'),
+			COALESCE(t.branch_name, ''), COALESCE(t.pr_url, ''), COALESCE(t.pr_number, 0),
+			COALESCE(t.commit_sha, ''), COALESCE(t.diff_summary, ''), COALESCE(t.test_summary, ''),
+			t.created_at, t.updated_at
 		FROM task_attempts a
 		JOIN tasks t ON a.task_id = t.id
 		WHERE a.status = 'queued'
@@ -237,6 +240,12 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		&t.Status,
 		&t.Priority,
 		&t.AssignedAgent,
+		&t.BranchName,
+		&t.PRURL,
+		&t.PRNumber,
+		&t.CommitSHA,
+		&t.DiffSummary,
+		&t.TestSummary,
 		&t.CreatedAt,
 		&t.UpdatedAt,
 	)

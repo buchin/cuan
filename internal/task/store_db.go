@@ -24,9 +24,11 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 
 	query := `
 		INSERT INTO tasks (
-			id, project_id, title, instructions, status, priority, assigned_agent, created_at, updated_at
+			id, project_id, title, instructions, status, priority, assigned_agent,
+			branch_name, pr_url, pr_number, commit_sha, diff_summary, test_summary,
+			created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 		)
 	`
 	_, err := s.db.ExecContext(ctx, query,
@@ -37,6 +39,12 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 		t.Status,
 		t.Priority,
 		t.AssignedAgent,
+		t.BranchName,
+		t.PRURL,
+		t.PRNumber,
+		t.CommitSHA,
+		t.DiffSummary,
+		t.TestSummary,
 		t.CreatedAt,
 		t.UpdatedAt,
 	)
@@ -50,7 +58,14 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 	query := `
 		SELECT 
 			id, project_id, title, instructions, status, priority,
-			COALESCE(assigned_agent, 'agy'), created_at, updated_at
+			COALESCE(assigned_agent, 'agy'),
+			COALESCE(branch_name, ''),
+			COALESCE(pr_url, ''),
+			COALESCE(pr_number, 0),
+			COALESCE(commit_sha, ''),
+			COALESCE(diff_summary, ''),
+			COALESCE(test_summary, ''),
+			created_at, updated_at
 		FROM tasks
 		WHERE id = $1
 	`
@@ -63,6 +78,12 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		&t.Status,
 		&t.Priority,
 		&t.AssignedAgent,
+		&t.BranchName,
+		&t.PRURL,
+		&t.PRNumber,
+		&t.CommitSHA,
+		&t.DiffSummary,
+		&t.TestSummary,
 		&t.CreatedAt,
 		&t.UpdatedAt,
 	)
@@ -79,7 +100,14 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 	query := `
 		SELECT 
 			id, project_id, title, instructions, status, priority,
-			COALESCE(assigned_agent, 'agy'), created_at, updated_at
+			COALESCE(assigned_agent, 'agy'),
+			COALESCE(branch_name, ''),
+			COALESCE(pr_url, ''),
+			COALESCE(pr_number, 0),
+			COALESCE(commit_sha, ''),
+			COALESCE(diff_summary, ''),
+			COALESCE(test_summary, ''),
+			created_at, updated_at
 		FROM tasks
 		WHERE ($1 = '' OR project_id = $1)
 		  AND ($2 = '' OR status = $2)
@@ -103,6 +131,12 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			&t.Status,
 			&t.Priority,
 			&t.AssignedAgent,
+			&t.BranchName,
+			&t.PRURL,
+			&t.PRNumber,
+			&t.CommitSHA,
+			&t.DiffSummary,
+			&t.TestSummary,
 			&t.CreatedAt,
 			&t.UpdatedAt,
 		); err != nil {
@@ -123,7 +157,13 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 			status = $4,
 			priority = $5,
 			assigned_agent = $6,
-			updated_at = $7
+			branch_name = $7,
+			pr_url = $8,
+			pr_number = $9,
+			commit_sha = $10,
+			diff_summary = $11,
+			test_summary = $12,
+			updated_at = $13
 		WHERE id = $1
 	`
 	res, err := s.db.ExecContext(ctx, query,
@@ -133,6 +173,12 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 		t.Status,
 		t.Priority,
 		t.AssignedAgent,
+		t.BranchName,
+		t.PRURL,
+		t.PRNumber,
+		t.CommitSHA,
+		t.DiffSummary,
+		t.TestSummary,
 		t.UpdatedAt,
 	)
 	if err != nil {

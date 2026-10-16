@@ -23,6 +23,9 @@ type Config struct {
 	RunnerLeaseDuration time.Duration
 	RunnerMaxLogLines   int
 	AuthSecret          string
+	GitAuthorName       string
+	GitAuthorEmail      string
+	WorkspacesDir       string
 }
 
 func Load() *Config {
@@ -34,6 +37,9 @@ func Load() *Config {
 	runnerToken := getEnv("CUAN_RUNNER_TOKEN", authSecret)
 	serverURL := getEnv("CUAN_SERVER_URL", "http://localhost:"+port)
 	staticDir := getEnv("CUAN_STATIC_DIR", "web/dist")
+	gitAuthorName := getEnv("GIT_AUTHOR_NAME", "Buchin")
+	gitAuthorEmail := getEnv("GIT_AUTHOR_EMAIL", "buchin@dropsugar.com")
+	workspacesDir := getEnv("CUAN_WORKSPACES_DIR", "data/workspaces")
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
 	if intervalSec < 1 {
@@ -89,6 +95,9 @@ func Load() *Config {
 		RunnerLeaseDuration: time.Duration(leaseSec) * time.Second,
 		RunnerMaxLogLines:   maxLogLines,
 		AuthSecret:          authSecret,
+		GitAuthorName:       gitAuthorName,
+		GitAuthorEmail:      gitAuthorEmail,
+		WorkspacesDir:       workspacesDir,
 	}
 }
 

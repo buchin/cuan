@@ -75,7 +75,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	} else {
 		rStore = runner.NewMemoryStore(tStore)
 	}
-	rSvc := runner.NewService(rStore, tStore)
+	rSvc := runner.NewService(rStore, tStore, pSvc)
 
 	s := &Server{
 		cfg:        cfg,
