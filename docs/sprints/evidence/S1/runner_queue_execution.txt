@@ -1,5 +1,5 @@
 === CUAN SPRINT 1 (T5) EVIDENCE: RUNNER AUTHENTICATION & QUEUE CONCURRENCY ===
-Timestamp: 2026-10-16T08:19:00Z
+Timestamp: 2026-10-16T08:52:46Z
 Architecture: Outbound Polling Daemon with Persistent DB Queue (Limit: 1 task aktif per runner)
 
 1. Unauthenticated Request: HTTP 401 (Expected: 401 Unauthorized)
@@ -7,22 +7,22 @@ Architecture: Outbound Polling Daemon with Persistent DB Queue (Limit: 1 task ak
 
 
 2. Created Tasks in Database:
-   - Task 1: task_f0489daa5cf2 (Attempt: att_cbd813e36fb0, Status: queued)
-   - Task 2: task_eacf6d45b1c7 (Attempt: att_e9c34b431238, Status: queued)
+   - Task 1: task_f43a30d38375 (Attempt: att_cdc647f75d38, Status: queued)
+   - Task 2: task_3a0f83368594 (Attempt: att_e2f36986d9ad, Status: queued)
 
 3. Runner Claim 1 (Outbound Authenticated):
    - HTTP Status: 200
    - Claimed: true
-   - Claimed Attempt: att_cbd813e36fb0
+   - Claimed Attempt: att_cdc647f75d38
    - Attempt Status: running
-   - Lease Expires: 2026-10-16T08:19:15Z
+   - Lease Expires: 2026-10-16T08:53:01Z
 
 4. Concurrency Limit Check (Runner already has 1 active task running):
    - Claimed: false (Expected: false)
    - Concurrency Rule: Concurrency limit tepat 1 task aktif per runner dipatuhi.
 
 5. Task 2 Queue Persistence:
-   - Task ID: task_eacf6d45b1c7
-   - Latest Attempt: att_e9c34b431238
+   - Task ID: task_3a0f83368594
+   - Latest Attempt: att_e2f36986d9ad
    - Attempt Status: queued (Task antre menunggu runner idle)
 === RESULT: PASS (1 task dieksekusi, task berikutnya antre) ===

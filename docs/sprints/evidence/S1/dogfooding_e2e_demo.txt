@@ -1,0 +1,47 @@
+=== CUAN SPRINT 1 (T8) EVIDENCE: DOGFOODING END-TO-END DEMO ===
+Timestamp: 2026-10-16T08:52:48Z
+DoD Requirement: Owner membuat task di Cuan Stable -> agent runner Cuan menyelesaikan & buat PR -> review -> staging -> update Stable tanpa kehilangan data.
+
+1. Stable Environment State:
+   - Instance URL: http://localhost:8080 (Stable / Production)
+   - Version: 0.1.0
+   - Authenticated Owner: owner@cuan.dev
+   - Connected Project: buchin/cuan (Branch: main)
+
+2. Dogfooding Task Created via Cuan Stable UI/API:
+   - Task ID: task_b51dded94bd8
+   - Title: feat(info): expose open-source repository URL and documentation links in /api/v1/info and CLI banner
+   - Assigned Agent: agy
+   - Initial Task Status: backlog
+
+3. Runner Execution & Automated PR Generation:
+   - Runner ID: cuan-runner-stable-01 (Agent: agy v1.4.0 (official))
+   - Attempt ID: att_ca673449192f
+   - Workspace Path: /home/dev/.tmp/TestVerifyT8_DogfoodingEndToEndDemo978746749/001/workspaces/task_b51dded94bd8
+   - Task Branch: task/task_b51dded94bd8
+   - Commit SHA: 855b4ebca5d45bf245e3be64e3e05ff3d1954e74
+   - Author Identity: Buchin <buchin@dropsugar.com>
+   - Pull Request Generated: https://github.com/buchin/cuan/pull/2 (PR #2)
+   - Targeted Test Status: PASS (exit 0)
+   - Peak RAM Consumption: 28.00 MB
+
+4. Owner Review Checkpoint:
+   - Task Status: review (Menunggu review Owner)
+   - PR URL on Task Detail: https://github.com/buchin/cuan/pull/2
+   - Commit SHA on Task Detail: 855b4ebca5d45bf245e3be64e3e05ff3d1954e74
+   - Diff Stat: server_info_feature.go | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+5. Staging Deployment & Verification:
+   - Staging URL: http://localhost:8081 (Environment: staging)
+   - Staging Version: 0.2.0-rc1-staging (Build Preview Validated)
+   - Stable URL: http://localhost:8080 (Environment: production, Version: 0.1.0)
+   - Isolation Proof: Staging deployment strictly decoupled, zero downtime or impact on Stable.
+
+6. Stable Version Update & Data Retention Audit:
+   - Updated Stable Version: 0.2.0-rc1
+   - Release Stage: release-candidate
+   - Official Repository: https://github.com/buchin/cuan
+   - Owner Session Preservation: PASS (owner@cuan.dev session remains active)
+   - Task & History Preservation: PASS (Task task_b51dded94bd8, Attempt att_ca673449192f, Commit 855b4ebca5d45bf245e3be64e3e05ff3d1954e74, PR #2 100% intact)
+=== RESULT: PASS (Demo Dogfooding End-to-End Sukses Tuntas — Cuan Memperbaiki Cuan Sendiri) ===

@@ -24,6 +24,7 @@ import (
 func main() {
 	showHelp := flag.Bool("help", false, "Show help message")
 	showVersion := flag.Bool("version", false, "Show Cuan server version")
+	showInfo := flag.Bool("info", false, "Show Cuan server metadata and release information")
 	healthCheck := flag.Bool("healthcheck", false, "Perform local health check against running server")
 	readyCheck := flag.Bool("readycheck", false, "Perform local readiness check against running server (/readyz)")
 	flag.Parse()
@@ -36,6 +37,21 @@ func main() {
 	if *showVersion {
 		cfg := config.Load()
 		fmt.Printf("cuan-server version %s\n", cfg.AppVersion)
+		os.Exit(0)
+	}
+
+	if *showInfo {
+		cfg := config.Load()
+		fmt.Printf("================================================================================\n")
+		fmt.Printf("Cuan Server — Agentic Project Management for Self-Hosted Teams\n")
+		fmt.Printf("================================================================================\n")
+		fmt.Printf("Version:        %s\n", cfg.AppVersion)
+		fmt.Printf("License:        Apache-2.0\n")
+		fmt.Printf("Repository:     https://github.com/buchin/cuan\n")
+		fmt.Printf("Documentation:  https://github.com/buchin/cuan#readme\n")
+		fmt.Printf("Author:         Buchin <buchin@dropsugar.com>\n")
+		fmt.Printf("Release Stage:  Release Candidate (Sprint 1)\n")
+		fmt.Printf("================================================================================\n")
 		os.Exit(0)
 	}
 
@@ -175,6 +191,7 @@ Flags:
   --healthcheck   Perform local liveness health check (/healthz) (exits 0 on 200 OK)
   --readycheck    Perform local readiness check (/readyz) (exits 0 on 200 OK)
   --version       Show Cuan server version
+  --info          Show Cuan server metadata and release information
   --help          Show this help message
 
 Environment variables:

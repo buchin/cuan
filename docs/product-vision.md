@@ -3,6 +3,7 @@
 ## 1. Brand Identity & Kategori
 
 * **Nama Produk:** **CUAN**
+* **Domain Resmi:** **`https://cuan.co`**
 * **Kategori Industri (Category King):** **Digital Project Studio**
 * **Brand Statement:**
   > **Cuan: Digital Project Studio for Entrepreneurs**
@@ -61,14 +62,24 @@ Cuan memperlakukan setiap aset digital sebagai **1 Digital Project** mandiri:
   - Layanan hosted cloud bagi pengguna yang tidak ingin mengelola VPS sendiri ($7–$15/bulan atau paket setara lokal).
   - Menghasilkan recurring revenue (MRR) utama yang stabil dan terprediksi.
 * **Community Sponsorship (Transfer Bank / QRIS & GitHub Sponsors):**
-  - Membuka pintu sponsorship awal via Transfer Bank/QRIS untuk komunitas lokal dan GitHub Sponsors untuk global.
-  - 10 Sponsor Terbesar mendapatkan penempatan logo & link permanen di Homepage Cuan.
-  - Seluruh sponsor tercatat di `README.md` repositori GitHub dan halaman `/sponsors`.
+  - **Model Logo Berjenjang & Kuota Terbatas di Homepage (Tiered & Dynamic Top 30 Grid):**
+    - Homepage dibatasi hanya menampilkan **Top 30 Sponsor Terbesar** agar estetika desain tetap bersih, prestisius, dan tidak penuh sesak (*crowded*).
+    - **Sistem Leaderboard Dinamis:** Posisi di Homepage ditentukan berdasarkan kontribusi sponsor terbesar. Di masa depan, jika ada sponsor baru yang memberikan kontribusi lebih besar, posisi sponsor di urutan bawah dapat tergeser dari Homepage.
+    - **Jaminan Retensi Abadi:** Sponsor yang tergeser dari Homepage **TIDAK DIHAPUS**, melainkan tetap tercatat permanen selamanya di repositori `README.md` GitHub dan direktori lengkap `/sponsors`.
+    - 🥇 *Platinum Tier (Top 1–5):* Logo Paling Besar di baris teratas + 1 baris slogan bisnis + Dofollow link.
+    - 🥈 *Gold Tier (Top 6–15):* Logo Ukuran Sedang di baris kedua.
+    - 🥉 *Silver Tier (Top 16–30):* Logo Ukuran Kompak di baris ketiga.
+    - ☕ *Community Backers & Sponsor Tergeser (Tanpa Batas Kuota):* Nama/Logo tercatat abadi di `README.md` repositori GitHub dan halaman direktori lengkap `/sponsors`.
+  - **Strategi Lean GTM (Sprint 2):**
+    - Pada fase awal, domain `cuan.co` langsung me-redirect pengunjung ke Landing Page Sponsorship Bahasa Indonesia (`/sponsor`).
+    - Menghindari kerja ganda (tidak perlu bikin 2 bahasa di awal), fokus 100% menyerap konversi sponsorship dari email list lokal via Transfer Bank (BCA/Mandiri) dan QRIS.
+    - Begitu dana sponsor terkumpul dan Cuan siap rilis publik/OSS global, redirect dimatikan dan Homepage English diaktifkan dengan logo sponsor Indonesia yang sudah berjejer rapi sebagai bukti *social proof*.
   - **Kebijakan Etika & Legalitas Mutlak:** DILARANG KERAS menerima sponsorship atau menautkan link dari industri terlarang (Judi Online/Judol, Pornografi/Dewasa, Pinjaman Online Ilegal, Scam/Phishing, atau aktivitas melanggar hukum lainnya). Seluruh submission sponsor wajib lolos kurasi etika; pelanggar akan ditolak dan dananya dikembalikan secara sepihak.
 * **Strategi AI: BYO AI Subscription (Zero Platform AI Burden):**
   - Tidak menjual token/kredit AI di awal guna menghindari beban biaya komputasi, resiko chargeback, dan margin tipis.
   - Memanfaatkan langganan AI yang sudah dimiliki pengguna (ChatGPT Plus, Claude Pro, Gemini, atau API Key pribadi).
   - Nilai jual unik bagi pengguna: *"Gunakan kuota langganan AI yang sudah Anda bayar tiap bulan — tanpa biaya token tambahan di Cuan."*
+
 
 
 

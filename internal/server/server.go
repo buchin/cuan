@@ -306,14 +306,18 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		version = s.cfg.AppVersion
 	}
 	resp := map[string]interface{}{
-		"name":         "Cuan",
-		"version":      version,
-		"description":  "Agentic project management for self-hosted teams",
-		"license":      "Apache-2.0",
-		"sprint":       "S1",
-		"status":       "running",
-		"adapter":      "agy",
-		"architecture": "Go backend + React Vite TS frontend",
+		"name":          "Cuan",
+		"version":       version,
+		"description":   "Agentic project management for self-hosted teams",
+		"license":       "Apache-2.0",
+		"repository":    "https://github.com/buchin/cuan",
+		"documentation": "https://github.com/buchin/cuan#readme",
+		"release_stage": "release-candidate",
+		"author":        "Buchin <buchin@dropsugar.com>",
+		"sprint":        "S1",
+		"status":        "running",
+		"adapter":       "agy",
+		"architecture":  "Go backend + React Vite TS frontend",
 	}
 	respondJSON(w, http.StatusOK, resp)
 }

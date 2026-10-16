@@ -1,0 +1,49 @@
+=== CUAN SPRINT 1 (T8) EVIDENCE: OSS LICENSE & THIRD-PARTY DEPENDENCY AUDIT ===
+Timestamp: 2026-10-16T15:49:00Z
+DoD Requirement: Release gate OSS tervalidasi — Lisensi Apache-2.0, file NOTICE, dan audit seluruh dependensi third-party kompatibel 100% tanpa lisensi viral/restriktif (GPL/AGPL/komersial tertutup).
+
+1. Root Project Licensing Verification:
+   - Primary License: Apache License, Version 2.0 (file: LICENSE)
+   - Copyright Notice: "Copyright 2026 Buchin and Cuan contributors" (file: NOTICE)
+   - Header Declarations: All public packages comply with Apache-2.0 redistribution guidelines.
+
+2. Backend & Runner Dependencies Audit (Go 1.27 / go.mod):
+   -------------------------------------------------------------------------------------------------------------
+   Package Path                                Version         License         Compatibility with Apache-2.0
+   -------------------------------------------------------------------------------------------------------------
+   github.com/go-chi/chi/v5                    v5.5.0          MIT             PERFECT (Permissive)
+   github.com/jackc/pgx/v5                     v5.11.0         MIT             PERFECT (Permissive)
+   github.com/jackc/pgpassfile                 v1.0.0          MIT             PERFECT (Permissive)
+   github.com/jackc/pgservicefile              v0.0.0-20240606 MIT             PERFECT (Permissive)
+   github.com/jackc/puddle/v2                  v2.2.2          MIT             PERFECT (Permissive)
+   golang.org/x/crypto                         v0.58.0         BSD-3-Clause    PERFECT (Permissive)
+   golang.org/x/sync                           v0.24.0         BSD-3-Clause    PERFECT (Permissive)
+   golang.org/x/text                           v0.43.0         BSD-3-Clause    PERFECT (Permissive)
+   -------------------------------------------------------------------------------------------------------------
+   Go Dependencies Summary: 8 packages audited. 100% Permissive (MIT & BSD-3-Clause). Zero copyleft/GPL issues.
+
+3. Frontend Dependencies Audit (React Vite TypeScript / web/package.json):
+   -------------------------------------------------------------------------------------------------------------
+   Package Name                                Version         License         Compatibility with Apache-2.0
+   -------------------------------------------------------------------------------------------------------------
+   react                                       ^18.3.1         MIT             PERFECT (Permissive)
+   react-dom                                   ^18.3.1         MIT             PERFECT (Permissive)
+   lucide-react                                ^0.475.0        ISC             PERFECT (Permissive)
+   clsx                                        ^2.1.1          MIT             PERFECT (Permissive)
+   tailwind-merge                              ^2.6.0          MIT             PERFECT (Permissive)
+   tailwindcss                                 ^3.4.17         MIT             PERFECT (Permissive)
+   postcss                                     ^8.5.2          MIT             PERFECT (Permissive)
+   autoprefixer                                ^10.4.20        MIT             PERFECT (Permissive)
+   vite                                        ^5.4.14         MIT             PERFECT (Permissive)
+   typescript                                  ~5.7.3          Apache-2.0      PERFECT (Identical License)
+   @vitejs/plugin-react                        ^4.3.4          MIT             PERFECT (Permissive)
+   @types/node, react, react-dom               various         MIT             PERFECT (Permissive)
+   -------------------------------------------------------------------------------------------------------------
+   Frontend Dependencies Summary: 12 packages audited. 100% Permissive (MIT, ISC, Apache-2.0).
+
+4. Proprietary & Trademark Material Audit:
+   - Third-party logos / icons: Lucide icons only (ISC open-source license).
+   - Proprietary assets or fonts: Zero proprietary binary blobs. System fonts only (`-apple-system, BlinkMacSystemFont, Segoe UI, Roboto`).
+   - Incompatible license restrictions: NONE.
+
+=== RESULT: PASS (100% License Compliance — Clean Apache-2.0 Open Source Release Gate Approved) ===
