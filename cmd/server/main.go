@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,32 +13,50 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/buchin/cuan/internal/config"
+	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/server"
 )
 
 func main() {
 	showHelp := flag.Bool("help", false, "Show help message")
+	healthCheck := flag.Bool("healthcheck", false, "Perform local health check against running server")
 	flag.Parse()
 
 	if *showHelp {
-		fmt.Println(`cuan-server — Cuan API Server
-
-Usage:
-  cuan-server [flags]
-
-Flags:
-  --help    Show this help message
-
-Environment variables:
-  PORT            Port to listen on (default: 8080)
-  DATABASE_URL    PostgreSQL connection string
-  CUAN_ENV        Environment mode (development/production)`)
+		printUsage()
 		os.Exit(0)
 	}
 
+	if *healthCheck {
+		runHealthCheck()
+		return
+	}
+
 	cfg := config.Load()
-	srv := server.NewServer(cfg)
+
+	// Initialize database connection and pool if configured
+	var dbConn *sql.DB
+	if cfg.DatabaseURL != "" {
+		var err error
+		dbConn, err = sql.Open("pgx", cfg.DatabaseURL)
+		if err != nil {
+			log.Printf("Warning: failed to initialize database driver for %s: %v", cfg.DatabaseURL, err)
+		} else {
+			dbConn.SetMaxOpenConns(cfg.DBMaxOpenConns)
+			dbConn.SetMaxIdleConns(cfg.DBMaxIdleConns)
+			dbConn.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
+			dbConn.SetConnMaxIdleTime(cfg.DBConnMaxIdleTime)
+
+			if cfg.AutoMigrate {
+				runAutoMigration(dbConn)
+			}
+		}
+	}
+
+	srv := server.NewServer(cfg, dbConn)
 
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{
@@ -50,7 +69,7 @@ Environment variables:
 
 	serverErrors := make(chan error, 1)
 	go func() {
-		log.Printf("Cuan API server listening on %s (env=%s)", addr, cfg.Environment)
+		log.Printf("Cuan API server listening on %s (env=%s, static=%s)", addr, cfg.Environment, cfg.StaticDir)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErrors <- err
 		}
@@ -71,6 +90,81 @@ Environment variables:
 			log.Printf("Graceful shutdown failed: %v", err)
 			_ = httpServer.Close()
 		}
+
+		if dbConn != nil {
+			_ = dbConn.Close()
+		}
 		log.Println("Server stopped cleanly.")
 	}
+}
+
+func runAutoMigration(database *sql.DB) {
+	log.Println("Checking database connectivity for auto-migration...")
+	var connected bool
+
+	// Retry loop for DB startup (e.g. docker-compose container boot)
+	for i := 1; i <= 5; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		err := database.PingContext(ctx)
+		cancel()
+
+		if err == nil {
+			connected = true
+			break
+		}
+
+		log.Printf("Waiting for database to become available (attempt %d/5)...", i)
+		time.Sleep(2 * time.Second)
+	}
+
+	if !connected {
+		log.Println("Warning: database is unreachable. Server will start in degraded mode (readyz will report disconnected).")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := dbPkg.Run(ctx, database, "up"); err != nil {
+		log.Printf("Warning: auto-migration failed: %v", err)
+	} else {
+		log.Println("PostgreSQL connected and schema migrations applied successfully.")
+	}
+}
+
+func runHealthCheck() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%s/healthz", port)
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "Health check failed for %s: err=%v, status=%v\n", url, err, resp)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func printUsage() {
+	fmt.Println(`cuan-server — Cuan API Server
+
+Usage:
+  cuan-server [flags]
+
+Flags:
+  --healthcheck   Perform local health check against running server (exits 0 on 200 OK)
+  --help          Show this help message
+
+Environment variables:
+  PORT                      Port to listen on (default: 8080)
+  DATABASE_URL              PostgreSQL connection string
+  CUAN_ENV                  Environment mode (development/production)
+  CUAN_AUTH_SECRET          Secret for single-owner session authentication
+  CUAN_STATIC_DIR           Path to built web dist files (default: web/dist)
+  CUAN_AUTO_MIGRATE         Auto-run migrations on boot (default: true)
+  CUAN_DB_MAX_OPEN_CONNS    Max open database connections (default: 25)
+  CUAN_DB_MAX_IDLE_CONNS    Max idle database connections (default: 10)`)
 }

@@ -1,0 +1,31 @@
+# Caddyfile for Cuan Reverse Proxy with Automated HTTPS
+{
+    email {$ACME_EMAIL:admin@example.com}
+}
+
+{$CUAN_DOMAIN:localhost} {
+    # Reverse proxy to Cuan application container
+    reverse_proxy app:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Security Headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+
+    # High performance compression
+    encode zstd gzip
+
+    # Structured logging
+    log {
+        output stdout
+        format console
+    }
+}

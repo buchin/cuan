@@ -36,7 +36,7 @@ echo "==> Running Cuan verification tests..."
 if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
   echo "==> Testing Go packages (db, config, server, agent)..."
   if [[ "$FAST_MODE" == "true" ]]; then
-    go -C "$ROOT_DIR" test -v -short -timeout 30s ./internal/config ./internal/db ./internal/server
+    go -C "$ROOT_DIR" test -v -short -timeout 30s ./internal/config ./internal/auth ./internal/db ./internal/server
   else
     go -C "$ROOT_DIR" test -v -timeout 120s ./internal/...
   fi

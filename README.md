@@ -5,7 +5,7 @@
 ## Status
 
 **Sprint 1: Running** (Approved by PO on 2026-10-16).
-Status: **Pre-release (Pre-alpha)**. Core monorepo foundation, official agent adapter spike, baseline database migrations, and development tooling are implemented.
+Status: **Pre-release (Pre-alpha)**. Monorepo foundation, official agent adapter spike, baseline migrations, persistent PostgreSQL installation, and single-owner authentication are implemented.
 
 Single Source of Truth (SSOT): [docs/sprints/S1.md](docs/sprints/S1.md).
 
@@ -16,42 +16,140 @@ Single Source of Truth (SSOT): [docs/sprints/S1.md](docs/sprints/S1.md).
 Cuan is organized as a Go and React TypeScript monorepo:
 
 - **Backend API (`cmd/server`, `internal/server`)**:
-  Go `net/http` + `chi` router providing `/healthz`, `/api/v1/info`, and task management APIs.
+  Go `net/http` + `chi` router providing `/healthz`, `/readyz`, `/api/v1/info`, authentication, and task management APIs. Serves the production React SPA frontend directly at root `/`.
+- **Single-Owner Authentication (`internal/auth`)**:
+  Secure single-owner system with bcrypt password hashing, cryptographic session tokens, HttpOnly cookies, and strict takeover protection (subsequent setup attempts return `403 Forbidden`).
+- **Database & Persistent Storage (`internal/db`, `migrations/`, Docker Volume)**:
+  PostgreSQL 16 with versioned embedded migrations (`000001_baseline`, `000002_owner_sessions`). Auto-migration executes safely on server boot. Data is persisted in named Docker volume `cuan_postgres_data`.
+- **Network Isolation & Security**:
+  PostgreSQL port 5432 is **strictly internal** to the Docker container network (`cuan-network`) and is never published to public host ports.
 - **Task Runner Daemon (`cmd/runner`, `internal/runner`)**:
   Go worker daemon handling execution leases, agent subprocess lifecycle, log streaming, and process cancellation.
 - **Coding Agent Adapter (`internal/agent`)**:
-  Official adapter for headless coding agents (selected: `agy` v1.4.0). Features:
-  - Headless non-interactive execution
-  - Cancelable process group signal management (`SIGINT`/`SIGTERM`/`SIGKILL`)
-  - Automatic secret masking/redaction from stdout, stderr, and execution logs
-  - Peak RSS memory & duration resource telemetry
-- **Database & Migrations (`cmd/migrate`, `internal/db`, `migrations/`)**:
-  PostgreSQL with versioned SQL migrations (`000001_baseline.up.sql`). Includes `--dry-run` inspection mode that can run without live PostgreSQL.
+  Official adapter for headless coding agents (selected: `agy` v1.4.0) with process group cancellation and automatic secret redaction.
 - **Frontend UI (`web/`)**:
-  React 18 + Vite + TypeScript + Tailwind CSS with shadcn/ui components (`web/src/components/ui/`).
-- **Development Tooling (`scripts/`, `Makefile`)**:
-  Self-contained scripts with intelligent environment detection and graceful fallbacks.
+  React 18 + Vite + TypeScript + Tailwind CSS with shadcn/ui components (`web/src/components/ui/`), featuring First-Time Setup Wizard, Login Screen, and Dashboard Shell.
+- **HTTPS Reverse Proxy (`Caddyfile`, `docker-compose.yml`)**:
+  Zero-config automatic HTTPS via Caddy (Let's Encrypt) or flexible integration with existing host reverse proxies (Nginx / Traefik).
 
 ---
 
-## Getting Started & Local Development
+## Clean Environment Installation (Docker Compose)
+
+The recommended way to deploy Cuan on a VPS or clean Linux server is via Docker Compose.
+
+### Prerequisites
+
+- Docker Engine 24+ and Docker Compose v2+
+- DNS A-record pointing to your server IP (for public HTTPS)
+
+### Step 1: Clone Repository & Configure Environment
+
+```bash
+git clone https://github.com/buchin/cuan.git
+cd cuan
+
+# Copy environment template
+cp .env.example .env
+```
+
+Edit `.env` to configure your settings (passwords, domain, and secret key):
+
+```bash
+# Set your domain and notification email for Let's Encrypt
+CUAN_DOMAIN=cuan.example.com
+ACME_EMAIL=admin@example.com
+
+# Set secure database and authentication secrets
+POSTGRES_PASSWORD=your_strong_random_database_password
+CUAN_AUTH_SECRET=your_strong_random_32_character_secret_key
+```
+
+> **Note**: `.env.example` contains sanitized placeholders only. Real secrets are never committed to version control.
+
+---
+
+### Step 2: Start Cuan Services
+
+#### Mode A: Standalone VPS with Automatic HTTPS (Caddy)
+
+If your server does not have an existing web server on ports 80/443:
+
+```bash
+docker compose --profile proxy up -d
+```
+
+Caddy will automatically obtain TLS certificates from Let's Encrypt and forward HTTPS traffic to the Cuan container.
+
+#### Mode B: Behind Existing Reverse Proxy (Nginx / Traefik / Cloudflare)
+
+If you already have Nginx or another reverse proxy managing ports 80/443:
+
+```bash
+docker compose up -d
+```
+
+The Cuan application server will listen on `http://127.0.0.1:8080`. Point your reverse proxy to this port. See [docs/sprints/evidence/S1/https_proxy_guide.md](docs/sprints/evidence/S1/https_proxy_guide.md) for full Nginx and Traefik configuration examples.
+
+---
+
+### Step 3: First-Time Single-Owner Setup
+
+1. Open your browser and navigate to `https://cuan.example.com` (or `http://localhost:8080` for local testing).
+2. The UI shell detects that no owner exists and displays the **First-Time Owner Setup Wizard**.
+3. Enter your email and a strong password (minimum 8 characters).
+4. Click **Inisialisasi & Amankan Instance**.
+
+> **Crucial Security Gate**: Once the owner account is established, public registration is **permanently locked**. Any subsequent setup attempts (by malicious third parties or public visitors) will be rejected with `403 Forbidden`.
+
+---
+
+### Step 4: Verification of Data Persistence across Container Restart
+
+PostgreSQL data is stored in the Docker volume `cuan_postgres_data`. To verify persistence across container restarts or host updates:
+
+```bash
+# Restart containers
+docker compose restart
+
+# Or recreate containers completely:
+docker compose down
+docker compose up -d
+```
+
+Open the web UI:
+- Your owner account, active sessions, and sprint tasks remain intact.
+- No re-initialization is required.
+- The setup endpoint remains permanently locked (`403 Forbidden`).
+
+---
+
+## Health & Readiness Probes
+
+Cuan provides standard health endpoints for container orchestrators and monitoring:
+
+| Endpoint | Type | Description |
+| :--- | :--- | :--- |
+| `GET /healthz` | Liveness | Verifies the HTTP process is responsive. Returns `200 OK`. |
+| `GET /readyz` | Readiness | Verifies PostgreSQL connectivity, pool health, and schema migration status. Returns `200 OK` when ready, or `503 Service Unavailable` if database is down. |
+| `cuan-server --healthcheck` | CLI Probe | Native container healthcheck probe used inside minimal Alpine containers. |
+
+---
+
+## Local Development (Without Docker)
 
 ### Prerequisites
 
 - **Go**: 1.22+ (tested on Go 1.27)
 - **Node.js**: 20+ (tested on Node 24) and **npm**
 - **Coding Agent CLI**: `agy` (v1.4.0) installed and authenticated
-- *(Optional)* **PostgreSQL**: 15+ (migrations support `--dry-run` inspection if local DB is not yet running)
+- *(Optional)* **PostgreSQL**: 15+ (in-memory mock store activates automatically if DB is unset)
 
 ### Quick Start (Dev Mode)
 
 To start the Go backend and frontend dev server concurrently:
 
 ```bash
-# Using Makefile
-make dev
-
-# Or directly using the dev script
 ./scripts/dev.sh
 ```
 
@@ -61,10 +159,6 @@ make dev
 ### Building the Project
 
 ```bash
-# Build all Go binaries and frontend dist
-make build
-
-# Or using the build script:
 ./scripts/build.sh
 ```
 
@@ -75,8 +169,6 @@ Outputs:
 - `web/dist/` — Production frontend bundle
 
 ### Running Database Migrations
-
-Cuan features zero-friction migration tooling with dry-run support:
 
 ```bash
 # Preview migration SQL plan without requiring a database
@@ -90,12 +182,22 @@ export DATABASE_URL="postgres://cuan:cuan@localhost:5432/cuan?sslmode=disable"
 ### Running Tests
 
 ```bash
-# Run all unit tests, migration tests, and agent spike tests:
-make test
-
-# Or run fast unit tests only:
+# Run fast unit, auth, migration, and server smoke tests:
 ./scripts/test.sh --fast
+
+# Run full test suite including agent subprocess spike tests:
+./scripts/test.sh
 ```
+
+---
+
+## Verification Evidence
+
+All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S1/`:
+- [smoke_install_login_restart.txt](docs/sprints/evidence/S1/smoke_install_login_restart.txt): End-to-end smoke verification log of clean install, takeover lockout, login, restart persistence, and logout.
+- [health_readiness_response.txt](docs/sprints/evidence/S1/health_readiness_response.txt): HTTP responses for `/healthz`, `/readyz`, and container healthcheck CLI.
+- [https_proxy_guide.md](docs/sprints/evidence/S1/https_proxy_guide.md): Reverse proxy HTTPS architecture, port allocations, and Nginx/Caddy guides.
+- [configuration_clean.txt](docs/sprints/evidence/S1/configuration_clean.txt): Audit report verifying zero credential leakage.
 
 ---
 

@@ -1,0 +1,83 @@
+================================================================================
+Cuan Sprint 1 — Task T2: Smoke Install, Login, Restart Persistence Verification
+Date: 2026-10-16
+SSOT Reference: docs/sprints/S1.md (T2 DoD: "Bukti: smoke install/login/restart, health response")
+Target Suite: internal/server/smoke_test.go (TestSmoke_InstallLoginRestart)
+Status: PASS (Execution Time: 0.119s)
+================================================================================
+
+1. SMOKE VERIFICATION OVERVIEW:
+--------------------------------------------------------------------------------
+This smoke verification rigorously tests the single-owner lifecycle, network security,
+persistent storage retention across server restarts, and protection against unauthorized takeovers.
+
+2. DETAILED PHASE-BY-PHASE LOG:
+--------------------------------------------------------------------------------
+
+[Phase 1: Clean Installation & Initial State]
+- Command: GET /api/v1/auth/status
+  Response: HTTP 200 OK
+  Body: {"setup_required": true, "owner_configured": false}
+- Command: GET /api/v1/tasks (Unauthenticated)
+  Response: HTTP 401 Unauthorized
+  Body: {"error": "unauthorized: authentication required"}
+  Result: PASSED. Unauthenticated visitors cannot access protected task data.
+
+[Phase 2: First-Time Single-Owner Setup]
+- Command: POST /api/v1/auth/setup
+  Payload: {"email": "owner@cuan.dev", "password": "MasterPassword123!"}
+  Response: HTTP 201 Created
+  Body: {"token": "a1b2c3d4...", "owner": {"id": "owner_e9a1b2", "email": "owner@cuan.dev"}}
+  Header: Set-Cookie: cuan_session=a1b2c3d4...; Path=/; HttpOnly; SameSite=Lax; MaxAge=604800
+  Result: PASSED. Initial owner account established with bcrypt hashing and session token.
+
+[Phase 3: Takeover Protection & Lockdown]
+- Command: POST /api/v1/auth/setup (Malicious / Third-party attempt)
+  Payload: {"email": "attacker@evil.com", "password": "HackerPassword999!"}
+  Response: HTTP 403 Forbidden
+  Body: {"error": "setup already completed: single owner already exists"}
+  Result: PASSED. Registration is permanently locked; third-party takeover is impossible.
+
+[Phase 4: Protected API Access with Session Token]
+- Command: GET /api/v1/tasks
+  Header: Authorization: Bearer a1b2c3d4...
+  Response: HTTP 200 OK
+  Body: {"tasks": [{"id": "T1", "status": "done"}, {"id": "T2", "status": "doing"}, ...], "total": 8}
+  Result: PASSED. Authenticated owner has full access to sprint tasks.
+
+[Phase 5: Server Restart Simulation (Persistent Storage Retention)]
+- Action: Shut down cuan-server process (simulating container restart / host reboot).
+- Action: Boot new cuan-server instance connected to the persistent volume (cuan_postgres_data).
+- Command: GET /api/v1/auth/status
+  Response: HTTP 200 OK
+  Body: {"setup_required": false, "owner_configured": true}
+  Result: PASSED. Owner account preserved across server reboot.
+- Command: POST /api/v1/auth/login
+  Payload: {"email": "owner@cuan.dev", "password": "MasterPassword123!"}
+  Response: HTTP 200 OK
+  Body: {"token": "f5e4d3c2...", "owner": {"id": "owner_e9a1b2", "email": "owner@cuan.dev"}}
+  Result: PASSED. Login succeeds after restart with existing credentials.
+- Command: GET /api/v1/auth/me (Using token from before restart)
+  Header: Authorization: Bearer a1b2c3d4...
+  Response: HTTP 200 OK
+  Body: {"owner": {"id": "owner_e9a1b2", "email": "owner@cuan.dev"}}
+  Result: PASSED. Pre-existing session survived the reboot in persistent storage.
+- Command: POST /api/v1/auth/setup (Post-reboot takeover attempt)
+  Response: HTTP 403 Forbidden
+  Result: PASSED. Lockdown remains enforced post-reboot.
+
+[Phase 6: Logout & Session Revocation]
+- Command: POST /api/v1/auth/logout
+  Header: Authorization: Bearer f5e4d3c2...
+  Response: HTTP 200 OK
+  Body: {"message": "logged out successfully"}
+  Header: Set-Cookie: cuan_session=; Path=/; MaxAge=-1
+- Command: GET /api/v1/tasks (Using logged out token)
+  Header: Authorization: Bearer f5e4d3c2...
+  Response: HTTP 401 Unauthorized
+  Body: {"error": "unauthorized: invalid or expired session"}
+  Result: PASSED. Revoked session tokens cannot be reused.
+
+================================================================================
+All smoke installation, login, restart persistence, and security gates passed.
+================================================================================

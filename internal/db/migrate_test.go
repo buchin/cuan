@@ -34,6 +34,17 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(baseline.DownSQL, "DROP TABLE IF EXISTS") {
 		t.Errorf("expected baseline DownSQL to drop tables")
 	}
+
+	if len(migs) < 2 {
+		t.Fatalf("expected at least 2 migrations, got %d", len(migs))
+	}
+	sessionsMig := migs[1]
+	if sessionsMig.Version != "000002" {
+		t.Errorf("expected version 000002, got %s", sessionsMig.Version)
+	}
+	if !strings.Contains(sessionsMig.UpSQL, "owner_sessions") {
+		t.Errorf("expected 000002 UpSQL to create owner_sessions table")
+	}
 }
 
 func TestDryRun(t *testing.T) {
