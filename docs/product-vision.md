@@ -7,8 +7,13 @@
 * **Kategori Industri (Category King):** **Digital Project Studio**
 * **Brand Statement:**
   > **Cuan: Digital Project Studio for Entrepreneurs**
+* **Positioning untuk Pengguna:** Mengelola **aset digital (digital assets)** — website, WordPress, aplikasi, dan web tools — dalam satu tempat. Istilah **Digital Project Studio** tetap menjadi kategori produk; istilah project pada fitur merujuk pada unit pengelolaan aset.
+* **Headline (English):**
+  > **Manage your digital assets under one roof.**
+* **Headline (Bahasa Indonesia):**
+  > **Kelola aset digital ente di bawah satu atap.**
 * **Sub-deskripsi (Hero Copywriting):**
-  > *"Deploy purchased scripts, launch web tools, and manage your digital projects in one place — without technical headaches."*
+  > *"Deploy scripts you’ve purchased, manage your websites, and make changes with AI—without the technical headaches."*
 
 ---
 
