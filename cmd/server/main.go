@@ -242,5 +242,6 @@ Environment variables:
   CUAN_STATIC_DIR           Path to built web dist files (default: web/dist)
   CUAN_AUTO_MIGRATE         Auto-run migrations on boot (default: true)
   CUAN_DB_MAX_OPEN_CONNS    Max open database connections (default: 25)
-  CUAN_DB_MAX_IDLE_CONNS    Max idle database connections (default: 10)`)
+  CUAN_DB_MAX_IDLE_CONNS    Max idle database connections (default: 10)
+  APP_MODE                  Application mode (marketing/studio) (default: marketing)`)
 }

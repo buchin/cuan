@@ -32,9 +32,11 @@ import {
 
 interface LandingPageProps {
   onNavigate: (path: string) => void
+  appMode?: 'marketing' | 'studio'
+  onToggleMode?: (newMode: 'marketing' | 'studio') => void
 }
 
-export function LandingPage({ onNavigate }: LandingPageProps) {
+export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }: LandingPageProps) {
   // Waiting list state
   const [email, setEmail] = useState('')
   const [bottomEmail, setBottomEmail] = useState('')
@@ -125,13 +127,20 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                 <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 text-[10px] py-0 px-1.5 font-mono">
                   v1.0
                 </Badge>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-[10px] py-0 px-2 font-mono flex items-center gap-1"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Mode: {appMode}
+                </Badge>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">Digital Project Studio</p>
             </div>
           </div>
 
           {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-300">
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
             <a href="#masalah" className="hover:text-emerald-400 transition-colors">
               Masalah
             </a>
@@ -149,11 +158,17 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
               Founding Sponsor
             </button>
             <button
-              onClick={() => onNavigate('/studio')}
-              className="hover:text-emerald-400 transition-colors text-slate-300 font-medium flex items-center gap-1"
+              onClick={() => {
+                if (onToggleMode && appMode !== 'studio') {
+                  onToggleMode('studio')
+                }
+                onNavigate('/studio')
+              }}
+              className="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold flex items-center gap-1.5 transition-all"
+              title="Buka Studio Dashboard"
             >
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              Studio Deployer
+              <span>Studio Deployer</span>
             </button>
             <button
               onClick={() => onNavigate('/app')}
@@ -690,6 +705,12 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             </button>
             <button onClick={() => onNavigate('/studio')} className="hover:text-emerald-400 text-emerald-400 transition-colors font-semibold">
               Studio Deployer
+            </button>
+            <button onClick={() => onNavigate('/terms')} className="hover:text-emerald-400 transition-colors">
+              Terms
+            </button>
+            <button onClick={() => onNavigate('/privacy')} className="hover:text-emerald-400 transition-colors">
+              Privacy
             </button>
             <button onClick={() => onNavigate('/app')} className="hover:text-emerald-400 transition-colors">
               Console

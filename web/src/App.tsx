@@ -5,6 +5,7 @@ import { SponsorArchive } from './components/sponsor/SponsorArchive'
 import { SponsorPending } from './components/sponsor/SponsorPending'
 import { AdminSponsorPanel } from './components/sponsor/AdminSponsorPanel'
 import { StudioDashboard } from './components/studio/StudioDashboard'
+import { TermsPage, PrivacyPage } from './components/legal/LegalPages'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './components/ui/card'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
@@ -191,6 +192,29 @@ export function App() {
   const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
   const [owner, setOwner] = useState<OwnerInfo | null>(null)
   const [token, setToken] = useState<string>(() => localStorage.getItem('cuan_token') || '')
+
+  // System Mode State (APP_MODE=marketing vs APP_MODE=studio - S03.5)
+  const [systemMode, setSystemMode] = useState<{
+    app_mode: 'marketing' | 'studio'
+    version: string
+    base_domain: string
+  }>({
+    app_mode: 'marketing',
+    version: '0.1.0',
+    base_domain: 'cuan.dojo.cc',
+  })
+
+  const [overrideMode, setOverrideMode] = useState<'marketing' | 'studio' | null>(() => {
+    const saved = localStorage.getItem('cuan_app_mode_override')
+    return (saved === 'marketing' || saved === 'studio') ? saved : null
+  })
+
+  const effectiveMode: 'marketing' | 'studio' = overrideMode || systemMode.app_mode
+
+  const handleToggleMode = (newMode: 'marketing' | 'studio') => {
+    setOverrideMode(newMode)
+    localStorage.setItem('cuan_app_mode_override', newMode)
+  }
   
   const [info, setInfo] = useState<ServerInfo | null>(null)
   const [health, setHealth] = useState<HealthInfo | null>(null)
@@ -309,11 +333,12 @@ export function App() {
         }
       }
 
-      // 2. Fetch Health & Readiness
-      const [healthRes, readyRes, infoRes] = await Promise.allSettled([
+      // 2. Fetch Health, Readiness & System Mode
+      const [healthRes, readyRes, infoRes, modeRes] = await Promise.allSettled([
         fetch('/healthz'),
         fetch('/readyz'),
-        fetch('/api/v1/info')
+        fetch('/api/v1/info'),
+        fetch('/api/system/mode'),
       ])
 
       if (healthRes.status === 'fulfilled' && healthRes.value.ok) {
@@ -324,6 +349,10 @@ export function App() {
       }
       if (infoRes.status === 'fulfilled' && infoRes.value.ok) {
         setInfo(await infoRes.value.json())
+      }
+      if (modeRes.status === 'fulfilled' && modeRes.value.ok) {
+        const modeData = await modeRes.value.json()
+        setSystemMode(modeData)
       }
     } catch (err) {
       console.error('Failed to load system status:', err)
@@ -1002,9 +1031,24 @@ export function App() {
     }
   }
 
-  // Public Landing Page & Sponsorship routes (Zero Layout Shift)
-  if (currentPath === '/' || currentPath === '/home') {
-    return <LandingPage onNavigate={navigate} />
+  // Legal routes (/terms & /privacy - S03.5)
+  if (currentPath === '/terms') {
+    return <TermsPage onNavigate={navigate} />
+  }
+
+  if (currentPath === '/privacy') {
+    return <PrivacyPage onNavigate={navigate} />
+  }
+
+  // Explicit Marketing Landing Page route (/marketing & /landing)
+  if (currentPath === '/marketing' || currentPath === '/landing') {
+    return (
+      <LandingPage
+        onNavigate={navigate}
+        appMode={effectiveMode}
+        onToggleMode={handleToggleMode}
+      />
+    )
   }
 
   // Sponsorship Pending Confirmation Route
@@ -1027,9 +1071,39 @@ export function App() {
     return <SponsorArchive onNavigate={navigate} />
   }
 
-  // Studio Dashboard & Universal Deployer Route (/studio)
+  // Studio Dashboard & Universal Deployer Route (/studio and /studio/*)
   if (currentPath === '/studio' || currentPath.startsWith('/studio/')) {
-    return <StudioDashboard onNavigate={navigate} />
+    return (
+      <StudioDashboard
+        onNavigate={navigate}
+        baseDomain={systemMode.base_domain}
+        appMode={effectiveMode}
+        isStudioModeActive={effectiveMode === 'studio'}
+        onToggleMode={handleToggleMode}
+      />
+    )
+  }
+
+  // Root ('/' and '/home') dynamic routing based on APP_MODE
+  if (currentPath === '/' || currentPath === '/home') {
+    if (effectiveMode === 'studio') {
+      return (
+        <StudioDashboard
+          onNavigate={navigate}
+          baseDomain={systemMode.base_domain}
+          appMode={effectiveMode}
+          isStudioModeActive={true}
+          onToggleMode={handleToggleMode}
+        />
+      )
+    }
+    return (
+      <LandingPage
+        onNavigate={navigate}
+        appMode={effectiveMode}
+        onToggleMode={handleToggleMode}
+      />
+    )
   }
 
   if (loading && setupRequired === null) {

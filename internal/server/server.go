@@ -193,12 +193,24 @@ func (s *Server) SetDeployerDriver(d deployer.DeployDriver) {
 	s.deployerDriver = d
 }
 
+func (s *Server) AppMode() string {
+	if s.cfg != nil && s.cfg.AppMode != "" {
+		return s.cfg.AppMode
+	}
+	return "marketing"
+}
 
+func (s *Server) SetAppMode(mode string) {
+	if s.cfg != nil {
+		s.cfg.AppMode = mode
+	}
+}
 
 func (s *Server) routes() {
-	// Public Health & Readiness
+	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
+	s.router.Get("/api/system/mode", s.handleGetSystemMode)
 
 	// Dojo Webhook Receiver (SSOT S02.1 spec: /api/webhooks/dojo)
 	s.router.Post("/api/webhooks/dojo", s.handleDojoWebhook)
@@ -256,6 +268,7 @@ func (s *Server) routes() {
 	s.router.Route("/api/v1", func(r chi.Router) {
 		// Public endpoints
 		r.Get("/info", s.handleInfo)
+		r.Get("/system/mode", s.handleGetSystemMode)
 		r.Get("/auth/status", s.handleAuthStatus)
 		r.Post("/auth/setup", s.handleAuthSetup)
 		r.Post("/auth/login", s.handleAuthLogin)
@@ -395,6 +408,30 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
 	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleGetSystemMode(w http.ResponseWriter, r *http.Request) {
+	mode := "marketing"
+	version := "0.1.0"
+	baseDomain := "cuan.dojo.cc"
+
+	if s.cfg != nil {
+		if s.cfg.AppMode != "" {
+			mode = s.cfg.AppMode
+		}
+		if s.cfg.AppVersion != "" {
+			version = s.cfg.AppVersion
+		}
+		if s.cfg.BaseDomain != "" {
+			baseDomain = s.cfg.BaseDomain
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"app_mode":    mode,
+		"version":     version,
+		"base_domain": baseDomain,
+	})
 }
 
 func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {

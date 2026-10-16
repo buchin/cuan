@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,6 +38,7 @@ type Config struct {
 	SyncGitCommit             bool
 	BaseDomain                string
 	CaddyAdminURL             string
+	AppMode                   string
 }
 
 func Load() *Config {
@@ -62,6 +64,10 @@ func Load() *Config {
 	syncGitCommit := getEnv("CUAN_SYNC_GIT_COMMIT", "false") == "true"
 	baseDomain := getEnv("BASE_DOMAIN", getEnv("CUAN_BASE_DOMAIN", "cuan.dojo.cc"))
 	caddyAdminURL := getEnv("CADDY_ADMIN_URL", "http://localhost:2019")
+	appMode := strings.ToLower(strings.TrimSpace(getEnv("APP_MODE", "marketing")))
+	if appMode != "studio" {
+		appMode = "marketing"
+	}
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
 	if intervalSec < 1 {
@@ -131,6 +137,7 @@ func Load() *Config {
 		SyncGitCommit:             syncGitCommit,
 		BaseDomain:                baseDomain,
 		CaddyAdminURL:             caddyAdminURL,
+		AppMode:                   appMode,
 	}
 }
 
