@@ -25,7 +25,14 @@ import {
   HelpCircle,
   KeyRound,
   Check,
-  ChevronRight
+  ChevronRight,
+  Clock,
+  MessageSquare,
+  Send,
+  Bot,
+  Play,
+  Layers,
+  Search
 } from 'lucide-react'
 
 interface OwnerInfo {
@@ -56,11 +63,50 @@ interface ReadyInfo {
   owner_configured?: boolean
 }
 
+interface TaskAttempt {
+  id: string
+  task_id: string
+  runner_id: string
+  agent_name: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'interrupted'
+  exit_code?: number
+  peak_rss_bytes?: number
+  started_at?: string
+  finished_at?: string
+  error_message?: string
+  created_at: string
+}
+
+interface TaskActivity {
+  id: string
+  task_id: string
+  attempt_id?: string
+  activity_type: string
+  author: string
+  old_status?: string
+  new_status?: string
+  message: string
+  created_at: string
+}
+
 interface TaskItem {
   id: string
+  project_id?: string
+  project_name?: string
   title: string
-  status: string
-  priority: string
+  instructions?: string
+  status: 'backlog' | 'doing' | 'review' | 'done' | 'blocked'
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  assigned_agent?: string
+  created_at: string
+  updated_at: string
+  latest_attempt?: TaskAttempt
+}
+
+interface TaskDetail extends TaskItem {
+  repo_url?: string
+  attempts: TaskAttempt[]
+  activities: TaskActivity[]
 }
 
 interface ProjectItem {
@@ -92,10 +138,40 @@ export function App() {
   const [projects, setProjects] = useState<ProjectItem[]>([])
   
   // Navigation
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'tasks'>('projects')
+  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'tasks'>('tasks')
   const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null)
   const [projectBranches, setProjectBranches] = useState<string[]>([])
   const [branchesLoading, setBranchesLoading] = useState(false)
+
+  // Task Board States (T4)
+  const [selectedTask, setSelectedTask] = useState<TaskDetail | null>(null)
+  const [taskDetailLoading, setTaskDetailLoading] = useState(false)
+  const [boardViewMode, setBoardViewMode] = useState<'kanban' | 'list'>('kanban')
+  const [taskProjectFilter, setTaskProjectFilter] = useState<string>('all')
+  const [taskSearchQuery, setTaskSearchQuery] = useState<string>('')
+
+  // Create Task Modal States
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskInstructions, setNewTaskInstructions] = useState('')
+  const [newTaskProjectId, setNewTaskProjectId] = useState('')
+  const [newTaskPriority, setNewTaskPriority] = useState<string>('normal')
+  const [newTaskAgent, setNewTaskAgent] = useState('agy')
+  const [createTaskLoading, setCreateTaskLoading] = useState(false)
+  const [createTaskError, setCreateTaskError] = useState<string | null>(null)
+
+  // Edit Task States
+  const [editTaskTitle, setEditTaskTitle] = useState('')
+  const [editTaskInstructions, setEditTaskInstructions] = useState('')
+  const [editTaskPriority, setEditTaskPriority] = useState('normal')
+  const [editTaskStatus, setEditTaskStatus] = useState('backlog')
+  const [editTaskAgent, setEditTaskAgent] = useState('agy')
+  const [editTaskLoading, setEditTaskLoading] = useState(false)
+
+  // Comment & Attempt states
+  const [commentInput, setCommentInput] = useState('')
+  const [commentLoading, setCommentLoading] = useState(false)
+  const [attemptActionLoading, setAttemptActionLoading] = useState(false)
 
   // Dialog & Form states
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
@@ -239,6 +315,242 @@ export function App() {
   const handleSelectProject = (project: ProjectItem) => {
     setSelectedProject(project)
     fetchProjectBranches(project.id)
+  }
+
+  const fetchTaskDetail = async (taskId: string) => {
+    setTaskDetailLoading(true)
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}`, {
+        headers: getAuthHeaders(),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setSelectedTask(data)
+        setEditTaskTitle(data.title)
+        setEditTaskInstructions(data.instructions || '')
+        setEditTaskPriority(data.priority || 'normal')
+        setEditTaskStatus(data.status || 'backlog')
+        setEditTaskAgent(data.assigned_agent || 'agy')
+      }
+    } catch (err) {
+      console.error('Failed to fetch task detail:', err)
+    } finally {
+      setTaskDetailLoading(false)
+    }
+  }
+
+  const handleCreateTaskSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setCreateTaskError(null)
+    setCreateTaskLoading(true)
+
+    try {
+      const payload: any = {
+        title: newTaskTitle.trim(),
+        instructions: newTaskInstructions.trim(),
+        priority: newTaskPriority,
+        assigned_agent: newTaskAgent.trim() || 'agy',
+      }
+      if (newTaskProjectId && newTaskProjectId !== 'none') {
+        payload.project_id = newTaskProjectId
+      }
+
+      const res = await fetch('/api/v1/tasks', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal membuat task')
+      }
+
+      setNewTaskTitle('')
+      setNewTaskInstructions('')
+      setNewTaskProjectId('')
+      setNewTaskPriority('normal')
+      setNewTaskAgent('agy')
+      setIsCreateTaskModalOpen(false)
+
+      await fetchProtectedData()
+      await fetchTaskDetail(data.id)
+      setSuccessNotification(`Task '${data.title}' berhasil dibuat!`)
+      setTimeout(() => setSuccessNotification(null), 4000)
+    } catch (err: any) {
+      setCreateTaskError(err.message || 'Terjadi kesalahan saat membuat task')
+    } finally {
+      setCreateTaskLoading(false)
+    }
+  }
+
+  const handleUpdateTaskSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!selectedTask) return
+    setEditTaskLoading(true)
+
+    try {
+      const payload: any = {
+        title: editTaskTitle.trim(),
+        instructions: editTaskInstructions.trim(),
+        priority: editTaskPriority,
+        status: editTaskStatus,
+        assigned_agent: editTaskAgent.trim(),
+      }
+
+      const res = await fetch(`/api/v1/tasks/${selectedTask.id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal memperbarui task')
+      }
+
+      await fetchTaskDetail(selectedTask.id)
+      await fetchProtectedData()
+      setSuccessNotification(`Perubahan task '${data.title}' berhasil disimpan!`)
+      setTimeout(() => setSuccessNotification(null), 4000)
+    } catch (err: any) {
+      alert(`Gagal update task: ${err.message}`)
+    } finally {
+      setEditTaskLoading(false)
+    }
+  }
+
+  const handleQuickMoveStatus = async (taskId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        await fetchProtectedData()
+        if (selectedTask?.id === taskId) {
+          await fetchTaskDetail(taskId)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to move task status:', err)
+    }
+  }
+
+  const handleDeleteTaskAction = async (taskId: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus task ini? Semua attempt dan histori transisi akan dihapus permanen.')) {
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal menghapus task')
+      }
+
+      setSelectedTask(null)
+      await fetchProtectedData()
+      setSuccessNotification('Task berhasil dihapus.')
+      setTimeout(() => setSuccessNotification(null), 4000)
+    } catch (err: any) {
+      alert(`Gagal menghapus task: ${err.message}`)
+    }
+  }
+
+  const handleAddCommentSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!selectedTask || !commentInput.trim()) return
+    setCommentLoading(true)
+
+    try {
+      const res = await fetch(`/api/v1/tasks/${selectedTask.id}/comments`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ message: commentInput.trim() }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal mengirim catatan kerja')
+      }
+
+      setCommentInput('')
+      await fetchTaskDetail(selectedTask.id)
+    } catch (err: any) {
+      alert(`Gagal menambah komentar: ${err.message}`)
+    } finally {
+      setCommentLoading(false)
+    }
+  }
+
+  const handleTriggerAttempt = async (taskId: string) => {
+    setAttemptActionLoading(true)
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}/attempts`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          runner_id: 'runner_local',
+          agent_name: selectedTask?.assigned_agent || 'agy',
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal mendaftarkan attempt')
+      }
+
+      await fetchTaskDetail(taskId)
+      await fetchProtectedData()
+      setSuccessNotification('Attempt baru dijadwalkan (status: queued)!')
+      setTimeout(() => setSuccessNotification(null), 4000)
+    } catch (err: any) {
+      alert(`Gagal trigger attempt: ${err.message}`)
+    } finally {
+      setAttemptActionLoading(false)
+    }
+  }
+
+  const handleSimulateAttemptUpdate = async (
+    taskId: string,
+    attemptId: string,
+    status: string,
+    exitCode?: number,
+    errMsg?: string
+  ) => {
+    setAttemptActionLoading(true)
+    try {
+      const payload: any = { status }
+      if (exitCode !== undefined) {
+        payload.exit_code = exitCode
+      }
+      if (errMsg) {
+        payload.error_message = errMsg
+      }
+
+      const res = await fetch(`/api/v1/tasks/${taskId}/attempts/${attemptId}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal update status attempt')
+      }
+
+      await fetchTaskDetail(taskId)
+      await fetchProtectedData()
+    } catch (err: any) {
+      alert(`Gagal update attempt: ${err.message}`)
+    } finally {
+      setAttemptActionLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -1052,57 +1364,851 @@ export function App() {
         {/* ============================================================== */}
         {/* TAB 2: TASKS BOARD VIEW                                         */}
         {/* ============================================================== */}
+        {/* ============================================================== */}
+        {/* TAB 2: TASKS BOARD VIEW & DETAIL (MAIN SCOPE T4)               */}
+        {/* ============================================================== */}
         {activeTab === 'tasks' && (
-          <Card className="bg-white border-slate-200 shadow-sm">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="text-base font-bold text-slate-900">Daftar Task Sprint 1</CardTitle>
-                  <CardDescription className="text-xs text-slate-500">
-                    Data diambil dari endpoint terproteksi <code>/api/v1/tasks</code> menggunakan session token pemilik.
-                  </CardDescription>
+          <div className="space-y-6">
+            {!selectedTask ? (
+              // 1. Tasks Board View (Kanban / List)
+              <div className="space-y-4">
+                {/* Header controls: Search, Filter, View Toggle, Create Button */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <GitBranch className="h-5 w-5 text-emerald-600" />
+                      Task Board & Histori Pekerjaan
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Kelola unit kerja sprint, tetapkan agent adapter, pantau transisi attempt eksekusi dan catatan kerja.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                    {/* Project Filter */}
+                    <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 text-xs">
+                      <FolderGit2 className="h-3.5 w-3.5 text-slate-400" />
+                      <select
+                        value={taskProjectFilter}
+                        onChange={(e) => setTaskProjectFilter(e.target.value)}
+                        className="bg-transparent border-none text-xs text-slate-700 focus:outline-none"
+                      >
+                        <option value="all">Semua Project ({tasks.length})</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Cari task..."
+                        value={taskSearchQuery}
+                        onChange={(e) => setTaskSearchQuery(e.target.value)}
+                        className="pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 w-36 focus:w-48 transition-all focus:outline-none focus:bg-white focus:border-slate-400"
+                      />
+                    </div>
+
+                    {/* View Mode Toggle */}
+                    <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setBoardViewMode('kanban')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                          boardViewMode === 'kanban' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Kanban
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBoardViewMode('list')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                          boardViewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        List
+                      </button>
+                    </div>
+
+                    {/* Create Task Button */}
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setIsCreateTaskModalOpen(true)
+                        setCreateTaskError(null)
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Buat Task
+                    </Button>
+                  </div>
                 </div>
-                <Badge variant="outline" className="flex items-center gap-1 text-xs self-start sm:self-auto font-mono">
-                  <GitBranch className="h-3 w-3" /> main
-                </Badge>
+
+                {/* Filtered tasks */}
+                {(() => {
+                  const filtered = tasks.filter((t) => {
+                    if (taskProjectFilter !== 'all' && t.project_id !== taskProjectFilter) return false
+                    if (taskSearchQuery.trim()) {
+                      const q = taskSearchQuery.toLowerCase()
+                      const matchTitle = t.title.toLowerCase().includes(q)
+                      const matchDesc = (t.instructions || '').toLowerCase().includes(q)
+                      if (!matchTitle && !matchDesc) return false
+                    }
+                    return true
+                  })
+
+                  if (boardViewMode === 'list') {
+                    // List Table View
+                    return (
+                      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+                                <th className="p-3.5 pl-4">Task</th>
+                                <th className="p-3.5">Project</th>
+                                <th className="p-3.5">Status Task</th>
+                                <th className="p-3.5">Status Attempt</th>
+                                <th className="p-3.5">Prioritas</th>
+                                <th className="p-3.5">Agent</th>
+                                <th className="p-3.5 text-right pr-4">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {filtered.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} className="p-8 text-center text-slate-400">
+                                    Tidak ada task yang cocok dengan filter.
+                                  </td>
+                                </tr>
+                              ) : (
+                                filtered.map((task) => (
+                                  <tr key={task.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="p-3.5 pl-4 font-medium text-slate-900 max-w-xs">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-[11px] text-slate-400">{task.id}</span>
+                                        <span className="truncate">{task.title}</span>
+                                      </div>
+                                    </td>
+                                    <td className="p-3.5 text-slate-600">
+                                      {task.project_name || <span className="text-slate-400 italic">None</span>}
+                                    </td>
+                                    <td className="p-3.5">
+                                      <Badge
+                                        variant={
+                                          task.status === 'done'
+                                            ? 'success'
+                                            : task.status === 'doing'
+                                            ? 'default'
+                                            : 'secondary'
+                                        }
+                                        className="capitalize text-[11px]"
+                                      >
+                                        {task.status}
+                                      </Badge>
+                                    </td>
+                                    <td className="p-3.5">
+                                      {task.latest_attempt ? (
+                                        <Badge
+                                          variant={
+                                            task.latest_attempt.status === 'failed'
+                                              ? 'destructive'
+                                              : task.latest_attempt.status === 'succeeded'
+                                              ? 'success'
+                                              : 'outline'
+                                          }
+                                          className="text-[11px] gap-1 font-mono"
+                                        >
+                                          {task.latest_attempt.status === 'running' && (
+                                            <RefreshCw className="h-3 w-3 animate-spin" />
+                                          )}
+                                          {task.latest_attempt.status === 'failed' && (
+                                            <AlertCircle className="h-3 w-3" />
+                                          )}
+                                          {task.latest_attempt.status}
+                                          {task.latest_attempt.exit_code !== undefined &&
+                                            ` (${task.latest_attempt.exit_code})`}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-slate-400 text-[11px] italic">-</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3.5">
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase ${
+                                          task.priority === 'urgent'
+                                            ? 'bg-red-100 text-red-700'
+                                            : task.priority === 'high'
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : task.priority === 'low'
+                                            ? 'bg-slate-100 text-slate-600'
+                                            : 'bg-blue-100 text-blue-700'
+                                        }`}
+                                      >
+                                        {task.priority}
+                                      </span>
+                                    </td>
+                                    <td className="p-3.5 font-mono text-slate-600">
+                                      🤖 {task.assigned_agent || 'agy'}
+                                    </td>
+                                    <td className="p-3.5 text-right pr-4">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => fetchTaskDetail(task.id)}
+                                        className="text-xs gap-1"
+                                      >
+                                        Detail
+                                        <ChevronRight className="h-3 w-3" />
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    )
+                  }
+
+                  // Kanban View
+                  const columns = [
+                    { id: 'backlog', title: 'Backlog', color: 'border-slate-300 bg-slate-50/50' },
+                    { id: 'doing', title: 'Doing (Running)', color: 'border-blue-300 bg-blue-50/30' },
+                    { id: 'review', title: 'Review', color: 'border-purple-300 bg-purple-50/30' },
+                    { id: 'done', title: 'Done', color: 'border-emerald-300 bg-emerald-50/30' },
+                  ]
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {columns.map((col) => {
+                        const colTasks = filtered.filter((t) => t.status === col.id)
+                        return (
+                          <div
+                            key={col.id}
+                            className={`rounded-xl border ${col.color} p-3 flex flex-col gap-3 min-h-[500px]`}
+                          >
+                            {/* Column Header */}
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                              <span className="font-bold text-xs uppercase tracking-wider text-slate-700">
+                                {col.title}
+                              </span>
+                              <Badge variant="outline" className="text-xs bg-white text-slate-700 font-mono">
+                                {colTasks.length}
+                              </Badge>
+                            </div>
+
+                            {/* Column Cards */}
+                            <div className="space-y-2.5 flex-1 overflow-y-auto">
+                              {colTasks.length === 0 ? (
+                                <div className="p-4 text-center text-xs text-slate-400 italic">
+                                  Kolom kosong
+                                </div>
+                              ) : (
+                                colTasks.map((t) => (
+                                  <Card
+                                    key={t.id}
+                                    className="bg-white border-slate-200 hover:border-slate-300 shadow-xs transition-shadow cursor-pointer"
+                                    onClick={() => fetchTaskDetail(t.id)}
+                                  >
+                                    <CardContent className="p-3.5 space-y-2.5">
+                                      {/* Card Badges: Priority + Agent */}
+                                      <div className="flex items-center justify-between gap-1.5 text-[10px]">
+                                        <span
+                                          className={`px-1.5 py-0.5 rounded font-bold uppercase ${
+                                            t.priority === 'urgent'
+                                              ? 'bg-red-100 text-red-700'
+                                              : t.priority === 'high'
+                                              ? 'bg-amber-100 text-amber-700'
+                                              : t.priority === 'low'
+                                              ? 'bg-slate-100 text-slate-600'
+                                              : 'bg-blue-100 text-blue-700'
+                                          }`}
+                                        >
+                                          {t.priority}
+                                        </span>
+
+                                        <span className="font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                          🤖 {t.assigned_agent || 'agy'}
+                                        </span>
+                                      </div>
+
+                                      {/* Title */}
+                                      <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                                        {t.title}
+                                      </h4>
+
+                                      {/* Project name if any */}
+                                      {t.project_name && (
+                                        <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                          <FolderGit2 className="h-3 w-3 text-slate-400" />
+                                          <span className="truncate">{t.project_name}</span>
+                                        </div>
+                                      )}
+
+                                      {/* Attempt status pill */}
+                                      {t.latest_attempt && (
+                                        <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                          <span className="text-slate-400 text-[10px]">Attempt:</span>
+                                          <Badge
+                                            variant={
+                                              t.latest_attempt.status === 'failed'
+                                                ? 'destructive'
+                                                : t.latest_attempt.status === 'succeeded'
+                                                ? 'success'
+                                                : 'outline'
+                                            }
+                                            className="text-[10px] gap-1 px-1.5 py-0 capitalize"
+                                          >
+                                            {t.latest_attempt.status === 'running' && (
+                                              <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                            )}
+                                            {t.latest_attempt.status === 'failed' && (
+                                              <AlertCircle className="h-2.5 w-2.5" />
+                                            )}
+                                            {t.latest_attempt.status}
+                                            {t.latest_attempt.exit_code !== undefined &&
+                                              ` (${t.latest_attempt.exit_code})`}
+                                          </Badge>
+                                        </div>
+                                      )}
+
+                                      {/* Quick Move Action buttons */}
+                                      <div
+                                        className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <span className="font-mono text-slate-400">{t.id}</span>
+                                        <div className="flex items-center gap-1">
+                                          {col.id === 'backlog' && (
+                                            <button
+                                              onClick={() => handleQuickMoveStatus(t.id, 'doing')}
+                                              className="text-blue-600 hover:text-blue-800 font-semibold px-1.5 py-0.5 rounded bg-blue-50 border border-blue-100"
+                                            >
+                                              Mulai →
+                                            </button>
+                                          )}
+                                          {col.id === 'doing' && (
+                                            <>
+                                              <button
+                                                onClick={() => handleQuickMoveStatus(t.id, 'backlog')}
+                                                className="text-slate-500 hover:text-slate-700 px-1 py-0.5"
+                                              >
+                                                ←
+                                              </button>
+                                              <button
+                                                onClick={() => handleQuickMoveStatus(t.id, 'review')}
+                                                className="text-purple-600 hover:text-purple-800 font-semibold px-1.5 py-0.5 rounded bg-purple-50 border border-purple-100"
+                                              >
+                                                Review →
+                                              </button>
+                                            </>
+                                          )}
+                                          {col.id === 'review' && (
+                                            <>
+                                              <button
+                                                onClick={() => handleQuickMoveStatus(t.id, 'doing')}
+                                                className="text-blue-600 hover:text-blue-800 px-1.5 py-0.5 rounded bg-blue-50"
+                                              >
+                                                ← Revisi
+                                              </button>
+                                              <button
+                                                onClick={() => handleQuickMoveStatus(t.id, 'done')}
+                                                className="text-emerald-700 hover:text-emerald-900 font-semibold px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200"
+                                              >
+                                                Selesai ✓
+                                              </button>
+                                            </>
+                                          )}
+                                          {col.id === 'done' && (
+                                            <button
+                                              onClick={() => handleQuickMoveStatus(t.id, 'backlog')}
+                                              className="text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded bg-slate-100"
+                                            >
+                                              Buka Lagi
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="divide-y divide-slate-100">
-                {tasks.length > 0 ? (
-                  tasks.map((task) => (
-                    <div key={task.id} className="py-3 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-xs font-bold text-slate-500 w-8">{task.id}</span>
-                        <span className="text-sm font-medium text-slate-800">{task.title}</span>
+            ) : (
+              // 2. Task Detail View (DoD: Owner membuka detail di UI & histori transisi)
+              <div className="space-y-5">
+                {/* Back button & top actions */}
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedTask(null)}
+                    className="text-xs gap-1.5 text-slate-600 hover:text-slate-900"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Kembali ke Task Board
+                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchTaskDetail(selectedTask.id)}
+                      disabled={taskDetailLoading}
+                      className="text-xs gap-1.5"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${taskDetailLoading ? 'animate-spin' : ''}`} />
+                      Refresh Detail
+                    </Button>
+
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteTaskAction(selectedTask.id)}
+                      className="text-xs gap-1.5"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Hapus Task
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Main Task Header Card */}
+                <Card className="bg-white border-slate-200 shadow-sm">
+                  <CardHeader className="p-5 pb-3">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-xl font-bold text-slate-900">
+                            {selectedTask.title}
+                          </CardTitle>
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {selectedTask.id}
+                          </Badge>
+                        </div>
+                        <CardDescription className="text-xs text-slate-500 mt-1">
+                          Project: {selectedTask.project_name || 'Tidak terikat project'} | Dibuat:{' '}
+                          {new Date(selectedTask.created_at).toLocaleString()}
+                        </CardDescription>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {task.status === 'done' && (
-                          <Badge variant="success" className="gap-1 text-xs">
-                            <CheckCircle2 className="h-3 w-3" /> Done
+
+                      {/* Dual Status Badges (Pemisahan Status Task vs Status Attempt) */}
+                      <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <div className="text-right">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase">Status Task</div>
+                          <Badge
+                            variant={
+                              selectedTask.status === 'done'
+                                ? 'success'
+                                : selectedTask.status === 'doing'
+                                ? 'default'
+                                : 'secondary'
+                            }
+                            className="capitalize text-xs font-bold"
+                          >
+                            {selectedTask.status}
                           </Badge>
-                        )}
-                        {task.status === 'doing' && (
-                          <Badge variant="default" className="gap-1 text-xs bg-blue-600 hover:bg-blue-700">
-                            <RefreshCw className="h-3 w-3 animate-spin" /> Doing
-                          </Badge>
-                        )}
-                        {task.status === 'backlog' && (
-                          <Badge variant="secondary" className="text-xs">
-                            Backlog
-                          </Badge>
-                        )}
+                        </div>
+
+                        <div className="h-6 w-px bg-slate-200 mx-1" />
+
+                        <div className="text-right">
+                          <div className="text-[10px] font-semibold text-slate-400 uppercase">Status Attempt</div>
+                          {selectedTask.latest_attempt ? (
+                            <Badge
+                              variant={
+                                selectedTask.latest_attempt.status === 'failed'
+                                  ? 'destructive'
+                                  : selectedTask.latest_attempt.status === 'succeeded'
+                                  ? 'success'
+                                  : 'outline'
+                              }
+                              className="text-xs font-mono capitalize gap-1"
+                            >
+                              {selectedTask.latest_attempt.status === 'running' && (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              )}
+                              {selectedTask.latest_attempt.status === 'failed' && (
+                                <AlertCircle className="h-3 w-3" />
+                              )}
+                              {selectedTask.latest_attempt.status}
+                              {selectedTask.latest_attempt.exit_code !== undefined &&
+                                ` (${selectedTask.latest_attempt.exit_code})`}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Belum Ada</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="py-6 text-center text-xs text-slate-500">
-                    Memuat data task terproteksi...
-                  </div>
+                  </CardHeader>
+                </Card>
+
+                {/* DoD CRITICAL ALERT: Attempt Failure must not be displayed as success */}
+                {selectedTask.latest_attempt?.status === 'failed' && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle className="font-bold">Kegagalan Attempt Eksekusi Terdeteksi</AlertTitle>
+                    <AlertDescription className="text-xs space-y-1">
+                      <p>
+                        Attempt <code>{selectedTask.latest_attempt.id}</code> mengalami kegagalan dengan exit code{' '}
+                        <code>{selectedTask.latest_attempt.exit_code}</code>.
+                        {selectedTask.latest_attempt.error_message && (
+                          <span> Pesan: {selectedTask.latest_attempt.error_message}</span>
+                        )}
+                      </p>
+                      <p className="font-semibold text-red-800">
+                        Sesuai kriteria DoD: Kegagalan attempt TIDAK otomatis dianggap sukses atau di-mark done. Task
+                        tetap bertahan dalam status kerja untuk perbaikan.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
                 )}
+
+                {/* Two-Column Detail Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left Column: Form Edit & Attempts */}
+                  <div className="lg:col-span-7 space-y-6">
+                    {/* Card 1: Edit Task Form */}
+                    <Card className="bg-white border-slate-200 shadow-sm">
+                      <CardHeader className="p-4 pb-2 border-b border-slate-100">
+                        <CardTitle className="text-sm font-bold text-slate-900">
+                          Edit Atribut Task & Status
+                        </CardTitle>
+                      </CardHeader>
+                      <form onSubmit={handleUpdateTaskSubmit}>
+                        <CardContent className="p-4 space-y-3.5">
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-slate-700">Judul Task</label>
+                            <Input
+                              value={editTaskTitle}
+                              onChange={(e) => setEditTaskTitle(e.target.value)}
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-slate-700">Instruksi / Scope</label>
+                            <textarea
+                              rows={3}
+                              value={editTaskInstructions}
+                              onChange={(e) => setEditTaskInstructions(e.target.value)}
+                              className="w-full text-xs p-2.5 rounded-md border border-slate-300 focus:outline-none focus:border-slate-500 font-mono"
+                              placeholder="Deskripsi pekerjaan task..."
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold text-slate-700">Status Task</label>
+                              <select
+                                value={editTaskStatus}
+                                onChange={(e) => setEditTaskStatus(e.target.value)}
+                                className="w-full text-xs p-2 rounded-md border border-slate-300 bg-white"
+                              >
+                                <option value="backlog">Backlog</option>
+                                <option value="doing">Doing</option>
+                                <option value="review">Review</option>
+                                <option value="done">Done</option>
+                                <option value="blocked">Blocked</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold text-slate-700">Prioritas</label>
+                              <select
+                                value={editTaskPriority}
+                                onChange={(e) => setEditTaskPriority(e.target.value)}
+                                className="w-full text-xs p-2 rounded-md border border-slate-300 bg-white"
+                              >
+                                <option value="low">Low</option>
+                                <option value="normal">Normal</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold text-slate-700">Assigned Agent</label>
+                              <Input
+                                value={editTaskAgent}
+                                onChange={(e) => setEditTaskAgent(e.target.value)}
+                                placeholder="agy"
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="p-4 pt-2 border-t border-slate-100 flex items-center justify-end">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={editTaskLoading}
+                            className="bg-slate-900 hover:bg-slate-800 text-white text-xs gap-1.5"
+                          >
+                            {editTaskLoading ? (
+                              <>
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                Menyimpan Perubahan...
+                              </>
+                            ) : (
+                              'Simpan Perubahan Task'
+                            )}
+                          </Button>
+                        </CardFooter>
+                      </form>
+                    </Card>
+
+                    {/* Card 2: Runner & Attempt Execution Controls */}
+                    <Card className="bg-white border-slate-200 shadow-sm">
+                      <CardHeader className="p-4 pb-2 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                            <Bot className="h-4 w-4 text-emerald-600" />
+                            Kontrol Attempt Eksekusi & Runner
+                          </CardTitle>
+                          <Button
+                            size="sm"
+                            onClick={() => handleTriggerAttempt(selectedTask.id)}
+                            disabled={attemptActionLoading}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1"
+                          >
+                            <Play className="h-3 w-3" />
+                            Trigger Attempt Baru
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 space-y-3">
+                        {selectedTask.latest_attempt ? (
+                          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-slate-600 font-bold">
+                                {selectedTask.latest_attempt.id} ({selectedTask.latest_attempt.agent_name})
+                              </span>
+                              <Badge
+                                variant={
+                                  selectedTask.latest_attempt.status === 'failed'
+                                    ? 'destructive'
+                                    : selectedTask.latest_attempt.status === 'succeeded'
+                                    ? 'success'
+                                    : 'outline'
+                                }
+                                className="text-xs uppercase"
+                              >
+                                {selectedTask.latest_attempt.status}
+                              </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500">
+                              <div>Runner: {selectedTask.latest_attempt.runner_id}</div>
+                              <div>Exit Code: {selectedTask.latest_attempt.exit_code ?? '-'}</div>
+                            </div>
+
+                            {/* Simulation Actions for Verification Demonstration */}
+                            <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-1.5">
+                              <span className="text-[10px] text-slate-400 self-center mr-1">Simulasi Transisi:</span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleSimulateAttemptUpdate(
+                                    selectedTask.id,
+                                    selectedTask.latest_attempt!.id,
+                                    'running'
+                                  )
+                                }
+                                disabled={attemptActionLoading}
+                                className="text-[11px] h-7 px-2"
+                              >
+                                Set Running
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleSimulateAttemptUpdate(
+                                    selectedTask.id,
+                                    selectedTask.latest_attempt!.id,
+                                    'succeeded',
+                                    0
+                                  )
+                                }
+                                disabled={attemptActionLoading}
+                                className="text-[11px] h-7 px-2 text-emerald-700 hover:bg-emerald-50"
+                              >
+                                Set Succeeded (Exit 0)
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleSimulateAttemptUpdate(
+                                    selectedTask.id,
+                                    selectedTask.latest_attempt!.id,
+                                    'failed',
+                                    1,
+                                    'Verifikasi targeted test gagal'
+                                  )
+                                }
+                                disabled={attemptActionLoading}
+                                className="text-[11px] h-7 px-2 text-red-600 hover:bg-red-50"
+                              >
+                                Set Failed (Exit 1)
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 text-center text-xs text-slate-500 italic bg-slate-50 rounded border">
+                            Belum ada attempt yang pernah dijalankan untuk task ini.
+                          </div>
+                        )}
+
+                        {/* Attempt history list */}
+                        {selectedTask.attempts.length > 1 && (
+                          <div className="pt-2 space-y-1.5">
+                            <div className="text-xs font-semibold text-slate-600">
+                              Riwayat Semua Attempt ({selectedTask.attempts.length}):
+                            </div>
+                            <div className="max-h-36 overflow-y-auto divide-y divide-slate-100 border rounded text-[11px]">
+                              {selectedTask.attempts.map((att) => (
+                                <div key={att.id} className="p-2 flex items-center justify-between">
+                                  <div className="font-mono text-slate-700">
+                                    {att.id} ({att.agent_name})
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span>Exit: {att.exit_code ?? '-'}</span>
+                                    <Badge
+                                      variant={att.status === 'failed' ? 'destructive' : 'outline'}
+                                      className="text-[10px]"
+                                    >
+                                      {att.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Right Column: Activity History & Comments Timeline */}
+                  <div className="lg:col-span-5 space-y-4">
+                    <Card className="bg-white border-slate-200 shadow-sm flex flex-col h-full">
+                      <CardHeader className="p-4 pb-2 border-b border-slate-100">
+                        <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                          <Clock className="h-4 w-4 text-slate-500" />
+                          Histori Transisi & Catatan Kerja
+                        </CardTitle>
+                        <CardDescription className="text-xs text-slate-500">
+                          Audit trail perubahan status, riwayat attempt, dan catatan kerja.
+                        </CardDescription>
+                      </CardHeader>
+
+                      <CardContent className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[500px]">
+                        {selectedTask.activities.length === 0 ? (
+                          <div className="text-center text-xs text-slate-400 py-6">
+                            Belum ada aktivitas tercatat.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {selectedTask.activities.map((act) => (
+                              <div
+                                key={act.id}
+                                className="p-2.5 rounded-lg border border-slate-100 bg-slate-50/70 text-xs space-y-1.5"
+                              >
+                                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                  <div className="flex items-center gap-1 font-semibold text-slate-700">
+                                    {act.activity_type === 'status_change' && (
+                                      <GitBranch className="h-3 w-3 text-purple-600" />
+                                    )}
+                                    {act.activity_type === 'attempt_transition' && (
+                                      <RefreshCw className="h-3 w-3 text-blue-600" />
+                                    )}
+                                    {act.activity_type === 'comment' && (
+                                      <MessageSquare className="h-3 w-3 text-slate-600" />
+                                    )}
+                                    {act.activity_type === 'task_created' && (
+                                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                    )}
+                                    {act.activity_type === 'task_updated' && (
+                                      <Layers className="h-3 w-3 text-amber-600" />
+                                    )}
+                                    <span>{act.author}</span>
+                                  </div>
+                                  <span>
+                                    {new Date(act.created_at).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+
+                                <p className="text-slate-800 leading-relaxed">{act.message}</p>
+
+                                {act.old_status && act.new_status && (
+                                  <div className="flex items-center gap-1 font-mono text-[10px]">
+                                    <span className="bg-slate-200 px-1 py-0.5 rounded text-slate-700">
+                                      {act.old_status}
+                                    </span>
+                                    <span>→</span>
+                                    <span className="bg-emerald-100 px-1 py-0.5 rounded text-emerald-800 font-bold">
+                                      {act.new_status}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+
+                      {/* Comment Box */}
+                      <CardFooter className="p-4 pt-2 border-t border-slate-100">
+                        <form onSubmit={handleAddCommentSubmit} className="w-full space-y-2">
+                          <textarea
+                            rows={2}
+                            value={commentInput}
+                            onChange={(e) => setCommentInput(e.target.value)}
+                            placeholder="Tulis catatan kerja / komentar pada task ini..."
+                            className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-none focus:border-slate-400"
+                            required
+                          />
+                          <div className="flex justify-end">
+                            <Button
+                              type="submit"
+                              size="sm"
+                              disabled={commentLoading || !commentInput.trim()}
+                              className="text-xs bg-slate-900 hover:bg-slate-800 text-white gap-1"
+                            >
+                              <Send className="h-3 w-3" />
+                              Kirim Catatan
+                            </Button>
+                          </div>
+                        </form>
+                      </CardFooter>
+                    </Card>
+                  </div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         )}
 
         {/* ============================================================== */}
@@ -1399,6 +2505,133 @@ export function App() {
                   )}
                 </Button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* MODAL / DIALOG: BUAT TASK BARU (T4)                            */}
+        {/* ============================================================== */}
+        {isCreateTaskModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Buat Task Baru</h3>
+                  <p className="text-xs text-slate-500">Tambahkan task ke board untuk pengerjaan sprint.</p>
+                </div>
+                <button
+                  onClick={() => setIsCreateTaskModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateTaskSubmit}>
+                <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                  {createTaskError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Gagal Membuat Task</AlertTitle>
+                      <AlertDescription className="text-xs">{createTaskError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Judul Task <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      placeholder="Contoh: S01.4 Bangun task board dan histori"
+                      value={newTaskTitle}
+                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700">Project Terkait (Opsional)</label>
+                    <select
+                      value={newTaskProjectId}
+                      onChange={(e) => setNewTaskProjectId(e.target.value)}
+                      className="w-full text-xs p-2.5 rounded-md border border-slate-300 bg-white"
+                    >
+                      <option value="">Tanpa Project (Mandiri)</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.repo_owner}/{p.repo_name})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700">Instruksi / Scope</label>
+                    <textarea
+                      rows={4}
+                      placeholder="Tuliskan instruksi atau scope pekerjaan..."
+                      value={newTaskInstructions}
+                      onChange={(e) => setNewTaskInstructions(e.target.value)}
+                      className="w-full text-xs p-2.5 rounded-md border border-slate-300 focus:outline-none focus:border-slate-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700">Prioritas</label>
+                      <select
+                        value={newTaskPriority}
+                        onChange={(e) => setNewTaskPriority(e.target.value)}
+                        className="w-full text-xs p-2.5 rounded-md border border-slate-300 bg-white"
+                      >
+                        <option value="low">Low</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700">Assigned Agent</label>
+                      <Input
+                        value={newTaskAgent}
+                        onChange={(e) => setNewTaskAgent(e.target.value)}
+                        placeholder="agy"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCreateTaskModalOpen(false)}
+                    disabled={createTaskLoading}
+                    className="text-xs"
+                  >
+                    Batal
+                  </Button>
+
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={createTaskLoading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+                  >
+                    {createTaskLoading ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        Menyimpan Task...
+                      </>
+                    ) : (
+                      'Simpan & Buat Task'
+                    )}
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         )}

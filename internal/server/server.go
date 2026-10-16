@@ -19,6 +19,7 @@ import (
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/task"
 )
 
 type Server struct {
@@ -26,6 +27,7 @@ type Server struct {
 	db         *sql.DB
 	authSvc    *auth.Service
 	projectSvc *project.Service
+	taskSvc    *task.Service
 	router     *chi.Mux
 }
 
@@ -56,11 +58,19 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		pSvc = project.NewService(project.NewMemoryStore(), git.NewClient(), cfg.AuthSecret, projectBaseDir)
 	}
 
+	var tSvc *task.Service
+	if db != nil {
+		tSvc = task.NewService(task.NewDBStore(db), pSvc)
+	} else {
+		tSvc = task.NewService(task.NewMemoryStore(), pSvc)
+	}
+
 	s := &Server{
 		cfg:        cfg,
 		db:         db,
 		authSvc:    svc,
 		projectSvc: pSvc,
+		taskSvc:    tSvc,
 		router:     r,
 	}
 
@@ -85,6 +95,14 @@ func (s *Server) SetProjectService(svc *project.Service) {
 	s.projectSvc = svc
 }
 
+func (s *Server) TaskService() *task.Service {
+	return s.taskSvc
+}
+
+func (s *Server) SetTaskService(svc *task.Service) {
+	s.taskSvc = svc
+}
+
 
 func (s *Server) routes() {
 	// Public Health & Readiness
@@ -104,8 +122,16 @@ func (s *Server) routes() {
 			pr.Use(auth.Middleware(s.authSvc))
 
 			pr.Get("/auth/me", s.handleAuthMe)
-			pr.Get("/tasks", s.handleTasks)
+
+			// Tasks endpoints (T4)
+			pr.Get("/tasks", s.handleListTasks)
 			pr.Post("/tasks", s.handleCreateTask)
+			pr.Get("/tasks/{id}", s.handleGetTask)
+			pr.Put("/tasks/{id}", s.handleUpdateTask)
+			pr.Delete("/tasks/{id}", s.handleDeleteTask)
+			pr.Post("/tasks/{id}/comments", s.handleAddComment)
+			pr.Post("/tasks/{id}/attempts", s.handleCreateAttempt)
+			pr.Patch("/tasks/{id}/attempts/{attemptId}", s.handleUpdateAttempt)
 
 			// Projects endpoints (T3)
 			pr.Get("/projects", s.handleListProjects)
@@ -336,58 +362,22 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
-	// Protected task list for authenticated owner
-	tasks := []map[string]interface{}{
-		{
-			"id":       "T1",
-			"title":    "Tetapkan fondasi monorepo dan kelayakan adapter agent",
-			"status":   "done",
-			"priority": "high",
-		},
-		{
-			"id":       "T2",
-			"title":    "Sediakan instalasi persisten dan akses owner",
-			"status":   "doing",
-			"priority": "high",
-		},
-		{
-			"id":       "T3",
-			"title":    "Hubungkan repository GitHub existing",
-			"status":   "backlog",
-			"priority": "high",
-		},
-		{
-			"id":       "T4",
-			"title":    "Bangun task board dan histori pekerjaan",
-			"status":   "backlog",
-			"priority": "normal",
-		},
-		{
-			"id":       "T5",
-			"title":    "Jalankan task melalui runner dan satu agent",
-			"status":   "backlog",
-			"priority": "high",
-		},
-		{
-			"id":       "T6",
-			"title":    "Hasilkan perubahan Git dan PR yang dapat direview",
-			"status":   "backlog",
-			"priority": "high",
-		},
-		{
-			"id":       "T7",
-			"title":    "Buktikan staging, update, backup, dan pemulihan",
-			"status":   "backlog",
-			"priority": "normal",
-		},
-		{
-			"id":       "T8",
-			"title":    "Demo dogfooding dan siapkan release OSS",
-			"status":   "backlog",
-			"priority": "normal",
-		},
+func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
+	filter := task.TaskFilter{
+		ProjectID: r.URL.Query().Get("project_id"),
+		Status:    r.URL.Query().Get("status"),
+		Search:    r.URL.Query().Get("search"),
 	}
+
+	tasks, err := s.taskSvc.ListTasks(r.Context(), filter)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list tasks: %v", err))
+		return
+	}
+	if tasks == nil {
+		tasks = []*task.TaskItemResponse{}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks": tasks,
 		"total": len(tasks),
@@ -395,29 +385,177 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Title        string `json:"title"`
-		Instructions string `json:"instructions"`
-		Priority     string `json:"priority"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	var req task.CreateTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if strings.TrimSpace(body.Title) == "" {
-		respondJSONError(w, http.StatusBadRequest, "task title is required")
+
+	author := "owner"
+	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+		author = owner.Email
+	}
+
+	created, err := s.taskSvc.CreateTask(r.Context(), author, req)
+	if err != nil {
+		if errors.Is(err, task.ErrInvalidTaskInput) {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create task: %v", err))
 		return
 	}
 
-	task := map[string]interface{}{
-		"id":           fmt.Sprintf("task_%d", time.Now().Unix()),
-		"title":        strings.TrimSpace(body.Title),
-		"instructions": strings.TrimSpace(body.Instructions),
-		"status":       "backlog",
-		"priority":     body.Priority,
-		"created_at":   time.Now().UTC().Format(time.RFC3339),
+	respondJSON(w, http.StatusCreated, created)
+}
+
+func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	detail, err := s.taskSvc.GetTaskDetail(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get task: %v", err))
+		return
 	}
-	respondJSON(w, http.StatusCreated, task)
+
+	respondJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req task.UpdateTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	author := "owner"
+	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+		author = owner.Email
+	}
+
+	updated, err := s.taskSvc.UpdateTask(r.Context(), id, author, req)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			return
+		}
+		if errors.Is(err, task.ErrInvalidTaskInput) {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update task: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, updated)
+}
+
+func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	err := s.taskSvc.DeleteTask(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete task: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "Task berhasil dihapus",
+		"id":      id,
+	})
+}
+
+func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req task.CreateCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	author := "owner"
+	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+		author = owner.Email
+	}
+
+	act, err := s.taskSvc.AddComment(r.Context(), id, author, req.Message)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			return
+		}
+		if errors.Is(err, task.ErrInvalidTaskInput) {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to add comment: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, act)
+}
+
+func (s *Server) handleCreateAttempt(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req task.CreateAttemptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err.Error() != "EOF" {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	author := "owner"
+	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+		author = owner.Email
+	}
+
+	att, err := s.taskSvc.CreateAttempt(r.Context(), id, author, req)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create attempt: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, att)
+}
+
+func (s *Server) handleUpdateAttempt(w http.ResponseWriter, r *http.Request) {
+	attemptId := chi.URLParam(r, "attemptId")
+	var req task.UpdateAttemptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	author := "owner"
+	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+		author = owner.Email
+	}
+
+	att, err := s.taskSvc.UpdateAttemptStatus(r.Context(), attemptId, author, req)
+	if err != nil {
+		if errors.Is(err, task.ErrAttemptNotFound) {
+			respondJSONError(w, http.StatusNotFound, "attempt tidak ditemukan")
+			return
+		}
+		if errors.Is(err, task.ErrInvalidTaskInput) {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update attempt: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, att)
 }
 
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
