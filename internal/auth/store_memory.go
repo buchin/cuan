@@ -102,3 +102,42 @@ func (s *MemoryStore) DeleteExpiredSessions(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (s *MemoryStore) Snapshot() (*Owner, map[string]*Session) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var ownerCp *Owner
+	if s.owner != nil {
+		cp := *s.owner
+		ownerCp = &cp
+	}
+	sessionsCp := make(map[string]*Session, len(s.sessions))
+	for k, v := range s.sessions {
+		cp := *v
+		sessionsCp[k] = &cp
+	}
+	return ownerCp, sessionsCp
+}
+
+func (s *MemoryStore) Restore(owner *Owner, sessions map[string]*Session) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if owner != nil {
+		cp := *owner
+		s.owner = &cp
+	} else {
+		s.owner = nil
+	}
+	s.sessions = make(map[string]*Session, len(sessions))
+	for k, v := range sessions {
+		cp := *v
+		s.sessions[k] = &cp
+	}
+}
+
+func (s *MemoryStore) Wipe() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.owner = nil
+	s.sessions = make(map[string]*Session)
+}

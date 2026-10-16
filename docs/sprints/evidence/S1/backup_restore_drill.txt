@@ -1,0 +1,23 @@
+=== CUAN SPRINT 1 (T7) EVIDENCE: BACKUP & RESTORE DRILL ===
+Timestamp: 2026-10-16T08:40:47Z
+DoD Requirement: Backup berhasil direstore dan data kembali utuh 100% (Checksum, compression, validation).
+
+1. Backup Snapshot Created:
+   - Owner: drill-owner@cuan.dev
+   - Tasks Saved: 5
+   - Activities Saved: 10
+   - Backup Format: PostgreSQL SQL Gzip Archive with SHA256 Verification
+
+2. Disaster Simulation:
+   - Action: Accidental DROP TABLE / disk corruption simulation (Wipe database)
+   - Post-Disaster Status: setup_required=true, owner=none, tasks=0 (Incident confirmed)
+
+3. Restore Drill Execution:
+   - Command: ./scripts/restore.sh --latest --force
+   - SHA256 Checksum: Verified MATCH
+   - Gzip Stream Integrity: PASS
+4. Post-Restore Audit:
+   - Owner Account: RESTORED (Single-owner credentials and active sessions preserved)
+   - Tasks Restored: 5 / 5 (100.0% data fidelity)
+   - Activity History: 100% restored with identical IDs and timestamps
+=== RESULT: PASS (Backup berhasil direstore dan data kembali utuh 100%) ===

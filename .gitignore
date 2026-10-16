@@ -20,6 +20,10 @@ web/dist/
 
 # Temporary and local
 tmp/
+backups/*.sql.gz
+backups/*.sha256
+backups/*.meta.json
+backups/*.sql
 *.log
 .DS_Store
 .idea/

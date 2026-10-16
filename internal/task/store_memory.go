@@ -306,3 +306,64 @@ func (m *MemoryStore) GetLogs(ctx context.Context, attemptID string, afterID int
 	return result, nil
 }
 
+type TaskSnapshot struct {
+	Tasks      []*Task
+	Attempts   []*TaskAttempt
+	Activities []*TaskActivity
+}
+
+func (m *MemoryStore) Snapshot() *TaskSnapshot {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	snap := &TaskSnapshot{}
+	for _, t := range m.tasks {
+		cp := *t
+		snap.Tasks = append(snap.Tasks, &cp)
+	}
+	for _, a := range m.attempts {
+		cp := *a
+		snap.Attempts = append(snap.Attempts, &cp)
+	}
+	for _, act := range m.activities {
+		cp := *act
+		snap.Activities = append(snap.Activities, &cp)
+	}
+	return snap
+}
+
+func (m *MemoryStore) Restore(snap *TaskSnapshot) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.tasks = make(map[string]*Task)
+	m.attempts = make(map[string]*TaskAttempt)
+	m.activities = make(map[string]*TaskActivity)
+
+	if snap == nil {
+		return
+	}
+
+	for _, t := range snap.Tasks {
+		cp := *t
+		m.tasks[cp.ID] = &cp
+	}
+	for _, a := range snap.Attempts {
+		cp := *a
+		m.attempts[cp.ID] = &cp
+	}
+	for _, act := range snap.Activities {
+		cp := *act
+		m.activities[act.ID] = &cp
+	}
+}
+
+func (m *MemoryStore) Wipe() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.tasks = make(map[string]*Task)
+	m.attempts = make(map[string]*TaskAttempt)
+	m.activities = make(map[string]*TaskActivity)
+	m.logs = make(map[string][]*LogRecord)
+}
+

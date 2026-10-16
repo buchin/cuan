@@ -41,16 +41,24 @@ Cuan is organized as a Go and React TypeScript monorepo:
 
 ---
 
-## Clean Environment Installation (Docker Compose)
+## Clean Environment Installation & Automated Deployment
 
-The recommended way to deploy Cuan on a VPS or clean Linux server is via Docker Compose.
+Cuan provides an automated installer with system preflight checks (hardware, ports, reverse proxy detection) as well as direct Docker Compose support.
 
-### Prerequisites
+### Option A: Automated Installer (Recommended)
 
-- Docker Engine 24+ and Docker Compose v2+
-- DNS A-record pointing to your server IP (for public HTTPS)
+```bash
+git clone https://github.com/buchin/cuan.git
+cd cuan
 
-### Step 1: Clone Repository & Configure Environment
+# Run preflight checks and interactive/automated installation:
+./scripts/install.sh --domain cuan.example.com --email admin@example.com
+
+# For staging environment:
+./scripts/install.sh --staging --domain staging.cuan.example.com
+```
+
+### Option B: Manual Docker Compose Setup
 
 ```bash
 git clone https://github.com/buchin/cuan.git
@@ -140,6 +148,46 @@ Cuan provides standard health endpoints for container orchestrators and monitori
 | `GET /healthz` | Liveness | Verifies the HTTP process is responsive. Returns `200 OK`. |
 | `GET /readyz` | Readiness | Verifies PostgreSQL connectivity, pool health, and schema migration status. Returns `200 OK` when ready, or `503 Service Unavailable` if database is down. |
 | `cuan-server --healthcheck` | CLI Probe | Native container healthcheck probe used inside minimal Alpine containers. |
+| `cuan-server --readycheck` | CLI Probe | Native readiness check probe testing `/readyz` for zero-downtime health validations. |
+
+---
+
+## Staging, Updates, Backup & Disaster Recovery
+
+### 1. Isolated Staging Environment
+Run a staging preview instance with dedicated port `8081`, independent database volume (`cuan_staging_postgres_data`), and isolated network (`cuan-staging-network`) without touching Stable:
+```bash
+./scripts/install.sh --staging --domain staging.cuan.example.com
+```
+
+### 2. Safe Version Update Flow
+Perform atomic version upgrades with pre-update health checks, automatic pre-update database backup, schema migration, and post-update data retention validation:
+```bash
+# Upgrade to version 0.2.0:
+./scripts/update.sh --version 0.2.0
+```
+
+### 3. Database Backup & Restore Drill
+Automated, verified PostgreSQL dumps with SHA256 integrity checksums, gzip stream verification, and retention policy:
+```bash
+# Create automated backup:
+./scripts/backup.sh
+
+# Tagged pre-update backup:
+./scripts/backup.sh --tag pre-update
+
+# Restore from latest verified backup:
+./scripts/restore.sh --latest --force
+```
+
+### 4. Rollback & Disaster Recovery Playbook
+> **Core Principle**: *Rollback image saja tidak dianggap rollback database.*
+If an update encounters a failing migration or degraded state, `rollback.sh` reverts the application version AND restores the database from the pre-update backup snapshot:
+```bash
+# Execute safe rollback:
+./scripts/rollback.sh --version 0.1.0 --latest-pre-update --force
+```
+For complete CLI disaster recovery commands (including direct `psql` queries, container log diagnosis, and VPS re-spins), see [docs/guides/deployment_recovery_guide.md](docs/guides/deployment_recovery_guide.md).
 
 ---
 
@@ -208,8 +256,13 @@ All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S
 - [github_token_guide.md](docs/guides/github_token_guide.md): Owner guide for generating, configuring, and revoking GitHub Personal Access Tokens.
 - [smoke_install_login_restart.txt](docs/sprints/evidence/S1/smoke_install_login_restart.txt): End-to-end smoke verification log of clean install, takeover lockout, login, restart persistence, and logout.
 - [health_readiness_response.txt](docs/sprints/evidence/S1/health_readiness_response.txt): HTTP responses for `/healthz`, `/readyz`, and container healthcheck CLI.
-- [https_proxy_guide.md](docs/sprints/evidence/S1/https_proxy_guide.md): Reverse proxy HTTPS architecture, port allocations, and Nginx/Caddy guides.
 - [configuration_clean.txt](docs/sprints/evidence/S1/configuration_clean.txt): Audit report verifying zero credential leakage.
+- [staging_isolation_verified.txt](docs/sprints/evidence/S1/staging_isolation_verified.txt): Proof of decoupled staging environment (isolated port 8081, volume, database, and network) with zero impact on Stable.
+- [update_data_retention_verified.txt](docs/sprints/evidence/S1/update_data_retention_verified.txt): Proof of 100% data retention (tasks, attempts, audit activities, owner session) across version upgrade.
+- [backup_restore_drill.txt](docs/sprints/evidence/S1/backup_restore_drill.txt): End-to-end backup snapshot creation, data wipe disaster simulation, and 100% data fidelity restoration.
+- [failed_update_rollback_drill.txt](docs/sprints/evidence/S1/failed_update_rollback_drill.txt): Test of simulated failed update (bad migration / broken schema), automatic database rollback, and successful operational recovery.
+- [installer_preflight_verified.txt](docs/sprints/evidence/S1/installer_preflight_verified.txt): Preflight hardware/port checks and non-destructive installer dry-run verification.
+- [deployment_recovery_guide.md](docs/guides/deployment_recovery_guide.md): Operational guide and emergency CLI disaster recovery playbook.
 
 
 ---

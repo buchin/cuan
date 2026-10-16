@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,7 +23,9 @@ import (
 
 func main() {
 	showHelp := flag.Bool("help", false, "Show help message")
+	showVersion := flag.Bool("version", false, "Show Cuan server version")
 	healthCheck := flag.Bool("healthcheck", false, "Perform local health check against running server")
+	readyCheck := flag.Bool("readycheck", false, "Perform local readiness check against running server (/readyz)")
 	flag.Parse()
 
 	if *showHelp {
@@ -30,8 +33,19 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *showVersion {
+		cfg := config.Load()
+		fmt.Printf("cuan-server version %s\n", cfg.AppVersion)
+		os.Exit(0)
+	}
+
 	if *healthCheck {
-		runHealthCheck()
+		runHealthCheck("/healthz")
+		return
+	}
+
+	if *readyCheck {
+		runHealthCheck("/readyz")
 		return
 	}
 
@@ -132,17 +146,20 @@ func runAutoMigration(database *sql.DB) {
 	}
 }
 
-func runHealthCheck() {
+func runHealthCheck(endpoint string) {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	url := fmt.Sprintf("http://127.0.0.1:%s/healthz", port)
+	if !strings.HasPrefix(endpoint, "/") {
+		endpoint = "/" + endpoint
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%s%s", port, endpoint)
 
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		fmt.Fprintf(os.Stderr, "Health check failed for %s: err=%v, status=%v\n", url, err, resp)
+		fmt.Fprintf(os.Stderr, "Check failed for %s: err=%v, status=%v\n", url, err, resp)
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -155,13 +172,16 @@ Usage:
   cuan-server [flags]
 
 Flags:
-  --healthcheck   Perform local health check against running server (exits 0 on 200 OK)
+  --healthcheck   Perform local liveness health check (/healthz) (exits 0 on 200 OK)
+  --readycheck    Perform local readiness check (/readyz) (exits 0 on 200 OK)
+  --version       Show Cuan server version
   --help          Show this help message
 
 Environment variables:
   PORT                      Port to listen on (default: 8080)
   DATABASE_URL              PostgreSQL connection string
   CUAN_ENV                  Environment mode (development/production)
+  CUAN_APP_VERSION          Application version string (default: 0.1.0)
   CUAN_AUTH_SECRET          Secret for single-owner session authentication
   CUAN_STATIC_DIR           Path to built web dist files (default: web/dist)
   CUAN_AUTO_MIGRATE         Auto-run migrations on boot (default: true)

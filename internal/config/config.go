@@ -26,6 +26,7 @@ type Config struct {
 	GitAuthorName       string
 	GitAuthorEmail      string
 	WorkspacesDir       string
+	AppVersion          string
 }
 
 func Load() *Config {
@@ -40,6 +41,7 @@ func Load() *Config {
 	gitAuthorName := getEnv("GIT_AUTHOR_NAME", "Buchin")
 	gitAuthorEmail := getEnv("GIT_AUTHOR_EMAIL", "buchin@dropsugar.com")
 	workspacesDir := getEnv("CUAN_WORKSPACES_DIR", "data/workspaces")
+	appVersion := getEnv("CUAN_APP_VERSION", "0.1.0")
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
 	if intervalSec < 1 {
@@ -98,6 +100,7 @@ func Load() *Config {
 		GitAuthorName:       gitAuthorName,
 		GitAuthorEmail:      gitAuthorEmail,
 		WorkspacesDir:       workspacesDir,
+		AppVersion:          appVersion,
 	}
 }
 

@@ -1,4 +1,4 @@
-.PHONY: all build build-backend build-frontend test test-backend test-frontend migrate dev clean help
+.PHONY: all build build-backend build-frontend test test-backend test-frontend migrate dev clean install backup restore update rollback help
 
 SHELL := /bin/bash
 
@@ -16,6 +16,11 @@ help:
 	@echo "  make test-backend   Run Go unit and spike tests"
 	@echo "  make test-frontend  Run frontend TypeScript and build validation"
 	@echo "  make migrate        Run database migrations (dry-run fallback if DB unset)"
+	@echo "  make install        Run automated installation and preflight checks"
+	@echo "  make backup         Create compressed database backup archive"
+	@echo "  make restore        Restore database from backup"
+	@echo "  make update         Execute safe version update flow"
+	@echo "  make rollback       Execute database and application rollback"
 	@echo "  make dev            Run development server and frontend concurrently"
 	@echo "  make clean          Clean build artifacts and temporary files"
 
@@ -55,6 +60,26 @@ migrate:
 dev:
 	@echo "==> Starting Cuan development environment..."
 	@./scripts/dev.sh
+
+install:
+	@echo "==> Running Cuan installer..."
+	@./scripts/install.sh
+
+backup:
+	@echo "==> Creating database backup archive..."
+	@./scripts/backup.sh
+
+restore:
+	@echo "==> Running database restore tool..."
+	@./scripts/restore.sh
+
+update:
+	@echo "==> Running Cuan safe update flow..."
+	@./scripts/update.sh
+
+rollback:
+	@echo "==> Running Cuan rollback and recovery tool..."
+	@./scripts/rollback.sh
 
 clean:
 	@echo "==> Cleaning build artifacts..."
