@@ -1,31 +1,79 @@
 # Caddyfile for Cuan Reverse Proxy with Automated HTTPS
 {
-    email {$ACME_EMAIL:admin@example.com}
+	email {$ACME_EMAIL:admin@example.com}
 }
 
 {$CUAN_DOMAIN:localhost} {
-    # Reverse proxy to Cuan application container
-    reverse_proxy app:8080 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+	# High performance compression
+	encode zstd gzip
 
-    # Security Headers
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-    }
+	# Security Headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	}
 
-    # High performance compression
-    encode zstd gzip
+	# 1. System Health & Readiness Probes
+	handle /healthz {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080}
+	}
+	handle /readyz {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080}
+	}
 
-    # Structured logging
-    log {
-        output stdout
-        format console
-    }
+	# 2. Public API, Webhook Receiver Dojo & Admin Endpoints
+	handle /api/* {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080} {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# 3. Uploaded Assets & Sanitized Sponsor Logos
+	handle /uploads/* {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080} {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# 4. Sponsor Showcase, Intake & PWYW Checkout (/sponsor, /sponsor/*)
+	handle /sponsor* {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080} {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# 5. Sponsorship Public Directory & Perpetual Archive (/sponsors, /sponsors/*)
+	handle /sponsors* {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080} {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# 6. Single-Owner Admin Dashboard & Moderation Panel (/admin, /admin/*)
+	handle /admin* {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080} {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# 7. Landing Page Framework PAS (Root /) & React SPA Fallback
+	handle {
+		reverse_proxy {$CUAN_UPSTREAM:app:8080} {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Structured logging
+	log {
+		output stdout
+		format console
+	}
 }
