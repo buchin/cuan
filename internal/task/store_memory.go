@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -13,6 +14,8 @@ type MemoryStore struct {
 	tasks      map[string]*Task
 	attempts   map[string]*TaskAttempt
 	activities map[string]*TaskActivity
+	logs       map[string][]*LogRecord
+	nextLogID  int64
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -20,6 +23,8 @@ func NewMemoryStore() *MemoryStore {
 		tasks:      make(map[string]*Task),
 		attempts:   make(map[string]*TaskAttempt),
 		activities: make(map[string]*TaskActivity),
+		logs:       make(map[string][]*LogRecord),
+		nextLogID:  0,
 	}
 }
 
@@ -229,3 +234,75 @@ func (m *MemoryStore) ListActivities(ctx context.Context, taskID string) ([]*Tas
 
 	return result, nil
 }
+
+func (m *MemoryStore) AppendLogs(ctx context.Context, attemptID string, logs []LogRecord, maxLines int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	existing := m.logs[attemptID]
+	if existing == nil {
+		existing = []*LogRecord{}
+	}
+
+	for _, entry := range logs {
+		if maxLines > 0 && len(existing) >= maxLines {
+			// Append truncation marker if not already the last line
+			if len(existing) > 0 && !strings.Contains(existing[len(existing)-1].Line, "[LOG TRUNCATED") {
+				m.nextLogID++
+				marker := &LogRecord{
+					ID:        m.nextLogID,
+					AttemptID: attemptID,
+					Stream:    "system",
+					Line:      fmt.Sprintf("[LOG TRUNCATED: maximum log buffer of %d lines reached]", maxLines),
+					LoggedAt:  time.Now().UTC(),
+				}
+				existing = append(existing, marker)
+			}
+			break
+		}
+
+		m.nextLogID++
+		rec := &LogRecord{
+			ID:        m.nextLogID,
+			AttemptID: attemptID,
+			Stream:    entry.Stream,
+			Line:      entry.Line,
+			LoggedAt:  entry.LoggedAt,
+		}
+		if rec.LoggedAt.IsZero() {
+			rec.LoggedAt = time.Now().UTC()
+		}
+		existing = append(existing, rec)
+	}
+
+	m.logs[attemptID] = existing
+	return nil
+}
+
+func (m *MemoryStore) GetLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	all := m.logs[attemptID]
+	if all == nil {
+		return []*LogRecord{}, nil
+	}
+
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
+
+	var result []*LogRecord
+	for _, rec := range all {
+		if rec.ID > afterID {
+			cp := *rec
+			result = append(result, &cp)
+			if len(result) >= limit {
+				break
+			}
+		}
+	}
+
+	return result, nil
+}
+

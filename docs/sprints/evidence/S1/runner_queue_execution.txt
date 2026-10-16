@@ -1,0 +1,28 @@
+=== CUAN SPRINT 1 (T5) EVIDENCE: RUNNER AUTHENTICATION & QUEUE CONCURRENCY ===
+Timestamp: 2026-10-16T07:59:59Z
+Architecture: Outbound Polling Daemon with Persistent DB Queue (Limit: 1 task aktif per runner)
+
+1. Unauthenticated Request: HTTP 401 (Expected: 401 Unauthorized)
+   Response Body: {"error":"unauthorized: runner token is invalid or missing"}
+
+
+2. Created Tasks in Database:
+   - Task 1: task_4ba042251618 (Attempt: att_7417bae321f1, Status: queued)
+   - Task 2: task_674565c2bc25 (Attempt: att_024640aae390, Status: queued)
+
+3. Runner Claim 1 (Outbound Authenticated):
+   - HTTP Status: 200
+   - Claimed: true
+   - Claimed Attempt: att_7417bae321f1
+   - Attempt Status: running
+   - Lease Expires: 2026-10-16T08:00:14Z
+
+4. Concurrency Limit Check (Runner already has 1 active task running):
+   - Claimed: false (Expected: false)
+   - Concurrency Rule: Concurrency limit tepat 1 task aktif per runner dipatuhi.
+
+5. Task 2 Queue Persistence:
+   - Task ID: task_674565c2bc25
+   - Latest Attempt: att_024640aae390
+   - Attempt Status: queued (Task antre menunggu runner idle)
+=== RESULT: PASS (1 task dieksekusi, task berikutnya antre) ===

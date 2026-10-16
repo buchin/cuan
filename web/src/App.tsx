@@ -32,7 +32,12 @@ import {
   Bot,
   Play,
   Layers,
-  Search
+  Search,
+  Cpu,
+  RotateCcw,
+  Square,
+  Terminal,
+  Activity
 } from 'lucide-react'
 
 interface OwnerInfo {
@@ -126,6 +131,32 @@ interface ProjectItem {
   updated_at: string
 }
 
+interface RunnerInfo {
+  id: string
+  name: string
+  hostname: string
+  supported_agents: string[]
+  status: 'idle' | 'busy' | 'offline'
+  last_heartbeat_at: string
+  current_task_id?: string
+  current_attempt_id?: string
+  cpu_percent: number
+  memory_used_bytes: number
+  memory_total_bytes: number
+  disk_used_bytes: number
+  disk_total_bytes: number
+  created_at: string
+  updated_at: string
+}
+
+interface LogRecord {
+  id: number
+  attempt_id: string
+  stream: 'stdout' | 'stderr' | 'system'
+  line: string
+  logged_at: string
+}
+
 export function App() {
   const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
   const [owner, setOwner] = useState<OwnerInfo | null>(null)
@@ -136,9 +167,15 @@ export function App() {
   const [ready, setReady] = useState<ReadyInfo | null>(null)
   const [tasks, setTasks] = useState<TaskItem[]>([])
   const [projects, setProjects] = useState<ProjectItem[]>([])
+  const [runners, setRunners] = useState<RunnerInfo[]>([])
+  const [runnersLoading, setRunnersLoading] = useState(false)
+  
+  // Execution logs for selected attempt
+  const [attemptLogs, setAttemptLogs] = useState<LogRecord[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
   
   // Navigation
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'tasks'>('tasks')
+  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'tasks' | 'runners'>('tasks')
   const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null)
   const [projectBranches, setProjectBranches] = useState<string[]>([])
   const [branchesLoading, setBranchesLoading] = useState(false)
@@ -266,9 +303,10 @@ export function App() {
         headers['Authorization'] = `Bearer ${activeToken}`
       }
       
-      const [tasksRes, projectsRes] = await Promise.allSettled([
+      const [tasksRes, projectsRes, runnersRes] = await Promise.allSettled([
         fetch('/api/v1/tasks', { headers }),
         fetch('/api/v1/projects', { headers }),
+        fetch('/api/v1/runners', { headers }),
       ])
 
       if (tasksRes.status === 'fulfilled' && tasksRes.value.ok) {
@@ -281,7 +319,6 @@ export function App() {
         const pList = projectsData.projects || []
         setProjects(pList)
 
-        
         // If a project is currently selected, refresh its data
         if (selectedProject) {
           const updated = pList.find((p: ProjectItem) => p.id === selectedProject.id)
@@ -290,8 +327,47 @@ export function App() {
           }
         }
       }
+
+      if (runnersRes.status === 'fulfilled' && runnersRes.value.ok) {
+        const runnersData = await runnersRes.value.json()
+        setRunners(runnersData.runners || [])
+      }
     } catch (err) {
       console.error('Failed to fetch protected data:', err)
+    }
+  }
+
+  const fetchRunners = async () => {
+    setRunnersLoading(true)
+    try {
+      const res = await fetch('/api/v1/runners', {
+        headers: getAuthHeaders(),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setRunners(data.runners || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch runners:', err)
+    } finally {
+      setRunnersLoading(false)
+    }
+  }
+
+  const fetchAttemptLogs = async (taskId: string, attemptId: string) => {
+    setLogsLoading(true)
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}/attempts/${attemptId}/logs`, {
+        headers: getAuthHeaders(),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setAttemptLogs(data.logs || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch logs:', err)
+    } finally {
+      setLogsLoading(false)
     }
   }
 
@@ -331,6 +407,12 @@ export function App() {
         setEditTaskPriority(data.priority || 'normal')
         setEditTaskStatus(data.status || 'backlog')
         setEditTaskAgent(data.assigned_agent || 'agy')
+
+        if (data.latest_attempt) {
+          fetchAttemptLogs(data.id, data.latest_attempt.id)
+        } else {
+          setAttemptLogs([])
+        }
       }
     } catch (err) {
       console.error('Failed to fetch task detail:', err)
@@ -550,6 +632,74 @@ export function App() {
       alert(`Gagal update attempt: ${err.message}`)
     } finally {
       setAttemptActionLoading(false)
+    }
+  }
+
+  const handleCancelTaskAction = async (taskId: string) => {
+    if (!confirm('Apakah Anda yakin ingin membatalkan eksekusi task ini? Seluruh process tree agent akan dihentikan.')) {
+      return
+    }
+    setAttemptActionLoading(true)
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}/cancel`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal membatalkan task')
+      }
+      setSuccessNotification('Pembatalan task berhasil diminta! Seluruh process tree agent dihentikan.')
+      setTimeout(() => setSuccessNotification(null), 4000)
+      await fetchTaskDetail(taskId)
+      await fetchProtectedData()
+    } catch (err: any) {
+      alert(`Gagal cancel task: ${err.message}`)
+    } finally {
+      setAttemptActionLoading(false)
+    }
+  }
+
+  const handleRetryTaskAction = async (taskId: string) => {
+    setAttemptActionLoading(true)
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}/retry`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          runner_id: 'runner-01',
+          agent_name: selectedTask?.assigned_agent || 'agy',
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Gagal retry task')
+      }
+      setSuccessNotification('Task berhasil di-retry secara eksplisit sebagai attempt baru!')
+      setTimeout(() => setSuccessNotification(null), 4000)
+      await fetchTaskDetail(taskId)
+      await fetchProtectedData()
+    } catch (err: any) {
+      alert(`Gagal retry task: ${err.message}`)
+    } finally {
+      setAttemptActionLoading(false)
+    }
+  }
+
+  const handleReconcileLeasesAction = async () => {
+    try {
+      const res = await fetch('/api/v1/runner/reconcile', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setSuccessNotification(`Reconcile selesai: ${data.interrupted_count} attempt kedaluwarsa dilaporkan interrupted.`)
+        setTimeout(() => setSuccessNotification(null), 4000)
+        await fetchProtectedData()
+      }
+    } catch (err: any) {
+      alert(`Gagal reconcile leases: ${err.message}`)
     }
   }
 
@@ -1010,6 +1160,16 @@ export function App() {
           >
             <GitBranch className="h-4 w-4" />
             Tasks Board ({tasks.length})
+          </Button>
+
+          <Button
+            variant={activeTab === 'runners' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => { setActiveTab('runners'); setSelectedProject(null); }}
+            className={`gap-1.5 text-xs ${activeTab === 'runners' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+          >
+            <Cpu className="h-4 w-4" />
+            Agents & Servers ({runners.length})
           </Button>
 
           <Button
@@ -1766,6 +1926,36 @@ export function App() {
                   </Button>
 
                   <div className="flex items-center gap-2">
+                    {/* Cancel Task Button (when attempt is running or queued) */}
+                    {(selectedTask.latest_attempt?.status === 'running' || selectedTask.latest_attempt?.status === 'queued') && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleCancelTaskAction(selectedTask.id)}
+                        disabled={attemptActionLoading}
+                        className="text-xs gap-1.5 bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        <Square className="h-3.5 w-3.5 fill-current" />
+                        Batalkan Task (Kill Process Tree)
+                      </Button>
+                    )}
+
+                    {/* Retry Task Button (when attempt is failed, canceled, or interrupted) */}
+                    {(selectedTask.latest_attempt?.status === 'failed' ||
+                      selectedTask.latest_attempt?.status === 'canceled' ||
+                      selectedTask.latest_attempt?.status === 'interrupted') && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleRetryTaskAction(selectedTask.id)}
+                        disabled={attemptActionLoading}
+                        className="text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Retry Task (Attempt Baru)
+                      </Button>
+                    )}
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -2106,6 +2296,67 @@ export function App() {
                         )}
                       </CardContent>
                     </Card>
+
+                    {/* Card 3: Execution Output & Streamed Logs (T5) */}
+                    <Card className="bg-slate-900 border-slate-800 text-slate-100 shadow-sm">
+                      <CardHeader className="p-4 pb-2 border-b border-slate-800">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-200">
+                            <Terminal className="h-4 w-4 text-emerald-400" />
+                            Log Output Streaming & Verifikasi
+                          </CardTitle>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-700 font-mono">
+                              {attemptLogs.length} baris
+                            </Badge>
+                            {selectedTask.latest_attempt && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => fetchAttemptLogs(selectedTask.id, selectedTask.latest_attempt!.id)}
+                                disabled={logsLoading}
+                                className="h-7 px-2 text-xs text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+                              >
+                                <RefreshCw className={`h-3 w-3 ${logsLoading ? 'animate-spin' : ''}`} />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-3">
+                        {attemptLogs.length > 0 ? (
+                          <div className="bg-slate-950 p-3 rounded font-mono text-[11px] text-slate-300 max-h-64 overflow-y-auto space-y-1 border border-slate-800">
+                            {attemptLogs.map((log) => (
+                              <div key={log.id} className="flex items-start gap-2">
+                                <span className="text-slate-600 select-none text-[10px] w-8 text-right font-mono">
+                                  #{log.id}
+                                </span>
+                                <span
+                                  className={`text-[9px] uppercase font-bold px-1 rounded ${
+                                    log.stream === 'stderr'
+                                      ? 'text-red-400 bg-red-950/60'
+                                      : log.stream === 'system'
+                                      ? 'text-amber-400 bg-amber-950/60'
+                                      : 'text-emerald-400 bg-emerald-950/60'
+                                  }`}
+                                >
+                                  {log.stream}
+                                </span>
+                                <span className="flex-1 whitespace-pre-wrap break-all font-mono">{log.line}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-500 italic p-4 text-center">
+                            Belum ada log output streaming untuk attempt ini. Log akan muncul saat runner mengeksekusi agent.
+                          </div>
+                        )}
+                        <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-800/60 pt-2">
+                          <span>🔒 Kredensial & Secrets disamarkan otomatis ([REDACTED])</span>
+                          <span>📦 Bounded buffer maks 5.000 baris</span>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
 
                   {/* Right Column: Activity History & Comments Timeline */}
@@ -2208,6 +2459,304 @@ export function App() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 4: AGENTS & SERVERS (MAIN SCOPE T5)                        */}
+        {/* ============================================================== */}
+        {activeTab === 'runners' && (
+          <div className="space-y-6">
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Cpu className="h-5 w-5 text-emerald-600" />
+                  Agents & Servers
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Runner outbound connection daemon, persistent queue, heartbeat/lease tracking, dan profil agent coding.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReconcileLeasesAction}
+                  className="text-xs gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50"
+                >
+                  <Activity className="h-3.5 w-3.5 text-amber-600" />
+                  Reconcile Leases
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={fetchRunners}
+                  disabled={runnersLoading}
+                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs gap-1.5"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${runnersLoading ? 'animate-spin' : ''}`} />
+                  Refresh Runners
+                </Button>
+              </div>
+            </div>
+
+            {/* Overview Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Runners Terdaftar
+                    </CardTitle>
+                    <Server className="h-4 w-4 text-emerald-600" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-1">
+                  <div className="text-2xl font-bold text-slate-900">{runners.length}</div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {runners.filter((r) => r.status === 'idle').length} idle,{' '}
+                    {runners.filter((r) => r.status === 'busy').length} sibuk
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Queue Depth
+                    </CardTitle>
+                    <Clock className="h-4 w-4 text-amber-500" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-1">
+                  <div className="text-2xl font-bold text-slate-900">
+                    {tasks.filter((t) => t.latest_attempt?.status === 'queued').length}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Task antre menunggu giliran claim
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Task Aktif Berjalan
+                    </CardTitle>
+                    <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-1">
+                  <div className="text-2xl font-bold text-slate-900">
+                    {tasks.filter((t) => t.latest_attempt?.status === 'running').length}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Maksimum 1 task aktif per runner
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Agent Adapter
+                    </CardTitle>
+                    <Bot className="h-4 w-4 text-purple-500" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-1">
+                  <div className="text-xl font-bold text-slate-900">AGY (Antigravity)</div>
+                  <div className="text-xs text-slate-500 mt-1">Headless CLI adapter terpasang</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Connected Runners Grid / List */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Daftar Runner Terkoneksi & Metrik Host
+              </h3>
+
+              {runners.length === 0 ? (
+                <Card className="bg-white border-dashed border-2 border-slate-200 p-8 text-center space-y-3">
+                  <Cpu className="h-8 w-8 text-slate-400 mx-auto" />
+                  <div className="text-sm font-semibold text-slate-700">Belum ada runner terdaftar</div>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Jalankan daemon <code>./bin/cuan-runner</code> pada host untuk mulai menghubungkan runner outbound ke Cuan server.
+                  </p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {runners.map((r) => {
+                    const memUsedMB = Math.round(r.memory_used_bytes / (1024 * 1024))
+                    const memTotalMB = Math.round(r.memory_total_bytes / (1024 * 1024))
+                    const memPct = memTotalMB > 0 ? Math.round((memUsedMB / memTotalMB) * 100) : 0
+                    const diskUsedGB = Math.round(r.disk_used_bytes / (1024 * 1024 * 1024))
+                    const diskTotalGB = Math.round(r.disk_total_bytes / (1024 * 1024 * 1024))
+                    const diskPct = diskTotalGB > 0 ? Math.round((diskUsedGB / diskTotalGB) * 100) : 0
+
+                    return (
+                      <Card key={r.id} className="bg-white border-slate-200 shadow-sm">
+                        <CardHeader className="p-4 pb-2 border-b border-slate-100">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold text-slate-900">{r.id}</span>
+                              <span className="text-xs text-slate-400">({r.hostname || 'localhost'})</span>
+                            </div>
+                            <Badge
+                              variant={
+                                r.status === 'busy'
+                                  ? 'default'
+                                  : r.status === 'idle'
+                                  ? 'success'
+                                  : 'secondary'
+                              }
+                              className="text-xs capitalize font-bold"
+                            >
+                              {r.status === 'idle' && '🟢 Idle (Connected)'}
+                              {r.status === 'busy' && '⚡ Busy (Executing)'}
+                              {r.status === 'offline' && '⚪ Offline (Disconnected)'}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-3 text-xs">
+                          <div className="flex items-center justify-between text-slate-500">
+                            <span>Last Heartbeat:</span>
+                            <span className="font-mono text-slate-700">
+                              {new Date(r.last_heartbeat_at).toLocaleTimeString()}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-slate-500">
+                            <span>Supported Agents:</span>
+                            <span className="font-mono text-slate-800 font-semibold">
+                              {r.supported_agents?.join(', ') || 'agy'}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase">
+                              Task Aktif
+                            </span>
+                            {r.current_task_id ? (
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono font-bold text-slate-800">
+                                  {r.current_task_id}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setActiveTab('tasks')
+                                    fetchTaskDetail(r.current_task_id!)
+                                  }}
+                                  className="h-6 text-[10px] px-2 text-blue-600 hover:text-blue-800"
+                                >
+                                  Buka Task Detail →
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="text-slate-400 italic">Tidak ada task aktif (Idle)</div>
+                            )}
+                          </div>
+
+                          {/* Host Resource Meters */}
+                          <div className="space-y-2 pt-1">
+                            <div className="flex items-center justify-between text-[11px] text-slate-600">
+                              <span>CPU Load:</span>
+                              <span className="font-mono font-semibold">{r.cpu_percent.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-emerald-500 h-1.5 rounded-full"
+                                style={{ width: `${Math.min(r.cpu_percent, 100)}%` }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-600">
+                              <span>RAM Usage:</span>
+                              <span className="font-mono font-semibold">
+                                {memUsedMB} MB / {memTotalMB} MB ({memPct}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-blue-500 h-1.5 rounded-full"
+                                style={{ width: `${Math.min(memPct, 100)}%` }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-600">
+                              <span>Disk Space:</span>
+                              <span className="font-mono font-semibold">
+                                {diskUsedGB} GB / {diskTotalGB} GB ({diskPct}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-purple-500 h-1.5 rounded-full"
+                                style={{ width: `${Math.min(diskPct, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Agent Profiles Section */}
+            <Card className="bg-white border-slate-200 shadow-sm">
+              <CardHeader className="p-4 pb-2 border-b border-slate-100">
+                <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-purple-600" />
+                  Profil & Kebijakan Coding Agent
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500">
+                  Konfigurasi adapter eksekusi headless, isolasi proses, dan batas keamanan.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                      Isolasi & Process Tree
+                    </div>
+                    <p className="text-slate-600 text-[11px]">
+                      Menjalankan agent dengan Process Group tersendiri (<code>Setpgid: true</code>). Saat cancel atau timeout, seluruh pohon proses subagent/compiler dihentikan tuntas tanpa meninggalkan zombie.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <Lock className="h-4 w-4 text-blue-600" />
+                      Masking Kredensial Otomatis
+                    </div>
+                    <p className="text-slate-600 text-[11px]">
+                      Log streaming dan database disaring secara realtime dengan <code>MaskSecrets</code>. PAT, connection string, password, dan token diganti dengan <code>[REDACTED]</code> untuk mencegah kebocoran.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <Layers className="h-4 w-4 text-amber-600" />
+                      Batas Concurrency & Antrean
+                    </div>
+                    <p className="text-slate-600 text-[11px]">
+                      Kebijakan tepat 1 task aktif per runner. Task berikutnya otomatis antre (status <code>queued</code>) dalam antrean persisten DB dengan proteksi <code>FOR UPDATE SKIP LOCKED</code> anti-double execution.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 

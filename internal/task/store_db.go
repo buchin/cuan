@@ -168,11 +168,16 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	if a.CreatedAt.IsZero() {
 		a.CreatedAt = time.Now().UTC()
 	}
+	if a.AttemptNumber <= 0 {
+		a.AttemptNumber = 1
+	}
 	query := `
 		INSERT INTO task_attempts (
-			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes, started_at, finished_at, error_message, created_at
+			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
+			lease_expires_at, cancel_requested, canceled_at, interrupted_at, attempt_number,
+			started_at, finished_at, error_message, created_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 		)
 	`
 	_, err := s.db.ExecContext(ctx, query,
@@ -183,6 +188,11 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 		a.Status,
 		a.ExitCode,
 		a.PeakRSSBytes,
+		a.LeaseExpiresAt,
+		a.CancelRequested,
+		a.CanceledAt,
+		a.InterruptedAt,
+		a.AttemptNumber,
 		a.StartedAt,
 		a.FinishedAt,
 		a.ErrorMessage,
@@ -197,7 +207,9 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 func (s *DBStore) GetAttempt(ctx context.Context, id string) (*TaskAttempt, error) {
 	query := `
 		SELECT 
-			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes, started_at, finished_at,
+			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
+			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
+			COALESCE(attempt_number, 1), started_at, finished_at,
 			COALESCE(error_message, ''), created_at
 		FROM task_attempts
 		WHERE id = $1
@@ -211,6 +223,11 @@ func (s *DBStore) GetAttempt(ctx context.Context, id string) (*TaskAttempt, erro
 		&a.Status,
 		&a.ExitCode,
 		&a.PeakRSSBytes,
+		&a.LeaseExpiresAt,
+		&a.CancelRequested,
+		&a.CanceledAt,
+		&a.InterruptedAt,
+		&a.AttemptNumber,
 		&a.StartedAt,
 		&a.FinishedAt,
 		&a.ErrorMessage,
@@ -228,7 +245,9 @@ func (s *DBStore) GetAttempt(ctx context.Context, id string) (*TaskAttempt, erro
 func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAttempt, error) {
 	query := `
 		SELECT 
-			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes, started_at, finished_at,
+			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
+			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
+			COALESCE(attempt_number, 1), started_at, finished_at,
 			COALESCE(error_message, ''), created_at
 		FROM task_attempts
 		WHERE task_id = $1
@@ -244,6 +263,11 @@ func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAtt
 		&a.Status,
 		&a.ExitCode,
 		&a.PeakRSSBytes,
+		&a.LeaseExpiresAt,
+		&a.CancelRequested,
+		&a.CanceledAt,
+		&a.InterruptedAt,
+		&a.AttemptNumber,
 		&a.StartedAt,
 		&a.FinishedAt,
 		&a.ErrorMessage,
@@ -261,7 +285,9 @@ func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAtt
 func (s *DBStore) ListAttempts(ctx context.Context, taskID string) ([]*TaskAttempt, error) {
 	query := `
 		SELECT 
-			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes, started_at, finished_at,
+			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
+			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
+			COALESCE(attempt_number, 1), started_at, finished_at,
 			COALESCE(error_message, ''), created_at
 		FROM task_attempts
 		WHERE task_id = $1
@@ -284,6 +310,11 @@ func (s *DBStore) ListAttempts(ctx context.Context, taskID string) ([]*TaskAttem
 			&a.Status,
 			&a.ExitCode,
 			&a.PeakRSSBytes,
+			&a.LeaseExpiresAt,
+			&a.CancelRequested,
+			&a.CanceledAt,
+			&a.InterruptedAt,
+			&a.AttemptNumber,
 			&a.StartedAt,
 			&a.FinishedAt,
 			&a.ErrorMessage,
@@ -303,9 +334,14 @@ func (s *DBStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 			status = $2,
 			exit_code = $3,
 			peak_rss_bytes = $4,
-			started_at = $5,
-			finished_at = $6,
-			error_message = $7
+			lease_expires_at = $5,
+			cancel_requested = $6,
+			canceled_at = $7,
+			interrupted_at = $8,
+			attempt_number = $9,
+			started_at = $10,
+			finished_at = $11,
+			error_message = $12
 		WHERE id = $1
 	`
 	res, err := s.db.ExecContext(ctx, query,
@@ -313,6 +349,11 @@ func (s *DBStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 		a.Status,
 		a.ExitCode,
 		a.PeakRSSBytes,
+		a.LeaseExpiresAt,
+		a.CancelRequested,
+		a.CanceledAt,
+		a.InterruptedAt,
+		a.AttemptNumber,
 		a.StartedAt,
 		a.FinishedAt,
 		a.ErrorMessage,
@@ -394,3 +435,78 @@ func (s *DBStore) ListActivities(ctx context.Context, taskID string) ([]*TaskAct
 
 	return result, nil
 }
+
+func (s *DBStore) AppendLogs(ctx context.Context, attemptID string, logs []LogRecord, maxLines int) error {
+	if len(logs) == 0 {
+		return nil
+	}
+
+	if maxLines > 0 {
+		var currentCount int
+		err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM agent_logs WHERE attempt_id = $1", attemptID).Scan(&currentCount)
+		if err == nil && currentCount >= maxLines {
+			var hasMarker bool
+			_ = s.db.QueryRowContext(ctx, "SELECT true FROM agent_logs WHERE attempt_id = $1 AND line LIKE '[LOG TRUNCATED%' LIMIT 1", attemptID).Scan(&hasMarker)
+			if !hasMarker {
+				_, _ = s.db.ExecContext(ctx, "INSERT INTO agent_logs (attempt_id, stream, line, logged_at) VALUES ($1, $2, $3, $4)",
+					attemptID, "system", fmt.Sprintf("[LOG TRUNCATED: maximum log buffer of %d lines reached]", maxLines), time.Now().UTC())
+			}
+			return nil
+		}
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx for logs: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	stmt, err := tx.PrepareContext(ctx, "INSERT INTO agent_logs (attempt_id, stream, line, logged_at) VALUES ($1, $2, $3, $4)")
+	if err != nil {
+		return fmt.Errorf("prepare log insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, entry := range logs {
+		loggedAt := entry.LoggedAt
+		if loggedAt.IsZero() {
+			loggedAt = time.Now().UTC()
+		}
+		if _, err := stmt.ExecContext(ctx, attemptID, entry.Stream, entry.Line, loggedAt); err != nil {
+			return fmt.Errorf("insert log: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *DBStore) GetLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
+
+	query := `
+		SELECT id, attempt_id, stream, line, logged_at
+		FROM agent_logs
+		WHERE attempt_id = $1 AND ($2 = 0 OR id > $2)
+		ORDER BY id ASC
+		LIMIT $3
+	`
+	rows, err := s.db.QueryContext(ctx, query, attemptID, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get logs: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*LogRecord
+	for rows.Next() {
+		var rec LogRecord
+		if err := rows.Scan(&rec.ID, &rec.AttemptID, &rec.Stream, &rec.Line, &rec.LoggedAt); err != nil {
+			return nil, fmt.Errorf("scan log: %w", err)
+		}
+		result = append(result, &rec)
+	}
+
+	return result, nil
+}
+

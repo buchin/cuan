@@ -16,9 +16,13 @@ type Config struct {
 	DBConnMaxIdleTime time.Duration
 	AutoMigrate       bool
 	StaticDir         string
-	RunnerInterval    time.Duration
-	RunnerID          string
-	AuthSecret        string
+	RunnerInterval      time.Duration
+	RunnerID            string
+	RunnerToken         string
+	RunnerServerURL     string
+	RunnerLeaseDuration time.Duration
+	RunnerMaxLogLines   int
+	AuthSecret          string
 }
 
 func Load() *Config {
@@ -27,11 +31,23 @@ func Load() *Config {
 	dbURL := getEnv("DATABASE_URL", "postgres://cuan:cuan@localhost:5432/cuan?sslmode=disable")
 	runnerID := getEnv("CUAN_RUNNER_ID", "runner-01")
 	authSecret := getEnv("CUAN_AUTH_SECRET", "dev-secret-change-in-production")
+	runnerToken := getEnv("CUAN_RUNNER_TOKEN", authSecret)
+	serverURL := getEnv("CUAN_SERVER_URL", "http://localhost:"+port)
 	staticDir := getEnv("CUAN_STATIC_DIR", "web/dist")
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
 	if intervalSec < 1 {
 		intervalSec = 5
+	}
+
+	leaseSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_LEASE_DURATION_SEC", "30"))
+	if leaseSec < 5 {
+		leaseSec = 30
+	}
+
+	maxLogLines, _ := strconv.Atoi(getEnv("CUAN_RUNNER_MAX_LOG_LINES", "5000"))
+	if maxLogLines < 100 {
+		maxLogLines = 5000
 	}
 
 	maxOpenConns, _ := strconv.Atoi(getEnv("CUAN_DB_MAX_OPEN_CONNS", "25"))
@@ -57,18 +73,22 @@ func Load() *Config {
 	autoMigrate := getEnv("CUAN_AUTO_MIGRATE", "true") != "false"
 
 	return &Config{
-		Environment:       env,
-		ServerPort:        port,
-		DatabaseURL:       dbURL,
-		DBMaxOpenConns:    maxOpenConns,
-		DBMaxIdleConns:    maxIdleConns,
-		DBConnMaxLifetime: connMaxLifetime,
-		DBConnMaxIdleTime: connMaxIdleTime,
-		AutoMigrate:       autoMigrate,
-		StaticDir:         staticDir,
-		RunnerInterval:    time.Duration(intervalSec) * time.Second,
-		RunnerID:          runnerID,
-		AuthSecret:        authSecret,
+		Environment:         env,
+		ServerPort:          port,
+		DatabaseURL:         dbURL,
+		DBMaxOpenConns:      maxOpenConns,
+		DBMaxIdleConns:      maxIdleConns,
+		DBConnMaxLifetime:   connMaxLifetime,
+		DBConnMaxIdleTime:   connMaxIdleTime,
+		AutoMigrate:         autoMigrate,
+		StaticDir:           staticDir,
+		RunnerInterval:      time.Duration(intervalSec) * time.Second,
+		RunnerID:            runnerID,
+		RunnerToken:         runnerToken,
+		RunnerServerURL:     serverURL,
+		RunnerLeaseDuration: time.Duration(leaseSec) * time.Second,
+		RunnerMaxLogLines:   maxLogLines,
+		AuthSecret:          authSecret,
 	}
 }
 

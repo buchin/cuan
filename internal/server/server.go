@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -28,6 +30,7 @@ type Server struct {
 	authSvc    *auth.Service
 	projectSvc *project.Service
 	taskSvc    *task.Service
+	runnerSvc  *runner.RunnerService
 	router     *chi.Mux
 }
 
@@ -58,12 +61,21 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		pSvc = project.NewService(project.NewMemoryStore(), git.NewClient(), cfg.AuthSecret, projectBaseDir)
 	}
 
-	var tSvc *task.Service
+	var tStore task.Store
 	if db != nil {
-		tSvc = task.NewService(task.NewDBStore(db), pSvc)
+		tStore = task.NewDBStore(db)
 	} else {
-		tSvc = task.NewService(task.NewMemoryStore(), pSvc)
+		tStore = task.NewMemoryStore()
 	}
+	tSvc := task.NewService(tStore, pSvc)
+
+	var rStore runner.Store
+	if db != nil {
+		rStore = runner.NewDBStore(db)
+	} else {
+		rStore = runner.NewMemoryStore(tStore)
+	}
+	rSvc := runner.NewService(rStore, tStore)
 
 	s := &Server{
 		cfg:        cfg,
@@ -71,6 +83,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		authSvc:    svc,
 		projectSvc: pSvc,
 		taskSvc:    tSvc,
+		runnerSvc:  rSvc,
 		router:     r,
 	}
 
@@ -103,6 +116,14 @@ func (s *Server) SetTaskService(svc *task.Service) {
 	s.taskSvc = svc
 }
 
+func (s *Server) RunnerService() *runner.RunnerService {
+	return s.runnerSvc
+}
+
+func (s *Server) SetRunnerService(svc *runner.RunnerService) {
+	s.runnerSvc = svc
+}
+
 
 func (s *Server) routes() {
 	// Public Health & Readiness
@@ -117,13 +138,22 @@ func (s *Server) routes() {
 		r.Post("/auth/login", s.handleAuthLogin)
 		r.Post("/auth/logout", s.handleAuthLogout)
 
+		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
+		r.Group(func(rr chi.Router) {
+			rr.Use(s.runnerAuthMiddleware)
+			rr.Post("/runner/heartbeat", s.handleRunnerHeartbeat)
+			rr.Post("/runner/claim", s.handleRunnerClaim)
+			rr.Post("/runner/attempts/{id}/logs", s.handleRunnerStreamLogs)
+			rr.Post("/runner/attempts/{id}/complete", s.handleRunnerComplete)
+		})
+
 		// Protected endpoints (Single-Owner access only)
 		r.Group(func(pr chi.Router) {
 			pr.Use(auth.Middleware(s.authSvc))
 
 			pr.Get("/auth/me", s.handleAuthMe)
 
-			// Tasks endpoints (T4)
+			// Tasks endpoints (T4 & T5)
 			pr.Get("/tasks", s.handleListTasks)
 			pr.Post("/tasks", s.handleCreateTask)
 			pr.Get("/tasks/{id}", s.handleGetTask)
@@ -132,6 +162,14 @@ func (s *Server) routes() {
 			pr.Post("/tasks/{id}/comments", s.handleAddComment)
 			pr.Post("/tasks/{id}/attempts", s.handleCreateAttempt)
 			pr.Patch("/tasks/{id}/attempts/{attemptId}", s.handleUpdateAttempt)
+			pr.Post("/tasks/{id}/cancel", s.handleCancelTask)
+			pr.Post("/tasks/{id}/retry", s.handleRetryTask)
+			pr.Get("/tasks/{id}/attempts/{attemptId}/logs", s.handleGetAttemptLogs)
+
+			// Runners & Infrastructure (T5)
+			pr.Get("/runners", s.handleListRunners)
+			pr.Get("/runners/{id}", s.handleGetRunner)
+			pr.Post("/runner/reconcile", s.handleReconcileLeases)
 
 			// Projects endpoints (T3)
 			pr.Get("/projects", s.handleListProjects)
@@ -707,5 +745,227 @@ func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 func respondJSONError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, map[string]interface{}{
 		"error": message,
+	})
+}
+
+func (s *Server) runnerAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("X-Runner-Token")
+		if token == "" {
+			authHeader := r.Header.Get("Authorization")
+			if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+				token = strings.TrimSpace(authHeader[7:])
+			}
+		}
+
+		if token != "" {
+			if token == s.cfg.RunnerToken || token == s.cfg.AuthSecret {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if owner, err := s.authSvc.ValidateToken(r.Context(), token); err == nil && owner != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		respondJSONError(w, http.StatusUnauthorized, "unauthorized: runner token is invalid or missing")
+	})
+}
+
+func (s *Server) handleRunnerHeartbeat(w http.ResponseWriter, r *http.Request) {
+	var req runner.HeartbeatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	resp, err := s.runnerSvc.Heartbeat(r.Context(), req, s.cfg.RunnerLeaseDuration)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("heartbeat failed: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
+	var req runner.ClaimTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	resp, err := s.runnerSvc.Claim(r.Context(), req, s.cfg.RunnerLeaseDuration)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("claim failed: %v", err))
+		return
+	}
+
+	if resp.Claimed && resp.Task != nil && resp.Task.ProjectID != "" {
+		if p, err := s.projectSvc.Get(r.Context(), resp.Task.ProjectID); err == nil && p != nil {
+			resp.ProjectRepo = p.RepoURL
+			resp.WorkingDir = p.LocalPath
+		}
+	}
+
+	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleRunnerStreamLogs(w http.ResponseWriter, r *http.Request) {
+	attemptID := chi.URLParam(r, "id")
+	var req runner.StreamLogsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := s.taskSvc.AppendAttemptLogs(r.Context(), attemptID, req.Logs, s.cfg.RunnerMaxLogLines); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to append logs: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":   "ok",
+		"appended": len(req.Logs),
+	})
+}
+
+func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
+	attemptID := chi.URLParam(r, "id")
+	var req runner.CompleteAttemptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	att, err := s.runnerSvc.Complete(r.Context(), attemptID, req)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to complete attempt: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, att)
+}
+
+func (s *Server) handleListRunners(w http.ResponseWriter, r *http.Request) {
+	_, _ = s.runnerSvc.ReconcileExpiredLeases(r.Context())
+
+	runners, err := s.runnerSvc.ListRunners(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list runners: %v", err))
+		return
+	}
+	if runners == nil {
+		runners = []*runner.RunnerInfo{}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"runners": runners,
+		"total":   len(runners),
+	})
+}
+
+func (s *Server) handleGetRunner(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	rInfo, err := s.runnerSvc.GetRunner(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, runner.ErrRunnerNotFound) {
+			respondJSONError(w, http.StatusNotFound, "runner tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get runner: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, rInfo)
+}
+
+func (s *Server) handleGetAttemptLogs(w http.ResponseWriter, r *http.Request) {
+	attemptID := chi.URLParam(r, "attemptId")
+	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 1000
+	}
+
+	logs, err := s.taskSvc.GetAttemptLogs(r.Context(), attemptID, afterID, limit)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get logs: %v", err))
+		return
+	}
+	if logs == nil {
+		logs = []*task.LogRecord{}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"logs":  logs,
+		"total": len(logs),
+	})
+}
+
+func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	author := "owner"
+	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+		author = owner.Email
+	}
+
+	att, err := s.taskSvc.CancelTask(r.Context(), taskID, author)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			return
+		}
+		if errors.Is(err, task.ErrAttemptNotFound) {
+			respondJSONError(w, http.StatusNotFound, "tidak ada attempt yang dapat dibatalkan")
+			return
+		}
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, att)
+}
+
+func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	author := "owner"
+	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+		author = owner.Email
+	}
+
+	var req struct {
+		RunnerID  string `json:"runner_id"`
+		AgentName string `json:"agent_name"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	att, err := s.taskSvc.RetryTask(r.Context(), taskID, author, req.RunnerID, req.AgentName)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, att)
+}
+
+func (s *Server) handleReconcileLeases(w http.ResponseWriter, r *http.Request) {
+	interrupted, err := s.runnerSvc.ReconcileExpiredLeases(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("reconcile leases failed: %v", err))
+		return
+	}
+	if interrupted == nil {
+		interrupted = []*task.TaskAttempt{}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"interrupted_count": len(interrupted),
+		"attempts":          interrupted,
 	})
 }

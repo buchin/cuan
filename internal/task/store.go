@@ -29,4 +29,8 @@ type Store interface {
 	// Activity log & comments
 	CreateActivity(ctx context.Context, act *TaskActivity) error
 	ListActivities(ctx context.Context, taskID string) ([]*TaskActivity, error)
+
+	// Log operations
+	AppendLogs(ctx context.Context, attemptID string, logs []LogRecord, maxLines int) error
+	GetLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error)
 }

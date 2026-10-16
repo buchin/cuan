@@ -112,21 +112,11 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			timedOut = true
 		}
-		// Send SIGINT to process group for graceful stop
+		// Terminate the entire process tree (PGID and all child subprocesses)
 		if pid > 0 {
-			_ = syscall.Kill(-pid, syscall.SIGINT)
+			_ = KillProcessTree(pid)
 		}
-
-		// Allow brief graceful shutdown window
-		select {
-		case waitErr = <-doneChan:
-		case <-time.After(1 * time.Second):
-			// Force kill if still running
-			if pid > 0 {
-				_ = syscall.Kill(-pid, syscall.SIGKILL)
-			}
-			waitErr = <-doneChan
-		}
+		waitErr = <-doneChan
 
 	case waitErr = <-doneChan:
 		// Process completed naturally

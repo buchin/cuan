@@ -18,6 +18,9 @@ import (
 func main() {
 	showHelp := flag.Bool("help", false, "Show help message")
 	agentBin := flag.String("agent-bin", "", "Custom path to agent binary (default: searches PATH for 'agy')")
+	serverURL := flag.String("server-url", "", "Cuan server URL (default: CUAN_SERVER_URL or http://localhost:8080)")
+	runnerID := flag.String("runner-id", "", "Runner unique ID (default: CUAN_RUNNER_ID or runner-01)")
+	runnerToken := flag.String("runner-token", "", "Runner authentication token (default: CUAN_RUNNER_TOKEN)")
 	flag.Parse()
 
 	if *showHelp {
@@ -27,17 +30,31 @@ Usage:
   cuan-runner [flags]
 
 Flags:
-  --agent-bin string   Custom path to coding agent binary (default: searches PATH for 'agy')
-  --help               Show this help message
+  --agent-bin string      Custom path to coding agent binary (default: searches PATH for 'agy')
+  --server-url string     Cuan API server URL (default: http://localhost:8080)
+  --runner-id string      Runner identifier (default: runner-01)
+  --runner-token string   Runner authentication token
+  --help                  Show this help message
 
 Environment variables:
   CUAN_RUNNER_ID            Unique identifier for this runner (default: runner-01)
+  CUAN_RUNNER_TOKEN         Authentication token shared with Cuan server
+  CUAN_SERVER_URL           Cuan API server URL (default: http://localhost:8080)
   CUAN_RUNNER_INTERVAL_SEC  Queue polling interval in seconds (default: 5)
   DATABASE_URL              PostgreSQL connection string`)
 		os.Exit(0)
 	}
 
 	cfg := config.Load()
+	if *serverURL != "" {
+		cfg.RunnerServerURL = *serverURL
+	}
+	if *runnerID != "" {
+		cfg.RunnerID = *runnerID
+	}
+	if *runnerToken != "" {
+		cfg.RunnerToken = *runnerToken
+	}
 
 	adapter, err := agent.NewAGYAdapter(*agentBin)
 	if err != nil {

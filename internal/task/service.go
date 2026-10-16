@@ -446,3 +446,137 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 
 	return att, nil
 }
+
+// CancelTask marks the active attempt for a task as canceled and triggers process cancellation.
+func (s *Service) CancelTask(ctx context.Context, taskID string, author string) (*TaskAttempt, error) {
+	t, err := s.store.GetTask(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	latest, err := s.store.GetLatestAttempt(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if latest == nil {
+		return nil, fmt.Errorf("%w: tidak ada attempt yang dapat dibatalkan", ErrAttemptNotFound)
+	}
+
+	if latest.Status != AttemptStatusRunning && latest.Status != AttemptStatusQueued {
+		return nil, fmt.Errorf("%w: attempt berstatus '%s' tidak dapat dibatalkan", ErrInvalidTaskInput, latest.Status)
+	}
+
+	now := time.Now().UTC()
+	latest.CancelRequested = true
+	latest.Status = AttemptStatusCanceled
+	latest.CanceledAt = &now
+	latest.FinishedAt = &now
+	exitCanceled := 130 // SIGINT exit code standard
+	latest.ExitCode = &exitCanceled
+	latest.ErrorMessage = fmt.Sprintf("Dibatalkan oleh %s", author)
+
+	if err := s.store.UpdateAttempt(ctx, latest); err != nil {
+		return nil, fmt.Errorf("update cancel attempt: %w", err)
+	}
+
+	// Update task status to blocked or review
+	t.Status = TaskStatusBlocked
+	t.UpdatedAt = now
+	_ = s.store.UpdateTask(ctx, t)
+
+	// Record activity
+	act := &TaskActivity{
+		ID:           generateID("act"),
+		TaskID:       taskID,
+		AttemptID:    &latest.ID,
+		ActivityType: ActivityTypeCancelRequested,
+		Author:       author,
+		OldStatus:    t.Status,
+		NewStatus:    TaskStatusBlocked,
+		Message:      fmt.Sprintf("Pembatalan attempt %s diminta oleh %s. Seluruh process tree agent dihentikan.", latest.ID, author),
+		CreatedAt:    now,
+	}
+	_ = s.store.CreateActivity(ctx, act)
+
+	return latest, nil
+}
+
+// RetryTask creates a brand-new execution attempt for a failed, canceled, or interrupted task.
+func (s *Service) RetryTask(ctx context.Context, taskID string, author string, runnerID string, agentName string) (*TaskAttempt, error) {
+	t, err := s.store.GetTask(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	latest, err := s.store.GetLatestAttempt(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	nextAttemptNum := 1
+	if latest != nil {
+		if latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued {
+			return nil, fmt.Errorf("%w: task sedang berjalan atau sudah dalam antrean", ErrInvalidTaskInput)
+		}
+		if latest.AttemptNumber > 0 {
+			nextAttemptNum = latest.AttemptNumber + 1
+		} else {
+			attempts, _ := s.store.ListAttempts(ctx, taskID)
+			nextAttemptNum = len(attempts) + 1
+		}
+	}
+
+	if runnerID == "" {
+		runnerID = "runner_default"
+	}
+	if agentName == "" {
+		agentName = t.AssignedAgent
+		if agentName == "" {
+			agentName = "agy"
+		}
+	}
+
+	now := time.Now().UTC()
+	newAttempt := &TaskAttempt{
+		ID:            generateID("att"),
+		TaskID:        taskID,
+		RunnerID:      runnerID,
+		AgentName:     agentName,
+		Status:        AttemptStatusQueued,
+		AttemptNumber: nextAttemptNum,
+		CreatedAt:     now,
+	}
+
+	if err := s.store.CreateAttempt(ctx, newAttempt); err != nil {
+		return nil, fmt.Errorf("create retry attempt: %w", err)
+	}
+
+	// Update task status back to doing
+	t.Status = TaskStatusDoing
+	t.UpdatedAt = now
+	_ = s.store.UpdateTask(ctx, t)
+
+	// Record activity
+	act := &TaskActivity{
+		ID:           generateID("act"),
+		TaskID:       taskID,
+		AttemptID:    &newAttempt.ID,
+		ActivityType: ActivityTypeRetried,
+		Author:       author,
+		NewStatus:    AttemptStatusQueued,
+		Message:      fmt.Sprintf("Attempt %s dijadwalkan ulang secara eksplisit (attempt #%d) oleh %s.", newAttempt.ID, nextAttemptNum, author),
+		CreatedAt:    now,
+	}
+	_ = s.store.CreateActivity(ctx, act)
+
+	return newAttempt, nil
+}
+
+func (s *Service) AppendAttemptLogs(ctx context.Context, attemptID string, logs []LogRecord, maxLines int) error {
+	return s.store.AppendLogs(ctx, attemptID, logs, maxLines)
+}
+
+func (s *Service) GetAttemptLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error) {
+	return s.store.GetLogs(ctx, attemptID, afterID, limit)
+}
+

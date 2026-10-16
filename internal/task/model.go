@@ -31,11 +31,14 @@ const (
 
 // Activity type constants
 const (
-	ActivityTypeCreated      = "task_created"
-	ActivityTypeStatusChange = "status_change"
-	ActivityTypeAttempt      = "attempt_transition"
-	ActivityTypeComment      = "comment"
-	ActivityTypeUpdated      = "task_updated"
+	ActivityTypeCreated         = "task_created"
+	ActivityTypeStatusChange    = "status_change"
+	ActivityTypeAttempt         = "attempt_transition"
+	ActivityTypeComment         = "comment"
+	ActivityTypeUpdated         = "task_updated"
+	ActivityTypeCancelRequested = "cancel_requested"
+	ActivityTypeInterrupted     = "interrupted"
+	ActivityTypeRetried         = "retried"
 )
 
 // Task represents a unit of work bound to a project.
@@ -53,17 +56,22 @@ type Task struct {
 
 // TaskAttempt represents an execution run by a runner and agent.
 type TaskAttempt struct {
-	ID           string     `json:"id"`
-	TaskID       string     `json:"task_id"`
-	RunnerID     string     `json:"runner_id"`
-	AgentName    string     `json:"agent_name"`
-	Status       string     `json:"status"` // queued, running, succeeded, failed, canceled, interrupted
-	ExitCode     *int       `json:"exit_code,omitempty"`
-	PeakRSSBytes int64      `json:"peak_rss_bytes"`
-	StartedAt    *time.Time `json:"started_at,omitempty"`
-	FinishedAt   *time.Time `json:"finished_at,omitempty"`
-	ErrorMessage string     `json:"error_message,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
+	ID              string     `json:"id"`
+	TaskID          string     `json:"task_id"`
+	RunnerID        string     `json:"runner_id"`
+	AgentName       string     `json:"agent_name"`
+	Status          string     `json:"status"` // queued, running, succeeded, failed, canceled, interrupted
+	ExitCode        *int       `json:"exit_code,omitempty"`
+	PeakRSSBytes    int64      `json:"peak_rss_bytes"`
+	LeaseExpiresAt  *time.Time `json:"lease_expires_at,omitempty"`
+	CancelRequested bool       `json:"cancel_requested"`
+	CanceledAt      *time.Time `json:"canceled_at,omitempty"`
+	InterruptedAt   *time.Time `json:"interrupted_at,omitempty"`
+	AttemptNumber   int        `json:"attempt_number"`
+	StartedAt       *time.Time `json:"started_at,omitempty"`
+	FinishedAt      *time.Time `json:"finished_at,omitempty"`
+	ErrorMessage    string     `json:"error_message,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 // TaskActivity represents an audit history log or comment on a task.
@@ -77,6 +85,15 @@ type TaskActivity struct {
 	NewStatus    string    `json:"new_status,omitempty"`
 	Message      string    `json:"message"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+// LogRecord represents a line of output from agent execution.
+type LogRecord struct {
+	ID        int64     `json:"id"`
+	AttemptID string    `json:"attempt_id"`
+	Stream    string    `json:"stream"` // stdout, stderr, system
+	Line      string    `json:"line"`
+	LoggedAt  time.Time `json:"logged_at"`
 }
 
 // TaskItemResponse is returned in task listings.
