@@ -73,6 +73,7 @@ export function AdminSponsorPanel({ token, onNavigate, onNotify, ownerEmail }: A
   const [rejectingSponsor, setRejectingSponsor] = useState<SponsorAdminItem | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
+  const [syncingReadme, setSyncingReadme] = useState(false)
 
   // Audit Trail Modal state
   const [activityModalSponsor, setActivityModalSponsor] = useState<SponsorAdminItem | null>(null)
@@ -183,6 +184,30 @@ export function AdminSponsorPanel({ token, onNavigate, onNotify, ownerEmail }: A
     }
   }
 
+  const handleManualSyncReadme = async () => {
+    setSyncingReadme(true)
+    try {
+      const res = await fetch('/api/admin/sponsors/sync-readme', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal sinkronisasi README')
+      }
+      const count = data.sponsors_count || 0
+      const msg = `README.md & direktori arsip /sponsors berhasil disinkronkan (${count} sponsor aktif).`
+      setNotification({ type: 'success', message: msg })
+      if (onNotify) onNotify(msg)
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Gagal sinkronisasi README' })
+    } finally {
+      setSyncingReadme(false)
+    }
+  }
+
   const handleViewActivities = async (sp: SponsorAdminItem) => {
     setActivityModalSponsor(sp)
     setActivitiesLoading(true)
@@ -286,6 +311,17 @@ export function AdminSponsorPanel({ token, onNavigate, onNotify, ownerEmail }: A
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh Data
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualSyncReadme}
+            disabled={syncingReadme}
+            className="text-xs gap-1.5 border-blue-300 text-blue-800 hover:bg-blue-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-blue-600 ${syncingReadme ? 'animate-spin' : ''}`} />
+            Sync README & Arsip
           </Button>
         </div>
       </div>

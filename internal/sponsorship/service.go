@@ -118,6 +118,7 @@ type Service struct {
 	dojoWebhookURL  string
 	checkoutBaseURL string
 	dojoDispatcher  DojoDispatcher
+	syncer          *Syncer
 }
 
 func NewService(store Store, logoStorage *LogoStorage, webhookSecret string) *Service {
@@ -127,6 +128,10 @@ func NewService(store Store, logoStorage *LogoStorage, webhookSecret string) *Se
 		webhookSecret:   strings.TrimSpace(webhookSecret),
 		checkoutBaseURL: "https://checkout.dojo.id/products/cuan-founding-backer",
 	}
+}
+
+func (s *Service) Store() Store {
+	return s.store
 }
 
 func (s *Service) CheckoutBaseURL() string {
@@ -180,6 +185,24 @@ func (s *Service) DojoWebhookURL() string {
 
 func (s *Service) LogoStorage() *LogoStorage {
 	return s.logoStorage
+}
+
+func (s *Service) SetSyncer(syncer *Syncer) {
+	s.syncer = syncer
+}
+
+func (s *Service) Syncer() *Syncer {
+	return s.syncer
+}
+
+func (s *Service) SyncReadmeAndArchive(ctx context.Context, batchSlug string) (*SyncResult, error) {
+	if s.syncer == nil {
+		return &SyncResult{
+			Success: false,
+			Message: "syncer belum diinisialisasi",
+		}, nil
+	}
+	return s.syncer.Sync(ctx, batchSlug)
 }
 
 // Batches
@@ -425,7 +448,20 @@ func (s *Service) ApproveSponsor(ctx context.Context, id, actor string) error {
 		Actor:     actor,
 		CreatedAt: now,
 	}
-	return s.store.ModerateSponsor(ctx, id, SponsorStatusApproved, "", act)
+	if err := s.store.ModerateSponsor(ctx, id, SponsorStatusApproved, "", act); err != nil {
+		return err
+	}
+
+	// Trigger automatic sync of README.md and permanent archive directory
+	if s.syncer != nil {
+		batchSlug := DefaultBatchSlug
+		if b, err := s.store.GetBatch(ctx, sp.BatchID); err == nil && b != nil && b.BatchSlug != "" {
+			batchSlug = b.BatchSlug
+		}
+		_, _ = s.SyncReadmeAndArchive(ctx, batchSlug)
+	}
+
+	return nil
 }
 
 func (s *Service) RejectSponsor(ctx context.Context, id, reason, actor string) error {
@@ -447,7 +483,20 @@ func (s *Service) RejectSponsor(ctx context.Context, id, reason, actor string) e
 		Actor:     actor,
 		CreatedAt: now,
 	}
-	return s.store.ModerateSponsor(ctx, id, SponsorStatusRejected, reason, act)
+	if err := s.store.ModerateSponsor(ctx, id, SponsorStatusRejected, reason, act); err != nil {
+		return err
+	}
+
+	// Trigger automatic sync of README.md and permanent archive directory to remove rejected sponsor
+	if s.syncer != nil {
+		batchSlug := DefaultBatchSlug
+		if b, err := s.store.GetBatch(ctx, sp.BatchID); err == nil && b != nil && b.BatchSlug != "" {
+			batchSlug = b.BatchSlug
+		}
+		_, _ = s.SyncReadmeAndArchive(ctx, batchSlug)
+	}
+
+	return nil
 }
 
 func (s *Service) ListActivities(ctx context.Context, sponsorID string) ([]*ActivityLog, error) {

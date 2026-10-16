@@ -361,11 +361,33 @@ func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Reques
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":  "approved",
-		"id":      id,
-		"actor":   actor,
-		"message": "Sponsor berhasil disetujui dan live di leaderboard",
+		"status":        "approved",
+		"id":            id,
+		"actor":         actor,
+		"message":       "Sponsor berhasil disetujui dan live di leaderboard",
+		"readme_synced": s.sponsorshipSvc.Syncer() != nil,
 	})
+}
+
+// handleAdminSyncReadme manually triggers README.md and permanent archive directory synchronization.
+func (s *Server) handleAdminSyncReadme(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		return
+	}
+
+	batchSlug := r.URL.Query().Get("batch")
+	if batchSlug == "" {
+		batchSlug = sponsorship.DefaultBatchSlug
+	}
+
+	result, err := s.sponsorshipSvc.SyncReadmeAndArchive(r.Context(), batchSlug)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "gagal melakukan sinkronisasi README: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, result)
 }
 
 // handleAdminRejectSponsor rejects sponsor with anti-judol violation reason.

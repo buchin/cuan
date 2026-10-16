@@ -31,6 +31,10 @@ type Config struct {
 	DojoWaitingListWebhookURL string
 	DojoCheckoutURL           string
 	SponsorLogosDir           string
+	ReadmePath                string
+	SponsorsArchiveDir        string
+	AutoSyncReadme            bool
+	SyncGitCommit             bool
 }
 
 func Load() *Config {
@@ -50,6 +54,10 @@ func Load() *Config {
 	dojoWaitingListWebhookURL := getEnv("DOJO_WAITING_LIST_WEBHOOK_URL", "")
 	dojoCheckoutURL := getEnv("DOJO_CHECKOUT_URL", "https://checkout.dojo.id/products/cuan-founding-backer")
 	sponsorLogosDir := getEnv("CUAN_SPONSOR_LOGOS_DIR", "data/sponsors/logos")
+	readmePath := getEnv("CUAN_README_PATH", "README.md")
+	sponsorsArchiveDir := getEnv("CUAN_SPONSORS_ARCHIVE_DIR", "sponsors")
+	autoSyncReadme := getEnv("CUAN_AUTO_SYNC_README", "true") != "false"
+	syncGitCommit := getEnv("CUAN_SYNC_GIT_COMMIT", "false") == "true"
 
 	intervalSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_INTERVAL_SEC", "5"))
 	if intervalSec < 1 {
@@ -113,6 +121,10 @@ func Load() *Config {
 		DojoWaitingListWebhookURL: dojoWaitingListWebhookURL,
 		DojoCheckoutURL:           dojoCheckoutURL,
 		SponsorLogosDir:           sponsorLogosDir,
+		ReadmePath:                readmePath,
+		SponsorsArchiveDir:        sponsorsArchiveDir,
+		AutoSyncReadme:            autoSyncReadme,
+		SyncGitCommit:             syncGitCommit,
 	}
 }
 

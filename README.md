@@ -283,6 +283,18 @@ All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S
 
 ---
 
+## Backers & Sponsors
+
+<!-- SPONSORS:START -->
+
+### v1.0 Founding Backers
+
+_Belum ada sponsor terdaftar pada batch ini. Jadilah Founding Backer pertama di [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_
+
+<!-- SPONSORS:END -->
+
+---
+
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE).

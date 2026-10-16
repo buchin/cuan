@@ -19,6 +19,7 @@ import (
 	"github.com/buchin/cuan/internal/config"
 	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/server"
+	"github.com/buchin/cuan/internal/sponsorship"
 )
 
 func main() {
@@ -27,6 +28,7 @@ func main() {
 	showInfo := flag.Bool("info", false, "Show Cuan server metadata and release information")
 	healthCheck := flag.Bool("healthcheck", false, "Perform local health check against running server")
 	readyCheck := flag.Bool("readycheck", false, "Perform local readiness check against running server (/readyz)")
+	syncSponsors := flag.Bool("sync-sponsors", false, "Synchronize README.md and sponsors permanent archive directory")
 	flag.Parse()
 
 	if *showHelp {
@@ -62,6 +64,42 @@ func main() {
 
 	if *readyCheck {
 		runHealthCheck("/readyz")
+		return
+	}
+
+	if *syncSponsors {
+		cfg := config.Load()
+		var spStore sponsorship.Store
+		if cfg.DatabaseURL != "" {
+			if dbConn, err := sql.Open("pgx", cfg.DatabaseURL); err == nil {
+				pingCtx, pingCancel := context.WithTimeout(context.Background(), 1*time.Second)
+				if err := dbConn.PingContext(pingCtx); err == nil {
+					spStore = sponsorship.NewDBStore(dbConn)
+				}
+				pingCancel()
+			}
+		}
+		if spStore == nil {
+			spStore = sponsorship.NewMemoryStore()
+		}
+
+		syncer := sponsorship.NewSyncer(spStore, sponsorship.SyncerConfig{
+			ReadmePath:         cfg.ReadmePath,
+			SponsorsArchiveDir: cfg.SponsorsArchiveDir,
+			AutoGitCommit:      cfg.SyncGitCommit,
+			AuthorName:         cfg.GitAuthorName,
+			AuthorEmail:        cfg.GitAuthorEmail,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		res, err := syncer.Sync(ctx, "v1.0")
+		if err != nil {
+			log.Fatalf("Gagal sinkronisasi sponsor: %v", err)
+		}
+		fmt.Printf("✓ Sinkronisasi selesai: %s (sponsors: %d, files modified: %d)\n",
+			res.Message, res.SponsorsCount, len(res.FilesModified))
 		return
 	}
 
@@ -188,11 +226,12 @@ Usage:
   cuan-server [flags]
 
 Flags:
-  --healthcheck   Perform local liveness health check (/healthz) (exits 0 on 200 OK)
-  --readycheck    Perform local readiness check (/readyz) (exits 0 on 200 OK)
-  --version       Show Cuan server version
-  --info          Show Cuan server metadata and release information
-  --help          Show this help message
+  --healthcheck     Perform local liveness health check (/healthz) (exits 0 on 200 OK)
+  --readycheck      Perform local readiness check (/readyz) (exits 0 on 200 OK)
+  --sync-sponsors   Synchronize README.md and permanent sponsors archive directory
+  --version         Show Cuan server version
+  --info            Show Cuan server metadata and release information
+  --help            Show this help message
 
 Environment variables:
   PORT                      Port to listen on (default: 8080)

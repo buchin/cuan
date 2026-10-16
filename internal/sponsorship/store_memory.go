@@ -209,6 +209,12 @@ func (m *MemoryStore) ListApprovedSponsors(ctx context.Context, batchSlug string
 				}
 			}
 		}
+		if highestAmount == 0 && s.AmountIDR > 0 {
+			highestAmount = s.AmountIDR
+		}
+		if earliestPaidAt == nil && s.PaidAt != nil {
+			earliestPaidAt = s.PaidAt
+		}
 		cp.AmountIDR = highestAmount
 		cp.PaidAt = earliestPaidAt
 		list = append(list, &cp)

@@ -97,6 +97,16 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	if cfg.DojoCheckoutURL != "" {
 		spSvc.SetCheckoutBaseURL(cfg.DojoCheckoutURL)
 	}
+	if cfg.AutoSyncReadme {
+		syncer := sponsorship.NewSyncer(spStore, sponsorship.SyncerConfig{
+			ReadmePath:         cfg.ReadmePath,
+			SponsorsArchiveDir: cfg.SponsorsArchiveDir,
+			AutoGitCommit:      cfg.SyncGitCommit,
+			AuthorName:         cfg.GitAuthorName,
+			AuthorEmail:        cfg.GitAuthorEmail,
+		})
+		spSvc.SetSyncer(syncer)
+	}
 
 	s := &Server{
 		cfg:            cfg,
@@ -180,6 +190,7 @@ func (s *Server) routes() {
 		ar.Get("/api/admin/sponsors", s.handleAdminListSponsors)
 		ar.Post("/api/admin/sponsors/{id}/approve", s.handleAdminApproveSponsor)
 		ar.Post("/api/admin/sponsors/{id}/reject", s.handleAdminRejectSponsor)
+		ar.Post("/api/admin/sponsors/sync-readme", s.handleAdminSyncReadme)
 		ar.Get("/api/admin/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
 		ar.Get("/api/admin/leads", s.handleAdminListLeads)
 	})
@@ -250,10 +261,12 @@ func (s *Server) routes() {
 			pr.Get("/admin/sponsors", s.handleAdminListSponsors)
 			pr.Post("/admin/sponsors/{id}/approve", s.handleAdminApproveSponsor)
 			pr.Post("/admin/sponsors/{id}/reject", s.handleAdminRejectSponsor)
+			pr.Post("/admin/sponsors/sync-readme", s.handleAdminSyncReadme)
 			pr.Get("/admin/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
 			pr.Get("/sponsors", s.handleAdminListSponsors)
 			pr.Post("/sponsors/{id}/approve", s.handleAdminApproveSponsor)
 			pr.Post("/sponsors/{id}/reject", s.handleAdminRejectSponsor)
+			pr.Post("/sponsors/sync-readme", s.handleAdminSyncReadme)
 			pr.Get("/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
 			pr.Get("/leads", s.handleAdminListLeads)
 		})
