@@ -4,10 +4,19 @@
 
 ## Status
 
-**Sprint 1: Running** (Approved by PO on 2026-10-16).
-Status: **Pre-release (Pre-alpha)**. Monorepo foundation, official agent adapter, baseline migrations, persistent PostgreSQL installation, single-owner authentication, and GitHub existing repository integration (T3) are implemented.
+**Sprint 1: Sprint Review (Completed T1–T8, Dogfooding Verified, OSS Release Candidate Ready)**.
+Monorepo foundation, official agent adapter (`agy`), baseline migrations, persistent PostgreSQL installation, single-owner authentication, GitHub repository integration, task board & queue, runner daemon, Git workspace isolation & PR generator (T6), staging isolation & disaster recovery (T7), and end-to-end dogfooding demo & OSS release gate (T8) are fully implemented and verified.
 
-Single Source of Truth (SSOT): [docs/sprints/S1.md](docs/sprints/S1.md).
+Single Source of Truth (SSOT): [docs/sprints/S1.md](docs/sprints/S1.md) | [Sprint 1 Review Pack](docs/sprints/evidence/S1/sprint_1_review_pack.md).
+
+### Documentation & Guides
+
+- [Onboarding & Self-Hosting Guide](docs/guides/onboarding.md) — 5-minute setup, system requirements, initial configuration.
+- [User & Operational Guide](docs/guides/user_guide.md) — Task lifecycle, review phase, revision cycles, and runner monitoring.
+- [Troubleshooting & Recovery Playbook](docs/guides/troubleshooting.md) — Container issues, runner recovery, database locks, and disaster mitigation.
+- [Deployment & Recovery Guide](docs/guides/deployment_recovery_guide.md) — Production staging, automated backup, and rollback drill procedures.
+- [GitHub PAT Setup Guide](docs/guides/github_token_guide.md) — Generating, configuring, and revoking GitHub Personal Access Tokens.
+- [Dogfooding Walkthrough](docs/sprints/evidence/S1/dogfooding_walkthrough.md) — Illustrated end-to-end walkthrough of developing Cuan using Cuan.
 
 ---
 
@@ -147,6 +156,8 @@ Cuan provides standard health endpoints for container orchestrators and monitori
 | :--- | :--- | :--- |
 | `GET /healthz` | Liveness | Verifies the HTTP process is responsive. Returns `200 OK`. |
 | `GET /readyz` | Readiness | Verifies PostgreSQL connectivity, pool health, and schema migration status. Returns `200 OK` when ready, or `503 Service Unavailable` if database is down. |
+| `GET /api/v1/info` | Metadata | Returns application version, license, repository URL, docs link, and release stage. |
+| `cuan-server --info` | CLI Banner | Displays formatted server metadata banner, license, and repository links. |
 | `cuan-server --healthcheck` | CLI Probe | Native container healthcheck probe used inside minimal Alpine containers. |
 | `cuan-server --readycheck` | CLI Probe | Native readiness check probe testing `/readyz` for zero-downtime health validations. |
 
@@ -263,6 +274,11 @@ All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S
 - [failed_update_rollback_drill.txt](docs/sprints/evidence/S1/failed_update_rollback_drill.txt): Test of simulated failed update (bad migration / broken schema), automatic database rollback, and successful operational recovery.
 - [installer_preflight_verified.txt](docs/sprints/evidence/S1/installer_preflight_verified.txt): Preflight hardware/port checks and non-destructive installer dry-run verification.
 - [deployment_recovery_guide.md](docs/guides/deployment_recovery_guide.md): Operational guide and emergency CLI disaster recovery playbook.
+- [dogfooding_e2e_demo.txt](docs/sprints/evidence/S1/dogfooding_e2e_demo.txt): Complete execution record of end-to-end dogfooding demo (Develop Cuan using Cuan).
+- [dogfooding_walkthrough.md](docs/sprints/evidence/S1/dogfooding_walkthrough.md): Illustrated architectural and visual walkthrough of the dogfooding cycle.
+- [oss_license_audit.txt](docs/sprints/evidence/S1/oss_license_audit.txt): Comprehensive license audit of Apache-2.0, NOTICE, Go dependencies, and npm libraries.
+- [oss_security_and_secrets_audit.txt](docs/sprints/evidence/S1/oss_security_and_secrets_audit.txt): Static analysis and automated secret scanner audit verifying zero leaked credentials.
+- [sprint_1_review_pack.md](docs/sprints/evidence/S1/sprint_1_review_pack.md): Master Sprint Review pack for Product Owner evaluation.
 
 
 ---

@@ -1,5 +1,5 @@
 === CUAN SPRINT 1 (T7) EVIDENCE: STAGING ISOLATION VERIFIED ===
-Timestamp: 2026-10-16T08:40:46Z
+Timestamp: 2026-10-16T08:52:47Z
 DoD Requirement: Staging menjalankan build tanpa mengganggu Stable (Volume, port, database, network terisolasi).
 
 1. Host & Port Allocation:
@@ -7,8 +7,8 @@ DoD Requirement: Staging menjalankan build tanpa mengganggu Stable (Volume, port
    - Staging: Port 8081 | Env: staging    | Version: 0.1.0-staging | Net: cuan-staging-network
 
 2. Isolation Test Results:
-   - Stable Task Created:  task_7a07aebaa491 (Production Core Feature)
-   - Staging Task Created: task_5b87324987f8 (Staging Experimental Spike)
+   - Stable Task Created:  task_fb95a6db8e87 (Production Core Feature)
+   - Staging Task Created: task_a09fd8295622 (Staging Experimental Spike)
    - Cross-query Stable -> Staging: HTTP 404 (Zero leakage confirmed)
    - Cross-query Staging -> Stable: HTTP 404 (Zero leakage confirmed)
    - Staging Mutation Impact on Stable: ZERO (Stable task remains 'backlog')

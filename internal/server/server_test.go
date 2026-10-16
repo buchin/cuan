@@ -81,6 +81,12 @@ func TestApiInfo(t *testing.T) {
 	if body["status"] != "running" {
 		t.Errorf("expected status running, got %v", body["status"])
 	}
+	if body["repository"] != "https://github.com/buchin/cuan" {
+		t.Errorf("expected repository https://github.com/buchin/cuan, got %v", body["repository"])
+	}
+	if body["release_stage"] != "release-candidate" {
+		t.Errorf("expected release_stage release-candidate, got %v", body["release_stage"])
+	}
 }
 
 func TestAuthFlow_SetupLoginProtectedEndpoints(t *testing.T) {
