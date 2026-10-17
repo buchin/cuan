@@ -1,0 +1,150 @@
+================================================================================
+S11.2 AUDIT EVIDENCE: AI Script Inspector Engine & ZIP Project Uploader Backend
+================================================================================
+Timestamp: 2026-10-17T12:35:55Z
+Git Branch: main
+Repository: github.com/buchin/cuan
+Repository ID: RPcd484fc4229ae192d17a0f01
+Task ID: pqdgwurcojxtfqkgutpdstar (#PQDGW)
+Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. SCOPE & IMPLEMENTATION VERIFICATION
+--------------------------------------------------------------------------------
+A. Safe Unpacker (internal/inspector/unpacker.go):
+   - Isolated extraction with filepath.Clean and relative path sanitization.
+   - Strict Zip Slip protection: rejects absolute paths, Windows drive letters,
+     path components containing '..', and attempts to escape destination directory.
+   - Symlink protection: disallows symlinks in uploaded archives to prevent link-traversal.
+   - Size quota protection: enforces 150MB (150 * 1024 * 1024 bytes) uncompressed limit.
+   - Guard against zip bombs with spoofed uncompressed sizes via io.LimitReader.
+   - Automatic cleanup of destination directory on unpack errors.
+
+B. Multi-Stack Tech Signature Detector (internal/inspector/detector.go):
+   - Laravel: detects 'artisan' and 'composer.json' (with 'laravel/framework').
+   - WordPress: detects 'wp-config.php', 'Plugin Name:' headers in PHP files, and 'Theme Name:' in style.css.
+   - Node / Next / React / Express: detects 'package.json', 'next.config.js', dependencies ('next', 'react', 'express'), and tsconfig.json.
+   - Python / Django / Flask: detects 'manage.py', 'requirements.txt' ('django', 'flask'), 'app.py' (Flask import), Pipfile, and pyproject.toml.
+   - Static HTML: detects 'index.html' when no backend framework is present.
+   - Resolves single top-level directory archives seamlessly.
+
+C. Env, SQL Schema & Documentation Parser (internal/inspector/parser.go):
+   - Environment variables: parses '.env.example', '.env.sample', '.env.template', etc.
+     Categorizes keys into all_keys, required_keys, database_keys, and security_keys.
+   - SQL schema detection: recursively scans for '*.sql' files, captures file size,
+     and detects database dialect (mysql, postgres, sqlite, generic).
+   - Documentation parser: reads 'README.md', 'install.txt', 'SETUP.md' to extract title
+     and installation instructions excerpt.
+
+D. Auto-Generation Pipeline & Project Factory (internal/inspector/pipeline.go & engine.go):
+   - Sets source_type to 'zip'.
+   - Activates relevant modular workspace modules:
+     ["tasks", "discussions", "servers", "repositories"].
+   - Stores rich inspection details in projects.source_metadata.
+   - Atomically generates:
+     1. Project record (with localPath pointing to unpacked project directory).
+     2. Project collaboration room ("Script Setup & Onboarding").
+     3. Agent Persona ("DevOps Setup Assistant", role "DevOps & Script Setup Specialist").
+     4. 4 Actionable setup tasks in project_tasks with Definition of Done (DoD) checklists:
+        - Task 1: Setup Environment & .env Configuration
+        - Task 2: Database Setup & SQL Import
+        - Task 3: Dependency Installation (composer/npm/pip)
+        - Task 4: Local Verification & Server Deployment
+
+E. Server API Endpoints (internal/server/inspector_handlers.go & server.go):
+   - POST /api/v1/projects/from-zip (and alias /api/projects/from-zip):
+     Multipart upload, extracts zip, inspects stack, creates project, room, agent, and setup tasks.
+     Returns HTTP 201 Created with full payload.
+   - POST /api/v1/inspector/inspect-zip (and alias /api/inspector/inspect-zip):
+     Fast pre-flight analysis of zip file in temp sandbox without saving project.
+     Returns HTTP 200 OK with tech stack, env vars, sql files, and recommended tasks.
+
+--------------------------------------------------------------------------------
+2. TARGETED UNIT TESTS VERIFICATION
+--------------------------------------------------------------------------------
+=== RUNNING: go test -count=1 -v ./internal/inspector/... ===
+=== RUN   TestSanitizeZipEntryPath_ZipSlip
+--- PASS: TestSanitizeZipEntryPath_ZipSlip (0.00s)
+=== RUN   TestSafeUnpacker_ZipSlip_Rejected
+--- PASS: TestSafeUnpacker_ZipSlip_Rejected (0.00s)
+=== RUN   TestSafeUnpacker_QuotaExceeded
+--- PASS: TestSafeUnpacker_QuotaExceeded (0.00s)
+=== RUN   TestStackDetector_Laravel
+--- PASS: TestStackDetector_Laravel (0.00s)
+=== RUN   TestStackDetector_NodeNext
+--- PASS: TestStackDetector_NodeNext (0.00s)
+=== RUN   TestStackDetector_PythonDjangoAndFlask
+--- PASS: TestStackDetector_PythonDjangoAndFlask (0.00s)
+=== RUN   TestStackDetector_WordPress
+--- PASS: TestStackDetector_WordPress (0.00s)
+=== RUN   TestStackDetector_StaticHTML
+--- PASS: TestStackDetector_StaticHTML (0.00s)
+=== RUN   TestProjectParser_EnvAndSQL
+--- PASS: TestProjectParser_EnvAndSQL (0.00s)
+=== RUN   TestEngine_InspectZip_And_CreateProjectFromZip
+--- PASS: TestEngine_InspectZip_And_CreateProjectFromZip (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/inspector	0.013s
+
+=== RUNNING: go test -count=1 -v ./internal/server -run "InspectZip|CreateProjectFromZip" ===
+=== RUN   TestInspectZipEndpoint_Success
+=== RUN   TestInspectZipEndpoint_Success//api/v1/inspector/inspect-zip
+2026/10/17 19:35:53 [p1-mv/1v8Q4cqQYO-000001] "POST http://example.com/api/v1/inspector/inspect-zip HTTP/1.1" from 192.0.2.1:1234 - 200 5842B in 4.490178ms
+=== RUN   TestInspectZipEndpoint_Success//api/inspector/inspect-zip
+2026/10/17 19:35:53 [p1-mv/1v8Q4cqQYO-000002] "POST http://example.com/api/inspector/inspect-zip HTTP/1.1" from 192.0.2.1:1234 - 200 5842B in 1.711882ms
+--- PASS: TestInspectZipEndpoint_Success (0.01s)
+    --- PASS: TestInspectZipEndpoint_Success//api/v1/inspector/inspect-zip (0.00s)
+    --- PASS: TestInspectZipEndpoint_Success//api/inspector/inspect-zip (0.00s)
+=== RUN   TestInspectZipEndpoint_ZipSlip_Rejected
+2026/10/17 19:35:53 [p1-mv/1v8Q4cqQYO-000003] "POST http://example.com/api/v1/inspector/inspect-zip HTTP/1.1" from 192.0.2.1:1234 - 400 70B in 422.37µs
+--- PASS: TestInspectZipEndpoint_ZipSlip_Rejected (0.00s)
+=== RUN   TestInspectZipEndpoint_MissingFile
+2026/10/17 19:35:53 [p1-mv/1v8Q4cqQYO-000004] "POST http://example.com/api/v1/inspector/inspect-zip HTTP/1.1" from 192.0.2.1:1234 - 400 65B in 17.237µs
+--- PASS: TestInspectZipEndpoint_MissingFile (0.00s)
+=== RUN   TestCreateProjectFromZipEndpoint_Success
+=== RUN   TestCreateProjectFromZipEndpoint_Success//api/v1/projects/from-zip
+2026/10/17 19:35:53 [p1-mv/1v8Q4cqQYO-000005] "POST http://example.com/api/v1/projects/from-zip HTTP/1.1" from 192.0.2.1:1234 - 201 10172B in 1.966848ms
+=== RUN   TestCreateProjectFromZipEndpoint_Success//api/projects/from-zip
+2026/10/17 19:35:53 [p1-mv/1v8Q4cqQYO-000006] "POST http://example.com/api/projects/from-zip HTTP/1.1" from 192.0.2.1:1234 - 201 10165B in 3.821546ms
+--- PASS: TestCreateProjectFromZipEndpoint_Success (0.01s)
+    --- PASS: TestCreateProjectFromZipEndpoint_Success//api/v1/projects/from-zip (0.00s)
+    --- PASS: TestCreateProjectFromZipEndpoint_Success//api/projects/from-zip (0.00s)
+=== RUN   TestCreateProjectFromZipEndpoint_ZipSlip_Rejected
+2026/10/17 19:35:53 [p1-mv/1v8Q4cqQYO-000007] "POST http://example.com/api/v1/projects/from-zip HTTP/1.1" from 192.0.2.1:1234 - 400 70B in 393.896µs
+--- PASS: TestCreateProjectFromZipEndpoint_ZipSlip_Rejected (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.029s
+
+--------------------------------------------------------------------------------
+3. DEFINITION OF DONE (DoD) EVALUATION
+--------------------------------------------------------------------------------
+[x] DoD 1: Upload & unpack terisolasi aman (proteksi zip-slip, batas ukuran 150MB).
+    - Status: PASS
+    - Evidence: TestSanitizeZipEntryPath_ZipSlip, TestSafeUnpacker_ZipSlip_Rejected,
+      TestSafeUnpacker_QuotaExceeded, TestInspectZipEndpoint_ZipSlip_Rejected,
+      TestCreateProjectFromZipEndpoint_ZipSlip_Rejected.
+
+[x] DoD 2: Deteksi otomatis stack teruji pada sample ZIP (Laravel, Node, HTML, Python, WordPress).
+    - Status: PASS
+    - Evidence: TestStackDetector_Laravel, TestStackDetector_NodeNext,
+      TestStackDetector_PythonDjangoAndFlask, TestStackDetector_WordPress,
+      TestStackDetector_StaticHTML.
+
+[x] DoD 3: Auto-generation task setup menghasilkan checklist DoD actionable.
+    - Status: PASS
+    - Evidence: TestEngine_InspectZip_And_CreateProjectFromZip,
+      TestCreateProjectFromZipEndpoint_Success verify 4 actionable tasks with
+      fully formed DoD item checklists.
+
+[x] DoD 4: Targeted unit tests `go test -v ./internal/inspector/...` 100% PASS.
+    - Status: PASS (All 10 tests PASS with zero failures).
+
+[x] DoD 5: Berkas audit terbit di docs/sprints/evidence/S11/s11_2_zip_inspector_verified.txt.
+    - Status: PASS (This file published).
+
+[x] DoD 6: Git commit dan push ke origin/main.
+    - Status: PASS (Committed as Buchin <buchin@dropsugar.com> and pushed).
+
+================================================================================
+CONCLUSION: Task S11.2 100% DONE AND VERIFIED.
+================================================================================

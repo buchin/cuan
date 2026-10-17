@@ -26,6 +26,7 @@ import (
 	"github.com/buchin/cuan/internal/deployer"
 	"github.com/buchin/cuan/internal/domain"
 	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/inspector"
 	"github.com/buchin/cuan/internal/observability"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
@@ -61,6 +62,7 @@ type Server struct {
 	agentRepo           cuanDB.AgentRepository
 	blueprintEngine     *creator.BlueprintEngine
 	taskExecutionEngine *creator.TaskExecutionEngine
+	inspectorEngine     *inspector.Engine
 	providerRegistry    *agent.ProviderRegistry
 	distillerEngine     *studio.DistillerEngine
 	agentExecutionHook  studio.AgentExecutionHook
@@ -308,11 +310,18 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	})
 
 	var bpEngine *creator.BlueprintEngine
+	var inspEngine *inspector.Engine
 	if pSvc != nil {
 		bpEngine = creator.NewBlueprintEngine(
 			creator.WithProjectStore(pSvc.Store()),
 			creator.WithStudioRepo(studioRepo),
 			creator.WithAgentRepo(agentRepo),
+		)
+		inspEngine = inspector.NewEngine(
+			inspector.WithProjectStore(pSvc.Store()),
+			inspector.WithStudioRepo(studioRepo),
+			inspector.WithAgentRepo(agentRepo),
+			inspector.WithBaseDir(projectBaseDir),
 		)
 	}
 
@@ -354,6 +363,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		agentRepo:           agentRepo,
 		blueprintEngine:     bpEngine,
 		taskExecutionEngine: taskExecEngine,
+		inspectorEngine:     inspEngine,
 		providerRegistry:    agent.DefaultRegistry(),
 		distillerEngine:     distiller,
 		agentExecutionHook:  agentHook,
@@ -566,6 +576,14 @@ func (s *Server) TaskExecutionEngine() *creator.TaskExecutionEngine {
 
 func (s *Server) SetTaskExecutionEngine(e *creator.TaskExecutionEngine) {
 	s.taskExecutionEngine = e
+}
+
+func (s *Server) InspectorEngine() *inspector.Engine {
+	return s.inspectorEngine
+}
+
+func (s *Server) SetInspectorEngine(e *inspector.Engine) {
+	s.inspectorEngine = e
 }
 
 func (s *Server) ProviderRegistry() *agent.ProviderRegistry {
@@ -813,6 +831,12 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/creator/templates/{id}", s.handleGetCreatorTemplate)
 	s.router.Post("/api/v1/creator/projects/instantiate", s.handleInstantiateCreatorProject)
 
+	// AI Script Inspector & ZIP Uploader Endpoints (Sprint 11 S11.2)
+	s.router.Post("/api/projects/from-zip", s.handleCreateProjectFromZip)
+	s.router.Post("/api/v1/projects/from-zip", s.handleCreateProjectFromZip)
+	s.router.Post("/api/inspector/inspect-zip", s.handleInspectZip)
+	s.router.Post("/api/v1/inspector/inspect-zip", s.handleInspectZip)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -998,6 +1022,10 @@ func (s *Server) routes() {
 		r.Get("/creator/templates", s.handleListCreatorTemplates)
 		r.Get("/creator/templates/{id}", s.handleGetCreatorTemplate)
 		r.Post("/creator/projects/instantiate", s.handleInstantiateCreatorProject)
+
+		// AI Script Inspector & ZIP Uploader in v1 (Sprint 11 S11.2)
+		r.Post("/projects/from-zip", s.handleCreateProjectFromZip)
+		r.Post("/inspector/inspect-zip", s.handleInspectZip)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {
