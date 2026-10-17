@@ -31,6 +31,7 @@ import (
 	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/studio"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 type Server struct {
@@ -64,6 +65,8 @@ type Server struct {
 	campaignRunner      *campaign.MultiProjectRunner
 	campaignAggregator  *campaign.RollupAggregator
 	roomEventBroker     *RoomEventBroker
+	terminalManager     *terminal.Manager
+	terminalHandler     *terminal.Handler
 	router              *chi.Mux
 }
 
@@ -284,6 +287,23 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		campaign.WithRunnerAggregator(campaignAggregator),
 	)
 
+	workspacesDir := cfg.WorkspacesDir
+	if workspacesDir == "" {
+		workspacesDir = filepath.Join("data", "workspaces")
+	}
+	termMgr := terminal.NewManager(terminal.ManagerConfig{
+		WorkspacesDir:         workspacesDir,
+		DefaultShell:          "",
+		DefaultCols:           80,
+		DefaultRows:           24,
+		IdleTimeout:           15 * time.Minute,
+		DisconnectGracePeriod: 30 * time.Second,
+	})
+	termHandler := terminal.NewHandler(terminal.HandlerConfig{
+		Manager:     termMgr,
+		AuthService: svc,
+	})
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -315,6 +335,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		campaignRunner:      campaignRunner,
 		campaignAggregator:  campaignAggregator,
 		roomEventBroker:     NewRoomEventBroker(),
+		terminalManager:     termMgr,
+		terminalHandler:     termHandler,
 		router:              r,
 	}
 
@@ -566,6 +588,28 @@ func (s *Server) SetAgentExecutionHook(h studio.AgentExecutionHook) {
 	s.agentExecutionHook = h
 }
 
+func (s *Server) TerminalManager() *terminal.Manager {
+	return s.terminalManager
+}
+
+func (s *Server) SetTerminalManager(m *terminal.Manager) {
+	s.terminalManager = m
+	if m != nil {
+		s.terminalHandler = terminal.NewHandler(terminal.HandlerConfig{
+			Manager:     m,
+			AuthService: s.authSvc,
+		})
+	}
+}
+
+func (s *Server) TerminalHandler() *terminal.Handler {
+	return s.terminalHandler
+}
+
+func (s *Server) SetTerminalHandler(h *terminal.Handler) {
+	s.terminalHandler = h
+}
+
 func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
@@ -672,6 +716,18 @@ func (s *Server) routes() {
 	s.router.Put("/api/projects/tasks/{id}", s.handleUpdateProjectTask)
 	s.router.Patch("/api/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 	s.router.Delete("/api/projects/tasks/{id}", s.handleDeleteProjectTask)
+
+	// WebSocket Pseudo-Terminal (PTY) Engine (Sprint 9 S09.3)
+	s.router.Get("/api/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	s.router.Delete("/api/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	s.router.Get("/api/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	s.router.Delete("/api/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	s.router.Get("/api/v1/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	s.router.Delete("/api/v1/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	s.router.Get("/api/v1/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	s.router.Delete("/api/v1/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	s.router.Get("/api/terminal/sessions", s.handleGetTerminalSessionsStatus)
+	s.router.Get("/api/v1/terminal/sessions", s.handleGetTerminalSessionsStatus)
 
 	// Batch Campaigns Engine Endpoints (Sprint 8 S08.2 & S08.3)
 	s.router.Post("/api/campaigns", s.handleCreateBatchCampaign)
@@ -841,6 +897,13 @@ func (s *Server) routes() {
 		r.Patch("/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 		r.Delete("/projects/tasks/{id}", s.handleDeleteProjectTask)
 		r.Patch("/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+
+		// WebSocket Pseudo-Terminal (PTY) Engine in v1 (Sprint 9 S09.3)
+		r.Get("/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+		r.Delete("/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+		r.Get("/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+		r.Delete("/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+		r.Get("/terminal/sessions", s.handleGetTerminalSessionsStatus)
 
 		// Batch Campaigns in v1 (Sprint 8 S08.2 & S08.3)
 		r.Post("/campaigns", s.handleCreateBatchCampaign)
