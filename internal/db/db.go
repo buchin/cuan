@@ -12,32 +12,38 @@ type Repositories struct {
 	Agents              AgentRepository
 	Projects            ProjectRepository
 	ProjectIntegrations ProjectIntegrationRepository
+	ScriptDeployments   ScriptDeploymentRepository
+	ProvisionedDatabases ProvisionedDatabaseRepository
 }
 
 // NewSQLRepositories constructs all SQL-backed repositories.
 func NewSQLRepositories(sqlDB *sql.DB) *Repositories {
 	return &Repositories{
-		Servers:             NewSQLServerRepository(sqlDB),
-		Domains:             NewSQLDomainRepository(sqlDB),
-		Observability:       NewSQLObservabilityRepository(sqlDB),
-		ProjectStudio:       NewSQLProjectStudioRepository(sqlDB),
-		BatchCampaigns:      NewSQLBatchCampaignRepository(sqlDB),
-		Agents:              NewSQLAgentRepository(sqlDB),
-		Projects:            NewSQLProjectRepository(sqlDB),
-		ProjectIntegrations: NewSQLProjectIntegrationRepository(sqlDB),
+		Servers:              NewSQLServerRepository(sqlDB),
+		Domains:              NewSQLDomainRepository(sqlDB),
+		Observability:        NewSQLObservabilityRepository(sqlDB),
+		ProjectStudio:        NewSQLProjectStudioRepository(sqlDB),
+		BatchCampaigns:       NewSQLBatchCampaignRepository(sqlDB),
+		Agents:               NewSQLAgentRepository(sqlDB),
+		Projects:             NewSQLProjectRepository(sqlDB),
+		ProjectIntegrations:  NewSQLProjectIntegrationRepository(sqlDB),
+		ScriptDeployments:    NewSQLScriptDeploymentRepository(sqlDB),
+		ProvisionedDatabases: NewSQLProvisionedDatabaseRepository(sqlDB),
 	}
 }
 
 // NewMemoryRepositories constructs all thread-safe in-memory repositories.
 func NewMemoryRepositories() *Repositories {
 	return &Repositories{
-		Servers:             NewMemoryServerRepository(),
-		Domains:             NewMemoryDomainRepository(),
-		Observability:       NewMemoryObservabilityRepository(),
-		ProjectStudio:       NewMemoryProjectStudioRepository(),
-		BatchCampaigns:      NewMemoryBatchCampaignRepository(),
-		Agents:              NewMemoryAgentRepository(),
-		Projects:            NewMemoryProjectRepository(),
-		ProjectIntegrations: NewMemoryProjectIntegrationRepository(),
+		Servers:              NewMemoryServerRepository(),
+		Domains:              NewMemoryDomainRepository(),
+		Observability:        NewMemoryObservabilityRepository(),
+		ProjectStudio:        NewMemoryProjectStudioRepository(),
+		BatchCampaigns:       NewMemoryBatchCampaignRepository(),
+		Agents:               NewMemoryAgentRepository(),
+		Projects:             NewMemoryProjectRepository(),
+		ProjectIntegrations:  NewMemoryProjectIntegrationRepository(),
+		ScriptDeployments:    NewMemoryScriptDeploymentRepository(),
+		ProvisionedDatabases: NewMemoryProvisionedDatabaseRepository(),
 	}
 }

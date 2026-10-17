@@ -328,6 +328,35 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(modularMig.DownSQL, "DROP COLUMN IF EXISTS enabled_modules") {
 		t.Errorf("expected 000016 DownSQL to drop enabled_modules column")
 	}
+
+	if len(migs) < 17 {
+		t.Fatalf("expected at least 17 migrations, got %d", len(migs))
+	}
+	deployerMig17 := migs[16]
+	if deployerMig17.Version != "000017" {
+		t.Errorf("expected version 000017, got %s", deployerMig17.Version)
+	}
+	if deployerMig17.Name != "script_deployer_and_provisioner" {
+		t.Errorf("expected name script_deployer_and_provisioner, got %s", deployerMig17.Name)
+	}
+	if !strings.Contains(deployerMig17.UpSQL, "CREATE TABLE IF NOT EXISTS script_deployments") {
+		t.Errorf("expected 000017 UpSQL to create script_deployments table")
+	}
+	if !strings.Contains(deployerMig17.UpSQL, "CREATE TABLE IF NOT EXISTS provisioned_databases") {
+		t.Errorf("expected 000017 UpSQL to create provisioned_databases table")
+	}
+	if !strings.Contains(deployerMig17.UpSQL, "idx_script_deployments_project_id") {
+		t.Errorf("expected 000017 UpSQL to create idx_script_deployments_project_id")
+	}
+	if !strings.Contains(deployerMig17.UpSQL, "idx_provisioned_databases_project_id") {
+		t.Errorf("expected 000017 UpSQL to create idx_provisioned_databases_project_id")
+	}
+	if !strings.Contains(deployerMig17.DownSQL, "DROP TABLE IF EXISTS provisioned_databases CASCADE") {
+		t.Errorf("expected 000017 DownSQL to drop provisioned_databases table")
+	}
+	if !strings.Contains(deployerMig17.DownSQL, "DROP TABLE IF EXISTS script_deployments CASCADE") {
+		t.Errorf("expected 000017 DownSQL to drop script_deployments table")
+	}
 }
 
 func TestDryRun(t *testing.T) {

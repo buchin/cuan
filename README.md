@@ -4,10 +4,10 @@
 
 ## Status
 
-**Sprint 11: Running (S11.1 — Database Migration 000016, Modular Workspace Models, Dynamic Modules & SSOT Alignment)**.
-Sprints 1–10 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, and Creator Blueprints & In-Task Agent Execution). Sprint 11 advances Cuan into a **Modular Workspace OS** with AI Script Onboarding (ZIP upload dropzone, stack detection, setup pipeline auto-generation), dynamic module navigation, and Creator Publishing Hub (WordPress REST API 1-click publishing & Teleprompter).
+**Sprint 12: Running (S12.1 — Database Migration 000017 & Script Deployer Data Layer)**.
+Sprints 1–11 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, Creator Blueprints, and Modular Workspace OS with AI Script Onboarding & Creator Publishing Hub). Sprint 12 develops Cuan into an **Automated Environment Provisioner & 1-Click Script Deployer** (multi-database provisioning & schema import, AES-256-GCM secrets vault, runtime build runner, process supervisor, and 1-click deploy wizard).
 
-Single Source of Truth (SSOT): [docs/sprints/S11.md](docs/sprints/S11.md) | [docs/product-vision.md](docs/product-vision.md).
+Single Source of Truth (SSOT): [docs/sprints/S12.md](docs/sprints/S12.md) | [docs/sprints/S11.md](docs/sprints/S11.md) | [docs/product-vision.md](docs/product-vision.md).
 
 ### Documentation & Guides
 
