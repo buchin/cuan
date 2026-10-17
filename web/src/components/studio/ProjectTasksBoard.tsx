@@ -36,6 +36,7 @@ import { TaskTerminal } from './TaskTerminal'
 import { TeleprompterModal } from './TeleprompterModal'
 import { MarkdownViewer } from '../ui/MarkdownViewer'
 import { ScriptDeployerModal, ScriptDeployerControls } from './deployer'
+import { WordPressDeployerModal, WordPressControls } from './wordpress'
 
 interface ProjectTasksBoardProps {
   projectId?: string
@@ -142,6 +143,15 @@ export function ProjectTasksBoard({
   const handleOpenDeployer = (step: 1 | 2 | 3 | 4 = 1) => {
     setDeployerInitialStep(step)
     setIsDeployerModalOpen(true)
+  }
+
+  // Turnkey WordPress Cloud Launchpad State (S13.4)
+  const [isWordPressModalOpen, setIsWordPressModalOpen] = useState(false)
+  const [wordPressInitialStep, setWordPressInitialStep] = useState<1 | 2 | 3 | 4>(1)
+
+  const handleOpenWordPress = (step: 1 | 2 | 3 | 4 = 1) => {
+    setWordPressInitialStep(step)
+    setIsWordPressModalOpen(true)
   }
 
   // WordPress Integration & Publishing State (S11.4)
@@ -571,6 +581,14 @@ export function ProjectTasksBoard({
             projectId={selectedProjectId}
             projectName={effectiveProjects.find((p) => p.id === selectedProjectId)?.name || selectedProjectId}
             onOpenDeployerWizard={handleOpenDeployer}
+            onToast={(type, message) => setNotification({ type, message })}
+          />
+
+          {/* Quick WordPress Cloud Controls (S13.4) */}
+          <WordPressControls
+            projectId={selectedProjectId}
+            projectName={effectiveProjects.find((p) => p.id === selectedProjectId)?.name || selectedProjectId}
+            onOpenDeployerWizard={handleOpenWordPress}
             onToast={(type, message) => setNotification({ type, message })}
           />
 
@@ -1802,6 +1820,21 @@ export function ProjectTasksBoard({
           setNotification({
             type: 'success',
             message: '🚀 Script deployment berhasil dijalankan via supervisor runner!',
+          })
+        }}
+      />
+
+      {/* WordPress Deployer Modal (Sprint 13 S13.4) */}
+      <WordPressDeployerModal
+        isOpen={isWordPressModalOpen}
+        onClose={() => setIsWordPressModalOpen(false)}
+        projectId={selectedProjectId}
+        projectName={effectiveProjects.find((p) => p.id === selectedProjectId)?.name || selectedProjectId}
+        initialStep={wordPressInitialStep}
+        onDeploymentSuccess={() => {
+          setNotification({
+            type: 'success',
+            message: '🎉 Turnkey WordPress Cloud deployment live & healthy!',
           })
         }}
       />

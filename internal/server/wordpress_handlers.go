@@ -808,3 +808,30 @@ func (s *Server) handleListWordPressWebmasterActions(w http.ResponseWriter, r *h
 	respondJSON(w, http.StatusOK, actions)
 }
 
+// handleGetWordPressCredentials returns decrypted admin credentials for authorized dashboard display.
+// GET /api/projects/{id}/wordpress/credentials or GET /api/v1/projects/{id}/wordpress/credentials
+func (s *Server) handleGetWordPressCredentials(w http.ResponseWriter, r *http.Request) {
+	if s.wordpressOrchestrator == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "wordpress orchestrator engine is not configured")
+		return
+	}
+
+	projectID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if projectID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	creds, err := s.wordpressOrchestrator.GetCredentials(r.Context(), projectID)
+	if err != nil {
+		if errors.Is(err, db.ErrWordPressDeploymentNotFound) || errors.Is(err, wordpress.ErrDeploymentNotFound) {
+			respondJSONError(w, http.StatusNotFound, "wordpress deployment not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to retrieve credentials: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, creds)
+}
+

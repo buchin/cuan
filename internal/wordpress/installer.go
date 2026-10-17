@@ -653,3 +653,84 @@ func (o *Orchestrator) DeleteDeployment(ctx context.Context, id string) error {
 
 	return nil
 }
+
+// WordPressCredentialsDTO holds decrypted admin credentials for authorized dashboard display.
+type WordPressCredentialsDTO struct {
+	ProjectID          string `json:"project_id"`
+	DeploymentID       string `json:"deployment_id"`
+	SiteTitle          string `json:"site_title"`
+	SiteURL            string `json:"site_url"`
+	AdminURL           string `json:"admin_url"`
+	AdminUsername      string `json:"admin_username"`
+	AdminPassword      string `json:"admin_password"`
+	DBName             string `json:"db_name"`
+	DBUser             string `json:"db_user"`
+	DBPassword         string `json:"db_password"`
+	DBHost             string `json:"db_host"`
+	DBPort             int    `json:"db_port"`
+	TablePrefix        string `json:"table_prefix"`
+	WPVersion          string `json:"wp_version"`
+	PermalinkStructure string `json:"permalink_structure"`
+}
+
+// GetCredentials retrieves the decrypted credentials for a given project ID.
+func (o *Orchestrator) GetCredentials(ctx context.Context, projectID string) (*WordPressCredentialsDTO, error) {
+	if o.cfg.DBRepo == nil {
+		return nil, ErrDeploymentNotFound
+	}
+	dep, err := o.cfg.DBRepo.GetDeploymentByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	adminPass, err := dep.DecryptAdminPassword(o.cfg.VaultSecret)
+	if err != nil {
+		adminPass = ""
+	}
+	dbPass, err := dep.DecryptDBPassword(o.cfg.VaultSecret)
+	if err != nil {
+		dbPass = ""
+	}
+
+	siteURL := fmt.Sprintf("https://%s", dep.Domain)
+	adminURL := fmt.Sprintf("%s/wp-login.php", siteURL)
+
+	dbHost := dep.DBHost
+	if dbHost == "" {
+		dbHost = "127.0.0.1"
+	}
+	dbPort := dep.DBPort
+	if dbPort <= 0 {
+		dbPort = 3306
+	}
+	tablePrefix := dep.TablePrefix
+	if tablePrefix == "" {
+		tablePrefix = "wp_"
+	}
+	wpVersion := dep.WPVersion
+	if wpVersion == "" {
+		wpVersion = "latest"
+	}
+	permalink := dep.PermalinkStructure
+	if permalink == "" {
+		permalink = "/%postname%/"
+	}
+
+	return &WordPressCredentialsDTO{
+		ProjectID:          dep.ProjectID,
+		DeploymentID:       dep.ID,
+		SiteTitle:          dep.SiteTitle,
+		SiteURL:            siteURL,
+		AdminURL:           adminURL,
+		AdminUsername:      dep.AdminUsername,
+		AdminPassword:      adminPass,
+		DBName:             dep.DBName,
+		DBUser:             dep.DBUser,
+		DBPassword:         dbPass,
+		DBHost:             dbHost,
+		DBPort:             dbPort,
+		TablePrefix:        tablePrefix,
+		WPVersion:          wpVersion,
+		PermalinkStructure: permalink,
+	}, nil
+}

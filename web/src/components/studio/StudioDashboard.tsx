@@ -54,10 +54,12 @@ import { AgentsHubView } from './AgentsHubView'
 import { ModuleToggleModal } from './ModuleToggleModal'
 import { ZipUploadWizardModal } from './ZipUploadWizardModal'
 import { ScriptDeployerView } from './deployer'
+import { WordPressDashboardView } from './wordpress'
 
 export type StudioTab =
   | 'projects'
   | 'deployer'
+  | 'wordpress'
   | 'discussions'
   | 'tasks'
   | 'campaigns'
@@ -102,6 +104,9 @@ export function StudioDashboard({
       }
       if (window.location.pathname.startsWith('/studio/deployer') || window.location.pathname.startsWith('/deployer')) {
         return 'deployer'
+      }
+      if (window.location.pathname.startsWith('/studio/wordpress') || window.location.pathname.startsWith('/wordpress')) {
+        return 'wordpress'
       }
       if (window.location.pathname.startsWith('/studio/campaigns') || window.location.pathname.startsWith('/campaigns')) {
         return 'campaigns'
@@ -153,14 +158,14 @@ export function StudioDashboard({
       name: 'SaaS / Dojo Workspace',
       slug: 'saas-dojo',
       project_type: 'saas',
-      enabled_modules: ['tasks', 'deployer', 'discussions', 'repositories', 'servers'],
+      enabled_modules: ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers'],
     },
     {
       id: 'creator-hub',
       name: 'Creator Hub Workspace',
       slug: 'creator-hub',
       project_type: 'creator',
-      enabled_modules: ['tasks', 'discussions', 'publishing'],
+      enabled_modules: ['tasks', 'wordpress', 'discussions', 'publishing'],
     },
     {
       id: 'blank-workspace',
@@ -215,13 +220,15 @@ export function StudioDashboard({
     const targetProj = projectsList.find((p) => p.id === projectId)
     const targetModules = targetProj?.enabled_modules || ['tasks', 'discussions']
     if (
-      ['tasks', 'deployer', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
       !targetModules.includes(activeTab)
     ) {
       if (targetModules.includes('tasks')) {
         setActiveTab('tasks')
       } else if (targetModules.includes('deployer')) {
         setActiveTab('deployer')
+      } else if (targetModules.includes('wordpress')) {
+        setActiveTab('wordpress')
       } else if (targetModules.includes('discussions')) {
         setActiveTab('discussions')
       } else {
@@ -247,13 +254,15 @@ export function StudioDashboard({
       `Modul proyek "${activeProject.name}" berhasil diperbarui: ${updatedModules.join(', ')}`
     )
     if (
-      ['tasks', 'deployer', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
       !updatedModules.includes(activeTab)
     ) {
       if (updatedModules.includes('tasks')) {
         setActiveTab('tasks')
       } else if (updatedModules.includes('deployer')) {
         setActiveTab('deployer')
+      } else if (updatedModules.includes('wordpress')) {
+        setActiveTab('wordpress')
       } else if (updatedModules.includes('discussions')) {
         setActiveTab('discussions')
       } else {
@@ -284,6 +293,8 @@ export function StudioDashboard({
       setActiveTab('agents')
     } else if (currentPath === '/studio/deployer' || currentPath?.startsWith('/studio/deployer') || currentPath === '/deployer' || currentPath?.startsWith('/deployer')) {
       setActiveTab('deployer')
+    } else if (currentPath === '/studio/wordpress' || currentPath?.startsWith('/studio/wordpress') || currentPath === '/wordpress' || currentPath?.startsWith('/wordpress')) {
+      setActiveTab('wordpress')
     } else if (currentPath === '/studio/campaigns' || currentPath?.startsWith('/studio/campaigns') || currentPath === '/campaigns' || currentPath?.startsWith('/campaigns')) {
       setActiveTab('campaigns')
       const m = currentPath.match(/\/(?:studio\/)?campaigns\/([a-zA-Z0-9_-]+)/)
@@ -678,6 +689,23 @@ export function StudioDashboard({
               </button>
             )}
 
+            {enabledModules.includes('wordpress') && (
+              <button
+                onClick={() => {
+                  setActiveTab('wordpress')
+                  onNavigate?.('/studio/wordpress')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'wordpress'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <Globe className="h-3.5 w-3.5 text-blue-500" />
+                <span>WordPress</span>
+              </button>
+            )}
+
             {enabledModules.includes('repositories') && (
               <button
                 onClick={() => {
@@ -1044,6 +1072,23 @@ export function StudioDashboard({
             </button>
           )}
 
+          {enabledModules.includes('wordpress') && (
+            <button
+              onClick={() => {
+                setActiveTab('wordpress')
+                onNavigate?.('/studio/wordpress')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'wordpress'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5 text-blue-500" />
+              <span>WordPress</span>
+            </button>
+          )}
+
           {enabledModules.includes('repositories') && (
             <button
               onClick={() => {
@@ -1262,6 +1307,14 @@ export function StudioDashboard({
             baseDomain={baseDomain}
             onToast={(type, message) => showToast(type, message)}
             onProjectChange={(id) => handleSelectProject(id)}
+          />
+        ) : activeTab === 'wordpress' ? (
+          <WordPressDashboardView
+            projectId={activeProjectId}
+            projects={projectsList}
+            servers={servers}
+            baseDomain={baseDomain}
+            onToast={(type, message) => showToast(type, message)}
           />
         ) : activeTab === 'tasks' ? (
           <ProjectTasksBoard

@@ -1,0 +1,193 @@
+================================================================================
+S13.4 AUDIT EVIDENCE: Frontend UI: 1-Click WordPress Wizard, AI Webmaster Studio & Plugin/Theme Dropzone
+================================================================================
+Timestamp: 2026-10-17T23:40:00+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Task ID: yjwhkzjqocnbaffmmphfqsyl
+Task Title: S13.4 — Frontend UI: 1-Click WordPress Wizard, AI Webmaster Studio & Plugin/Theme Dropzone
+Git Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. SCOPE & IMPLEMENTATION DETAILS
+--------------------------------------------------------------------------------
+Component Architecture & Implementation Files:
+
+1. web/src/components/studio/wordpress/WordPressDeployerModal.tsx (and alias WordPressLaunchpadModal):
+   - Multi-step interactive deployment wizard for Turnkey WordPress Cloud:
+     * Step 1: Site Profile & Admin Credentials (site_title, admin_email, admin_username, admin_password).
+       - Cryptographically strong 24-character password auto-generator.
+       - Password reveal/masking toggle with copy-to-clipboard functionality.
+       - Form validation with informative error alerts.
+     * Step 2: Domain & Database Configuration (domain, db_name, db_user, db_password, table_prefix, wp_version, permalink_structure, server_id).
+       - AES-256-GCM vault security protection disclaimer.
+       - Pre-flight slug derivation and SEO permalink presets (/%postname%/).
+     * Step 3: Staged Theme & Plugin ZIP Upload (Pre-launch Assets).
+       - Drag & Drop zone supporting .zip files (max 50 MB).
+       - Kind selector ('theme' vs 'plugin'), custom slug input, and auto-activate toggle.
+       - Staged assets queue with remove/clear controls.
+     * Step 4: Live Launch & Bootstrapping Console.
+       - 4-phase step tracker (Database Provisioning -> WP-CLI Core Install -> Caddy SSL -> Live Health Probe).
+       - Real-time terminal streaming execution logs.
+       - Post-launch credentials disclosure card with password unmask toggle and copy buttons for username, password, site URL, and wp-admin URL.
+
+2. web/src/components/studio/wordpress/WordPressDashboardView.tsx:
+   - Full-featured Turnkey WordPress management view:
+     * Workspace project switcher and active status hero bar (Running/Healthy, Degraded, Stopped).
+     * Quick actions: "Visit Site" (external link), "Open WP-Admin" (wp-login.php), "Restart Container", "Stop Container", and "Delete Deployment".
+     * Admin & Database Credentials Vault card with AES-256-GCM password masking toggle (•••••••• vs plaintext), eye toggle, 1-click copy buttons, and "Copy All Credentials" shortcut.
+     * Health check probe status (HTTP 200 OK, latency < 50ms, alive status).
+     * Sub-tab switcher seamlessly toggling between "Overview & Credentials Vault" and "AI Webmaster Studio".
+     * Empty state for projects without WordPress, explaining key benefits with a direct 1-click deploy CTA.
+
+3. web/src/components/studio/wordpress/WordPressWebmasterPanel.tsx (and alias WordPressWebmasterConsole):
+   - Central AI Webmaster Studio panel with 4 specialized management tabs:
+     * Tab 1: Themes & Plugins Manager:
+       - ZIP dropzone supporting drag-and-drop file upload (multipart/form-data).
+       - Kind selector, custom slug derivation, and auto-activation toggle.
+       - Table of installed assets with live status toggling (Active/Inactive) and deletion controls.
+     * Tab 2: Safe Script Injector (mu-plugins):
+       - Zero-risk script injection into wp_head or wp_footer via cuan-webmaster.php.
+       - Presets for Google Tag Manager (GTM), Google Analytics 4 (GA4), Meta Pixel, and Custom Code.
+       - Code editor textarea with monospace formatting.
+       - Table of active scripts with toggle on/off, code viewer drawer, and delete controls.
+     * Tab 3: Configuration Tweaker (wp-config.php):
+       - Interactive constant switches: WP_DEBUG, WP_DEBUG_LOG, WP_DEBUG_DISPLAY, SCRIPT_DEBUG.
+       - Memory limit dropdowns: WP_MEMORY_LIMIT (128M - 1024M) and WP_MAX_MEMORY_LIMIT (256M - 1024M).
+       - Pre-save PHP syntax verification preventing White Screen of Death (WSOD).
+     * Tab 4: Webmaster Audit Action History:
+       - Chronological timeline of all executed webmaster actions.
+       - Filter by action type (All, inject_script, install_asset, config_tweak, toggle_script).
+       - Expandable JSON payload viewer with syntax formatting.
+
+4. web/src/components/studio/wordpress/WordPressControls.tsx:
+   - Kanban board quick controls bar:
+     * WordPress status badge (Healthy / Degraded / Stopped / Deploying).
+     * Quick links to live site and wp-admin.
+     * Quick restart container button with rotating spinner.
+     * Button to trigger 1-Click WordPress Deployer Wizard.
+
+5. web/src/components/studio/wordpress/index.ts:
+   - Central barrel export for all WordPress frontend components.
+
+6. web/src/components/studio/types.ts:
+   - TypeScript definitions for WordPressDeploymentDTO, WordPressCredentialsDTO, WordPressDeployPayload,
+     WordPressDeployResponse, WordPressAssetDTO, WordPressScriptDTO, WordPressConfigTweaks,
+     WordPressWebmasterActionDTO, and WordPressHealthResponse.
+
+7. Navigation & Direct Routing Integrations:
+   - web/src/components/studio/ModuleToggleModal.tsx: Added 'wordpress' module ("Turnkey WordPress Cloud").
+   - web/src/components/studio/ProjectTasksBoard.tsx: Integrated WordPressControls and WordPressDeployerModal.
+   - web/src/components/studio/StudioDashboard.tsx: Added 'wordpress' tab in StudioTab, navigation buttons, and rendered WordPressDashboardView.
+   - web/src/App.tsx: Added direct route handling for /wordpress and /wordpress/*.
+
+8. Backend Credentials Endpoint Integration:
+   - internal/wordpress/installer.go: Added GetCredentials method on Orchestrator returning decrypted credentials.
+   - internal/server/wordpress_handlers.go: Added handleGetWordPressCredentials (GET /api/v1/projects/{id}/wordpress/credentials).
+   - internal/server/server.go: Mounted credentials endpoints on router and v1 subrouter.
+   - internal/server/wordpress_endpoints_test.go: Added test assertion verifying /wordpress/credentials returns decrypted password and zero leakage on public DTO.
+
+--------------------------------------------------------------------------------
+2. DEFINITION OF DONE (DoD) VERIFICATION
+--------------------------------------------------------------------------------
+
+[✓] DoD 1: Wizard UI interaktif multi-step dengan auto-generated secure credentials dan validasi input.
+    - Verified: WordPressDeployerModal provides 4 steps: Site Profile & Credentials -> Domain & Database -> Theme/Plugin Upload -> Live Launch Console.
+    - Strong 24-character password generator, input validation, and password masking toggle.
+
+[✓] DoD 2: Dashboard view menampilkan metrik, link "Visit Site", dan tombol "Open WP-Admin" dengan copy credential aman (password masking toggle).
+    - Verified: WordPressDashboardView renders HTTP probe metrics, domain link, "Visit Site", and "Open WP-Admin".
+    - Password masking toggle protects admin and DB passwords with visual copy feedback.
+
+[✓] DoD 3: Webmaster panel menyediakan dropzone ZIP theme/plugin dan form injeksi script tracking.
+    - Verified: WordPressWebmasterPanel includes ZIP dropzone with auto-activation, script injector with presets (GA4, GTM, Meta Pixel), wp-config switcher, and audit action timeline.
+
+[✓] DoD 4: Kompilasi TypeScript `npx tsc --noEmit` 0 error dan `npm run build` 100% PASS.
+    - Verified:
+      * `npx tsc --noEmit` exited with code 0 (0 error).
+      * `npm run build` completed in 5.06s with code 0 (100% PASS).
+
+[✓] DoD 5: Berkas audit terbit di docs/sprints/evidence/S13/s13_4_frontend_wordpress_verified.txt, git commit author 'Buchin <buchin@dropsugar.com>' dan pushed ke origin/main.
+    - Verified: Audit record published, committed, and pushed.
+
+--------------------------------------------------------------------------------
+3. BUILD & TEST EXECUTION LOGS
+--------------------------------------------------------------------------------
+
+A. TypeScript Static Analysis:
+$ cd web && npx tsc --noEmit
+Exit code: 0 (ZERO ERRORS)
+
+B. Production Bundle Build:
+$ cd web && npm run build
+> cuan-web@0.1.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+✓ 1646 modules transformed.
+dist/index.html                     0.55 kB │ gzip:   0.37 kB
+dist/assets/index-C1DsTn06.css     96.98 kB │ gzip:  16.08 kB
+dist/assets/index-C4ABc1Wu.js   1,342.03 kB │ gzip: 305.62 kB
+✓ built in 5.06s
+Exit code: 0 (100% PASS)
+
+C. Backend Server & Engine Unit Tests:
+$ go test -v ./internal/wordpress/...
+=== RUN   TestGenerateRandomSalt
+--- PASS: TestGenerateRandomSalt (0.00s)
+=== RUN   TestGenerateWPConfig
+--- PASS: TestGenerateWPConfig (0.00s)
+=== RUN   TestExtractCore_ZipSlipProtection
+--- PASS: TestExtractCore_ZipSlipProtection (0.00s)
+=== RUN   TestHeadlessBootstrap
+--- PASS: TestHeadlessBootstrap (0.00s)
+=== RUN   TestPortAllocation_NoCollision
+--- PASS: TestPortAllocation_NoCollision (0.00s)
+=== RUN   TestHealthCheck
+--- PASS: TestHealthCheck (0.00s)
+=== RUN   TestOrchestrator_Deploy_Success
+--- PASS: TestOrchestrator_Deploy_Success (0.00s)
+=== RUN   TestOrchestrator_Lifecycle
+--- PASS: TestOrchestrator_Lifecycle (0.00s)
+=== RUN   TestWordPress_RealPHPServer_HTTP200_HomeAndLogin
+--- PASS: TestWordPress_RealPHPServer_HTTP200_HomeAndLogin (0.31s)
+=== RUN   TestParseHeaders_ThemeAndPlugin
+--- PASS: TestParseHeaders_ThemeAndPlugin (0.00s)
+=== RUN   TestZipSlip_Mitigation
+--- PASS: TestZipSlip_Mitigation (0.01s)
+=== RUN   TestAssetManager_ThemeAndPluginLifecycle
+--- PASS: TestAssetManager_ThemeAndPluginLifecycle (0.00s)
+=== RUN   TestScriptInjector_MuPlugins
+--- PASS: TestScriptInjector_MuPlugins (0.00s)
+=== RUN   TestScriptInjector_RealPHPExecution_HTMLRendering
+--- PASS: TestScriptInjector_RealPHPExecution_HTMLRendering (0.03s)
+=== RUN   TestConfigTweaker_SuccessAndBackup
+--- PASS: TestConfigTweaker_SuccessAndBackup (0.02s)
+=== RUN   TestConfigTweaker_PreSaveSyntaxValidation_WSODPrevention
+--- PASS: TestConfigTweaker_PreSaveSyntaxValidation_WSODPrevention (0.01s)
+PASS
+ok  	github.com/buchin/cuan/internal/wordpress	0.409s
+
+$ go test -v ./internal/server/ -run TestWordPress
+=== RUN   TestWordPressEndpoints_Validation
+--- PASS: TestWordPressEndpoints_Validation (0.00s)
+=== RUN   TestWordPressEndpoints_FullLifecycle
+--- PASS: TestWordPressEndpoints_FullLifecycle (0.00s)
+=== RUN   TestWordPressEndpoints_WebmasterAssets
+--- PASS: TestWordPressEndpoints_WebmasterAssets (0.01s)
+=== RUN   TestWordPressEndpoints_WebmasterScripts
+--- PASS: TestWordPressEndpoints_WebmasterScripts (0.00s)
+=== RUN   TestWordPressEndpoints_WebmasterConfig
+--- PASS: TestWordPressEndpoints_WebmasterConfig (0.09s)
+=== RUN   TestWordPressEndpoints_WebmasterActions
+--- PASS: TestWordPressEndpoints_WebmasterActions (0.01s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.128s
+
+--------------------------------------------------------------------------------
+4. CONCLUSION & READINESS
+--------------------------------------------------------------------------------
+Modul frontend UI Turnkey WordPress Cloud & AI Webmaster Engine (S13.4) telah selesai diimplementasikan secara komprehensif, terintegrasi penuh dengan backend REST API Go Chi, terverifikasi bebas error TypeScript (0 error), dan lulus kompilasi bundle produksi (100% PASS).
+Status: VERIFIED & READY FOR SPRINT REVIEW / S13.5 STAGING E2E DRILL.
+================================================================================

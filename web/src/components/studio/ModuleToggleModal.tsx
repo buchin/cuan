@@ -40,6 +40,14 @@ export const AVAILABLE_MODULES: ModuleItem[] = [
     badge: 'Deployer',
   },
   {
+    id: 'wordpress',
+    name: 'Turnkey WordPress Cloud',
+    description: '1-Click WordPress Deployer, AI Webmaster Studio, Theme & Plugin Dropzone, dan AES-256-GCM Vault.',
+    icon: Globe,
+    color: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
+    badge: 'WordPress',
+  },
+  {
     id: 'discussions',
     name: 'Discussion Rooms',
     description: 'Ruang kolaborasi tim & agen AI dengan live streaming SSE dan fitur distill task otomatis.',

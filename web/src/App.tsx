@@ -1113,6 +1113,20 @@ export function App() {
     )
   }
 
+  // 1-Click WordPress Turnkey Cloud Direct Route (/wordpress and /wordpress/*)
+  if (currentPath === '/wordpress' || currentPath.startsWith('/wordpress/')) {
+    return (
+      <StudioDashboard
+        currentPath={currentPath.startsWith('/studio') ? currentPath : `/studio${currentPath}`}
+        onNavigate={navigate}
+        baseDomain={systemMode.base_domain}
+        appMode={effectiveMode}
+        isStudioModeActive={effectiveMode === 'studio'}
+        onToggleMode={handleToggleMode}
+      />
+    )
+  }
+
   // Studio Dashboard & Universal Deployer Route (/studio and /studio/*)
   if (currentPath === '/studio' || currentPath.startsWith('/studio/')) {
     return (

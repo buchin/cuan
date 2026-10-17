@@ -766,4 +766,136 @@ export interface ScriptDeployLogEntry {
   timestamp: string
 }
 
+// ============================================================================
+// Sprint 13 (S13.4): Turnkey WordPress Cloud & AI Webmaster Engine Types
+// ============================================================================
+
+export interface WordPressDeploymentDTO {
+  id: string
+  project_id: string
+  site_title: string
+  admin_email: string
+  admin_username: string
+  has_admin_password: boolean
+  db_name: string
+  db_user: string
+  has_db_password: boolean
+  db_host: string
+  db_port: number
+  domain: string
+  port: number
+  table_prefix: string
+  wp_version: string
+  status: 'pending' | 'provisioning' | 'running' | 'stopped' | 'failed' | string
+  health_status: 'healthy' | 'unhealthy' | 'unknown' | string
+  permalink_structure: string
+  created_at: string
+  updated_at: string
+}
+
+export interface WordPressCredentialsDTO {
+  project_id: string
+  deployment_id: string
+  site_title: string
+  site_url: string
+  admin_url: string
+  admin_username: string
+  admin_password: string
+  db_name: string
+  db_user: string
+  db_password: string
+  db_host: string
+  db_port: number
+  table_prefix?: string
+  wp_version?: string
+  permalink_structure?: string
+}
+
+export interface WordPressDeployPayload {
+  site_title: string
+  admin_email: string
+  admin_username: string
+  admin_password?: string
+  domain?: string
+  db_name?: string
+  db_user?: string
+  db_password?: string
+  table_prefix?: string
+  wp_version?: string
+  permalink_structure?: string
+  server_id?: string
+  skip_health_wait?: boolean
+}
+
+export interface WordPressDeployResponse {
+  deployment: WordPressDeploymentDTO
+  public_dto?: WordPressDeploymentDTO
+  admin_password_plain?: string
+  db_password_plain?: string
+  site_url: string
+  admin_url: string
+  port: number
+  pid: number
+  status: string
+  health_status: string
+  execution_logs: string[]
+  message?: string
+}
+
+export interface WordPressAssetDTO {
+  id: string
+  deployment_id: string
+  kind: 'theme' | 'plugin' | string
+  slug: string
+  name: string
+  version: string
+  is_active: boolean
+  source_zip?: string
+  installed_at: string
+}
+
+export interface WordPressScriptDTO {
+  id: string
+  name: string
+  type: string
+  position: 'head' | 'footer' | string
+  content: string
+  enabled: boolean
+  updated_at?: string
+}
+
+export interface WordPressConfigTweaks {
+  constants?: Record<string, any>
+  tweaks?: Record<string, any>
+  wp_debug?: boolean
+  wp_debug_log?: boolean
+  wp_debug_display?: boolean
+  script_debug?: boolean
+  wp_memory_limit?: string
+  wp_max_memory_limit?: string
+  [key: string]: any
+}
+
+export interface WordPressWebmasterActionDTO {
+  id: string
+  deployment_id: string
+  action_type: 'inject_script' | 'config_tweak' | 'install_asset' | 'toggle_asset' | 'delete_asset' | string
+  payload: Record<string, any>
+  applied_at: string
+}
+
+export interface WordPressHealthResponse {
+  project_id: string
+  deployment_id: string
+  health_status: string
+  probe?: {
+    alive: boolean
+    status_code: number
+    response_time_ms: number
+    url: string
+    is_healthy: boolean
+    error?: string
+  }
+}
+
 

@@ -150,6 +150,24 @@ func TestWordPressEndpoints_FullLifecycle(t *testing.T) {
 		t.Errorf("raw JSON leaked plain admin password")
 	}
 
+	// 2b. GET /api/projects/{id}/wordpress/credentials (authenticated reveal)
+	credReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+projectID+"/wordpress/credentials", nil)
+	credW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(credW, credReq)
+	if credW.Code != http.StatusOK {
+		t.Fatalf("expected status 200 OK on credentials, got %d: %s", credW.Code, credW.Body.String())
+	}
+	var creds wordpress.WordPressCredentialsDTO
+	if err := json.NewDecoder(credW.Body).Decode(&creds); err != nil {
+		t.Fatalf("failed to decode credentials: %v", err)
+	}
+	if creds.AdminUsername != "wpadmin" {
+		t.Errorf("expected admin username 'wpadmin', got %s", creds.AdminUsername)
+	}
+	if creds.AdminPassword != deployRes.AdminPasswordPlain {
+		t.Errorf("expected decrypted password %s, got %s", deployRes.AdminPasswordPlain, creds.AdminPassword)
+	}
+
 	// 3. GET /api/projects/{id}/wordpress/health
 	healthReq := httptest.NewRequest(http.MethodGet, "/api/projects/"+projectID+"/wordpress/health", nil)
 	healthW := httptest.NewRecorder()
