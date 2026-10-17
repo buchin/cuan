@@ -131,6 +131,11 @@ func main() {
 		_ = srv.HealthPoller().Start(context.Background())
 	}
 
+	// Start background DNS health poller if configured
+	if srv.DNSPoller() != nil {
+		_ = srv.DNSPoller().Start(context.Background())
+	}
+
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{
 		Addr:         addr,
@@ -161,6 +166,10 @@ func main() {
 
 		if srv.HealthPoller() != nil {
 			srv.HealthPoller().Stop()
+		}
+
+		if srv.DNSPoller() != nil {
+			srv.DNSPoller().Stop()
 		}
 
 		if err := httpServer.Shutdown(ctx); err != nil {

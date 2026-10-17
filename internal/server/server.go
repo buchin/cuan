@@ -21,6 +21,7 @@ import (
 	"github.com/buchin/cuan/internal/crypto"
 	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/deployer"
+	"github.com/buchin/cuan/internal/domain"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
@@ -39,6 +40,8 @@ type Server struct {
 	deployerDriver deployer.DeployDriver
 	serverRepo     cuanDB.ServerRepository
 	domainRepo     cuanDB.DomainRepository
+	dnsVerifier    *domain.DNSVerifier
+	dnsPoller      *domain.DNSHealthPoller
 	keyVault       *crypto.KeyVault
 	sshManager     deployer.SSHManager
 	healthPoller   *deployer.ProcessHealthPoller
@@ -161,6 +164,16 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	healthPoller := deployer.NewProcessHealthPoller(depStore, srvRepo, vault, sshMgr, portPool)
 	remoteDriver.SetHealthPoller(healthPoller)
 
+	baseHost := "cuan.dojo.cc"
+	if cfg.BaseDomain != "" {
+		baseHost = cfg.BaseDomain
+	}
+	dnsVerifier := domain.NewDNSVerifier(domain.DNSVerifierConfig{
+		CanonicalHosts: []string{baseHost, "cuan.app", "cuan.dojo.cc"},
+		TargetIPs:      []string{"127.0.0.1", "::1"},
+	})
+	dnsPoller := domain.NewDNSHealthPoller(domRepo, dnsVerifier, depDriver, srvRepo, caddyRouter)
+
 	s := &Server{
 		cfg:            cfg,
 		db:             db,
@@ -172,6 +185,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		deployerDriver: depDriver,
 		serverRepo:     srvRepo,
 		domainRepo:     domRepo,
+		dnsVerifier:    dnsVerifier,
+		dnsPoller:      dnsPoller,
 		keyVault:       vault,
 		sshManager:     sshMgr,
 		healthPoller:   healthPoller,
@@ -272,6 +287,22 @@ func (s *Server) SetDomainRepository(r cuanDB.DomainRepository) {
 	s.domainRepo = r
 }
 
+func (s *Server) DNSVerifier() *domain.DNSVerifier {
+	return s.dnsVerifier
+}
+
+func (s *Server) SetDNSVerifier(v *domain.DNSVerifier) {
+	s.dnsVerifier = v
+}
+
+func (s *Server) DNSPoller() *domain.DNSHealthPoller {
+	return s.dnsPoller
+}
+
+func (s *Server) SetDNSPoller(p *domain.DNSHealthPoller) {
+	s.dnsPoller = p
+}
+
 func (s *Server) CaddyRouter() *deployer.CaddyRouter {
 	return s.caddyRouter
 }
@@ -338,6 +369,14 @@ func (s *Server) routes() {
 	s.router.Post("/api/servers/{id}/test", s.handleTestServer)
 	s.router.Delete("/api/servers/{id}", s.handleDeleteServer)
 
+	// Custom Domain & DNS Verification Endpoints (Sprint 5 S05.3)
+	s.router.Post("/api/deployments/{id}/domains", s.handleCreateDeploymentDomain)
+	s.router.Get("/api/deployments/{id}/domains", s.handleListDeploymentDomains)
+	s.router.Get("/api/domains", s.handleListDomains)
+	s.router.Get("/api/domains/{id}", s.handleGetDomain)
+	s.router.Post("/api/domains/{id}/verify", s.handleVerifyDomain)
+	s.router.Delete("/api/domains/{id}", s.handleDeleteDomain)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -362,6 +401,8 @@ func (s *Server) routes() {
 		dr.Delete("/{id}", s.handleDeleteDeployment)
 		dr.Get("/{id}/logs", s.handleGetDeploymentLogs)
 		dr.Get("/{id}/health", s.handleGetDeploymentHealth)
+		dr.Post("/{id}/domains", s.handleCreateDeploymentDomain)
+		dr.Get("/{id}/domains", s.handleListDeploymentDomains)
 	})
 
 	// BYOS Server Management route group in /api/v1
@@ -371,6 +412,14 @@ func (s *Server) routes() {
 		sr.Get("/{id}", s.handleGetServer)
 		sr.Post("/{id}/test", s.handleTestServer)
 		sr.Delete("/{id}", s.handleDeleteServer)
+	})
+
+	// Custom Domain & DNS Verification route group in /api/v1
+	s.router.Route("/api/v1/domains", func(dr chi.Router) {
+		dr.Get("/", s.handleListDomains)
+		dr.Get("/{id}", s.handleGetDomain)
+		dr.Post("/{id}/verify", s.handleVerifyDomain)
+		dr.Delete("/{id}", s.handleDeleteDomain)
 	})
 
 	s.router.Route("/api/v1", func(r chi.Router) {
