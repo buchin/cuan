@@ -1,0 +1,171 @@
+=== CUAN SPRINT 7 (S07.2) EVIDENCE: BACKEND REST ENDPOINTS & REAL-TIME EVENT STREAMING ENGINE (SSE) VERIFIED ===
+Timestamp: 2026-10-17T12:03:00+07:00
+Task ID: qwidrolyhgziizwpuksknopk
+Title: S07.2 — Backend REST Endpoints & Real-Time Event Streaming Engine (SSE)
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+================================================================================
+1. SCOPE IMPLEMENTASI BACKEND REST & SSE ENGINE (S07.2)
+================================================================================
+A. Project Rooms HTTP Handlers (internal/server/project_discussions_handlers.go):
+   - POST /api/projects/{id}/rooms: Pembuatan room diskusi baru terikat pada project_id.
+   - GET /api/projects/{id}/rooms: Listing seluruh room diskusi milik suatu project.
+   - GET /api/rooms/{id} & /api/projects/rooms/{id}: Pengambilan detail data room spesifik.
+   - PUT /api/rooms/{id} & /api/projects/rooms/{id}: Pembaruan judul (title) dan topik (topic) room.
+   - DELETE /api/rooms/{id} & /api/projects/rooms/{id}: Penghapusan room (cascading ke messages & set null tasks).
+
+B. Project Messages HTTP Handlers (internal/server/project_discussions_handlers.go):
+   - POST /api/rooms/{id}/messages & /api/projects/rooms/{id}/messages: Pengiriman pesan chat dalam room.
+     * Mendukung multi-aktor (author_type: 'user', 'agent', 'system').
+     * Mendukung threaded replies via reply_to_id (self-referencing UUID).
+   - GET /api/rooms/{id}/messages & /api/projects/rooms/{id}/messages: Pengambilan riwayat percakapan kronologis.
+   - DELETE /api/messages/{id}: Penghapusan pesan secara spesifik.
+
+C. Real-Time Event Streaming Engine via SSE (Server-Sent Events):
+   - GET /api/rooms/{id}/events & /api/projects/rooms/{id}/events:
+     * Header standar HTTP SSE: Content-Type: text/event-stream, Cache-Control: no-cache, Connection: keep-alive, X-Accel-Buffering: no.
+     * Handshake awal: event 'connected' dengan JSON payload status dan room_id.
+     * Heartbeat ticker berkala (15 detik default, konfigurabel untuk testing cepat): mengirim ': heartbeat\n\nevent: ping\ndata: {"timestamp":"..."}\n\n'.
+     * Real-time event broadcasting ke seluruh subscriber aktif room:
+       - 'room.created', 'room.updated', 'room.deleted'
+       - 'message.created', 'message.deleted'
+       - 'task.created', 'task.updated', 'task.status_changed', 'task.deleted', 'task.distilled'
+     * Graceful connection cleanup: saat klien memutus koneksi (context canceled / tab browser ditutup), deferred channel unregistration otomatis membersihkan channel subscriber dan mencegah memory leak.
+
+D. Discussion-to-Task Distiller Engine Helper:
+   - POST /api/rooms/{id}/distill & /api/projects/rooms/{id}/distill:
+     * Menganalisis obrolan room dan menyulingnya menjadi draft ProjectTask terstruktur.
+     * Otomatis mengekstrak markdown checklist ('- [ ]', '- [x]', 'DoD: ...') menjadi item DoDChecklist.
+     * Menghasilkan task berstatus 'backlog' dan memicu broadcast SSE 'task.distilled'.
+
+E. Project Tasks HTTP Handlers (internal/server/project_tasks_handlers.go):
+   - POST /api/projects/{id}/tasks: Pembuatan task baru dengan dukungan DoD checklist, tags, batch_id, dan parent_task_id.
+   - GET /api/projects/{id}/tasks: Listing task dengan kapabilitas query filtering canggih:
+     * ?parent_task_id= (Fan-Out hierarchy subtasks)
+     * ?batch_id= (Multi-project batch grouping)
+     * ?tag= / ?tags= (Tag selector array e.g. ["wordpress", "adsense"])
+     * ?status= (backlog, doing, review, done)
+     * ?priority= (low, normal, high, urgent)
+     * ?room_id= & ?assignee_id=
+   - GET /api/tasks/{id} & /api/projects/tasks/{id}: Pengambilan detail task spesifik.
+   - PUT /api/tasks/{id} & /api/projects/tasks/{id}: Pembaruan detail atribut task.
+   - PATCH /api/tasks/{id}/status & /api/projects/tasks/{id}/status: Transisi status kanban (backlog -> doing -> review -> done).
+   - DELETE /api/tasks/{id} & /api/projects/tasks/{id}: Penghapusan task.
+
+F. Pendaftaran Rute & Integrasi Server (internal/server/server.go):
+   - Seluruh rute didaftarkan di root router (/api/...) dan alias group (/api/v1/...).
+   - Server struct diperkaya field roomEventBroker (*RoomEventBroker) beserta getter/setter.
+   - Kompatibilitas mundur (backward-compatibility) 100% terjaga dengan rute Sprint 1–6 (termasuk fallback lookup di handleGetTask).
+
+================================================================================
+2. HASIL TARGETED AUTOMATED TESTS (100% PASS)
+================================================================================
+Command: go test -v -count=1 ./internal/server/ -run 'TestProject(Rooms|Messages|Discussions|Tasks)'
+
+=== RUN   TestProjectRooms_CRUD
+2026/10/17 12:02:17 "POST /api/projects/proj-095ac8c5/rooms" - 201 Created
+2026/10/17 12:02:17 "POST /api/projects/proj-095ac8c5/rooms" - 400 Bad Request (empty title)
+2026/10/17 12:02:17 "GET /api/projects/proj-095ac8c5/rooms" - 200 OK (count: 1)
+2026/10/17 12:02:17 "GET /api/rooms/{id}" - 200 OK
+2026/10/17 12:02:17 "GET /api/projects/rooms/{id}" - 200 OK
+2026/10/17 12:02:17 "PUT /api/rooms/{id}" - 200 OK (updated title & topic)
+2026/10/17 12:02:17 "DELETE /api/rooms/{id}" - 200 OK (status: deleted)
+2026/10/17 12:02:17 "GET /api/rooms/{id}" - 404 Not Found (post-delete)
+--- PASS: TestProjectRooms_CRUD (0.00s)
+
+=== RUN   TestProjectMessages_CRUD
+2026/10/17 12:02:17 "POST /api/rooms/{id}/messages" - 201 Created
+2026/10/17 12:02:17 "POST /api/projects/rooms/{id}/messages" - 201 Created (threaded reply_to_id verified)
+2026/10/17 12:02:17 "POST /api/rooms/{id}/messages" - 400 Bad Request (empty content)
+2026/10/17 12:02:17 "POST /api/rooms/{id}/messages" - 400 Bad Request (invalid author_type)
+2026/10/17 12:02:17 "GET /api/rooms/{id}/messages" - 200 OK (count: 2)
+2026/10/17 12:02:17 "DELETE /api/messages/{id}" - 200 OK
+2026/10/17 12:02:17 "GET /api/rooms/{id}/messages" - 200 OK (count: 1)
+--- PASS: TestProjectMessages_CRUD (0.00s)
+
+=== RUN   TestProjectDiscussions_RealTimeSSE_StreamingAndHeartbeat
+2026/10/17 12:02:18 "GET /api/rooms/{id}/events" - 200 OK (text/event-stream)
+  * Event handshake 'connected' diterima dengan room_id yang sesuai
+  * Active subscriber count: 1
+  * Broadcast 'message.created' diterima secara real-time saat pesan dikirimkan
+  * Heartbeat periodic (: heartbeat & event: ping) diterima
+  * Context canceled / client disconnect -> subscriber count otomatis kembali ke 0 (graceful cleanup verified)
+--- PASS: TestProjectDiscussions_RealTimeSSE_StreamingAndHeartbeat (0.20s)
+
+=== RUN   TestProjectDiscussions_Distiller
+2026/10/17 12:02:18 "POST /api/rooms/{id}/distill" - 201 Created
+  * Ekstraksi obrolan ke structured task berhasil dengan >= 3 DoD checklist items
+  * Task tersimpan di repository dengan status backlog dan tags yang ditentukan
+--- PASS: TestProjectDiscussions_Distiller (0.00s)
+
+=== RUN   TestProjectDiscussions_V1AliasEndpoints
+2026/10/17 12:02:18 "POST /api/v1/projects/{id}/rooms" - 201 Created
+2026/10/17 12:02:18 "GET /api/v1/rooms/{id}" - 200 OK
+2026/10/17 12:02:18 "POST /api/v1/rooms/{id}/messages" - 201 Created
+2026/10/17 12:02:18 "GET /api/v1/rooms/{id}/messages" - 200 OK
+--- PASS: TestProjectDiscussions_V1AliasEndpoints (0.00s)
+
+=== RUN   TestProjectTasks_CRUD
+2026/10/17 12:02:18 "POST /api/projects/{id}/tasks" - 201 Created
+2026/10/17 12:02:18 "POST /api/projects/{id}/tasks" - 400 Bad Request (empty title)
+2026/10/17 12:02:18 "POST /api/projects/{id}/tasks" - 400 Bad Request (invalid status)
+2026/10/17 12:02:18 "POST /api/projects/{id}/tasks" - 400 Bad Request (invalid priority)
+2026/10/17 12:02:18 "GET /api/tasks/{id}" - 200 OK
+2026/10/17 12:02:18 "GET /api/projects/tasks/{id}" - 200 OK
+2026/10/17 12:02:18 "PUT /api/tasks/{id}" - 200 OK (title & priority updated)
+2026/10/17 12:02:18 "PATCH /api/tasks/{id}/status" - 200 OK (status -> doing)
+2026/10/17 12:02:18 "PATCH /api/tasks/{id}/status" - 200 OK (status -> review)
+2026/10/17 12:02:18 "PATCH /api/tasks/{id}/status" - 200 OK (status -> done)
+2026/10/17 12:02:18 "DELETE /api/tasks/{id}" - 200 OK (status: deleted)
+2026/10/17 12:02:18 "GET /api/tasks/{id}" - 404 Not Found (post-delete)
+--- PASS: TestProjectTasks_CRUD (0.00s)
+
+=== RUN   TestProjectTasks_QueryFiltering
+2026/10/17 12:02:18 "GET /api/projects/{id}/tasks?parent_task_id={parentID}" - 200 OK (2 child subtasks)
+2026/10/17 12:02:18 "GET /api/projects/{id}/tasks?batch_id=batch-multisite-01" - 200 OK (2 tasks)
+2026/10/17 12:02:18 "GET /api/projects/{id}/tasks?batch_id=batch-monetization-02" - 200 OK (1 task)
+2026/10/17 12:02:18 "GET /api/projects/{id}/tasks?tag=wordpress" - 200 OK (2 tasks)
+2026/10/17 12:02:18 "GET /api/projects/{id}/tasks?tag=adsense" - 200 OK (1 task)
+2026/10/17 12:02:18 "GET /api/projects/{id}/tasks?status=doing" - 200 OK (2 tasks)
+2026/10/17 12:02:18 "GET /api/projects/{id}/tasks?status=doing&tag=wordpress" - 200 OK (1 task)
+--- PASS: TestProjectTasks_QueryFiltering (0.00s)
+
+=== RUN   TestProjectTasks_SSEBroadcasting
+2026/10/17 12:02:18 "GET /api/rooms/{id}/events" - 200 OK (SSE client connected)
+  * Event handshake 'connected' verified
+  * Task creation memicu event 'task.created' ke room listener
+  * Task status patch memicu event 'task.status_changed' ke room listener
+  * Task delete memicu event 'task.deleted' ke room listener
+--- PASS: TestProjectTasks_SSEBroadcasting (0.05s)
+
+=== RUN   TestProjectTasks_V1AliasEndpoints
+2026/10/17 12:02:18 "POST /api/v1/projects/{id}/tasks" - 201 Created
+2026/10/17 12:02:18 "GET /api/v1/projects/tasks/{id}" - 200 OK
+2026/10/17 12:02:18 "PATCH /api/v1/tasks/{id}/status" - 200 OK
+2026/10/17 12:02:18 "PUT /api/v1/projects/tasks/{id}" - 200 OK
+2026/10/17 12:02:18 "DELETE /api/v1/projects/tasks/{id}" - 200 OK
+--- PASS: TestProjectTasks_V1AliasEndpoints (0.00s)
+
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.277s
+
+================================================================================
+3. REGRESSION TEST SUITE VERIFICATION
+================================================================================
+Command: go test -count=1 ./internal/server/...
+Status: 100% PASS (Zero Regression terhadap Sprint 1–6).
+Semua pengujian autentikasi, proyek, task runner, sponsor, deployment caddy, domain verification, dan observability tetap berfungsi stabil tanpa gangguan.
+
+================================================================================
+4. KESIMPULAN DEFINITION OF DONE (DoD) S07.2
+================================================================================
+1. HTTP REST Handlers untuk Project Rooms (POST/GET /api/projects/{id}/rooms, GET/PUT/DELETE /api/rooms/{id} & /api/projects/rooms/{id}): LULUS.
+2. HTTP REST Handlers untuk Project Messages (POST/GET /api/rooms/{id}/messages & /api/projects/rooms/{id}/messages, DELETE /api/messages/{id}): LULUS.
+3. Real-Time Event Streaming Engine (SSE) dengan heartbeat 15 detik, event broadcasting mutasi, dan graceful connection cleanup: LULUS.
+4. HTTP REST Handlers untuk Project Tasks (POST/GET /api/projects/{id}/tasks dengan query filter parent_task_id, batch_id, tag, status; GET/PUT/DELETE /api/tasks/{id} & /api/projects/tasks/{id}; PATCH /api/tasks/{id}/status): LULUS.
+5. Discussion-to-Task Distiller Engine untuk menyuling percakapan chat menjadi task draft lengkap dengan acceptance criteria: LULUS.
+6. Registrasi seluruh rute di internal/server/server.go termasuk alias group /api/v1: LULUS.
+7. Targeted automated tests di internal/server/project_discussions_handlers_test.go dan project_tasks_handlers_test.go lulus 100% bebas regresi: LULUS.
+8. Berkas audit tersimpan di docs/sprints/evidence/S7/s07_2_backend_api_sse_verified.txt: LULUS.

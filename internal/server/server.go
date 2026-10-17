@@ -52,6 +52,7 @@ type Server struct {
 	obsMetricsCollector *observability.MetricsCollector
 	obsAlertDispatcher  *observability.AlertDispatcher
 	projectStudioRepo   cuanDB.ProjectStudioRepository
+	roomEventBroker     *RoomEventBroker
 	router              *chi.Mux
 }
 
@@ -255,6 +256,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		obsMetricsCollector: obsMetricsCollector,
 		obsAlertDispatcher:  obsAlertDispatcher,
 		projectStudioRepo:   studioRepo,
+		roomEventBroker:     NewRoomEventBroker(),
 		router:              r,
 	}
 
@@ -428,6 +430,14 @@ func (s *Server) SetProjectStudioRepository(repo cuanDB.ProjectStudioRepository)
 	s.projectStudioRepo = repo
 }
 
+func (s *Server) RoomEventBroker() *RoomEventBroker {
+	return s.roomEventBroker
+}
+
+func (s *Server) SetRoomEventBroker(b *RoomEventBroker) {
+	s.roomEventBroker = b
+}
+
 func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
@@ -489,6 +499,48 @@ func (s *Server) routes() {
 	s.router.Post("/api/alert-channels/{id}/test", s.handleTestAlertChannel)
 	s.router.Delete("/api/alert-channels/{id}", s.handleDeleteAlertChannel)
 	s.router.Get("/api/incidents", s.handleListIncidents)
+
+	// Project Studio Discussions, Messages, Tasks & Real-Time SSE (Sprint 7 S07.2)
+	// Project Rooms
+	s.router.Post("/api/projects/{id}/rooms", s.handleCreateProjectRoom)
+	s.router.Get("/api/projects/{id}/rooms", s.handleListProjectRooms)
+	s.router.Get("/api/rooms/{id}", s.handleGetProjectRoom)
+	s.router.Put("/api/rooms/{id}", s.handleUpdateProjectRoom)
+	s.router.Delete("/api/rooms/{id}", s.handleDeleteProjectRoom)
+
+	// Project Rooms alias routes (/api/projects/rooms/{id})
+	s.router.Get("/api/projects/rooms/{id}", s.handleGetProjectRoom)
+	s.router.Put("/api/projects/rooms/{id}", s.handleUpdateProjectRoom)
+	s.router.Delete("/api/projects/rooms/{id}", s.handleDeleteProjectRoom)
+
+	// Messages
+	s.router.Post("/api/rooms/{id}/messages", s.handleCreateProjectMessage)
+	s.router.Get("/api/rooms/{id}/messages", s.handleListProjectMessages)
+	s.router.Post("/api/projects/rooms/{id}/messages", s.handleCreateProjectMessage)
+	s.router.Get("/api/projects/rooms/{id}/messages", s.handleListProjectMessages)
+	s.router.Delete("/api/messages/{id}", s.handleDeleteProjectMessage)
+
+	// Real-Time Event Streaming Engine (SSE)
+	s.router.Get("/api/rooms/{id}/events", s.handleStreamRoomEvents)
+	s.router.Get("/api/projects/rooms/{id}/events", s.handleStreamRoomEvents)
+
+	// Discussion-to-Task Distiller Engine
+	s.router.Post("/api/rooms/{id}/distill", s.handleDistillTaskFromRoom)
+	s.router.Post("/api/projects/rooms/{id}/distill", s.handleDistillTaskFromRoom)
+
+	// Project Tasks
+	s.router.Post("/api/projects/{id}/tasks", s.handleCreateProjectTask)
+	s.router.Get("/api/projects/{id}/tasks", s.handleListProjectTasks)
+	s.router.Get("/api/tasks/{id}", s.handleGetProjectTask)
+	s.router.Put("/api/tasks/{id}", s.handleUpdateProjectTask)
+	s.router.Patch("/api/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+	s.router.Delete("/api/tasks/{id}", s.handleDeleteProjectTask)
+
+	// Project Tasks alias routes (/api/projects/tasks/{id})
+	s.router.Get("/api/projects/tasks/{id}", s.handleGetProjectTask)
+	s.router.Put("/api/projects/tasks/{id}", s.handleUpdateProjectTask)
+	s.router.Patch("/api/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+	s.router.Delete("/api/projects/tasks/{id}", s.handleDeleteProjectTask)
 
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
@@ -565,6 +617,36 @@ func (s *Server) routes() {
 		r.Post("/alert-channels/{id}/test", s.handleTestAlertChannel)
 		r.Delete("/alert-channels/{id}", s.handleDeleteAlertChannel)
 		r.Get("/incidents", s.handleListIncidents)
+
+		// Project Studio Discussions, Messages, Tasks & Real-Time SSE in v1 (Sprint 7 S07.2)
+		r.Post("/projects/{id}/rooms", s.handleCreateProjectRoom)
+		r.Get("/projects/{id}/rooms", s.handleListProjectRooms)
+		r.Get("/rooms/{id}", s.handleGetProjectRoom)
+		r.Put("/rooms/{id}", s.handleUpdateProjectRoom)
+		r.Delete("/rooms/{id}", s.handleDeleteProjectRoom)
+		r.Get("/projects/rooms/{id}", s.handleGetProjectRoom)
+		r.Put("/projects/rooms/{id}", s.handleUpdateProjectRoom)
+		r.Delete("/projects/rooms/{id}", s.handleDeleteProjectRoom)
+
+		r.Post("/rooms/{id}/messages", s.handleCreateProjectMessage)
+		r.Get("/rooms/{id}/messages", s.handleListProjectMessages)
+		r.Post("/projects/rooms/{id}/messages", s.handleCreateProjectMessage)
+		r.Get("/projects/rooms/{id}/messages", s.handleListProjectMessages)
+		r.Delete("/messages/{id}", s.handleDeleteProjectMessage)
+
+		r.Get("/rooms/{id}/events", s.handleStreamRoomEvents)
+		r.Get("/projects/rooms/{id}/events", s.handleStreamRoomEvents)
+
+		r.Post("/rooms/{id}/distill", s.handleDistillTaskFromRoom)
+		r.Post("/projects/rooms/{id}/distill", s.handleDistillTaskFromRoom)
+
+		r.Post("/projects/{id}/tasks", s.handleCreateProjectTask)
+		r.Get("/projects/{id}/tasks", s.handleListProjectTasks)
+		r.Get("/projects/tasks/{id}", s.handleGetProjectTask)
+		r.Put("/projects/tasks/{id}", s.handleUpdateProjectTask)
+		r.Patch("/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+		r.Delete("/projects/tasks/{id}", s.handleDeleteProjectTask)
+		r.Patch("/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {
@@ -930,6 +1012,14 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	detail, err := s.taskSvc.GetTaskDetail(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
+			if s.projectStudioRepo != nil {
+				if pt, ptErr := s.projectStudioRepo.GetTaskByID(r.Context(), id); ptErr == nil && pt != nil {
+					respondJSON(w, http.StatusOK, map[string]interface{}{
+						"task": pt.ToDTO(),
+					})
+					return
+				}
+			}
 			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
 			return
 		}
