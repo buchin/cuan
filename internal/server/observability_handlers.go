@@ -280,14 +280,15 @@ func (s *Server) handleGetServerMetrics(w http.ResponseWriter, r *http.Request) 
 
 // CreateAlertChannelPayload defines the JSON body for registering an alert channel.
 type CreateAlertChannelPayload struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"` // 'telegram', 'discord', 'webhook'
-	IsActive   *bool  `json:"is_active,omitempty"`
-	BotToken   string `json:"bot_token,omitempty"`
-	ChatID     string `json:"chat_id,omitempty"`
-	WebhookURL string `json:"webhook_url,omitempty"`
-	URL        string `json:"url,omitempty"`
-	Secret     string `json:"secret,omitempty"`
+	Name            string `json:"name"`
+	Type            string `json:"type"` // 'telegram', 'discord', 'webhook'
+	IsActive        *bool  `json:"is_active,omitempty"`
+	BotToken        string `json:"bot_token,omitempty"`
+	ChatID          string `json:"chat_id,omitempty"`
+	TelegramBaseURL string `json:"telegram_base_url,omitempty"`
+	WebhookURL      string `json:"webhook_url,omitempty"`
+	URL             string `json:"url,omitempty"`
+	Secret          string `json:"secret,omitempty"`
 }
 
 // handleCreateAlertChannel registers a new alert notification channel for a project,
@@ -328,10 +329,11 @@ func (s *Server) handleCreateAlertChannel(w http.ResponseWriter, r *http.Request
 	}
 
 	cfg := &observability.ChannelConfig{
-		BotToken:   strings.TrimSpace(payload.BotToken),
-		ChatID:     strings.TrimSpace(payload.ChatID),
-		WebhookURL: webhookURL,
-		Secret:     strings.TrimSpace(payload.Secret),
+		BotToken:        strings.TrimSpace(payload.BotToken),
+		ChatID:          strings.TrimSpace(payload.ChatID),
+		TelegramBaseURL: strings.TrimSpace(payload.TelegramBaseURL),
+		WebhookURL:      webhookURL,
+		Secret:          strings.TrimSpace(payload.Secret),
 	}
 
 	if err := observability.ValidateChannelConfig(channelType, cfg); err != nil {
