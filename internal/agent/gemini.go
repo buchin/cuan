@@ -148,6 +148,7 @@ func isMockKey(key string) bool {
 	return strings.HasPrefix(k, "mock-") ||
 		strings.HasPrefix(k, "test-") ||
 		strings.HasPrefix(k, "offline-") ||
+		strings.Contains(k, "mock") ||
 		k == "mock" ||
 		k == "test"
 }
