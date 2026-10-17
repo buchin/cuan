@@ -51,6 +51,7 @@ type Server struct {
 	obsHealthPoller     *observability.HealthPoller
 	obsMetricsCollector *observability.MetricsCollector
 	obsAlertDispatcher  *observability.AlertDispatcher
+	projectStudioRepo   cuanDB.ProjectStudioRepository
 	router              *chi.Mux
 }
 
@@ -225,6 +226,13 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		_ = obsAlertDispatcher.HandleServerMetric(context.Background(), metric)
 	})
 
+	var studioRepo cuanDB.ProjectStudioRepository
+	if db != nil {
+		studioRepo = cuanDB.NewSQLProjectStudioRepository(db)
+	} else {
+		studioRepo = cuanDB.NewMemoryProjectStudioRepository()
+	}
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -246,6 +254,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		obsHealthPoller:     obsHealthPoller,
 		obsMetricsCollector: obsMetricsCollector,
 		obsAlertDispatcher:  obsAlertDispatcher,
+		projectStudioRepo:   studioRepo,
 		router:              r,
 	}
 
@@ -409,6 +418,14 @@ func (s *Server) ObservabilityAlertDispatcher() *observability.AlertDispatcher {
 
 func (s *Server) SetObservabilityAlertDispatcher(d *observability.AlertDispatcher) {
 	s.obsAlertDispatcher = d
+}
+
+func (s *Server) ProjectStudioRepository() cuanDB.ProjectStudioRepository {
+	return s.projectStudioRepo
+}
+
+func (s *Server) SetProjectStudioRepository(repo cuanDB.ProjectStudioRepository) {
+	s.projectStudioRepo = repo
 }
 
 func (s *Server) routes() {

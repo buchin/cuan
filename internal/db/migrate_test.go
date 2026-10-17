@@ -163,6 +163,44 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(obsMig.DownSQL, "DROP TABLE IF EXISTS alert_incidents CASCADE") {
 		t.Errorf("expected 000011 DownSQL to drop alert_incidents table")
 	}
+
+	if len(migs) < 12 {
+		t.Fatalf("expected at least 12 migrations, got %d", len(migs))
+	}
+	studioMig := migs[11]
+	if studioMig.Version != "000012" {
+		t.Errorf("expected version 000012, got %s", studioMig.Version)
+	}
+	if studioMig.Name != "project_discussions_tasks" {
+		t.Errorf("expected name project_discussions_tasks, got %s", studioMig.Name)
+	}
+	if !strings.Contains(studioMig.UpSQL, "CREATE TABLE IF NOT EXISTS project_rooms") {
+		t.Errorf("expected 000012 UpSQL to create project_rooms table")
+	}
+	if !strings.Contains(studioMig.UpSQL, "CREATE TABLE IF NOT EXISTS project_messages") {
+		t.Errorf("expected 000012 UpSQL to create project_messages table")
+	}
+	if !strings.Contains(studioMig.UpSQL, "CREATE TABLE IF NOT EXISTS project_tasks") {
+		t.Errorf("expected 000012 UpSQL to create project_tasks table")
+	}
+	if !strings.Contains(studioMig.UpSQL, "parent_task_id UUID REFERENCES project_tasks(id)") {
+		t.Errorf("expected 000012 UpSQL to have parent_task_id FK")
+	}
+	if !strings.Contains(studioMig.UpSQL, "batch_id VARCHAR(255)") {
+		t.Errorf("expected 000012 UpSQL to have batch_id")
+	}
+	if !strings.Contains(studioMig.UpSQL, "tags JSONB NOT NULL DEFAULT '[]'::jsonb") {
+		t.Errorf("expected 000012 UpSQL to have tags JSONB")
+	}
+	if !strings.Contains(studioMig.DownSQL, "DROP TABLE IF EXISTS project_tasks CASCADE") {
+		t.Errorf("expected 000012 DownSQL to drop project_tasks table")
+	}
+	if !strings.Contains(studioMig.DownSQL, "DROP TABLE IF EXISTS project_messages CASCADE") {
+		t.Errorf("expected 000012 DownSQL to drop project_messages table")
+	}
+	if !strings.Contains(studioMig.DownSQL, "DROP TABLE IF EXISTS project_rooms CASCADE") {
+		t.Errorf("expected 000012 DownSQL to drop project_rooms table")
+	}
 }
 
 func TestDryRun(t *testing.T) {
