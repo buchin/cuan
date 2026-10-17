@@ -249,3 +249,48 @@ func TestProjectService_Delete_DoesNotDamageRemoteRepo(t *testing.T) {
 		t.Fatalf("remote repo should remain accessible after project delete, got err: %v", err)
 	}
 }
+
+func TestProject_ModularWorkspaceAndIntegrations(t *testing.T) {
+	_, client := setupMockGitHub(t)
+	store := NewMemoryStore()
+	tempDir := t.TempDir()
+	svc := NewService(store, client, "secret", tempDir)
+	ctx := context.Background()
+
+	// 1. Connect project with modular fields
+	res, err := svc.Connect(ctx, ConnectProjectRequest{
+		RepoURL:        "buchin/cuan",
+		SourceType:     "template",
+		EnabledModules: []byte(`["tasks", "discussions", "servers"]`),
+	})
+	if err != nil {
+		t.Fatalf("connect failed: %v", err)
+	}
+
+	if res.SourceType != "template" {
+		t.Errorf("expected source_type template, got %s", res.SourceType)
+	}
+	if !strings.Contains(string(res.EnabledModules), "servers") {
+		t.Errorf("expected enabled_modules to contain servers, got %s", string(res.EnabledModules))
+	}
+
+	// 2. Integration model and response check
+	in := &ProjectIntegration{
+		ID:              "integ-wp-1",
+		ProjectID:       res.ID,
+		IntegrationType: "wordpress",
+		ConfigEncrypted: "encrypted-aes-gcm-data",
+		Status:          "active",
+	}
+	inResp := in.ToResponse()
+	if inResp.ID != in.ID {
+		t.Errorf("expected id %s, got %s", in.ID, inResp.ID)
+	}
+	if inResp.IntegrationType != "wordpress" {
+		t.Errorf("expected type wordpress, got %s", inResp.IntegrationType)
+	}
+	if !inResp.HasConfig {
+		t.Errorf("expected HasConfig true")
+	}
+}
+

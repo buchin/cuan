@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +21,15 @@ func TestProject_ValidationAndNormalization(t *testing.T) {
 	if NormalizeProjectType("YouTube") != "youtube" {
 		t.Errorf("expected 'YouTube' to normalize to youtube, got %s", NormalizeProjectType("YouTube"))
 	}
+	if NormalizeSourceType("") != "blank" {
+		t.Errorf("expected empty source_type to normalize to blank, got %s", NormalizeSourceType(""))
+	}
+	if NormalizeSourceType("  ZIP  ") != "zip" {
+		t.Errorf("expected '  ZIP  ' to normalize to zip, got %s", NormalizeSourceType("  ZIP  "))
+	}
+	if NormalizeSourceType("Template") != "template" {
+		t.Errorf("expected 'Template' to normalize to template, got %s", NormalizeSourceType("Template"))
+	}
 
 	p := &Project{
 		ID:             "proj-creator-001",
@@ -34,6 +44,9 @@ func TestProject_ValidationAndNormalization(t *testing.T) {
 		CloneStatus:    "synced",
 		ProjectType:    "blog",
 		Metadata:       json.RawMessage(`{"blueprint":"blog_publisher","niche":"finance"}`),
+		EnabledModules: json.RawMessage(`["tasks", "discussions", "servers"]`),
+		SourceType:     "zip",
+		SourceMetadata: json.RawMessage(`{"filename":"blog.zip","size_bytes":102400}`),
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	}
@@ -44,6 +57,12 @@ func TestProject_ValidationAndNormalization(t *testing.T) {
 	}
 	if dto.ProjectType != "blog" {
 		t.Errorf("expected dto ProjectType blog, got %s", dto.ProjectType)
+	}
+	if dto.SourceType != "zip" {
+		t.Errorf("expected dto SourceType zip, got %s", dto.SourceType)
+	}
+	if !strings.Contains(string(dto.EnabledModules), "servers") {
+		t.Errorf("expected enabled_modules to contain servers, got %s", string(dto.EnabledModules))
 	}
 	if !dto.HasToken {
 		t.Errorf("expected HasToken true")
@@ -154,11 +173,11 @@ func TestMemoryProjectRepository_ListAndFilter(t *testing.T) {
 	repo := NewMemoryProjectRepository()
 
 	projects := []*Project{
-		{ID: "p-blog-1", Name: "Blog 1", RepoURL: "https://github.com/test/blog1", ProjectType: "blog"},
-		{ID: "p-blog-2", Name: "Blog 2", RepoURL: "https://github.com/test/blog2", ProjectType: "blog"},
-		{ID: "p-yt-1", Name: "YT 1", RepoURL: "https://github.com/test/yt1", ProjectType: "youtube"},
-		{ID: "p-shop-1", Name: "Shop 1", RepoURL: "https://github.com/test/shop1", ProjectType: "olshop"},
-		{ID: "p-custom-1", Name: "Custom 1", RepoURL: "https://github.com/test/custom1", ProjectType: "custom"},
+		{ID: "p-blog-1", Name: "Blog 1", RepoURL: "https://github.com/test/blog1", ProjectType: "blog", SourceType: "blank"},
+		{ID: "p-blog-2", Name: "Blog 2", RepoURL: "https://github.com/test/blog2", ProjectType: "blog", SourceType: "template"},
+		{ID: "p-yt-1", Name: "YT 1", RepoURL: "https://github.com/test/yt1", ProjectType: "youtube", SourceType: "template"},
+		{ID: "p-shop-1", Name: "Shop 1", RepoURL: "https://github.com/test/shop1", ProjectType: "olshop", SourceType: "zip"},
+		{ID: "p-custom-1", Name: "Custom 1", RepoURL: "https://github.com/test/custom1", ProjectType: "custom", SourceType: "zip"},
 	}
 
 	for _, p := range projects {
@@ -197,6 +216,30 @@ func TestMemoryProjectRepository_ListAndFilter(t *testing.T) {
 	}
 	if len(shops) != 1 {
 		t.Errorf("expected 1 olshop project, got %d", len(shops))
+	}
+
+	zips, err := repo.ListProjectsBySourceType(ctx, "zip")
+	if err != nil {
+		t.Fatalf("failed to list zip projects: %v", err)
+	}
+	if len(zips) != 2 {
+		t.Errorf("expected 2 zip projects, got %d", len(zips))
+	}
+
+	templates, err := repo.ListProjectsBySourceType(ctx, "template")
+	if err != nil {
+		t.Fatalf("failed to list template projects: %v", err)
+	}
+	if len(templates) != 2 {
+		t.Errorf("expected 2 template projects, got %d", len(templates))
+	}
+
+	blanks, err := repo.ListProjectsBySourceType(ctx, "blank")
+	if err != nil {
+		t.Fatalf("failed to list blank projects: %v", err)
+	}
+	if len(blanks) != 1 {
+		t.Errorf("expected 1 blank project, got %d", len(blanks))
 	}
 }
 

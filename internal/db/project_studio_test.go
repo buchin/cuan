@@ -115,25 +115,40 @@ func TestDTOConversion(t *testing.T) {
 	parentID := GenerateUUID()
 	batchID := "batch-s7-01"
 	assigneeID := "dev_01"
+	schedTime := now.Add(24 * time.Hour)
+	pubTime := now.Add(25 * time.Hour)
+	pubURL := "https://myblog.com/2026/10/modular-os"
 	task := &ProjectTask{
-		ID:           GenerateUUID(),
-		ProjectID:    "proj_cuan",
-		RoomID:       &room.ID,
-		Title:        "Implement DB Models",
-		Description:  "Database models for Studio",
-		Status:       "doing",
-		Priority:     "high",
-		DoDChecklist: []DoDItem{{ID: "1", Text: "Migrations up & down", Completed: true}},
-		AssigneeID:   &assigneeID,
-		ParentTaskID: &parentID,
-		BatchID:      &batchID,
-		Tags:         []string{"database", "postgresql", "sprint7"},
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:             GenerateUUID(),
+		ProjectID:      "proj_cuan",
+		RoomID:         &room.ID,
+		Title:          "Implement DB Models",
+		Description:    "Database models for Studio",
+		Status:         "doing",
+		Priority:       "high",
+		DoDChecklist:   []DoDItem{{ID: "1", Text: "Migrations up & down", Completed: true}},
+		AssigneeID:     &assigneeID,
+		ParentTaskID:   &parentID,
+		BatchID:        &batchID,
+		Tags:           []string{"database", "postgresql", "sprint7"},
+		ScheduledAt:    &schedTime,
+		PublishedAt:    &pubTime,
+		PublicationURL: pubURL,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	taskDTO := task.ToDTO()
 	if taskDTO.ID != task.ID || taskDTO.Title != task.Title || len(taskDTO.Tags) != 3 || len(taskDTO.DoDChecklist) != 1 {
 		t.Errorf("task DTO mismatch")
+	}
+	if taskDTO.PublicationURL != pubURL {
+		t.Errorf("expected publication_url %s, got %s", pubURL, taskDTO.PublicationURL)
+	}
+	if taskDTO.ScheduledAt == nil || *taskDTO.ScheduledAt != schedTime {
+		t.Errorf("scheduled_at mismatch in DTO")
+	}
+	if taskDTO.PublishedAt == nil || *taskDTO.PublishedAt != pubTime {
+		t.Errorf("published_at mismatch in DTO")
 	}
 
 	// Verify deep copy isolation
@@ -555,6 +570,31 @@ func TestMemoryProjectStudioRepository_Tasks(t *testing.T) {
 	if len(execTasks) != 1 || execTasks[0].ID != subtask1.ID {
 		t.Errorf("expected 1 task with execution_status 'completed', got %d", len(execTasks))
 	}
+
+	// 12. Modular publishing fields: scheduled_at, published_at, publication_url
+	schedAt := time.Now().UTC().Add(48 * time.Hour)
+	pubAt := time.Now().UTC().Add(49 * time.Hour)
+	pubURL := "https://mycreatorblog.com/posts/seo-guide"
+	executedChild.ScheduledAt = &schedAt
+	executedChild.PublishedAt = &pubAt
+	executedChild.PublicationURL = pubURL
+	if err := repo.UpdateTask(ctx, executedChild); err != nil {
+		t.Fatalf("failed to update task with publication fields: %v", err)
+	}
+
+	pubTask, err := repo.GetTaskByID(ctx, executedChild.ID)
+	if err != nil {
+		t.Fatalf("failed to fetch updated publication task: %v", err)
+	}
+	if pubTask.PublicationURL != pubURL {
+		t.Errorf("expected publication_url %s, got %s", pubURL, pubTask.PublicationURL)
+	}
+	if pubTask.ScheduledAt == nil || *pubTask.ScheduledAt != schedAt {
+		t.Errorf("scheduled_at mismatch")
+	}
+	if pubTask.PublishedAt == nil || *pubTask.PublishedAt != pubAt {
+		t.Errorf("published_at mismatch")
+	}
 }
 
 func TestMemoryProjectStudioRepository_ConcurrencyThreadSafety(t *testing.T) {
@@ -662,5 +702,8 @@ func TestRepositories_Aggregation(t *testing.T) {
 	}
 	if repos.Projects == nil {
 		t.Errorf("expected Projects repository to be non-nil")
+	}
+	if repos.ProjectIntegrations == nil {
+		t.Errorf("expected ProjectIntegrations repository to be non-nil")
 	}
 }

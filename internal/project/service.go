@@ -102,6 +102,18 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 	if len(metadata) == 0 {
 		metadata = []byte("{}")
 	}
+	enabledModules := req.EnabledModules
+	if len(enabledModules) == 0 {
+		enabledModules = []byte(`["tasks", "discussions"]`)
+	}
+	sourceType := strings.ToLower(strings.TrimSpace(req.SourceType))
+	if sourceType == "" {
+		sourceType = "blank"
+	}
+	sourceMetadata := req.SourceMetadata
+	if len(sourceMetadata) == 0 {
+		sourceMetadata = []byte("{}")
+	}
 
 	now := time.Now().UTC()
 	p := &Project{
@@ -117,6 +129,9 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 		CloneStatus:    "connected",
 		ProjectType:    projectType,
 		Metadata:       metadata,
+		EnabledModules: enabledModules,
+		SourceType:     sourceType,
+		SourceMetadata: sourceMetadata,
 		LastFetchedAt:  &now,
 		LastError:      "",
 		CreatedAt:      now,

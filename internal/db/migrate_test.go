@@ -287,6 +287,47 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(creatorMig.DownSQL, "DROP COLUMN IF EXISTS metadata") {
 		t.Errorf("expected 000015 DownSQL to drop metadata column")
 	}
+
+	if len(migs) < 16 {
+		t.Fatalf("expected at least 16 migrations, got %d", len(migs))
+	}
+	modularMig := migs[15]
+	if modularMig.Version != "000016" {
+		t.Errorf("expected version 000016, got %s", modularMig.Version)
+	}
+	if modularMig.Name != "modular_workspaces_and_publishing" {
+		t.Errorf("expected name modular_workspaces_and_publishing, got %s", modularMig.Name)
+	}
+	if !strings.Contains(modularMig.UpSQL, "ADD COLUMN IF NOT EXISTS enabled_modules") {
+		t.Errorf("expected 000016 UpSQL to add enabled_modules column")
+	}
+	if !strings.Contains(modularMig.UpSQL, "ADD COLUMN IF NOT EXISTS source_type") {
+		t.Errorf("expected 000016 UpSQL to add source_type column")
+	}
+	if !strings.Contains(modularMig.UpSQL, "ADD COLUMN IF NOT EXISTS source_metadata") {
+		t.Errorf("expected 000016 UpSQL to add source_metadata column")
+	}
+	if !strings.Contains(modularMig.UpSQL, "CREATE TABLE IF NOT EXISTS project_integrations") {
+		t.Errorf("expected 000016 UpSQL to create project_integrations table")
+	}
+	if !strings.Contains(modularMig.UpSQL, "ADD COLUMN IF NOT EXISTS scheduled_at") {
+		t.Errorf("expected 000016 UpSQL to add scheduled_at column")
+	}
+	if !strings.Contains(modularMig.UpSQL, "ADD COLUMN IF NOT EXISTS published_at") {
+		t.Errorf("expected 000016 UpSQL to add published_at column")
+	}
+	if !strings.Contains(modularMig.UpSQL, "ADD COLUMN IF NOT EXISTS publication_url") {
+		t.Errorf("expected 000016 UpSQL to add publication_url column")
+	}
+	if !strings.Contains(modularMig.DownSQL, "DROP TABLE IF EXISTS project_integrations CASCADE") {
+		t.Errorf("expected 000016 DownSQL to drop project_integrations table")
+	}
+	if !strings.Contains(modularMig.DownSQL, "DROP COLUMN IF EXISTS publication_url") {
+		t.Errorf("expected 000016 DownSQL to drop publication_url column")
+	}
+	if !strings.Contains(modularMig.DownSQL, "DROP COLUMN IF EXISTS enabled_modules") {
+		t.Errorf("expected 000016 DownSQL to drop enabled_modules column")
+	}
 }
 
 func TestDryRun(t *testing.T) {

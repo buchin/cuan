@@ -32,6 +32,21 @@ func cloneMemoryProject(p *Project) *Project {
 	} else {
 		cp.Metadata = json.RawMessage("{}")
 	}
+	if len(cp.EnabledModules) > 0 {
+		cp.EnabledModules = make(json.RawMessage, len(p.EnabledModules))
+		copy(cp.EnabledModules, p.EnabledModules)
+	} else {
+		cp.EnabledModules = json.RawMessage(`["tasks", "discussions"]`)
+	}
+	if cp.SourceType == "" {
+		cp.SourceType = "blank"
+	}
+	if len(cp.SourceMetadata) > 0 {
+		cp.SourceMetadata = make(json.RawMessage, len(p.SourceMetadata))
+		copy(cp.SourceMetadata, p.SourceMetadata)
+	} else {
+		cp.SourceMetadata = json.RawMessage("{}")
+	}
 	if p.LastFetchedAt != nil {
 		t := *p.LastFetchedAt
 		cp.LastFetchedAt = &t

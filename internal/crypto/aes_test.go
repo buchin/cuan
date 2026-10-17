@@ -95,3 +95,31 @@ func TestAES256GCM_StringHelpers(t *testing.T) {
 		t.Errorf("expected error decrypting with wrong secret, got nil")
 	}
 }
+
+func TestApplicationPasswordEncryption(t *testing.T) {
+	appPassword := "abcd 1234 efgh 5678"
+	secret := "test-vault-encryption-secret-12345"
+
+	encrypted, err := EncryptApplicationPassword(appPassword, secret)
+	if err != nil {
+		t.Fatalf("EncryptApplicationPassword failed: %v", err)
+	}
+	if encrypted == appPassword || encrypted == "" {
+		t.Fatalf("expected encrypted ciphertext, got %q", encrypted)
+	}
+
+	decrypted, err := DecryptApplicationPassword(encrypted, secret)
+	if err != nil {
+		t.Fatalf("DecryptApplicationPassword failed: %v", err)
+	}
+	if decrypted != appPassword {
+		t.Errorf("expected decrypted %q, got %q", appPassword, decrypted)
+	}
+
+	// Tampered ciphertext fails
+	_, err = DecryptApplicationPassword("invalid-base64-random-junk", secret)
+	if err == nil {
+		t.Errorf("expected error decrypting tampered ciphertext")
+	}
+}
+

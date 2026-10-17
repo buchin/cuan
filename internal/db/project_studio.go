@@ -185,42 +185,48 @@ type DoDItem struct {
 
 // ProjectTask represents a structured task with fan-out hierarchy and multi-project batch capabilities.
 type ProjectTask struct {
-	ID              string    `json:"id"`
-	ProjectID       string    `json:"project_id"`
-	RoomID          *string   `json:"room_id,omitempty"`
-	Title           string    `json:"title"`
-	Description     string    `json:"description"`
-	Status          string    `json:"status"`   // 'backlog', 'doing', 'review', 'done'
-	Priority        string    `json:"priority"` // 'low', 'normal', 'high', 'urgent'
-	DoDChecklist    []DoDItem `json:"dod_checklist"`
-	AssigneeID      *string   `json:"assignee_id,omitempty"`
-	ParentTaskID    *string   `json:"parent_task_id,omitempty"` // For fan-out hierarchy
-	BatchID         *string   `json:"batch_id,omitempty"`       // For multi-project batch grouping
-	Tags            []string  `json:"tags"`                   // For tag selectors e.g. ["wordpress", "adsense"]
-	AgentOutput     string    `json:"agent_output"`           // Generated agent output/deliverables
-	ExecutionStatus string    `json:"execution_status"`       // 'idle', 'running', 'completed', 'failed'
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              string     `json:"id"`
+	ProjectID       string     `json:"project_id"`
+	RoomID          *string    `json:"room_id,omitempty"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	Status          string     `json:"status"`   // 'backlog', 'doing', 'review', 'done'
+	Priority        string     `json:"priority"` // 'low', 'normal', 'high', 'urgent'
+	DoDChecklist    []DoDItem  `json:"dod_checklist"`
+	AssigneeID      *string    `json:"assignee_id,omitempty"`
+	ParentTaskID    *string    `json:"parent_task_id,omitempty"` // For fan-out hierarchy
+	BatchID         *string    `json:"batch_id,omitempty"`       // For multi-project batch grouping
+	Tags            []string   `json:"tags"`                   // For tag selectors e.g. ["wordpress", "adsense"]
+	AgentOutput     string     `json:"agent_output"`           // Generated agent output/deliverables
+	ExecutionStatus string     `json:"execution_status"`       // 'idle', 'running', 'completed', 'failed'
+	ScheduledAt     *time.Time `json:"scheduled_at,omitempty"`  // Publication schedule
+	PublishedAt     *time.Time `json:"published_at,omitempty"`  // Publication timestamp
+	PublicationURL  string     `json:"publication_url"`        // URL of published post/article
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // ProjectTaskDTO is the public Data Transfer Object for ProjectTask.
 type ProjectTaskDTO struct {
-	ID              string    `json:"id"`
-	ProjectID       string    `json:"project_id"`
-	RoomID          *string   `json:"room_id,omitempty"`
-	Title           string    `json:"title"`
-	Description     string    `json:"description"`
-	Status          string    `json:"status"`
-	Priority        string    `json:"priority"`
-	DoDChecklist    []DoDItem `json:"dod_checklist"`
-	AssigneeID      *string   `json:"assignee_id,omitempty"`
-	ParentTaskID    *string   `json:"parent_task_id,omitempty"`
-	BatchID         *string   `json:"batch_id,omitempty"`
-	Tags            []string  `json:"tags"`
-	AgentOutput     string    `json:"agent_output"`
-	ExecutionStatus string    `json:"execution_status"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              string     `json:"id"`
+	ProjectID       string     `json:"project_id"`
+	RoomID          *string    `json:"room_id,omitempty"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	Status          string     `json:"status"`
+	Priority        string     `json:"priority"`
+	DoDChecklist    []DoDItem  `json:"dod_checklist"`
+	AssigneeID      *string    `json:"assignee_id,omitempty"`
+	ParentTaskID    *string    `json:"parent_task_id,omitempty"`
+	BatchID         *string    `json:"batch_id,omitempty"`
+	Tags            []string   `json:"tags"`
+	AgentOutput     string     `json:"agent_output"`
+	ExecutionStatus string     `json:"execution_status"`
+	ScheduledAt     *time.Time `json:"scheduled_at,omitempty"`
+	PublishedAt     *time.Time `json:"published_at,omitempty"`
+	PublicationURL  string     `json:"publication_url"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // ToDTO converts a ProjectTask to its public DTO.
@@ -233,6 +239,17 @@ func (t *ProjectTask) ToDTO() ProjectTaskDTO {
 	execStatus := t.ExecutionStatus
 	if execStatus == "" {
 		execStatus = "idle"
+	}
+
+	var scheduledAt *time.Time
+	if t.ScheduledAt != nil {
+		st := *t.ScheduledAt
+		scheduledAt = &st
+	}
+	var publishedAt *time.Time
+	if t.PublishedAt != nil {
+		pt := *t.PublishedAt
+		publishedAt = &pt
 	}
 
 	return ProjectTaskDTO{
@@ -250,6 +267,9 @@ func (t *ProjectTask) ToDTO() ProjectTaskDTO {
 		Tags:            tagsCopy,
 		AgentOutput:     t.AgentOutput,
 		ExecutionStatus: execStatus,
+		ScheduledAt:     scheduledAt,
+		PublishedAt:     publishedAt,
+		PublicationURL:  t.PublicationURL,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 	}
@@ -759,8 +779,10 @@ func (r *SQLProjectStudioRepository) CreateTask(ctx context.Context, task *Proje
 		INSERT INTO project_tasks (
 			id, project_id, room_id, title, description, status, priority,
 			dod_checklist, assignee_id, parent_task_id, batch_id, tags,
-			agent_output, execution_status, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			agent_output, execution_status,
+			scheduled_at, published_at, publication_url,
+			created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 	`
 	_, err = r.db.ExecContext(ctx, query,
 		task.ID,
@@ -777,6 +799,9 @@ func (r *SQLProjectStudioRepository) CreateTask(ctx context.Context, task *Proje
 		tagsBytes,
 		task.AgentOutput,
 		task.ExecutionStatus,
+		task.ScheduledAt,
+		task.PublishedAt,
+		task.PublicationURL,
 		task.CreatedAt,
 		task.UpdatedAt,
 	)
@@ -801,12 +826,14 @@ func (r *SQLProjectStudioRepository) GetTaskByID(ctx context.Context, id string)
 		SELECT id, project_id, room_id, title, description, status, priority,
 		       dod_checklist, assignee_id, parent_task_id, batch_id, tags,
 		       COALESCE(agent_output, ''), COALESCE(execution_status, 'idle'),
+		       scheduled_at, published_at, COALESCE(publication_url, ''),
 		       created_at, updated_at
 		FROM project_tasks
 		WHERE id = $1
 	`
 	var task ProjectTask
 	var dodBytes, tagsBytes []byte
+	var scheduledAt, publishedAt sql.NullTime
 
 	row := r.db.QueryRowContext(ctx, query, id)
 	err := row.Scan(
@@ -824,6 +851,9 @@ func (r *SQLProjectStudioRepository) GetTaskByID(ctx context.Context, id string)
 		&tagsBytes,
 		&task.AgentOutput,
 		&task.ExecutionStatus,
+		&scheduledAt,
+		&publishedAt,
+		&task.PublicationURL,
 		&task.CreatedAt,
 		&task.UpdatedAt,
 	)
@@ -832,6 +862,13 @@ func (r *SQLProjectStudioRepository) GetTaskByID(ctx context.Context, id string)
 			return nil, ErrTaskNotFound
 		}
 		return nil, fmt.Errorf("get project task by id: %w", err)
+	}
+
+	if scheduledAt.Valid {
+		task.ScheduledAt = &scheduledAt.Time
+	}
+	if publishedAt.Valid {
+		task.PublishedAt = &publishedAt.Time
 	}
 
 	task.DoDChecklist = []DoDItem{}
@@ -940,6 +977,7 @@ func (r *SQLProjectStudioRepository) ListTasks(ctx context.Context, filter Proje
 		SELECT id, project_id, room_id, title, description, status, priority,
 		       dod_checklist, assignee_id, parent_task_id, batch_id, tags,
 		       COALESCE(agent_output, ''), COALESCE(execution_status, 'idle'),
+		       scheduled_at, published_at, COALESCE(publication_url, ''),
 		       created_at, updated_at
 		FROM project_tasks
 	`
@@ -958,6 +996,7 @@ func (r *SQLProjectStudioRepository) ListTasks(ctx context.Context, filter Proje
 	for rows.Next() {
 		var task ProjectTask
 		var dodBytes, tagsBytes []byte
+		var scheduledAt, publishedAt sql.NullTime
 
 		if err := rows.Scan(
 			&task.ID,
@@ -974,10 +1013,20 @@ func (r *SQLProjectStudioRepository) ListTasks(ctx context.Context, filter Proje
 			&tagsBytes,
 			&task.AgentOutput,
 			&task.ExecutionStatus,
+			&scheduledAt,
+			&publishedAt,
+			&task.PublicationURL,
 			&task.CreatedAt,
 			&task.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan project task: %w", err)
+		}
+
+		if scheduledAt.Valid {
+			task.ScheduledAt = &scheduledAt.Time
+		}
+		if publishedAt.Valid {
+			task.PublishedAt = &publishedAt.Time
 		}
 
 		task.DoDChecklist = []DoDItem{}
@@ -1066,7 +1115,9 @@ func (r *SQLProjectStudioRepository) UpdateTask(ctx context.Context, task *Proje
 		UPDATE project_tasks
 		SET room_id = $2, title = $3, description = $4, status = $5, priority = $6,
 		    dod_checklist = $7, assignee_id = $8, parent_task_id = $9, batch_id = $10,
-		    tags = $11, agent_output = $12, execution_status = $13, updated_at = $14
+		    tags = $11, agent_output = $12, execution_status = $13,
+		    scheduled_at = $14, published_at = $15, publication_url = $16,
+		    updated_at = $17
 		WHERE id = $1
 	`
 	res, err := r.db.ExecContext(ctx, query,
@@ -1083,6 +1134,9 @@ func (r *SQLProjectStudioRepository) UpdateTask(ctx context.Context, task *Proje
 		tagsBytes,
 		task.AgentOutput,
 		task.ExecutionStatus,
+		task.ScheduledAt,
+		task.PublishedAt,
+		task.PublicationURL,
 		task.UpdatedAt,
 	)
 	if err != nil {
@@ -1248,6 +1302,14 @@ func cloneTask(t *ProjectTask) *ProjectTask {
 		copy(cp.Tags, t.Tags)
 	} else {
 		cp.Tags = []string{}
+	}
+	if t.ScheduledAt != nil {
+		st := *t.ScheduledAt
+		cp.ScheduledAt = &st
+	}
+	if t.PublishedAt != nil {
+		pt := *t.PublishedAt
+		cp.PublishedAt = &pt
 	}
 	return &cp
 }
@@ -1774,6 +1836,19 @@ func (m *MemoryProjectStudioRepository) UpdateTask(ctx context.Context, task *Pr
 	existing.BatchID = task.BatchID
 	existing.AgentOutput = task.AgentOutput
 	existing.ExecutionStatus = task.ExecutionStatus
+	existing.PublicationURL = task.PublicationURL
+	if task.ScheduledAt != nil {
+		st := *task.ScheduledAt
+		existing.ScheduledAt = &st
+	} else {
+		existing.ScheduledAt = nil
+	}
+	if task.PublishedAt != nil {
+		pt := *task.PublishedAt
+		existing.PublishedAt = &pt
+	} else {
+		existing.PublishedAt = nil
+	}
 
 	if task.DoDChecklist != nil {
 		existing.DoDChecklist = make([]DoDItem, len(task.DoDChecklist))

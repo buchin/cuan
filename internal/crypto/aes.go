@@ -128,3 +128,14 @@ func DecryptStringAES256GCM(encodedCiphertext, secret string) (string, error) {
 
 	return string(plaintext), nil
 }
+
+// EncryptApplicationPassword encrypts an application password (e.g. for WordPress) via AES-256-GCM.
+func EncryptApplicationPassword(appPassword, secret string) (string, error) {
+	return EncryptStringAES256GCM(appPassword, secret)
+}
+
+// DecryptApplicationPassword decrypts an application password via AES-256-GCM.
+func DecryptApplicationPassword(encodedCiphertext, secret string) (string, error) {
+	return DecryptStringAES256GCM(encodedCiphertext, secret)
+}
+
