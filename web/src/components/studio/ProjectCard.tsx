@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Card, CardHeader } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -22,11 +23,18 @@ import {
 } from 'lucide-react'
 import { DeploymentItem, ServerItem, CustomDomainItem } from './types'
 
+export interface ProjectHealthBadgeInfo {
+  status: 'healthy' | 'degraded' | 'unhealthy' | 'down' | string
+  response_time_ms?: number
+  uptime_percent?: number
+}
+
 interface ProjectCardProps {
   deployment: DeploymentItem
   baseDomain?: string
   servers?: ServerItem[]
   customDomains?: CustomDomainItem[]
+  healthInfo?: ProjectHealthBadgeInfo
   onOpenDrawer: (dep: DeploymentItem) => void
   onOpenCustomDomains?: (dep: DeploymentItem) => void
   onQuickStart: (dep: DeploymentItem) => void
@@ -42,6 +50,7 @@ export function ProjectCard({
   baseDomain = 'cuan.dojo.cc',
   servers = [],
   customDomains = [],
+  healthInfo,
   onOpenDrawer,
   onOpenCustomDomains,
   onQuickStart,
@@ -51,6 +60,49 @@ export function ProjectCard({
   copiedId,
   onCopyUrl
 }: ProjectCardProps) {
+  // Internal health polling if healthInfo is not provided
+  const [internalHealth, setInternalHealth] = useState<ProjectHealthBadgeInfo | null>(null)
+
+  useEffect(() => {
+    if (healthInfo) return
+    if (dep.status !== 'running') {
+      setInternalHealth(null)
+      return
+    }
+
+    let isMounted = true
+    const checkHealth = async () => {
+      try {
+        const res = await fetch(`/api/deployments/${dep.id}/health`)
+        if (res.ok) {
+          const data = await res.json()
+          if (isMounted) {
+            setInternalHealth({
+              status: data.status,
+              response_time_ms: data.response_time_ms,
+              uptime_percent: data.uptime_percent,
+            })
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    checkHealth()
+    const interval = setInterval(checkHealth, 15000)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [dep.id, dep.status, healthInfo])
+
+  const effectiveHealth = healthInfo || internalHealth
+  const healthStatus = dep.status === 'stopped'
+    ? null
+    : (effectiveHealth?.status || (dep.status === 'running' ? 'healthy' : 'down'))
+  const healthLatency = effectiveHealth?.response_time_ms
+
   const liveURL = dep.domain
     ? `http://${dep.domain}`
     : `http://${dep.slug}.${baseDomain}`
@@ -89,22 +141,43 @@ export function ProjectCard({
             <p className="text-xs font-mono text-slate-400">/{dep.slug}</p>
           </div>
 
-          {/* Status Badge */}
-          {dep.status === 'running' ? (
-            <Badge variant="success" className="gap-1 py-0.5 px-2 text-[11px] shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-              Running
-            </Badge>
-          ) : dep.status === 'stopped' ? (
-            <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-[11px] shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-              Stopped
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-[11px] shrink-0">
-              {dep.status}
-            </Badge>
-          )}
+          {/* Status Badges: Process Status + Observability Health Status (Healthy, Degraded, Down) */}
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+            {/* Process Status */}
+            {dep.status === 'running' ? (
+              <Badge variant="success" className="gap-1 py-0.5 px-2 text-[11px] shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                Running
+              </Badge>
+            ) : dep.status === 'stopped' ? (
+              <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-[11px] shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                Stopped
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[11px] shrink-0">
+                {dep.status}
+              </Badge>
+            )}
+
+            {/* Health Status Badge (S06.4 DoD requirement) */}
+            {healthStatus === 'healthy' ? (
+              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 py-0.5 px-2 text-[10px] font-semibold shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Healthy{healthLatency ? ` (${healthLatency}ms)` : ''}
+              </Badge>
+            ) : healthStatus === 'degraded' ? (
+              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1 py-0.5 px-2 text-[10px] font-semibold shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                Degraded{healthLatency ? ` (${healthLatency}ms)` : ''}
+              </Badge>
+            ) : healthStatus === 'down' || healthStatus === 'unhealthy' ? (
+              <Badge variant="destructive" className="gap-1 py-0.5 px-2 text-[10px] font-semibold shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                Down
+              </Badge>
+            ) : null}
+          </div>
         </div>
 
         {/* Live Subdomain Link Row */}

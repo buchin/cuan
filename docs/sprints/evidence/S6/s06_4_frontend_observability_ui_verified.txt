@@ -1,0 +1,77 @@
+=== CUAN SPRINT 6 (S06.4) EVIDENCE: FRONTEND OBSERVABILITY & INCIDENT HUB DI STUDIO DASHBOARD VERIFIED ===
+Timestamp: 2026-10-17T11:12:00+07:00
+Task ID: urybjokvgiefrwucvnrpjdeo
+Title: S06.4 — Frontend Observability & Incident Hub di Studio Dashboard
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Frontend Observability Hub (web/src/components/studio/ObservabilityView.tsx & StudioDashboard.tsx):
+   - Tab "Observability" terintegrasi penuh di Studio Dashboard (/studio/observability):
+     * Sinkronisasi URL dua arah (URL navigation /studio/observability, tombol navigasi tab Desktop dan Mobile).
+     * Indikator live status "Hub" / "Live" pada navigation bar.
+   - 4 Summary Cards di Observability Hub:
+     * Uptime Score %: Rata-rata persentase ketersediaan SLA rolling dari seluruh probe deployment.
+     * Total Monitored Deployments: Jumlah total deployment yang dipantau (local sandbox & remote BYOS VPS).
+     * Active Outages: Jumlah insiden outage aktif atau deployment berstatus unhealthy/down.
+     * Average Response Latency: Rata-rata latensi respon HTTP (ms) dari seluruh endpoint aktif.
+   - Resource Utilization Cards & Gauges:
+     * Live CPU gauge (%) dengan visual dynamic progress bar (hijau <65%, amber 65-85%, merah >=85%).
+     * RAM Memory meter (Used MB vs Total MB dan Memory percentage).
+     * Disk Storage meter (Used GB vs Total GB dan Disk percentage).
+     * Server telemetry probe telemetri non-invasif dari BYOS VPS nodes.
+   - Live Polling & Auto-Refresh:
+     * Interval polling otomatis setiap 10 detik dengan countdown timer interaktif.
+     * Kontrol toggle pause/resume polling dan tombol manual "Refresh".
+   - Incident History Table:
+     * Kolom Target: tipe target (deployment / server) dan target ID.
+     * Kolom Event Title & Details: ringkasan insiden dan pesan error/resolusi lengkap.
+     * Kolom Severity: Badge Critical Outage untuk failure streak dan Normal/Recovered untuk resolusi.
+     * Kolom Duration: durasi aktif insiden (misal: "4m 12s (Aktif)") atau durasi hingga resolusi.
+     * Kolom Timestamp: waktu penembakan insiden (triggered_at) terformat lokal.
+     * Filter status insiden interaktif (All, Firing, Resolved) dan search box pencarian instan.
+
+2. Alert Channels Setup Modal (web/src/components/studio/AlertChannelsModal.tsx):
+   - Form pendaftaran channel notifikasi multi-channel:
+     * Telegram Bot API: Input Bot Token & Chat ID / Group ID.
+     * Discord Webhook: Input Incoming Webhook URL.
+     * Custom Webhook: Input Webhook URL & Secret Key HMAC SHA-256.
+   - Panduan konfigurasi zero-friction:
+     * Panduan step-by-step interaktif untuk Telegram Bot (@BotFather, /newbot, @userinfobot chat ID).
+     * Panduan konfigurasi Discord Webhook (Server Settings -> Integrations -> Webhooks).
+     * Panduan payload JSON dan header X-Cuan-Signature: sha256=... untuk Custom Webhook.
+   - Fitur 1-klik "Test Alert":
+     * Tombol "Test Alert" dengan visual spinner saat pengiriman request POST /api/alert-channels/{id}/test.
+     * Visual feedback hijau sukses "Pesan uji coba berhasil terkirim!" / status badge "Terkirim!".
+     * Penanganan error informatif jika token / webhook URL salah.
+   - Proteksi Kredensial & At-Rest Encryption:
+     * Badge "AES-GCM Encrypted" menegaskan enkripsi kredensial di sisi server.
+     * Tampilan masked config (sanitized token & webhook URL) pada daftar channel aktif.
+
+3. Integrasi Status Indikator di Project Cards & Drawers:
+   - Health status badge pada ProjectCard.tsx:
+     * Status Healthy (hijau emerald pulsing) dilengkapi response time ms: "Healthy (15ms)".
+     * Status Degraded (amber) untuk respon lambat atau failure sementara: "Degraded".
+     * Status Down (merah destructive) untuk kegagalan probe berulang: "Down".
+     * Auto-fallback polling health jika prop tidak dioper dari parent dashboard.
+   - Panel status Observability di ProjectDrawer.tsx:
+     * Status bar liveness & HTTP status code (HTTP 200, HTTP 502, dll).
+     * Kartu metrik: Status Code, Response Latency (ms), Uptime SLA (%), Failures Streak.
+     * Tombol aksi cepat: "Trigger Health Check Now" yang langsung mengeksekusi on-demand probe via POST /api/deployments/{id}/health/check-now dan menampilkan visual feedback seketika.
+
+4. Quality & Build Gate Verification:
+   - TypeScript Check (tsc --noEmit):
+     $ npx tsc --noEmit
+     Exit Code: 0 (0 errors, 0 warnings)
+   - Vite Production Build:
+     $ npm run build
+     dist/index.html                   0.55 kB │ gzip:   0.37 kB
+     dist/assets/index-CCdD9K4I.css   66.35 kB │ gzip:  10.69 kB
+     dist/assets/index-qiCzldnw.js   584.33 kB │ gzip: 134.89 kB
+     built in 4.09s (Exit Code: 0)
+   - Zero Regression Backend Go Suite:
+     ok  github.com/buchin/cuan/internal/server        53.239s
+     ok  github.com/buchin/cuan/internal/observability  0.570s
+     ok  github.com/buchin/cuan/internal/db             0.312s
+
+All Definition of Done (DoD) criteria for S06.4 are 100% fulfilled and verified.

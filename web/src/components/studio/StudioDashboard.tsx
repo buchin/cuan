@@ -17,13 +17,15 @@ import {
   Sparkles,
   AlertCircle,
   UploadCloud,
-  Server
+  Server,
+  Activity
 } from 'lucide-react'
 import { DeploymentItem, ServerItem, CustomDomainItem } from './types'
 import { DeployWizardModal } from './DeployWizardModal'
 import { ProjectDrawer } from './ProjectDrawer'
 import { ServersView } from './ServersView'
 import { DomainsView } from './DomainsView'
+import { ObservabilityView } from './ObservabilityView'
 import { CustomDomainsModal } from './CustomDomainsModal'
 import { ProjectCard } from './ProjectCard'
 
@@ -49,9 +51,12 @@ export function StudioDashboard({
   const [error, setError] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Tab state: 'projects' | 'servers' | 'domains'
-  const [activeTab, setActiveTab] = useState<'projects' | 'servers' | 'domains'>(() => {
+  // Tab state: 'projects' | 'servers' | 'domains' | 'observability'
+  const [activeTab, setActiveTab] = useState<'projects' | 'servers' | 'domains' | 'observability'>(() => {
     if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/studio/observability')) {
+        return 'observability'
+      }
       if (window.location.pathname.startsWith('/studio/domains')) {
         return 'domains'
       }
@@ -64,7 +69,9 @@ export function StudioDashboard({
 
   // Synchronize when currentPath prop changes
   useEffect(() => {
-    if (currentPath === '/studio/domains') {
+    if (currentPath === '/studio/observability') {
+      setActiveTab('observability')
+    } else if (currentPath === '/studio/domains') {
       setActiveTab('domains')
     } else if (currentPath === '/studio/servers') {
       setActiveTab('servers')
@@ -384,6 +391,25 @@ export function StudioDashboard({
                 {servers.length}
               </span>
             </button>
+
+            {/* Observability Tab Button (S06.4 DoD) */}
+            <button
+              onClick={() => {
+                setActiveTab('observability')
+                onNavigate?.('/studio/observability')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'observability'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Activity className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Observability</span>
+              <span className="h-4 px-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono flex items-center justify-center">
+                Live
+              </span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -498,6 +524,21 @@ export function StudioDashboard({
             <Server className="h-3.5 w-3.5 text-indigo-500" />
             <span>Servers ({servers.length})</span>
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('observability')
+              onNavigate?.('/studio/observability')
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg font-semibold transition-all ${
+              activeTab === 'observability'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <Activity className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Observability</span>
+          </button>
         </div>
 
         {/* Studio Mode Active Banner (APP_MODE=studio) */}
@@ -536,8 +577,15 @@ export function StudioDashboard({
           </div>
         )}
 
-        {/* Tab View Switching: Domains Hub vs Servers Hub vs Projects Dashboard */}
-        {activeTab === 'domains' ? (
+        {/* Tab View Switching: Observability Hub vs Domains Hub vs Servers Hub vs Projects Dashboard */}
+        {activeTab === 'observability' ? (
+          <ObservabilityView
+            onNavigate={onNavigate}
+            baseDomain={baseDomain}
+            deployments={deployments}
+            onOpenDrawer={handleOpenDrawer}
+          />
+        ) : activeTab === 'domains' ? (
           <DomainsView
             onNavigate={onNavigate}
             baseDomain={baseDomain}

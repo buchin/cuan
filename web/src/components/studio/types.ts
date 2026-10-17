@@ -127,3 +127,67 @@ export interface CreateDomainResult {
   instructions: CustomDomainInstructions
 }
 
+export interface ProbeRecord {
+  timestamp: string
+  status_code: number
+  response_time_ms: number
+  is_success: boolean
+  error?: string
+}
+
+export interface DeploymentHealthResponse {
+  alive: boolean
+  pid: number
+  port: number
+  port_responding: boolean
+  error?: string
+  deployment_id: string
+  url: string
+  status: 'healthy' | 'degraded' | 'unhealthy' | string
+  last_checked_at?: string
+  last_status_code: number
+  response_time_ms: number
+  consecutive_failures: number
+  uptime_percent: number
+  avg_latency_ms: number
+  total_probes: number
+  history?: ProbeRecord[]
+}
+
+export interface ServerMetricDTO {
+  id: string
+  server_id?: string
+  deployment_id?: string
+  cpu_percent: number
+  memory_used_mb: number
+  memory_total_mb: number
+  memory_percent: number
+  disk_used_gb: number
+  disk_total_gb: number
+  disk_percent: number
+  recorded_at: string
+}
+
+export interface AlertChannelDTO {
+  id: string
+  project_id: string
+  type: 'telegram' | 'discord' | 'webhook' | string
+  name: string
+  is_active: boolean
+  masked_config?: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface AlertIncidentDTO {
+  id: string
+  project_id: string
+  target_type: 'deployment' | 'server' | string
+  target_id: string
+  title: string
+  message: string
+  status: 'firing' | 'resolved' | string
+  triggered_at: string
+  resolved_at?: string
+}
+

@@ -22,9 +22,10 @@ import {
   Radio,
   Server,
   CheckCircle2,
-  Clock
+  Clock,
+  HeartPulse
 } from 'lucide-react'
-import { DeploymentItem, DeploymentLog, HealthStatus, CustomDomainItem } from './types'
+import { DeploymentItem, DeploymentLog, DeploymentHealthResponse, CustomDomainItem } from './types'
 import { CustomDomainsModal } from './CustomDomainsModal'
 
 interface ProjectDrawerProps {
@@ -52,8 +53,10 @@ export function ProjectDrawer({
   const [copiedUrl, setCopiedUrl] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // Live health state
-  const [health, setHealth] = useState<HealthStatus | null>(null)
+  // Live health & Observability state (S06.4)
+  const [health, setHealth] = useState<DeploymentHealthResponse | null>(null)
+  const [isCheckingHealthNow, setIsCheckingHealthNow] = useState(false)
+  const [healthCheckMsg, setHealthCheckMsg] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Logs state
   const [logs, setLogs] = useState<DeploymentLog[]>([])
@@ -220,6 +223,51 @@ export function ProjectDrawer({
     navigator.clipboard.writeText(liveURL)
     setCopiedUrl(true)
     setTimeout(() => setCopiedUrl(false), 2000)
+  }
+
+  // Quick Action: Trigger Health Check Now (S06.4 DoD)
+  const handleTriggerHealthCheckNow = async () => {
+    if (!deployment) return
+    setIsCheckingHealthNow(true)
+    setHealthCheckMsg(null)
+    try {
+      const res = await fetch(`/api/deployments/${deployment.id}/health/check-now`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      setHealth((prev) => ({
+        alive: prev?.alive ?? true,
+        pid: prev?.pid ?? deployment.process_pid,
+        port: prev?.port ?? deployment.internal_port,
+        port_responding: prev?.port_responding ?? true,
+        deployment_id: deployment.id,
+        url: data.url,
+        status: data.status,
+        last_status_code: data.last_status_code,
+        response_time_ms: data.response_time_ms,
+        consecutive_failures: data.consecutive_failures,
+        last_checked_at: data.last_checked_at,
+        uptime_percent: data.uptime_percent,
+        avg_latency_ms: data.avg_latency_ms,
+        total_probes: data.total_probes,
+      }))
+      setHealthCheckMsg({
+        type: 'success',
+        message: `Probe sukses: Status ${data.status.toUpperCase()} (${data.response_time_ms}ms, HTTP ${data.last_status_code})`,
+      })
+      setTimeout(() => setHealthCheckMsg(null), 4000)
+    } catch (err: any) {
+      setHealthCheckMsg({
+        type: 'error',
+        message: `Gagal menjalankan health probe: ${err.message}`,
+      })
+    } finally {
+      setIsCheckingHealthNow(false)
+    }
   }
 
   const copyAllLogs = () => {
@@ -445,6 +493,111 @@ export function ProjectDrawer({
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Health & Observability Status Panel (S06.4 DoD requirement) */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-emerald-500" />
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Health & Observability Status
+                </span>
+                {health?.status === 'healthy' ? (
+                  <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 text-[10px] font-semibold py-0.5 px-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Healthy
+                  </Badge>
+                ) : health?.status === 'degraded' ? (
+                  <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1 text-[10px] font-semibold py-0.5 px-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Degraded
+                  </Badge>
+                ) : health?.status === 'unhealthy' || health?.status === 'down' ? (
+                  <Badge variant="destructive" className="gap-1 text-[10px] font-semibold py-0.5 px-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                    Down
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {deployment.status === 'running' ? 'Healthy' : 'Stopped'}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Quick Action: Trigger Health Check Now */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleTriggerHealthCheckNow}
+                disabled={isCheckingHealthNow || deployment.status !== 'running'}
+                className="h-7 text-xs font-semibold px-2.5 flex items-center gap-1.5 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+              >
+                <RefreshCw className={`h-3 w-3 ${isCheckingHealthNow ? 'animate-spin' : ''}`} />
+                <span>{isCheckingHealthNow ? 'Probing...' : 'Trigger Health Check Now'}</span>
+              </Button>
+            </div>
+
+            {/* Health Check Feedback Alert */}
+            {healthCheckMsg && (
+              <div
+                className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                  healthCheckMsg.type === 'success'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800'
+                }`}
+              >
+                {healthCheckMsg.type === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                )}
+                <span>{healthCheckMsg.message}</span>
+              </div>
+            )}
+
+            {/* Health Metrics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Status Code</span>
+                <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                  {health?.last_status_code ? (
+                    <span className={health.last_status_code < 400 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}>
+                      HTTP {health.last_status_code}
+                    </span>
+                  ) : (
+                    'None'
+                  )}
+                </span>
+              </div>
+
+              <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Response Latency</span>
+                <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                  {health?.response_time_ms ? `${health.response_time_ms} ms` : '-'}
+                </span>
+              </div>
+
+              <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Uptime SLA</span>
+                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                  {health?.uptime_percent ? `${health.uptime_percent.toFixed(1)}%` : '100%'}
+                </span>
+              </div>
+
+              <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Failures Streak</span>
+                <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                  {health?.consecutive_failures ?? 0} failures
+                </span>
+              </div>
+            </div>
+
+            {health?.last_checked_at && (
+              <p className="text-[10px] text-slate-400 font-mono">
+                Probe terakhir: {new Date(health.last_checked_at).toLocaleTimeString()} ({health.total_probes ?? 0} total probes)
+              </p>
             )}
           </div>
 
