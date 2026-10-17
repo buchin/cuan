@@ -23,6 +23,7 @@ import (
 	"github.com/buchin/cuan/internal/deployer"
 	"github.com/buchin/cuan/internal/domain"
 	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/observability"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/sponsorship"
@@ -30,23 +31,26 @@ import (
 )
 
 type Server struct {
-	cfg            *config.Config
-	db             *sql.DB
-	authSvc        *auth.Service
-	projectSvc     *project.Service
-	taskSvc        *task.Service
-	runnerSvc      *runner.RunnerService
-	sponsorshipSvc *sponsorship.Service
-	deployerDriver deployer.DeployDriver
-	serverRepo     cuanDB.ServerRepository
-	domainRepo     cuanDB.DomainRepository
-	dnsVerifier    *domain.DNSVerifier
-	dnsPoller      *domain.DNSHealthPoller
-	keyVault       *crypto.KeyVault
-	sshManager     deployer.SSHManager
-	healthPoller   *deployer.ProcessHealthPoller
-	caddyRouter    *deployer.CaddyRouter
-	router         *chi.Mux
+	cfg                 *config.Config
+	db                  *sql.DB
+	authSvc             *auth.Service
+	projectSvc          *project.Service
+	taskSvc             *task.Service
+	runnerSvc           *runner.RunnerService
+	sponsorshipSvc      *sponsorship.Service
+	deployerDriver      deployer.DeployDriver
+	serverRepo          cuanDB.ServerRepository
+	domainRepo          cuanDB.DomainRepository
+	dnsVerifier         *domain.DNSVerifier
+	dnsPoller           *domain.DNSHealthPoller
+	keyVault            *crypto.KeyVault
+	sshManager          deployer.SSHManager
+	healthPoller        *deployer.ProcessHealthPoller
+	caddyRouter         *deployer.CaddyRouter
+	obsRepo             cuanDB.ObservabilityRepository
+	obsHealthPoller     *observability.HealthPoller
+	obsMetricsCollector *observability.MetricsCollector
+	router              *chi.Mux
 }
 
 
@@ -174,24 +178,41 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	})
 	dnsPoller := domain.NewDNSHealthPoller(domRepo, dnsVerifier, depDriver, srvRepo, caddyRouter)
 
+	var obsRepo cuanDB.ObservabilityRepository
+	if db != nil {
+		obsRepo = cuanDB.NewSQLObservabilityRepository(db)
+	} else {
+		obsRepo = cuanDB.NewMemoryObservabilityRepository()
+	}
+	obsHealthPoller := observability.NewHealthPoller(obsRepo)
+	defaultSSHRunner := observability.NewDefaultSSHRunner(vault, sshMgr)
+	obsMetricsCollector := observability.NewMetricsCollector(
+		obsRepo,
+		observability.WithSSHRunner(defaultSSHRunner),
+		observability.WithServerRepo(srvRepo),
+	)
+
 	s := &Server{
-		cfg:            cfg,
-		db:             db,
-		authSvc:        svc,
-		projectSvc:     pSvc,
-		taskSvc:        tSvc,
-		runnerSvc:      rSvc,
-		sponsorshipSvc: spSvc,
-		deployerDriver: depDriver,
-		serverRepo:     srvRepo,
-		domainRepo:     domRepo,
-		dnsVerifier:    dnsVerifier,
-		dnsPoller:      dnsPoller,
-		keyVault:       vault,
-		sshManager:     sshMgr,
-		healthPoller:   healthPoller,
-		caddyRouter:    caddyRouter,
-		router:         r,
+		cfg:                 cfg,
+		db:                  db,
+		authSvc:             svc,
+		projectSvc:          pSvc,
+		taskSvc:             tSvc,
+		runnerSvc:           rSvc,
+		sponsorshipSvc:      spSvc,
+		deployerDriver:      depDriver,
+		serverRepo:          srvRepo,
+		domainRepo:          domRepo,
+		dnsVerifier:         dnsVerifier,
+		dnsPoller:           dnsPoller,
+		keyVault:            vault,
+		sshManager:          sshMgr,
+		healthPoller:        healthPoller,
+		caddyRouter:         caddyRouter,
+		obsRepo:             obsRepo,
+		obsHealthPoller:     obsHealthPoller,
+		obsMetricsCollector: obsMetricsCollector,
+		router:              r,
 	}
 
 	s.routes()
@@ -324,6 +345,30 @@ func (s *Server) SetAppMode(mode string) {
 	}
 }
 
+func (s *Server) ObservabilityRepository() cuanDB.ObservabilityRepository {
+	return s.obsRepo
+}
+
+func (s *Server) SetObservabilityRepository(repo cuanDB.ObservabilityRepository) {
+	s.obsRepo = repo
+}
+
+func (s *Server) ObservabilityHealthPoller() *observability.HealthPoller {
+	return s.obsHealthPoller
+}
+
+func (s *Server) SetObservabilityHealthPoller(p *observability.HealthPoller) {
+	s.obsHealthPoller = p
+}
+
+func (s *Server) ObservabilityMetricsCollector() *observability.MetricsCollector {
+	return s.obsMetricsCollector
+}
+
+func (s *Server) SetObservabilityMetricsCollector(c *observability.MetricsCollector) {
+	s.obsMetricsCollector = c
+}
+
 func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
@@ -361,11 +406,13 @@ func (s *Server) routes() {
 	s.router.Delete("/api/deployments/{id}", s.handleDeleteDeployment)
 	s.router.Get("/api/deployments/{id}/logs", s.handleGetDeploymentLogs)
 	s.router.Get("/api/deployments/{id}/health", s.handleGetDeploymentHealth)
+	s.router.Post("/api/deployments/{id}/health/check-now", s.handleCheckDeploymentHealthNow)
 
-	// BYOS Server Management Endpoints (Sprint 4 S04.2)
+	// BYOS Server Management Endpoints (Sprint 4 S04.2 & Sprint 6 S06.2)
 	s.router.Get("/api/servers", s.handleListServers)
 	s.router.Post("/api/servers", s.handleCreateServer)
 	s.router.Get("/api/servers/{id}", s.handleGetServer)
+	s.router.Get("/api/servers/{id}/metrics", s.handleGetServerMetrics)
 	s.router.Post("/api/servers/{id}/test", s.handleTestServer)
 	s.router.Delete("/api/servers/{id}", s.handleDeleteServer)
 
@@ -401,6 +448,7 @@ func (s *Server) routes() {
 		dr.Delete("/{id}", s.handleDeleteDeployment)
 		dr.Get("/{id}/logs", s.handleGetDeploymentLogs)
 		dr.Get("/{id}/health", s.handleGetDeploymentHealth)
+		dr.Post("/{id}/health/check-now", s.handleCheckDeploymentHealthNow)
 		dr.Post("/{id}/domains", s.handleCreateDeploymentDomain)
 		dr.Get("/{id}/domains", s.handleListDeploymentDomains)
 	})
@@ -410,6 +458,7 @@ func (s *Server) routes() {
 		sr.Get("/", s.handleListServers)
 		sr.Post("/", s.handleCreateServer)
 		sr.Get("/{id}", s.handleGetServer)
+		sr.Get("/{id}/metrics", s.handleGetServerMetrics)
 		sr.Post("/{id}/test", s.handleTestServer)
 		sr.Delete("/{id}", s.handleDeleteServer)
 	})

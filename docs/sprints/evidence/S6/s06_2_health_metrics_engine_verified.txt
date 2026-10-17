@@ -1,0 +1,88 @@
+=== CUAN SPRINT 6 (S06.2) EVIDENCE: HEALTH CHECK ENGINE, AUTOMATED POLLER & RESOURCE METRICS COLLECTOR VERIFIED ===
+Timestamp: 2026-10-17T10:33:00+07:00
+Task ID: niyxatarjzjmaajnessosllf
+Title: S06.2 — Health Check Engine, Automated Poller & Resource Metrics Collector
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Health Check Engine & Automated Poller (internal/observability/health.go):
+   - HealthPoller Service:
+     * Managed lifecycle via Start(ctx) and graceful Stop() with bounded shutdown timeout.
+     * Automated periodic background polling with configurable interval (DefaultPollInterval = 30s) and timeout (DefaultProbeTimeout = 5s).
+     * Prober abstraction (Prober interface and HTTPProber) supporting HTTP/HTTPS probing with redirect protection and keyword verification.
+     * Health status evaluation logic (EvaluateStatus):
+       - 'healthy': HTTP status code 2xx/3xx, latency <= 2000ms, and consecutive_failures == 0.
+       - 'degraded': Slow response > 2000ms OR consecutive failures < 3 (anti-flapping protection for transient network hiccups).
+       - 'unhealthy': Consecutive failures >= 3 (caused by repeated 5xx errors, timeouts, or network disconnection).
+       - Recovery: Successful probe immediately transitions status back to 'healthy' and resets consecutive failures to 0.
+     * Rolling Uptime Calculator (RollingHistory & UptimeReport):
+       - Sliding window buffer of recent probe records (default capacity: 50).
+       - Real-time calculation of UptimePercent (ratio of non-unhealthy probes), AverageLatencyMs, TotalProbes, SuccessfulProbes, and FailedProbes.
+     * Instant On-Demand Probe (ProbeNow):
+       - Executes immediate probe for any deployment, updates database record, records history, and returns consolidated UptimeReport.
+     * Persistence integration with ObservabilityRepository (health_checks table).
+
+2. Resource Metrics Collector (internal/observability/metrics.go):
+   - MetricsCollector Service:
+     * Managed lifecycle via Start(ctx) and graceful Stop() with periodic collection loop.
+     * Local Runner Metrics:
+       - LocalMetricsReader interface and OSLocalMetricsReader implementation.
+       - Linux /proc and syscall telemetry:
+         * RAM: /proc/meminfo parsing (MemTotal, MemAvailable) to compute MemoryUsedMB and MemoryTotalMB.
+         * Disk: syscall.Statfs("/") calculation to compute DiskUsedGB and DiskTotalGB.
+         * CPU: /proc/stat delta sampling to compute active CPUPercent.
+       - MockLocalMetricsReader for deterministic unit testing.
+     * Remote BYOS Telemetry Runner:
+       - SSHRunner interface and DefaultSSHRunner reusing Sprint 4 SSH client pool (deployer.SSHManager) and AES-GCM credential vault (crypto.KeyVault).
+       - Lightweight non-invasive remote script (RemoteTelemetryScript) running top, free -m, and df -m.
+       - Regex-based parser (ParseRemoteTelemetry) extracting CPU, RAM, and Disk metrics.
+       - MockSSHRunner for testing remote telemetry without live SSH daemons.
+     * Persistence integration with ObservabilityRepository (server_metrics table).
+
+3. HTTP REST Endpoints (internal/server/observability_handlers.go & internal/server/server.go):
+   - GET /api/deployments/{id}/health (and /api/v1/deployments/{id}/health):
+     * Returns consolidated health report: status ('healthy', 'degraded', 'unhealthy'), latency (response_time_ms), consecutive_failures, last_status_code, last_checked_at, uptime_percent, avg_latency_ms, and recent probe history.
+     * 100% backward-compatible with Sprint 3 & 4 tests by preserving process health fields (alive, pid, port, port_responding).
+   - POST /api/deployments/{id}/health/check-now (and /api/v1/deployments/{id}/health/check-now):
+     * Triggers on-demand health check probe, records results, and returns probe outcome with updated metrics.
+   - GET /api/servers/{id}/metrics (and /api/v1/servers/{id}/metrics):
+     * Returns server telemetry time-series and latest recorded metric (CPU, RAM, Disk MB/GB and percentages).
+     * Supports limit query parameter and optional on-demand collection trigger (?collect=true).
+
+4. Targeted Automated Unit Tests (internal/observability & internal/server):
+   === RUN   TestEvaluateStatus
+   --- PASS: TestEvaluateStatus (0.00s)
+       --- PASS: TestEvaluateStatus/Fast_200_OK_is_Healthy (0.00s)
+       --- PASS: TestEvaluateStatus/Slow_200_OK_(>2s)_is_Degraded (0.00s)
+       --- PASS: TestEvaluateStatus/First_500_error_is_Degraded_(1_failure) (0.00s)
+       --- PASS: TestEvaluateStatus/Second_500_error_is_Degraded_(2_failures) (0.00s)
+       --- PASS: TestEvaluateStatus/Third_500_error_is_Unhealthy_(3_failures) (0.00s)
+       --- PASS: TestEvaluateStatus/Timeout_/_Network_Error_increases_failure_count (0.00s)
+       --- PASS: TestEvaluateStatus/Keyword_mismatch_is_treated_as_failure (0.00s)
+       --- PASS: TestEvaluateStatus/Recovery_from_Unhealthy_to_Healthy_resets_failures (0.00s)
+   === RUN   TestRollingHistory_Report
+   --- PASS: TestRollingHistory_Report (0.00s)
+   === RUN   TestHTTPProber_Probe
+   --- PASS: TestHTTPProber_Probe (0.04s)
+   === RUN   TestHealthPoller_LifecycleAndProbeNow
+   --- PASS: TestHealthPoller_LifecycleAndProbeNow (0.25s)
+   === RUN   TestParseRemoteTelemetry
+   --- PASS: TestParseRemoteTelemetry (0.00s)
+   === RUN   TestOSLocalMetricsReader_ReadMetrics
+   --- PASS: TestOSLocalMetricsReader_ReadMetrics (0.00s)
+   === RUN   TestMetricsCollector_LocalAndRemote
+   --- PASS: TestMetricsCollector_LocalAndRemote (0.15s)
+   === RUN   TestObservabilityEndpoints_DeploymentHealth
+   --- PASS: TestObservabilityEndpoints_DeploymentHealth (0.04s)
+   === RUN   TestObservabilityEndpoints_ServerMetrics
+   --- PASS: TestObservabilityEndpoints_ServerMetrics (0.00s)
+
+5. Zero Regression Verification:
+   ok  github.com/buchin/cuan/internal/observability 0.450s
+   ok  github.com/buchin/cuan/internal/db            0.504s
+   ok  github.com/buchin/cuan/internal/deployer      1.870s
+   ok  github.com/buchin/cuan/internal/domain        0.005s
+   ok  github.com/buchin/cuan/internal/server        53.658s
+
+All acceptance criteria and Definition of Done (DoD) for S06.2 are 100% verified.

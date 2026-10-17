@@ -434,25 +434,3 @@ func (s *Server) handleGetDeploymentLogs(w http.ResponseWriter, r *http.Request)
 		}
 	}
 }
-
-// handleGetDeploymentHealth checks PID liveness and port responsiveness.
-func (s *Server) handleGetDeploymentHealth(w http.ResponseWriter, r *http.Request) {
-	if s.deployerDriver == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "deployer driver is not configured")
-		return
-	}
-
-	id := chi.URLParam(r, "id")
-	if id == "" {
-		respondJSONError(w, http.StatusBadRequest, "deployment id is required")
-		return
-	}
-
-	hs, err := s.deployerDriver.Health(r.Context(), id)
-	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "failed to check health: "+err.Error())
-		return
-	}
-
-	respondJSON(w, http.StatusOK, hs)
-}
