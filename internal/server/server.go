@@ -53,6 +53,7 @@ type Server struct {
 	obsMetricsCollector *observability.MetricsCollector
 	obsAlertDispatcher  *observability.AlertDispatcher
 	projectStudioRepo   cuanDB.ProjectStudioRepository
+	batchCampaignRepo   cuanDB.BatchCampaignRepository
 	distillerEngine     *studio.DistillerEngine
 	agentExecutionHook  studio.AgentExecutionHook
 	roomEventBroker     *RoomEventBroker
@@ -237,6 +238,13 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		studioRepo = cuanDB.NewMemoryProjectStudioRepository()
 	}
 
+	var batchRepo cuanDB.BatchCampaignRepository
+	if db != nil {
+		batchRepo = cuanDB.NewSQLBatchCampaignRepository(db)
+	} else {
+		batchRepo = cuanDB.NewMemoryBatchCampaignRepository()
+	}
+
 	var hookDispatcher studio.ExecutionDispatcher
 	if tStore != nil {
 		hookDispatcher = studio.NewRunnerTaskBridgeDispatcher(tStore)
@@ -266,6 +274,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		obsMetricsCollector: obsMetricsCollector,
 		obsAlertDispatcher:  obsAlertDispatcher,
 		projectStudioRepo:   studioRepo,
+		batchCampaignRepo:   batchRepo,
 		distillerEngine:     distiller,
 		agentExecutionHook:  agentHook,
 		roomEventBroker:     NewRoomEventBroker(),
@@ -440,6 +449,14 @@ func (s *Server) ProjectStudioRepository() cuanDB.ProjectStudioRepository {
 
 func (s *Server) SetProjectStudioRepository(repo cuanDB.ProjectStudioRepository) {
 	s.projectStudioRepo = repo
+}
+
+func (s *Server) BatchCampaignRepository() cuanDB.BatchCampaignRepository {
+	return s.batchCampaignRepo
+}
+
+func (s *Server) SetBatchCampaignRepository(repo cuanDB.BatchCampaignRepository) {
+	s.batchCampaignRepo = repo
 }
 
 func (s *Server) RoomEventBroker() *RoomEventBroker {

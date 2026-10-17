@@ -623,4 +623,7 @@ func TestRepositories_Aggregation(t *testing.T) {
 	if repos.ProjectStudio == nil {
 		t.Errorf("expected ProjectStudio repository to be non-nil")
 	}
+	if repos.BatchCampaigns == nil {
+		t.Errorf("expected BatchCampaigns repository to be non-nil")
+	}
 }

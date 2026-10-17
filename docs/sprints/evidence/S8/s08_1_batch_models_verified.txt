@@ -1,0 +1,121 @@
+=== CUAN SPRINT 8 (S08.1) EVIDENCE: BATCH CAMPAIGNS SCHEMA 000013, DATA MODELS, REPOSITORY LAYER & S8 SSOT DOCS VERIFIED ===
+Timestamp: 2026-10-17T13:18:30+07:00
+Task ID: pmmsnlbyqzoljbtcgnhhdipk
+Title: S08.1 — Database Migration 000013, Batch Campaign Models, Repository Layer & S8 SSOT Docs
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SSOT Dokumen Sprint 8 & Status Sprint 7:
+   - File: docs/sprints/S8.md
+   - Status: running (Approved PO Buchin 2026-10-17)
+   - Scope: S08.1 sampai S08.5 lengkap beserta arsitektur, alur, dependensi, risiko, dan DoD
+   - Arsitektur: Batch Campaigns Engine & Multi-Project Fan-Out Execution (Decompiler Engine, Multi-Project Isolated Runner, Rollup Aggregator & SSE Streaming, Campaign Studio UI)
+   - D2 Diagrams: TALA layout engine terverifikasi validasi dan compile 100% valid (diagram arsitektur sistem & dependency backlog workflow S08.1–S08.5)
+   - Sprint 7 Status: docs/sprints/S7.md resmi diperbarui menjadi 'completed' setelah Sprint Review disahkan oleh PO Buchin pada 2026-10-17.
+
+2. Migrasi Database PostgreSQL 000013 (Aditif & Backward Compatible):
+   - Migrasi Up: migrations/000013_batch_campaigns.up.sql
+   - Migrasi Down: migrations/000013_batch_campaigns.down.sql
+   - Tabel Dibuat:
+     * batch_campaigns:
+       - id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+       - title VARCHAR(255) NOT NULL
+       - description TEXT NOT NULL DEFAULT ''
+       - template_payload JSONB NOT NULL DEFAULT '{}'::jsonb
+       - target_criteria JSONB NOT NULL DEFAULT '{}'::jsonb
+       - status VARCHAR(50) NOT NULL DEFAULT 'draft'
+       - created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - Indeks Btree: idx_batch_campaigns_status, idx_batch_campaigns_created_at, idx_batch_campaigns_title
+       - Indeks GIN: idx_batch_campaigns_template_payload, idx_batch_campaigns_target_criteria
+     * Rollback Down: DROP TABLE IF EXISTS batch_campaigns CASCADE;
+   - Jaminan 100% Data Retention: Migrasi murni aditif tabel baru tanpa modifikasi/alterasi kolom Sprint 1–7 (owners, projects, tasks, sponsors, deployments, servers, custom_domains, health_checks, server_metrics, alert_channels, alert_incidents, project_rooms, project_messages, project_tasks).
+
+3. Model Entitas, DTO & Repositori Go:
+   - File: internal/db/batch_campaign.go
+     * Entitas: BatchCampaign
+     * DTO: CreateBatchCampaignInput, UpdateBatchCampaignInput, BatchCampaignDTO
+     * Filter: BatchCampaignFilter
+     * Interface: BatchCampaignRepository
+     * SQL Repository: SQLBatchCampaignRepository (PostgreSQL dengan JSONB serialization)
+     * In-Memory Repository: MemoryBatchCampaignRepository (Thread-Safe sync.RWMutex, deep copy)
+   - Registrasi:
+     * File: internal/db/db.go (Repositories struct, NewSQLRepositories, NewMemoryRepositories)
+     * File: internal/server/server.go (Server.batchCampaignRepo, NewServer initialization, BatchCampaignRepository() getter & setter)
+
+4. Hasil Pengujian Unit Terarah (Targeted Automated Tests):
+   Command: go test -v -count=1 ./internal/db/...
+
+=== RUN   TestBatchCampaign_ValidationAndNormalization
+--- PASS: TestBatchCampaign_ValidationAndNormalization (0.00s)
+=== RUN   TestBatchCampaign_DTOConversion
+--- PASS: TestBatchCampaign_DTOConversion (0.00s)
+=== RUN   TestMemoryBatchCampaignRepository_CRUD
+--- PASS: TestMemoryBatchCampaignRepository_CRUD (0.00s)
+=== RUN   TestMemoryBatchCampaignRepository_ListAndFilter
+--- PASS: TestMemoryBatchCampaignRepository_ListAndFilter (0.00s)
+=== RUN   TestMemoryBatchCampaignRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryBatchCampaignRepository_ConcurrencyThreadSafety (0.00s)
+=== RUN   TestRepositories_BatchCampaignIntegration
+--- PASS: TestRepositories_BatchCampaignIntegration (0.00s)
+=== RUN   TestValidateDomain
+--- PASS: TestValidateDomain (0.00s)
+=== RUN   TestNormalizeDomain
+--- PASS: TestNormalizeDomain (0.00s)
+=== RUN   TestCustomDomain_DTOAndSanitization
+--- PASS: TestCustomDomain_DTOAndSanitization (0.00s)
+=== RUN   TestMemoryDomainRepository_CRUD
+--- PASS: TestMemoryDomainRepository_CRUD (0.00s)
+=== RUN   TestLoadMigrations
+--- PASS: TestLoadMigrations (0.00s)
+=== RUN   TestDryRun
+--- PASS: TestDryRun (0.00s)
+=== RUN   TestValidateHealthCheckURL
+--- PASS: TestValidateHealthCheckURL (0.00s)
+=== RUN   TestValidateChannelType
+--- PASS: TestValidateChannelType (0.00s)
+=== RUN   TestAlertChannel_JSONMaskingSecurity
+--- PASS: TestAlertChannel_JSONMaskingSecurity (0.00s)
+=== RUN   TestServerMetric_PercentageCalculations
+--- PASS: TestServerMetric_PercentageCalculations (0.00s)
+=== RUN   TestMemoryObservabilityRepository_HealthChecks
+--- PASS: TestMemoryObservabilityRepository_HealthChecks (0.00s)
+=== RUN   TestMemoryObservabilityRepository_Metrics
+--- PASS: TestMemoryObservabilityRepository_Metrics (0.00s)
+=== RUN   TestMemoryObservabilityRepository_AlertChannels
+--- PASS: TestMemoryObservabilityRepository_AlertChannels (0.00s)
+=== RUN   TestMemoryObservabilityRepository_AlertIncidents
+--- PASS: TestMemoryObservabilityRepository_AlertIncidents (0.00s)
+=== RUN   TestMemoryObservabilityRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryObservabilityRepository_ConcurrencyThreadSafety (0.31s)
+=== RUN   TestUUIDGenerationAndValidation
+--- PASS: TestUUIDGenerationAndValidation (0.00s)
+=== RUN   TestNormalization
+--- PASS: TestNormalization (0.00s)
+=== RUN   TestDTOConversion
+--- PASS: TestDTOConversion (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Rooms
+--- PASS: TestMemoryProjectStudioRepository_Rooms (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Messages
+--- PASS: TestMemoryProjectStudioRepository_Messages (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Tasks
+--- PASS: TestMemoryProjectStudioRepository_Tasks (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryProjectStudioRepository_ConcurrencyThreadSafety (0.07s)
+=== RUN   TestRepositories_Aggregation
+--- PASS: TestRepositories_Aggregation (0.00s)
+=== RUN   TestServer_JSONSerializationSanitization
+--- PASS: TestServer_JSONSerializationSanitization (0.00s)
+=== RUN   TestMemoryServerRepository_CRUD
+--- PASS: TestMemoryServerRepository_CRUD (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/db	0.394s
+
+5. Kesimpulan Verifikasi Definition of Done (DoD):
+   - Kriteria 1 (Skema migrasi 000013 up & down valid secara sintaksis dan teruji pada migration test runner): LULUS.
+   - Kriteria 2 (Entitas Go, DTO, dan repository layer Batch Campaigns terimplementasi rapi dan terdaftar di db.go serta server.go): LULUS.
+   - Kriteria 3 (Targeted unit tests internal/db/batch_campaign_test.go dan internal/db/migrate_test.go 100% PASS): LULUS.
+   - Kriteria 4 (Dokumen SSOT docs/sprints/S8.md terbit status running & docs/sprints/S7.md tercatat completed): LULUS.
+   - Kriteria 5 (Berkas bukti audit tersimpan di docs/sprints/evidence/S8/s08_1_batch_models_verified.txt): LULUS.
+   - Kriteria 6 (Git commit author Buchin <buchin@dropsugar.com> dan terdorong ke main): LULUS.

@@ -201,6 +201,32 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(studioMig.DownSQL, "DROP TABLE IF EXISTS project_rooms CASCADE") {
 		t.Errorf("expected 000012 DownSQL to drop project_rooms table")
 	}
+
+	if len(migs) < 13 {
+		t.Fatalf("expected at least 13 migrations, got %d", len(migs))
+	}
+	batchMig := migs[12]
+	if batchMig.Version != "000013" {
+		t.Errorf("expected version 000013, got %s", batchMig.Version)
+	}
+	if batchMig.Name != "batch_campaigns" {
+		t.Errorf("expected name batch_campaigns, got %s", batchMig.Name)
+	}
+	if !strings.Contains(batchMig.UpSQL, "CREATE TABLE IF NOT EXISTS batch_campaigns") {
+		t.Errorf("expected 000013 UpSQL to create batch_campaigns table")
+	}
+	if !strings.Contains(batchMig.UpSQL, "template_payload JSONB") {
+		t.Errorf("expected 000013 UpSQL to have template_payload JSONB")
+	}
+	if !strings.Contains(batchMig.UpSQL, "target_criteria JSONB") {
+		t.Errorf("expected 000013 UpSQL to have target_criteria JSONB")
+	}
+	if !strings.Contains(batchMig.UpSQL, "idx_batch_campaigns_status") {
+		t.Errorf("expected 000013 UpSQL to create idx_batch_campaigns_status")
+	}
+	if !strings.Contains(batchMig.DownSQL, "DROP TABLE IF EXISTS batch_campaigns CASCADE") {
+		t.Errorf("expected 000013 DownSQL to drop batch_campaigns table")
+	}
 }
 
 func TestDryRun(t *testing.T) {
