@@ -102,6 +102,32 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(byosMig.DownSQL, "ALTER TABLE deployments DROP COLUMN IF EXISTS server_id") {
 		t.Errorf("expected 000009 DownSQL to drop server_id column")
 	}
+
+	if len(migs) < 10 {
+		t.Fatalf("expected at least 10 migrations, got %d", len(migs))
+	}
+	customDomainsMig := migs[9]
+	if customDomainsMig.Version != "000010" {
+		t.Errorf("expected version 000010, got %s", customDomainsMig.Version)
+	}
+	if customDomainsMig.Name != "custom_domains" {
+		t.Errorf("expected name custom_domains, got %s", customDomainsMig.Name)
+	}
+	if !strings.Contains(customDomainsMig.UpSQL, "CREATE TABLE IF NOT EXISTS custom_domains") {
+		t.Errorf("expected 000010 UpSQL to create custom_domains table")
+	}
+	if !strings.Contains(customDomainsMig.UpSQL, "REFERENCES deployments(id) ON DELETE CASCADE") {
+		t.Errorf("expected 000010 UpSQL to reference deployments(id) with CASCADE")
+	}
+	if !strings.Contains(customDomainsMig.UpSQL, "idx_custom_domains_deployment_id") {
+		t.Errorf("expected 000010 UpSQL to create index on deployment_id")
+	}
+	if !strings.Contains(customDomainsMig.UpSQL, "idx_custom_domains_domain") {
+		t.Errorf("expected 000010 UpSQL to create index on domain")
+	}
+	if !strings.Contains(customDomainsMig.DownSQL, "DROP TABLE IF EXISTS custom_domains CASCADE") {
+		t.Errorf("expected 000010 DownSQL to drop custom_domains table")
+	}
 }
 
 func TestDryRun(t *testing.T) {
