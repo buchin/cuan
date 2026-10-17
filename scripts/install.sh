@@ -6,7 +6,21 @@
 # ==============================================================================
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Support both direct script execution and remote curl | bash piping
+if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+  ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+  ROOT_DIR="${CUAN_INSTALL_DIR:-/opt/cuan}"
+  mkdir -p "$ROOT_DIR"
+  if [[ ! -f "$ROOT_DIR/docker-compose.yml" && ! -f "$ROOT_DIR/bin/cuan-server" ]]; then
+    echo "==> Fresh remote installation detected. Bootstrapping Cuan into ${ROOT_DIR}..."
+    if command -v git >/dev/null 2>&1; then
+      git clone --depth 1 https://github.com/buchin/cuan.git "$ROOT_DIR"
+    elif command -v curl >/dev/null 2>&1; then
+      curl -fsSL https://github.com/buchin/cuan/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1 -C "$ROOT_DIR"
+    fi
+  fi
+fi
 cd "$ROOT_DIR"
 
 # Defaults
@@ -288,9 +302,35 @@ if [[ -n "${COMPOSE_CMD:-}" ]]; then
   ${COMPOSE_CMD} -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" ${PROFILE_FLAG} up -d
 else
   echo "    [SANDBOX NOTICE] Docker daemon not directly running. Building and verifying binaries..."
+  mkdir -p bin
   go build -o bin/cuan-server ./cmd/server
   go build -o bin/cuan-runner ./cmd/runner
   go build -o bin/cuan-migrate ./cmd/migrate
+
+  if command -v systemctl >/dev/null 2>&1 && [[ -d /etc/systemd/system ]] && [[ $EUID -eq 0 ]]; then
+    echo "==> Configuring systemd service (/etc/systemd/system/cuan.service)..."
+    cat << EOF > /etc/systemd/system/cuan.service
+[Unit]
+Description=Cuan Server — Self-Hosted AI Project Studio
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=${SUDO_USER:-root}
+WorkingDirectory=${ROOT_DIR}
+EnvironmentFile=-${ROOT_DIR}/${ENV_FILE}
+ExecStart=${ROOT_DIR}/bin/cuan-server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable cuan.service || true
+    systemctl restart cuan.service || true
+    echo "    [OK] cuan.service registered, enabled, and started."
+  fi
 fi
 
 # ------------------------------------------------------------------------------

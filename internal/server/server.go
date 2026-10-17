@@ -542,6 +542,7 @@ func (s *Server) routes() {
 	s.router.Get("/api/info", s.handleInfo)
 	s.router.Get("/api/mode", s.handleGetSystemMode)
 	s.router.Get("/api/system/mode", s.handleGetSystemMode)
+	s.router.Get("/install.sh", s.handleInstallScript)
 
 	// Caddy On-Demand TLS Security Gatekeeper (Sprint 5 S05.2)
 	s.router.Get("/api/caddy/ask", s.handleCaddyAsk)
@@ -841,7 +842,7 @@ func (s *Server) setupStaticRoutes() {
 		fileServer := http.FileServer(http.Dir(staticDir))
 		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 			path := filepath.Clean(r.URL.Path)
-			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") {
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || path == "/install.sh" {
 				http.NotFound(w, r)
 				return
 			}
@@ -857,7 +858,7 @@ func (s *Server) setupStaticRoutes() {
 	} else {
 		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 			path := filepath.Clean(r.URL.Path)
-			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") {
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || path == "/install.sh" {
 				http.NotFound(w, r)
 				return
 			}
@@ -894,6 +895,26 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
 	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
+	candidates := []string{
+		filepath.Join(".", "scripts", "install.sh"),
+		filepath.Join("..", "scripts", "install.sh"),
+		filepath.Join("..", "..", "scripts", "install.sh"),
+		"/opt/cuan/scripts/install.sh",
+	}
+	for _, p := range candidates {
+		if data, err := os.ReadFile(p); err == nil && len(data) > 0 {
+			w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(data)
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("#!/usr/bin/env bash\necho 'Cuan installer script temporarily unavailable. Please visit https://github.com/buchin/cuan'\nexit 1\n"))
 }
 
 func (s *Server) handleGetSystemMode(w http.ResponseWriter, r *http.Request) {

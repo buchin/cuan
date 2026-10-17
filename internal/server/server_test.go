@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/buchin/cuan/internal/auth"
@@ -54,6 +55,30 @@ func TestReadyz_InMemory(t *testing.T) {
 
 	if body["status"] != "ready" {
 		t.Errorf("expected status ready, got %v", body["status"])
+	}
+}
+
+func TestInstallScript(t *testing.T) {
+	cfg := &config.Config{}
+	srv := NewServer(cfg, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/install.sh", nil)
+	rr := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+
+	contentType := rr.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "text/x-shellscript") {
+		t.Errorf("expected text/x-shellscript content-type, got %s", contentType)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "#!/usr/bin/env bash") {
+		t.Errorf("expected shell script shebang, got %s", body[:min(50, len(body))])
 	}
 }
 
