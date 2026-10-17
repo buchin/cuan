@@ -233,6 +233,8 @@ export interface ProjectTaskDTO {
   parent_task_id?: string | null
   batch_id?: string | null
   tags: string[]
+  agent_output?: string
+  execution_status?: 'idle' | 'running' | 'completed' | 'failed' | string
   created_at: string
   updated_at: string
 }
@@ -456,5 +458,88 @@ export interface TerminalSessionSummary {
   rows: number
   pid: number
   work_dir: string
+}
+
+// ============================================================================
+// Sprint 10 (S10.4): Creator Blueprint & In-Task Agent Execution Types
+// ============================================================================
+
+export interface CreatorRoomTemplate {
+  title: string
+  topic: string
+}
+
+export interface CreatorTaskTemplate {
+  title: string
+  description: string
+  priority: string
+  dod_checklist: DoDItem[]
+  tags: string[]
+  execution_status: string
+}
+
+export interface CreatorAgentTemplate {
+  name: string
+  role: string
+  avatar: string
+  system_prompt: string
+  model_id: string
+  provider: string
+}
+
+export interface CreatorTemplate {
+  id: string
+  name: string
+  description: string
+  category: string
+  icon: string
+  room: CreatorRoomTemplate
+  tasks: CreatorTaskTemplate[]
+  agent: CreatorAgentTemplate
+}
+
+export interface InstantiateCreatorProjectPayload {
+  template_id: string
+  project_name: string
+  repo_url?: string
+  default_branch?: string
+  token?: string
+  metadata?: Record<string, any>
+}
+
+export interface InstantiateCreatorProjectResponse {
+  status: string
+  template_id: string
+  project: {
+    id: string
+    name: string
+    slug?: string
+    repo_url?: string
+    project_type?: string
+    metadata?: Record<string, any>
+    created_at?: string
+    [key: string]: any
+  }
+  room: ProjectRoomDTO
+  agent: AgentDTO
+  tasks: ProjectTaskDTO[]
+}
+
+export interface ExecuteTaskAgentPayload {
+  instructions?: string
+  user_id?: string
+  model_id?: string
+  provider?: string
+}
+
+export interface ExecuteTaskAgentResponse {
+  status: string
+  execution_status: string
+  task: ProjectTaskDTO
+  agent?: AgentDTO
+  agent_output: string
+  dod_completed_count: number
+  dod_total_count: number
+  room_message_id?: string
 }
 

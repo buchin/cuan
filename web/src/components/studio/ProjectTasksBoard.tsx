@@ -3,6 +3,7 @@ import { Card } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
 import {
   Kanban,
   Plus,
@@ -19,11 +20,14 @@ import {
   ListTodo,
   Zap,
   Terminal as TerminalIcon,
-  X
+  X,
+  Bot,
+  Sparkles
 } from 'lucide-react'
-import { ProjectTaskDTO } from './types'
+import { ProjectTaskDTO, ExecuteTaskAgentResponse } from './types'
 import { DistillTaskModal } from './DistillTaskModal'
 import { TaskTerminal } from './TaskTerminal'
+import { MarkdownViewer } from '../ui/MarkdownViewer'
 
 interface ProjectTasksBoardProps {
   projectId?: string
@@ -112,10 +116,12 @@ export function ProjectTasksBoard({
   // Distill / Create Task Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
-  // Interactive Terminal & Detail Drawer States (S09.4)
+  // Interactive Terminal & Detail Drawer States (S09.4 & S10.4)
   const [selectedTerminalTask, setSelectedTerminalTask] = useState<ProjectTaskDTO | null>(null)
   const [detailTask, setDetailTask] = useState<ProjectTaskDTO | null>(null)
-  const [detailModalTab, setDetailModalTab] = useState<'details' | 'terminal'>('details')
+  const [detailModalTab, setDetailModalTab] = useState<'details' | 'terminal' | 'agent_output'>('details')
+  const [runningAgentTaskIds, setRunningAgentTaskIds] = useState<Record<string, boolean>>({})
+  const [geminiKeyWarning, setGeminiKeyWarning] = useState<string | null>(null)
 
   // Fetch tasks
   const fetchTasks = async (projId: string) => {
@@ -222,6 +228,90 @@ export function ProjectTasksBoard({
   // Toggle Card Expansion for DoD checklist
   const toggleExpandCard = (id: string) => {
     setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  // In-Task Agent Runner (S10.4)
+  const handleRunAgent = async (task: ProjectTaskDTO, customInstructions?: string) => {
+    setRunningAgentTaskIds((prev) => ({ ...prev, [task.id]: true }))
+    setGeminiKeyWarning(null)
+
+    // Optimistic status update
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, execution_status: 'running' } : t))
+    )
+    if (detailTask && detailTask.id === task.id) {
+      setDetailTask((prev) => (prev ? { ...prev, execution_status: 'running' } : null))
+    }
+
+    try {
+      const res = await fetch(`/api/v1/tasks/${task.id}/execute-agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instructions: customInstructions || '',
+        }),
+      })
+
+      const data = await res.json()
+
+      // Handle Missing Gemini Key (422) gracefully
+      if (res.status === 422 || data.code === 'MISSING_GEMINI_KEY') {
+        const errorMsg =
+          data.error ||
+          'Google Gemini Pro API key belum terhubung. Silakan hubungkan API key Anda melalui menu Agent Hub (/studio/agents) terlebih dahulu.'
+        setGeminiKeyWarning(errorMsg)
+        setNotification({
+          type: 'error',
+          message: errorMsg,
+        })
+        setTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? { ...t, execution_status: 'idle' } : t))
+        )
+        if (detailTask && detailTask.id === task.id) {
+          setDetailTask((prev) => (prev ? { ...prev, execution_status: 'idle' } : null))
+        }
+        return
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || `HTTP ${res.status}: Gagal mengeksekusi agent pada task`)
+      }
+
+      const execResp = data as ExecuteTaskAgentResponse
+      const updatedTask = execResp.task || {
+        ...task,
+        agent_output: execResp.agent_output,
+        execution_status: execResp.execution_status || 'completed',
+      }
+
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updatedTask : t)))
+      if (detailTask && detailTask.id === task.id) {
+        setDetailTask(updatedTask)
+        setDetailModalTab('agent_output')
+      }
+
+      setNotification({
+        type: 'success',
+        message: `⚡ Agen ${execResp.agent?.name || 'AI'} berhasil mengeksekusi task! ${execResp.dod_completed_count}/${execResp.dod_total_count} kriteria DoD tercentang. Draf tersimpan di Agent Output.`,
+      })
+    } catch (err: any) {
+      setNotification({
+        type: 'error',
+        message: err.message || 'Gagal mengeksekusi agent pada task ini.',
+      })
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, execution_status: 'idle' } : t))
+      )
+      if (detailTask && detailTask.id === task.id) {
+        setDetailTask((prev) => (prev ? { ...prev, execution_status: 'idle' } : null))
+      }
+    } finally {
+      setRunningAgentTaskIds((prev) => {
+        const next = { ...prev }
+        delete next[task.id]
+        return next
+      })
+    }
   }
 
   // Extract all unique tags, batches, and parent tasks for filters
@@ -530,6 +620,27 @@ export function ProjectTasksBoard({
                         <div className="flex items-center justify-between gap-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {getPriorityBadge(task.priority)}
+                            {(task.execution_status === 'running' || runningAgentTaskIds[task.id]) && (
+                              <Badge className="bg-purple-600 text-white animate-pulse text-[9px] py-0 px-1.5 flex items-center gap-1 font-mono">
+                                <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                Running Agent
+                              </Badge>
+                            )}
+                            {task.agent_output && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDetailTask(task)
+                                  setDetailModalTab('agent_output')
+                                }}
+                                className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 transition-colors"
+                                title="Lihat draf Agent Output"
+                              >
+                                <Bot className="h-2.5 w-2.5 text-emerald-500" />
+                                <span>Output</span>
+                              </button>
+                            )}
                             {task.batch_id && (
                               <Badge variant="outline" className="text-[9px] py-0 px-1 border-indigo-400/40 text-indigo-600 dark:text-indigo-400 font-mono">
                                 {task.batch_id}
@@ -653,6 +764,57 @@ export function ProjectTasksBoard({
                             )}
                           </div>
                         )}
+
+                        {/* In-Task Agent Runner & Output Card Section (S10.4) */}
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                          <button
+                            type="button"
+                            disabled={runningAgentTaskIds[task.id] || task.execution_status === 'running'}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRunAgent(task)
+                            }}
+                            className={`w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
+                              runningAgentTaskIds[task.id] || task.execution_status === 'running'
+                                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 cursor-not-allowed'
+                                : 'bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs hover:shadow-xs active:scale-[0.98]'
+                            }`}
+                            title="Eksekusi pembuatan konten otomatis dengan AI Agent persona via Google Gemini Pro"
+                          >
+                            {runningAgentTaskIds[task.id] || task.execution_status === 'running' ? (
+                              <>
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin text-purple-500" />
+                                <span>Menjalankan Agent...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bot className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                                <span>Run with Agent</span>
+                                <Sparkles className="h-3 w-3 text-amber-500 ml-0.5" />
+                              </>
+                            )}
+                          </button>
+
+                          {task.agent_output && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDetailTask(task)
+                                setDetailModalTab('agent_output')
+                              }}
+                              className="w-full flex items-center justify-between px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-medium transition-colors"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                                <span className="truncate">Draf Konten Siap</span>
+                              </span>
+                              <span className="font-mono text-[9px] text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+                                Buka Output &rarr;
+                              </span>
+                            </button>
+                          )}
+                        </div>
 
                         {/* Status Mutation Control Bar */}
                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-1 text-[10px]">
@@ -789,7 +951,7 @@ export function ProjectTasksBoard({
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                {/* Tab switcher: Detail vs Terminal */}
+                {/* Tab switcher: Detail vs Agent Output vs Terminal */}
                 <div className="flex items-center bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-semibold">
                   <button
                     type="button"
@@ -801,6 +963,22 @@ export function ProjectTasksBoard({
                     }`}
                   >
                     Detail & DoD
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDetailModalTab('agent_output')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
+                      detailModalTab === 'agent_output'
+                        ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                    }`}
+                  >
+                    <Bot className="h-3.5 w-3.5 text-purple-500" />
+                    <span>Agent Output</span>
+                    {detailTask.agent_output && (
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
                   </button>
 
                   <button
@@ -829,7 +1007,103 @@ export function ProjectTasksBoard({
 
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto flex-1">
-              {detailModalTab === 'terminal' ? (
+              {detailModalTab === 'agent_output' ? (
+                <div className="space-y-6">
+                  {/* Agent Output Header Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-slate-50 to-slate-100 dark:from-purple-950/30 dark:via-slate-900/60 dark:to-slate-900 border border-purple-200 dark:border-purple-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400">
+                          <Bot className="h-4 w-4" />
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                          Deliverable Draf Konten AI Agent
+                        </h3>
+                        {detailTask.execution_status && (
+                          <Badge
+                            className={`text-[10px] font-mono py-0 px-2 uppercase ${
+                              detailTask.execution_status === 'running'
+                                ? 'bg-purple-600 text-white animate-pulse'
+                                : detailTask.execution_status === 'completed'
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            }`}
+                          >
+                            {detailTask.execution_status}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Draf konten siap pakai hasil eksekusi Google Gemini Pro berdasarkan instruksi dan kriteria DoD task.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        disabled={runningAgentTaskIds[detailTask.id] || detailTask.execution_status === 'running'}
+                        onClick={() => handleRunAgent(detailTask)}
+                        className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold gap-1.5 shadow-sm"
+                      >
+                        {runningAgentTaskIds[detailTask.id] || detailTask.execution_status === 'running' ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            <span>Mengeksekusi...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            <span>{detailTask.agent_output ? 'Jalankan Ulang Agent' : 'Run with Agent'}</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {geminiKeyWarning && (
+                    <Alert className="bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200">
+                      <AlertTitle className="text-xs font-bold flex items-center gap-1.5">
+                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                        <span>Koneksi Google Gemini Belum Ditemukan</span>
+                      </AlertTitle>
+                      <AlertDescription className="text-xs mt-1">
+                        {geminiKeyWarning}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Render Markdown Deliverable */}
+                  {detailTask.agent_output ? (
+                    <div className="space-y-3">
+                      <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <MarkdownViewer content={detailTask.agent_output} showCopyButton={true} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-10 text-center rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-dashed border-slate-200 dark:border-slate-800 space-y-4">
+                      <div className="h-12 w-12 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 mx-auto flex items-center justify-center">
+                        <Bot className="h-6 w-6" />
+                      </div>
+                      <div className="max-w-md mx-auto space-y-1">
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                          Belum Ada Output Agent untuk Task Ini
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                          Tekan tombol di bawah untuk meminta AI Agent membaca instruksi dan kriteria DoD, lalu membuat draft deliverable siap pakai.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleRunAgent(detailTask)}
+                        disabled={runningAgentTaskIds[detailTask.id]}
+                        className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-5 gap-2 shadow-md shadow-purple-600/20"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Run with Agent Sekarang</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : detailModalTab === 'terminal' ? (
                 <div className="h-[520px] w-full">
                   <TaskTerminal
                     taskId={detailTask.id}

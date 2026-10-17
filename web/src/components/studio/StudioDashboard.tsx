@@ -24,8 +24,9 @@ import {
   Rocket,
   Bot
 } from 'lucide-react'
-import { DeploymentItem, ServerItem, CustomDomainItem } from './types'
+import { DeploymentItem, ServerItem, CustomDomainItem, InstantiateCreatorProjectResponse } from './types'
 import { DeployWizardModal } from './DeployWizardModal'
+import { CreatorWizardModal } from './CreatorWizardModal'
 import { ProjectDrawer } from './ProjectDrawer'
 import { ServersView } from './ServersView'
 import { DomainsView } from './DomainsView'
@@ -197,6 +198,7 @@ export function StudioDashboard({
 
   // Modals & Drawer
   const [isWizardOpen, setIsWizardOpen] = useState(false)
+  const [isCreatorWizardOpen, setIsCreatorWizardOpen] = useState(false)
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentItem | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
@@ -295,6 +297,17 @@ export function StudioDashboard({
     // Automatically open drawer to inspect or start
     setSelectedDeployment(newDep)
     setIsDrawerOpen(true)
+  }
+
+  const handleCreatorProjectCreated = (result: InstantiateCreatorProjectResponse) => {
+    setIsCreatorWizardOpen(false)
+    fetchDeployments()
+    showToast(
+      'success',
+      `🎉 Proyek Creator "${result.project?.name || 'Baru'}" berhasil dibuat! Membuka Tasks Board...`
+    )
+    setActiveTab('tasks')
+    onNavigate?.('/studio/tasks')
   }
 
   const handleDeploymentUpdated = (updated: DeploymentItem) => {
@@ -597,11 +610,20 @@ export function StudioDashboard({
             </Button>
 
             <Button
+              onClick={() => setIsCreatorWizardOpen(true)}
+              className="h-9 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+              title="Buat Proyek Creator Baru dari 4 Blueprint (Blog, YouTube, Olshop, Affiliate)"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Creator Wizard</span>
+            </Button>
+
+            <Button
               onClick={() => setIsWizardOpen(true)}
-              className="h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+              className="h-9 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700 flex items-center gap-1.5"
             >
               <Plus className="h-4 w-4" />
-              <span>Deploy New Project</span>
+              <span>Deploy Project</span>
             </Button>
           </div>
         </div>
@@ -849,6 +871,36 @@ export function StudioDashboard({
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            {/* Creator Blueprint Fast Launcher Banner (S10.4) */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-start gap-3.5">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white tracking-tight">
+                      Creator Project Blueprints (Blog, YouTube, Olshop, Affiliate)
+                    </h3>
+                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-mono py-0 px-1.5">
+                      Instant Pipeline
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Mulai proyek kreator instan dengan alur kerja nyata: rooms diskusi, alur pipeline task, dan AI Agent persona terpasang.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setIsCreatorWizardOpen(true)}
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shrink-0 shadow-md shadow-emerald-600/20"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Buka Creator Wizard</span>
+              </Button>
+            </div>
 
         {/* 1. Stat Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1104,6 +1156,13 @@ export function StudioDashboard({
         onSuccess={handleDeploymentCreated}
         baseDomain={baseDomain}
         servers={servers}
+      />
+
+      {/* Creator Project Wizard Modal (S10.4) */}
+      <CreatorWizardModal
+        isOpen={isCreatorWizardOpen}
+        onClose={() => setIsCreatorWizardOpen(false)}
+        onSuccess={handleCreatorProjectCreated}
       />
 
       {/* Project Control Drawer */}

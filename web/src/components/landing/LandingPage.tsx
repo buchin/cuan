@@ -5,10 +5,6 @@ import { Card } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
 import {
-  Rocket,
-  ShieldCheck,
-  Terminal,
-  Database,
   Cpu,
   Layers,
   Lock,
@@ -18,16 +14,20 @@ import {
   Clock,
   HeartHandshake,
   AlertTriangle,
-  FileCode,
   Menu,
   X,
   Zap,
-  Check,
   ExternalLink,
-  ChevronRight,
   ShieldAlert,
   Server,
-  FolderGit2
+  BookOpen,
+  Video,
+  ShoppingBag,
+  Percent,
+  Bot,
+  ListTodo,
+  FileText,
+  KeyRound
 } from 'lucide-react'
 
 interface LandingPageProps {
@@ -38,7 +38,6 @@ interface LandingPageProps {
 
 export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }: LandingPageProps) {
   // Waiting list state
-  const [email, setEmail] = useState('')
   const [bottomEmail, setBottomEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -63,13 +62,12 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
     }
 
     if (!validateEmail(cleanEmail)) {
-      setErrorMessage('Format email tidak valid. Masukkan email yang benar (contoh: founder@domain.com).')
+      setErrorMessage('Format email tidak valid. Masukkan email yang benar (contoh: creator@domain.com).')
       return
     }
 
     setLoading(true)
     try {
-      // Post to /api/waiting-list
       const res = await fetch('/api/waiting-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -86,10 +84,8 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
 
       setSubmittedEmail(cleanEmail)
       setShowThankYouModal(true)
-      setEmail('')
       setBottomEmail('')
     } catch (err: any) {
-      // Fallback try to /api/leads if /api/waiting-list was somehow intercepted
       try {
         const fallbackRes = await fetch('/api/leads', {
           method: 'POST',
@@ -99,17 +95,23 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
         if (fallbackRes.ok) {
           setSubmittedEmail(cleanEmail)
           setShowThankYouModal(true)
-          setEmail('')
           setBottomEmail('')
           return
         }
       } catch {
-        // ignore fallback failure and show main error
+        // ignore fallback failure
       }
       setErrorMessage(err.message || 'Terjadi kesalahan saat memproses pendaftaran. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const navigateToStudio = () => {
+    if (onToggleMode && appMode !== 'studio') {
+      onToggleMode('studio')
+    }
+    onNavigate('/studio')
   }
 
   return (
@@ -135,20 +137,20 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
                   Mode: {appMode}
                 </Badge>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">Digital Project Studio</p>
+              <p className="text-[11px] text-slate-400 hidden sm:block">Agentic Project Management for Creators</p>
             </div>
           </div>
 
           {/* Desktop Nav Links */}
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
             <a href="#masalah" className="hover:text-emerald-400 transition-colors">
-              Masalah
-            </a>
-            <a href="#agitasi" className="hover:text-emerald-400 transition-colors">
-              Agitasi
+              Masalah Kreator
             </a>
             <a href="#solusi" className="hover:text-emerald-400 transition-colors">
               Solusi Cuan
+            </a>
+            <a href="#blueprints" className="hover:text-emerald-400 transition-colors">
+              Blueprint Katalog
             </a>
             <button
               onClick={() => onNavigate('/sponsor')}
@@ -158,35 +160,31 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
               Founding Sponsor
             </button>
             <button
-              onClick={() => {
-                if (onToggleMode && appMode !== 'studio') {
-                  onToggleMode('studio')
-                }
-                onNavigate('/studio')
-              }}
-              className="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold flex items-center gap-1.5 transition-all"
+              onClick={navigateToStudio}
+              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1.5 transition-all shadow-xs"
               title="Buka Studio Dashboard"
             >
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Studio Deployer</span>
+              <span>Buka Studio</span>
             </button>
             <button
               onClick={() => onNavigate('/app')}
-              className="hover:text-white transition-colors text-slate-400 flex items-center gap-1"
+              className="hover:text-white transition-colors text-slate-400 flex items-center gap-1 text-xs"
             >
               <Lock className="h-3.5 w-3.5" />
-              Owner Console
+              Console
             </button>
           </div>
 
           {/* CTA & Mobile Toggle */}
           <div className="flex items-center gap-3">
-            <a
-              href="#waiting-list"
-              className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm transition-all shadow-md shadow-emerald-500/25 active:scale-95"
+            <button
+              onClick={navigateToStudio}
+              className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition-all shadow-md shadow-emerald-500/25 active:scale-95 gap-1.5"
             >
-              Gabung Waiting List
-            </a>
+              <Sparkles className="h-4 w-4" />
+              <span>Mulai di Studio</span>
+            </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden"
@@ -205,21 +203,21 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
               onClick={() => setMobileMenuOpen(false)}
               className="block py-2 text-sm text-slate-200 hover:text-emerald-400"
             >
-              Masalah Pengembang
-            </a>
-            <a
-              href="#agitasi"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block py-2 text-sm text-slate-200 hover:text-emerald-400"
-            >
-              Dampak Tanpa Launching
+              Masalah Kreator
             </a>
             <a
               href="#solusi"
               onClick={() => setMobileMenuOpen(false)}
               className="block py-2 text-sm text-slate-200 hover:text-emerald-400"
             >
-              Solusi Cuan v1.0
+              Solusi Cuan
+            </a>
+            <a
+              href="#blueprints"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm text-slate-200 hover:text-emerald-400"
+            >
+              Blueprint Katalog
             </a>
             <button
               onClick={() => {
@@ -234,31 +232,23 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
             <button
               onClick={() => {
                 setMobileMenuOpen(false)
-                onNavigate('/studio')
+                navigateToStudio()
               }}
-              className="w-full text-left py-2 text-sm text-emerald-400 font-medium flex items-center gap-1.5"
+              className="w-full text-left py-2 text-sm text-emerald-400 font-bold flex items-center gap-1.5"
             >
               <Sparkles className="h-4 w-4" />
-              Studio Deployer (/studio)
-            </button>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false)
-                onNavigate('/app')
-              }}
-              className="w-full text-left py-2 text-sm text-slate-300 flex items-center gap-1.5"
-            >
-              <Lock className="h-4 w-4" />
-              Owner Console (/admin)
+              Buka Studio (/studio)
             </button>
             <div className="pt-2">
-              <a
-                href="#waiting-list"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full text-center block py-2.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-sm"
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  navigateToStudio()
+                }}
+                className="w-full text-center block py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold text-sm"
               >
-                Gabung Waiting List
-              </a>
+                Mulai di Studio Sekarang
+              </button>
             </div>
           </div>
         )}
@@ -268,179 +258,137 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
       <section className="relative pt-16 pb-20 md:pt-24 md:pb-28 overflow-hidden">
         {/* Glow Effects */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-emerald-500/10 blur-[130px] pointer-events-none rounded-full" />
-        <div className="absolute top-1/3 right-10 w-[300px] h-[300px] bg-blue-500/10 blur-[120px] pointer-events-none rounded-full" />
+        <div className="absolute top-1/3 right-10 w-[300px] h-[300px] bg-purple-500/10 blur-[120px] pointer-events-none rounded-full" />
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           {/* Badge Tag */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-6">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Digital Project Studio for Solo Developers & Founders</span>
+            <span>Agentic Project Management for Creators</span>
           </div>
 
           {/* Hero Headline */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white max-w-4xl mx-auto leading-tight sm:leading-tight">
-            Deploy Purchased Scripts & Tools Digital{' '}
+            Kelola Proyek Kreator & Eksekusi Konten{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
-              Tanpa Pusing Terminal dan Server.
+              Tanpa To-Do List Mati.
             </span>
           </h1>
 
           {/* Hero Subtitle */}
           <p className="mt-6 text-base sm:text-lg text-slate-300 max-w-3xl mx-auto leading-relaxed">
-            Studio mandiri untuk Solo Developers, Indie Hackers, dan Non-Tech Founders. Cukup{' '}
-            <strong className="text-white font-semibold">Upload ZIP script</strong> atau hubungkan repo Git Anda —
-            langsung online dengan lightweight container terisolasi, persistent database, dan reverse proxy HTTPS (Caddy) otomatis.
+            Platform all-in-one untuk <strong className="text-white">Blogger, YouTuber, Olshop, dan Affiliate</strong>.
+            Mulai instan dari template blueprint, jalankan AI Agent langsung di kartu task Kanban, dan dapatkan draf konten,
+            skrip video, serta sales copy berkualitas tinggi dengan Google Gemini Pro tanpa fragmentasi tools.
           </p>
 
-          {/* Hero Waiting List Form */}
-          <div id="waiting-list" className="mt-10 max-w-xl mx-auto">
-            <form
-              onSubmit={(e) => handleWaitingListSubmit(e, email, 'hero_cta')}
-              className="flex flex-col sm:flex-row items-center gap-3 bg-slate-800/80 p-2 sm:p-2.5 rounded-2xl border border-slate-700/80 shadow-2xl backdrop-blur-md"
+          {/* Hero Action CTAs */}
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-lg mx-auto">
+            <Button
+              onClick={navigateToStudio}
+              className="w-full sm:w-auto h-12 px-8 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all active:scale-95"
             >
-              <div className="relative w-full">
-                <Input
-                  type="email"
-                  placeholder="Masukkan email Anda (contoh: founder@domain.com)"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  required
-                  className="bg-slate-900/90 border-slate-700 text-white placeholder:text-slate-500 text-sm h-12 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 pl-4"
-                />
-              </div>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full sm:w-auto h-12 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm whitespace-nowrap shadow-lg shadow-emerald-500/25 transition-all"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    Mendaftarkan...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    Dapatkan Akses v1.0
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
-                )}
-              </Button>
-            </form>
+              <Sparkles className="h-4 w-4" />
+              <span>Buka Studio Sekarang</span>
+              <ArrowRight className="h-4 w-4" />
+            </Button>
 
-            {errorMessage && (
-              <Alert variant="destructive" className="mt-4 bg-red-950/70 border-red-800 text-red-200 text-left">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Validasi Pendaftaran</AlertTitle>
-                <AlertDescription className="text-xs">{errorMessage}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="mt-3 flex items-center justify-center gap-4 text-xs text-slate-400">
-              <span className="flex items-center gap-1">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                100% Bebas Spam
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
-                Welcome Email via Dojo
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
-                Akses Perdana Batch v1.0
-              </span>
-            </div>
+            <a
+              href="#blueprints"
+              className="w-full sm:w-auto h-12 px-6 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-white font-semibold text-sm border border-slate-700 flex items-center justify-center gap-2 transition-all"
+            >
+              <Layers className="h-4 w-4 text-emerald-400" />
+              <span>Eksplor 4 Blueprint</span>
+            </a>
           </div>
 
           {/* Trust Badges */}
           <div className="mt-14 pt-8 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-400">
             <div className="flex items-center justify-center gap-2">
+              <Layers className="h-4 w-4 text-emerald-400" />
+              <span>4 Blueprint Alur Kerja</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <Bot className="h-4 w-4 text-purple-400" />
+              <span>In-Task Agent Runner</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <KeyRound className="h-4 w-4 text-amber-400" />
+              <span>BYOK Key Vault Aman</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
               <Server className="h-4 w-4 text-emerald-400" />
-              <span>100% Self-Hosted</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <FileCode className="h-4 w-4 text-emerald-400" />
-              <span>Open Source Apache-2.0</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <Lock className="h-4 w-4 text-emerald-400" />
-              <span>Zero Vendor Lock-in</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <HeartHandshake className="h-4 w-4 text-emerald-400" />
-              <span>Dojo Ecosystem Backed</span>
+              <span>100% Self-Hosted Apache-2.0</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 3. PROBLEM (P) SECTION */}
+      {/* 3. PROBLEM (MASALAH KREATOR) SECTION */}
       <section id="masalah" className="py-20 bg-slate-950 border-t border-b border-slate-800/80 relative">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <Badge variant="outline" className="border-red-500/40 text-red-400 text-xs py-1 px-3 mb-3 uppercase tracking-wider">
-              Problem • Realita Lapangan
+              Problem • Realita Lapangan Kreator
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Beli Script Ratusan Dolar, Tapi Hanya Mengendap di Hard Drive?
+              Punya Ratusan Ide Konten, Tapi Berakhir Jadi To-Do List Mati?
             </h2>
             <p className="mt-4 text-slate-400 text-base leading-relaxed">
-              Sebagai solo developer atau entrepreneur, Anda punya segudang ide produk digital. Namun perjalanan dari file script menjadi aplikasi live seringkali menjadi mimpi buruk teknis.
+              Sebagai solopreneur dan kreator multi-channel, Anda dituntut konsisten memproduksi konten setiap hari. Namun kenyataannya, energi Anda terkuras habis oleh manajemen tugas manual dan tools yang terpecah-pecah.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Problem Card 1 */}
-            <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6">
-              <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-5">
-                <FolderGit2 className="h-6 w-6" />
+            <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6 space-y-3">
+              <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-2">
+                <ShieldAlert className="h-6 w-6" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">1. Purchased Code Sitting Idle</h3>
+              <h3 className="text-lg font-bold text-white">1. To-Do List Mati di Backlog</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Anda sudah beli script PHP, WordPress theme, atau web tool di CodeCanyon, Dojo, atau Envato ($30–$300). Tapi file <code className="text-red-300">.zip</code> hanya mengendap di laptop karena setup server, Docker, database, dan Nginx/Caddy terlalu rumit.
+                Trello, Notion, atau Jira biasa hanya menjadi kuburan ide. Kartu task menumpuk berbulan-bulan di kolom Backlog tanpa pernah dieksekusi karena Anda tidak punya tim asisten, researcher, atau scriptwriter sendiri.
               </p>
             </Card>
 
             {/* Problem Card 2 */}
-            <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6">
-              <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-5">
-                <ShieldAlert className="h-6 w-6" />
+            <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6 space-y-3">
+              <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-2">
+                <AlertTriangle className="h-6 w-6" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">2. Tergantung Freelancer Mahal</h3>
+              <h3 className="text-lg font-bold text-white">2. Overwhelmed Multi-Channel</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Membayar jasa freelancer $50–$100/jam hanya untuk instalasi script dasar atau mengubah hal kecil: ganti nomor WhatsApp, ubah link tombol, atau pasang payment gateway. Menguras runway modal sebelum bisnis sempat menghasilkan.
+                Harus meriset SEO blog, menulis skrip video 10 menit, menyusun email nurture jualan produk digital, dan membuat komparasi affiliate sekaligus. Mengganti konteks kerja terus-menerus memicu creative burnout yang parah.
               </p>
             </Card>
 
             {/* Problem Card 3 */}
-            <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6">
-              <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-5">
-                <AlertTriangle className="h-6 w-6" />
+            <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6 space-y-3">
+              <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-2">
+                <Zap className="h-6 w-6" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">3. Portofolio Tercecer Tanpa Kendali</h3>
+              <h3 className="text-lg font-bold text-white">3. Tools AI Terfragmentasi</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Mengelola banyak web tools, situs Adsense, tools affiliate, dan script mini di berbagai cPanel murahan. Tidak ada dashboard terpusat untuk memantau status hidup/matinya aset dan memastikan server tetap stabil.
+                Langganan belasan SaaS AI secara terpisah (ChatGPT, Jasper, Copy.ai) dengan format yang berantakan, tagihan per bulan membengkak, dan prompt terbuang sia-sia tanpa tersinkronisasi ke alur kerja proyek nyata.
               </p>
             </Card>
           </div>
         </div>
       </section>
 
-      {/* 4. AGITATION (A) SECTION */}
+      {/* 4. AGITATION (Dampak Tanpa Eksekusi) */}
       <section id="agitasi" className="py-20 bg-slate-900 relative">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <Badge variant="outline" className="border-amber-500/40 text-amber-400 text-xs py-1 px-3 mb-3 uppercase tracking-wider">
-              Agitation • Dampak & Konsekuensi
+              Agitation • Dampak Tanpa Eksekusi Agentic
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Setiap Hari yang Terbuang Tanpa Launching,{' '}
-              <span className="text-amber-400">Potensi Cuan Menguap.</span>
+              Setiap Hari yang Terbuang Tanpa Eksekusi,{' '}
+              <span className="text-amber-400">Audiens & Potensi Cuan Menguap.</span>
             </h2>
             <p className="mt-4 text-slate-400 text-base leading-relaxed">
-              Waktu adalah aset paling berharga bagi seorang indie hacker. Ketika Anda terjebak dalam perangkap teknis konfigurasi server, inilah harga mahal yang sedang Anda bayar:
+              Konsistensi adalah mata uang utama di ekonomi kreator. Ketika Anda terjebak dalam rutinitas administratif tanpa bantuan agent terpadu, inilah harga mahal yang Anda bayar:
             </p>
           </div>
 
@@ -450,10 +398,10 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
                 <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
                   <Clock className="h-5 w-5" />
                 </div>
-                <h4 className="font-bold text-base text-white">Kehilangan Momentum & Cuan</h4>
+                <h4 className="font-bold text-base text-white">Kehilangan Momentum Tren</h4>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Peluang pasar dan tren audiens tidak menunggu Anda. Kompetitor dengan produk lebih sederhana sudah mulai mengumpulkan pengguna dan cuan duluan hanya karena mereka launch 2 minggu lebih cepat.
+                Topik yang sedang viral di YouTube atau Google Search tidak menunggu Anda. Kompetitor yang bergerak cepat merebut traffic audiens hanya karena mereka bisa publish draf konten 10x lebih cepat.
               </p>
             </div>
 
@@ -462,41 +410,41 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
                 <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
                   <Zap className="h-5 w-5" />
                 </div>
-                <h4 className="font-bold text-base text-white">Modal Runway Bocor</h4>
+                <h4 className="font-bold text-base text-white">Biaya Langganan Bocor</h4>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Terus membayar biaya sewa VPS, domain, dan subscription SaaS cloud bulanan yang mahal, sementara website dan script belum menghasilkan sepeser pun karena setup yang belum kelar-kelar.
+                Membayar puluhan subscription tool AI dan VPS tanpa menghasilkan konversi nyata. Modal terkuras sebelum aset digital dan funnel jualan Anda sempat menghasilkan cuan.
               </p>
             </div>
 
             <div className="p-6 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-800 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
-                  <Terminal className="h-5 w-5" />
+                  <Cpu className="h-5 w-5" />
                 </div>
-                <h4 className="font-bold text-base text-white">Burnout Teknis Malam Hari</h4>
+                <h4 className="font-bold text-base text-white">Creative Burnout Berkepanjangan</h4>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Alih-alih fokus ke strategi pemasaran dan kepuasan pelanggan, Anda habis energi begadang menatap layar hitam SSH, membetulkan error <code className="text-amber-300">502 Bad Gateway</code>, dan SSL certificate yang kedaluwarsa.
+                Alih-alih menikmati proses kreasi dan interaksi dengan audiens, energi Anda habis untuk menyalin prompt, merapikan format teks manual, dan mengatur file dokumen yang berserakan.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5. SOLUTION (S) SECTION */}
+      {/* 5. SOLUTION (SOLUSI CUAN: AGENTIC CREATOR STUDIO) */}
       <section id="solusi" className="py-20 bg-slate-950 border-t border-slate-800 relative">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 text-xs py-1 px-3 mb-3 uppercase tracking-wider">
-              Solution • Terobosan Cuan v1.0
+              Solution • Terobosan Cuan
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Cuan v1.0: Digital Project Studio Mandiri{' '}
-              <span className="text-emerald-400">Tanpa Pusing Server.</span>
+              Cuan: Ubah Task Menjadi Deliverable Nyata{' '}
+              <span className="text-emerald-400">dengan In-Task AI Agent.</span>
             </h2>
             <p className="mt-4 text-slate-400 text-base leading-relaxed">
-              Cuan memperlakukan setiap aset digital Anda sebagai <strong className="text-white">1 Digital Project mandiri</strong>. Mengubah file ZIP menjadi bisnis beroperasi dengan zero-friction deployment.
+              Cuan bukan to-do list pasif. Setiap task dihubungkan langsung ke AI Agent persona yang siap mengeksekusi instruksi, menghasilkan draf konten berkualitas tinggi, dan otomatis mencentang kriteria Definition of Done (DoD).
             </p>
           </div>
 
@@ -504,119 +452,294 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
             {/* Feature 1 */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
               <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <Rocket className="h-5 w-5" />
+                <Layers className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Universal ZIP & Git Input</h3>
+              <h3 className="text-lg font-bold text-white">Creator Blueprint Templates</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Cukup upload file <code className="text-emerald-300 font-mono">.zip</code> script Anda (WordPress, PHP, Node.js, Python, Static). GitHub opsional bagi developer teknis. Cuan mendeteksi stack otomatis.
+                Deploy proyek Blog Publisher, YouTube Channel, Online Shop, atau Affiliate Site dalam 1 klik lengkap dengan papan Kanban, ruang diskusi, dan alur task terstruktur.
               </p>
             </div>
 
             {/* Feature 2 */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <ShieldCheck className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">
+                <Bot className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Turnkey Container & Auto-SSL</h3>
+              <h3 className="text-lg font-bold text-white">In-Task Agent Runner</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Setiap project diisolasi dalam lightweight container Docker dengan volume persistent dan HTTPS reverse proxy otomatis (Caddy). Zero error SSL selamanya.
+                Tekan tombol "Run with Agent" langsung pada kartu task Kanban. Agent membaca instruksi prompt & DoD, mengeksekusi pembuatan konten via Google Gemini Pro, dan menyimpan draf deliverable.
               </p>
             </div>
 
             {/* Feature 3 */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <Layers className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
+                <KeyRound className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Visual Environment Editor</h3>
+              <h3 className="text-lg font-bold text-white">Key Vault Aman (BYOK)</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Lupakan kerumitan mengedit file <code className="text-emerald-300 font-mono">.env</code> manual via SSH nano. Atur konfigurasi database dan API keys lewat formulir visual yang bersih dan aman.
+                Gunakan Google Gemini Pro API Key Anda sendiri tanpa biaya mark-up per token. Kredensial tersimpan aman di server Key Vault terenkripsi tanpa kebocoran data.
               </p>
             </div>
 
             {/* Feature 4 */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
               <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <Cpu className="h-5 w-5" />
+                <FileText className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Agentic AI Co-Pilot (Chat-to-Modify)</h3>
+              <h3 className="text-lg font-bold text-white">Markdown Viewer & One-Click Copy</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Ingin mengubah nomor WhatsApp tombol, edit warna tema, atau inject script Facebook Pixel? Cukup berikan prompt teks biasa. AI assistant menguji di staging sebelum live.
+                Tab khusus di task detail drawer yang menyajikan draf artikel, skrip video, atau sales copy dalam format Markdown bersih lengkap dengan tombol salin instan 1-klik ke clipboard.
               </p>
             </div>
 
             {/* Feature 5 */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <Lock className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold">
+                <ListTodo className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">100% Self-Hosted & Bebas Biaya</h3>
+              <h3 className="text-lg font-bold text-white">Auto-Updated Definition of Done</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Lisensi open-source Apache-2.0. Berjalan di VPS milik Anda sendiri. Data, kode, dan database Anda tidak pernah dikunci oleh vendor pihak ketiga.
+                Agent otomatis memvalidasi dan mencentang kriteria checklist DoD saat draf selesai digenerate, memastikan deliverable memenuhi standar kualitas tinggi sebelum dipublikasikan.
               </p>
             </div>
 
             {/* Feature 6 */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <Database className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-bold">
+                <Server className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Automated Health & Backup</h3>
+              <h3 className="text-lg font-bold text-white">100% Self-Hosted & Zero Lock-in</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Pemantauan kesehatan aplikasi 24/7. Backup database otomatis dan kemampuan rollback 1-klik jika terjadi kesalahan modifikasi.
+                Lisensi open-source Apache-2.0. Berjalan di server VPS milik Anda sendiri. Seluruh data proyek, draf konten, dan database tersimpan aman di bawah kendali penuh Anda.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 6. HOW IT WORKS (3 SIMPLE STEPS) */}
-      <section className="py-20 bg-slate-900">
+      {/* 6. BLUEPRINT CATALOG SHOWCASE SECTION */}
+      <section id="blueprints" className="py-20 bg-slate-900 relative">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 text-xs py-1 px-3 mb-3 uppercase tracking-wider">
+              Katalog Blueprint • Instant Production Pipeline
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              4 Template Siap Pakai untuk Setiap Jenis Kreator
+            </h2>
+            <p className="mt-4 text-slate-400 text-base leading-relaxed">
+              Tidak perlu merancang workflow dan prompt dari nol. Pilih blueprint yang sesuai, dan Cuan otomatis menyiapkan ruang kolaborasi, alur pipeline task, serta AI Agent persona khusus.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Blueprint 1: Blog Publisher */}
+            <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 hover:border-emerald-500/40 transition-all flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono">
+                    SEO & Content
+                  </Badge>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Blog Publisher</h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Pipeline pembuatan konten SEO otomatis untuk niche blogger dan publisher Google AdSense.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800/80 space-y-2 text-xs">
+                  <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                    <Bot className="h-4 w-4" />
+                    <span>Agent Persona: SEO Specialist</span>
+                  </div>
+                  <div className="text-slate-400 text-[11px] space-y-1">
+                    <p>• Riset Keyword Niche & 5 Topic Cluster</p>
+                    <p>• Draf Artikel Pilar 2.000+ Kata Teroptimasi SEO</p>
+                    <p>• Optimasi On-Page, Alt Text & JSON-LD Schema</p>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={navigateToStudio}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-10 rounded-xl gap-2"
+              >
+                <span>Pakai Blueprint Blog</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            {/* Blueprint 2: YouTube Channel */}
+            <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 hover:border-red-500/40 transition-all flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="h-12 w-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center">
+                    <Video className="h-6 w-6" />
+                  </div>
+                  <Badge className="bg-red-500/15 text-red-400 border border-red-500/30 text-[10px] font-mono">
+                    Video & Script
+                  </Badge>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">YouTube Channel</h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Alur kerja produksi video end-to-end dari riset tren, hook retensi tinggi, skrip 10 menit, hingga metadata.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800/80 space-y-2 text-xs">
+                  <div className="flex items-center gap-2 text-red-400 font-semibold">
+                    <Bot className="h-4 w-4" />
+                    <span>Agent Persona: YouTube Scriptwriter</span>
+                  </div>
+                  <div className="text-slate-400 text-[11px] space-y-1">
+                    <p>• Ideasi Video Viral & Analisis Minat Penonton</p>
+                    <p>• 5 Opsi Judul CTR Tinggi & 30-Detik Hook Pertama</p>
+                    <p>• Full Scriptwriting 10 Menit lengkap Narasi & Visual Cues</p>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={navigateToStudio}
+                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs h-10 rounded-xl gap-2"
+              >
+                <span>Pakai Blueprint YouTube</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            {/* Blueprint 3: Online Shop / Digital Product */}
+            <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 hover:border-blue-500/40 transition-all flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="h-12 w-12 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                    <ShoppingBag className="h-6 w-6" />
+                  </div>
+                  <Badge className="bg-blue-500/15 text-blue-400 border border-blue-500/30 text-[10px] font-mono">
+                    Funnel & Sales
+                  </Badge>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Online Shop / Digital Product</h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Copywriting penjualan berkonversi tinggi, urutan email nurture 3-part, dan matriks penanganan keberatan.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800/80 space-y-2 text-xs">
+                  <div className="flex items-center gap-2 text-blue-400 font-semibold">
+                    <Bot className="h-4 w-4" />
+                    <span>Agent Persona: Direct-Response Copywriter</span>
+                  </div>
+                  <div className="text-slate-400 text-[11px] space-y-1">
+                    <p>• Sales Page Copy Formula PAS (Problem-Agitate-Solution)</p>
+                    <p>• 3-Part Email Nurture (Welcome, Story, Hard Pitch)</p>
+                    <p>• 7 Jawaban Pertanyaan Umum & Objection Handling FAQ</p>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={navigateToStudio}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-10 rounded-xl gap-2"
+              >
+                <span>Pakai Blueprint Olshop</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            {/* Blueprint 4: Affiliate Site */}
+            <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 hover:border-amber-500/40 transition-all flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="h-12 w-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                    <Percent className="h-6 w-6" />
+                  </div>
+                  <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-mono">
+                    Affiliate & Review
+                  </Badge>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Affiliate Site</h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Matriks komparasi produk, breakdown fitur mendalam, dan review berorientasi konversi klik affiliate.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800/80 space-y-2 text-xs">
+                  <div className="flex items-center gap-2 text-amber-400 font-semibold">
+                    <Bot className="h-4 w-4" />
+                    <span>Agent Persona: Affiliate Reviewer</span>
+                  </div>
+                  <div className="text-slate-400 text-[11px] space-y-1">
+                    <p>• Matriks Komparasi 3 Produk Kompetitor Niche</p>
+                    <p>• Review Mendalam 1.500 Kata (Verdict, Pros & Cons)</p>
+                    <p>• 3 Variasi Tombol CTA Berkonversi Tinggi</p>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={navigateToStudio}
+                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs h-10 rounded-xl gap-2"
+              >
+                <span>Pakai Blueprint Affiliate</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. HOW IT WORKS (3 SIMPLE STEPS) */}
+      <section className="py-20 bg-slate-950 border-t border-slate-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-3xl font-extrabold text-white tracking-tight">
-              Alur Kerja 3 Langkah Menuju Cuan
+              Alur Kerja 3 Langkah Menuju Konten Siap Pakai
             </h2>
             <p className="mt-3 text-slate-400 text-sm">
-              Sangat intuitif bahkan untuk pengguna non-teknis tanpa pengalaman Linux.
+              Sangat intuitif dan zero-friction untuk semua jenis kreator.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="relative text-center p-6 bg-slate-850 rounded-2xl border border-slate-800">
-              <div className="w-12 h-12 rounded-full bg-emerald-500 text-slate-950 font-black text-xl flex items-center justify-center mx-auto mb-4">
+            <div className="relative text-center p-6 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-500 text-slate-950 font-black text-xl flex items-center justify-center mx-auto mb-2">
                 1
               </div>
-              <h3 className="font-bold text-lg text-white mb-2">Upload Script / ZIP</h3>
-              <p className="text-sm text-slate-400">
-                Tarik dan lepaskan file script yang baru Anda beli, atau sambungkan repositori GitHub Anda.
+              <h3 className="font-bold text-lg text-white">Pilih Blueprint Kreator</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Pilih template Blog, YouTube, Olshop, atau Affiliate di Studio Wizard untuk langsung menghasilkan papan Kanban dan alur task terstruktur.
               </p>
             </div>
 
-            <div className="relative text-center p-6 bg-slate-850 rounded-2xl border border-slate-800">
-              <div className="w-12 h-12 rounded-full bg-emerald-500 text-slate-950 font-black text-xl flex items-center justify-center mx-auto mb-4">
+            <div className="relative text-center p-6 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-purple-500 text-white font-black text-xl flex items-center justify-center mx-auto mb-2">
                 2
               </div>
-              <h3 className="font-bold text-lg text-white mb-2">Konfigurasi Visual & Deploy</h3>
-              <p className="text-sm text-slate-400">
-                Isi judul, domain, dan kunci env melalui antarmuka visual. Klik deploy dan Cuan menyiapkan segalanya.
+              <h3 className="font-bold text-lg text-white">Klik "Run with Agent"</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Tekan tombol Run with Agent pada kartu task. AI Agent membaca instruksi & kriteria DoD lalu mengeksekusi konten otomatis via Google Gemini Pro.
               </p>
             </div>
 
-            <div className="relative text-center p-6 bg-slate-850 rounded-2xl border border-slate-800">
-              <div className="w-12 h-12 rounded-full bg-emerald-500 text-slate-950 font-black text-xl flex items-center justify-center mx-auto mb-4">
+            <div className="relative text-center p-6 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-500 text-slate-950 font-black text-xl flex items-center justify-center mx-auto mb-2">
                 3
               </div>
-              <h3 className="font-bold text-lg text-white mb-2">Live & Siap Hasilkan Cuan</h3>
-              <p className="text-sm text-slate-400">
-                Aplikasi Anda aktif di internet dengan HTTPS aman. Pantau performa dan kembangkan tanpa hambatan.
+              <h3 className="font-bold text-lg text-white">Buka Output & Salin 1-Klik</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Buka tab Agent Output pada Task Detail, periksa hasil render Markdown bersih, salin dengan 1-klik, dan gunakan langsung untuk publikasi!
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 7. FOUNDING SPONSOR BRIDGE TEASER */}
+      {/* 8. FOUNDING SPONSOR BRIDGE TEASER */}
       <section className="py-16 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-b border-emerald-500/20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
           <Badge variant="outline" className="border-emerald-500/50 text-emerald-400 text-xs py-1 px-3 uppercase tracking-wider">
@@ -626,7 +749,7 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
             Ingin Brand Anda Tampil Abadi di Rilis Cuan v1.0?
           </h2>
           <p className="text-slate-300 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
-            Dukung pengembangan open-source Cuan sebagai Founding Backer. Dapatkan posisi prestisius di Leaderboard Homepage, logo permanen di <code className="text-emerald-400">README.md</code> repositori GitHub buchin/cuan, dan dofollow link seumur hidup (min Rp 10.000 via Dojo payment).
+            Dukung pengembangan open-source Cuan sebagai Founding Backer. Dapatkan posisi prestisius di Leaderboard Homepage, logo permanen di <code className="text-emerald-400 font-mono">README.md</code> repositori GitHub buchin/cuan, dan dofollow link seumur hidup (min Rp 10.000 via Dojo payment).
           </p>
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
@@ -634,7 +757,7 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/20 transition-all active:scale-95"
             >
               <HeartHandshake className="h-4 w-4" />
-              Lihat Founding Backer di /sponsor
+              <span>Lihat Founding Backer di /sponsor</span>
               <ArrowRight className="h-4 w-4" />
             </button>
             <button
@@ -647,54 +770,73 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
         </div>
       </section>
 
-      {/* 8. BOTTOM WAITING LIST CTA */}
+      {/* 9. BOTTOM WAITING LIST & STUDIO CTA */}
       <section className="py-20 bg-slate-950 relative">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[90px] rounded-full pointer-events-none" />
 
             <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-              Jadilah yang Pertama Menggunakan Cuan v1.0
+              Mulai Bangun Proyek Kreator Anda Hari Ini
             </h2>
             <p className="mt-4 text-sm sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed">
-              Daftarkan email Anda sekarang. Kami akan mengirimkan Welcome Email dan notifikasi prioritas saat rilis perdana siap dipasang di VPS Anda.
+              Cuan sudah siap digunakan di Studio Dashboard. Buka Studio sekarang untuk membuat proyek dari Blueprint atau daftarkan email Anda untuk update rilis berkala.
             </p>
+
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Button
+                onClick={navigateToStudio}
+                className="w-full sm:w-auto h-12 px-8 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Masuk ke Cuan Studio</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
 
             <form
               onSubmit={(e) => handleWaitingListSubmit(e, bottomEmail, 'footer_cta')}
-              className="mt-8 max-w-md mx-auto flex flex-col sm:flex-row gap-3"
+              className="mt-8 max-w-md mx-auto flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-800/80"
             >
               <Input
                 type="email"
-                placeholder="founder@domain.com"
+                placeholder="creator@domain.com"
                 value={bottomEmail}
                 onChange={(e) => setBottomEmail(e.target.value)}
                 disabled={loading}
                 required
-                className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 text-sm h-12 rounded-xl focus:ring-emerald-500 focus:border-emerald-500"
+                className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 text-xs h-11 rounded-xl focus:ring-emerald-500 focus:border-emerald-500"
               />
               <Button
                 type="submit"
                 disabled={loading}
-                className="h-12 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm whitespace-nowrap shadow-lg shadow-emerald-500/25"
+                className="h-11 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs whitespace-nowrap border border-slate-700"
               >
-                {loading ? 'Mendaftarkan...' : 'Gabung Waiting List'}
+                {loading ? 'Mendaftarkan...' : 'Update Email'}
               </Button>
             </form>
 
+            {errorMessage && (
+              <Alert variant="destructive" className="mt-3 bg-red-950/70 border-red-800 text-red-200 text-left max-w-md mx-auto">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Validasi Pendaftaran</AlertTitle>
+                <AlertDescription className="text-xs">{errorMessage}</AlertDescription>
+              </Alert>
+            )}
+
             <p className="mt-4 text-xs text-slate-400">
-              Integrasi Dojo Autoresponder aktif. Email sambutan akan otomatis dikirimkan ke inbox Anda.
+              Integrasi Dojo Autoresponder aktif. Email sambutan otomatis dikirimkan ke inbox Anda.
             </p>
           </div>
         </div>
       </section>
 
-      {/* 9. FOOTER */}
+      {/* 10. FOOTER */}
       <footer className="border-t border-slate-800 bg-slate-950 py-10 text-xs text-slate-400">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-200">CUAN</span>
-            <span>— Digital Project Studio for Entrepreneurs</span>
+            <span>— Agentic Project Management for Creators</span>
           </div>
           <div className="flex items-center gap-6">
             <button onClick={() => onNavigate('/sponsor')} className="hover:text-emerald-400 transition-colors">
@@ -703,8 +845,8 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
             <button onClick={() => onNavigate('/sponsors')} className="hover:text-emerald-400 transition-colors">
               Direktori Backers
             </button>
-            <button onClick={() => onNavigate('/studio')} className="hover:text-emerald-400 text-emerald-400 transition-colors font-semibold">
-              Studio Deployer
+            <button onClick={navigateToStudio} className="hover:text-emerald-400 text-emerald-400 transition-colors font-semibold">
+              Cuan Studio
             </button>
             <button onClick={() => onNavigate('/terms')} className="hover:text-emerald-400 transition-colors">
               Terms
@@ -727,15 +869,14 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
           </div>
         </div>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 text-center sm:text-left text-slate-400">
-          Licensed under Apache-2.0. Author: Buchin &lt;buchin@dropsugar.com&gt;. Zero-friction self-hosted deployment engine.
+          Licensed under Apache-2.0. Author: Buchin &lt;buchin@dropsugar.com&gt;. Agentic Project Management, Blueprint Engine & In-Task Execution for Creators.
         </div>
       </footer>
 
-      {/* 10. THANK YOU MODAL / STATE */}
+      {/* 11. THANK YOU MODAL */}
       {showThankYouModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 text-left">
-            {/* Close Button */}
             <button
               onClick={() => setShowThankYouModal(false)}
               className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
@@ -743,61 +884,38 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
               <X className="h-5 w-5" />
             </button>
 
-            {/* Success Header */}
             <div className="flex items-start gap-4">
               <div className="h-12 w-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/40">
                 <CheckCircle2 className="h-7 w-7" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-xl font-black text-white">Selamat! Anda Terdaftar</h3>
+                <h3 className="text-xl font-bold text-white tracking-tight">
+                  Pendaftaran Berhasil!
+                </h3>
                 <p className="text-xs text-slate-400">
-                  Email <strong className="text-emerald-400">{submittedEmail}</strong> telah dicatat di Waiting List Cuan v1.0.
+                  Email Anda telah terdaftar di ekosistem Cuan Creator Studio.
                 </p>
               </div>
             </div>
 
-            {/* Dojo Autoresponder Note */}
-            <div className="p-4 rounded-xl bg-slate-850 border border-slate-700 text-xs text-slate-300 space-y-2">
-              <div className="flex items-center gap-2 font-semibold text-emerald-400">
-                <Sparkles className="h-4 w-4" />
-                <span>Welcome Email Dikirim via Dojo</span>
-              </div>
-              <p>
-                Sistem autoresponder Dojo telah memicu Welcome & Thank You Email ke alamat Anda. Silakan periksa inbox (atau tab Updates/Spam) dalam beberapa menit.
-              </p>
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+              <span className="text-slate-400 block font-mono text-[11px]">Terdaftar untuk:</span>
+              <span className="text-emerald-400 font-mono font-bold text-sm block">
+                {submittedEmail}
+              </span>
             </div>
 
-            {/* Bridge to Founding Sponsorship */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 space-y-3">
-              <div className="flex items-center gap-2">
-                <HeartHandshake className="h-5 w-5 text-emerald-400" />
-                <h4 className="font-bold text-sm text-white">Dukung Cuan: Jadi Founding Backer</h4>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Ingin nama/brand Anda tampil di <strong>Leaderboard Homepage v1.0</strong>, logo abadi di <strong>README.md</strong> GitHub, dan link dofollow permanen?
-                Dukung kami dengan skema <em>Pay-What-You-Want</em> (minimal Rp 10.000 via Dojo payment).
-              </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
               <Button
                 onClick={() => {
                   setShowThankYouModal(false)
-                  onNavigate('/sponsor')
+                  navigateToStudio()
                 }}
-                className="w-full h-11 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm gap-2 shadow-lg shadow-emerald-500/20"
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs h-10 px-5 rounded-xl gap-1.5"
               >
-                <HeartHandshake className="h-4 w-4" />
-                Menjadi Founding Sponsor di /sponsor
-                <ChevronRight className="h-4 w-4" />
+                <span>Buka Cuan Studio</span>
+                <ArrowRight className="h-4 w-4" />
               </Button>
-            </div>
-
-            {/* Dismiss button */}
-            <div className="pt-1 text-center">
-              <button
-                onClick={() => setShowThankYouModal(false)}
-                className="text-xs text-slate-400 hover:text-white underline underline-offset-4"
-              >
-                Tutup & Kembali ke Beranda
-              </button>
             </div>
           </div>
         </div>
