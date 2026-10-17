@@ -70,7 +70,7 @@ func NormalizeAuthorType(authorType string) (string, error) {
 func NormalizeTaskStatus(status string) (string, error) {
 	norm := strings.ToLower(strings.TrimSpace(status))
 	switch norm {
-	case "backlog", "doing", "review", "done":
+	case "backlog", "doing", "review", "done", "failed", "blocked":
 		return norm, nil
 	default:
 		return "", ErrInvalidTaskStatus

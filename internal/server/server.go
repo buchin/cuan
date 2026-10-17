@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/buchin/cuan/internal/auth"
+	"github.com/buchin/cuan/internal/campaign"
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/crypto"
 	cuanDB "github.com/buchin/cuan/internal/db"
@@ -56,6 +57,8 @@ type Server struct {
 	batchCampaignRepo   cuanDB.BatchCampaignRepository
 	distillerEngine     *studio.DistillerEngine
 	agentExecutionHook  studio.AgentExecutionHook
+	campaignDecompiler  *campaign.DecompilerEngine
+	campaignRunner      *campaign.MultiProjectRunner
 	roomEventBroker     *RoomEventBroker
 	router              *chi.Mux
 }
@@ -252,6 +255,19 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	agentHook := studio.NewAgentExecutionHook(hookDispatcher)
 	distiller := studio.NewDistillerEngine(studio.WithExecutionHook(agentHook))
 
+	campaignResolver := campaign.NewDefaultProjectResolver(pSvc, studioRepo)
+	campaignDecompiler := campaign.NewDecompilerEngine(
+		campaign.WithProjectResolver(campaignResolver),
+		campaign.WithProjectStudioRepo(studioRepo),
+		campaign.WithMinDoDItems(3),
+	)
+	campaignRunner := campaign.NewMultiProjectRunner(
+		campaign.WithMaxWorkers(campaign.DefaultMaxWorkers),
+		campaign.WithRunnerBatchRepo(batchRepo),
+		campaign.WithRunnerStudioRepo(studioRepo),
+		campaign.WithDecompiler(campaignDecompiler),
+	)
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -277,6 +293,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		batchCampaignRepo:   batchRepo,
 		distillerEngine:     distiller,
 		agentExecutionHook:  agentHook,
+		campaignDecompiler:  campaignDecompiler,
+		campaignRunner:      campaignRunner,
 		roomEventBroker:     NewRoomEventBroker(),
 		router:              r,
 	}
@@ -459,6 +477,22 @@ func (s *Server) SetBatchCampaignRepository(repo cuanDB.BatchCampaignRepository)
 	s.batchCampaignRepo = repo
 }
 
+func (s *Server) CampaignDecompiler() *campaign.DecompilerEngine {
+	return s.campaignDecompiler
+}
+
+func (s *Server) SetCampaignDecompiler(d *campaign.DecompilerEngine) {
+	s.campaignDecompiler = d
+}
+
+func (s *Server) CampaignRunner() *campaign.MultiProjectRunner {
+	return s.campaignRunner
+}
+
+func (s *Server) SetCampaignRunner(r *campaign.MultiProjectRunner) {
+	s.campaignRunner = r
+}
+
 func (s *Server) RoomEventBroker() *RoomEventBroker {
 	return s.roomEventBroker
 }
@@ -589,6 +623,12 @@ func (s *Server) routes() {
 	s.router.Patch("/api/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 	s.router.Delete("/api/projects/tasks/{id}", s.handleDeleteProjectTask)
 
+	// Batch Campaigns Engine Endpoints (Sprint 8 S08.2)
+	s.router.Post("/api/campaigns", s.handleCreateBatchCampaign)
+	s.router.Get("/api/campaigns", s.handleListBatchCampaigns)
+	s.router.Get("/api/campaigns/{id}", s.handleGetBatchCampaign)
+	s.router.Post("/api/campaigns/{id}/execute", s.handleExecuteBatchCampaign)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -634,6 +674,14 @@ func (s *Server) routes() {
 		dr.Get("/{id}", s.handleGetDomain)
 		dr.Post("/{id}/verify", s.handleVerifyDomain)
 		dr.Delete("/{id}", s.handleDeleteDomain)
+	})
+
+	// Batch Campaigns route group in /api/v1 (Sprint 8 S08.2)
+	s.router.Route("/api/v1/campaigns", func(cr chi.Router) {
+		cr.Get("/", s.handleListBatchCampaigns)
+		cr.Post("/", s.handleCreateBatchCampaign)
+		cr.Get("/{id}", s.handleGetBatchCampaign)
+		cr.Post("/{id}/execute", s.handleExecuteBatchCampaign)
 	})
 
 	s.router.Route("/api/v1", func(r chi.Router) {
@@ -694,6 +742,12 @@ func (s *Server) routes() {
 		r.Patch("/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 		r.Delete("/projects/tasks/{id}", s.handleDeleteProjectTask)
 		r.Patch("/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+
+		// Batch Campaigns in v1 (Sprint 8 S08.2)
+		r.Post("/campaigns", s.handleCreateBatchCampaign)
+		r.Get("/campaigns", s.handleListBatchCampaigns)
+		r.Get("/campaigns/{id}", s.handleGetBatchCampaign)
+		r.Post("/campaigns/{id}/execute", s.handleExecuteBatchCampaign)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {
