@@ -83,6 +83,7 @@ type Server struct {
 	processSupervisor     *deployer.ProcessSupervisor
 	wordpressRepo         cuanDB.WordPressRepository
 	wordpressOrchestrator *wordpress.Orchestrator
+	wordpressWebmaster    *wordpress.WebmasterEngine
 	router                *chi.Mux
 }
 
@@ -419,6 +420,11 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		CoreCacheDir:  wpCacheDir,
 	})
 
+	wpWebmaster := wordpress.NewWebmasterEngine(wordpress.WebmasterConfig{
+		DBRepo:        wpRepo,
+		BaseDeployDir: wpDeployDir,
+	})
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -464,6 +470,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		processSupervisor:   processSupervisor,
 		wordpressRepo:       wpRepo,
 		wordpressOrchestrator: wpOrchestrator,
+		wordpressWebmaster:  wpWebmaster,
 		router:              r,
 	}
 
@@ -840,6 +847,14 @@ func (s *Server) SetWordPressOrchestrator(o *wordpress.Orchestrator) {
 	s.wordpressOrchestrator = o
 }
 
+func (s *Server) WordPressWebmaster() *wordpress.WebmasterEngine {
+	return s.wordpressWebmaster
+}
+
+func (s *Server) SetWordPressWebmaster(w *wordpress.WebmasterEngine) {
+	s.wordpressWebmaster = w
+}
+
 func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
@@ -1063,6 +1078,37 @@ func (s *Server) routes() {
 	s.router.Delete("/api/projects/{id}/wordpress", s.handleDeleteWordPressDeployment)
 	s.router.Delete("/api/v1/projects/{id}/wordpress", s.handleDeleteWordPressDeployment)
 
+	// AI Webmaster Engine Endpoints (Sprint 13 S13.3)
+	// Assets (Themes & Plugins)
+	s.router.Post("/api/projects/{id}/wordpress/assets/upload", s.handleUploadWordPressAsset)
+	s.router.Post("/api/v1/projects/{id}/wordpress/assets/upload", s.handleUploadWordPressAsset)
+	s.router.Get("/api/projects/{id}/wordpress/assets", s.handleListWordPressAssets)
+	s.router.Get("/api/v1/projects/{id}/wordpress/assets", s.handleListWordPressAssets)
+	s.router.Post("/api/projects/{id}/wordpress/assets/{asset_id}/status", s.handleToggleWordPressAssetStatus)
+	s.router.Post("/api/v1/projects/{id}/wordpress/assets/{asset_id}/status", s.handleToggleWordPressAssetStatus)
+	s.router.Delete("/api/projects/{id}/wordpress/assets/{asset_id}", s.handleDeleteWordPressAsset)
+	s.router.Delete("/api/v1/projects/{id}/wordpress/assets/{asset_id}", s.handleDeleteWordPressAsset)
+
+	// Safe Script Injector (mu-plugins)
+	s.router.Post("/api/projects/{id}/wordpress/scripts", s.handleInjectWordPressScript)
+	s.router.Post("/api/v1/projects/{id}/wordpress/scripts", s.handleInjectWordPressScript)
+	s.router.Get("/api/projects/{id}/wordpress/scripts", s.handleListWordPressScripts)
+	s.router.Get("/api/v1/projects/{id}/wordpress/scripts", s.handleListWordPressScripts)
+	s.router.Post("/api/projects/{id}/wordpress/scripts/{script_id}/toggle", s.handleToggleWordPressScript)
+	s.router.Post("/api/v1/projects/{id}/wordpress/scripts/{script_id}/toggle", s.handleToggleWordPressScript)
+	s.router.Delete("/api/projects/{id}/wordpress/scripts/{script_id}", s.handleDeleteWordPressScript)
+	s.router.Delete("/api/v1/projects/{id}/wordpress/scripts/{script_id}", s.handleDeleteWordPressScript)
+
+	// Config Tweaker (wp-config.php)
+	s.router.Post("/api/projects/{id}/wordpress/config", s.handleTweakWordPressConfig)
+	s.router.Post("/api/v1/projects/{id}/wordpress/config", s.handleTweakWordPressConfig)
+	s.router.Get("/api/projects/{id}/wordpress/config", s.handleGetWordPressConfig)
+	s.router.Get("/api/v1/projects/{id}/wordpress/config", s.handleGetWordPressConfig)
+
+	// AI Webmaster Audit Action History
+	s.router.Get("/api/projects/{id}/wordpress/actions", s.handleListWordPressWebmasterActions)
+	s.router.Get("/api/v1/projects/{id}/wordpress/actions", s.handleListWordPressWebmasterActions)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -1230,6 +1276,22 @@ func (s *Server) routes() {
 		r.Get("/projects/{id}/wordpress/health", s.handleHealthCheckWordPressDeployment)
 		r.Post("/projects/{id}/wordpress/stop", s.handleStopWordPressDeployment)
 		r.Delete("/projects/{id}/wordpress", s.handleDeleteWordPressDeployment)
+
+		// AI Webmaster Engine in v1 (Sprint 13 S13.3)
+		r.Post("/projects/{id}/wordpress/assets/upload", s.handleUploadWordPressAsset)
+		r.Get("/projects/{id}/wordpress/assets", s.handleListWordPressAssets)
+		r.Post("/projects/{id}/wordpress/assets/{asset_id}/status", s.handleToggleWordPressAssetStatus)
+		r.Delete("/projects/{id}/wordpress/assets/{asset_id}", s.handleDeleteWordPressAsset)
+
+		r.Post("/projects/{id}/wordpress/scripts", s.handleInjectWordPressScript)
+		r.Get("/projects/{id}/wordpress/scripts", s.handleListWordPressScripts)
+		r.Post("/projects/{id}/wordpress/scripts/{script_id}/toggle", s.handleToggleWordPressScript)
+		r.Delete("/projects/{id}/wordpress/scripts/{script_id}", s.handleDeleteWordPressScript)
+
+		r.Post("/projects/{id}/wordpress/config", s.handleTweakWordPressConfig)
+		r.Get("/projects/{id}/wordpress/config", s.handleGetWordPressConfig)
+
+		r.Get("/projects/{id}/wordpress/actions", s.handleListWordPressWebmasterActions)
 		r.Post("/tasks/{id}/publish", s.handlePublishTask)
 		r.Post("/projects/tasks/{id}/publish", s.handlePublishTask)
 		r.Get("/tasks/{id}/export", s.handleExportTask)

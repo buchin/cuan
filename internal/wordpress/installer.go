@@ -444,6 +444,18 @@ func (o *Orchestrator) Deploy(ctx context.Context, req DeployRequest) (*DeployRe
 
 // startRuntime launches the PHP built-in web server or supervisor process.
 func (o *Orchestrator) startRuntime(ctx context.Context, depID, projectID, dir, domain string, port int) (*RunningInstance, error) {
+	if o.cfg.MockMode {
+		return &RunningInstance{
+			DeploymentID: depID,
+			ProjectID:    projectID,
+			Port:         port,
+			Domain:       domain,
+			PID:          9999,
+			TargetDir:    dir,
+			StartedAt:    time.Now().UTC(),
+		}, nil
+	}
+
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	args := []string{"-S", addr, "-t", dir}
 
@@ -455,18 +467,6 @@ func (o *Orchestrator) startRuntime(ctx context.Context, depID, projectID, dir, 
 
 	cmd, pid, err := o.cfg.Launcher.Start(ctx, dir, env, os.Stdout, os.Stderr, "php", args...)
 	if err != nil {
-		// If real launcher fails or php not found, handle gracefully for mocks
-		if o.cfg.MockMode {
-			return &RunningInstance{
-				DeploymentID: depID,
-				ProjectID:    projectID,
-				Port:         port,
-				Domain:       domain,
-				PID:          9999,
-				TargetDir:    dir,
-				StartedAt:    time.Now().UTC(),
-			}, nil
-		}
 		return nil, fmt.Errorf("launch php server: %w", err)
 	}
 
