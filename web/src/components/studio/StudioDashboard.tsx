@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Card, CardHeader } from '../ui/card'
+import { Card } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
@@ -11,25 +11,21 @@ import {
   ExternalLink,
   Play,
   Square,
-  RotateCcw,
-  Terminal,
   Globe,
-  FileCode,
-  Cpu,
   Layers,
   ArrowLeft,
   Sparkles,
   AlertCircle,
-  FolderGit2,
   UploadCloud,
-  Check,
-  Copy,
   Server
 } from 'lucide-react'
-import { DeploymentItem, ServerItem } from './types'
+import { DeploymentItem, ServerItem, CustomDomainItem } from './types'
 import { DeployWizardModal } from './DeployWizardModal'
 import { ProjectDrawer } from './ProjectDrawer'
 import { ServersView } from './ServersView'
+import { DomainsView } from './DomainsView'
+import { CustomDomainsModal } from './CustomDomainsModal'
+import { ProjectCard } from './ProjectCard'
 
 interface StudioDashboardProps {
   currentPath?: string
@@ -53,22 +49,49 @@ export function StudioDashboard({
   const [error, setError] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Tab state: 'projects' | 'servers'
-  const [activeTab, setActiveTab] = useState<'projects' | 'servers'>(() => {
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/studio/servers')) {
-      return 'servers'
+  // Tab state: 'projects' | 'servers' | 'domains'
+  const [activeTab, setActiveTab] = useState<'projects' | 'servers' | 'domains'>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/studio/domains')) {
+        return 'domains'
+      }
+      if (window.location.pathname.startsWith('/studio/servers')) {
+        return 'servers'
+      }
     }
     return 'projects'
   })
 
   // Synchronize when currentPath prop changes
   useEffect(() => {
-    if (currentPath === '/studio/servers') {
+    if (currentPath === '/studio/domains') {
+      setActiveTab('domains')
+    } else if (currentPath === '/studio/servers') {
       setActiveTab('servers')
     } else if (currentPath === '/studio') {
       setActiveTab('projects')
     }
   }, [currentPath])
+
+  // Custom domains state (S05.4)
+  const [domains, setDomains] = useState<CustomDomainItem[]>([])
+  const [selectedDomainDeployment, setSelectedDomainDeployment] = useState<DeploymentItem | null>(null)
+  const [isCustomDomainsModalOpen, setIsCustomDomainsModalOpen] = useState(false)
+
+  const fetchDomains = async () => {
+    try {
+      const res = await fetch('/api/domains')
+      if (res.ok) {
+        const data = await res.json()
+        setDomains(data.domains || [])
+      }
+    } catch {}
+  }
+
+  const handleOpenCustomDomains = (dep: DeploymentItem) => {
+    setSelectedDomainDeployment(dep)
+    setIsCustomDomainsModalOpen(true)
+  }
 
   // Remote servers state
   const [servers, setServers] = useState<ServerItem[]>([])
@@ -85,7 +108,11 @@ export function StudioDashboard({
 
   useEffect(() => {
     fetchServers()
-    const interval = setInterval(fetchServers, 8000)
+    fetchDomains()
+    const interval = setInterval(() => {
+      fetchServers()
+      fetchDomains()
+    }, 8000)
     return () => clearInterval(interval)
   }, [])
 
@@ -257,19 +284,6 @@ export function StudioDashboard({
     })
   }, [deployments, runtimeFilter, statusFilter, searchQuery])
 
-  const getRuntimeIcon = (runtime: string) => {
-    switch (runtime) {
-      case 'php':
-        return <FileCode className="h-4 w-4 text-blue-500" />
-      case 'nodejs':
-        return <Cpu className="h-4 w-4 text-emerald-500" />
-      case 'static':
-        return <Globe className="h-4 w-4 text-amber-500" />
-      default:
-        return <Layers className="h-4 w-4 text-slate-400" />
-    }
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
       {/* Top Navigation Bar */}
@@ -332,6 +346,24 @@ export function StudioDashboard({
               <span>Projects</span>
               <span className="h-4 px-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-mono flex items-center justify-center">
                 {deployments.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('domains')
+                onNavigate?.('/studio/domains')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'domains'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Domains</span>
+              <span className="h-4 px-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono flex items-center justify-center">
+                {domains.length}
               </span>
             </button>
 
@@ -427,7 +459,7 @@ export function StudioDashboard({
               setActiveTab('projects')
               onNavigate?.('/studio')
             }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg font-semibold transition-all ${
               activeTab === 'projects'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
@@ -439,10 +471,25 @@ export function StudioDashboard({
 
           <button
             onClick={() => {
+              setActiveTab('domains')
+              onNavigate?.('/studio/domains')
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg font-semibold transition-all ${
+              activeTab === 'domains'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <Globe className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Domains ({domains.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
               setActiveTab('servers')
               onNavigate?.('/studio/servers')
             }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg font-semibold transition-all ${
               activeTab === 'servers'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
@@ -489,8 +536,15 @@ export function StudioDashboard({
           </div>
         )}
 
-        {/* Tab View Switching: Servers Hub vs Projects Dashboard */}
-        {activeTab === 'servers' ? (
+        {/* Tab View Switching: Domains Hub vs Servers Hub vs Projects Dashboard */}
+        {activeTab === 'domains' ? (
+          <DomainsView
+            onNavigate={onNavigate}
+            baseDomain={baseDomain}
+            deployments={deployments}
+            onOpenDeployWizard={() => setIsWizardOpen(true)}
+          />
+        ) : activeTab === 'servers' ? (
           <ServersView onNavigate={onNavigate} baseDomain={baseDomain} />
         ) : (
           <>
@@ -724,172 +778,23 @@ export function StudioDashboard({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredDeployments.map((dep) => {
-              const liveURL = dep.domain
-                ? `http://${dep.domain}`
-                : `http://${dep.slug}.${baseDomain}`
-              const isActionLoading = actionLoadingId === dep.id
-
-              return (
-                <Card
-                  key={dep.id}
-                  className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
-                >
-                  <CardHeader className="p-5 pb-3 space-y-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3
-                            onClick={() => handleOpenDrawer(dep)}
-                            className="font-bold text-slate-900 dark:text-white text-base hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer truncate"
-                          >
-                            {dep.project_name}
-                          </h3>
-                        </div>
-                        <p className="text-xs font-mono text-slate-400">/{dep.slug}</p>
-                      </div>
-
-                      {/* Status Badge */}
-                      {dep.status === 'running' ? (
-                        <Badge variant="success" className="gap-1 py-0.5 px-2 text-[11px] shrink-0">
-                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                          Running
-                        </Badge>
-                      ) : dep.status === 'stopped' ? (
-                        <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-[11px] shrink-0">
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                          Stopped
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[11px] shrink-0">
-                          {dep.status}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Live Subdomain Link Row */}
-                    <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                      <a
-                        href={liveURL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 truncate"
-                      >
-                        {liveURL.replace('http://', '')}
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                      </a>
-                      <button
-                        onClick={() => copyUrl(dep.id, liveURL)}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                        title="Salin Subdomain URL"
-                      >
-                        {copiedId === dep.id ? (
-                          <Check className="h-3.5 w-3.5 text-emerald-500" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Metadata tags: Stack, Target Server, Port, Source */}
-                    <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                      <span className="inline-flex items-center gap-1 font-semibold capitalize bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                        {getRuntimeIcon(dep.runtime)}
-                        {dep.runtime}
-                      </span>
-
-                      {/* Target Server Badge (Local Sandbox vs Remote VPS) */}
-                      {dep.server_id ? (
-                        <span className="inline-flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 px-2 py-0.5 rounded-md">
-                          <Server className="h-3 w-3" />
-                          <span>
-                            {servers.find((s) => s.id === dep.server_id)?.name || 'Remote VPS'}
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">
-                          <Cpu className="h-3 w-3" /> Local Sandbox
-                        </span>
-                      )}
-
-                      {dep.internal_port > 0 && (
-                        <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                          :{dep.internal_port}
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                        {dep.source_type === 'git' ? (
-                          <>
-                            <FolderGit2 className="h-3 w-3 text-blue-500" /> Git
-                          </>
-                        ) : (
-                          <>
-                            <UploadCloud className="h-3 w-3 text-emerald-500" /> ZIP
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  </CardHeader>
-
-                  {/* Card Action Controls Footer */}
-                  <div className="p-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      {dep.status === 'running' ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleQuickStop(dep)}
-                          disabled={isActionLoading}
-                          className="h-8 text-xs font-semibold border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950 flex items-center gap-1"
-                        >
-                          {isActionLoading ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Square className="h-3 w-3 fill-current" />
-                          )}
-                          Stop
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => handleQuickStart(dep)}
-                          disabled={isActionLoading}
-                          className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
-                        >
-                          {isActionLoading ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Play className="h-3 w-3 fill-current" />
-                          )}
-                          Start
-                        </Button>
-                      )}
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleQuickRestart(dep)}
-                        disabled={isActionLoading}
-                        className="h-8 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 px-2"
-                        title="Restart proses"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                      </Button>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleOpenDrawer(dep)}
-                      className="h-8 text-xs font-semibold flex items-center gap-1 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      <Terminal className="h-3.5 w-3.5 text-emerald-500" />
-                      <span>Logs & Drawer</span>
-                    </Button>
-                  </div>
-                </Card>
-              )
-            })}
+            {filteredDeployments.map((dep) => (
+              <ProjectCard
+                key={dep.id}
+                deployment={dep}
+                baseDomain={baseDomain}
+                servers={servers}
+                customDomains={domains}
+                onOpenDrawer={handleOpenDrawer}
+                onOpenCustomDomains={handleOpenCustomDomains}
+                onQuickStart={handleQuickStart}
+                onQuickStop={handleQuickStop}
+                onQuickRestart={handleQuickRestart}
+                isActionLoading={actionLoadingId === dep.id}
+                copiedId={copiedId}
+                onCopyUrl={copyUrl}
+              />
+            ))}
           </div>
         )}
           </>
@@ -914,6 +819,19 @@ export function StudioDashboard({
         onDelete={handleDeploymentDeleted}
         baseDomain={baseDomain}
       />
+
+      {/* Custom Domains Modal (S05.4) */}
+      <CustomDomainsModal
+        deployment={selectedDomainDeployment}
+        isOpen={isCustomDomainsModalOpen}
+        onClose={() => {
+          setIsCustomDomainsModalOpen(false)
+          fetchDomains()
+        }}
+        baseDomain={baseDomain}
+        onDomainsUpdated={fetchDomains}
+      />
     </div>
   )
 }
+

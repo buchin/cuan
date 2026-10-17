@@ -74,3 +74,56 @@ export interface TestServerResult {
   server: ServerItem
 }
 
+export interface DNSInstructionDetail {
+  type: string
+  name: string
+  target?: string
+  value?: string
+  ttl?: number
+  description?: string
+}
+
+export interface CustomDomainInstructions {
+  cname: DNSInstructionDetail
+  txt: DNSInstructionDetail
+  a: DNSInstructionDetail
+}
+
+export interface CustomDomainItem {
+  id: string
+  deployment_id: string
+  domain: string
+  dns_status: 'pending' | 'verified' | 'failed' | string
+  ssl_status: 'pending' | 'active' | 'error' | 'failed' | string
+  verification_token?: string
+  last_checked_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DomainVerifyResult {
+  status: string
+  verified: boolean
+  dns_status: string
+  domain: CustomDomainItem
+  result?: {
+    domain: string
+    verified: boolean
+    method?: string
+    message: string
+    cname_target?: string
+    txt_record?: string
+    resolved_ips?: string[]
+  }
+  route_registered?: boolean
+  message: string
+  error?: string
+}
+
+export interface CreateDomainResult {
+  status: string
+  message: string
+  domain: CustomDomainItem
+  instructions: CustomDomainInstructions
+}
+

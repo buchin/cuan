@@ -20,9 +20,12 @@ import {
   AlertCircle,
   RefreshCw,
   Radio,
-  Server
+  Server,
+  CheckCircle2,
+  Clock
 } from 'lucide-react'
-import { DeploymentItem, DeploymentLog, HealthStatus } from './types'
+import { DeploymentItem, DeploymentLog, HealthStatus, CustomDomainItem } from './types'
+import { CustomDomainsModal } from './CustomDomainsModal'
 
 interface ProjectDrawerProps {
   deployment: DeploymentItem | null
@@ -60,6 +63,23 @@ export function ProjectDrawer({
   const [copiedLogs, setCopiedLogs] = useState(false)
   const logContainerRef = useRef<HTMLDivElement>(null)
 
+  // Custom domains state (S05.4)
+  const [isCustomDomainsModalOpen, setIsCustomDomainsModalOpen] = useState(false)
+  const [customDomains, setCustomDomains] = useState<CustomDomainItem[]>([])
+
+  const fetchCustomDomains = async () => {
+    if (!deployment) return
+    try {
+      const res = await fetch(`/api/deployments/${deployment.id}/domains`)
+      if (res.ok) {
+        const data = await res.json()
+        setCustomDomains(data.domains || [])
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   // Fetch initial logs & live health
   const fetchLogs = async () => {
     try {
@@ -92,6 +112,7 @@ export function ProjectDrawer({
     setLogsLoading(true)
     fetchLogs().finally(() => setLogsLoading(false))
     fetchHealth()
+    fetchCustomDomains()
 
     // Poll logs every 2 seconds while running
     const interval = setInterval(() => {
@@ -355,12 +376,84 @@ export function ProjectDrawer({
             </Button>
           </div>
 
+          {/* Custom Domains Bar (S05.4) */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-emerald-500" />
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Custom Domains ({customDomains.length})
+                </span>
+                {customDomains.length > 0 && (
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-[10px] py-0">
+                    {customDomains.filter((cd) => cd.dns_status === 'verified').length} Verified
+                  </Badge>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCustomDomainsModalOpen(true)}
+                className="h-7 text-xs font-semibold px-2.5 flex items-center gap-1 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+              >
+                <Globe className="h-3 w-3" />
+                <span>{customDomains.length === 0 ? 'Hubungkan Domain' : 'Kelola Domains'}</span>
+              </Button>
+            </div>
+
+            {customDomains.length === 0 ? (
+              <p className="text-[11px] text-slate-400">
+                Belum ada custom domain terhubung. Hubungkan domain pribadi Anda (misal <code className="text-emerald-600 dark:text-emerald-400">app.brand.com</code>) dengan On-Demand TLS otomatis.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {customDomains.map((cd) => (
+                  <div
+                    key={cd.id}
+                    className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                      <a
+                        href={`https://${cd.domain}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono font-semibold text-slate-800 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1 truncate"
+                      >
+                        <span className="truncate">{cd.domain}</span>
+                        <ExternalLink className="h-3 w-3 text-slate-400 shrink-0" />
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {cd.dns_status === 'verified' ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 text-[10px] font-mono py-0 px-1.5">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-400 text-amber-600 dark:text-amber-400 gap-1 text-[10px] font-mono py-0 px-1.5">
+                          <Clock className="h-2.5 w-2.5" /> Pending DNS
+                        </Badge>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsCustomDomainsModalOpen(true)}
+                        className="h-6 px-1.5 text-[10px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                      >
+                        Kelola
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* 2. One-Click Interactive Control Action Bar */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
               1-Click Runtime Controls
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {/* Start Button */}
               <Button
                 onClick={handleStart}
@@ -403,6 +496,17 @@ export function ProjectDrawer({
                   <RotateCcw className="h-3.5 w-3.5" />
                 )}
                 Restart
+              </Button>
+
+              {/* Custom Domains Button (S05.4) */}
+              <Button
+                variant="outline"
+                onClick={() => setIsCustomDomainsModalOpen(true)}
+                className="border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950 font-semibold text-xs flex items-center gap-1"
+                title="Kelola Custom Domains"
+              >
+                <Globe className="h-3.5 w-3.5" />
+                <span>Domains</span>
               </Button>
 
               {/* Delete Button */}
@@ -615,6 +719,19 @@ export function ProjectDrawer({
           </div>
         </div>
       </div>
+
+      {/* Custom Domains Modal (S05.4) */}
+      <CustomDomainsModal
+        deployment={deployment}
+        isOpen={isCustomDomainsModalOpen}
+        onClose={() => {
+          setIsCustomDomainsModalOpen(false)
+          fetchCustomDomains()
+        }}
+        baseDomain={baseDomain}
+        onDomainsUpdated={fetchCustomDomains}
+      />
     </div>
   )
 }
+
