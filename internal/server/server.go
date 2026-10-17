@@ -879,6 +879,8 @@ func (s *Server) routes() {
 	// AI Script Inspector & ZIP Uploader Endpoints (Sprint 11 S11.2)
 	s.router.Post("/api/projects/from-zip", s.handleCreateProjectFromZip)
 	s.router.Post("/api/v1/projects/from-zip", s.handleCreateProjectFromZip)
+	s.router.Post("/api/projects/inspect-zip", s.handleInspectZip)
+	s.router.Post("/api/v1/projects/inspect-zip", s.handleInspectZip)
 	s.router.Post("/api/inspector/inspect-zip", s.handleInspectZip)
 	s.router.Post("/api/v1/inspector/inspect-zip", s.handleInspectZip)
 
@@ -1100,6 +1102,7 @@ func (s *Server) routes() {
 
 		// AI Script Inspector & ZIP Uploader in v1 (Sprint 11 S11.2)
 		r.Post("/projects/from-zip", s.handleCreateProjectFromZip)
+		r.Post("/projects/inspect-zip", s.handleInspectZip)
 		r.Post("/inspector/inspect-zip", s.handleInspectZip)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
