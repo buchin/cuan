@@ -50,6 +50,7 @@ type Server struct {
 	obsRepo             cuanDB.ObservabilityRepository
 	obsHealthPoller     *observability.HealthPoller
 	obsMetricsCollector *observability.MetricsCollector
+	obsAlertDispatcher  *observability.AlertDispatcher
 	router              *chi.Mux
 }
 
@@ -192,6 +193,38 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		observability.WithServerRepo(srvRepo),
 	)
 
+	obsAlertDispatcher := observability.NewAlertDispatcher(
+		obsRepo,
+		observability.WithAlertKeyVault(vault),
+		observability.WithAlertBaseURL(fmt.Sprintf("https://%s", baseHost)),
+		observability.WithProjectResolver(func(ctx context.Context, targetType, targetID string) string {
+			if targetType == "deployment" && depStore != nil {
+				dep, err := depStore.GetDeployment(ctx, targetID)
+				if err == nil && dep != nil && pSvc != nil {
+					projects, err := pSvc.List(ctx)
+					if err == nil {
+						for _, p := range projects {
+							if p.Name == dep.ProjectName || p.RepoName == dep.Slug {
+								return p.ID
+							}
+						}
+						if len(projects) == 1 {
+							return projects[0].ID
+						}
+					}
+				}
+			}
+			return "default"
+		}),
+	)
+
+	obsHealthPoller.SetProbeCallback(func(hc *cuanDB.HealthCheck, res *observability.ProbeResult) {
+		_ = obsAlertDispatcher.HandleHealthProbe(context.Background(), hc, res)
+	})
+	obsMetricsCollector.SetMetricCallback(func(metric *cuanDB.ServerMetric) {
+		_ = obsAlertDispatcher.HandleServerMetric(context.Background(), metric)
+	})
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -212,6 +245,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		obsRepo:             obsRepo,
 		obsHealthPoller:     obsHealthPoller,
 		obsMetricsCollector: obsMetricsCollector,
+		obsAlertDispatcher:  obsAlertDispatcher,
 		router:              r,
 	}
 
@@ -369,6 +403,14 @@ func (s *Server) SetObservabilityMetricsCollector(c *observability.MetricsCollec
 	s.obsMetricsCollector = c
 }
 
+func (s *Server) ObservabilityAlertDispatcher() *observability.AlertDispatcher {
+	return s.obsAlertDispatcher
+}
+
+func (s *Server) SetObservabilityAlertDispatcher(d *observability.AlertDispatcher) {
+	s.obsAlertDispatcher = d
+}
+
 func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
@@ -423,6 +465,13 @@ func (s *Server) routes() {
 	s.router.Get("/api/domains/{id}", s.handleGetDomain)
 	s.router.Post("/api/domains/{id}/verify", s.handleVerifyDomain)
 	s.router.Delete("/api/domains/{id}", s.handleDeleteDomain)
+
+	// Incident Alert Dispatcher & Multi-Channel Notification Engine Endpoints (Sprint 6 S06.3)
+	s.router.Post("/api/projects/{id}/alert-channels", s.handleCreateAlertChannel)
+	s.router.Get("/api/projects/{id}/alert-channels", s.handleListAlertChannels)
+	s.router.Post("/api/alert-channels/{id}/test", s.handleTestAlertChannel)
+	s.router.Delete("/api/alert-channels/{id}", s.handleDeleteAlertChannel)
+	s.router.Get("/api/incidents", s.handleListIncidents)
 
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
@@ -492,6 +541,13 @@ func (s *Server) routes() {
 		r.Get("/sponsors/batches", s.handleListBatches)
 		r.Post("/leads", s.handleCreateLead)
 		r.Post("/waiting-list", s.handleCreateLead)
+
+		// Observability Alert Channels & Incidents in v1
+		r.Post("/projects/{id}/alert-channels", s.handleCreateAlertChannel)
+		r.Get("/projects/{id}/alert-channels", s.handleListAlertChannels)
+		r.Post("/alert-channels/{id}/test", s.handleTestAlertChannel)
+		r.Delete("/alert-channels/{id}", s.handleDeleteAlertChannel)
+		r.Get("/incidents", s.handleListIncidents)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {

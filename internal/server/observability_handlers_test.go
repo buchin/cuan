@@ -1,10 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,6 +74,12 @@ Filesystem     1M-blocks      Used Available Use% Mounted on
 
 	healthPoller := observability.NewHealthPoller(obsRepo)
 	srv.SetObservabilityHealthPoller(healthPoller)
+
+	dispatcher := observability.NewAlertDispatcher(
+		obsRepo,
+		observability.WithAlertKeyVault(srv.KeyVault()),
+	)
+	srv.SetObservabilityAlertDispatcher(dispatcher)
 
 	return srv, depStore, obsRepo, serverRepo
 }
@@ -292,5 +300,330 @@ func TestObservabilityEndpoints_ServerMetrics(t *testing.T) {
 	srv.Router().ServeHTTP(recV1Metrics, reqV1Metrics)
 	if recV1Metrics.Code != http.StatusOK {
 		t.Fatalf("GET /api/v1/servers/{id}/metrics failed with %d", recV1Metrics.Code)
+	}
+}
+
+func TestObservabilityEndpoints_AlertChannels(t *testing.T) {
+	srv, _, obsRepo, _ := setupObservabilityTestServer(t)
+
+	// Mock server to receive 1-click test alert
+	var testAlertReceived bool
+	mockAlertServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		testAlertReceived = true
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer mockAlertServer.Close()
+
+	// Configure alert dispatcher HTTP client to use mockAlertServer's client
+	srv.ObservabilityAlertDispatcher().SetHTTPClient(mockAlertServer.Client())
+
+	projectID := "proj_alerts_e2e"
+
+	// 1. Validation error: empty channel name
+	badPayload := map[string]interface{}{
+		"name":      "",
+		"type":      "telegram",
+		"bot_token": "123",
+		"chat_id":   "456",
+	}
+	body, _ := json.Marshal(badPayload)
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/alert-channels", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty channel name, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 2. Validation error: unsupported channel type
+	badTypePayload := map[string]interface{}{
+		"name": "Slack Channel",
+		"type": "slack",
+	}
+	body, _ = json.Marshal(badTypePayload)
+	req = httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/alert-channels", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unsupported channel type, got %d", rec.Code)
+	}
+
+	// 3. Validation error: missing telegram bot_token/chat_id
+	badTg := map[string]interface{}{
+		"name": "Tg Alert",
+		"type": "telegram",
+	}
+	body, _ = json.Marshal(badTg)
+	req = httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/alert-channels", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid telegram config, got %d", rec.Code)
+	}
+
+	// 4. Create Telegram alert channel
+	tgPayload := map[string]interface{}{
+		"name":      "Team Telegram Ops",
+		"type":      "telegram",
+		"bot_token": "123456789:ABCDefgh_SecretToken",
+		"chat_id":   "-100987654321",
+	}
+	body, _ = json.Marshal(tgPayload)
+	req = httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/alert-channels", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST /api/projects/{id}/alert-channels (telegram) failed with %d: %s", rec.Code, rec.Body.String())
+	}
+	var createdTg struct {
+		Channel cuanDB.AlertChannelDTO `json:"channel"`
+		ID      string                 `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &createdTg)
+	tgID := createdTg.Channel.ID
+	if tgID == "" {
+		tgID = createdTg.ID
+	}
+	if tgID == "" {
+		t.Fatalf("expected non-empty channel ID in create response")
+	}
+
+	// Verify token is masked in response
+	rawResp := rec.Body.String()
+	if strings.Contains(rawResp, "ABCDefgh_SecretToken") {
+		t.Fatalf("CRITICAL: raw bot_token leaked in create response: %s", rawResp)
+	}
+
+	// 5. Create Discord alert channel
+	discordPayload := map[string]interface{}{
+		"name":        "Discord Production",
+		"type":        "discord",
+		"webhook_url": "https://discord.com/api/webhooks/12345/secret_discord_token",
+	}
+	body, _ = json.Marshal(discordPayload)
+	req = httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/alert-channels", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST discord channel failed with %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "secret_discord_token") {
+		t.Fatalf("CRITICAL: discord webhook token leaked in create response")
+	}
+
+	// 6. Create Webhook alert channel (points to mockAlertServer for 1-click test)
+	whPayload := map[string]interface{}{
+		"name":        "Generic Webhook Receiver",
+		"type":        "webhook",
+		"webhook_url": mockAlertServer.URL,
+		"secret":      "webhook-secret-9999",
+	}
+	body, _ = json.Marshal(whPayload)
+	req = httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/alert-channels", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST generic webhook failed with %d: %s", rec.Code, rec.Body.String())
+	}
+	var createdWh struct {
+		Channel cuanDB.AlertChannelDTO `json:"channel"`
+		ID      string                 `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &createdWh)
+	whID := createdWh.Channel.ID
+	if whID == "" {
+		whID = createdWh.ID
+	}
+
+	// Verify encryption in DB: config_encrypted should be set and ciphertext should NOT contain plaintext secrets
+	storedChannel, err := obsRepo.GetAlertChannelByID(context.Background(), whID)
+	if err != nil {
+		t.Fatalf("GetAlertChannelByID failed: %v", err)
+	}
+	if storedChannel.ConfigEncrypted == "" {
+		t.Fatalf("expected ConfigEncrypted to be set in DB")
+	}
+	if strings.Contains(storedChannel.ConfigEncrypted, "webhook-secret-9999") {
+		t.Fatalf("CRITICAL: ConfigEncrypted contains plaintext secret in database!")
+	}
+
+	// 7. GET /api/projects/{id}/alert-channels
+	reqList := httptest.NewRequest(http.MethodGet, "/api/projects/"+projectID+"/alert-channels", nil)
+	recList := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recList, reqList)
+	if recList.Code != http.StatusOK {
+		t.Fatalf("GET /api/projects/{id}/alert-channels failed with %d: %s", recList.Code, recList.Body.String())
+	}
+	var listResp struct {
+		Channels []cuanDB.AlertChannelDTO `json:"channels"`
+		Count    int                      `json:"count"`
+	}
+	_ = json.Unmarshal(recList.Body.Bytes(), &listResp)
+	if listResp.Count != 3 {
+		t.Errorf("expected 3 channels, got %d", listResp.Count)
+	}
+	// Verify all returned channels have masked credentials (zero leak)
+	listJSON := recList.Body.String()
+	if strings.Contains(listJSON, "ABCDefgh_SecretToken") || strings.Contains(listJSON, "secret_discord_token") || strings.Contains(listJSON, "webhook-secret-9999") {
+		t.Fatalf("CRITICAL: credentials leaked in list response: %s", listJSON)
+	}
+
+	// 8. POST /api/alert-channels/{id}/test (1-click test alert)
+	reqTest := httptest.NewRequest(http.MethodPost, "/api/alert-channels/"+whID+"/test", nil)
+	recTest := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recTest, reqTest)
+	if recTest.Code != http.StatusOK {
+		t.Fatalf("POST /api/alert-channels/{id}/test failed with %d: %s", recTest.Code, recTest.Body.String())
+	}
+	if !testAlertReceived {
+		t.Errorf("expected 1-click test alert to be received by mock alert server")
+	}
+
+	// 9. POST /api/alert-channels/nonexistent/test -> 404
+	reqTest404 := httptest.NewRequest(http.MethodPost, "/api/alert-channels/nonexistent-id/test", nil)
+	recTest404 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recTest404, reqTest404)
+	if recTest404.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for nonexistent test channel, got %d", recTest404.Code)
+	}
+
+	// 10. DELETE /api/alert-channels/{id}
+	reqDel := httptest.NewRequest(http.MethodDelete, "/api/alert-channels/"+tgID, nil)
+	recDel := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recDel, reqDel)
+	if recDel.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/alert-channels/{id} failed with %d: %s", recDel.Code, recDel.Body.String())
+	}
+
+	// Re-delete -> 404
+	reqDel404 := httptest.NewRequest(http.MethodDelete, "/api/alert-channels/"+tgID, nil)
+	recDel404 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recDel404, reqDel404)
+	if recDel404.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for deleting already deleted channel, got %d", recDel404.Code)
+	}
+
+	// 11. Test v1 route aliases
+	reqV1List := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID+"/alert-channels", nil)
+	recV1List := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recV1List, reqV1List)
+	if recV1List.Code != http.StatusOK {
+		t.Errorf("GET /api/v1/projects/{id}/alert-channels failed with %d", recV1List.Code)
+	}
+
+	reqV1Test := httptest.NewRequest(http.MethodPost, "/api/v1/alert-channels/"+whID+"/test", nil)
+	recV1Test := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recV1Test, reqV1Test)
+	if recV1Test.Code != http.StatusOK {
+		t.Errorf("POST /api/v1/alert-channels/{id}/test failed with %d", recV1Test.Code)
+	}
+}
+
+func TestObservabilityEndpoints_Incidents(t *testing.T) {
+	srv, _, obsRepo, _ := setupObservabilityTestServer(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+
+	// Pre-populate incidents
+	inc1 := &cuanDB.AlertIncident{
+		ProjectID:   "proj_p1",
+		TargetType:  "deployment",
+		TargetID:    "dep_100",
+		Title:       "Service Outage: Gateway 504",
+		Message:     "3 consecutive probe failures",
+		Status:      "firing",
+		TriggeredAt: now.Add(-30 * time.Minute),
+	}
+	inc2 := &cuanDB.AlertIncident{
+		ProjectID:   "proj_p1",
+		TargetType:  "server",
+		TargetID:    "srv_200",
+		Title:       "High CPU Usage",
+		Message:     "CPU exceeded 95%",
+		Status:      "resolved",
+		TriggeredAt: now.Add(-20 * time.Minute),
+	}
+	inc3 := &cuanDB.AlertIncident{
+		ProjectID:   "proj_p2",
+		TargetType:  "deployment",
+		TargetID:    "dep_300",
+		Title:       "Outage: 500 Internal Error",
+		Message:     "Failure streak",
+		Status:      "firing",
+		TriggeredAt: now.Add(-10 * time.Minute),
+	}
+
+	_ = obsRepo.CreateAlertIncident(ctx, inc1)
+	_ = obsRepo.CreateAlertIncident(ctx, inc2)
+	_ = obsRepo.CreateAlertIncident(ctx, inc3)
+
+	// 1. GET /api/incidents (all)
+	reqAll := httptest.NewRequest(http.MethodGet, "/api/incidents", nil)
+	recAll := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recAll, reqAll)
+	if recAll.Code != http.StatusOK {
+		t.Fatalf("GET /api/incidents failed with %d: %s", recAll.Code, recAll.Body.String())
+	}
+	var resAll struct {
+		Incidents []cuanDB.AlertIncidentDTO `json:"incidents"`
+		Count     int                       `json:"count"`
+	}
+	_ = json.Unmarshal(recAll.Body.Bytes(), &resAll)
+	if resAll.Count != 3 {
+		t.Errorf("expected 3 total incidents, got %d", resAll.Count)
+	}
+
+	// 2. GET /api/incidents?project_id=proj_p1
+	reqP1 := httptest.NewRequest(http.MethodGet, "/api/incidents?project_id=proj_p1", nil)
+	recP1 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recP1, reqP1)
+	if recP1.Code != http.StatusOK {
+		t.Fatalf("GET /api/incidents?project_id=proj_p1 failed with %d", recP1.Code)
+	}
+	var resP1 struct {
+		Incidents []cuanDB.AlertIncidentDTO `json:"incidents"`
+		Count     int                       `json:"count"`
+	}
+	_ = json.Unmarshal(recP1.Body.Bytes(), &resP1)
+	if resP1.Count != 2 {
+		t.Errorf("expected 2 incidents for proj_p1, got %d", resP1.Count)
+	}
+
+	// 3. GET /api/incidents?target_id=srv_200
+	reqTarget := httptest.NewRequest(http.MethodGet, "/api/incidents?target_id=srv_200", nil)
+	recTarget := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recTarget, reqTarget)
+	if recTarget.Code != http.StatusOK {
+		t.Fatalf("GET /api/incidents?target_id=srv_200 failed with %d", recTarget.Code)
+	}
+	var resTarget struct {
+		Incidents []cuanDB.AlertIncidentDTO `json:"incidents"`
+		Count     int                       `json:"count"`
+	}
+	_ = json.Unmarshal(recTarget.Body.Bytes(), &resTarget)
+	if resTarget.Count != 1 || resTarget.Incidents[0].TargetID != "srv_200" {
+		t.Errorf("expected 1 incident for srv_200, got %d", resTarget.Count)
+	}
+
+	// 4. GET /api/incidents?status=firing
+	reqFiring := httptest.NewRequest(http.MethodGet, "/api/incidents?status=firing", nil)
+	recFiring := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recFiring, reqFiring)
+	var resFiring struct {
+		Incidents []cuanDB.AlertIncidentDTO `json:"incidents"`
+		Count     int                       `json:"count"`
+	}
+	_ = json.Unmarshal(recFiring.Body.Bytes(), &resFiring)
+	if resFiring.Count != 2 {
+		t.Errorf("expected 2 firing incidents, got %d", resFiring.Count)
+	}
+
+	// 5. GET /api/v1/incidents (v1 alias)
+	reqV1 := httptest.NewRequest(http.MethodGet, "/api/v1/incidents", nil)
+	recV1 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recV1, reqV1)
+	if recV1.Code != http.StatusOK {
+		t.Errorf("GET /api/v1/incidents failed with %d", recV1.Code)
 	}
 }

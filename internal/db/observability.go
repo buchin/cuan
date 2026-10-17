@@ -188,13 +188,14 @@ type AlertChannel struct {
 
 // AlertChannelDTO is a safe Data Transfer Object without encrypted secrets.
 type AlertChannelDTO struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"project_id"`
-	Type      string    `json:"type"`
-	Name      string    `json:"name"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           string            `json:"id"`
+	ProjectID    string            `json:"project_id"`
+	Type         string            `json:"type"`
+	Name         string            `json:"name"`
+	IsActive     bool              `json:"is_active"`
+	MaskedConfig map[string]string `json:"masked_config,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
 }
 
 // ToDTO converts AlertChannel to safe AlertChannelDTO.
@@ -283,6 +284,7 @@ type ObservabilityRepository interface {
 	// Alert Incidents
 	CreateAlertIncident(ctx context.Context, incident *AlertIncident) error
 	GetAlertIncidentByID(ctx context.Context, id string) (*AlertIncident, error)
+	ListAlertIncidents(ctx context.Context, limit int) ([]AlertIncident, error)
 	ListAlertIncidentsByProjectID(ctx context.Context, projectID string, limit int) ([]AlertIncident, error)
 	ListActiveAlertIncidents(ctx context.Context, projectID string) ([]AlertIncident, error)
 	ResolveAlertIncident(ctx context.Context, id string, resolvedAt time.Time) error
@@ -889,6 +891,43 @@ func (r *SQLObservabilityRepository) GetAlertIncidentByID(ctx context.Context, i
 	return &ai, nil
 }
 
+func (r *SQLObservabilityRepository) ListAlertIncidents(ctx context.Context, limit int) ([]AlertIncident, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+		SELECT id, project_id, target_type, target_id, title, message, status, triggered_at, resolved_at
+		FROM alert_incidents
+		ORDER BY triggered_at DESC
+		LIMIT $1
+	`
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list all alert incidents: %w", err)
+	}
+	defer rows.Close()
+
+	var list []AlertIncident
+	for rows.Next() {
+		var ai AlertIncident
+		if err := rows.Scan(
+			&ai.ID,
+			&ai.ProjectID,
+			&ai.TargetType,
+			&ai.TargetID,
+			&ai.Title,
+			&ai.Message,
+			&ai.Status,
+			&ai.TriggeredAt,
+			&ai.ResolvedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan alert incident: %w", err)
+		}
+		list = append(list, ai)
+	}
+	return list, nil
+}
+
 func (r *SQLObservabilityRepository) ListAlertIncidentsByProjectID(ctx context.Context, projectID string, limit int) ([]AlertIncident, error) {
 	if limit <= 0 {
 		limit = 50
@@ -1346,6 +1385,27 @@ func (m *MemoryObservabilityRepository) GetAlertIncidentByID(ctx context.Context
 	}
 	copied := *inc
 	return &copied, nil
+}
+
+func (m *MemoryObservabilityRepository) ListAlertIncidents(ctx context.Context, limit int) ([]AlertIncident, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	list := make([]AlertIncident, 0, len(m.incidents))
+	for _, inc := range m.incidents {
+		list = append(list, *inc)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].TriggeredAt.After(list[j].TriggeredAt)
+	})
+	if len(list) > limit {
+		list = list[:limit]
+	}
+	return list, nil
 }
 
 func (m *MemoryObservabilityRepository) ListAlertIncidentsByProjectID(ctx context.Context, projectID string, limit int) ([]AlertIncident, error) {

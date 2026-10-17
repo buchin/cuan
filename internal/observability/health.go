@@ -353,6 +353,13 @@ func (p *HealthPoller) IsRunning() bool {
 	return p.running
 }
 
+// SetProbeCallback dynamically sets or updates the probe callback.
+func (p *HealthPoller) SetProbeCallback(cb func(hc *db.HealthCheck, res *ProbeResult)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.onProbeCallback = cb
+}
+
 func (p *HealthPoller) pollLoop() {
 	defer close(p.done)
 	ticker := time.NewTicker(p.interval)

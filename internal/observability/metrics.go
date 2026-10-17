@@ -411,14 +411,22 @@ func WithServerRepo(repo db.ServerRepository) MetricsCollectorOption {
 	}
 }
 
+// WithMetricCallback sets an optional callback executed after every metric collection.
+func WithMetricCallback(cb func(metric *db.ServerMetric)) MetricsCollectorOption {
+	return func(c *MetricsCollector) {
+		c.onMetricCallback = cb
+	}
+}
+
 // MetricsCollector orchestrates metrics gathering from local runners and remote BYOS servers.
 type MetricsCollector struct {
-	repo        db.ObservabilityRepository
-	localReader LocalMetricsReader
-	sshRunner   SSHRunner
-	serverRepo  db.ServerRepository
-	interval    time.Duration
-	timeout     time.Duration
+	repo             db.ObservabilityRepository
+	localReader      LocalMetricsReader
+	sshRunner        SSHRunner
+	serverRepo       db.ServerRepository
+	interval         time.Duration
+	timeout          time.Duration
+	onMetricCallback func(metric *db.ServerMetric)
 
 	mu      sync.RWMutex
 	ctx     context.Context
@@ -483,6 +491,13 @@ func (c *MetricsCollector) IsRunning() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.running
+}
+
+// SetMetricCallback dynamically sets or updates the metric callback.
+func (c *MetricsCollector) SetMetricCallback(cb func(metric *db.ServerMetric)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onMetricCallback = cb
 }
 
 func (c *MetricsCollector) collectionLoop() {
@@ -559,6 +574,13 @@ func (c *MetricsCollector) CollectLocal(ctx context.Context, deploymentID string
 		return nil, fmt.Errorf("record server metric: %w", err)
 	}
 
+	c.mu.RLock()
+	cbLocal := c.onMetricCallback
+	c.mu.RUnlock()
+	if cbLocal != nil {
+		cbLocal(metric)
+	}
+
 	return metric, nil
 }
 
@@ -599,6 +621,13 @@ func (c *MetricsCollector) CollectServer(ctx context.Context, serverID string) (
 
 	if err := c.repo.RecordServerMetric(ctx, metric); err != nil {
 		return nil, fmt.Errorf("record server metric: %w", err)
+	}
+
+	c.mu.RLock()
+	cbServer := c.onMetricCallback
+	c.mu.RUnlock()
+	if cbServer != nil {
+		cbServer(metric)
 	}
 
 	return metric, nil
