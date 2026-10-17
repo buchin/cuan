@@ -78,6 +78,8 @@ type Server struct {
 	scriptDeployRepo    cuanDB.ScriptDeploymentRepository
 	provisionedDBRepo   cuanDB.ProvisionedDatabaseRepository
 	provisionerEngine   *deployer.DatabaseProvisioner
+	scriptRunner        *deployer.ScriptRunner
+	processSupervisor   *deployer.ProcessSupervisor
 	router              *chi.Mux
 }
 
@@ -381,6 +383,20 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		PostgresAdminURL: cfg.DatabaseURL,
 	})
 
+	scriptRunner := deployer.NewScriptRunner()
+	processSupervisor := deployer.NewProcessSupervisor(deployer.ProcessSupervisorConfig{
+		PortPool:          portPool,
+		Router:            caddyRouter,
+		Repo:              scriptDeployRepo,
+		ProvisionedDBRepo: provisionedDBRepo,
+		ServerRepo:        srvRepo,
+		SSHManager:        sshMgr,
+		KeyVault:          vault,
+		ProjectBaseDir:    projectBaseDir,
+		DeploymentsDir:    deploymentsDir,
+		VaultSecret:       provSecret,
+	})
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -422,6 +438,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		scriptDeployRepo:    scriptDeployRepo,
 		provisionedDBRepo:   provisionedDBRepo,
 		provisionerEngine:   provEngine,
+		scriptRunner:        scriptRunner,
+		processSupervisor:   processSupervisor,
 		router:              r,
 	}
 
@@ -657,6 +675,22 @@ func (s *Server) ProvisionerEngine() *deployer.DatabaseProvisioner {
 
 func (s *Server) SetProvisionerEngine(e *deployer.DatabaseProvisioner) {
 	s.provisionerEngine = e
+}
+
+func (s *Server) ScriptRunner() *deployer.ScriptRunner {
+	return s.scriptRunner
+}
+
+func (s *Server) SetScriptRunner(r *deployer.ScriptRunner) {
+	s.scriptRunner = r
+}
+
+func (s *Server) ProcessSupervisor() *deployer.ProcessSupervisor {
+	return s.processSupervisor
+}
+
+func (s *Server) SetProcessSupervisor(ps *deployer.ProcessSupervisor) {
+	s.processSupervisor = ps
 }
 
 func (s *Server) ProviderRegistry() *agent.ProviderRegistry {
@@ -965,6 +999,16 @@ func (s *Server) routes() {
 	s.router.Get("/api/projects/{id}/env", s.handleGetProjectEnv)
 	s.router.Get("/api/v1/projects/{id}/env", s.handleGetProjectEnv)
 
+	// Script Build Runner & Process Supervisor Endpoints (Sprint 12 S12.3)
+	s.router.Post("/api/projects/{id}/script-deploy", s.handleScriptDeploy)
+	s.router.Post("/api/v1/projects/{id}/script-deploy", s.handleScriptDeploy)
+	s.router.Get("/api/projects/{id}/script-deploy/logs", s.handleScriptDeployLogs)
+	s.router.Get("/api/v1/projects/{id}/script-deploy/logs", s.handleScriptDeployLogs)
+	s.router.Post("/api/projects/{id}/script-deploy/restart", s.handleScriptDeployRestart)
+	s.router.Post("/api/v1/projects/{id}/script-deploy/restart", s.handleScriptDeployRestart)
+	s.router.Get("/api/projects/{id}/script-deploy/status", s.handleScriptDeployStatus)
+	s.router.Get("/api/v1/projects/{id}/script-deploy/status", s.handleScriptDeployStatus)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -1118,6 +1162,12 @@ func (s *Server) routes() {
 		r.Post("/projects/{id}/provision-db", s.handleProvisionProjectDatabase)
 		r.Post("/projects/{id}/generate-env", s.handleGenerateProjectEnv)
 		r.Get("/projects/{id}/env", s.handleGetProjectEnv)
+
+		// Script Build Runner & Process Supervisor in v1 (Sprint 12 S12.3)
+		r.Post("/projects/{id}/script-deploy", s.handleScriptDeploy)
+		r.Get("/projects/{id}/script-deploy/logs", s.handleScriptDeployLogs)
+		r.Post("/projects/{id}/script-deploy/restart", s.handleScriptDeployRestart)
+		r.Get("/projects/{id}/script-deploy/status", s.handleScriptDeployStatus)
 		r.Post("/tasks/{id}/publish", s.handlePublishTask)
 		r.Post("/projects/tasks/{id}/publish", s.handlePublishTask)
 		r.Get("/tasks/{id}/export", s.handleExportTask)
