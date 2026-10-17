@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -524,6 +525,36 @@ func TestMemoryProjectStudioRepository_Tasks(t *testing.T) {
 	if refetchedChild.ParentTaskID != nil {
 		t.Errorf("expected child parent_task_id to become nil after parent deletion, got %v", refetchedChild.ParentTaskID)
 	}
+
+	// 11. In-task Agent execution status & agent output
+	if refetchedChild.ExecutionStatus != "idle" {
+		t.Errorf("expected default execution_status 'idle', got %s", refetchedChild.ExecutionStatus)
+	}
+	if err := repo.UpdateTaskExecution(ctx, subtask1.ID, "completed", "# Article Outline\n1. Intro\n2. Body\n3. Conclusion"); err != nil {
+		t.Fatalf("failed to update task execution: %v", err)
+	}
+	executedChild, err := repo.GetTaskByID(ctx, subtask1.ID)
+	if err != nil {
+		t.Fatalf("failed to refetch task after execution update: %v", err)
+	}
+	if executedChild.ExecutionStatus != "completed" {
+		t.Errorf("expected execution_status 'completed', got %s", executedChild.ExecutionStatus)
+	}
+	if !strings.Contains(executedChild.AgentOutput, "# Article Outline") {
+		t.Errorf("expected agent output to contain markdown, got %s", executedChild.AgentOutput)
+	}
+
+	// Filter by ExecutionStatus
+	execTasks, err := repo.ListTasks(ctx, ProjectTaskFilter{
+		ProjectID:       projectID,
+		ExecutionStatus: "completed",
+	})
+	if err != nil {
+		t.Fatalf("failed to list tasks by execution status: %v", err)
+	}
+	if len(execTasks) != 1 || execTasks[0].ID != subtask1.ID {
+		t.Errorf("expected 1 task with execution_status 'completed', got %d", len(execTasks))
+	}
 }
 
 func TestMemoryProjectStudioRepository_ConcurrencyThreadSafety(t *testing.T) {
@@ -625,5 +656,11 @@ func TestRepositories_Aggregation(t *testing.T) {
 	}
 	if repos.BatchCampaigns == nil {
 		t.Errorf("expected BatchCampaigns repository to be non-nil")
+	}
+	if repos.Agents == nil {
+		t.Errorf("expected Agents repository to be non-nil")
+	}
+	if repos.Projects == nil {
+		t.Errorf("expected Projects repository to be non-nil")
 	}
 }

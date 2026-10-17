@@ -25,12 +25,14 @@ func TestProjectTasks_CRUD(t *testing.T) {
 		{ID: "2", Text: "Implement SSE engine", Completed: false},
 	}
 	createPayload := map[string]interface{}{
-		"title":         "Implement S07.2 REST Handlers",
-		"description":   "HTTP endpoints for rooms, messages, tasks, and real-time SSE stream",
-		"status":        "backlog",
-		"priority":      "high",
-		"dod_checklist": checklist,
-		"tags":          []string{"backend", "api", "sse"},
+		"title":            "Implement S07.2 REST Handlers",
+		"description":      "HTTP endpoints for rooms, messages, tasks, and real-time SSE stream",
+		"status":           "backlog",
+		"priority":         "high",
+		"dod_checklist":    checklist,
+		"tags":             []string{"backend", "api", "sse"},
+		"agent_output":     "Initial outline",
+		"execution_status": "idle",
 	}
 	bodyBytes, _ := json.Marshal(createPayload)
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/projects/%s/tasks", projectID), bytes.NewReader(bodyBytes))
@@ -47,7 +49,7 @@ func TestProjectTasks_CRUD(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &createResp); err != nil {
 		t.Fatalf("unmarshal create task response: %v", err)
 	}
-	if createResp.Task.ID == "" || createResp.Task.Title != "Implement S07.2 REST Handlers" {
+	if createResp.Task.ID == "" || createResp.Task.Title != "Implement S07.2 REST Handlers" || createResp.Task.AgentOutput != "Initial outline" || createResp.Task.ExecutionStatus != "idle" {
 		t.Fatalf("unexpected task created: %+v", createResp.Task)
 	}
 	taskID := createResp.Task.ID
@@ -103,9 +105,13 @@ func TestProjectTasks_CRUD(t *testing.T) {
 	// 4. Update Task (PUT /api/tasks/{id})
 	newTitle := "Updated S07.2 Task Title"
 	newPriority := "urgent"
+	newOutput := "Generated 5 articles successfully"
+	newExec := "completed"
 	updateBody, _ := json.Marshal(map[string]interface{}{
-		"title":    &newTitle,
-		"priority": &newPriority,
+		"title":            &newTitle,
+		"priority":         &newPriority,
+		"agent_output":     &newOutput,
+		"execution_status": &newExec,
 	})
 	req = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tasks/%s", taskID), bytes.NewReader(updateBody))
 	rec = httptest.NewRecorder()
@@ -117,7 +123,7 @@ func TestProjectTasks_CRUD(t *testing.T) {
 		Task db.ProjectTaskDTO `json:"task"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &updateResp)
-	if updateResp.Task.Title != newTitle || updateResp.Task.Priority != newPriority {
+	if updateResp.Task.Title != newTitle || updateResp.Task.Priority != newPriority || updateResp.Task.AgentOutput != newOutput || updateResp.Task.ExecutionStatus != newExec {
 		t.Fatalf("expected updated task values, got %+v", updateResp.Task)
 	}
 
@@ -172,36 +178,39 @@ func TestProjectTasks_QueryFiltering(t *testing.T) {
 
 	// Create child task 1 (fan-out subtask)
 	childTask1 := &db.ProjectTask{
-		ProjectID:    projectID,
-		Title:        "Subtask 1: Database Schema",
-		Status:       "done",
-		Priority:     "high",
-		ParentTaskID: &parentTask.ID,
-		BatchID:      strPtr("batch-multisite-01"),
-		Tags:         []string{"wordpress", "db"},
+		ProjectID:       projectID,
+		Title:           "Subtask 1: Database Schema",
+		Status:          "done",
+		Priority:        "high",
+		ParentTaskID:    &parentTask.ID,
+		BatchID:         strPtr("batch-multisite-01"),
+		Tags:            []string{"wordpress", "db"},
+		ExecutionStatus: "completed",
 	}
 	_ = s.ProjectStudioRepository().CreateTask(context.Background(), childTask1)
 
 	// Create child task 2 (fan-out subtask)
 	childTask2 := &db.ProjectTask{
-		ProjectID:    projectID,
-		Title:        "Subtask 2: REST Handlers",
-		Status:       "doing",
-		Priority:     "high",
-		ParentTaskID: &parentTask.ID,
-		BatchID:      strPtr("batch-multisite-01"),
-		Tags:         []string{"wordpress", "api"},
+		ProjectID:       projectID,
+		Title:           "Subtask 2: REST Handlers",
+		Status:          "doing",
+		Priority:        "high",
+		ParentTaskID:    &parentTask.ID,
+		BatchID:         strPtr("batch-multisite-01"),
+		Tags:            []string{"wordpress", "api"},
+		ExecutionStatus: "running",
 	}
 	_ = s.ProjectStudioRepository().CreateTask(context.Background(), childTask2)
 
 	// Create an independent batch task
 	batchTask := &db.ProjectTask{
-		ProjectID: projectID,
-		Title:     "AdSense Integration",
-		Status:    "backlog",
-		Priority:  "normal",
-		BatchID:   strPtr("batch-monetization-02"),
-		Tags:      []string{"adsense", "revenue"},
+		ProjectID:       projectID,
+		Title:           "AdSense Integration",
+		Status:          "backlog",
+		Priority:        "normal",
+		BatchID:         strPtr("batch-monetization-02"),
+		Tags:            []string{"adsense", "revenue"},
+		ExecutionStatus: "idle",
 	}
 	_ = s.ProjectStudioRepository().CreateTask(context.Background(), batchTask)
 
@@ -260,6 +269,12 @@ func TestProjectTasks_QueryFiltering(t *testing.T) {
 	tasks = queryTasks("?status=doing&tag=wordpress")
 	if len(tasks) != 1 || tasks[0].ID != childTask2.ID {
 		t.Fatalf("expected childTask2 with doing & wordpress, got %d", len(tasks))
+	}
+
+	// 6. Filter by execution_status
+	tasks = queryTasks("?execution_status=running")
+	if len(tasks) != 1 || tasks[0].ID != childTask2.ID {
+		t.Fatalf("expected childTask2 with execution_status 'running', got %d", len(tasks))
 	}
 }
 

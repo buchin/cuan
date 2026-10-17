@@ -20,8 +20,9 @@ var (
 	ErrTaskNotFound        = errors.New("project task not found")
 	ErrInvalidUUID         = errors.New("invalid uuid format")
 	ErrInvalidAuthorType   = errors.New("invalid author type: must be user, agent, or system")
-	ErrInvalidTaskStatus   = errors.New("invalid task status: must be backlog, doing, review, or done")
-	ErrInvalidTaskPriority = errors.New("invalid task priority: must be low, normal, high, or urgent")
+	ErrInvalidTaskStatus      = errors.New("invalid task status: must be backlog, doing, review, or done")
+	ErrInvalidTaskPriority    = errors.New("invalid task priority: must be low, normal, high, or urgent")
+	ErrInvalidExecutionStatus = errors.New("invalid execution status: must be idle, running, completed, or failed")
 	ErrEmptyRoomTitle      = errors.New("room title cannot be empty")
 	ErrEmptyTaskTitle      = errors.New("task title cannot be empty")
 	ErrEmptyMessageContent = errors.New("message content cannot be empty")
@@ -85,6 +86,20 @@ func NormalizeTaskPriority(priority string) (string, error) {
 		return norm, nil
 	default:
 		return "", ErrInvalidTaskPriority
+	}
+}
+
+// NormalizeTaskExecutionStatus validates and returns lowercase task execution status.
+func NormalizeTaskExecutionStatus(status string) (string, error) {
+	norm := strings.ToLower(strings.TrimSpace(status))
+	if norm == "" {
+		return "idle", nil
+	}
+	switch norm {
+	case "idle", "running", "completed", "failed":
+		return norm, nil
+	default:
+		return "", ErrInvalidExecutionStatus
 	}
 }
 
@@ -170,38 +185,42 @@ type DoDItem struct {
 
 // ProjectTask represents a structured task with fan-out hierarchy and multi-project batch capabilities.
 type ProjectTask struct {
-	ID           string    `json:"id"`
-	ProjectID    string    `json:"project_id"`
-	RoomID       *string   `json:"room_id,omitempty"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
-	Status       string    `json:"status"`   // 'backlog', 'doing', 'review', 'done'
-	Priority     string    `json:"priority"` // 'low', 'normal', 'high', 'urgent'
-	DoDChecklist []DoDItem `json:"dod_checklist"`
-	AssigneeID   *string   `json:"assignee_id,omitempty"`
-	ParentTaskID *string   `json:"parent_task_id,omitempty"` // For fan-out hierarchy
-	BatchID      *string   `json:"batch_id,omitempty"`       // For multi-project batch grouping
-	Tags         []string  `json:"tags"`                   // For tag selectors e.g. ["wordpress", "adsense"]
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	ProjectID       string    `json:"project_id"`
+	RoomID          *string   `json:"room_id,omitempty"`
+	Title           string    `json:"title"`
+	Description     string    `json:"description"`
+	Status          string    `json:"status"`   // 'backlog', 'doing', 'review', 'done'
+	Priority        string    `json:"priority"` // 'low', 'normal', 'high', 'urgent'
+	DoDChecklist    []DoDItem `json:"dod_checklist"`
+	AssigneeID      *string   `json:"assignee_id,omitempty"`
+	ParentTaskID    *string   `json:"parent_task_id,omitempty"` // For fan-out hierarchy
+	BatchID         *string   `json:"batch_id,omitempty"`       // For multi-project batch grouping
+	Tags            []string  `json:"tags"`                   // For tag selectors e.g. ["wordpress", "adsense"]
+	AgentOutput     string    `json:"agent_output"`           // Generated agent output/deliverables
+	ExecutionStatus string    `json:"execution_status"`       // 'idle', 'running', 'completed', 'failed'
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // ProjectTaskDTO is the public Data Transfer Object for ProjectTask.
 type ProjectTaskDTO struct {
-	ID           string    `json:"id"`
-	ProjectID    string    `json:"project_id"`
-	RoomID       *string   `json:"room_id,omitempty"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
-	Status       string    `json:"status"`
-	Priority     string    `json:"priority"`
-	DoDChecklist []DoDItem `json:"dod_checklist"`
-	AssigneeID   *string   `json:"assignee_id,omitempty"`
-	ParentTaskID *string   `json:"parent_task_id,omitempty"`
-	BatchID      *string   `json:"batch_id,omitempty"`
-	Tags         []string  `json:"tags"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	ProjectID       string    `json:"project_id"`
+	RoomID          *string   `json:"room_id,omitempty"`
+	Title           string    `json:"title"`
+	Description     string    `json:"description"`
+	Status          string    `json:"status"`
+	Priority        string    `json:"priority"`
+	DoDChecklist    []DoDItem `json:"dod_checklist"`
+	AssigneeID      *string   `json:"assignee_id,omitempty"`
+	ParentTaskID    *string   `json:"parent_task_id,omitempty"`
+	BatchID         *string   `json:"batch_id,omitempty"`
+	Tags            []string  `json:"tags"`
+	AgentOutput     string    `json:"agent_output"`
+	ExecutionStatus string    `json:"execution_status"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // ToDTO converts a ProjectTask to its public DTO.
@@ -211,34 +230,42 @@ func (t *ProjectTask) ToDTO() ProjectTaskDTO {
 	checklistCopy := make([]DoDItem, len(t.DoDChecklist))
 	copy(checklistCopy, t.DoDChecklist)
 
+	execStatus := t.ExecutionStatus
+	if execStatus == "" {
+		execStatus = "idle"
+	}
+
 	return ProjectTaskDTO{
-		ID:           t.ID,
-		ProjectID:    t.ProjectID,
-		RoomID:       t.RoomID,
-		Title:        t.Title,
-		Description:  t.Description,
-		Status:       t.Status,
-		Priority:     t.Priority,
-		DoDChecklist: checklistCopy,
-		AssigneeID:   t.AssigneeID,
-		ParentTaskID: t.ParentTaskID,
-		BatchID:      t.BatchID,
-		Tags:         tagsCopy,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
+		ID:              t.ID,
+		ProjectID:       t.ProjectID,
+		RoomID:          t.RoomID,
+		Title:           t.Title,
+		Description:     t.Description,
+		Status:          t.Status,
+		Priority:        t.Priority,
+		DoDChecklist:    checklistCopy,
+		AssigneeID:      t.AssigneeID,
+		ParentTaskID:    t.ParentTaskID,
+		BatchID:         t.BatchID,
+		Tags:            tagsCopy,
+		AgentOutput:     t.AgentOutput,
+		ExecutionStatus: execStatus,
+		CreatedAt:       t.CreatedAt,
+		UpdatedAt:       t.UpdatedAt,
 	}
 }
 
 // ProjectTaskFilter holds criteria for filtering project tasks.
 type ProjectTaskFilter struct {
-	ProjectID    string
-	RoomID       *string
-	Status       string
-	Priority     string
-	ParentTaskID *string
-	BatchID      *string
-	Tag          string
-	AssigneeID   *string
+	ProjectID       string
+	RoomID          *string
+	Status          string
+	Priority        string
+	ParentTaskID    *string
+	BatchID         *string
+	Tag             string
+	AssigneeID      *string
+	ExecutionStatus string
 }
 
 // ProjectStudioRepository defines data operations for Project Rooms, Messages, and Tasks.
@@ -268,6 +295,7 @@ type ProjectStudioRepository interface {
 	ListTasks(ctx context.Context, filter ProjectTaskFilter) ([]ProjectTask, error)
 	UpdateTask(ctx context.Context, task *ProjectTask) error
 	UpdateTaskStatus(ctx context.Context, id string, status string) error
+	UpdateTaskExecution(ctx context.Context, id string, executionStatus string, agentOutput string) error
 	DeleteTask(ctx context.Context, id string) error
 }
 
@@ -715,6 +743,12 @@ func (r *SQLProjectStudioRepository) CreateTask(ctx context.Context, task *Proje
 		return fmt.Errorf("marshal tags: %w", err)
 	}
 
+	normExecution, err := NormalizeTaskExecutionStatus(task.ExecutionStatus)
+	if err != nil {
+		return err
+	}
+	task.ExecutionStatus = normExecution
+
 	now := time.Now().UTC()
 	if task.CreatedAt.IsZero() {
 		task.CreatedAt = now
@@ -724,8 +758,9 @@ func (r *SQLProjectStudioRepository) CreateTask(ctx context.Context, task *Proje
 	query := `
 		INSERT INTO project_tasks (
 			id, project_id, room_id, title, description, status, priority,
-			dod_checklist, assignee_id, parent_task_id, batch_id, tags, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			dod_checklist, assignee_id, parent_task_id, batch_id, tags,
+			agent_output, execution_status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 	_, err = r.db.ExecContext(ctx, query,
 		task.ID,
@@ -740,6 +775,8 @@ func (r *SQLProjectStudioRepository) CreateTask(ctx context.Context, task *Proje
 		task.ParentTaskID,
 		task.BatchID,
 		tagsBytes,
+		task.AgentOutput,
+		task.ExecutionStatus,
 		task.CreatedAt,
 		task.UpdatedAt,
 	)
@@ -762,7 +799,9 @@ func (r *SQLProjectStudioRepository) GetTaskByID(ctx context.Context, id string)
 
 	query := `
 		SELECT id, project_id, room_id, title, description, status, priority,
-		       dod_checklist, assignee_id, parent_task_id, batch_id, tags, created_at, updated_at
+		       dod_checklist, assignee_id, parent_task_id, batch_id, tags,
+		       COALESCE(agent_output, ''), COALESCE(execution_status, 'idle'),
+		       created_at, updated_at
 		FROM project_tasks
 		WHERE id = $1
 	`
@@ -783,6 +822,8 @@ func (r *SQLProjectStudioRepository) GetTaskByID(ctx context.Context, id string)
 		&task.ParentTaskID,
 		&task.BatchID,
 		&tagsBytes,
+		&task.AgentOutput,
+		&task.ExecutionStatus,
 		&task.CreatedAt,
 		&task.UpdatedAt,
 	)
@@ -889,10 +930,17 @@ func (r *SQLProjectStudioRepository) ListTasks(ctx context.Context, filter Proje
 		args = append(args, *filter.AssigneeID)
 		argIdx++
 	}
+	if strings.TrimSpace(filter.ExecutionStatus) != "" {
+		conditions = append(conditions, fmt.Sprintf("execution_status = $%d", argIdx))
+		args = append(args, strings.ToLower(strings.TrimSpace(filter.ExecutionStatus)))
+		argIdx++
+	}
 
 	query := `
 		SELECT id, project_id, room_id, title, description, status, priority,
-		       dod_checklist, assignee_id, parent_task_id, batch_id, tags, created_at, updated_at
+		       dod_checklist, assignee_id, parent_task_id, batch_id, tags,
+		       COALESCE(agent_output, ''), COALESCE(execution_status, 'idle'),
+		       created_at, updated_at
 		FROM project_tasks
 	`
 	if len(conditions) > 0 {
@@ -924,6 +972,8 @@ func (r *SQLProjectStudioRepository) ListTasks(ctx context.Context, filter Proje
 			&task.ParentTaskID,
 			&task.BatchID,
 			&tagsBytes,
+			&task.AgentOutput,
+			&task.ExecutionStatus,
 			&task.CreatedAt,
 			&task.UpdatedAt,
 		); err != nil {
@@ -971,6 +1021,12 @@ func (r *SQLProjectStudioRepository) UpdateTask(ctx context.Context, task *Proje
 	}
 	task.Priority = normPriority
 
+	normExecution, err := NormalizeTaskExecutionStatus(task.ExecutionStatus)
+	if err != nil {
+		return err
+	}
+	task.ExecutionStatus = normExecution
+
 	if task.RoomID != nil && strings.TrimSpace(*task.RoomID) != "" {
 		if !IsValidUUID(*task.RoomID) {
 			return fmt.Errorf("%w: room id %s", ErrInvalidUUID, *task.RoomID)
@@ -1010,7 +1066,7 @@ func (r *SQLProjectStudioRepository) UpdateTask(ctx context.Context, task *Proje
 		UPDATE project_tasks
 		SET room_id = $2, title = $3, description = $4, status = $5, priority = $6,
 		    dod_checklist = $7, assignee_id = $8, parent_task_id = $9, batch_id = $10,
-		    tags = $11, updated_at = $12
+		    tags = $11, agent_output = $12, execution_status = $13, updated_at = $14
 		WHERE id = $1
 	`
 	res, err := r.db.ExecContext(ctx, query,
@@ -1025,6 +1081,8 @@ func (r *SQLProjectStudioRepository) UpdateTask(ctx context.Context, task *Proje
 		task.ParentTaskID,
 		task.BatchID,
 		tagsBytes,
+		task.AgentOutput,
+		task.ExecutionStatus,
 		task.UpdatedAt,
 	)
 	if err != nil {
@@ -1063,6 +1121,36 @@ func (r *SQLProjectStudioRepository) UpdateTaskStatus(ctx context.Context, id st
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("update project task status rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrTaskNotFound
+	}
+	return nil
+}
+
+// UpdateTaskExecution updates execution status and agent output for a task.
+func (r *SQLProjectStudioRepository) UpdateTaskExecution(ctx context.Context, id string, executionStatus string, agentOutput string) error {
+	if !IsValidUUID(id) {
+		return fmt.Errorf("%w: task id %s", ErrInvalidUUID, id)
+	}
+	normExecution, err := NormalizeTaskExecutionStatus(executionStatus)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	query := `
+		UPDATE project_tasks
+		SET execution_status = $2, agent_output = $3, updated_at = $4
+		WHERE id = $1
+	`
+	res, err := r.db.ExecContext(ctx, query, id, normExecution, agentOutput, now)
+	if err != nil {
+		return fmt.Errorf("update project task execution: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update project task execution rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
 		return ErrTaskNotFound
@@ -1462,6 +1550,12 @@ func (m *MemoryProjectStudioRepository) CreateTask(ctx context.Context, task *Pr
 	}
 	task.Priority = normPriority
 
+	normExecution, err := NormalizeTaskExecutionStatus(task.ExecutionStatus)
+	if err != nil {
+		return err
+	}
+	task.ExecutionStatus = normExecution
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1603,6 +1697,9 @@ func (m *MemoryProjectStudioRepository) ListTasks(ctx context.Context, filter Pr
 				continue
 			}
 		}
+		if strings.TrimSpace(filter.ExecutionStatus) != "" && !strings.EqualFold(task.ExecutionStatus, strings.TrimSpace(filter.ExecutionStatus)) {
+			continue
+		}
 
 		list = append(list, *cloneTask(task))
 	}
@@ -1637,6 +1734,12 @@ func (m *MemoryProjectStudioRepository) UpdateTask(ctx context.Context, task *Pr
 	}
 	task.Priority = normPriority
 
+	normExecution, err := NormalizeTaskExecutionStatus(task.ExecutionStatus)
+	if err != nil {
+		return err
+	}
+	task.ExecutionStatus = normExecution
+
 	if task.RoomID != nil && strings.TrimSpace(*task.RoomID) != "" {
 		if !IsValidUUID(*task.RoomID) {
 			return fmt.Errorf("%w: room id %s", ErrInvalidUUID, *task.RoomID)
@@ -1669,6 +1772,8 @@ func (m *MemoryProjectStudioRepository) UpdateTask(ctx context.Context, task *Pr
 	existing.AssigneeID = task.AssigneeID
 	existing.ParentTaskID = task.ParentTaskID
 	existing.BatchID = task.BatchID
+	existing.AgentOutput = task.AgentOutput
+	existing.ExecutionStatus = task.ExecutionStatus
 
 	if task.DoDChecklist != nil {
 		existing.DoDChecklist = make([]DoDItem, len(task.DoDChecklist))
@@ -1708,6 +1813,30 @@ func (m *MemoryProjectStudioRepository) UpdateTaskStatus(ctx context.Context, id
 	}
 
 	existing.Status = normStatus
+	existing.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// UpdateTaskExecution updates execution status and agent output for a task in memory.
+func (m *MemoryProjectStudioRepository) UpdateTaskExecution(ctx context.Context, id string, executionStatus string, agentOutput string) error {
+	if !IsValidUUID(id) {
+		return fmt.Errorf("%w: task id %s", ErrInvalidUUID, id)
+	}
+	normExecution, err := NormalizeTaskExecutionStatus(executionStatus)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	existing, exists := m.tasks[id]
+	if !exists {
+		return ErrTaskNotFound
+	}
+
+	existing.ExecutionStatus = normExecution
+	existing.AgentOutput = agentOutput
 	existing.UpdatedAt = time.Now().UTC()
 	return nil
 }

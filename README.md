@@ -1,13 +1,13 @@
 # Cuan
 
-> Agentic project management for self-hosted teams: connect a repository, assign work to an agent on your server, and review changes with verification evidence.
+> Agentic Project Management for Creators: connect repositories and blueprints, assign tasks to AI agents on your server, and turn ideas into finished content with verification evidence.
 
 ## Status
 
-**Sprint 1: Sprint Review (Completed T1–T8, Dogfooding Verified, OSS Release Candidate Ready)**.
-Monorepo foundation, official agent adapter (`agy`), baseline migrations, persistent PostgreSQL installation, single-owner authentication, GitHub repository integration, task board & queue, runner daemon, Git workspace isolation & PR generator (T6), staging isolation & disaster recovery (T7), and end-to-end dogfooding demo & OSS release gate (T8) are fully implemented and verified.
+**Sprint 10: Running (S10.1 — Database Migration 000015, Creator Models, Repository Layer & SSOT Alignment)**.
+Sprints 1–9 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, and Native Agent Hub & Interactive Terminal). Sprint 10 empowers creators (Bloggers, YouTubers, Online Shops, Affiliate Marketers) with Creator Blueprints, in-task agentic content execution, and dedicated persona agents.
 
-Single Source of Truth (SSOT): [docs/sprints/S1.md](docs/sprints/S1.md) | [Sprint 1 Review Pack](docs/sprints/evidence/S1/sprint_1_review_pack.md).
+Single Source of Truth (SSOT): [docs/sprints/S10.md](docs/sprints/S10.md) | [docs/product-vision.md](docs/product-vision.md).
 
 ### Documentation & Guides
 

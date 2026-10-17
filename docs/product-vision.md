@@ -4,34 +4,38 @@
 
 * **Nama Produk:** **CUAN**
 * **Domain Resmi:** **`https://cuan.co`**
-* **Kategori Industri (Category King):** **Digital Project Studio**
+* **Kategori Industri (Category King):** **Agentic Project Management for Creators**
 * **Brand Statement:**
-  > **Cuan: Digital Project Studio for Entrepreneurs**
-* **Positioning untuk Pengguna:** Membangun, meluncurkan, dan mengelola **digital projects** — website, WordPress, aplikasi, dan web tools — dalam satu tempat. **Digital Project Studio** menjadi kategori produk; objek utama pada antarmuka pengguna disebut **Project**. Istilah **digital projects** dipilih agar familiar dan menghindari asosiasi kripto/NFT dari istilah **digital assets**. Istilah aset tetap digunakan saat membahas nilai bisnis, kepemilikan, dan portabilitas.
+  > **Cuan: Agentic Project Management for Creators**
+* **Positioning untuk Pengguna:** Platform *Agentic Project Management* yang dirancang khusus untuk para kreator — menghubungkan repositori, blueprint proyek, pipeline produksi, dan eksekusi tugas langsung oleh AI Agent dalam satu studio terpadu tanpa kerumitan teknis. Di Cuan, tugas pada Kanban bukan sekadar catatan to-do list mati, melainkan langsung dieksekusi oleh AI Agent untuk menghasilkan draft konten, skrip, dan copywriting siap pakai.
 * **Headline (English):**
-  > **Build, launch, and manage your digital projects.**
+  > **Agentic Project Management for Creators.**
 * **Headline (Bahasa Indonesia):**
-  > **Bangun, luncurkan, dan kelola proyek digital ente.**
+  > **Manajemen Proyek Agentik untuk Kreator.**
 * **Sub-deskripsi (Hero Copywriting):**
-  > *"Launch the scripts you bought, update your websites with AI, and manage everything in one place—without the technical headaches."*
-* **Dasar Copywriting:** Subheadline menjawab script terbeli yang belum bisa dijalankan, ketergantungan pada bantuan teknis untuk perubahan website, dan aset yang tercecer. Pesan utama berfokus pada hasil bagi pengguna, bukan pengaturan task dan pelacakan progres.
-* **Istilah Dashboard:** Gunakan **New Project** untuk menambahkan website/aplikasi yang dikelola. Judul form: **What are you building?** Pekerjaan pengembangan di dalam project, misalnya rilis versi baru atau redesign, dikelola sebagai task. Arahan copy dan UX ini tidak menambah scope sprint yang sedang running atau mengklaim fitur roadmap sudah tersedia.
+  > *"Plan your creator projects, assign work to AI agents on your server, and turn backlog tasks into finished content—without the technical headaches."*
+* **Dasar Copywriting:** Mengatasi kelemahan to-do list tradisional yang pasif. Cuan menghadirkan blueprint alur kerja kreator dan agen AI mandiri yang langsung menyelesaikan tugas di dalam workspace proyek.
+* **Istilah Dashboard:** Gunakan **New Project** untuk membuat proyek kreator baru (Blog, YouTube, Olshop, Affiliate). Setiap proyek dilengkapi room diskusi studio dan Kanban task yang dapat dijalankan langsung dengan AI Agent (*In-Task Agent Runner*).
 
 ---
 
 ## 2. Target Market & Karakteristik Pengguna
 
-* **Target Utama:** **Non-Tech Entrepreneurs & Digital Teams** (Solo founders, internet marketers, digital creators, affiliate teams, dan pemilik bisnis online).
-* **Beachhead Market (Validasi Awal):** Komunitas member ekosistem Dojo (pengguna nyata yang membeli software/script digital dan membutuhkan zero-friction deployment).
-* **Skala Target Jangka Panjang:** Global (English-first interface & docs, siap untuk jutaan pembeli script di CodeCanyon, Gumroad, GitHub, Envato, dan SaaS boilerplates).
+* **Target Utama:** **Creators & Digital Solopreneurs**:
+  1. **Blogger & Web Publisher:** Membutuhkan blueprint riset kata kunci/SEO, perancangan topik pilar, dan drafting artikel otomatis oleh agent tanpa merancang prompt dari nol.
+  2. **YouTube & Video Creators:** Membutuhkan pipeline produksi video terstruktur (*Ideasi → Hook/Title → Full Scriptwriting → Description & Tagging*) dengan agent scriptwriter siap pakai.
+  3. **Online Shop & Digital Product Creators:** Membutuhkan funnel peluncuran produk digital (*Sales Page Copywriting → 3-Part Email Nurture Sequence → FAQ & Objection Handling*).
+  4. **Affiliate Marketers:** Membutuhkan workflow komparasi produk, ulasan fitur mendalam, dan drafting review konversi tinggi secara terstruktur.
+* **Beachhead Market (Validasi Awal):** Komunitas creator & marketer di ekosistem Dojo (pengguna aktif yang mengelola portofolio website AdSense, channel YouTube, dan produk digital).
+* **Skala Target Jangka Panjang:** Global (English-first interface & docs, siap untuk jutaan solopreneur kreator konten di Substack, YouTube, Gumroad, dan WordPress).
 
 ---
 
 ## 3. Masalah Utama yang Diselesaikan (The Core Pain Point)
 
-1. **Purchased Code Sitting Idle:** Pengguna membeli script/software/boilerplate ($30–$300), tetapi file `.zip` hanya mengendap di laptop karena tidak paham instalasi server, terminal SSH, Docker, dan database.
-2. **Ketergantungan pada Freelancer Mahal:** Membayar $50–$100/jam hanya untuk instalasi script sederhana atau mengubah satu fitur kecil (ganti nomor WhatsApp, ubah tombol, pasang payment gateway).
-3. **Portofolio Tercecer (Overwhelmed):** Solopreneur mengelola banyak project sekaligus (Web AdSense, Web Adsterra/Arbitrage, APK WebView, tools affiliate, dsb.) tanpa dashboard terpadu yang memantau status hidup/matinya aset mereka.
+1. **Passive To-Do Lists (To-Do List Mati):** Aplikasi manajemen tugas konvensional (Trello, Asana, Notion) hanya mencatat daftar pekerjaan tanpa kemampuan mengeksekusi isinya. Kreator tetap kehabisan waktu dan overwhelmed mengerjakan semuanya sendiri.
+2. **Tools Terpecah & Context Switching:** Berpindah-pindah antara spreadsheet catatan ide, chatbox AI eksternal, Google Docs, dan CMS membuat fokus kreator terdisrupsi dan banyak draf tercecer.
+3. **Portofolio Tercecer (Overwhelmed):** Solopreneur mengelola banyak project sekaligus (beberapa blog, channel YouTube, produk digital) tanpa pipeline otomasi terpadu yang memantau eksekusi dari ide hingga deliverable.
 
 ---
 

@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 )
@@ -17,19 +18,39 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
+func cloneMemoryProject(p *Project) *Project {
+	if p == nil {
+		return nil
+	}
+	cp := *p
+	if cp.ProjectType == "" {
+		cp.ProjectType = "custom"
+	}
+	if len(cp.Metadata) > 0 {
+		cp.Metadata = make(json.RawMessage, len(p.Metadata))
+		copy(cp.Metadata, p.Metadata)
+	} else {
+		cp.Metadata = json.RawMessage("{}")
+	}
+	if p.LastFetchedAt != nil {
+		t := *p.LastFetchedAt
+		cp.LastFetchedAt = &t
+	}
+	return &cp
+}
+
 func (m *MemoryStore) CreateProject(ctx context.Context, p *Project) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	for _, existing := range m.projects {
 		if strings.EqualFold(existing.RepoURL, p.RepoURL) ||
-			(strings.EqualFold(existing.RepoOwner, p.RepoOwner) && strings.EqualFold(existing.RepoName, p.RepoName)) {
+			(strings.EqualFold(existing.RepoOwner, p.RepoOwner) && strings.EqualFold(existing.RepoName, p.RepoName) && p.RepoOwner != "") {
 			return ErrProjectAlreadyExists
 		}
 	}
 
-	clone := *p
-	m.projects[p.ID] = &clone
+	m.projects[p.ID] = cloneMemoryProject(p)
 	return nil
 }
 
@@ -42,8 +63,7 @@ func (m *MemoryStore) GetProject(ctx context.Context, id string) (*Project, erro
 		return nil, ErrProjectNotFound
 	}
 
-	clone := *p
-	return &clone, nil
+	return cloneMemoryProject(p), nil
 }
 
 func (m *MemoryStore) GetProjectByRepo(ctx context.Context, owner, repo string) (*Project, error) {
@@ -52,8 +72,7 @@ func (m *MemoryStore) GetProjectByRepo(ctx context.Context, owner, repo string) 
 
 	for _, p := range m.projects {
 		if strings.EqualFold(p.RepoOwner, owner) && strings.EqualFold(p.RepoName, repo) {
-			clone := *p
-			return &clone, nil
+			return cloneMemoryProject(p), nil
 		}
 	}
 
@@ -66,8 +85,7 @@ func (m *MemoryStore) ListProjects(ctx context.Context) ([]*Project, error) {
 
 	var list []*Project
 	for _, p := range m.projects {
-		clone := *p
-		list = append(list, &clone)
+		list = append(list, cloneMemoryProject(p))
 	}
 	return list, nil
 }
@@ -80,8 +98,7 @@ func (m *MemoryStore) UpdateProject(ctx context.Context, p *Project) error {
 		return ErrProjectNotFound
 	}
 
-	clone := *p
-	m.projects[p.ID] = &clone
+	m.projects[p.ID] = cloneMemoryProject(p)
 	return nil
 }
 

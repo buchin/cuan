@@ -22,23 +22,27 @@ type CreateProjectTaskPayload struct {
 	Priority     string        `json:"priority"` // 'low', 'normal', 'high', 'urgent'
 	DoDChecklist []db.DoDItem  `json:"dod_checklist"`
 	AssigneeID   *string       `json:"assignee_id,omitempty"`
-	ParentTaskID *string       `json:"parent_task_id,omitempty"`
-	BatchID      *string       `json:"batch_id,omitempty"`
-	Tags         []string      `json:"tags"`
+	ParentTaskID    *string       `json:"parent_task_id,omitempty"`
+	BatchID         *string       `json:"batch_id,omitempty"`
+	Tags            []string      `json:"tags"`
+	AgentOutput     string        `json:"agent_output,omitempty"`
+	ExecutionStatus string        `json:"execution_status,omitempty"`
 }
 
 // UpdateProjectTaskPayload defines the request body for updating a project task.
 type UpdateProjectTaskPayload struct {
-	RoomID       *string       `json:"room_id,omitempty"`
-	Title        *string       `json:"title,omitempty"`
-	Description  *string       `json:"description,omitempty"`
-	Status       *string       `json:"status,omitempty"`
-	Priority     *string       `json:"priority,omitempty"`
-	DoDChecklist *[]db.DoDItem `json:"dod_checklist,omitempty"`
-	AssigneeID   *string       `json:"assignee_id,omitempty"`
-	ParentTaskID *string       `json:"parent_task_id,omitempty"`
-	BatchID      *string       `json:"batch_id,omitempty"`
-	Tags         *[]string     `json:"tags,omitempty"`
+	RoomID          *string       `json:"room_id,omitempty"`
+	Title           *string       `json:"title,omitempty"`
+	Description     *string       `json:"description,omitempty"`
+	Status          *string       `json:"status,omitempty"`
+	Priority        *string       `json:"priority,omitempty"`
+	DoDChecklist    *[]db.DoDItem `json:"dod_checklist,omitempty"`
+	AssigneeID      *string       `json:"assignee_id,omitempty"`
+	ParentTaskID    *string       `json:"parent_task_id,omitempty"`
+	BatchID         *string       `json:"batch_id,omitempty"`
+	Tags            *[]string     `json:"tags,omitempty"`
+	AgentOutput     *string       `json:"agent_output,omitempty"`
+	ExecutionStatus *string       `json:"execution_status,omitempty"`
 }
 
 // PatchTaskStatusPayload defines the request body for updating only the status of a project task.
@@ -124,19 +128,31 @@ func (s *Server) handleCreateProjectTask(w http.ResponseWriter, r *http.Request)
 		tags = []string{}
 	}
 
+	normExec := "idle"
+	if payload.ExecutionStatus != "" {
+		ne, err := db.NormalizeTaskExecutionStatus(payload.ExecutionStatus)
+		if err != nil {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		normExec = ne
+	}
+
 	task := db.ProjectTask{
-		ID:           payload.ID,
-		ProjectID:    projectID,
-		RoomID:       payload.RoomID,
-		Title:        title,
-		Description:  strings.TrimSpace(payload.Description),
-		Status:       normStatus,
-		Priority:     normPriority,
-		DoDChecklist: checklist,
-		AssigneeID:   payload.AssigneeID,
-		ParentTaskID: payload.ParentTaskID,
-		BatchID:      payload.BatchID,
-		Tags:         tags,
+		ID:              payload.ID,
+		ProjectID:       projectID,
+		RoomID:          payload.RoomID,
+		Title:           title,
+		Description:     strings.TrimSpace(payload.Description),
+		Status:          normStatus,
+		Priority:        normPriority,
+		DoDChecklist:    checklist,
+		AssigneeID:      payload.AssigneeID,
+		ParentTaskID:    payload.ParentTaskID,
+		BatchID:         payload.BatchID,
+		Tags:            tags,
+		AgentOutput:     payload.AgentOutput,
+		ExecutionStatus: normExec,
 	}
 
 	if err := s.projectStudioRepo.CreateTask(r.Context(), &task); err != nil {
@@ -187,9 +203,10 @@ func (s *Server) handleListProjectTasks(w http.ResponseWriter, r *http.Request) 
 
 	q := r.URL.Query()
 	filter := db.ProjectTaskFilter{
-		ProjectID: projectID,
-		Status:    strings.TrimSpace(q.Get("status")),
-		Priority:  strings.TrimSpace(q.Get("priority")),
+		ProjectID:       projectID,
+		Status:          strings.TrimSpace(q.Get("status")),
+		Priority:        strings.TrimSpace(q.Get("priority")),
+		ExecutionStatus: strings.TrimSpace(q.Get("execution_status")),
 	}
 
 	if parentID := strings.TrimSpace(q.Get("parent_task_id")); parentID != "" {
@@ -373,6 +390,19 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 		} else {
 			task.RoomID = nil
 		}
+	}
+
+	if payload.AgentOutput != nil {
+		task.AgentOutput = *payload.AgentOutput
+	}
+
+	if payload.ExecutionStatus != nil {
+		normExec, err := db.NormalizeTaskExecutionStatus(*payload.ExecutionStatus)
+		if err != nil {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		task.ExecutionStatus = normExec
 	}
 
 	if err := s.projectStudioRepo.UpdateTask(r.Context(), task); err != nil {

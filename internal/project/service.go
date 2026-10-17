@@ -89,6 +89,15 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 
 	localPath := filepath.Join(s.baseDir, projectID)
 
+	projectType := strings.ToLower(strings.TrimSpace(req.ProjectType))
+	if projectType == "" {
+		projectType = "custom"
+	}
+	metadata := req.Metadata
+	if len(metadata) == 0 {
+		metadata = []byte("{}")
+	}
+
 	now := time.Now().UTC()
 	p := &Project{
 		ID:             projectID,
@@ -101,6 +110,8 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 		EncryptedToken: encryptedToken,
 		TokenPreview:   tokenPreview,
 		CloneStatus:    "connected",
+		ProjectType:    projectType,
+		Metadata:       metadata,
 		LastFetchedAt:  &now,
 		LastError:      "",
 		CreatedAt:      now,

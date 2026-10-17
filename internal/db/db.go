@@ -10,6 +10,7 @@ type Repositories struct {
 	ProjectStudio  ProjectStudioRepository
 	BatchCampaigns BatchCampaignRepository
 	Agents         AgentRepository
+	Projects       ProjectRepository
 }
 
 // NewSQLRepositories constructs all SQL-backed repositories.
@@ -21,6 +22,7 @@ func NewSQLRepositories(sqlDB *sql.DB) *Repositories {
 		ProjectStudio:  NewSQLProjectStudioRepository(sqlDB),
 		BatchCampaigns: NewSQLBatchCampaignRepository(sqlDB),
 		Agents:         NewSQLAgentRepository(sqlDB),
+		Projects:       NewSQLProjectRepository(sqlDB),
 	}
 }
 
@@ -33,5 +35,6 @@ func NewMemoryRepositories() *Repositories {
 		ProjectStudio:  NewMemoryProjectStudioRepository(),
 		BatchCampaigns: NewMemoryBatchCampaignRepository(),
 		Agents:         NewMemoryAgentRepository(),
+		Projects:       NewMemoryProjectRepository(),
 	}
 }

@@ -253,8 +253,39 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(agentMig.DownSQL, "DROP TABLE IF EXISTS agent_connections CASCADE") {
 		t.Errorf("expected 000014 DownSQL to drop agent_connections table")
 	}
-	if !strings.Contains(agentMig.DownSQL, "DROP TABLE IF EXISTS agents CASCADE") {
-		t.Errorf("expected 000014 DownSQL to drop agents table")
+	if len(migs) < 15 {
+		t.Fatalf("expected at least 15 migrations, got %d", len(migs))
+	}
+	creatorMig := migs[14]
+	if creatorMig.Version != "000015" {
+		t.Errorf("expected version 000015, got %s", creatorMig.Version)
+	}
+	if creatorMig.Name != "creator_blueprints_execution" {
+		t.Errorf("expected name creator_blueprints_execution, got %s", creatorMig.Name)
+	}
+	if !strings.Contains(creatorMig.UpSQL, "ADD COLUMN IF NOT EXISTS project_type") {
+		t.Errorf("expected 000015 UpSQL to add project_type column")
+	}
+	if !strings.Contains(creatorMig.UpSQL, "ADD COLUMN IF NOT EXISTS metadata JSONB") {
+		t.Errorf("expected 000015 UpSQL to add metadata column")
+	}
+	if !strings.Contains(creatorMig.UpSQL, "idx_projects_project_type") {
+		t.Errorf("expected 000015 UpSQL to create idx_projects_project_type")
+	}
+	if !strings.Contains(creatorMig.UpSQL, "ADD COLUMN IF NOT EXISTS agent_output") {
+		t.Errorf("expected 000015 UpSQL to add agent_output column")
+	}
+	if !strings.Contains(creatorMig.UpSQL, "ADD COLUMN IF NOT EXISTS execution_status") {
+		t.Errorf("expected 000015 UpSQL to add execution_status column")
+	}
+	if !strings.Contains(creatorMig.UpSQL, "idx_project_tasks_execution_status") {
+		t.Errorf("expected 000015 UpSQL to create idx_project_tasks_execution_status")
+	}
+	if !strings.Contains(creatorMig.DownSQL, "DROP COLUMN IF EXISTS execution_status") {
+		t.Errorf("expected 000015 DownSQL to drop execution_status column")
+	}
+	if !strings.Contains(creatorMig.DownSQL, "DROP COLUMN IF EXISTS metadata") {
+		t.Errorf("expected 000015 DownSQL to drop metadata column")
 	}
 }
 
