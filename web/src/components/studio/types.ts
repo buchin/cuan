@@ -288,3 +288,79 @@ export interface UpdateProjectTaskPayload {
   tags?: string[]
 }
 
+// Batch Campaign Studio Types (Sprint 8 S08.4)
+
+export interface BatchCampaignDTO {
+  id: string
+  title: string
+  description: string
+  template_payload: {
+    title_template?: string
+    instructions?: string
+    script?: string
+    tags?: string[]
+    dod_checklist?: DoDItem[]
+    [key: string]: any
+  }
+  target_criteria: {
+    project_ids?: string[]
+    tags?: string[]
+    all?: boolean
+    exclude_ids?: string[]
+    [key: string]: any
+  }
+  status: 'draft' | 'pending' | 'running' | 'completed' | 'failed' | 'paused' | 'canceled' | string
+  created_at: string
+  updated_at: string
+}
+
+export interface RollupMetrics {
+  campaign_id: string
+  batch_id?: string
+  total_target: number
+  total_tasks: number
+  pending_tasks: number
+  running_tasks: number
+  completed_tasks: number
+  review_tasks: number
+  failed_tasks: number
+  success_percentage: number
+  status: 'draft' | 'pending' | 'running' | 'completed' | 'failed' | 'review' | string
+  updated_at: string
+}
+
+export interface CampaignEvent {
+  type: string
+  campaign_id: string
+  timestamp: string
+  data: any
+}
+
+export interface CampaignTaskResult {
+  task_id: string
+  project_id: string
+  success: boolean
+  status: string
+  error?: string
+  duration_ms: number
+  log_output?: string
+}
+
+export interface CampaignRunResult {
+  campaign_id: string
+  total_tasks: number
+  completed_tasks: number
+  failed_tasks: number
+  peak_concurrency: number
+  duration_ms: number
+  success: boolean
+  results?: CampaignTaskResult[]
+}
+
+export interface CreateBatchCampaignPayload {
+  title: string
+  description: string
+  template_payload?: any
+  target_criteria?: any
+  status?: string
+}

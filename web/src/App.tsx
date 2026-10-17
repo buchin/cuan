@@ -1071,6 +1071,20 @@ export function App() {
     return <SponsorArchive onNavigate={navigate} />
   }
 
+  // Batch Campaigns Direct Route (/campaigns and /campaigns/*)
+  if (currentPath === '/campaigns' || currentPath.startsWith('/campaigns/')) {
+    return (
+      <StudioDashboard
+        currentPath={currentPath.startsWith('/studio') ? currentPath : `/studio${currentPath}`}
+        onNavigate={navigate}
+        baseDomain={systemMode.base_domain}
+        appMode={effectiveMode}
+        isStudioModeActive={effectiveMode === 'studio'}
+        onToggleMode={handleToggleMode}
+      />
+    )
+  }
+
   // Studio Dashboard & Universal Deployer Route (/studio and /studio/*)
   if (currentPath === '/studio' || currentPath.startsWith('/studio/')) {
     return (

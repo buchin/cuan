@@ -20,7 +20,8 @@ import {
   Server,
   Activity,
   MessageSquare,
-  Kanban
+  Kanban,
+  Rocket
 } from 'lucide-react'
 import { DeploymentItem, ServerItem, CustomDomainItem } from './types'
 import { DeployWizardModal } from './DeployWizardModal'
@@ -32,6 +33,9 @@ import { CustomDomainsModal } from './CustomDomainsModal'
 import { ProjectCard } from './ProjectCard'
 import { ProjectDiscussionsView } from './ProjectDiscussionsView'
 import { ProjectTasksBoard } from './ProjectTasksBoard'
+import { BatchCampaignModal } from './BatchCampaignModal'
+import { CampaignDashboardView } from './CampaignDashboardView'
+import { CampaignDetailView } from './CampaignDetailView'
 
 interface StudioDashboardProps {
   currentPath?: string
@@ -58,9 +62,12 @@ export function StudioDashboard({
   // Drawer initial tab state
   const [drawerInitialTab, setDrawerInitialTab] = useState<'overview' | 'discussions' | 'tasks'>('overview')
 
-  // Tab state: 'projects' | 'discussions' | 'tasks' | 'servers' | 'domains' | 'observability'
-  const [activeTab, setActiveTab] = useState<'projects' | 'discussions' | 'tasks' | 'servers' | 'domains' | 'observability'>(() => {
+  // Tab state: 'projects' | 'discussions' | 'tasks' | 'campaigns' | 'servers' | 'domains' | 'observability'
+  const [activeTab, setActiveTab] = useState<'projects' | 'discussions' | 'tasks' | 'campaigns' | 'servers' | 'domains' | 'observability'>(() => {
     if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/studio/campaigns') || window.location.pathname.startsWith('/campaigns')) {
+        return 'campaigns'
+      }
       if (window.location.pathname.startsWith('/studio/discussions')) {
         return 'discussions'
       }
@@ -80,9 +87,29 @@ export function StudioDashboard({
     return 'projects'
   })
 
+  // Selected Campaign ID for Detail View
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const m = window.location.pathname.match(/\/(?:studio\/)?campaigns\/([a-zA-Z0-9_-]+)/)
+      return m ? m[1] : null
+    }
+    return null
+  })
+
+  // Batch Campaign Modal state
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
+
   // Synchronize when currentPath prop changes
   useEffect(() => {
-    if (currentPath === '/studio/discussions' || currentPath?.startsWith('/studio/discussions')) {
+    if (currentPath === '/studio/campaigns' || currentPath?.startsWith('/studio/campaigns') || currentPath === '/campaigns' || currentPath?.startsWith('/campaigns')) {
+      setActiveTab('campaigns')
+      const m = currentPath.match(/\/(?:studio\/)?campaigns\/([a-zA-Z0-9_-]+)/)
+      if (m && m[1] && m[1] !== 'new') {
+        setSelectedCampaignId(m[1])
+      } else {
+        setSelectedCampaignId(null)
+      }
+    } else if (currentPath === '/studio/discussions' || currentPath?.startsWith('/studio/discussions')) {
       setActiveTab('discussions')
     } else if (currentPath === '/studio/tasks' || currentPath?.startsWith('/studio/tasks')) {
       setActiveTab('tasks')
@@ -418,6 +445,25 @@ export function StudioDashboard({
 
             <button
               onClick={() => {
+                setActiveTab('campaigns')
+                setSelectedCampaignId(null)
+                onNavigate?.('/studio/campaigns')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'campaigns'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Rocket className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Campaigns</span>
+              <span className="h-4 px-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono flex items-center justify-center">
+                Batch
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab('domains')
                 onNavigate?.('/studio/domains')
               }}
@@ -587,6 +633,22 @@ export function StudioDashboard({
 
           <button
             onClick={() => {
+              setActiveTab('campaigns')
+              setSelectedCampaignId(null)
+              onNavigate?.('/studio/campaigns')
+            }}
+            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+              activeTab === 'campaigns'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <Rocket className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Campaigns</span>
+          </button>
+
+          <button
+            onClick={() => {
               setActiveTab('domains')
               onNavigate?.('/studio/domains')
             }}
@@ -667,8 +729,28 @@ export function StudioDashboard({
           </div>
         )}
 
-        {/* Tab View Switching: Discussions vs Tasks vs Observability Hub vs Domains Hub vs Servers Hub vs Projects Dashboard */}
-        {activeTab === 'discussions' ? (
+        {/* Tab View Switching: Campaigns vs Discussions vs Tasks vs Observability Hub vs Domains Hub vs Servers Hub vs Projects Dashboard */}
+        {activeTab === 'campaigns' ? (
+          selectedCampaignId ? (
+            <CampaignDetailView
+              campaignId={selectedCampaignId}
+              onBack={() => {
+                setSelectedCampaignId(null)
+                onNavigate?.('/studio/campaigns')
+              }}
+              onNavigate={onNavigate}
+            />
+          ) : (
+            <CampaignDashboardView
+              onSelectCampaign={(id) => {
+                setSelectedCampaignId(id)
+                onNavigate?.(`/studio/campaigns/${id}`)
+              }}
+              onOpenCreateModal={() => setIsBatchModalOpen(true)}
+              onNavigate={onNavigate}
+            />
+          )
+        ) : activeTab === 'discussions' ? (
           <ProjectDiscussionsView
             projects={deployments.map((d) => ({ id: d.id, name: d.project_name }))}
             onOpenTaskBoard={() => {
@@ -987,6 +1069,29 @@ export function StudioDashboard({
         }}
         baseDomain={baseDomain}
         onDomainsUpdated={fetchDomains}
+      />
+
+      {/* Batch Campaign Studio Modal (S08.4) */}
+      <BatchCampaignModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        onCreated={(newCampaign) => {
+          setIsBatchModalOpen(false)
+          setActiveTab('campaigns')
+          setSelectedCampaignId(newCampaign.id)
+          onNavigate?.(`/studio/campaigns/${newCampaign.id}`)
+          showToast('success', `Kampanye batch "${newCampaign.title}" berhasil dibuat!`)
+        }}
+        projects={deployments.map((d) => ({
+          id: d.id,
+          name: d.project_name,
+          tags: [
+            d.runtime,
+            d.project_name.toLowerCase().includes('wp') || d.runtime === 'php' ? 'wordpress' : '',
+            d.project_name.toLowerCase().includes('ad') ? 'adsense' : '',
+          ].filter(Boolean),
+          repo_url: d.domain,
+        }))}
       />
     </div>
   )
