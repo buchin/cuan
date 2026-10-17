@@ -1,0 +1,118 @@
+=== CUAN SPRINT 9 (S09.2) EVIDENCE: AGENT CONNECTION ENGINE, GOOGLE GEMINI PRO AUTH / PROVIDER LAYER & AES-256-GCM ENCRYPTION VERIFIED ===
+Timestamp: 2026-10-17T15:00:00+07:00
+Task ID: tbbwdculqbhjmxkhdwkvzgij
+Title: S09.2 — Agent Connection Engine & Google Gemini Pro Auth / Provider Layer
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SCOPE & DEFINITION OF DONE (DoD) VERIFICATION:
+   [x] 1. Implementasi provider layer di internal/agent/gemini.go dan internal/agent/provider.go.
+   [x] 2. Enkripsi kredensial simetris AES-GCM 256-bit untuk penyimpanan API Key dan token Google Gemini Pro di internal/crypto/aes.go dan internal/agent/crypto.go.
+   [x] 3. Validasi koneksi & kuota (ping API Gemini Pro, deteksi model tersedia seperti gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash) dengan fallback / mock support yang aman saat offline/test.
+   [x] 4. REST Handlers: GET /api/agents, POST /api/agents, GET /api/agents/{id}, PUT /api/agents/{id}, DELETE /api/agents/{id}, POST /api/agent-connections, GET /api/agent-connections, POST /api/agent-connections/{id}/verify dengan 100% backward compatibility di /api dan /api/v1.
+   [x] 5. Provider mocking & live integration tests 100% PASS bebas regresi.
+   [x] 6. Berkas bukti audit di docs/sprints/evidence/S9/s09_2_agent_connections_verified.txt.
+   [x] 7. Git commit author Buchin <buchin@dropsugar.com> dan push ke origin/main.
+
+2. ARSITEKTUR & IMPLEMENTASI:
+   a. Enkripsi Kredensial Simetris AES-GCM 256-bit:
+      - File: internal/crypto/aes.go
+        * Enkripsi dan dekripsi berbasis AES-256-GCM dengan nonce 12-byte kriptografis (crypto/rand).
+        * Domain-separated SHA-256 key derivation (DeriveKeySHA256).
+        * Authentication tag verification otomatis untuk menjamin integritas data ciphertext (tamper detection).
+      - File: internal/agent/crypto.go
+        * EncryptCredential & DecryptCredential untuk penyimpanan aman API Key / OAuth tokens di database.
+        * MaskAPIKey untuk redaksi aman tampilan UI / logs (e.g. AIzaSy...0XYZ).
+
+   b. Provider Layer & Google Gemini Pro / Flash Auth Engine:
+      - File: internal/agent/provider.go
+        * Interface Provider: Name(), Type(), VerifyConnection(ctx, credentials), ListModels(ctx, credentials).
+        * Entitas ModelInfo (ID, Name, DisplayName, Description, InputTokenLimit, OutputTokenLimit, SupportedGenerationMethods, IsDefault).
+        * Entitas ConnectionProbeResult (Valid, Provider, PlanHint, LatencyMs, AvailableModels, ErrorMessage, TestedAt).
+        * ProviderRegistry: thread-safe registration dan lookup provider.
+        * MockProvider: implementasi mock deterministic untuk testing offline & fault-injection.
+      - File: internal/agent/gemini.go
+        * GeminiProvider: client HTTP Google Gemini API endpoint (/v1beta/models).
+        * Probe koneksi otomatis memverifikasi ketersediaan model flaghsip: gemini-1.5-pro (default), gemini-1.5-flash, gemini-2.0-flash.
+        * Mode mock / fallback otomatis saat offline atau test environment sehingga testing tidak flakiness.
+
+   c. REST API Handlers & Zero Credential Leakage:
+      - File: internal/server/agent_handlers.go & internal/server/server.go
+        * Agent Personas:
+          - GET    /api/agents (query: provider, status, role, search, limit, offset)
+          - POST   /api/agents (create persona)
+          - GET    /api/agents/{id} (get persona)
+          - PUT    /api/agents/{id} (update persona)
+          - DELETE /api/agents/{id} (delete persona)
+        * Agent Connections:
+          - GET    /api/agent-connections (list connections)
+          - POST   /api/agent-connections (create connection with encrypted storage & optional immediate verify)
+          - GET    /api/agent-connections/{id} (get connection details)
+          - DELETE /api/agent-connections/{id} (delete connection)
+          - POST   /api/agent-connections/{id}/verify (probe and verify connection quota)
+        * 100% Backward Compatibility:
+          - Tersedia di /api/agents, /api/agent-connections
+          - Tersedia di /api/v1/agents, /api/v1/agent-connections
+          - Tersedia di alias /api/agents/connections dan /api/v1/agents/connections
+        * Zero Credential Leakage:
+          - Respons JSON public hanya mengembalikan AgentConnectionDTO dengan boolean `has_credentials: true`.
+          - Kredensial plaintext dan ciphertext di-omit dari JSON (`json:"-"`).
+
+3. TARGETED TEST EXECUTION LOG:
+   a. internal/crypto/aes_test.go:
+      === RUN   TestAES256GCM_RawBytes
+      --- PASS: TestAES256GCM_RawBytes (0.00s)
+      === RUN   TestAES256GCM_StringHelpers
+      --- PASS: TestAES256GCM_StringHelpers (0.00s)
+      === RUN   TestEncryptDecrypt_Success
+      --- PASS: TestEncryptDecrypt_Success (0.00s)
+      === RUN   TestKeyVault_RoundTrip
+      --- PASS: TestKeyVault_RoundTrip (0.00s)
+      PASS (ok github.com/buchin/cuan/internal/crypto 0.021s)
+
+   b. internal/agent/...:
+      === RUN   TestEncryptDecryptCredential
+      --- PASS: TestEncryptDecryptCredential (0.00s)
+      === RUN   TestMaskAPIKey
+      --- PASS: TestMaskAPIKey (0.00s)
+      === RUN   TestGeminiProvider_MockKeyVerification
+      --- PASS: TestGeminiProvider_MockKeyVerification (0.00s)
+      === RUN   TestGeminiProvider_EmptyAndInvalidKeys
+      --- PASS: TestGeminiProvider_EmptyAndInvalidKeys (0.00s)
+      === RUN   TestGeminiProvider_LiveHTTPEndpointSimulation
+      --- PASS: TestGeminiProvider_LiveHTTPEndpointSimulation (0.01s)
+      === RUN   TestGeminiProvider_ListModels
+      --- PASS: TestGeminiProvider_ListModels (0.00s)
+      === RUN   TestProviderRegistry_RegistrationAndLookup
+      --- PASS: TestProviderRegistry_RegistrationAndLookup (0.00s)
+      === RUN   TestMockProvider_Verification
+      --- PASS: TestMockProvider_Verification (0.01s)
+      === RUN   TestDefaultRegistry
+      --- PASS: TestDefaultRegistry (0.00s)
+      PASS (ok github.com/buchin/cuan/internal/agent 37.935s)
+
+   c. internal/server (TestAgent* targeted handlers):
+      === RUN   TestAgentHandlers_CRUD_RootAndV1
+      --- PASS: TestAgentHandlers_CRUD_RootAndV1 (0.00s)
+      === RUN   TestAgentConnectionHandlers_EncryptionAndVerification
+      --- PASS: TestAgentConnectionHandlers_EncryptionAndVerification (0.00s)
+      === RUN   TestAgentConnectionHandlers_ImmediateVerificationOnCreate
+      --- PASS: TestAgentConnectionHandlers_ImmediateVerificationOnCreate (0.00s)
+      === RUN   TestAgentHandlers_ValidationAndErrors
+      --- PASS: TestAgentHandlers_ValidationAndErrors (0.00s)
+      === RUN   TestAgentConnectionHandlers_ValidationAndErrors
+      --- PASS: TestAgentConnectionHandlers_ValidationAndErrors (0.00s)
+      PASS (ok github.com/buchin/cuan/internal/server 0.010s)
+
+   d. Full Suite Zero-Regression:
+      ok github.com/buchin/cuan/internal/crypto 0.135s
+      ok github.com/buchin/cuan/internal/agent 47.256s
+      ok github.com/buchin/cuan/internal/db (cached)
+      ok github.com/buchin/cuan/internal/server 78.114s
+      STATUS: 100% PASS — ZERO REGRESSION
+
+4. KESIMPULAN:
+   Task S09.2 berhasil diselesaikan secara tuntas sesuai seluruh kriteria Definition of Done (DoD).
+   Sistem enkripsi AES-256-GCM, Gemini Provider Layer, REST API /api/agents & /api/agent-connections,
+   serta validasi koneksi kuota telah terverifikasi aman dan siap mendukung WebSocket Pseudo-Terminal Engine (S09.3).

@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/campaign"
 	"github.com/buchin/cuan/internal/config"
@@ -56,6 +57,7 @@ type Server struct {
 	projectStudioRepo   cuanDB.ProjectStudioRepository
 	batchCampaignRepo   cuanDB.BatchCampaignRepository
 	agentRepo           cuanDB.AgentRepository
+	providerRegistry    *agent.ProviderRegistry
 	distillerEngine     *studio.DistillerEngine
 	agentExecutionHook  studio.AgentExecutionHook
 	campaignDecompiler  *campaign.DecompilerEngine
@@ -306,6 +308,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		projectStudioRepo:   studioRepo,
 		batchCampaignRepo:   batchRepo,
 		agentRepo:           agentRepo,
+		providerRegistry:    agent.DefaultRegistry(),
 		distillerEngine:     distiller,
 		agentExecutionHook:  agentHook,
 		campaignDecompiler:  campaignDecompiler,
@@ -501,6 +504,17 @@ func (s *Server) SetAgentRepository(repo cuanDB.AgentRepository) {
 	s.agentRepo = repo
 }
 
+func (s *Server) ProviderRegistry() *agent.ProviderRegistry {
+	if s.providerRegistry == nil {
+		s.providerRegistry = agent.DefaultRegistry()
+	}
+	return s.providerRegistry
+}
+
+func (s *Server) SetProviderRegistry(r *agent.ProviderRegistry) {
+	s.providerRegistry = r
+}
+
 func (s *Server) CampaignDecompiler() *campaign.DecompilerEngine {
 	return s.campaignDecompiler
 }
@@ -667,6 +681,26 @@ func (s *Server) routes() {
 	s.router.Get("/api/campaigns/{id}/events", s.handleCampaignEventsSSE)
 	s.router.Post("/api/campaigns/{id}/execute", s.handleExecuteBatchCampaign)
 
+	// Agent Personas & Connection Engine Endpoints (Sprint 9 S09.2)
+	s.router.Get("/api/agents", s.handleListAgents)
+	s.router.Post("/api/agents", s.handleCreateAgent)
+	s.router.Get("/api/agents/{id}", s.handleGetAgent)
+	s.router.Put("/api/agents/{id}", s.handleUpdateAgent)
+	s.router.Delete("/api/agents/{id}", s.handleDeleteAgent)
+
+	s.router.Get("/api/agent-connections", s.handleListAgentConnections)
+	s.router.Post("/api/agent-connections", s.handleCreateAgentConnection)
+	s.router.Get("/api/agent-connections/{id}", s.handleGetAgentConnection)
+	s.router.Delete("/api/agent-connections/{id}", s.handleDeleteAgentConnection)
+	s.router.Post("/api/agent-connections/{id}/verify", s.handleVerifyAgentConnection)
+
+	// Backward-compatibility aliases for /api/agents/connections
+	s.router.Get("/api/agents/connections", s.handleListAgentConnections)
+	s.router.Post("/api/agents/connections", s.handleCreateAgentConnection)
+	s.router.Get("/api/agents/connections/{id}", s.handleGetAgentConnection)
+	s.router.Delete("/api/agents/connections/{id}", s.handleDeleteAgentConnection)
+	s.router.Post("/api/agents/connections/{id}/verify", s.handleVerifyAgentConnection)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -722,6 +756,31 @@ func (s *Server) routes() {
 		cr.Get("/{id}/rollup", s.handleGetCampaignRollup)
 		cr.Get("/{id}/events", s.handleCampaignEventsSSE)
 		cr.Post("/{id}/execute", s.handleExecuteBatchCampaign)
+	})
+
+	// Agent Personas route group in /api/v1 (Sprint 9 S09.2)
+	s.router.Route("/api/v1/agents", func(ar chi.Router) {
+		ar.Get("/", s.handleListAgents)
+		ar.Post("/", s.handleCreateAgent)
+		ar.Get("/{id}", s.handleGetAgent)
+		ar.Put("/{id}", s.handleUpdateAgent)
+		ar.Delete("/{id}", s.handleDeleteAgent)
+
+		// Nested /api/v1/agents/connections
+		ar.Get("/connections", s.handleListAgentConnections)
+		ar.Post("/connections", s.handleCreateAgentConnection)
+		ar.Get("/connections/{id}", s.handleGetAgentConnection)
+		ar.Delete("/connections/{id}", s.handleDeleteAgentConnection)
+		ar.Post("/connections/{id}/verify", s.handleVerifyAgentConnection)
+	})
+
+	// Agent Connections route group in /api/v1 (Sprint 9 S09.2)
+	s.router.Route("/api/v1/agent-connections", func(cr chi.Router) {
+		cr.Get("/", s.handleListAgentConnections)
+		cr.Post("/", s.handleCreateAgentConnection)
+		cr.Get("/{id}", s.handleGetAgentConnection)
+		cr.Delete("/{id}", s.handleDeleteAgentConnection)
+		cr.Post("/{id}/verify", s.handleVerifyAgentConnection)
 	})
 
 	s.router.Route("/api/v1", func(r chi.Router) {
@@ -790,6 +849,27 @@ func (s *Server) routes() {
 		r.Get("/campaigns/{id}/rollup", s.handleGetCampaignRollup)
 		r.Get("/campaigns/{id}/events", s.handleCampaignEventsSSE)
 		r.Post("/campaigns/{id}/execute", s.handleExecuteBatchCampaign)
+
+		// Agent Personas in v1 (Sprint 9 S09.2)
+		r.Get("/agents", s.handleListAgents)
+		r.Post("/agents", s.handleCreateAgent)
+		r.Get("/agents/{id}", s.handleGetAgent)
+		r.Put("/agents/{id}", s.handleUpdateAgent)
+		r.Delete("/agents/{id}", s.handleDeleteAgent)
+
+		// Agent Connections in v1 (Sprint 9 S09.2)
+		r.Get("/agent-connections", s.handleListAgentConnections)
+		r.Post("/agent-connections", s.handleCreateAgentConnection)
+		r.Get("/agent-connections/{id}", s.handleGetAgentConnection)
+		r.Delete("/agent-connections/{id}", s.handleDeleteAgentConnection)
+		r.Post("/agent-connections/{id}/verify", s.handleVerifyAgentConnection)
+
+		// Backward-compatibility aliases for /agents/connections
+		r.Get("/agents/connections", s.handleListAgentConnections)
+		r.Post("/agents/connections", s.handleCreateAgentConnection)
+		r.Get("/agents/connections/{id}", s.handleGetAgentConnection)
+		r.Delete("/agents/connections/{id}", s.handleDeleteAgentConnection)
+		r.Post("/agents/connections/{id}/verify", s.handleVerifyAgentConnection)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {
