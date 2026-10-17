@@ -596,16 +596,16 @@ func (s *Server) handleStreamRoomEvents(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Emit initial connection handshake event
-	fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"room_id\":\"%s\"}\n\n", roomID)
-	flusher.Flush()
-
-	// Subscribe client channel
+	// Subscribe client channel before flushing initial handshake event
 	if s.roomEventBroker == nil {
 		s.roomEventBroker = NewRoomEventBroker()
 	}
 	clientChan := s.roomEventBroker.Subscribe(roomID)
 	defer s.roomEventBroker.Unsubscribe(roomID, clientChan)
+
+	// Emit initial connection handshake event
+	fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"room_id\":\"%s\"}\n\n", roomID)
+	flusher.Flush()
 
 	// Heartbeat ticker (15s default)
 	heartbeatInterval := s.roomEventBroker.HeartbeatInterval()

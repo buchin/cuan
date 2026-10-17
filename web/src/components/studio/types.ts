@@ -191,3 +191,100 @@ export interface AlertIncidentDTO {
   resolved_at?: string
 }
 
+// Project Studio Discussions & Tasks Types (Sprint 7 S07.4)
+
+export interface ProjectRoomDTO {
+  id: string
+  project_id: string
+  title: string
+  topic: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectMessageDTO {
+  id: string
+  room_id: string
+  author_type: 'user' | 'agent' | 'system' | string
+  author_id: string
+  author_name: string
+  content: string
+  reply_to_id?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DoDItem {
+  id?: string
+  text: string
+  completed: boolean
+}
+
+export interface ProjectTaskDTO {
+  id: string
+  project_id: string
+  room_id?: string | null
+  title: string
+  description: string
+  status: 'backlog' | 'doing' | 'review' | 'done' | string
+  priority: 'low' | 'normal' | 'high' | 'urgent' | string
+  dod_checklist: DoDItem[]
+  assignee_id?: string | null
+  parent_task_id?: string | null
+  batch_id?: string | null
+  tags: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface DistillTaskPayload {
+  message_ids?: string[]
+  title?: string
+  batch_id?: string | null
+  tags?: string[]
+}
+
+export interface DistillResult {
+  task: ProjectTaskDTO
+  distilled_from_messages: number
+  explicit_dod_count: number
+  inferred_dod_count: number
+  execution_dispatch?: {
+    dispatched: boolean
+    task_id: string
+    project_id: string
+    runner_id?: string
+    attempt_id?: string
+    agent_name?: string
+    triggered_at: string
+    message: string
+  }
+}
+
+export interface CreateProjectTaskPayload {
+  id?: string
+  room_id?: string | null
+  title: string
+  description: string
+  status?: string
+  priority?: string
+  dod_checklist?: DoDItem[]
+  assignee_id?: string | null
+  parent_task_id?: string | null
+  batch_id?: string | null
+  tags?: string[]
+}
+
+export interface UpdateProjectTaskPayload {
+  room_id?: string | null
+  title?: string
+  description?: string
+  status?: string
+  priority?: string
+  dod_checklist?: DoDItem[]
+  assignee_id?: string | null
+  parent_task_id?: string | null
+  batch_id?: string | null
+  tags?: string[]
+}
+

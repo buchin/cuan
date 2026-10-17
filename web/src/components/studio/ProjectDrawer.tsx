@@ -23,10 +23,14 @@ import {
   Server,
   CheckCircle2,
   Clock,
-  HeartPulse
+  HeartPulse,
+  MessageSquare,
+  Kanban
 } from 'lucide-react'
 import { DeploymentItem, DeploymentLog, DeploymentHealthResponse, CustomDomainItem } from './types'
 import { CustomDomainsModal } from './CustomDomainsModal'
+import { ProjectDiscussionsView } from './ProjectDiscussionsView'
+import { ProjectTasksBoard } from './ProjectTasksBoard'
 
 interface ProjectDrawerProps {
   deployment: DeploymentItem | null
@@ -35,6 +39,7 @@ interface ProjectDrawerProps {
   onUpdate: (updated: DeploymentItem) => void
   onDelete: (id: string) => void
   baseDomain?: string
+  initialTab?: 'overview' | 'discussions' | 'tasks'
 }
 
 export function ProjectDrawer({
@@ -43,9 +48,19 @@ export function ProjectDrawer({
   onClose,
   onUpdate,
   onDelete,
-  baseDomain = 'cuan.dojo.cc'
+  baseDomain = 'cuan.dojo.cc',
+  initialTab = 'overview',
 }: ProjectDrawerProps) {
   if (!isOpen || !deployment) return null
+
+  // Drawer tab state: 'overview' | 'discussions' | 'tasks'
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'discussions' | 'tasks'>(initialTab)
+
+  useEffect(() => {
+    if (initialTab) {
+      setDrawerTab(initialTab)
+    }
+  }, [initialTab])
 
   // Action states
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -350,7 +365,7 @@ export function ProjectDrawer({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+      <div className="w-full max-w-3xl bg-white dark:bg-slate-900 h-full shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
         {/* Drawer Header */}
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
           <div className="space-y-1">
@@ -381,6 +396,48 @@ export function ProjectDrawer({
           </button>
         </div>
 
+        {/* Drawer Navigation Tabs (S07.4) */}
+        <div className="flex items-center px-6 border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/80 gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setDrawerTab('overview')}
+            className={`py-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              drawerTab === 'overview'
+                ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            <span>Overview & Logs</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDrawerTab('discussions')}
+            className={`py-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              drawerTab === 'discussions'
+                ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>Discussions</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDrawerTab('tasks')}
+            className={`py-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              drawerTab === 'tasks'
+                ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Kanban className="h-3.5 w-3.5" />
+            <span>Tasks</span>
+          </button>
+        </div>
+
         {/* Action Error Alert */}
         {actionError && (
           <div className="p-4 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
@@ -389,7 +446,24 @@ export function ProjectDrawer({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {drawerTab === 'discussions' ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <ProjectDiscussionsView
+              projectId={deployment.id}
+              projects={[{ id: deployment.id, name: deployment.project_name }]}
+              onOpenTaskBoard={() => setDrawerTab('tasks')}
+            />
+          </div>
+        ) : drawerTab === 'tasks' ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <ProjectTasksBoard
+              projectId={deployment.id}
+              projects={[{ id: deployment.id, name: deployment.project_name }]}
+              onOpenDiscussions={() => setDrawerTab('discussions')}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* 1. Live Subdomain Link Bar */}
           <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -871,7 +945,8 @@ export function ProjectDrawer({
             </div>
           </div>
         </div>
-      </div>
+      )}
+    </div>
 
       {/* Custom Domains Modal (S05.4) */}
       <CustomDomainsModal

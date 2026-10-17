@@ -18,7 +18,9 @@ import {
   AlertCircle,
   UploadCloud,
   Server,
-  Activity
+  Activity,
+  MessageSquare,
+  Kanban
 } from 'lucide-react'
 import { DeploymentItem, ServerItem, CustomDomainItem } from './types'
 import { DeployWizardModal } from './DeployWizardModal'
@@ -28,6 +30,8 @@ import { DomainsView } from './DomainsView'
 import { ObservabilityView } from './ObservabilityView'
 import { CustomDomainsModal } from './CustomDomainsModal'
 import { ProjectCard } from './ProjectCard'
+import { ProjectDiscussionsView } from './ProjectDiscussionsView'
+import { ProjectTasksBoard } from './ProjectTasksBoard'
 
 interface StudioDashboardProps {
   currentPath?: string
@@ -51,9 +55,18 @@ export function StudioDashboard({
   const [error, setError] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Tab state: 'projects' | 'servers' | 'domains' | 'observability'
-  const [activeTab, setActiveTab] = useState<'projects' | 'servers' | 'domains' | 'observability'>(() => {
+  // Drawer initial tab state
+  const [drawerInitialTab, setDrawerInitialTab] = useState<'overview' | 'discussions' | 'tasks'>('overview')
+
+  // Tab state: 'projects' | 'discussions' | 'tasks' | 'servers' | 'domains' | 'observability'
+  const [activeTab, setActiveTab] = useState<'projects' | 'discussions' | 'tasks' | 'servers' | 'domains' | 'observability'>(() => {
     if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/studio/discussions')) {
+        return 'discussions'
+      }
+      if (window.location.pathname.startsWith('/studio/tasks')) {
+        return 'tasks'
+      }
       if (window.location.pathname.startsWith('/studio/observability')) {
         return 'observability'
       }
@@ -69,7 +82,11 @@ export function StudioDashboard({
 
   // Synchronize when currentPath prop changes
   useEffect(() => {
-    if (currentPath === '/studio/observability') {
+    if (currentPath === '/studio/discussions' || currentPath?.startsWith('/studio/discussions')) {
+      setActiveTab('discussions')
+    } else if (currentPath === '/studio/tasks' || currentPath?.startsWith('/studio/tasks')) {
+      setActiveTab('tasks')
+    } else if (currentPath === '/studio/observability') {
       setActiveTab('observability')
     } else if (currentPath === '/studio/domains') {
       setActiveTab('domains')
@@ -248,6 +265,19 @@ export function StudioDashboard({
 
   const handleOpenDrawer = (dep: DeploymentItem) => {
     setSelectedDeployment(dep)
+    setDrawerInitialTab('overview')
+    setIsDrawerOpen(true)
+  }
+
+  const handleOpenDiscussionsDrawer = (dep: DeploymentItem) => {
+    setSelectedDeployment(dep)
+    setDrawerInitialTab('discussions')
+    setIsDrawerOpen(true)
+  }
+
+  const handleOpenTasksDrawer = (dep: DeploymentItem) => {
+    setSelectedDeployment(dep)
+    setDrawerInitialTab('tasks')
     setIsDrawerOpen(true)
   }
 
@@ -354,6 +384,36 @@ export function StudioDashboard({
               <span className="h-4 px-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-mono flex items-center justify-center">
                 {deployments.length}
               </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('discussions')
+                onNavigate?.('/studio/discussions')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'discussions'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <MessageSquare className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Discussions</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('tasks')
+                onNavigate?.('/studio/tasks')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'tasks'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Kanban className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Tasks</span>
             </button>
 
             <button
@@ -479,13 +539,13 @@ export function StudioDashboard({
         )}
 
         {/* Mobile Navigation Tab Bar */}
-        <div className="flex md:hidden items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700/60 text-xs">
+        <div className="flex md:hidden items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700/60 text-xs overflow-x-auto gap-1">
           <button
             onClick={() => {
               setActiveTab('projects')
               onNavigate?.('/studio')
             }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg font-semibold transition-all ${
+            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
               activeTab === 'projects'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
@@ -493,6 +553,36 @@ export function StudioDashboard({
           >
             <Layers className="h-3.5 w-3.5 text-emerald-500" />
             <span>Projects ({deployments.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('discussions')
+              onNavigate?.('/studio/discussions')
+            }}
+            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+              activeTab === 'discussions'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <MessageSquare className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Discussions</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('tasks')
+              onNavigate?.('/studio/tasks')
+            }}
+            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+              activeTab === 'tasks'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <Kanban className="h-3.5 w-3.5 text-indigo-500" />
+            <span>Tasks</span>
           </button>
 
           <button
@@ -577,8 +667,24 @@ export function StudioDashboard({
           </div>
         )}
 
-        {/* Tab View Switching: Observability Hub vs Domains Hub vs Servers Hub vs Projects Dashboard */}
-        {activeTab === 'observability' ? (
+        {/* Tab View Switching: Discussions vs Tasks vs Observability Hub vs Domains Hub vs Servers Hub vs Projects Dashboard */}
+        {activeTab === 'discussions' ? (
+          <ProjectDiscussionsView
+            projects={deployments.map((d) => ({ id: d.id, name: d.project_name }))}
+            onOpenTaskBoard={() => {
+              setActiveTab('tasks')
+              onNavigate?.('/studio/tasks')
+            }}
+          />
+        ) : activeTab === 'tasks' ? (
+          <ProjectTasksBoard
+            projects={deployments.map((d) => ({ id: d.id, name: d.project_name }))}
+            onOpenDiscussions={() => {
+              setActiveTab('discussions')
+              onNavigate?.('/studio/discussions')
+            }}
+          />
+        ) : activeTab === 'observability' ? (
           <ObservabilityView
             onNavigate={onNavigate}
             baseDomain={baseDomain}
@@ -835,6 +941,8 @@ export function StudioDashboard({
                 customDomains={domains}
                 onOpenDrawer={handleOpenDrawer}
                 onOpenCustomDomains={handleOpenCustomDomains}
+                onOpenDiscussions={handleOpenDiscussionsDrawer}
+                onOpenTasks={handleOpenTasksDrawer}
                 onQuickStart={handleQuickStart}
                 onQuickStop={handleQuickStop}
                 onQuickRestart={handleQuickRestart}
@@ -866,6 +974,7 @@ export function StudioDashboard({
         onUpdate={handleDeploymentUpdated}
         onDelete={handleDeploymentDeleted}
         baseDomain={baseDomain}
+        initialTab={drawerInitialTab}
       />
 
       {/* Custom Domains Modal (S05.4) */}
