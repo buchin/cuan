@@ -90,6 +90,20 @@ export function App() {
     { id: 'creator-hub', name: 'Creator Hub Workspace', type: 'creator', status: 'active' },
     { id: 'blank-workspace', name: 'Blank Workspace', type: 'blank', status: 'active' },
   ])
+  const [activeProject, setActiveProject] = useState<ProjectOption>(() => projectsList[0])
+  const [navMode, setNavMode] = useState<'global' | 'project'>('global')
+
+  const handleSelectProject = (proj: ProjectOption) => {
+    setActiveProject(proj)
+    setSuccessNotification(`Beralih ke workspace "${proj.name}"`)
+  }
+
+  const handleCreateProject = async (projectData: any) => {
+    setProjectsList((prev) => [projectData, ...prev])
+    setActiveProject(projectData)
+    setNavMode('project')
+    setSuccessNotification(`Proyek baru "${projectData.name}" berhasil dibuat!`)
+  }
 
   useEffect(() => {
     const fetchSystemInfo = async () => {
@@ -363,6 +377,11 @@ export function App() {
       appMode={effectiveMode}
       onToggleMode={handleToggleMode}
       projects={projectsList}
+      activeProject={activeProject}
+      onSelectProject={handleSelectProject}
+      onCreateProject={handleCreateProject}
+      navMode={navMode}
+      onToggleNavMode={setNavMode}
     >
       {/* Global Success Notification */}
       {successNotification && (
@@ -394,7 +413,7 @@ export function App() {
           currentPath={
             currentPath.startsWith('/studio')
               ? currentPath
-              : currentPath === '/'
+              : currentPath === '/' || currentPath === '/dashboard'
               ? '/studio'
               : `/studio${currentPath}`
           }

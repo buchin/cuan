@@ -56,6 +56,9 @@ import { ModuleToggleModal } from './ModuleToggleModal'
 import { ZipUploadWizardModal } from './ZipUploadWizardModal'
 import { ScriptDeployerView } from './deployer'
 import { WordPressDashboardView } from './wordpress'
+import { TeamView } from './TeamView'
+import { DashboardEmptyState } from './DashboardEmptyState'
+import { CreateProjectModal } from './CreateProjectModal'
 
 export type StudioTab =
   | 'projects'
@@ -65,6 +68,7 @@ export type StudioTab =
   | 'tasks'
   | 'campaigns'
   | 'agents'
+  | 'team'
   | 'servers'
   | 'domains'
   | 'observability'
@@ -104,6 +108,9 @@ export function StudioDashboard({
     if (typeof window !== 'undefined') {
       if (window.location.pathname.startsWith('/studio/agents') || window.location.pathname.startsWith('/agents')) {
         return 'agents'
+      }
+      if (window.location.pathname.startsWith('/studio/team') || window.location.pathname.startsWith('/team')) {
+        return 'team'
       }
       if (window.location.pathname.startsWith('/studio/deployer') || window.location.pathname.startsWith('/deployer')) {
         return 'deployer'
@@ -183,6 +190,14 @@ export function StudioDashboard({
   const [activeProjectId, setActiveProjectId] = useState<string>('saas-dojo')
   const [isModuleToggleModalOpen, setIsModuleToggleModalOpen] = useState(false)
   const [isZipWizardOpen, setIsZipWizardOpen] = useState(false)
+  const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false)
+
+  const handleCreateProjectCreated = (newProj: any) => {
+    setProjectsList((prev) => [newProj, ...prev])
+    setActiveProjectId(newProj.id)
+    showToast('success', `Proyek "${newProj.name}" berhasil dibuat dan diaktifkan.`)
+    setIsCreateProjectModalOpen(false)
+  }
 
   const fetchProjectsList = async () => {
     try {
@@ -294,6 +309,8 @@ export function StudioDashboard({
   useEffect(() => {
     if (currentPath === '/studio/agents' || currentPath?.startsWith('/studio/agents') || currentPath === '/agents' || currentPath?.startsWith('/agents')) {
       setActiveTab('agents')
+    } else if (currentPath === '/studio/team' || currentPath?.startsWith('/studio/team') || currentPath === '/team' || currentPath?.startsWith('/team')) {
+      setActiveTab('team')
     } else if (currentPath === '/studio/deployer' || currentPath?.startsWith('/studio/deployer') || currentPath === '/deployer' || currentPath?.startsWith('/deployer')) {
       setActiveTab('deployer')
     } else if (currentPath === '/studio/wordpress' || currentPath?.startsWith('/studio/wordpress') || currentPath === '/wordpress' || currentPath?.startsWith('/wordpress')) {
@@ -322,7 +339,13 @@ export function StudioDashboard({
       setActiveTab('publishing')
     } else if (currentPath === '/studio/support' || currentPath?.startsWith('/studio/support')) {
       setActiveTab('support')
-    } else if (currentPath === '/studio') {
+    } else if (
+      currentPath === '/studio' ||
+      currentPath === '/studio/dashboard' ||
+      currentPath === '/dashboard' ||
+      currentPath === '/studio/projects' ||
+      currentPath === '/projects'
+    ) {
       setActiveTab('projects')
     }
   }, [currentPath])
@@ -1488,6 +1511,8 @@ export function StudioDashboard({
               </div>
             </div>
           </div>
+        ) : activeTab === 'team' ? (
+          <TeamView />
         ) : activeTab === 'agents' ? (
           <AgentsHubView onNavigate={onNavigate} />
         ) : activeTab === 'observability' ? (
@@ -1676,81 +1701,17 @@ export function StudioDashboard({
             <p className="text-sm text-slate-500">Memuat daftar aplikasi Studio...</p>
           </div>
         ) : deployments.length === 0 ? (
-          /* Zero-Friction Welcome Banner Onboarding (empty state) */
-          <div className="rounded-3xl border border-dashed border-emerald-500/40 bg-gradient-to-b from-emerald-950/20 via-slate-900/60 to-slate-900/80 p-8 sm:p-12 text-center space-y-6 shadow-xl">
-            <div className="relative inline-block">
-              <div className="h-20 w-20 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center mx-auto shadow-xl shadow-emerald-500/25">
-                <UploadCloud className="h-10 w-10 stroke-[2.2]" />
-              </div>
-              <div className="absolute -top-1 -right-1 h-7 w-7 rounded-full bg-emerald-400 text-slate-950 flex items-center justify-center font-bold text-xs shadow-md">
-                ⚡
-              </div>
-            </div>
-
-            <div className="max-w-2xl mx-auto space-y-2">
-              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs py-0.5 px-2.5 font-semibold">
-                Zero-Friction Quick Start
-              </Badge>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Deploy your first app in 60 seconds — drag and drop a ZIP or paste a Git URL
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">
-                Unggah arsip ZIP (PHP/WordPress, Node.js, atau Static HTML) atau hubungkan repository Git publik/privat. Intake engine akan mendeteksi stack otomatis, mengalokasikan port terisolasi, dan mengarahkan subdomain live instan via Caddy reverse proxy.
-              </p>
-            </div>
-
-            {/* 3 Step Features */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto text-left pt-2">
-              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs space-y-1.5">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                  <span className="h-5 w-5 rounded-md bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-[11px]">1</span>
-                  <span>Anti-ZipSlip Defense</span>
-                </div>
-                <p className="text-slate-400 text-[11px] leading-normal">
-                  Ekstraksi aman dengan verifikasi batas path traversal ketat terisolasi di direktori sandboxing.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs space-y-1.5">
-                <div className="flex items-center gap-2 text-teal-400 font-bold">
-                  <span className="h-5 w-5 rounded-md bg-teal-500/20 text-teal-300 flex items-center justify-center text-[11px]">2</span>
-                  <span>Auto Stack Detection</span>
-                </div>
-                <p className="text-slate-400 text-[11px] leading-normal">
-                  Deteksi instan file index.php, wp-config.php, package.json, atau index.html tanpa konfigurasi manual.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs space-y-1.5">
-                <div className="flex items-center gap-2 text-blue-400 font-bold">
-                  <span className="h-5 w-5 rounded-md bg-blue-500/20 text-blue-300 flex items-center justify-center text-[11px]">3</span>
-                  <span>Subdomain & Auto-SSL</span>
-                </div>
-                <p className="text-slate-400 text-[11px] leading-normal">
-                  Alokasi subdomain &#123;slug&#125;.{baseDomain} otomatis ter-route ke port aplikasi sandbox.
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Button
-                onClick={() => setIsWizardOpen(true)}
-                className="h-11 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/20 gap-2 active:scale-95 transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                Mulai Deploy Proyek Pertama
-              </Button>
-              {onNavigate && (
-                <Button
-                  variant="outline"
-                  onClick={() => onNavigate(appMode === 'studio' ? '/marketing' : '/')}
-                  className="h-11 px-4 text-xs text-slate-300 border-slate-700 bg-slate-800/40 hover:bg-slate-800"
-                >
-                  Eksplorasi Landing Page & Sponsorship
-                </Button>
-              )}
-            </div>
-          </div>
+          /* Educational Empty State (S14.3 Requirement 4) */
+          <DashboardEmptyState
+            onCreateProjectClick={() => setIsCreateProjectModalOpen(true)}
+            onExploreGlobalClick={() => {
+              if (onNavigate) {
+                onNavigate('/studio/tasks')
+              } else {
+                setActiveTab('tasks')
+              }
+            }}
+          />
         ) : filteredDeployments.length === 0 ? (
           /* Filtered Empty State */
           <div className="h-80 flex flex-col items-center justify-center text-center p-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
@@ -1895,6 +1856,13 @@ export function StudioDashboard({
           ].filter(Boolean),
           repo_url: d.domain,
         }))}
+      />
+
+      {/* Global Interactive Create Project Modal */}
+      <CreateProjectModal
+        isOpen={isCreateProjectModalOpen}
+        onClose={() => setIsCreateProjectModalOpen(false)}
+        onCreateProject={handleCreateProjectCreated}
       />
     </div>
   )
