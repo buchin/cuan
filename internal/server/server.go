@@ -75,6 +75,9 @@ type Server struct {
 	terminalHandler     *terminal.Handler
 	projectIntegrationRepo cuanDB.ProjectIntegrationRepository
 	publisherEngine     *publisher.Engine
+	scriptDeployRepo    cuanDB.ScriptDeploymentRepository
+	provisionedDBRepo   cuanDB.ProvisionedDatabaseRepository
+	provisionerEngine   *deployer.DatabaseProvisioner
 	router              *chi.Mux
 }
 
@@ -357,6 +360,27 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		publisher.WithSecretKey(pubSecret),
 	)
 
+	var scriptDeployRepo cuanDB.ScriptDeploymentRepository
+	var provisionedDBRepo cuanDB.ProvisionedDatabaseRepository
+	if db != nil {
+		scriptDeployRepo = cuanDB.NewSQLScriptDeploymentRepository(db)
+		provisionedDBRepo = cuanDB.NewSQLProvisionedDatabaseRepository(db)
+	} else {
+		scriptDeployRepo = cuanDB.NewMemoryScriptDeploymentRepository()
+		provisionedDBRepo = cuanDB.NewMemoryProvisionedDatabaseRepository()
+	}
+
+	provSecret := cfg.AuthSecret
+	if provSecret == "" {
+		provSecret = "cuan-default-database-provisioner-vault-key"
+	}
+	provEngine := deployer.NewDatabaseProvisioner(deployer.ProvisionerConfig{
+		DBRepo:           provisionedDBRepo,
+		VaultSecret:      provSecret,
+		ProjectBaseDir:   projectBaseDir,
+		PostgresAdminURL: cfg.DatabaseURL,
+	})
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -395,6 +419,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		terminalHandler:     termHandler,
 		projectIntegrationRepo: intRepo,
 		publisherEngine:     pubEngine,
+		scriptDeployRepo:    scriptDeployRepo,
+		provisionedDBRepo:   provisionedDBRepo,
+		provisionerEngine:   provEngine,
 		router:              r,
 	}
 
@@ -606,6 +633,30 @@ func (s *Server) InspectorEngine() *inspector.Engine {
 
 func (s *Server) SetInspectorEngine(e *inspector.Engine) {
 	s.inspectorEngine = e
+}
+
+func (s *Server) ScriptDeploymentRepository() cuanDB.ScriptDeploymentRepository {
+	return s.scriptDeployRepo
+}
+
+func (s *Server) SetScriptDeploymentRepository(repo cuanDB.ScriptDeploymentRepository) {
+	s.scriptDeployRepo = repo
+}
+
+func (s *Server) ProvisionedDatabaseRepository() cuanDB.ProvisionedDatabaseRepository {
+	return s.provisionedDBRepo
+}
+
+func (s *Server) SetProvisionedDatabaseRepository(repo cuanDB.ProvisionedDatabaseRepository) {
+	s.provisionedDBRepo = repo
+}
+
+func (s *Server) ProvisionerEngine() *deployer.DatabaseProvisioner {
+	return s.provisionerEngine
+}
+
+func (s *Server) SetProvisionerEngine(e *deployer.DatabaseProvisioner) {
+	s.provisionerEngine = e
 }
 
 func (s *Server) ProviderRegistry() *agent.ProviderRegistry {
@@ -906,6 +957,14 @@ func (s *Server) routes() {
 	s.router.Patch("/api/v1/projects/{id}/modules", s.handleUpdateProjectModules)
 	s.router.Put("/api/v1/projects/{id}/modules", s.handleUpdateProjectModules)
 
+	// Automated Database Provisioner & Environment Secrets Endpoints (Sprint 12 S12.2)
+	s.router.Post("/api/projects/{id}/provision-db", s.handleProvisionProjectDatabase)
+	s.router.Post("/api/v1/projects/{id}/provision-db", s.handleProvisionProjectDatabase)
+	s.router.Post("/api/projects/{id}/generate-env", s.handleGenerateProjectEnv)
+	s.router.Post("/api/v1/projects/{id}/generate-env", s.handleGenerateProjectEnv)
+	s.router.Get("/api/projects/{id}/env", s.handleGetProjectEnv)
+	s.router.Get("/api/v1/projects/{id}/env", s.handleGetProjectEnv)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -1054,6 +1113,11 @@ func (s *Server) routes() {
 		// WordPress CMS Integration & Task Publishing / Export in v1 (Sprint 11 S11.3)
 		r.Post("/projects/{id}/integrations/wordpress", s.handleSetupWordPressIntegration)
 		r.Get("/projects/{id}/integrations/wordpress", s.handleGetWordPressIntegration)
+
+		// Automated Database Provisioner & Environment Secrets in v1 (Sprint 12 S12.2)
+		r.Post("/projects/{id}/provision-db", s.handleProvisionProjectDatabase)
+		r.Post("/projects/{id}/generate-env", s.handleGenerateProjectEnv)
+		r.Get("/projects/{id}/env", s.handleGetProjectEnv)
 		r.Post("/tasks/{id}/publish", s.handlePublishTask)
 		r.Post("/projects/tasks/{id}/publish", s.handlePublishTask)
 		r.Get("/tasks/{id}/export", s.handleExportTask)
