@@ -19,6 +19,7 @@ type Store interface {
 	CountOwners(ctx context.Context) (int, error)
 	CreateOwner(ctx context.Context, owner *Owner) error
 	GetOwner(ctx context.Context) (*Owner, error)
+	UpdateOwnerPassword(ctx context.Context, ownerID string, passwordHash string) error
 	CreateSession(ctx context.Context, session *Session) error
 	GetSession(ctx context.Context, tokenHash string) (*Session, *Owner, error)
 	DeleteSession(ctx context.Context, tokenHash string) error

@@ -81,6 +81,8 @@ Prinsip produk: **pengguna dapat meninggalkan Cuan dengan membawa kode, data, da
   Menyempurnakan alur script onboarding menjadi platform turnkey mandiri: multi-database provisioning (MySQL/PostgreSQL/SQLite) & automated SQL schema importer, brankas kredensial & environment AES-256-GCM, runtime build runner (`composer`/`npm`/`pip`), dynamic port allocation & process supervisor, registrasi HTTPS reverse proxy Caddy otomatis, serta live build console wizard di antarmuka Kanban/Studio.
 * **Sprint 13 (Turnkey WordPress Cloud & Agentic Webmaster Engine):**
   Menyediakan solusi 1-click turnkey WordPress hosting di container terisolasi (WordPress + MySQL/MariaDB + Caddy auto-SSL), brankas kredensial admin dan database AES-256-GCM, manajemen ZIP theme dan plugin instan, serta Agentic AI Webmaster untuk script injection, config tweaking, dan optimasi performa tanpa cPanel/FTP.
+* **Sprint 14 (Clean Slate UI: Tokyo Night Theme, shadcn Sidebar-07 Shell, Auth Gatekeeper & Multi-Project Task Linking):**
+  Mentransformasi antarmuka pengguna menjadi Clean Slate UI bertema Tokyo Night Dark, layout modern shadcn Sidebar-07, proteksi Auth Gatekeeper (session & token handler bcrypt, ganti password, default admin credentials), serta arsitektur database multi-project (skema 000019, `is_archived` status, dan relasi many-to-many `task_projects`).
 
 ---
 

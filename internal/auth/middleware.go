@@ -11,6 +11,65 @@ type contextKey string
 
 const ownerContextKey = contextKey("cuan_auth_owner")
 
+// DefaultPublicBypassPaths defines endpoints that bypass authentication.
+var DefaultPublicBypassPaths = []string{
+	"/healthz",
+	"/readyz",
+	"/api/info",
+	"/api/mode",
+	"/api/caddy/ask",
+	"/api/v1/auth/login",
+	"/api/v1/auth/status",
+	"/api/v1/auth/setup",
+	"/api/v1/info",
+	"/api/v1/system/mode",
+}
+
+// AuthGuard returns a middleware that checks authentication while bypassing configured public routes.
+func AuthGuard(svc *Service, customBypass ...string) func(http.Handler) http.Handler {
+	bypassMap := make(map[string]bool)
+	for _, p := range DefaultPublicBypassPaths {
+		bypassMap[strings.ToLower(p)] = true
+	}
+	for _, p := range customBypass {
+		bypassMap[strings.ToLower(p)] = true
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := strings.ToLower(r.URL.Path)
+			cleanPath := strings.TrimSuffix(path, "/")
+
+			if bypassMap[path] || bypassMap[cleanPath] {
+				// If token is present, optionally attach owner to context without blocking
+				token := ExtractToken(r)
+				if token != "" {
+					if owner, err := svc.ValidateToken(r.Context(), token); err == nil && owner != nil {
+						r = r.WithContext(context.WithValue(r.Context(), ownerContextKey, owner))
+					}
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			token := ExtractToken(r)
+			if token == "" {
+				respondJSONError(w, http.StatusUnauthorized, "unauthorized: authentication required")
+				return
+			}
+
+			owner, err := svc.ValidateToken(r.Context(), token)
+			if err != nil {
+				respondJSONError(w, http.StatusUnauthorized, "unauthorized: invalid or expired session")
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), ownerContextKey, owner)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 func Middleware(svc *Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

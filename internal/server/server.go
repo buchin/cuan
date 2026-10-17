@@ -1360,6 +1360,7 @@ func (s *Server) routes() {
 			pr.Use(auth.Middleware(s.authSvc))
 
 			pr.Get("/auth/me", s.handleAuthMe)
+			pr.Post("/auth/password", s.handleAuthPassword)
 
 			// Tasks endpoints (T4 & T5)
 			pr.Get("/tasks", s.handleListTasks)
@@ -1630,7 +1631,12 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := s.authSvc.Login(r.Context(), req.Email, req.Password)
+	identifier := strings.TrimSpace(req.Username)
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.Email)
+	}
+
+	resp, err := s.authSvc.Login(r.Context(), identifier, req.Password)
 	if err != nil {
 		if errors.Is(err, auth.ErrSetupRequired) {
 			respondJSONError(w, http.StatusBadRequest, "setup required: no owner account exists")
@@ -1671,12 +1677,47 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userData := map[string]interface{}{
+		"id":         owner.ID,
+		"username":   owner.Username,
+		"email":      owner.Email,
+		"created_at": owner.CreatedAt,
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"owner": map[string]interface{}{
-			"id":         owner.ID,
-			"email":      owner.Email,
-			"created_at": owner.CreatedAt,
-		},
+		"owner": userData,
+		"user":  userData,
+	})
+}
+
+func (s *Server) handleAuthPassword(w http.ResponseWriter, r *http.Request) {
+	owner := auth.GetOwnerFromContext(r.Context())
+	if owner == nil {
+		respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req auth.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := s.authSvc.ChangePassword(r.Context(), owner.ID, req.CurrentPassword, req.NewPassword); err != nil {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			respondJSONError(w, http.StatusUnauthorized, "invalid current password")
+			return
+		}
+		if errors.Is(err, auth.ErrInvalidInput) {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update password: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{
+		"message": "password updated successfully",
 	})
 }
 

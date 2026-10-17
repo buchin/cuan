@@ -67,10 +67,16 @@ func (s *Service) Setup(ctx context.Context, email, password string) (*AuthRespo
 	}
 	ownerID = "owner_" + ownerID
 
+	username := email
+	if parts := strings.Split(email, "@"); len(parts) > 0 {
+		username = parts[0]
+	}
+
 	now := time.Now().UTC()
 	owner := &Owner{
 		ID:           ownerID,
 		Email:        email,
+		Username:     username,
 		PasswordHash: string(hash),
 		IsSetup:      true,
 		CreatedAt:    now,
@@ -98,21 +104,25 @@ func (s *Service) Setup(ctx context.Context, email, password string) (*AuthRespo
 		return nil, fmt.Errorf("persist session: %w", err)
 	}
 
+	ownerInfo := OwnerInfo{
+		ID:       owner.ID,
+		Username: owner.Username,
+		Email:    owner.Email,
+	}
+
 	return &AuthResponse{
 		Token: rawToken,
-		Owner: OwnerInfo{
-			ID:    owner.ID,
-			Email: owner.Email,
-		},
+		Owner: ownerInfo,
+		User:  ownerInfo,
 	}, nil
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (*AuthResponse, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
+func (s *Service) Login(ctx context.Context, identifier, password string) (*AuthResponse, error) {
+	identifier = strings.TrimSpace(identifier)
 	password = strings.TrimSpace(password)
 
-	if email == "" || password == "" {
-		return nil, fmt.Errorf("%w: email and password are required", ErrInvalidInput)
+	if identifier == "" || password == "" {
+		return nil, fmt.Errorf("%w: identifier and password are required", ErrInvalidInput)
 	}
 
 	owner, err := s.store.GetOwner(ctx)
@@ -123,7 +133,9 @@ func (s *Service) Login(ctx context.Context, email, password string) (*AuthRespo
 		return nil, fmt.Errorf("retrieve owner: %w", err)
 	}
 
-	if owner.Email != email {
+	match := strings.EqualFold(owner.Email, identifier) ||
+		(owner.Username != "" && strings.EqualFold(owner.Username, identifier))
+	if !match {
 		return nil, ErrInvalidCredentials
 	}
 
@@ -148,13 +160,84 @@ func (s *Service) Login(ctx context.Context, email, password string) (*AuthRespo
 		return nil, fmt.Errorf("persist session: %w", err)
 	}
 
+	ownerInfo := OwnerInfo{
+		ID:       owner.ID,
+		Username: owner.Username,
+		Email:    owner.Email,
+	}
+
 	return &AuthResponse{
 		Token: rawToken,
-		Owner: OwnerInfo{
-			ID:    owner.ID,
-			Email: owner.Email,
-		},
+		Owner: ownerInfo,
+		User:  ownerInfo,
 	}, nil
+}
+
+func (s *Service) ChangePassword(ctx context.Context, ownerID, currentPassword, newPassword string) error {
+	currentPassword = strings.TrimSpace(currentPassword)
+	newPassword = strings.TrimSpace(newPassword)
+
+	if currentPassword == "" || newPassword == "" {
+		return fmt.Errorf("%w: current and new passwords are required", ErrInvalidInput)
+	}
+	if len(newPassword) < MinPasswordLen {
+		return fmt.Errorf("%w: password must be at least %d characters", ErrInvalidInput, MinPasswordLen)
+	}
+
+	owner, err := s.store.GetOwner(ctx)
+	if err != nil {
+		if err == ErrOwnerNotFound {
+			return ErrOwnerNotFound
+		}
+		return fmt.Errorf("retrieve owner: %w", err)
+	}
+
+	if ownerID != "" && owner.ID != ownerID {
+		return ErrUnauthorized
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(owner.PasswordHash), []byte(currentPassword)); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	if err := s.store.UpdateOwnerPassword(ctx, owner.ID, string(hash)); err != nil {
+		return fmt.Errorf("update owner password: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Service) AutoSeedDefaultAdmin(ctx context.Context) error {
+	count, err := s.store.CountOwners(ctx)
+	if err != nil {
+		return fmt.Errorf("count owners: %w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("whosyourdaddy"), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash default password: %w", err)
+	}
+
+	now := time.Now().UTC()
+	owner := &Owner{
+		ID:           "owner_admin",
+		Email:        "admin@cuan.local",
+		Username:     "admin",
+		PasswordHash: string(hash),
+		IsSetup:      true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	return s.store.CreateOwner(ctx, owner)
 }
 
 func (s *Service) ValidateToken(ctx context.Context, rawToken string) (*Owner, error) {

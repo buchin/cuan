@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -34,13 +35,24 @@ func (s *DBStore) CountOwners(ctx context.Context) (int, error) {
 }
 
 func (s *DBStore) CreateOwner(ctx context.Context, owner *Owner) error {
+	username := owner.Username
+	if username == "" {
+		if strings.Contains(owner.Email, "@") {
+			username = strings.Split(owner.Email, "@")[0]
+		} else {
+			username = "admin"
+		}
+	}
+	owner.Username = username
+
 	query := `
-		INSERT INTO owners (id, email, password_hash, is_setup, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO owners (id, email, username, password_hash, is_setup, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	_, err := s.db.ExecContext(ctx, query,
 		owner.ID,
 		owner.Email,
+		owner.Username,
 		owner.PasswordHash,
 		owner.IsSetup,
 		owner.CreatedAt,
@@ -54,7 +66,7 @@ func (s *DBStore) CreateOwner(ctx context.Context, owner *Owner) error {
 
 func (s *DBStore) GetOwner(ctx context.Context) (*Owner, error) {
 	query := `
-		SELECT id, email, password_hash, is_setup, created_at, updated_at
+		SELECT id, email, COALESCE(username, 'admin'), password_hash, is_setup, created_at, updated_at
 		FROM owners
 		ORDER BY created_at ASC
 		LIMIT 1
@@ -63,6 +75,7 @@ func (s *DBStore) GetOwner(ctx context.Context) (*Owner, error) {
 	err := s.db.QueryRowContext(ctx, query).Scan(
 		&o.ID,
 		&o.Email,
+		&o.Username,
 		&o.PasswordHash,
 		&o.IsSetup,
 		&o.CreatedAt,
@@ -75,6 +88,26 @@ func (s *DBStore) GetOwner(ctx context.Context) (*Owner, error) {
 		return nil, fmt.Errorf("get owner: %w", err)
 	}
 	return &o, nil
+}
+
+func (s *DBStore) UpdateOwnerPassword(ctx context.Context, ownerID string, passwordHash string) error {
+	query := `
+		UPDATE owners
+		SET password_hash = $2, updated_at = $3
+		WHERE id = $1
+	`
+	res, err := s.db.ExecContext(ctx, query, ownerID, passwordHash, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("update owner password: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update owner password rows affected: %w", err)
+	}
+	if rows == 0 {
+		return ErrOwnerNotFound
+	}
+	return nil
 }
 
 func (s *DBStore) CreateSession(ctx context.Context, session *Session) error {
@@ -98,7 +131,7 @@ func (s *DBStore) GetSession(ctx context.Context, tokenHash string) (*Session, *
 	query := `
 		SELECT 
 			s.token_hash, s.owner_id, s.expires_at, s.created_at,
-			o.id, o.email, o.password_hash, o.is_setup, o.created_at, o.updated_at
+			o.id, o.email, COALESCE(o.username, 'admin'), o.password_hash, o.is_setup, o.created_at, o.updated_at
 		FROM owner_sessions s
 		JOIN owners o ON s.owner_id = o.id
 		WHERE s.token_hash = $1
@@ -113,6 +146,7 @@ func (s *DBStore) GetSession(ctx context.Context, tokenHash string) (*Session, *
 		&sess.CreatedAt,
 		&o.ID,
 		&o.Email,
+		&o.Username,
 		&o.PasswordHash,
 		&o.IsSetup,
 		&o.CreatedAt,

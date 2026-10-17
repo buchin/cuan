@@ -44,13 +44,13 @@ func (s *DBStore) CreateProject(ctx context.Context, p *Project) error {
 			encrypted_token, token_preview, repo_owner, repo_name,
 			clone_status, project_type, metadata,
 			enabled_modules, source_type, source_metadata,
-			last_fetched_at, last_error, created_at, updated_at
+			is_archived, last_fetched_at, last_error, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8, $9,
 			$10, $11, $12,
 			$13, $14, $15,
-			$16, $17, $18, $19
+			$16, $17, $18, $19, $20
 		)
 	`
 	_, err := s.db.ExecContext(ctx, query,
@@ -69,6 +69,7 @@ func (s *DBStore) CreateProject(ctx context.Context, p *Project) error {
 		[]byte(enabledModules),
 		sourceType,
 		[]byte(sourceMetadata),
+		p.IsArchived,
 		p.LastFetchedAt,
 		p.LastError,
 		p.CreatedAt,
@@ -95,6 +96,7 @@ func (s *DBStore) GetProject(ctx context.Context, id string) (*Project, error) {
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -120,6 +122,7 @@ func (s *DBStore) GetProject(ctx context.Context, id string) (*Project, error) {
 		&modulesBytes,
 		&p.SourceType,
 		&sourceMetaBytes,
+		&p.IsArchived,
 		&lastFetched,
 		&p.LastError,
 		&p.CreatedAt,
@@ -166,6 +169,7 @@ func (s *DBStore) GetProjectByRepo(ctx context.Context, owner, repo string) (*Pr
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -192,6 +196,7 @@ func (s *DBStore) GetProjectByRepo(ctx context.Context, owner, repo string) (*Pr
 		&modulesBytes,
 		&p.SourceType,
 		&sourceMetaBytes,
+		&p.IsArchived,
 		&lastFetched,
 		&p.LastError,
 		&p.CreatedAt,
@@ -238,6 +243,7 @@ func (s *DBStore) ListProjects(ctx context.Context) ([]*Project, error) {
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -271,6 +277,7 @@ func (s *DBStore) ListProjects(ctx context.Context) ([]*Project, error) {
 			&modulesBytes,
 			&p.SourceType,
 			&sourceMetaBytes,
+			&p.IsArchived,
 			&lastFetched,
 			&p.LastError,
 			&p.CreatedAt,
@@ -341,9 +348,10 @@ func (s *DBStore) UpdateProject(ctx context.Context, p *Project) error {
 			enabled_modules = $13,
 			source_type = $14,
 			source_metadata = $15,
-			last_fetched_at = $16,
-			last_error = $17,
-			updated_at = $18
+			is_archived = $16,
+			last_fetched_at = $17,
+			last_error = $18,
+			updated_at = $19
 		WHERE id = $1
 	`
 	res, err := s.db.ExecContext(ctx, query,
@@ -362,6 +370,7 @@ func (s *DBStore) UpdateProject(ctx context.Context, p *Project) error {
 		[]byte(enabledModules),
 		sourceType,
 		[]byte(sourceMetadata),
+		p.IsArchived,
 		p.LastFetchedAt,
 		p.LastError,
 		p.UpdatedAt,

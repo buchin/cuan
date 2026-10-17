@@ -54,6 +54,17 @@ func (s *MemoryStore) GetOwner(ctx context.Context) (*Owner, error) {
 	return &ownerCopy, nil
 }
 
+func (s *MemoryStore) UpdateOwnerPassword(ctx context.Context, ownerID string, passwordHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.owner == nil || s.owner.ID != ownerID {
+		return ErrOwnerNotFound
+	}
+	s.owner.PasswordHash = passwordHash
+	s.owner.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 func (s *MemoryStore) CreateSession(ctx context.Context, session *Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

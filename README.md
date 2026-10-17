@@ -4,10 +4,10 @@
 
 ## Status
 
-**Sprint 13: Running (S13.1 — Database Migration 000018 & WordPress Turnkey Data Layer)**.
-Sprints 1–12 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, Creator Blueprints, Modular Workspace OS with AI Script Onboarding, and Automated Environment Provisioner & 1-Click Script Deployer). Sprint 13 develops Cuan into a **Turnkey WordPress Cloud & Agentic Webmaster Engine** (1-click WordPress container deployer, isolated MySQL database, AES-256-GCM credentials vault, WP-CLI core bootstrapping, theme & plugin ZIP manager, and AI Webmaster action engine).
+**Sprint 14: Running (S14.1 — Auth Layer, Session Management & Multi-Project Schema Migration (000019))**.
+Sprints 1–13 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, Creator Blueprints, Modular Workspace OS with AI Script Onboarding, Automated Environment Provisioner & 1-Click Script Deployer, and Turnkey WordPress Cloud & Agentic Webmaster Engine). Sprint 14 develops Cuan into **Multi-Project Workspace & Multi-Agent Collaboration Engine** (Universal Session & Cookie-Header Auth Layer, Multi-Project Task Assignment Schema 000019, Cross-Project Kanban Matrix, Subagent Orchestrator & Delegated Dispatcher, and Project Archival & Lifecycle Management).
 
-Single Source of Truth (SSOT): [docs/sprints/S13.md](docs/sprints/S13.md) | [docs/sprints/S12.md](docs/sprints/S12.md) | [docs/product-vision.md](docs/product-vision.md).
+Single Source of Truth (SSOT): [docs/sprints/S14.md](docs/sprints/S14.md) | [docs/sprints/S13.md](docs/sprints/S13.md) | [docs/product-vision.md](docs/product-vision.md).
 
 ### Documentation & Guides
 

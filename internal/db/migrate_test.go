@@ -395,6 +395,41 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(wpMig18.DownSQL, "DROP TABLE IF EXISTS wordpress_deployments CASCADE") {
 		t.Errorf("expected 000018 DownSQL to drop wordpress_deployments table")
 	}
+
+	if len(migs) < 19 {
+		t.Fatalf("expected at least 19 migrations, got %d", len(migs))
+	}
+	authMig19 := migs[18]
+	if authMig19.Version != "000019" {
+		t.Errorf("expected version 000019, got %s", authMig19.Version)
+	}
+	if authMig19.Name != "auth_and_multiproject" {
+		t.Errorf("expected name auth_and_multiproject, got %s", authMig19.Name)
+	}
+	if !strings.Contains(authMig19.UpSQL, "ALTER TABLE projects ADD COLUMN IF NOT EXISTS is_archived") {
+		t.Errorf("expected 000019 UpSQL to add is_archived to projects")
+	}
+	if !strings.Contains(authMig19.UpSQL, "CREATE TABLE IF NOT EXISTS task_projects") {
+		t.Errorf("expected 000019 UpSQL to create task_projects table")
+	}
+	if !strings.Contains(authMig19.UpSQL, "idx_projects_is_archived") {
+		t.Errorf("expected 000019 UpSQL to create idx_projects_is_archived")
+	}
+	if !strings.Contains(authMig19.UpSQL, "idx_task_projects_project_id") {
+		t.Errorf("expected 000019 UpSQL to create idx_task_projects_project_id")
+	}
+	if !strings.Contains(authMig19.UpSQL, "idx_task_projects_task_id") {
+		t.Errorf("expected 000019 UpSQL to create idx_task_projects_task_id")
+	}
+	if !strings.Contains(authMig19.UpSQL, "whosyourdaddy") {
+		t.Errorf("expected 000019 UpSQL to mention whosyourdaddy hash")
+	}
+	if !strings.Contains(authMig19.DownSQL, "DROP TABLE IF EXISTS task_projects CASCADE") {
+		t.Errorf("expected 000019 DownSQL to drop task_projects table")
+	}
+	if !strings.Contains(authMig19.DownSQL, "ALTER TABLE projects DROP COLUMN IF EXISTS is_archived") {
+		t.Errorf("expected 000019 DownSQL to drop is_archived column")
+	}
 }
 
 func TestDryRun(t *testing.T) {

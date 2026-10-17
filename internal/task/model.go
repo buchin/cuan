@@ -45,6 +45,7 @@ const (
 type Task struct {
 	ID            string    `json:"id"`
 	ProjectID     string    `json:"project_id"`
+	ProjectIDs    []string  `json:"project_ids,omitempty"`
 	Title         string    `json:"title"`
 	Instructions  string    `json:"instructions"`
 	Status        string    `json:"status"`         // backlog, doing, review, done, blocked
@@ -121,25 +122,27 @@ type TaskDetailResponse struct {
 
 // Request and filter types
 type CreateTaskRequest struct {
-	ProjectID     string `json:"project_id"`
-	Title         string `json:"title"`
-	Instructions  string `json:"instructions"`
-	Priority      string `json:"priority,omitempty"`
-	AssignedAgent string `json:"assigned_agent,omitempty"`
+	ProjectID     string   `json:"project_id"`
+	ProjectIDs    []string `json:"project_ids,omitempty"`
+	Title         string   `json:"title"`
+	Instructions  string   `json:"instructions"`
+	Priority      string   `json:"priority,omitempty"`
+	AssignedAgent string   `json:"assigned_agent,omitempty"`
 }
 
 type UpdateTaskRequest struct {
-	Title         *string `json:"title,omitempty"`
-	Instructions  *string `json:"instructions,omitempty"`
-	Status        *string `json:"status,omitempty"`
-	Priority      *string `json:"priority,omitempty"`
-	AssignedAgent *string `json:"assigned_agent,omitempty"`
-	BranchName    *string `json:"branch_name,omitempty"`
-	PRURL         *string `json:"pr_url,omitempty"`
-	PRNumber      *int    `json:"pr_number,omitempty"`
-	CommitSHA     *string `json:"commit_sha,omitempty"`
-	DiffSummary   *string `json:"diff_summary,omitempty"`
-	TestSummary   *string `json:"test_summary,omitempty"`
+	ProjectIDs    *[]string `json:"project_ids,omitempty"`
+	Title         *string   `json:"title,omitempty"`
+	Instructions  *string   `json:"instructions,omitempty"`
+	Status        *string   `json:"status,omitempty"`
+	Priority      *string   `json:"priority,omitempty"`
+	AssignedAgent *string   `json:"assigned_agent,omitempty"`
+	BranchName    *string   `json:"branch_name,omitempty"`
+	PRURL         *string   `json:"pr_url,omitempty"`
+	PRNumber      *int      `json:"pr_number,omitempty"`
+	CommitSHA     *string   `json:"commit_sha,omitempty"`
+	DiffSummary   *string   `json:"diff_summary,omitempty"`
+	TestSummary   *string   `json:"test_summary,omitempty"`
 }
 
 type CreateCommentRequest struct {

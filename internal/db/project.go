@@ -35,6 +35,7 @@ type Project struct {
 	EnabledModules json.RawMessage `json:"enabled_modules"` // e.g. ["tasks", "discussions"]
 	SourceType     string          `json:"source_type"`     // blank, template, zip
 	SourceMetadata json.RawMessage `json:"source_metadata"` // metadata for zip unpack, template source, etc.
+	IsArchived     bool            `json:"is_archived"`
 	LastFetchedAt  *time.Time      `json:"last_fetched_at,omitempty"`
 	LastError      string          `json:"last_error,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -58,6 +59,7 @@ type ProjectDTO struct {
 	EnabledModules json.RawMessage `json:"enabled_modules"`
 	SourceType     string          `json:"source_type"`
 	SourceMetadata json.RawMessage `json:"source_metadata"`
+	IsArchived     bool            `json:"is_archived"`
 	LastFetchedAt  *time.Time      `json:"last_fetched_at,omitempty"`
 	LastError      string          `json:"last_error,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -138,6 +140,7 @@ func (p *Project) ToDTO() ProjectDTO {
 		EnabledModules: modulesCopy,
 		SourceType:     st,
 		SourceMetadata: sourceMetaCopy,
+		IsArchived:     p.IsArchived,
 		LastFetchedAt:  lastFetched,
 		LastError:      p.LastError,
 		CreatedAt:      p.CreatedAt,
@@ -205,13 +208,13 @@ func (r *SQLProjectRepository) CreateProject(ctx context.Context, p *Project) er
 			encrypted_token, token_preview, repo_owner, repo_name,
 			clone_status, project_type, metadata,
 			enabled_modules, source_type, source_metadata,
-			last_fetched_at, last_error, created_at, updated_at
+			is_archived, last_fetched_at, last_error, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8, $9,
 			$10, $11, $12,
 			$13, $14, $15,
-			$16, $17, $18, $19
+			$16, $17, $18, $19, $20
 		)
 	`
 	_, err := r.db.ExecContext(ctx, query,
@@ -230,6 +233,7 @@ func (r *SQLProjectRepository) CreateProject(ctx context.Context, p *Project) er
 		[]byte(p.EnabledModules),
 		p.SourceType,
 		[]byte(p.SourceMetadata),
+		p.IsArchived,
 		p.LastFetchedAt,
 		p.LastError,
 		p.CreatedAt,
@@ -258,6 +262,7 @@ func (r *SQLProjectRepository) GetProjectByID(ctx context.Context, id string) (*
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -283,6 +288,7 @@ func (r *SQLProjectRepository) GetProjectByID(ctx context.Context, id string) (*
 		&modulesBytes,
 		&p.SourceType,
 		&sourceMetaBytes,
+		&p.IsArchived,
 		&lastFetched,
 		&p.LastError,
 		&p.CreatedAt,
@@ -329,6 +335,7 @@ func (r *SQLProjectRepository) GetProjectByRepo(ctx context.Context, owner, repo
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -355,6 +362,7 @@ func (r *SQLProjectRepository) GetProjectByRepo(ctx context.Context, owner, repo
 		&modulesBytes,
 		&p.SourceType,
 		&sourceMetaBytes,
+		&p.IsArchived,
 		&lastFetched,
 		&p.LastError,
 		&p.CreatedAt,
@@ -401,6 +409,7 @@ func (r *SQLProjectRepository) ListProjects(ctx context.Context) ([]*Project, er
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -434,6 +443,7 @@ func (r *SQLProjectRepository) ListProjects(ctx context.Context) ([]*Project, er
 			&modulesBytes,
 			&p.SourceType,
 			&sourceMetaBytes,
+			&p.IsArchived,
 			&lastFetched,
 			&p.LastError,
 			&p.CreatedAt,
@@ -483,6 +493,7 @@ func (r *SQLProjectRepository) ListProjectsByType(ctx context.Context, projectTy
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -517,6 +528,7 @@ func (r *SQLProjectRepository) ListProjectsByType(ctx context.Context, projectTy
 			&modulesBytes,
 			&p.SourceType,
 			&sourceMetaBytes,
+			&p.IsArchived,
 			&lastFetched,
 			&p.LastError,
 			&p.CreatedAt,
@@ -566,6 +578,7 @@ func (r *SQLProjectRepository) ListProjectsBySourceType(ctx context.Context, sou
 			COALESCE(enabled_modules, '["tasks", "discussions"]'::jsonb),
 			COALESCE(source_type, 'blank'),
 			COALESCE(source_metadata, '{}'::jsonb),
+			COALESCE(is_archived, FALSE),
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
@@ -600,6 +613,7 @@ func (r *SQLProjectRepository) ListProjectsBySourceType(ctx context.Context, sou
 			&modulesBytes,
 			&p.SourceType,
 			&sourceMetaBytes,
+			&p.IsArchived,
 			&lastFetched,
 			&p.LastError,
 			&p.CreatedAt,
@@ -669,9 +683,10 @@ func (r *SQLProjectRepository) UpdateProject(ctx context.Context, p *Project) er
 			enabled_modules = $13,
 			source_type = $14,
 			source_metadata = $15,
-			last_fetched_at = $16,
-			last_error = $17,
-			updated_at = $18
+			is_archived = $16,
+			last_fetched_at = $17,
+			last_error = $18,
+			updated_at = $19
 		WHERE id = $1
 	`
 	res, err := r.db.ExecContext(ctx, query,
@@ -690,6 +705,7 @@ func (r *SQLProjectRepository) UpdateProject(ctx context.Context, p *Project) er
 		[]byte(p.EnabledModules),
 		p.SourceType,
 		[]byte(p.SourceMetadata),
+		p.IsArchived,
 		p.LastFetchedAt,
 		p.LastError,
 		p.UpdatedAt,

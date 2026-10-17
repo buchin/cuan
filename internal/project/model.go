@@ -21,6 +21,7 @@ type Project struct {
 	EnabledModules json.RawMessage `json:"enabled_modules"` // e.g. ["tasks", "discussions"]
 	SourceType     string          `json:"source_type"`     // blank, template, zip
 	SourceMetadata json.RawMessage `json:"source_metadata"` // metadata for zip unpack, template source, etc.
+	IsArchived     bool            `json:"is_archived"`
 	LastFetchedAt  *time.Time      `json:"last_fetched_at,omitempty"`
 	LastError      string          `json:"last_error,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -43,6 +44,7 @@ type ProjectResponse struct {
 	EnabledModules json.RawMessage `json:"enabled_modules"`
 	SourceType     string          `json:"source_type"`
 	SourceMetadata json.RawMessage `json:"source_metadata"`
+	IsArchived     bool            `json:"is_archived"`
 	LastFetchedAt  *time.Time      `json:"last_fetched_at,omitempty"`
 	LastError      string          `json:"last_error,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -87,6 +89,7 @@ func (p *Project) ToResponse() *ProjectResponse {
 		EnabledModules: enabledModules,
 		SourceType:     sourceType,
 		SourceMetadata: sourceMetadata,
+		IsArchived:     p.IsArchived,
 		LastFetchedAt:  p.LastFetchedAt,
 		LastError:      p.LastError,
 		CreatedAt:      p.CreatedAt,
@@ -104,6 +107,7 @@ type ConnectProjectRequest struct {
 	EnabledModules json.RawMessage `json:"enabled_modules,omitempty"`
 	SourceType     string          `json:"source_type,omitempty"`
 	SourceMetadata json.RawMessage `json:"source_metadata,omitempty"`
+	IsArchived     *bool           `json:"is_archived,omitempty"`
 }
 
 // ProjectIntegration represents an external service integration bound to a project.

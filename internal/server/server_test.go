@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -227,5 +228,103 @@ func TestAuthFlow_SetupLoginProtectedEndpoints(t *testing.T) {
 	srv.Router().ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 after logout, got %d", rr.Code)
+	}
+}
+
+func TestAuthFlow_UsernameLogin_PasswordChange_DefaultAdmin(t *testing.T) {
+	cfg := &config.Config{}
+	memStore := auth.NewMemoryStore()
+	authSvc := auth.NewService(memStore)
+	srv := NewServer(cfg, nil, authSvc)
+
+	// 1. Auto seed default admin
+	if err := authSvc.AutoSeedDefaultAdmin(context.Background()); err != nil {
+		t.Fatalf("auto-seed failed: %v", err)
+	}
+
+	// 2. Login using default admin credentials: username 'admin', password 'whosyourdaddy'
+	loginPayload := []byte(`{"username":"admin","password":"whosyourdaddy"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBuffer(loginPayload))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for username login, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	var loginResp auth.AuthResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginResp.Token == "" {
+		t.Fatalf("expected token in login response")
+	}
+	if loginResp.User.Username != "admin" {
+		t.Fatalf("expected user.username 'admin', got %s", loginResp.User.Username)
+	}
+
+	// 3. Verify GET /api/v1/auth/me returns user & owner info
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.Header.Set("Authorization", "Bearer "+loginResp.Token)
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /api/v1/auth/me, got %d", rr.Code)
+	}
+	var meResp map[string]map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &meResp); err != nil {
+		t.Fatalf("failed to decode me response: %v", err)
+	}
+	if meResp["user"]["username"] != "admin" {
+		t.Fatalf("expected user username 'admin', got %v", meResp["user"]["username"])
+	}
+
+	// 4. Change Password via POST /api/v1/auth/password without auth -> 401
+	pwPayload := []byte(`{"current_password":"whosyourdaddy","new_password":"newSecurePassword123"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", bytes.NewBuffer(pwPayload))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized for unauthenticated password change, got %d", rr.Code)
+	}
+
+	// 5. Change Password with wrong current password -> 401
+	badPwPayload := []byte(`{"current_password":"wrongPassword","new_password":"newSecurePassword123"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", bytes.NewBuffer(badPwPayload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+loginResp.Token)
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for wrong current password, got %d", rr.Code)
+	}
+
+	// 6. Change Password with valid credentials -> 200
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", bytes.NewBuffer(pwPayload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+loginResp.Token)
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for valid password change, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	// 7. Old password fails
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBuffer(loginPayload))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when logging in with old password, got %d", rr.Code)
+	}
+
+	// 8. New password succeeds
+	newLoginPayload := []byte(`{"username":"admin","password":"newSecurePassword123"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBuffer(newLoginPayload))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for login with new password, got %d", rr.Code)
 	}
 }
