@@ -10,7 +10,8 @@ import {
   Globe,
   HelpCircle,
   Sparkles,
-  Sliders
+  Sliders,
+  Rocket
 } from 'lucide-react'
 
 export interface ModuleItem {
@@ -29,6 +30,14 @@ export const AVAILABLE_MODULES: ModuleItem[] = [
     description: 'Papan kerja interaktif, otomatisasi DoD checklist, dan eksekusi AI Agent langsung di kartu task.',
     icon: Kanban,
     color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20',
+  },
+  {
+    id: 'deployer',
+    name: '1-Click Script Deployer',
+    description: 'Automated database provisioning, AES-256-GCM vault, build runner pipeline, dan live supervisor console.',
+    icon: Rocket,
+    color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20',
+    badge: 'Deployer',
   },
   {
     id: 'discussions',

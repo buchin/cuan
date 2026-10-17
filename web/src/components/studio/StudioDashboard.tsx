@@ -53,9 +53,11 @@ import { CampaignDetailView } from './CampaignDetailView'
 import { AgentsHubView } from './AgentsHubView'
 import { ModuleToggleModal } from './ModuleToggleModal'
 import { ZipUploadWizardModal } from './ZipUploadWizardModal'
+import { ScriptDeployerView } from './deployer'
 
 export type StudioTab =
   | 'projects'
+  | 'deployer'
   | 'discussions'
   | 'tasks'
   | 'campaigns'
@@ -97,6 +99,9 @@ export function StudioDashboard({
     if (typeof window !== 'undefined') {
       if (window.location.pathname.startsWith('/studio/agents') || window.location.pathname.startsWith('/agents')) {
         return 'agents'
+      }
+      if (window.location.pathname.startsWith('/studio/deployer') || window.location.pathname.startsWith('/deployer')) {
+        return 'deployer'
       }
       if (window.location.pathname.startsWith('/studio/campaigns') || window.location.pathname.startsWith('/campaigns')) {
         return 'campaigns'
@@ -148,7 +153,7 @@ export function StudioDashboard({
       name: 'SaaS / Dojo Workspace',
       slug: 'saas-dojo',
       project_type: 'saas',
-      enabled_modules: ['tasks', 'discussions', 'repositories', 'servers'],
+      enabled_modules: ['tasks', 'deployer', 'discussions', 'repositories', 'servers'],
     },
     {
       id: 'creator-hub',
@@ -210,11 +215,13 @@ export function StudioDashboard({
     const targetProj = projectsList.find((p) => p.id === projectId)
     const targetModules = targetProj?.enabled_modules || ['tasks', 'discussions']
     if (
-      ['tasks', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      ['tasks', 'deployer', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
       !targetModules.includes(activeTab)
     ) {
       if (targetModules.includes('tasks')) {
         setActiveTab('tasks')
+      } else if (targetModules.includes('deployer')) {
+        setActiveTab('deployer')
       } else if (targetModules.includes('discussions')) {
         setActiveTab('discussions')
       } else {
@@ -240,11 +247,13 @@ export function StudioDashboard({
       `Modul proyek "${activeProject.name}" berhasil diperbarui: ${updatedModules.join(', ')}`
     )
     if (
-      ['tasks', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      ['tasks', 'deployer', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
       !updatedModules.includes(activeTab)
     ) {
       if (updatedModules.includes('tasks')) {
         setActiveTab('tasks')
+      } else if (updatedModules.includes('deployer')) {
+        setActiveTab('deployer')
       } else if (updatedModules.includes('discussions')) {
         setActiveTab('discussions')
       } else {
@@ -273,6 +282,8 @@ export function StudioDashboard({
   useEffect(() => {
     if (currentPath === '/studio/agents' || currentPath?.startsWith('/studio/agents') || currentPath === '/agents' || currentPath?.startsWith('/agents')) {
       setActiveTab('agents')
+    } else if (currentPath === '/studio/deployer' || currentPath?.startsWith('/studio/deployer') || currentPath === '/deployer' || currentPath?.startsWith('/deployer')) {
+      setActiveTab('deployer')
     } else if (currentPath === '/studio/campaigns' || currentPath?.startsWith('/studio/campaigns') || currentPath === '/campaigns' || currentPath?.startsWith('/campaigns')) {
       setActiveTab('campaigns')
       const m = currentPath.match(/\/(?:studio\/)?campaigns\/([a-zA-Z0-9_-]+)/)
@@ -650,6 +661,23 @@ export function StudioDashboard({
               </button>
             )}
 
+            {enabledModules.includes('deployer') && (
+              <button
+                onClick={() => {
+                  setActiveTab('deployer')
+                  onNavigate?.('/studio/deployer')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'deployer'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <Rocket className="h-3.5 w-3.5 text-cyan-500" />
+                <span>Deployer</span>
+              </button>
+            )}
+
             {enabledModules.includes('repositories') && (
               <button
                 onClick={() => {
@@ -999,6 +1027,23 @@ export function StudioDashboard({
             </button>
           )}
 
+          {enabledModules.includes('deployer') && (
+            <button
+              onClick={() => {
+                setActiveTab('deployer')
+                onNavigate?.('/studio/deployer')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'deployer'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <Rocket className="h-3.5 w-3.5 text-cyan-500" />
+              <span>Deployer</span>
+            </button>
+          )}
+
           {enabledModules.includes('repositories') && (
             <button
               onClick={() => {
@@ -1208,6 +1253,15 @@ export function StudioDashboard({
               setActiveTab('tasks')
               onNavigate?.('/studio/tasks')
             }}
+          />
+        ) : activeTab === 'deployer' ? (
+          <ScriptDeployerView
+            projectId={activeProjectId}
+            projects={projectsList}
+            servers={servers}
+            baseDomain={baseDomain}
+            onToast={(type, message) => showToast(type, message)}
+            onProjectChange={(id) => handleSelectProject(id)}
           />
         ) : activeTab === 'tasks' ? (
           <ProjectTasksBoard

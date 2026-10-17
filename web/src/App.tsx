@@ -1099,6 +1099,20 @@ export function App() {
     )
   }
 
+  // 1-Click Script Deployer Direct Route (/deployer and /deployer/*)
+  if (currentPath === '/deployer' || currentPath.startsWith('/deployer/')) {
+    return (
+      <StudioDashboard
+        currentPath={currentPath.startsWith('/studio') ? currentPath : `/studio${currentPath}`}
+        onNavigate={navigate}
+        baseDomain={systemMode.base_domain}
+        appMode={effectiveMode}
+        isStudioModeActive={effectiveMode === 'studio'}
+        onToggleMode={handleToggleMode}
+      />
+    )
+  }
+
   // Studio Dashboard & Universal Deployer Route (/studio and /studio/*)
   if (currentPath === '/studio' || currentPath.startsWith('/studio/')) {
     return (

@@ -35,6 +35,7 @@ import { DistillTaskModal } from './DistillTaskModal'
 import { TaskTerminal } from './TaskTerminal'
 import { TeleprompterModal } from './TeleprompterModal'
 import { MarkdownViewer } from '../ui/MarkdownViewer'
+import { ScriptDeployerModal, ScriptDeployerControls } from './deployer'
 
 interface ProjectTasksBoardProps {
   projectId?: string
@@ -133,6 +134,15 @@ export function ProjectTasksBoard({
   // Teleprompter View State (S11.4)
   const [isTeleprompterOpen, setIsTeleprompterOpen] = useState(false)
   const [teleprompterTask, setTeleprompterTask] = useState<ProjectTaskDTO | null>(null)
+
+  // Script Deployer Wizard & Quick Controls State (S12.4)
+  const [isDeployerModalOpen, setIsDeployerModalOpen] = useState(false)
+  const [deployerInitialStep, setDeployerInitialStep] = useState<1 | 2 | 3 | 4>(1)
+
+  const handleOpenDeployer = (step: 1 | 2 | 3 | 4 = 1) => {
+    setDeployerInitialStep(step)
+    setIsDeployerModalOpen(true)
+  }
 
   // WordPress Integration & Publishing State (S11.4)
   const [wpIntegration, setWpIntegration] = useState<WordPressIntegrationDTO | null>(null)
@@ -555,7 +565,15 @@ export function ProjectTasksBoard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+          {/* Quick Script Deployer Controls (S12.4) */}
+          <ScriptDeployerControls
+            projectId={selectedProjectId}
+            projectName={effectiveProjects.find((p) => p.id === selectedProjectId)?.name || selectedProjectId}
+            onOpenDeployerWizard={handleOpenDeployer}
+            onToast={(type, message) => setNotification({ type, message })}
+          />
+
           {/* Project Selector */}
           <div className="flex items-center gap-1.5">
             <Layers className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -1772,6 +1790,21 @@ export function ProjectTasksBoard({
           content={teleprompterTask.agent_output || teleprompterTask.description}
         />
       )}
+
+      {/* Script Deployer Modal (Sprint 12 S12.4) */}
+      <ScriptDeployerModal
+        isOpen={isDeployerModalOpen}
+        onClose={() => setIsDeployerModalOpen(false)}
+        projectId={selectedProjectId}
+        projectName={effectiveProjects.find((p) => p.id === selectedProjectId)?.name || selectedProjectId}
+        initialStep={deployerInitialStep}
+        onDeploymentSuccess={() => {
+          setNotification({
+            type: 'success',
+            message: '🚀 Script deployment berhasil dijalankan via supervisor runner!',
+          })
+        }}
+      />
     </div>
   )
 }

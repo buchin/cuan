@@ -639,3 +639,131 @@ export interface PublishTaskResult {
   published_at?: string
 }
 
+// ============================================================================
+// Sprint 12 (S12.4): 1-Click Script Deployer & Database Provisioner Types
+// ============================================================================
+
+export interface ScriptDeploymentDTO {
+  id: string
+  project_id: string
+  server_id?: string
+  port: number
+  domain: string
+  has_env: boolean
+  build_status: 'pending' | 'building' | 'ready' | 'failed' | string
+  health: 'unknown' | 'healthy' | 'unhealthy' | string
+  created_at: string
+  updated_at: string
+}
+
+export interface ProvisionedDatabaseDTO {
+  id: string
+  project_id: string
+  server_id?: string
+  engine: 'sqlite' | 'mysql' | 'postgres' | string
+  db_name: string
+  db_user: string
+  has_password: boolean
+  status: 'provisioned' | 'ready' | 'failed' | string
+  schema_imported: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ProvisionDBPayload {
+  engine: 'sqlite' | 'mysql' | 'postgres' | string
+  db_name?: string
+  db_user?: string
+  db_password?: string
+  server_id?: string
+  sql_file?: string
+  sql_content?: string
+  import_schema?: boolean
+}
+
+export interface ProvisionDBResponse {
+  status: string
+  database: ProvisionedDatabaseDTO
+  tables_count: number
+  imported_tables: string[]
+  total_statements: number
+  execution_log: string
+}
+
+export interface GenerateEnvPayload {
+  db_id?: string
+  server_id?: string
+  custom_vars?: Record<string, string>
+  base_env?: string
+}
+
+export interface GenerateEnvResponse {
+  status: string
+  project_id: string
+  deployment?: ScriptDeploymentDTO
+  env_keys: string[]
+  masked_env: Record<string, string>
+}
+
+export interface GetProjectEnvResponse {
+  status: string
+  project_id: string
+  has_env: boolean
+  env_keys: string[]
+  masked_env: Record<string, string>
+}
+
+export interface ScriptDeployPayload {
+  server_id?: string
+  domain?: string
+  port?: number
+  stack?: string
+  env_vars?: Record<string, string>
+  run_install?: boolean
+  run_build?: boolean
+  run_migrate?: boolean
+  post_install_cmds?: string[]
+  timeout_seconds?: number
+  health_path?: string
+  skip_health_wait?: boolean
+}
+
+export interface SupervisedProcessStatus {
+  project_id: string
+  deployment_id: string
+  pid?: number
+  port: number
+  domain: string
+  status: 'stopped' | 'running' | 'crashed' | 'pending' | 'building' | 'ready' | 'failed' | string
+  health: 'unknown' | 'healthy' | 'unhealthy' | string
+  uptime_seconds?: number
+  started_at?: string
+  last_error?: string
+}
+
+export interface ScriptDeployResponse {
+  deployment: ScriptDeploymentDTO
+  build_result?: {
+    success: boolean
+    stack: string
+    duration_ms: number
+    command_log: string[]
+  }
+  process: SupervisedProcessStatus
+  message: string
+}
+
+export interface ScriptDeployStatusResponse {
+  deployment?: ScriptDeploymentDTO
+  process?: SupervisedProcessStatus
+}
+
+export interface ScriptDeployLogEntry {
+  id?: number | string
+  deployment_id?: string
+  stream?: 'stdout' | 'stderr' | 'system' | string
+  message: string
+  timestamp: string
+}
+
+
