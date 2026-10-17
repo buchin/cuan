@@ -40,6 +40,7 @@ const (
 // Deployment represents an application deployment record.
 type Deployment struct {
 	ID           string                 `json:"id"`
+	ServerID     string                 `json:"server_id,omitempty"` // Foreign key to servers.id for BYOS deployments (empty for local)
 	ProjectName  string                 `json:"project_name"`
 	Slug         string                 `json:"slug"`
 	SourceType   string                 `json:"source_type"` // 'zip', 'git'
@@ -66,6 +67,7 @@ type LogEntry struct {
 // DeploymentRequest encapsulates the parameters needed to initiate or update a deployment.
 type DeploymentRequest struct {
 	ID           string                 `json:"id"`
+	ServerID     string                 `json:"server_id,omitempty"` // Target server id for BYOS or empty for local
 	ProjectName  string                 `json:"project_name"`
 	Slug         string                 `json:"slug"`
 	SourceType   string                 `json:"source_type"` // 'zip', 'git'

@@ -1,0 +1,117 @@
+=== CUAN SPRINT 4 (S04.1) EVIDENCE: BYOS SCHEMA 000009, KEY VAULT & SPRINT 4 DOCS VERIFIED ===
+Timestamp: 2026-10-17T07:15:00+07:00
+Task ID: rmmzhmsrmpaxbmlxydqlatbu
+Title: S04.1 — Database Migration 000009 (BYOS Schema), Encrypted Key Vault & Sprint 4 Docs
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SSOT Dokumen Sprint 4:
+   - File: docs/sprints/S4.md
+   - Status: running (Approved PO Buchin 2026-10-17)
+   - Scope: S04.1 sampai S04.6 lengkap beserta alur, dependency, dan DoD
+   - Arsitektur: Bring Your Own Server (BYOS) & Remote Worker Orchestration (agentless SSH, AES-256-GCM KeyVault, RemoteSSHDriver, Studio UI Servers View)
+   - D2 Diagrams: TALA layout engine terverifikasi render SVG 100% valid (arsitektur sistem & dependency backlog)
+
+2. Migrasi Database PostgreSQL:
+   - Migrasi Up: migrations/000009_servers_byos.up.sql
+   - Migrasi Down: migrations/000009_servers_byos.down.sql
+   - Tabel Dibuat:
+     * servers:
+       - id VARCHAR(64) PRIMARY KEY
+       - name VARCHAR(255) NOT NULL
+       - host VARCHAR(255) NOT NULL
+       - port INTEGER NOT NULL DEFAULT 22
+       - username VARCHAR(100) NOT NULL DEFAULT 'ubuntu'
+       - auth_type VARCHAR(50) NOT NULL DEFAULT 'key'
+       - encrypted_key TEXT NOT NULL
+       - key_fingerprint VARCHAR(255)
+       - status VARCHAR(50) NOT NULL DEFAULT 'pending'
+       - last_ping_at TIMESTAMPTZ
+       - os_info JSONB DEFAULT '{}'::jsonb
+       - created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   - Index Dibuat:
+     * idx_servers_status ON servers(status)
+     * idx_servers_host ON servers(host)
+     * idx_deployments_server_id ON deployments(server_id)
+   - Alterasi Tabel:
+     * deployments: ADD COLUMN IF NOT EXISTS server_id VARCHAR(64) REFERENCES servers(id) ON DELETE SET NULL
+   - Backward Compatibility:
+     * 100% aditif; tidak mengubah atau merusak skema dan data Sprint 1 (owners, projects, tasks), Sprint 2 (sponsorship_batches, sponsors, sponsorship_orders), dan Sprint 3 (deployments, deployment_logs).
+     * Uji rollback down migration bersih dan terisolasi.
+
+3. Service KeyVault Terenkripsi (internal/crypto/vault.go):
+   - Package: internal/crypto
+   - Algoritma: Simetris AES-256-GCM dengan 12-byte cryptographically secure random nonce (rand.Reader).
+   - Format Serialisasi: Base64 standard (nonce + ciphertext + 16-byte authentication tag).
+   - Master Key Management: Mengambil secret dari env VAULT_MASTER_KEY dengan key derivation SHA-256 domain-separated. Menyediakan fallback deterministik untuk lingkungan pengujian/dev lokal.
+   - SSH Key Fingerprint Calculation:
+     * Menghitung fingerprint standar OpenSSH SHA256 (SHA256:...) dari private key (Ed25519, RSA, ECDSA) maupun public key format authorized_keys.
+     * Menggunakan library resmi golang.org/x/crypto/ssh.
+
+4. Server Model, Repository & Sanitasi DTO (internal/db/server.go & internal/server/):
+   - Model Server: Tag json:"-" pada field EncryptedKey menjamin tidak ada kebocoran ciphertext atau private key dalam respons JSON.
+   - ServerDTO: Representasi publik tanpa field kredensial rahasia.
+   - ServerRepository: Interface CRUD lengkap (Create, GetByID, List, Update, UpdateStatus, Delete).
+   - Implementasi: SQLServerRepository (PostgreSQL) dan MemoryServerRepository (Unit test & mock).
+   - Forward Compatibility: Field ServerID ditambahkan pada struct Deployment dan DeploymentRequest (internal/deployer/model.go).
+
+5. Targeted Automated Test Verification:
+   === RUN   TestEncryptDecrypt_Success
+   --- PASS: TestEncryptDecrypt_Success (0.00s)
+   === RUN   TestEncryptDecrypt_WrongKey
+   --- PASS: TestEncryptDecrypt_WrongKey (0.00s)
+   === RUN   TestEncryptDecrypt_Empty
+   --- PASS: TestEncryptDecrypt_Empty (0.00s)
+   === RUN   TestEncryptDecrypt_Corrupted
+   --- PASS: TestEncryptDecrypt_Corrupted (0.00s)
+   === RUN   TestTokenPreview
+   --- PASS: TestTokenPreview (0.00s)
+   === RUN   TestKeyVault_RoundTrip
+   --- PASS: TestKeyVault_RoundTrip (0.00s)
+   === RUN   TestKeyVault_NonceUniqueness
+   --- PASS: TestKeyVault_NonceUniqueness (0.00s)
+   === RUN   TestKeyVault_EmptyPayloads
+   --- PASS: TestKeyVault_EmptyPayloads (0.00s)
+   === RUN   TestKeyVault_TamperDetection
+   --- PASS: TestKeyVault_TamperDetection (0.00s)
+   === RUN   TestKeyVault_KeyIsolation
+   --- PASS: TestKeyVault_KeyIsolation (0.00s)
+   === RUN   TestKeyVault_EnvMasterKey
+   --- PASS: TestKeyVault_EnvMasterKey (0.00s)
+   === RUN   TestCalculateSSHFingerprint
+   --- PASS: TestCalculateSSHFingerprint (0.04s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/crypto	0.046s
+   
+   === RUN   TestLoadMigrations
+   --- PASS: TestLoadMigrations (0.00s)
+   === RUN   TestDryRun
+   --- PASS: TestDryRun (0.00s)
+   === RUN   TestServer_JSONSerializationSanitization
+   --- PASS: TestServer_JSONSerializationSanitization (0.00s)
+   === RUN   TestMemoryServerRepository_CRUD
+   --- PASS: TestMemoryServerRepository_CRUD (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/db	0.005s
+   
+   === RUN   TestDeployerMigrations
+   --- PASS: TestDeployerMigrations (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	0.007s
+   
+   === RUN   TestServerDTOSanitization_NeverExposesPrivateKey
+   --- PASS: TestServerDTOSanitization_NeverExposesPrivateKey (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/server	0.006s
+
+6. Definition of Done Checklist:
+   [x] 1. Dokumen docs/sprints/S4.md tercatat rapi di repository.
+   [x] 2. Migrasi 000009_servers_byos up dan down lulus 100% tanpa merusak skema tabel Sprint 1–3.
+   [x] 3. Unit tests AES-256-GCM lulus 100% tanpa celah kebocoran plaintext key.
+   [x] 4. Serialisasi JSON DTO server terbukti menyembunyikan private key.
+   [x] 5. Bukti audit verifikasi tersimpan di docs/sprints/evidence/S4/s04_1_byos_schema_vault_verified.txt.
+   [x] 6. Commit diautentikasi author Buchin <buchin@dropsugar.com> dan terdorong ke main.
+
+=== RESULT: PASS (100% LULUS, SELURUH KRITERIA DoD TERPENUHI) ===

@@ -79,6 +79,29 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(deployerMig.DownSQL, "DROP TABLE IF EXISTS deployments") {
 		t.Errorf("expected 000008 DownSQL to drop deployments table")
 	}
+
+	if len(migs) < 9 {
+		t.Fatalf("expected at least 9 migrations, got %d", len(migs))
+	}
+	byosMig := migs[8]
+	if byosMig.Version != "000009" {
+		t.Errorf("expected version 000009, got %s", byosMig.Version)
+	}
+	if byosMig.Name != "servers_byos" {
+		t.Errorf("expected name servers_byos, got %s", byosMig.Name)
+	}
+	if !strings.Contains(byosMig.UpSQL, "CREATE TABLE IF NOT EXISTS servers") {
+		t.Errorf("expected 000009 UpSQL to create servers table")
+	}
+	if !strings.Contains(byosMig.UpSQL, "ALTER TABLE deployments ADD COLUMN IF NOT EXISTS server_id") {
+		t.Errorf("expected 000009 UpSQL to alter deployments table")
+	}
+	if !strings.Contains(byosMig.DownSQL, "DROP TABLE IF EXISTS servers CASCADE") {
+		t.Errorf("expected 000009 DownSQL to drop servers table")
+	}
+	if !strings.Contains(byosMig.DownSQL, "ALTER TABLE deployments DROP COLUMN IF EXISTS server_id") {
+		t.Errorf("expected 000009 DownSQL to drop server_id column")
+	}
 }
 
 func TestDryRun(t *testing.T) {
