@@ -35,6 +35,7 @@ import (
 	"github.com/buchin/cuan/internal/studio"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
+	"github.com/buchin/cuan/internal/wordpress"
 )
 
 type Server struct {
@@ -78,9 +79,11 @@ type Server struct {
 	scriptDeployRepo    cuanDB.ScriptDeploymentRepository
 	provisionedDBRepo   cuanDB.ProvisionedDatabaseRepository
 	provisionerEngine   *deployer.DatabaseProvisioner
-	scriptRunner        *deployer.ScriptRunner
-	processSupervisor   *deployer.ProcessSupervisor
-	router              *chi.Mux
+	scriptRunner          *deployer.ScriptRunner
+	processSupervisor     *deployer.ProcessSupervisor
+	wordpressRepo         cuanDB.WordPressRepository
+	wordpressOrchestrator *wordpress.Orchestrator
+	router                *chi.Mux
 }
 
 
@@ -397,6 +400,25 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		VaultSecret:       provSecret,
 	})
 
+	var wpRepo cuanDB.WordPressRepository
+	if db != nil {
+		wpRepo = cuanDB.NewSQLWordPressRepository(db)
+	} else {
+		wpRepo = cuanDB.NewMemoryWordPressRepository()
+	}
+
+	wpDeployDir := filepath.Join(deploymentsDir, "wordpress")
+	wpCacheDir := filepath.Join("data", "wordpress", "cache")
+	wpOrchestrator := wordpress.NewOrchestrator(wordpress.Config{
+		DBRepo:        wpRepo,
+		DBProvisioner: provEngine,
+		PortPool:      portPool,
+		Router:        caddyRouter,
+		VaultSecret:   provSecret,
+		BaseDeployDir: wpDeployDir,
+		CoreCacheDir:  wpCacheDir,
+	})
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -440,6 +462,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		provisionerEngine:   provEngine,
 		scriptRunner:        scriptRunner,
 		processSupervisor:   processSupervisor,
+		wordpressRepo:       wpRepo,
+		wordpressOrchestrator: wpOrchestrator,
 		router:              r,
 	}
 
@@ -800,6 +824,22 @@ func (s *Server) SetProjectIntegrationRepository(r cuanDB.ProjectIntegrationRepo
 	}
 }
 
+func (s *Server) WordPressRepository() cuanDB.WordPressRepository {
+	return s.wordpressRepo
+}
+
+func (s *Server) SetWordPressRepository(r cuanDB.WordPressRepository) {
+	s.wordpressRepo = r
+}
+
+func (s *Server) WordPressOrchestrator() *wordpress.Orchestrator {
+	return s.wordpressOrchestrator
+}
+
+func (s *Server) SetWordPressOrchestrator(o *wordpress.Orchestrator) {
+	s.wordpressOrchestrator = o
+}
+
 func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
@@ -1009,6 +1049,20 @@ func (s *Server) routes() {
 	s.router.Get("/api/projects/{id}/script-deploy/status", s.handleScriptDeployStatus)
 	s.router.Get("/api/v1/projects/{id}/script-deploy/status", s.handleScriptDeployStatus)
 
+	// Turnkey WordPress Cloud & Orchestrator Endpoints (Sprint 13 S13.2)
+	s.router.Post("/api/projects/{id}/wordpress/deploy", s.handleWordPressDeploy)
+	s.router.Post("/api/v1/projects/{id}/wordpress/deploy", s.handleWordPressDeploy)
+	s.router.Get("/api/projects/{id}/wordpress", s.handleGetWordPressDeployment)
+	s.router.Get("/api/v1/projects/{id}/wordpress", s.handleGetWordPressDeployment)
+	s.router.Post("/api/projects/{id}/wordpress/restart", s.handleRestartWordPressDeployment)
+	s.router.Post("/api/v1/projects/{id}/wordpress/restart", s.handleRestartWordPressDeployment)
+	s.router.Get("/api/projects/{id}/wordpress/health", s.handleHealthCheckWordPressDeployment)
+	s.router.Get("/api/v1/projects/{id}/wordpress/health", s.handleHealthCheckWordPressDeployment)
+	s.router.Post("/api/projects/{id}/wordpress/stop", s.handleStopWordPressDeployment)
+	s.router.Post("/api/v1/projects/{id}/wordpress/stop", s.handleStopWordPressDeployment)
+	s.router.Delete("/api/projects/{id}/wordpress", s.handleDeleteWordPressDeployment)
+	s.router.Delete("/api/v1/projects/{id}/wordpress", s.handleDeleteWordPressDeployment)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -1168,6 +1222,14 @@ func (s *Server) routes() {
 		r.Get("/projects/{id}/script-deploy/logs", s.handleScriptDeployLogs)
 		r.Post("/projects/{id}/script-deploy/restart", s.handleScriptDeployRestart)
 		r.Get("/projects/{id}/script-deploy/status", s.handleScriptDeployStatus)
+
+		// Turnkey WordPress Cloud & Orchestrator Endpoints in v1 (Sprint 13 S13.2)
+		r.Post("/projects/{id}/wordpress/deploy", s.handleWordPressDeploy)
+		r.Get("/projects/{id}/wordpress", s.handleGetWordPressDeployment)
+		r.Post("/projects/{id}/wordpress/restart", s.handleRestartWordPressDeployment)
+		r.Get("/projects/{id}/wordpress/health", s.handleHealthCheckWordPressDeployment)
+		r.Post("/projects/{id}/wordpress/stop", s.handleStopWordPressDeployment)
+		r.Delete("/projects/{id}/wordpress", s.handleDeleteWordPressDeployment)
 		r.Post("/tasks/{id}/publish", s.handlePublishTask)
 		r.Post("/projects/tasks/{id}/publish", s.handlePublishTask)
 		r.Get("/tasks/{id}/export", s.handleExportTask)
