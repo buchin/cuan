@@ -21,7 +21,8 @@ import {
   Activity,
   MessageSquare,
   Kanban,
-  Rocket
+  Rocket,
+  Bot
 } from 'lucide-react'
 import { DeploymentItem, ServerItem, CustomDomainItem } from './types'
 import { DeployWizardModal } from './DeployWizardModal'
@@ -36,6 +37,7 @@ import { ProjectTasksBoard } from './ProjectTasksBoard'
 import { BatchCampaignModal } from './BatchCampaignModal'
 import { CampaignDashboardView } from './CampaignDashboardView'
 import { CampaignDetailView } from './CampaignDetailView'
+import { AgentsHubView } from './AgentsHubView'
 
 interface StudioDashboardProps {
   currentPath?: string
@@ -62,9 +64,12 @@ export function StudioDashboard({
   // Drawer initial tab state
   const [drawerInitialTab, setDrawerInitialTab] = useState<'overview' | 'discussions' | 'tasks'>('overview')
 
-  // Tab state: 'projects' | 'discussions' | 'tasks' | 'campaigns' | 'servers' | 'domains' | 'observability'
-  const [activeTab, setActiveTab] = useState<'projects' | 'discussions' | 'tasks' | 'campaigns' | 'servers' | 'domains' | 'observability'>(() => {
+  // Tab state: 'projects' | 'discussions' | 'tasks' | 'campaigns' | 'agents' | 'servers' | 'domains' | 'observability'
+  const [activeTab, setActiveTab] = useState<'projects' | 'discussions' | 'tasks' | 'campaigns' | 'agents' | 'servers' | 'domains' | 'observability'>(() => {
     if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/studio/agents') || window.location.pathname.startsWith('/agents')) {
+        return 'agents'
+      }
       if (window.location.pathname.startsWith('/studio/campaigns') || window.location.pathname.startsWith('/campaigns')) {
         return 'campaigns'
       }
@@ -99,9 +104,27 @@ export function StudioDashboard({
   // Batch Campaign Modal state
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
 
+  // Agents count for header badge
+  const [agentsCount, setAgentsCount] = useState<number>(0)
+  const fetchAgentsCount = async () => {
+    try {
+      const res = await fetch('/api/agents')
+      if (res.ok) {
+        const data = await res.json()
+        setAgentsCount(data.total ?? data.count ?? (data.agents?.length || 0))
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchAgentsCount()
+  }, [activeTab])
+
   // Synchronize when currentPath prop changes
   useEffect(() => {
-    if (currentPath === '/studio/campaigns' || currentPath?.startsWith('/studio/campaigns') || currentPath === '/campaigns' || currentPath?.startsWith('/campaigns')) {
+    if (currentPath === '/studio/agents' || currentPath?.startsWith('/studio/agents') || currentPath === '/agents' || currentPath?.startsWith('/agents')) {
+      setActiveTab('agents')
+    } else if (currentPath === '/studio/campaigns' || currentPath?.startsWith('/studio/campaigns') || currentPath === '/campaigns' || currentPath?.startsWith('/campaigns')) {
       setActiveTab('campaigns')
       const m = currentPath.match(/\/(?:studio\/)?campaigns\/([a-zA-Z0-9_-]+)/)
       if (m && m[1] && m[1] !== 'new') {
@@ -445,6 +468,24 @@ export function StudioDashboard({
 
             <button
               onClick={() => {
+                setActiveTab('agents')
+                onNavigate?.('/studio/agents')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'agents'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Bot className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Agents</span>
+              <span className="h-4 px-1.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono flex items-center justify-center">
+                {agentsCount}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab('campaigns')
                 setSelectedCampaignId(null)
                 onNavigate?.('/studio/campaigns')
@@ -633,6 +674,21 @@ export function StudioDashboard({
 
           <button
             onClick={() => {
+              setActiveTab('agents')
+              onNavigate?.('/studio/agents')
+            }}
+            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+              activeTab === 'agents'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <Bot className="h-3.5 w-3.5 text-indigo-500" />
+            <span>Agents ({agentsCount})</span>
+          </button>
+
+          <button
+            onClick={() => {
               setActiveTab('campaigns')
               setSelectedCampaignId(null)
               onNavigate?.('/studio/campaigns')
@@ -766,6 +822,8 @@ export function StudioDashboard({
               onNavigate?.('/studio/discussions')
             }}
           />
+        ) : activeTab === 'agents' ? (
+          <AgentsHubView onNavigate={onNavigate} />
         ) : activeTab === 'observability' ? (
           <ObservabilityView
             onNavigate={onNavigate}

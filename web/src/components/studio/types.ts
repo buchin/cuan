@@ -364,3 +364,97 @@ export interface CreateBatchCampaignPayload {
   target_criteria?: any
   status?: string
 }
+
+// ============================================================================
+// Sprint 9 (S09.4): Agents Hub & Terminal Types
+// ============================================================================
+
+export interface AgentDTO {
+  id: string
+  name: string
+  avatar: string
+  role: string
+  system_prompt: string
+  model_id: string
+  provider: string
+  status: 'active' | 'inactive' | 'archived' | string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateAgentPayload {
+  id?: string
+  name: string
+  avatar?: string
+  role?: string
+  system_prompt?: string
+  model_id?: string
+  provider?: string
+  status?: string
+}
+
+export interface UpdateAgentPayload {
+  name?: string
+  avatar?: string
+  role?: string
+  system_prompt?: string
+  model_id?: string
+  provider?: string
+  status?: string
+}
+
+export interface AgentConnectionDTO {
+  id: string
+  user_id: string
+  provider: string
+  plan_hint: string
+  status: 'active' | 'invalid' | 'disconnected' | string
+  has_credentials: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateAgentConnectionPayload {
+  id?: string
+  user_id?: string
+  provider?: string
+  api_key?: string
+  credentials?: string
+  plan_hint?: string
+  status?: string
+  verify_now?: boolean
+}
+
+export interface ModelInfo {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  input_token_limit?: number
+  output_token_limit?: number
+  supported_generation_methods?: string[]
+  is_default?: boolean
+}
+
+export interface ConnectionProbeResult {
+  valid: boolean
+  provider: string
+  plan_hint?: string
+  latency_ms: number
+  available_models?: ModelInfo[]
+  error_message?: string
+  tested_at: string
+}
+
+export interface TerminalSessionSummary {
+  id: string
+  task_id: string
+  subscribers: number
+  created_at: string
+  last_activity: string
+  cols: number
+  rows: number
+  pid: number
+  work_dir: string
+}
+

@@ -1,0 +1,110 @@
+=== CUAN SPRINT 9 (S09.4) EVIDENCE: FRONTEND UI: AGENTS HUB & IN-BROWSER INTERACTIVE TERMINAL (@xterm/xterm) VERIFIED ===
+Timestamp: 2026-10-17T15:30:00+07:00
+Task ID: fodwmsxteqqwhlfygurqldfp
+Title: S09.4 — Frontend UI: Agents Hub & In-Browser Interactive Terminal (@xterm/xterm)
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SCOPE & DEFINITION OF DONE (DoD) VERIFICATION:
+   [x] 1. Pemasangan dependensi frontend terminal: @xterm/xterm (v6.0.0), @xterm/addon-fit (v0.11.0), @xterm/addon-web-links (v0.12.0) di web/package.json.
+   [x] 2. Halaman /studio/agents (web/src/components/studio/AgentsHubView.tsx dan AgentCard.tsx):
+          - Katalog agen mandiri dengan ringkasan statistik (Total Agents, Active Agents, Pro Models, Provider Key Status).
+          - Form pembuatan & pengeditan agen (modal interaktif) lengkap dengan pemilihan avatar emoji, nama agen, role / saran role otomatis, default model (gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash), dan system prompt.
+          - Filter dan pencarian dinamis (berdasarkan nama, role, system prompt, model, dan status).
+   [x] 3. Modal kredensial AgentConnectionModal.tsx:
+          - Input dan verifikasi koneksi Google Gemini Pro API Key melalui REST API (/api/agent-connections dan /api/agent-connections/{id}/verify).
+          - Zero credential leakage: tidak pernah menampilkan plaintext secret key setelah disimpan (kredensial dienkripsi AES-256-GCM KeyVault di backend, UI hanya menampilkan status terenkripsi dan flag has_credentials).
+          - Validasi instan (verify_now) dan probe status ketersediaan model beserta latensi jaringan.
+   [x] 4. Komponen terminal interaktif TaskTerminal.tsx:
+          - Berbasis @xterm/xterm + @xterm/addon-fit + @xterm/addon-web-links terhubung ke WebSocket endpoint /api/tasks/{id}/terminal.
+          - Tersemat langsung di kartu task Kanban (tombol akses cepat "PTY") dan di dalam drawer/modal Task Detail (tab "Terminal (PTY)") pada web/src/components/studio/ProjectTasksBoard.tsx.
+   [x] 5. Kontrol Operasional Terminal:
+          - Toggle switch Watch Mode (read-only output streaming untuk observasi aktivitas agent) vs Interactive Take-Over Mode (bidirectional PTY streaming: stdin, stdout, stderr).
+          - Handling resize dinamis terminal window (cols, rows) via FitAddon dan ResizeObserver mengirimkan payload JSON {"type": "resize", "cols": N, "rows": M} ke backend pty.Setsize.
+          - ANSI color rendering 256-color dengan skema warna dark slate modern fural.space, auto-reconnect berkala dengan backoff, copy-paste buffer, dan indikator status WebSocket (Connected, Reconnecting, Disconnected).
+   [x] 6. Integrasi Navigasi & Routing:
+          - Navigasi tab "Agents" terpasang di Header Desktop Studio dan mobile tab bar pada web/src/components/studio/StudioDashboard.tsx dengan badge counter agen aktif.
+          - Rute langsung /agents dan /studio/agents pada web/src/App.tsx.
+          - Tombol akses cepat terminal pada kartu task Kanban di web/src/components/studio/ProjectTasksBoard.tsx.
+   [x] 7. Validasi Kualitas Kode & Build:
+          - Validasi TypeScript `npx tsc --noEmit` wajib 0 error: LULUS (0 error).
+          - Validasi production bundle `npm run build` wajib 100% PASS: LULUS (100% PASS, built in 4.42s).
+   [x] 8. Berkas bukti audit di docs/sprints/evidence/S9/s09_4_frontend_agents_terminal_verified.txt.
+   [x] 9. Git commit author Buchin <buchin@dropsugar.com> dan push ke origin/main.
+
+2. ARSITEKTUR & KOMPONEN TEKNIS FRONTEND:
+   a. In-Browser Interactive Terminal Engine (TaskTerminal.tsx):
+      - Library: @xterm/xterm (v6.0.0), @xterm/addon-fit, @xterm/addon-web-links.
+      - WebSocket Transport:
+        * URL: ws[s]://<host>/api/tasks/<taskId>/terminal?mode=<mode>&cols=<cols>&rows=<rows>&token=<token>
+        * Protocols: ['cuan-terminal'] dan token subprotocol negotiation.
+        * Frame Decoding: BinaryMessage untuk raw byte chunks output dari PTY stdout/stderr (zero overhead).
+        * TextMessage: JSON control messages (connected, mode, status, resize, ping/pong, error).
+      - Dual Operational Modes:
+        * Watch Mode: Observasi output agent; ketikan keyboard pengguna dicegah dengan notifikasi ramah agar tidak mengganggu alur eksekusi agent yang sedang berjalan.
+        * Interactive Take-Over Mode: Ketikan keyboard pengguna dipompa langsung ke stdin master PTY pada direktori kerja Git task.
+      - Dynamic Window Resizing:
+        * FitAddon dipadukan dengan ResizeObserver pada container terminal.
+        * Setiap kali container berubah ukuran (resize browser window, drawer expand, atau toggle fullscreen), ukuran rows & cols dihitung ulang dan dikirimkan secara instan via WebSocket: {"type": "resize", "cols": c, "rows": r}.
+      - WebSocket Lifecycle & Resiliency:
+        * Status indicator visual: Connected (green pulse), Connecting (blue spin), Reconnecting (amber spin with retry counter), Disconnected (red alert).
+        * Automatic reconnect dengan exponential backoff jika koneksi WebSocket terputus tidak terduga.
+        * Heartbeat 15 detik ping/pong menjaga koneksi tetap hidup melalui reverse proxy Caddy / Nginx.
+      - User Experience:
+        * Fitur Copy Selection buffer, Clear screen, Reconnect manual, dan Toggle Fullscreen.
+
+   b. Agents Hub Catalog & Management (AgentsHubView.tsx & AgentCard.tsx):
+      - Route: /studio/agents dan /agents
+      - Katalog persona agen dengan card visual yang menampilkan nama, role, avatar, model Google Gemini yang digunakan, system prompt preview (collapsible), dan status agen.
+      - Form pendaftaran & edit agen persona:
+        * Nama agen, role (dengan tombol quick-suggestion: Fullstack Architect, Backend Go Specialist, Frontend UI/UX Craftsman, DevOps & SRE, QA & Test Automation, Product Facilitator).
+        * Pemilihan avatar emoji interaktif.
+        * Model selector: gemini-1.5-pro (Recommended: reasoning mendalam & 2M token context), gemini-1.5-flash (Iterasi cepat), dan gemini-2.0-flash (Ultra low latency).
+        * System prompt starter template.
+        * Status toggle: active, inactive, archived.
+      - Integrasi REST API backend: GET /api/agents, POST /api/agents, PUT /api/agents/{id}, DELETE /api/agents/{id}.
+
+   c. Gemini Connection & Zero Credential Leakage (AgentConnectionModal.tsx):
+      - Form input API Key Google Gemini Pro dengan link langsung ke Google AI Studio (aistudio.google.com/app/apikey).
+      - Immediate Verification (verify_now: true) memanggil /api/agent-connections untuk enkripsi AES-256-GCM dan probe status kuota.
+      - Re-verify Connection memanggil /api/agent-connections/{id}/verify untuk mendeteksi model yang tersedia (gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash) dan mengukur latensi (ms).
+      - Zero Credential Leakage: Plaintext secret key tidak pernah disimpan di state setelah save dan tidak pernah dikembalikan oleh API backend. Tampilan UI menyajikan indikator aman `AES-256-GCM Vault ••••••••`.
+
+   d. Kanban Board Quick-Access Integration (ProjectTasksBoard.tsx):
+      - Kartu task Kanban kini memiliki tombol akses cepat terminal (`PTY`) pada header card dan footer control bar.
+      - Mengklik judul task membuka Task Detail Drawer yang dilengkapi tab "Detail & DoD" dan tab "Terminal (PTY)" terintegrasi.
+      - Developer dapat memantau pengerjaan agent atau langsung melakukan intervensi shell tanpa meninggalkan board.
+
+   e. Studio Header Navigation (StudioDashboard.tsx & App.tsx):
+      - Tab "Agents" terpasang di desktop tab navigation dan mobile tab bar lengkap dengan badge penghitung jumlah agen aktif.
+      - Rute /agents dan /studio/agents terhubung langsung ke AgentsHubView.
+
+3. VALIDASI BUILD & INTEGRATION LOGS:
+   a. TypeScript Type Check (web/):
+      $ npx tsc --noEmit
+      Result: 0 errors.
+
+   b. Vite Production Build (web/):
+      $ npm run build
+      > cuan-web@0.1.0 build
+      > tsc && vite build
+      vite v5.4.21 building for production...
+      ✓ 1631 modules transformed.
+      dist/index.html                     0.55 kB │ gzip:   0.37 kB
+      dist/assets/index-BA_owiRH.css     82.75 kB │ gzip:  14.06 kB
+      dist/assets/index-QPcZz9Cq.js   1,097.25 kB │ gzip: 257.48 kB
+      ✓ built in 4.42s
+      STATUS: 100% PASS
+
+   c. Go Backend Zero-Regression Targeted Tests:
+      $ go test ./internal/server/... ./internal/terminal/... ./internal/agent/... ./internal/db/...
+      ok   github.com/buchin/cuan/internal/server    87.540s
+      ok   github.com/buchin/cuan/internal/terminal   0.414s
+      ok   github.com/buchin/cuan/internal/agent     (cached)
+      ok   github.com/buchin/cuan/internal/db        (cached)
+      STATUS: 100% PASS — ZERO REGRESSION
+
+4. KESIMPULAN & STATUS:
+   Task S09.4 "Frontend UI: Agents Hub & In-Browser Interactive Terminal (@xterm/xterm)" telah diselesaikan secara tuntas 100%.
+   Seluruh antarmuka Agents Hub (/studio/agents), AgentConnectionModal (Zero Credential Leakage), TaskTerminal xterm.js (Watch Mode & Interactive Take-Over Mode), navigasi tab Studio Header, dan tombol akses cepat terminal pada Kanban board telah terpasang, teruji bebas error linting & type errors, dan siap untuk staging E2E drill serta rilis produksi pada task S09.5.

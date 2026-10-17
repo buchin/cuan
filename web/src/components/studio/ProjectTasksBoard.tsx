@@ -18,10 +18,12 @@ import {
   MessageSquare,
   ListTodo,
   Zap,
+  Terminal as TerminalIcon,
   X
 } from 'lucide-react'
 import { ProjectTaskDTO } from './types'
 import { DistillTaskModal } from './DistillTaskModal'
+import { TaskTerminal } from './TaskTerminal'
 
 interface ProjectTasksBoardProps {
   projectId?: string
@@ -109,6 +111,11 @@ export function ProjectTasksBoard({
 
   // Distill / Create Task Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+
+  // Interactive Terminal & Detail Drawer States (S09.4)
+  const [selectedTerminalTask, setSelectedTerminalTask] = useState<ProjectTaskDTO | null>(null)
+  const [detailTask, setDetailTask] = useState<ProjectTaskDTO | null>(null)
+  const [detailModalTab, setDetailModalTab] = useState<'details' | 'terminal'>('details')
 
   // Fetch tasks
   const fetchTasks = async (projId: string) => {
@@ -535,19 +542,39 @@ export function ProjectTasksBoard({
                             )}
                           </div>
 
-                          {/* Delete Card Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTask(task.id, task.title)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 rounded transition-opacity"
-                            title="Hapus task"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                          {/* Quick Access Terminal & Delete Button */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTerminalTask(task)}
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors"
+                              title="Akses Cepat Interactive PTY Terminal"
+                            >
+                              <TerminalIcon className="h-3 w-3 text-emerald-500" />
+                              <span className="hidden sm:inline">PTY</span>
+                            </button>
+
+                            {/* Delete Card Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTask(task.id, task.title)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 rounded transition-opacity"
+                              title="Hapus task"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Title */}
-                        <h3 className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
+                        {/* Title (Click to open Detail & Terminal Modal) */}
+                        <h3
+                          onClick={() => {
+                            setDetailTask(task)
+                            setDetailModalTab('details')
+                          }}
+                          className="text-xs font-bold text-slate-900 dark:text-white leading-snug cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                          title="Klik untuk melihat Detail & Terminal"
+                        >
                           {task.title}
                         </h3>
 
@@ -724,6 +751,208 @@ export function ProjectTasksBoard({
           })
         }}
       />
+
+      {/* Standalone Quick-Access Interactive Terminal Modal (S09.4) */}
+      {selectedTerminalTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-5xl h-[620px] max-h-[92vh] flex flex-col shadow-2xl">
+            <TaskTerminal
+              taskId={selectedTerminalTask.id}
+              taskTitle={selectedTerminalTask.title}
+              initialMode="watch"
+              onClose={() => setSelectedTerminalTask(null)}
+              className="w-full h-full"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Task Detail & Terminal Drawer / Modal (S09.4) */}
+      {detailTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/50">
+              <div className="space-y-1 min-w-0 pr-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {getPriorityBadge(detailTask.priority)}
+                  <Badge variant="outline" className="font-mono text-[10px] py-0 px-1.5 uppercase">
+                    Status: {detailTask.status}
+                  </Badge>
+                  <span className="font-mono text-[10px] text-slate-400">
+                    ID: #{detailTask.id}
+                  </span>
+                </div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                  {detailTask.title}
+                </h2>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Tab switcher: Detail vs Terminal */}
+                <div className="flex items-center bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setDetailModalTab('details')}
+                    className={`px-3 py-1 rounded-md transition-all ${
+                      detailModalTab === 'details'
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                    }`}
+                  >
+                    Detail & DoD
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDetailModalTab('terminal')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
+                      detailModalTab === 'terminal'
+                        ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                    }`}
+                  >
+                    <TerminalIcon className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Terminal (PTY)</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setDetailTask(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {detailModalTab === 'terminal' ? (
+                <div className="h-[520px] w-full">
+                  <TaskTerminal
+                    taskId={detailTask.id}
+                    taskTitle={detailTask.title}
+                    initialMode="watch"
+                    className="w-full h-full"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Description */}
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Deskripsi & Instruksi Pengerjaan
+                    </h4>
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                      {detailTask.description || 'Tidak ada deskripsi detail untuk task ini.'}
+                    </div>
+                  </div>
+
+                  {/* DoD Checklist */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <ListTodo className="h-3.5 w-3.5 text-emerald-500" />
+                        <span>Definition of Done (DoD) Checklist</span>
+                      </h4>
+                      <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                        {(detailTask.dod_checklist || []).filter((d) => d.completed).length} /{' '}
+                        {(detailTask.dod_checklist || []).length} Selesai
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                      {(detailTask.dod_checklist || []).length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">Tidak ada kriteria DoD yang didefinisikan.</p>
+                      ) : (
+                        detailTask.dod_checklist.map((item, idx) => (
+                          <label
+                            key={idx}
+                            className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-900 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={item.completed}
+                              onChange={() => {
+                                handleToggleDoD(detailTask, idx)
+                                setDetailTask((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        dod_checklist: prev.dod_checklist.map((d, i) =>
+                                          i === idx ? { ...d, completed: !d.completed } : d
+                                        ),
+                                      }
+                                    : null
+                                )
+                              }}
+                              className="rounded text-emerald-600 focus:ring-emerald-500 mt-0.5 h-3.5 w-3.5 shrink-0"
+                            />
+                            <span className={item.completed ? 'line-through text-slate-400' : ''}>
+                              {item.text}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Meta Information Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Status Saat Ini</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 uppercase mt-0.5 block">
+                        {detailTask.status}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Prioritas</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 capitalize mt-0.5 block">
+                        {detailTask.priority}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Batch ID</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200 mt-0.5 block">
+                        {detailTask.batch_id || '-'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Subtask / Parent</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200 mt-0.5 block">
+                        {detailTask.parent_task_id ? `#${detailTask.parent_task_id.slice(0, 8)}` : 'Root'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Launch Terminal CTA button */}
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/30 via-slate-900/60 to-slate-900 border border-emerald-500/30 flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <TerminalIcon className="h-3.5 w-3.5" /> In-Browser Pseudo-Terminal
+                      </span>
+                      <p className="text-[11px] text-slate-400">
+                        Buka shell terminal langsung ke direktori kerja Git task untuk memantau agent atau melakukan intervensi perintah.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setDetailModalTab('terminal')}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs gap-1.5 shrink-0"
+                    >
+                      <TerminalIcon className="h-3.5 w-3.5" />
+                      <span>Buka Terminal Task</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
