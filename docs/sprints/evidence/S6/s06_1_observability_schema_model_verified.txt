@@ -1,0 +1,111 @@
+=== CUAN SPRINT 6 (S06.1) EVIDENCE: OBSERVABILITY SCHEMA 000011, CORE MODELS & SPRINT 6 DOCS VERIFIED ===
+Timestamp: 2026-10-17T10:19:00+07:00
+Task ID: frqmipnuujcevutrtiqihmnj
+Title: S06.1 — Database Migration 000011 (Observability, Metrics & Alerts Schema), Core Models & Sprint 6 SSOT Docs
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SSOT Dokumen Sprint 6:
+   - File: docs/sprints/S6.md
+   - Status: running (Approved PO Buchin 2026-10-17)
+   - Scope: S06.1 sampai S06.5 lengkap beserta arsitektur, alur, dependensi, risiko, dan DoD
+   - Arsitektur: Observability, Health Probes & Incident Alerting Hub (Health Check Engine, Resource Metrics Collector, Incident Alert Dispatcher, Multi-Channel Telegram/Discord/Webhook, Studio Observability Hub)
+   - D2 Diagrams: TALA layout engine terverifikasi validasi dan compile 100% valid (diagram arsitektur observabilitas & dependency backlog workflow S06.1–S06.5)
+
+2. Migrasi Database PostgreSQL 000011:
+   - Migrasi Up: migrations/000011_observability_alerts.up.sql
+   - Migrasi Down: migrations/000011_observability_alerts.down.sql
+   - Tabel Dibuat:
+     * health_checks:
+       - id VARCHAR(64) PRIMARY KEY
+       - deployment_id VARCHAR(64) NOT NULL REFERENCES deployments(id) ON DELETE CASCADE
+       - url TEXT NOT NULL
+       - status VARCHAR(32) NOT NULL DEFAULT 'healthy'
+       - last_checked_at TIMESTAMP WITH TIME ZONE
+       - last_status_code INTEGER DEFAULT 0
+       - response_time_ms BIGINT DEFAULT 0
+       - consecutive_failures INTEGER NOT NULL DEFAULT 0
+       - created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - Indeks: idx_health_checks_deployment_id, idx_health_checks_status
+     * server_metrics:
+       - id VARCHAR(64) PRIMARY KEY
+       - server_id VARCHAR(64) REFERENCES servers(id) ON DELETE SET NULL
+       - deployment_id VARCHAR(64) REFERENCES deployments(id) ON DELETE CASCADE
+       - cpu_percent DOUBLE PRECISION NOT NULL DEFAULT 0
+       - memory_used_mb BIGINT NOT NULL DEFAULT 0
+       - memory_total_mb BIGINT NOT NULL DEFAULT 0
+       - disk_used_gb DOUBLE PRECISION NOT NULL DEFAULT 0
+       - disk_total_gb DOUBLE PRECISION NOT NULL DEFAULT 0
+       - recorded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - Indeks: idx_server_metrics_server_id, idx_server_metrics_deployment_id, idx_server_metrics_recorded_at
+     * alert_channels:
+       - id VARCHAR(64) PRIMARY KEY
+       - project_id VARCHAR(64) NOT NULL
+       - type VARCHAR(32) NOT NULL
+       - name VARCHAR(255) NOT NULL
+       - config_encrypted TEXT NOT NULL
+       - is_active BOOLEAN NOT NULL DEFAULT TRUE
+       - created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - Indeks: idx_alert_channels_project_id, idx_alert_channels_type, idx_alert_channels_is_active
+     * alert_incidents:
+       - id VARCHAR(64) PRIMARY KEY
+       - project_id VARCHAR(64) NOT NULL
+       - target_type VARCHAR(32) NOT NULL
+       - target_id VARCHAR(64) NOT NULL
+       - title VARCHAR(255) NOT NULL
+       - message TEXT NOT NULL
+       - status VARCHAR(32) NOT NULL DEFAULT 'firing'
+       - triggered_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - resolved_at TIMESTAMP WITH TIME ZONE
+       - Indeks: idx_alert_incidents_project_id, idx_alert_incidents_status, idx_alert_incidents_target, idx_alert_incidents_triggered_at
+   - Backward Compatibility:
+     * 100% aditif; tidak mengubah atau merusak skema dan data Sprint 1 (owners, projects, tasks), Sprint 2 (sponsorship), Sprint 3 (deployments, logs), Sprint 4 (servers BYOS), dan Sprint 5 (custom domains).
+     * Uji rollback down migration bersih: DROP INDEX dan DROP TABLE CASCADE.
+
+3. Observability Models, DTO & Sanitization (internal/db/observability.go):
+   - Model HealthCheck & HealthCheckDTO dengan method ToDTO().
+   - Model ServerMetric & ServerMetricDTO dengan komputasi persentase memori dan disk.
+   - Model AlertChannel & AlertChannelDTO dengan penegakan zero credential leakage: field ConfigEncrypted diabaikan secara ketat pada serialisasi JSON (`json:"-"`).
+   - Model AlertIncident & AlertIncidentDTO untuk pelacakan status firing vs resolved.
+   - Validasi URL target health check (HTTP/HTTPS scheme dan host valid).
+   - Validasi channel type (telegram, discord, webhook).
+
+4. Observability Repository & Data Access Store (internal/db/observability.go):
+   - ObservabilityRepository: Interface terpadu untuk health checks, metrics, alert channels, dan alert incidents.
+   - SQLObservabilityRepository: Implementasi PostgreSQL production dengan parameterized queries aman.
+   - MemoryObservabilityRepository: Implementasi in-memory thread-safe (`sync.RWMutex`) untuk unit testing, mock testing, dan local runtime.
+
+5. Targeted Automated Test Verification:
+   === RUN   TestValidateHealthCheckURL
+   --- PASS: TestValidateHealthCheckURL (0.00s)
+   === RUN   TestValidateChannelType
+   --- PASS: TestValidateChannelType (0.00s)
+   === RUN   TestAlertChannel_JSONMaskingSecurity
+   --- PASS: TestAlertChannel_JSONMaskingSecurity (0.00s)
+   === RUN   TestServerMetric_PercentageCalculations
+   --- PASS: TestServerMetric_PercentageCalculations (0.00s)
+   === RUN   TestMemoryObservabilityRepository_HealthChecks
+   --- PASS: TestMemoryObservabilityRepository_HealthChecks (0.00s)
+   === RUN   TestMemoryObservabilityRepository_Metrics
+   --- PASS: TestMemoryObservabilityRepository_Metrics (0.00s)
+   === RUN   TestMemoryObservabilityRepository_AlertChannels
+   --- PASS: TestMemoryObservabilityRepository_AlertChannels (0.00s)
+   === RUN   TestMemoryObservabilityRepository_AlertIncidents
+   --- PASS: TestMemoryObservabilityRepository_AlertIncidents (0.00s)
+   === RUN   TestMemoryObservabilityRepository_ConcurrencyThreadSafety
+   --- PASS: TestMemoryObservabilityRepository_ConcurrencyThreadSafety (0.25s)
+   === RUN   TestLoadMigrations
+   --- PASS: TestLoadMigrations (0.00s)
+   === RUN   TestDryRun
+   --- PASS: TestDryRun (0.00s)
+
+6. Full Regression Test Verification (Zero Regression across Packages):
+   ok   github.com/buchin/cuan/internal/db          0.285s
+   ok   github.com/buchin/cuan/internal/deployer    (cached)
+   ok   github.com/buchin/cuan/internal/domain      (cached)
+   ok   github.com/buchin/cuan/internal/server      52.287s
+
+All tests passed with zero regression. Ready for git commit and sprint progression.

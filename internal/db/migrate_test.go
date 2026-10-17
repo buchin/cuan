@@ -128,6 +128,41 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(customDomainsMig.DownSQL, "DROP TABLE IF EXISTS custom_domains CASCADE") {
 		t.Errorf("expected 000010 DownSQL to drop custom_domains table")
 	}
+
+	if len(migs) < 11 {
+		t.Fatalf("expected at least 11 migrations, got %d", len(migs))
+	}
+	obsMig := migs[10]
+	if obsMig.Version != "000011" {
+		t.Errorf("expected version 000011, got %s", obsMig.Version)
+	}
+	if obsMig.Name != "observability_alerts" {
+		t.Errorf("expected name observability_alerts, got %s", obsMig.Name)
+	}
+	if !strings.Contains(obsMig.UpSQL, "CREATE TABLE IF NOT EXISTS health_checks") {
+		t.Errorf("expected 000011 UpSQL to create health_checks table")
+	}
+	if !strings.Contains(obsMig.UpSQL, "CREATE TABLE IF NOT EXISTS server_metrics") {
+		t.Errorf("expected 000011 UpSQL to create server_metrics table")
+	}
+	if !strings.Contains(obsMig.UpSQL, "CREATE TABLE IF NOT EXISTS alert_channels") {
+		t.Errorf("expected 000011 UpSQL to create alert_channels table")
+	}
+	if !strings.Contains(obsMig.UpSQL, "CREATE TABLE IF NOT EXISTS alert_incidents") {
+		t.Errorf("expected 000011 UpSQL to create alert_incidents table")
+	}
+	if !strings.Contains(obsMig.DownSQL, "DROP TABLE IF EXISTS health_checks CASCADE") {
+		t.Errorf("expected 000011 DownSQL to drop health_checks table")
+	}
+	if !strings.Contains(obsMig.DownSQL, "DROP TABLE IF EXISTS server_metrics CASCADE") {
+		t.Errorf("expected 000011 DownSQL to drop server_metrics table")
+	}
+	if !strings.Contains(obsMig.DownSQL, "DROP TABLE IF EXISTS alert_channels CASCADE") {
+		t.Errorf("expected 000011 DownSQL to drop alert_channels table")
+	}
+	if !strings.Contains(obsMig.DownSQL, "DROP TABLE IF EXISTS alert_incidents CASCADE") {
+		t.Errorf("expected 000011 DownSQL to drop alert_incidents table")
+	}
 }
 
 func TestDryRun(t *testing.T) {
