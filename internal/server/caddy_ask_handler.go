@@ -50,6 +50,16 @@ func (s *Server) handleCaddyAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify base domain authorization (e.g. cuan.dojo.cc)
+	if s.cfg != nil && s.cfg.BaseDomain != "" && strings.EqualFold(domain, cuanDB.NormalizeDomain(s.cfg.BaseDomain)) {
+		respondJSON(w, http.StatusOK, CaddyAskResponse{
+			Status:  "authorized",
+			Domain:  domain,
+			Message: "base domain is authorized for on-demand TLS certificate issuance",
+		})
+		return
+	}
+
 	// Verify repository readiness
 	if s.domainRepo == nil {
 		respondJSON(w, http.StatusForbidden, CaddyAskResponse{

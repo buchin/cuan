@@ -470,6 +470,8 @@ func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
+	s.router.Get("/api/info", s.handleInfo)
+	s.router.Get("/api/mode", s.handleGetSystemMode)
 	s.router.Get("/api/system/mode", s.handleGetSystemMode)
 
 	// Caddy On-Demand TLS Security Gatekeeper (Sprint 5 S05.2)
