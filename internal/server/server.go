@@ -20,6 +20,7 @@ import (
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/campaign"
 	"github.com/buchin/cuan/internal/config"
+	"github.com/buchin/cuan/internal/creator"
 	"github.com/buchin/cuan/internal/crypto"
 	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/deployer"
@@ -58,6 +59,7 @@ type Server struct {
 	projectStudioRepo   cuanDB.ProjectStudioRepository
 	batchCampaignRepo   cuanDB.BatchCampaignRepository
 	agentRepo           cuanDB.AgentRepository
+	blueprintEngine     *creator.BlueprintEngine
 	providerRegistry    *agent.ProviderRegistry
 	distillerEngine     *studio.DistillerEngine
 	agentExecutionHook  studio.AgentExecutionHook
@@ -304,6 +306,15 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		AuthService: svc,
 	})
 
+	var bpEngine *creator.BlueprintEngine
+	if pSvc != nil {
+		bpEngine = creator.NewBlueprintEngine(
+			creator.WithProjectStore(pSvc.Store()),
+			creator.WithStudioRepo(studioRepo),
+			creator.WithAgentRepo(agentRepo),
+		)
+	}
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -328,6 +339,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		projectStudioRepo:   studioRepo,
 		batchCampaignRepo:   batchRepo,
 		agentRepo:           agentRepo,
+		blueprintEngine:     bpEngine,
 		providerRegistry:    agent.DefaultRegistry(),
 		distillerEngine:     distiller,
 		agentExecutionHook:  agentHook,
@@ -524,6 +536,14 @@ func (s *Server) AgentRepository() cuanDB.AgentRepository {
 
 func (s *Server) SetAgentRepository(repo cuanDB.AgentRepository) {
 	s.agentRepo = repo
+}
+
+func (s *Server) BlueprintEngine() *creator.BlueprintEngine {
+	return s.blueprintEngine
+}
+
+func (s *Server) SetBlueprintEngine(e *creator.BlueprintEngine) {
+	s.blueprintEngine = e
 }
 
 func (s *Server) ProviderRegistry() *agent.ProviderRegistry {
@@ -757,6 +777,14 @@ func (s *Server) routes() {
 	s.router.Delete("/api/agents/connections/{id}", s.handleDeleteAgentConnection)
 	s.router.Post("/api/agents/connections/{id}/verify", s.handleVerifyAgentConnection)
 
+	// Creator Blueprint Engine Endpoints (Sprint 10 S10.2)
+	s.router.Get("/api/creator/templates", s.handleListCreatorTemplates)
+	s.router.Get("/api/creator/templates/{id}", s.handleGetCreatorTemplate)
+	s.router.Post("/api/creator/projects/instantiate", s.handleInstantiateCreatorProject)
+	s.router.Get("/api/v1/creator/templates", s.handleListCreatorTemplates)
+	s.router.Get("/api/v1/creator/templates/{id}", s.handleGetCreatorTemplate)
+	s.router.Post("/api/v1/creator/projects/instantiate", s.handleInstantiateCreatorProject)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -933,6 +961,11 @@ func (s *Server) routes() {
 		r.Get("/agents/connections/{id}", s.handleGetAgentConnection)
 		r.Delete("/agents/connections/{id}", s.handleDeleteAgentConnection)
 		r.Post("/agents/connections/{id}/verify", s.handleVerifyAgentConnection)
+
+		// Creator Blueprint Engine in v1 (Sprint 10 S10.2)
+		r.Get("/creator/templates", s.handleListCreatorTemplates)
+		r.Get("/creator/templates/{id}", s.handleGetCreatorTemplate)
+		r.Post("/creator/projects/instantiate", s.handleInstantiateCreatorProject)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
 		r.Group(func(rr chi.Router) {

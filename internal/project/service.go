@@ -37,6 +37,11 @@ func NewService(store Store, gitClient *git.Client, authSecret, baseDir string) 
 	}
 }
 
+// Store returns the underlying project.Store.
+func (s *Service) Store() Store {
+	return s.store
+}
+
 // Connect validates and connects an existing GitHub repository to Cuan.
 func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*ProjectResponse, error) {
 	trimmedURL := strings.TrimSpace(req.RepoURL)
