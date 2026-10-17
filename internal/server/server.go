@@ -55,6 +55,7 @@ type Server struct {
 	obsAlertDispatcher  *observability.AlertDispatcher
 	projectStudioRepo   cuanDB.ProjectStudioRepository
 	batchCampaignRepo   cuanDB.BatchCampaignRepository
+	agentRepo           cuanDB.AgentRepository
 	distillerEngine     *studio.DistillerEngine
 	agentExecutionHook  studio.AgentExecutionHook
 	campaignDecompiler  *campaign.DecompilerEngine
@@ -249,6 +250,13 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		batchRepo = cuanDB.NewMemoryBatchCampaignRepository()
 	}
 
+	var agentRepo cuanDB.AgentRepository
+	if db != nil {
+		agentRepo = cuanDB.NewSQLAgentRepository(db)
+	} else {
+		agentRepo = cuanDB.NewMemoryAgentRepository()
+	}
+
 	var hookDispatcher studio.ExecutionDispatcher
 	if tStore != nil {
 		hookDispatcher = studio.NewRunnerTaskBridgeDispatcher(tStore)
@@ -297,6 +305,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		obsAlertDispatcher:  obsAlertDispatcher,
 		projectStudioRepo:   studioRepo,
 		batchCampaignRepo:   batchRepo,
+		agentRepo:           agentRepo,
 		distillerEngine:     distiller,
 		agentExecutionHook:  agentHook,
 		campaignDecompiler:  campaignDecompiler,
@@ -482,6 +491,14 @@ func (s *Server) BatchCampaignRepository() cuanDB.BatchCampaignRepository {
 
 func (s *Server) SetBatchCampaignRepository(repo cuanDB.BatchCampaignRepository) {
 	s.batchCampaignRepo = repo
+}
+
+func (s *Server) AgentRepository() cuanDB.AgentRepository {
+	return s.agentRepo
+}
+
+func (s *Server) SetAgentRepository(repo cuanDB.AgentRepository) {
+	s.agentRepo = repo
 }
 
 func (s *Server) CampaignDecompiler() *campaign.DecompilerEngine {

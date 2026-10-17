@@ -227,6 +227,35 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(batchMig.DownSQL, "DROP TABLE IF EXISTS batch_campaigns CASCADE") {
 		t.Errorf("expected 000013 DownSQL to drop batch_campaigns table")
 	}
+
+	if len(migs) < 14 {
+		t.Fatalf("expected at least 14 migrations, got %d", len(migs))
+	}
+	agentMig := migs[13]
+	if agentMig.Version != "000014" {
+		t.Errorf("expected version 000014, got %s", agentMig.Version)
+	}
+	if agentMig.Name != "agent_hub_terminal" {
+		t.Errorf("expected name agent_hub_terminal, got %s", agentMig.Name)
+	}
+	if !strings.Contains(agentMig.UpSQL, "CREATE TABLE IF NOT EXISTS agents") {
+		t.Errorf("expected 000014 UpSQL to create agents table")
+	}
+	if !strings.Contains(agentMig.UpSQL, "CREATE TABLE IF NOT EXISTS agent_connections") {
+		t.Errorf("expected 000014 UpSQL to create agent_connections table")
+	}
+	if !strings.Contains(agentMig.UpSQL, "idx_agents_status") {
+		t.Errorf("expected 000014 UpSQL to create idx_agents_status")
+	}
+	if !strings.Contains(agentMig.UpSQL, "idx_agent_connections_user_id") {
+		t.Errorf("expected 000014 UpSQL to create idx_agent_connections_user_id")
+	}
+	if !strings.Contains(agentMig.DownSQL, "DROP TABLE IF EXISTS agent_connections CASCADE") {
+		t.Errorf("expected 000014 DownSQL to drop agent_connections table")
+	}
+	if !strings.Contains(agentMig.DownSQL, "DROP TABLE IF EXISTS agents CASCADE") {
+		t.Errorf("expected 000014 DownSQL to drop agents table")
+	}
 }
 
 func TestDryRun(t *testing.T) {

@@ -1,0 +1,150 @@
+=== CUAN SPRINT 9 (S09.1) EVIDENCE: AGENT HUB SCHEMA 000014, DATA MODELS, REPOSITORY LAYER & S9 SSOT DOCS VERIFIED ===
+Timestamp: 2026-10-17T14:43:00+07:00
+Task ID: gthvpagjxztxgkkgghndxebj
+Title: S09.1 — Database Migration 000014, Agent Registry Models, Repository Layer & S9 SSOT Docs
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SSOT Dokumen Sprint 9 & Status Sprint 8:
+   - File SSOT Sprint 9: docs/sprints/S9.md
+     * Status: running (Approved PO Buchin 2026-10-17)
+     * Scope: S09.1 sampai S09.5 lengkap merinci Arsitektur, Backlog, Dependensi, Risiko, dan DoD
+     * Arsitektur: Native Agent Hub & In-Browser Interactive Terminal (creack/pty, WebSocket, Xterm.js, Gemini BYOK)
+     * D2 Diagram: TALA layout engine terverifikasi valid dan berhasil dicompile oleh engine d2-compiler-go (100% PASS)
+   - Status Sprint 8: docs/sprints/S8.md
+     * Status: completed (Sprint Review disahkan oleh PO Buchin pada 2026-10-17 setelah implementasi Batch Campaigns S08.1-S08.5 tuntas 100% dan terverifikasi di cuan.dojo.cc)
+
+2. Migrasi Database PostgreSQL 000014 (100% Aditif & Non-Destruktif):
+   - Migrasi Up: migrations/000014_agent_hub_terminal.up.sql
+   - Migrasi Down: migrations/000014_agent_hub_terminal.down.sql
+   - Tabel Dibuat:
+     * agents:
+       - id VARCHAR(64) PRIMARY KEY
+       - name VARCHAR(255) NOT NULL
+       - avatar VARCHAR(512) NOT NULL DEFAULT ''
+       - role VARCHAR(128) NOT NULL DEFAULT ''
+       - system_prompt TEXT NOT NULL DEFAULT ''
+       - model_id VARCHAR(128) NOT NULL DEFAULT 'gemini-1.5-pro'
+       - provider VARCHAR(64) NOT NULL DEFAULT 'google'
+       - status VARCHAR(64) NOT NULL DEFAULT 'active'
+       - created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+       - updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+       - Indeks Btree: idx_agents_status ON agents(status), idx_agents_provider ON agents(provider)
+     * agent_connections:
+       - id VARCHAR(64) PRIMARY KEY
+       - user_id VARCHAR(64) NOT NULL
+       - provider VARCHAR(64) NOT NULL DEFAULT 'google'
+       - credentials_encrypted TEXT NOT NULL DEFAULT ''
+       - plan_hint VARCHAR(128) NOT NULL DEFAULT ''
+       - status VARCHAR(64) NOT NULL DEFAULT 'active'
+       - created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+       - updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+       - Indeks Btree: idx_agent_connections_user_id ON agent_connections(user_id), idx_agent_connections_provider ON agent_connections(provider)
+     * Rollback Down:
+       - DROP TABLE IF EXISTS agent_connections CASCADE;
+       - DROP TABLE IF EXISTS agents CASCADE;
+   - Jaminan 100% Data Retention: Migrasi murni aditif tanpa memodifikasi skema atau data tabel Sprint 1–8 (owners, projects, tasks, sponsors, deployments, servers, custom_domains, health_checks, server_metrics, alert_channels, alert_incidents, project_rooms, project_messages, project_tasks, batch_campaigns).
+
+3. Model Entitas, DTO & Repositori Go:
+   - File: internal/db/agent.go
+     * Entitas: Agent, AgentConnection
+     * DTO: AgentDTO, AgentConnectionDTO (zero credential leakage via `has_credentials` boolean flag dan `CredentialsEncrypted` `json:"-"`), CreateAgentInput, UpdateAgentInput, CreateAgentConnectionInput, UpdateAgentConnectionInput
+     * Filter: AgentFilter, AgentConnectionFilter
+     * Interface: AgentRepository
+     * SQL Repository: SQLAgentRepository (PostgreSQL parameterized queries)
+     * In-Memory Repository: MemoryAgentRepository (Thread-Safe sync.RWMutex, deep copy, sorting deterministic)
+   - Registrasi Repositori:
+     * File: internal/db/db.go (Repositories struct, NewSQLRepositories, NewMemoryRepositories)
+     * File: internal/server/server.go (Server.agentRepo, NewServer initialization, AgentRepository() getter & setter)
+
+4. Hasil Pengujian Unit Terarah (Targeted Automated Tests):
+   Command: go test -v -count=1 ./internal/db/...
+
+=== RUN   TestAgent_ValidationAndNormalization
+--- PASS: TestAgent_ValidationAndNormalization (0.00s)
+=== RUN   TestAgentConnection_ValidationAndNormalization
+--- PASS: TestAgentConnection_ValidationAndNormalization (0.00s)
+=== RUN   TestAgent_DTOConversion
+--- PASS: TestAgent_DTOConversion (0.00s)
+=== RUN   TestMemoryAgentRepository_AgentCRUD
+--- PASS: TestMemoryAgentRepository_AgentCRUD (0.00s)
+=== RUN   TestMemoryAgentRepository_ConnectionCRUD
+--- PASS: TestMemoryAgentRepository_ConnectionCRUD (0.00s)
+=== RUN   TestMemoryAgentRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryAgentRepository_ConcurrencyThreadSafety (0.56s)
+=== RUN   TestRepositories_AgentIntegration
+--- PASS: TestRepositories_AgentIntegration (0.00s)
+=== RUN   TestBatchCampaign_ValidationAndNormalization
+--- PASS: TestBatchCampaign_ValidationAndNormalization (0.00s)
+=== RUN   TestBatchCampaign_DTOConversion
+--- PASS: TestBatchCampaign_DTOConversion (0.00s)
+=== RUN   TestMemoryBatchCampaignRepository_CRUD
+--- PASS: TestMemoryBatchCampaignRepository_CRUD (0.00s)
+=== RUN   TestMemoryBatchCampaignRepository_ListAndFilter
+--- PASS: TestMemoryBatchCampaignRepository_ListAndFilter (0.00s)
+=== RUN   TestMemoryBatchCampaignRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryBatchCampaignRepository_ConcurrencyThreadSafety (0.00s)
+=== RUN   TestRepositories_BatchCampaignIntegration
+--- PASS: TestRepositories_BatchCampaignIntegration (0.00s)
+=== RUN   TestValidateDomain
+--- PASS: TestValidateDomain (0.00s)
+=== RUN   TestNormalizeDomain
+--- PASS: TestNormalizeDomain (0.00s)
+=== RUN   TestCustomDomain_DTOAndSanitization
+--- PASS: TestCustomDomain_DTOAndSanitization (0.00s)
+=== RUN   TestMemoryDomainRepository_CRUD
+--- PASS: TestMemoryDomainRepository_CRUD (0.00s)
+=== RUN   TestLoadMigrations
+--- PASS: TestLoadMigrations (0.00s)
+=== RUN   TestDryRun
+--- PASS: TestDryRun (0.00s)
+=== RUN   TestValidateHealthCheckURL
+--- PASS: TestValidateHealthCheckURL (0.00s)
+=== RUN   TestValidateChannelType
+--- PASS: TestValidateChannelType (0.00s)
+=== RUN   TestAlertChannel_JSONMaskingSecurity
+--- PASS: TestAlertChannel_JSONMaskingSecurity (0.00s)
+=== RUN   TestServerMetric_PercentageCalculations
+--- PASS: TestServerMetric_PercentageCalculations (0.00s)
+=== RUN   TestMemoryObservabilityRepository_HealthChecks
+--- PASS: TestMemoryObservabilityRepository_HealthChecks (0.00s)
+=== RUN   TestMemoryObservabilityRepository_Metrics
+--- PASS: TestMemoryObservabilityRepository_Metrics (0.00s)
+=== RUN   TestMemoryObservabilityRepository_AlertChannels
+--- PASS: TestMemoryObservabilityRepository_AlertChannels (0.00s)
+=== RUN   TestMemoryObservabilityRepository_AlertIncidents
+--- PASS: TestMemoryObservabilityRepository_AlertIncidents (0.00s)
+=== RUN   TestMemoryObservabilityRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryObservabilityRepository_ConcurrencyThreadSafety (0.20s)
+=== RUN   TestUUIDGenerationAndValidation
+--- PASS: TestUUIDGenerationAndValidation (0.00s)
+=== RUN   TestNormalization
+--- PASS: TestNormalization (0.00s)
+=== RUN   TestDTOConversion
+--- PASS: TestDTOConversion (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Rooms
+--- PASS: TestMemoryProjectStudioRepository_Rooms (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Messages
+--- PASS: TestMemoryProjectStudioRepository_Messages (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Tasks
+--- PASS: TestMemoryProjectStudioRepository_Tasks (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryProjectStudioRepository_ConcurrencyThreadSafety (0.06s)
+=== RUN   TestRepositories_Aggregation
+--- PASS: TestRepositories_Aggregation (0.00s)
+=== RUN   TestServer_JSONSerializationSanitization
+--- PASS: TestServer_JSONSerializationSanitization (0.00s)
+=== RUN   TestMemoryServerRepository_CRUD
+--- PASS: TestMemoryServerRepository_CRUD (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/db	0.832s
+
+5. Kesimpulan Verifikasi Definition of Done (DoD):
+   - Kriteria 1 (Skema migrasi 000014 up & down PostgreSQL untuk tabel agents dan agent_connections aditif & non-destruktif): LULUS.
+   - Kriteria 2 (Model entitas Go, DTO, interface AgentRepository, SQL store, dan thread-safe in-memory store di internal/db/agent.go): LULUS.
+   - Kriteria 3 (Registrasi repositori di internal/db/db.go dan internal/server/server.go): LULUS.
+   - Kriteria 4 (Pemutakhiran docs/sprints/S8.md berstatus completed dan penerbitan docs/sprints/S9.md sebagai SSOT resmi Sprint 9): LULUS.
+   - Kriteria 5 (Targeted unit tests di internal/db/agent_test.go dan internal/db/ 100% PASS bebas regresi): LULUS.
+   - Kriteria 6 (Berkas bukti audit di docs/sprints/evidence/S9/s09_1_agent_models_verified.txt): LULUS.
+   - Kriteria 7 (Git commit author Buchin <buchin@dropsugar.com> dan push ke origin/main): SIAP DIEKSEKUSI.

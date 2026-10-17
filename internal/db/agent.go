@@ -1,0 +1,1347 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+)
+
+var (
+	ErrAgentNotFound           = errors.New("agent not found")
+	ErrEmptyAgentName          = errors.New("agent name cannot be empty")
+	ErrInvalidAgentStatus      = errors.New("invalid agent status: must be active, inactive, or archived")
+	ErrDuplicateAgent          = errors.New("agent already exists")
+	ErrAgentConnectionNotFound = errors.New("agent connection not found")
+	ErrEmptyUserID             = errors.New("user id cannot be empty")
+	ErrInvalidConnectionStatus = errors.New("invalid connection status: must be active, invalid, or disconnected")
+	ErrDuplicateConnection     = errors.New("agent connection already exists")
+)
+
+const (
+	AgentStatusActive    = "active"
+	AgentStatusInactive  = "inactive"
+	AgentStatusArchived  = "archived"
+	DefaultAgentModelID  = "gemini-1.5-pro"
+	DefaultAgentProvider = "google"
+	DefaultAgentStatus   = "active"
+
+	ConnectionStatusActive       = "active"
+	ConnectionStatusInvalid      = "invalid"
+	ConnectionStatusDisconnected = "disconnected"
+	DefaultConnectionProvider    = "google"
+	DefaultConnectionStatus      = "active"
+)
+
+// NormalizeAgentStatus validates and returns lowercase agent status.
+func NormalizeAgentStatus(status string) (string, error) {
+	norm := strings.ToLower(strings.TrimSpace(status))
+	if norm == "" {
+		return AgentStatusActive, nil
+	}
+	switch norm {
+	case AgentStatusActive, AgentStatusInactive, AgentStatusArchived:
+		return norm, nil
+	default:
+		return "", ErrInvalidAgentStatus
+	}
+}
+
+// NormalizeConnectionStatus validates and returns lowercase connection status.
+func NormalizeConnectionStatus(status string) (string, error) {
+	norm := strings.ToLower(strings.TrimSpace(status))
+	if norm == "" {
+		return ConnectionStatusActive, nil
+	}
+	switch norm {
+	case ConnectionStatusActive, ConnectionStatusInvalid, ConnectionStatusDisconnected:
+		return norm, nil
+	default:
+		return "", ErrInvalidConnectionStatus
+	}
+}
+
+// Agent represents an autonomous or interactive AI assistant persona in the system.
+type Agent struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Avatar       string    `json:"avatar"`
+	Role         string    `json:"role"`
+	SystemPrompt string    `json:"system_prompt"`
+	ModelID      string    `json:"model_id"`
+	Provider     string    `json:"provider"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// Clone returns a deep copy of the Agent.
+func (a *Agent) Clone() *Agent {
+	if a == nil {
+		return nil
+	}
+	return &Agent{
+		ID:           a.ID,
+		Name:         a.Name,
+		Avatar:       a.Avatar,
+		Role:         a.Role,
+		SystemPrompt: a.SystemPrompt,
+		ModelID:      a.ModelID,
+		Provider:     a.Provider,
+		Status:       a.Status,
+		CreatedAt:    a.CreatedAt,
+		UpdatedAt:    a.UpdatedAt,
+	}
+}
+
+// AgentDTO represents the public Data Transfer Object for an Agent.
+type AgentDTO struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Avatar       string    `json:"avatar"`
+	Role         string    `json:"role"`
+	SystemPrompt string    `json:"system_prompt"`
+	ModelID      string    `json:"model_id"`
+	Provider     string    `json:"provider"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// ToDTO converts an Agent entity to its public AgentDTO representation.
+func (a *Agent) ToDTO() AgentDTO {
+	return AgentDTO{
+		ID:           a.ID,
+		Name:         a.Name,
+		Avatar:       a.Avatar,
+		Role:         a.Role,
+		SystemPrompt: a.SystemPrompt,
+		ModelID:      a.ModelID,
+		Provider:     a.Provider,
+		Status:       a.Status,
+		CreatedAt:    a.CreatedAt,
+		UpdatedAt:    a.UpdatedAt,
+	}
+}
+
+// CreateAgentInput holds parameters for registering a new agent.
+type CreateAgentInput struct {
+	ID           string `json:"id,omitempty"`
+	Name         string `json:"name"`
+	Avatar       string `json:"avatar,omitempty"`
+	Role         string `json:"role,omitempty"`
+	SystemPrompt string `json:"system_prompt,omitempty"`
+	ModelID      string `json:"model_id,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+	Status       string `json:"status,omitempty"`
+}
+
+// Validate checks constraints on CreateAgentInput.
+func (in *CreateAgentInput) Validate() error {
+	if strings.TrimSpace(in.Name) == "" {
+		return ErrEmptyAgentName
+	}
+	if in.Status != "" {
+		if _, err := NormalizeAgentStatus(in.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ToEntity transforms CreateAgentInput into an Agent entity with sensible defaults.
+func (in *CreateAgentInput) ToEntity() (*Agent, error) {
+	if err := in.Validate(); err != nil {
+		return nil, err
+	}
+	status := DefaultAgentStatus
+	if in.Status != "" {
+		norm, err := NormalizeAgentStatus(in.Status)
+		if err != nil {
+			return nil, err
+		}
+		status = norm
+	}
+	modelID := strings.TrimSpace(in.ModelID)
+	if modelID == "" {
+		modelID = DefaultAgentModelID
+	}
+	provider := strings.TrimSpace(in.Provider)
+	if provider == "" {
+		provider = DefaultAgentProvider
+	}
+	id := strings.TrimSpace(in.ID)
+	if id == "" {
+		id = GenerateUUID()
+	}
+
+	return &Agent{
+		ID:           id,
+		Name:         strings.TrimSpace(in.Name),
+		Avatar:       strings.TrimSpace(in.Avatar),
+		Role:         strings.TrimSpace(in.Role),
+		SystemPrompt: strings.TrimSpace(in.SystemPrompt),
+		ModelID:      modelID,
+		Provider:     provider,
+		Status:       status,
+	}, nil
+}
+
+// UpdateAgentInput specifies mutable fields on an existing Agent.
+type UpdateAgentInput struct {
+	Name         *string `json:"name,omitempty"`
+	Avatar       *string `json:"avatar,omitempty"`
+	Role         *string `json:"role,omitempty"`
+	SystemPrompt *string `json:"system_prompt,omitempty"`
+	ModelID      *string `json:"model_id,omitempty"`
+	Provider     *string `json:"provider,omitempty"`
+	Status       *string `json:"status,omitempty"`
+}
+
+// Validate verifies non-nil fields in UpdateAgentInput.
+func (in *UpdateAgentInput) Validate() error {
+	if in.Name != nil && strings.TrimSpace(*in.Name) == "" {
+		return ErrEmptyAgentName
+	}
+	if in.Status != nil {
+		if _, err := NormalizeAgentStatus(*in.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ApplyTo modifies the provided Agent in-place.
+func (in *UpdateAgentInput) ApplyTo(agent *Agent) error {
+	if err := in.Validate(); err != nil {
+		return err
+	}
+	if in.Name != nil {
+		agent.Name = strings.TrimSpace(*in.Name)
+	}
+	if in.Avatar != nil {
+		agent.Avatar = strings.TrimSpace(*in.Avatar)
+	}
+	if in.Role != nil {
+		agent.Role = strings.TrimSpace(*in.Role)
+	}
+	if in.SystemPrompt != nil {
+		agent.SystemPrompt = strings.TrimSpace(*in.SystemPrompt)
+	}
+	if in.ModelID != nil && strings.TrimSpace(*in.ModelID) != "" {
+		agent.ModelID = strings.TrimSpace(*in.ModelID)
+	}
+	if in.Provider != nil && strings.TrimSpace(*in.Provider) != "" {
+		agent.Provider = strings.TrimSpace(*in.Provider)
+	}
+	if in.Status != nil {
+		norm, _ := NormalizeAgentStatus(*in.Status)
+		agent.Status = norm
+	}
+	return nil
+}
+
+// AgentFilter configures filtering and pagination for listing agents.
+type AgentFilter struct {
+	Provider string `json:"provider,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Role     string `json:"role,omitempty"`
+	Search   string `json:"search,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+	Offset   int    `json:"offset,omitempty"`
+}
+
+// AgentConnection stores third-party LLM provider credentials and configurations for a user.
+type AgentConnection struct {
+	ID                   string    `json:"id"`
+	UserID               string    `json:"user_id"`
+	Provider             string    `json:"provider"`
+	CredentialsEncrypted string    `json:"-"` // Omitted from public JSON to prevent credential leakage
+	PlanHint             string    `json:"plan_hint"`
+	Status               string    `json:"status"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+}
+
+// Clone returns a deep copy of the AgentConnection.
+func (c *AgentConnection) Clone() *AgentConnection {
+	if c == nil {
+		return nil
+	}
+	return &AgentConnection{
+		ID:                   c.ID,
+		UserID:               c.UserID,
+		Provider:             c.Provider,
+		CredentialsEncrypted: c.CredentialsEncrypted,
+		PlanHint:             c.PlanHint,
+		Status:               c.Status,
+		CreatedAt:            c.CreatedAt,
+		UpdatedAt:            c.UpdatedAt,
+	}
+}
+
+// AgentConnectionDTO is a sanitized Data Transfer Object for public API responses.
+type AgentConnectionDTO struct {
+	ID             string    `json:"id"`
+	UserID         string    `json:"user_id"`
+	Provider       string    `json:"provider"`
+	PlanHint       string    `json:"plan_hint"`
+	Status         string    `json:"status"`
+	HasCredentials bool      `json:"has_credentials"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// ToDTO converts an AgentConnection into its sanitized public DTO.
+func (c *AgentConnection) ToDTO() AgentConnectionDTO {
+	return AgentConnectionDTO{
+		ID:             c.ID,
+		UserID:         c.UserID,
+		Provider:       c.Provider,
+		PlanHint:       c.PlanHint,
+		Status:         c.Status,
+		HasCredentials: strings.TrimSpace(c.CredentialsEncrypted) != "",
+		CreatedAt:      c.CreatedAt,
+		UpdatedAt:      c.UpdatedAt,
+	}
+}
+
+// CreateAgentConnectionInput contains attributes for creating an AgentConnection.
+type CreateAgentConnectionInput struct {
+	ID                   string `json:"id,omitempty"`
+	UserID               string `json:"user_id"`
+	Provider             string `json:"provider,omitempty"`
+	CredentialsEncrypted string `json:"credentials_encrypted,omitempty"`
+	PlanHint             string `json:"plan_hint,omitempty"`
+	Status               string `json:"status,omitempty"`
+}
+
+// Validate checks validity of CreateAgentConnectionInput.
+func (in *CreateAgentConnectionInput) Validate() error {
+	if strings.TrimSpace(in.UserID) == "" {
+		return ErrEmptyUserID
+	}
+	if in.Status != "" {
+		if _, err := NormalizeConnectionStatus(in.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ToEntity transforms input into an AgentConnection entity.
+func (in *CreateAgentConnectionInput) ToEntity() (*AgentConnection, error) {
+	if err := in.Validate(); err != nil {
+		return nil, err
+	}
+	status := DefaultConnectionStatus
+	if in.Status != "" {
+		norm, err := NormalizeConnectionStatus(in.Status)
+		if err != nil {
+			return nil, err
+		}
+		status = norm
+	}
+	provider := strings.TrimSpace(in.Provider)
+	if provider == "" {
+		provider = DefaultConnectionProvider
+	}
+	id := strings.TrimSpace(in.ID)
+	if id == "" {
+		id = GenerateUUID()
+	}
+
+	return &AgentConnection{
+		ID:                   id,
+		UserID:               strings.TrimSpace(in.UserID),
+		Provider:             provider,
+		CredentialsEncrypted: strings.TrimSpace(in.CredentialsEncrypted),
+		PlanHint:             strings.TrimSpace(in.PlanHint),
+		Status:               status,
+	}, nil
+}
+
+// UpdateAgentConnectionInput specifies mutable fields for an AgentConnection.
+type UpdateAgentConnectionInput struct {
+	Provider             *string `json:"provider,omitempty"`
+	CredentialsEncrypted *string `json:"credentials_encrypted,omitempty"`
+	PlanHint             *string `json:"plan_hint,omitempty"`
+	Status               *string `json:"status,omitempty"`
+}
+
+// Validate validates non-nil fields of UpdateAgentConnectionInput.
+func (in *UpdateAgentConnectionInput) Validate() error {
+	if in.Status != nil {
+		if _, err := NormalizeConnectionStatus(*in.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ApplyTo modifies the target AgentConnection in-place.
+func (in *UpdateAgentConnectionInput) ApplyTo(conn *AgentConnection) error {
+	if err := in.Validate(); err != nil {
+		return err
+	}
+	if in.Provider != nil && strings.TrimSpace(*in.Provider) != "" {
+		conn.Provider = strings.TrimSpace(*in.Provider)
+	}
+	if in.CredentialsEncrypted != nil {
+		conn.CredentialsEncrypted = strings.TrimSpace(*in.CredentialsEncrypted)
+	}
+	if in.PlanHint != nil {
+		conn.PlanHint = strings.TrimSpace(*in.PlanHint)
+	}
+	if in.Status != nil {
+		norm, _ := NormalizeConnectionStatus(*in.Status)
+		conn.Status = norm
+	}
+	return nil
+}
+
+// AgentConnectionFilter configures criteria for querying connections.
+type AgentConnectionFilter struct {
+	UserID   string `json:"user_id,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+	Offset   int    `json:"offset,omitempty"`
+}
+
+// AgentRepository defines storage operations for Agents and AgentConnections.
+type AgentRepository interface {
+	// Agent methods
+	CreateAgent(ctx context.Context, agent *Agent) error
+	GetAgentByID(ctx context.Context, id string) (*Agent, error)
+	ListAgents(ctx context.Context, filter AgentFilter) ([]Agent, error)
+	UpdateAgent(ctx context.Context, agent *Agent) error
+	DeleteAgent(ctx context.Context, id string) error
+	CountAgents(ctx context.Context, filter AgentFilter) (int, error)
+
+	// AgentConnection methods
+	CreateConnection(ctx context.Context, conn *AgentConnection) error
+	GetConnectionByID(ctx context.Context, id string) (*AgentConnection, error)
+	GetConnectionByUserAndProvider(ctx context.Context, userID, provider string) (*AgentConnection, error)
+	ListConnections(ctx context.Context, filter AgentConnectionFilter) ([]AgentConnection, error)
+	UpdateConnection(ctx context.Context, conn *AgentConnection) error
+	DeleteConnection(ctx context.Context, id string) error
+	CountConnections(ctx context.Context, filter AgentConnectionFilter) (int, error)
+}
+
+// ============================================================================
+// SQL Implementation (PostgreSQL)
+// ============================================================================
+
+type SQLAgentRepository struct {
+	db *sql.DB
+}
+
+// NewSQLAgentRepository constructs an AgentRepository backed by PostgreSQL.
+func NewSQLAgentRepository(db *sql.DB) *SQLAgentRepository {
+	return &SQLAgentRepository{db: db}
+}
+
+func (r *SQLAgentRepository) CreateAgent(ctx context.Context, agent *Agent) error {
+	if agent == nil {
+		return errors.New("agent cannot be nil")
+	}
+	if strings.TrimSpace(agent.Name) == "" {
+		return ErrEmptyAgentName
+	}
+	normStatus, err := NormalizeAgentStatus(agent.Status)
+	if err != nil {
+		return err
+	}
+	agent.Status = normStatus
+
+	if strings.TrimSpace(agent.ID) == "" {
+		agent.ID = GenerateUUID()
+	}
+	if strings.TrimSpace(agent.ModelID) == "" {
+		agent.ModelID = DefaultAgentModelID
+	}
+	if strings.TrimSpace(agent.Provider) == "" {
+		agent.Provider = DefaultAgentProvider
+	}
+
+	now := time.Now().UTC()
+	if agent.CreatedAt.IsZero() {
+		agent.CreatedAt = now
+	}
+	if agent.UpdatedAt.IsZero() {
+		agent.UpdatedAt = now
+	}
+
+	query := `
+		INSERT INTO agents (
+			id, name, avatar, role, system_prompt, model_id, provider, status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
+	_, err = r.db.ExecContext(
+		ctx,
+		query,
+		agent.ID,
+		agent.Name,
+		agent.Avatar,
+		agent.Role,
+		agent.SystemPrompt,
+		agent.ModelID,
+		agent.Provider,
+		agent.Status,
+		agent.CreatedAt,
+		agent.UpdatedAt,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			return ErrDuplicateAgent
+		}
+		return fmt.Errorf("create agent: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agent, error) {
+	query := `
+		SELECT id, name, avatar, role, system_prompt, model_id, provider, status, created_at, updated_at
+		FROM agents
+		WHERE id = $1
+	`
+	var a Agent
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&a.ID,
+		&a.Name,
+		&a.Avatar,
+		&a.Role,
+		&a.SystemPrompt,
+		&a.ModelID,
+		&a.Provider,
+		&a.Status,
+		&a.CreatedAt,
+		&a.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrAgentNotFound
+		}
+		return nil, fmt.Errorf("get agent by id: %w", err)
+	}
+	return &a, nil
+}
+
+func (r *SQLAgentRepository) ListAgents(ctx context.Context, filter AgentFilter) ([]Agent, error) {
+	var conditions []string
+	var args []interface{}
+	idx := 1
+
+	if strings.TrimSpace(filter.Provider) != "" {
+		conditions = append(conditions, fmt.Sprintf("provider = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Provider))
+		idx++
+	}
+	if strings.TrimSpace(filter.Status) != "" {
+		conditions = append(conditions, fmt.Sprintf("status = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Status))
+		idx++
+	}
+	if strings.TrimSpace(filter.Role) != "" {
+		conditions = append(conditions, fmt.Sprintf("role = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Role))
+		idx++
+	}
+	if strings.TrimSpace(filter.Search) != "" {
+		pattern := "%" + strings.TrimSpace(filter.Search) + "%"
+		conditions = append(conditions, fmt.Sprintf("(name ILIKE $%d OR role ILIKE $%d OR system_prompt ILIKE $%d)", idx, idx, idx))
+		args = append(args, pattern)
+		idx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, name, avatar, role, system_prompt, model_id, provider, status, created_at, updated_at
+		FROM agents
+		%s
+		ORDER BY created_at DESC
+	`, whereClause)
+
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", idx)
+		args = append(args, filter.Limit)
+		idx++
+	}
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", idx)
+		args = append(args, filter.Offset)
+		idx++
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list agents: %w", err)
+	}
+	defer rows.Close()
+
+	var agents []Agent
+	for rows.Next() {
+		var a Agent
+		if err := rows.Scan(
+			&a.ID,
+			&a.Name,
+			&a.Avatar,
+			&a.Role,
+			&a.SystemPrompt,
+			&a.ModelID,
+			&a.Provider,
+			&a.Status,
+			&a.CreatedAt,
+			&a.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan agent: %w", err)
+		}
+		agents = append(agents, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return agents, nil
+}
+
+func (r *SQLAgentRepository) UpdateAgent(ctx context.Context, agent *Agent) error {
+	if agent == nil {
+		return errors.New("agent cannot be nil")
+	}
+	if strings.TrimSpace(agent.Name) == "" {
+		return ErrEmptyAgentName
+	}
+	normStatus, err := NormalizeAgentStatus(agent.Status)
+	if err != nil {
+		return err
+	}
+	agent.Status = normStatus
+	agent.UpdatedAt = time.Now().UTC()
+
+	query := `
+		UPDATE agents
+		SET name = $1, avatar = $2, role = $3, system_prompt = $4, model_id = $5, provider = $6, status = $7, updated_at = $8
+		WHERE id = $9
+	`
+	res, err := r.db.ExecContext(
+		ctx,
+		query,
+		agent.Name,
+		agent.Avatar,
+		agent.Role,
+		agent.SystemPrompt,
+		agent.ModelID,
+		agent.Provider,
+		agent.Status,
+		agent.UpdatedAt,
+		agent.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update agent: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrAgentNotFound
+	}
+	return nil
+}
+
+func (r *SQLAgentRepository) DeleteAgent(ctx context.Context, id string) error {
+	query := `DELETE FROM agents WHERE id = $1`
+	res, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete agent: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrAgentNotFound
+	}
+	return nil
+}
+
+func (r *SQLAgentRepository) CountAgents(ctx context.Context, filter AgentFilter) (int, error) {
+	var conditions []string
+	var args []interface{}
+	idx := 1
+
+	if strings.TrimSpace(filter.Provider) != "" {
+		conditions = append(conditions, fmt.Sprintf("provider = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Provider))
+		idx++
+	}
+	if strings.TrimSpace(filter.Status) != "" {
+		conditions = append(conditions, fmt.Sprintf("status = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Status))
+		idx++
+	}
+	if strings.TrimSpace(filter.Role) != "" {
+		conditions = append(conditions, fmt.Sprintf("role = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Role))
+		idx++
+	}
+	if strings.TrimSpace(filter.Search) != "" {
+		pattern := "%" + strings.TrimSpace(filter.Search) + "%"
+		conditions = append(conditions, fmt.Sprintf("(name ILIKE $%d OR role ILIKE $%d OR system_prompt ILIKE $%d)", idx, idx, idx))
+		args = append(args, pattern)
+		idx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM agents %s`, whereClause)
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count agents: %w", err)
+	}
+	return count, nil
+}
+
+func (r *SQLAgentRepository) CreateConnection(ctx context.Context, conn *AgentConnection) error {
+	if conn == nil {
+		return errors.New("connection cannot be nil")
+	}
+	if strings.TrimSpace(conn.UserID) == "" {
+		return ErrEmptyUserID
+	}
+	normStatus, err := NormalizeConnectionStatus(conn.Status)
+	if err != nil {
+		return err
+	}
+	conn.Status = normStatus
+
+	if strings.TrimSpace(conn.ID) == "" {
+		conn.ID = GenerateUUID()
+	}
+	if strings.TrimSpace(conn.Provider) == "" {
+		conn.Provider = DefaultConnectionProvider
+	}
+
+	now := time.Now().UTC()
+	if conn.CreatedAt.IsZero() {
+		conn.CreatedAt = now
+	}
+	if conn.UpdatedAt.IsZero() {
+		conn.UpdatedAt = now
+	}
+
+	query := `
+		INSERT INTO agent_connections (
+			id, user_id, provider, credentials_encrypted, plan_hint, status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+	_, err = r.db.ExecContext(
+		ctx,
+		query,
+		conn.ID,
+		conn.UserID,
+		conn.Provider,
+		conn.CredentialsEncrypted,
+		conn.PlanHint,
+		conn.Status,
+		conn.CreatedAt,
+		conn.UpdatedAt,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			return ErrDuplicateConnection
+		}
+		return fmt.Errorf("create agent connection: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLAgentRepository) GetConnectionByID(ctx context.Context, id string) (*AgentConnection, error) {
+	query := `
+		SELECT id, user_id, provider, credentials_encrypted, plan_hint, status, created_at, updated_at
+		FROM agent_connections
+		WHERE id = $1
+	`
+	var c AgentConnection
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&c.ID,
+		&c.UserID,
+		&c.Provider,
+		&c.CredentialsEncrypted,
+		&c.PlanHint,
+		&c.Status,
+		&c.CreatedAt,
+		&c.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrAgentConnectionNotFound
+		}
+		return nil, fmt.Errorf("get agent connection by id: %w", err)
+	}
+	return &c, nil
+}
+
+func (r *SQLAgentRepository) GetConnectionByUserAndProvider(ctx context.Context, userID, provider string) (*AgentConnection, error) {
+	query := `
+		SELECT id, user_id, provider, credentials_encrypted, plan_hint, status, created_at, updated_at
+		FROM agent_connections
+		WHERE user_id = $1 AND provider = $2
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	var c AgentConnection
+	err := r.db.QueryRowContext(ctx, query, userID, provider).Scan(
+		&c.ID,
+		&c.UserID,
+		&c.Provider,
+		&c.CredentialsEncrypted,
+		&c.PlanHint,
+		&c.Status,
+		&c.CreatedAt,
+		&c.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrAgentConnectionNotFound
+		}
+		return nil, fmt.Errorf("get agent connection by user and provider: %w", err)
+	}
+	return &c, nil
+}
+
+func (r *SQLAgentRepository) ListConnections(ctx context.Context, filter AgentConnectionFilter) ([]AgentConnection, error) {
+	var conditions []string
+	var args []interface{}
+	idx := 1
+
+	if strings.TrimSpace(filter.UserID) != "" {
+		conditions = append(conditions, fmt.Sprintf("user_id = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.UserID))
+		idx++
+	}
+	if strings.TrimSpace(filter.Provider) != "" {
+		conditions = append(conditions, fmt.Sprintf("provider = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Provider))
+		idx++
+	}
+	if strings.TrimSpace(filter.Status) != "" {
+		conditions = append(conditions, fmt.Sprintf("status = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Status))
+		idx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, user_id, provider, credentials_encrypted, plan_hint, status, created_at, updated_at
+		FROM agent_connections
+		%s
+		ORDER BY created_at DESC
+	`, whereClause)
+
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", idx)
+		args = append(args, filter.Limit)
+		idx++
+	}
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", idx)
+		args = append(args, filter.Offset)
+		idx++
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list connections: %w", err)
+	}
+	defer rows.Close()
+
+	var list []AgentConnection
+	for rows.Next() {
+		var c AgentConnection
+		if err := rows.Scan(
+			&c.ID,
+			&c.UserID,
+			&c.Provider,
+			&c.CredentialsEncrypted,
+			&c.PlanHint,
+			&c.Status,
+			&c.CreatedAt,
+			&c.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan connection: %w", err)
+		}
+		list = append(list, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return list, nil
+}
+
+func (r *SQLAgentRepository) UpdateConnection(ctx context.Context, conn *AgentConnection) error {
+	if conn == nil {
+		return errors.New("connection cannot be nil")
+	}
+	normStatus, err := NormalizeConnectionStatus(conn.Status)
+	if err != nil {
+		return err
+	}
+	conn.Status = normStatus
+	conn.UpdatedAt = time.Now().UTC()
+
+	query := `
+		UPDATE agent_connections
+		SET provider = $1, credentials_encrypted = $2, plan_hint = $3, status = $4, updated_at = $5
+		WHERE id = $6
+	`
+	res, err := r.db.ExecContext(
+		ctx,
+		query,
+		conn.Provider,
+		conn.CredentialsEncrypted,
+		conn.PlanHint,
+		conn.Status,
+		conn.UpdatedAt,
+		conn.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update connection: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrAgentConnectionNotFound
+	}
+	return nil
+}
+
+func (r *SQLAgentRepository) DeleteConnection(ctx context.Context, id string) error {
+	query := `DELETE FROM agent_connections WHERE id = $1`
+	res, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete connection: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrAgentConnectionNotFound
+	}
+	return nil
+}
+
+func (r *SQLAgentRepository) CountConnections(ctx context.Context, filter AgentConnectionFilter) (int, error) {
+	var conditions []string
+	var args []interface{}
+	idx := 1
+
+	if strings.TrimSpace(filter.UserID) != "" {
+		conditions = append(conditions, fmt.Sprintf("user_id = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.UserID))
+		idx++
+	}
+	if strings.TrimSpace(filter.Provider) != "" {
+		conditions = append(conditions, fmt.Sprintf("provider = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Provider))
+		idx++
+	}
+	if strings.TrimSpace(filter.Status) != "" {
+		conditions = append(conditions, fmt.Sprintf("status = $%d", idx))
+		args = append(args, strings.TrimSpace(filter.Status))
+		idx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM agent_connections %s`, whereClause)
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count connections: %w", err)
+	}
+	return count, nil
+}
+
+// ============================================================================
+// Thread-Safe In-Memory Store
+// ============================================================================
+
+type MemoryAgentRepository struct {
+	mu          sync.RWMutex
+	agents      map[string]*Agent
+	connections map[string]*AgentConnection
+}
+
+// NewMemoryAgentRepository creates a new thread-safe in-memory AgentRepository.
+func NewMemoryAgentRepository() *MemoryAgentRepository {
+	return &MemoryAgentRepository{
+		agents:      make(map[string]*Agent),
+		connections: make(map[string]*AgentConnection),
+	}
+}
+
+func (m *MemoryAgentRepository) CreateAgent(_ context.Context, agent *Agent) error {
+	if agent == nil {
+		return errors.New("agent cannot be nil")
+	}
+	if strings.TrimSpace(agent.Name) == "" {
+		return ErrEmptyAgentName
+	}
+	normStatus, err := NormalizeAgentStatus(agent.Status)
+	if err != nil {
+		return err
+	}
+	agent.Status = normStatus
+
+	if strings.TrimSpace(agent.ID) == "" {
+		agent.ID = GenerateUUID()
+	}
+	if strings.TrimSpace(agent.ModelID) == "" {
+		agent.ModelID = DefaultAgentModelID
+	}
+	if strings.TrimSpace(agent.Provider) == "" {
+		agent.Provider = DefaultAgentProvider
+	}
+
+	now := time.Now().UTC()
+	if agent.CreatedAt.IsZero() {
+		agent.CreatedAt = now
+	}
+	if agent.UpdatedAt.IsZero() {
+		agent.UpdatedAt = now
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.agents[agent.ID]; exists {
+		return ErrDuplicateAgent
+	}
+	m.agents[agent.ID] = agent.Clone()
+	return nil
+}
+
+func (m *MemoryAgentRepository) GetAgentByID(_ context.Context, id string) (*Agent, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	a, exists := m.agents[id]
+	if !exists {
+		return nil, ErrAgentNotFound
+	}
+	return a.Clone(), nil
+}
+
+func (m *MemoryAgentRepository) ListAgents(_ context.Context, filter AgentFilter) ([]Agent, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var list []Agent
+	search := strings.ToLower(strings.TrimSpace(filter.Search))
+
+	for _, a := range m.agents {
+		if filter.Provider != "" && !strings.EqualFold(a.Provider, filter.Provider) {
+			continue
+		}
+		if filter.Status != "" && !strings.EqualFold(a.Status, filter.Status) {
+			continue
+		}
+		if filter.Role != "" && !strings.EqualFold(a.Role, filter.Role) {
+			continue
+		}
+		if search != "" {
+			nameMatch := strings.Contains(strings.ToLower(a.Name), search)
+			roleMatch := strings.Contains(strings.ToLower(a.Role), search)
+			promptMatch := strings.Contains(strings.ToLower(a.SystemPrompt), search)
+			if !nameMatch && !roleMatch && !promptMatch {
+				continue
+			}
+		}
+		list = append(list, *a.Clone())
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].CreatedAt.Equal(list[j].CreatedAt) {
+			return list[i].ID > list[j].ID
+		}
+		return list[i].CreatedAt.After(list[j].CreatedAt)
+	})
+
+	if filter.Offset > 0 {
+		if filter.Offset >= len(list) {
+			return []Agent{}, nil
+		}
+		list = list[filter.Offset:]
+	}
+	if filter.Limit > 0 && len(list) > filter.Limit {
+		list = list[:filter.Limit]
+	}
+
+	return list, nil
+}
+
+func (m *MemoryAgentRepository) UpdateAgent(_ context.Context, agent *Agent) error {
+	if agent == nil {
+		return errors.New("agent cannot be nil")
+	}
+	if strings.TrimSpace(agent.Name) == "" {
+		return ErrEmptyAgentName
+	}
+	normStatus, err := NormalizeAgentStatus(agent.Status)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	existing, exists := m.agents[agent.ID]
+	if !exists {
+		return ErrAgentNotFound
+	}
+
+	existing.Name = agent.Name
+	existing.Avatar = agent.Avatar
+	existing.Role = agent.Role
+	existing.SystemPrompt = agent.SystemPrompt
+	if strings.TrimSpace(agent.ModelID) != "" {
+		existing.ModelID = agent.ModelID
+	}
+	if strings.TrimSpace(agent.Provider) != "" {
+		existing.Provider = agent.Provider
+	}
+	existing.Status = normStatus
+	existing.UpdatedAt = time.Now().UTC()
+
+	return nil
+}
+
+func (m *MemoryAgentRepository) DeleteAgent(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.agents[id]; !exists {
+		return ErrAgentNotFound
+	}
+	delete(m.agents, id)
+	return nil
+}
+
+func (m *MemoryAgentRepository) CountAgents(_ context.Context, filter AgentFilter) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	count := 0
+	search := strings.ToLower(strings.TrimSpace(filter.Search))
+
+	for _, a := range m.agents {
+		if filter.Provider != "" && !strings.EqualFold(a.Provider, filter.Provider) {
+			continue
+		}
+		if filter.Status != "" && !strings.EqualFold(a.Status, filter.Status) {
+			continue
+		}
+		if filter.Role != "" && !strings.EqualFold(a.Role, filter.Role) {
+			continue
+		}
+		if search != "" {
+			nameMatch := strings.Contains(strings.ToLower(a.Name), search)
+			roleMatch := strings.Contains(strings.ToLower(a.Role), search)
+			promptMatch := strings.Contains(strings.ToLower(a.SystemPrompt), search)
+			if !nameMatch && !roleMatch && !promptMatch {
+				continue
+			}
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (m *MemoryAgentRepository) CreateConnection(_ context.Context, conn *AgentConnection) error {
+	if conn == nil {
+		return errors.New("connection cannot be nil")
+	}
+	if strings.TrimSpace(conn.UserID) == "" {
+		return ErrEmptyUserID
+	}
+	normStatus, err := NormalizeConnectionStatus(conn.Status)
+	if err != nil {
+		return err
+	}
+	conn.Status = normStatus
+
+	if strings.TrimSpace(conn.ID) == "" {
+		conn.ID = GenerateUUID()
+	}
+	if strings.TrimSpace(conn.Provider) == "" {
+		conn.Provider = DefaultConnectionProvider
+	}
+
+	now := time.Now().UTC()
+	if conn.CreatedAt.IsZero() {
+		conn.CreatedAt = now
+	}
+	if conn.UpdatedAt.IsZero() {
+		conn.UpdatedAt = now
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.connections[conn.ID]; exists {
+		return ErrDuplicateConnection
+	}
+	m.connections[conn.ID] = conn.Clone()
+	return nil
+}
+
+func (m *MemoryAgentRepository) GetConnectionByID(_ context.Context, id string) (*AgentConnection, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	c, exists := m.connections[id]
+	if !exists {
+		return nil, ErrAgentConnectionNotFound
+	}
+	return c.Clone(), nil
+}
+
+func (m *MemoryAgentRepository) GetConnectionByUserAndProvider(_ context.Context, userID, provider string) (*AgentConnection, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var matches []*AgentConnection
+	for _, c := range m.connections {
+		if c.UserID == userID && strings.EqualFold(c.Provider, provider) {
+			matches = append(matches, c.Clone())
+		}
+	}
+	if len(matches) == 0 {
+		return nil, ErrAgentConnectionNotFound
+	}
+
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].CreatedAt.After(matches[j].CreatedAt)
+	})
+	return matches[0], nil
+}
+
+func (m *MemoryAgentRepository) ListConnections(_ context.Context, filter AgentConnectionFilter) ([]AgentConnection, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var list []AgentConnection
+	for _, c := range m.connections {
+		if filter.UserID != "" && c.UserID != filter.UserID {
+			continue
+		}
+		if filter.Provider != "" && !strings.EqualFold(c.Provider, filter.Provider) {
+			continue
+		}
+		if filter.Status != "" && !strings.EqualFold(c.Status, filter.Status) {
+			continue
+		}
+		list = append(list, *c.Clone())
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].CreatedAt.Equal(list[j].CreatedAt) {
+			return list[i].ID > list[j].ID
+		}
+		return list[i].CreatedAt.After(list[j].CreatedAt)
+	})
+
+	if filter.Offset > 0 {
+		if filter.Offset >= len(list) {
+			return []AgentConnection{}, nil
+		}
+		list = list[filter.Offset:]
+	}
+	if filter.Limit > 0 && len(list) > filter.Limit {
+		list = list[:filter.Limit]
+	}
+
+	return list, nil
+}
+
+func (m *MemoryAgentRepository) UpdateConnection(_ context.Context, conn *AgentConnection) error {
+	if conn == nil {
+		return errors.New("connection cannot be nil")
+	}
+	normStatus, err := NormalizeConnectionStatus(conn.Status)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	existing, exists := m.connections[conn.ID]
+	if !exists {
+		return ErrAgentConnectionNotFound
+	}
+
+	if strings.TrimSpace(conn.Provider) != "" {
+		existing.Provider = conn.Provider
+	}
+	existing.CredentialsEncrypted = conn.CredentialsEncrypted
+	existing.PlanHint = conn.PlanHint
+	existing.Status = normStatus
+	existing.UpdatedAt = time.Now().UTC()
+
+	return nil
+}
+
+func (m *MemoryAgentRepository) DeleteConnection(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.connections[id]; !exists {
+		return ErrAgentConnectionNotFound
+	}
+	delete(m.connections, id)
+	return nil
+}
+
+func (m *MemoryAgentRepository) CountConnections(_ context.Context, filter AgentConnectionFilter) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	count := 0
+	for _, c := range m.connections {
+		if filter.UserID != "" && c.UserID != filter.UserID {
+			continue
+		}
+		if filter.Provider != "" && !strings.EqualFold(c.Provider, filter.Provider) {
+			continue
+		}
+		if filter.Status != "" && !strings.EqualFold(c.Status, filter.Status) {
+			continue
+		}
+		count++
+	}
+	return count, nil
+}
