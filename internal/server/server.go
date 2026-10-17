@@ -60,6 +60,7 @@ type Server struct {
 	batchCampaignRepo   cuanDB.BatchCampaignRepository
 	agentRepo           cuanDB.AgentRepository
 	blueprintEngine     *creator.BlueprintEngine
+	taskExecutionEngine *creator.TaskExecutionEngine
 	providerRegistry    *agent.ProviderRegistry
 	distillerEngine     *studio.DistillerEngine
 	agentExecutionHook  studio.AgentExecutionHook
@@ -315,6 +316,18 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		)
 	}
 
+	roomBroker := NewRoomEventBroker()
+	var pStore project.Store
+	if pSvc != nil {
+		pStore = pSvc.Store()
+	}
+	taskExecEngine := creator.NewTaskExecutionEngine(
+		creator.WithExecutionStudioRepo(studioRepo),
+		creator.WithExecutionAgentRepo(agentRepo),
+		creator.WithExecutionProjectStore(pStore),
+		creator.WithEventBroadcaster(roomBroker),
+	)
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -340,13 +353,14 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		batchCampaignRepo:   batchRepo,
 		agentRepo:           agentRepo,
 		blueprintEngine:     bpEngine,
+		taskExecutionEngine: taskExecEngine,
 		providerRegistry:    agent.DefaultRegistry(),
 		distillerEngine:     distiller,
 		agentExecutionHook:  agentHook,
 		campaignDecompiler:  campaignDecompiler,
 		campaignRunner:      campaignRunner,
 		campaignAggregator:  campaignAggregator,
-		roomEventBroker:     NewRoomEventBroker(),
+		roomEventBroker:     roomBroker,
 		terminalManager:     termMgr,
 		terminalHandler:     termHandler,
 		router:              r,
@@ -546,6 +560,14 @@ func (s *Server) SetBlueprintEngine(e *creator.BlueprintEngine) {
 	s.blueprintEngine = e
 }
 
+func (s *Server) TaskExecutionEngine() *creator.TaskExecutionEngine {
+	return s.taskExecutionEngine
+}
+
+func (s *Server) SetTaskExecutionEngine(e *creator.TaskExecutionEngine) {
+	s.taskExecutionEngine = e
+}
+
 func (s *Server) ProviderRegistry() *agent.ProviderRegistry {
 	if s.providerRegistry == nil {
 		s.providerRegistry = agent.DefaultRegistry()
@@ -737,6 +759,12 @@ func (s *Server) routes() {
 	s.router.Patch("/api/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 	s.router.Delete("/api/projects/tasks/{id}", s.handleDeleteProjectTask)
 
+	// In-Task Agentic Execution Engine (Sprint 10 S10.3)
+	s.router.Post("/api/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	s.router.Post("/api/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	s.router.Post("/api/v1/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	s.router.Post("/api/v1/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+
 	// WebSocket Pseudo-Terminal (PTY) Engine (Sprint 9 S09.3)
 	s.router.Get("/api/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
 	s.router.Delete("/api/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
@@ -925,6 +953,10 @@ func (s *Server) routes() {
 		r.Patch("/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 		r.Delete("/projects/tasks/{id}", s.handleDeleteProjectTask)
 		r.Patch("/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+
+		// In-Task Agentic Execution Engine in v1 (Sprint 10 S10.3)
+		r.Post("/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+		r.Post("/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 
 		// WebSocket Pseudo-Terminal (PTY) Engine in v1 (Sprint 9 S09.3)
 		r.Get("/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)

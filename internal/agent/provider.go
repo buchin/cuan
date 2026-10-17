@@ -38,6 +38,11 @@ type ConnectionProbeResult struct {
 	TestedAt        time.Time   `json:"tested_at"`
 }
 
+// ContentGenerator defines an interface for generating text content with LLM providers.
+type ContentGenerator interface {
+	GenerateContent(ctx context.Context, apiKey string, modelID string, systemInstruction string, userPrompt string) (string, error)
+}
+
 // Provider represents an LLM API provider (Google Gemini, OpenAI, Mock, etc.).
 type Provider interface {
 	Name() string
@@ -227,3 +232,28 @@ func (m *MockProvider) ListModels(ctx context.Context, credentials string) ([]Mo
 	}
 	return m.Models, nil
 }
+
+func (m *MockProvider) GenerateContent(ctx context.Context, apiKey string, modelID string, systemInstruction string, userPrompt string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.FailNext {
+		msg := m.FailureReason
+		if msg == "" {
+			msg = "simulated provider generation failure"
+		}
+		return "", errors.New(msg)
+	}
+
+	trimmed := strings.TrimSpace(apiKey)
+	if trimmed == "" {
+		return "", ErrInvalidCredentials
+	}
+
+	if isInvalidKey(trimmed) {
+		return "", ErrConnectionVerification
+	}
+
+	return generateOfflineMockContent(modelID, systemInstruction, userPrompt), nil
+}
+

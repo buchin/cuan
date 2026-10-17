@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/creator"
+	"github.com/buchin/cuan/internal/db"
 )
 
 type instantiateRequestPayload struct {
@@ -133,3 +134,65 @@ func (s *Server) handleInstantiateCreatorProject(w http.ResponseWriter, r *http.
 
 	respondJSON(w, http.StatusCreated, resp)
 }
+
+type executeTaskAgentRequestPayload struct {
+	Instructions string `json:"instructions,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
+	ModelID      string `json:"model_id,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+}
+
+// handleExecuteTaskAgent executes an AI agent for a specific project task.
+// Routes: POST /api/v1/tasks/{id}/execute-agent, POST /api/tasks/{id}/execute-agent
+// Aliases: POST /api/projects/tasks/{id}/execute-agent, POST /api/v1/projects/tasks/{id}/execute-agent
+func (s *Server) handleExecuteTaskAgent(w http.ResponseWriter, r *http.Request) {
+	if s.taskExecutionEngine == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "task execution engine is not configured")
+		return
+	}
+
+	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if taskID == "" {
+		respondJSONError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
+	if !db.IsValidUUID(taskID) {
+		respondJSONError(w, http.StatusBadRequest, "invalid task uuid format")
+		return
+	}
+
+	var payload executeTaskAgentRequestPayload
+	if r.Body != nil && r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+	}
+
+	req := creator.ExecuteTaskRequest{
+		TaskID:       taskID,
+		UserID:       strings.TrimSpace(payload.UserID),
+		Instructions: strings.TrimSpace(payload.Instructions),
+		ModelID:      strings.TrimSpace(payload.ModelID),
+		Provider:     strings.TrimSpace(payload.Provider),
+	}
+
+	resp, err := s.taskExecutionEngine.ExecuteTask(r.Context(), req)
+	if err != nil {
+		if errors.Is(err, db.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "project task not found")
+			return
+		}
+		if errors.Is(err, creator.ErrMissingGeminiKey) {
+			respondJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
+				"status":   "error",
+				"code":     "MISSING_GEMINI_KEY",
+				"error":    err.Error(),
+				"help_url": "/studio/agents",
+			})
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to execute task with agent: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, resp)
+}
+

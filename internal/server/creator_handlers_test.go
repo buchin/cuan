@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -402,3 +403,311 @@ func TestInstantiateCreatorProjects_ThreadSafety(t *testing.T) {
 		}
 	}
 }
+
+func TestExecuteTaskAgent_MissingGeminiKey_GracefulError(t *testing.T) {
+	srv := setupTestServerForCreator(t)
+
+	// 1. Instantiate a Blog Project
+	instPayload := map[string]interface{}{
+		"template_id":  creator.BlueprintBlog,
+		"project_name": "SEO Blog Without Key",
+	}
+	body, _ := json.Marshal(instPayload)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/creator/projects/instantiate", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on instantiate, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var instResp struct {
+		Tasks []db.ProjectTaskDTO `json:"tasks"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &instResp)
+	if len(instResp.Tasks) == 0 {
+		t.Fatalf("expected tasks created")
+	}
+	targetTask := instResp.Tasks[0]
+
+	// 2. Call POST /api/v1/tasks/{id}/execute-agent without configured key
+	execReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/tasks/%s/execute-agent", targetTask.ID), nil)
+	execW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(execW, execReq)
+
+	if execW.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 Unprocessable Entity, got %d: %s", execW.Code, execW.Body.String())
+	}
+
+	var errResp struct {
+		Status  string `json:"status"`
+		Code    string `json:"code"`
+		Error   string `json:"error"`
+		HelpURL string `json:"help_url"`
+	}
+	if err := json.Unmarshal(execW.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("failed to decode error json: %v", err)
+	}
+
+	if errResp.Code != "MISSING_GEMINI_KEY" {
+		t.Errorf("expected code 'MISSING_GEMINI_KEY', got %q", errResp.Code)
+	}
+	if !strings.Contains(errResp.Error, "Agent Hub") {
+		t.Errorf("expected error message to direct user to Agent Hub, got: %s", errResp.Error)
+	}
+	if errResp.HelpURL != "/studio/agents" {
+		t.Errorf("expected help_url '/studio/agents', got %q", errResp.HelpURL)
+	}
+}
+
+func TestExecuteTaskAgent_Success_FullWorkflow(t *testing.T) {
+	srv := setupTestServerForCreator(t)
+
+	// 1. Register Gemini Key via POST /api/agent-connections
+	connPayload := map[string]interface{}{
+		"provider":   "google",
+		"api_key":    "mock-gemini-pro-creator-key-vault",
+		"verify_now": false,
+	}
+	connBody, _ := json.Marshal(connPayload)
+	connReq := httptest.NewRequest(http.MethodPost, "/api/v1/agent-connections", bytes.NewReader(connBody))
+	connW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(connW, connReq)
+	if connW.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on create connection, got %d: %s", connW.Code, connW.Body.String())
+	}
+
+	// 2. Instantiate YouTube Channel project
+	instPayload := map[string]interface{}{
+		"template_id":  creator.BlueprintYouTube,
+		"project_name": "Tech Reviews Channel",
+	}
+	instBody, _ := json.Marshal(instPayload)
+	instReq := httptest.NewRequest(http.MethodPost, "/api/v1/creator/projects/instantiate", bytes.NewReader(instBody))
+	instW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(instW, instReq)
+	if instW.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on instantiate, got %d", instW.Code)
+	}
+
+	var instResp struct {
+		Project struct {
+			ID string `json:"id"`
+		} `json:"project"`
+		Room struct {
+			ID string `json:"id"`
+		} `json:"room"`
+		Tasks []db.ProjectTaskDTO `json:"tasks"`
+	}
+	json.Unmarshal(instW.Body.Bytes(), &instResp)
+
+	// Pick "10-min scriptwriting" task (index 1)
+	var scriptTask db.ProjectTaskDTO
+	for _, tsk := range instResp.Tasks {
+		if strings.Contains(strings.ToLower(tsk.Title), "scriptwriting") {
+			scriptTask = tsk
+			break
+		}
+	}
+	if scriptTask.ID == "" {
+		scriptTask = instResp.Tasks[0]
+	}
+
+	// 3. Execute agent on task: POST /api/v1/tasks/{id}/execute-agent
+	execPayload := map[string]interface{}{
+		"instructions": "Incorporate tech review benchmark angles",
+	}
+	execBody, _ := json.Marshal(execPayload)
+	execReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/tasks/%s/execute-agent", scriptTask.ID), bytes.NewReader(execBody))
+	execW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(execW, execReq)
+
+	if execW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on execute agent, got %d: %s", execW.Code, execW.Body.String())
+	}
+
+	var execResp struct {
+		Status            string            `json:"status"`
+		ExecutionStatus   string            `json:"execution_status"`
+		Task              db.ProjectTaskDTO `json:"task"`
+		Agent             *db.AgentDTO      `json:"agent"`
+		AgentOutput       string            `json:"agent_output"`
+		DoDCompletedCount int               `json:"dod_completed_count"`
+		DoDTotalCount     int               `json:"dod_total_count"`
+		RoomMessageID     string            `json:"room_message_id"`
+	}
+	if err := json.Unmarshal(execW.Body.Bytes(), &execResp); err != nil {
+		t.Fatalf("failed to parse execute response json: %v", err)
+	}
+
+	if execResp.Status != "success" || execResp.ExecutionStatus != "completed" {
+		t.Errorf("expected success/completed, got %s / %s", execResp.Status, execResp.ExecutionStatus)
+	}
+	if execResp.AgentOutput == "" {
+		t.Errorf("expected non-empty agent output")
+	}
+	if execResp.DoDCompletedCount == 0 || execResp.DoDCompletedCount != execResp.DoDTotalCount {
+		t.Errorf("expected all DoD checklist items completed, got %d/%d", execResp.DoDCompletedCount, execResp.DoDTotalCount)
+	}
+	if execResp.RoomMessageID == "" {
+		t.Errorf("expected RoomMessageID to be returned")
+	}
+
+	// 4. Verify Task State via GET /api/tasks/{id}
+	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tasks/%s", scriptTask.ID), nil)
+	getW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(getW, getReq)
+	if getW.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get task, got %d", getW.Code)
+	}
+
+	var getResp struct {
+		Task db.ProjectTaskDTO `json:"task"`
+	}
+	json.Unmarshal(getW.Body.Bytes(), &getResp)
+	if getResp.Task.ExecutionStatus != "completed" {
+		t.Errorf("expected persisted execution_status 'completed', got %s", getResp.Task.ExecutionStatus)
+	}
+	if getResp.Task.AgentOutput == "" {
+		t.Errorf("expected persisted agent_output")
+	}
+	for _, item := range getResp.Task.DoDChecklist {
+		if !item.Completed {
+			t.Errorf("expected DoD item %q to be completed in DB", item.Text)
+		}
+	}
+
+	// 5. Verify Room Messages via GET /api/projects/rooms/{id}/messages
+	roomMsgReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/projects/rooms/%s/messages", instResp.Room.ID), nil)
+	roomMsgW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(roomMsgW, roomMsgReq)
+	if roomMsgW.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get room messages, got %d", roomMsgW.Code)
+	}
+
+	var msgsResp struct {
+		Messages []db.ProjectMessageDTO `json:"messages"`
+	}
+	json.Unmarshal(roomMsgW.Body.Bytes(), &msgsResp)
+	if len(msgsResp.Messages) < 2 { // 1 welcome + 1 task completion message
+		t.Errorf("expected at least 2 messages in room, got %d", len(msgsResp.Messages))
+	}
+	foundTaskMsg := false
+	for _, m := range msgsResp.Messages {
+		if strings.Contains(m.Content, "Task Execution Completed") {
+			foundTaskMsg = true
+			break
+		}
+	}
+	if !foundTaskMsg {
+		t.Errorf("expected completion notification message in room messages")
+	}
+}
+
+func TestExecuteTaskAgent_AliasesAndValidation(t *testing.T) {
+	srv := setupTestServerForCreator(t)
+
+	// Register key
+	connPayload := map[string]interface{}{
+		"provider": "google",
+		"api_key":  "mock-gemini-key",
+	}
+	connBody, _ := json.Marshal(connPayload)
+	connReq := httptest.NewRequest(http.MethodPost, "/api/agent-connections", bytes.NewReader(connBody))
+	srv.Router().ServeHTTP(httptest.NewRecorder(), connReq)
+
+	// Instantiate Olshop
+	instPayload := map[string]interface{}{
+		"template_id":  creator.BlueprintOlshop,
+		"project_name": "Digital Products Store",
+	}
+	instBody, _ := json.Marshal(instPayload)
+	instReq := httptest.NewRequest(http.MethodPost, "/api/creator/projects/instantiate", bytes.NewReader(instBody))
+	instW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(instW, instReq)
+
+	var instResp struct {
+		Tasks []db.ProjectTaskDTO `json:"tasks"`
+	}
+	json.Unmarshal(instW.Body.Bytes(), &instResp)
+	targetTaskID := instResp.Tasks[0].ID
+
+	// Test aliases:
+	aliases := []string{
+		fmt.Sprintf("/api/tasks/%s/execute-agent", targetTaskID),
+		fmt.Sprintf("/api/projects/tasks/%s/execute-agent", targetTaskID),
+		fmt.Sprintf("/api/v1/projects/tasks/%s/execute-agent", targetTaskID),
+		fmt.Sprintf("/api/v1/tasks/%s/execute-agent", targetTaskID),
+	}
+
+	for _, ep := range aliases {
+		t.Run(ep, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, ep, nil)
+			w := httptest.NewRecorder()
+			srv.Router().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("[%s] expected 200 OK, got %d: %s", ep, w.Code, w.Body.String())
+			}
+		})
+	}
+
+	// Test invalid UUID
+	badReq := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/not-a-uuid/execute-agent", nil)
+	badW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(badW, badReq)
+	if badW.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request on invalid UUID, got %d", badW.Code)
+	}
+
+	// Test non-existent task UUID
+	nonExistentID := db.GenerateUUID()
+	notFoundReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/tasks/%s/execute-agent", nonExistentID), nil)
+	notFoundW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(notFoundW, notFoundReq)
+	if notFoundW.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found on non-existent task, got %d", notFoundW.Code)
+	}
+}
+
+func TestExecuteTaskAgent_ZeroCredentialLeakage(t *testing.T) {
+	srv := setupTestServerForCreator(t)
+
+	secretAPIKey := "mock-AIzaSyRealSecretKeyVault999"
+	connPayload := map[string]interface{}{
+		"provider": "google",
+		"api_key":  secretAPIKey,
+	}
+	connBody, _ := json.Marshal(connPayload)
+	srv.Router().ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/agent-connections", bytes.NewReader(connBody)))
+
+	// Instantiate Affiliate
+	instPayload := map[string]interface{}{
+		"template_id":  creator.BlueprintAffiliate,
+		"project_name": "Affiliate Review Site",
+	}
+	instBody, _ := json.Marshal(instPayload)
+	instW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(instW, httptest.NewRequest(http.MethodPost, "/api/v1/creator/projects/instantiate", bytes.NewReader(instBody)))
+
+	var instResp struct {
+		Tasks []db.ProjectTaskDTO `json:"tasks"`
+	}
+	json.Unmarshal(instW.Body.Bytes(), &instResp)
+	targetTaskID := instResp.Tasks[0].ID
+
+	// Execute
+	execReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/tasks/%s/execute-agent", targetTaskID), nil)
+	execW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(execW, execReq)
+
+	if execW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", execW.Code, execW.Body.String())
+	}
+
+	responseString := execW.Body.String()
+	if strings.Contains(responseString, secretAPIKey) {
+		t.Fatalf("CRITICAL SECURITY VIOLATION: secret API key found in HTTP response!")
+	}
+}
+

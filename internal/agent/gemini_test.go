@@ -169,3 +169,77 @@ func TestGeminiProvider_ListModels(t *testing.T) {
 		t.Fatalf("expected non-empty model list")
 	}
 }
+
+func TestGeminiProvider_GenerateContent(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Offline mock mode
+	provider := NewGeminiProvider(WithOfflineMock(true))
+	out, err := provider.GenerateContent(ctx, "mock-gemini-key", "gemini-1.5-pro", "You are an SEO expert.", "Keyword research for best ai tools")
+	if err != nil {
+		t.Fatalf("unexpected error on GenerateContent: %v", err)
+	}
+	if !strings.Contains(out, "SEO Keyword Research") {
+		t.Errorf("expected generated output to contain 'SEO Keyword Research', got: %s", out)
+	}
+
+	// 2. Empty key
+	_, err = provider.GenerateContent(ctx, "", "gemini-1.5-pro", "", "test prompt")
+	if err != ErrInvalidCredentials {
+		t.Errorf("expected ErrInvalidCredentials on empty key, got %v", err)
+	}
+
+	// 3. Invalid key
+	_, err = provider.GenerateContent(ctx, "invalid-key-999", "gemini-1.5-pro", "", "test prompt")
+	if err == nil {
+		t.Errorf("expected error on invalid key, got nil")
+	}
+
+	// 4. Live HTTP server simulation for live path
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "generateContent") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		key := r.URL.Query().Get("key")
+		if key != "valid-live-key" {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]interface{}{
+					"code":    403,
+					"message": "API key not valid",
+					"status":  "PERMISSION_DENIED",
+				},
+			})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"candidates": []map[string]interface{}{
+				{
+					"content": map[string]interface{}{
+						"role": "model",
+						"parts": []map[string]interface{}{
+							{"text": "# Live Generated Markdown Output\n\nContent generated successfully via Gemini API."},
+						},
+					},
+					"finishReason": "STOP",
+				},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	liveProv := NewGeminiProvider(WithBaseURL(ts.URL), WithOfflineMock(false))
+	liveOut, err := liveProv.GenerateContent(ctx, "valid-live-key", "gemini-1.5-pro", "system instructions", "user prompt")
+	if err != nil {
+		t.Fatalf("live generate failed: %v", err)
+	}
+	if !strings.Contains(liveOut, "Live Generated Markdown Output") {
+		t.Errorf("expected live output, got: %s", liveOut)
+	}
+}
+

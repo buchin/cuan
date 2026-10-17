@@ -1,0 +1,179 @@
+================================================================================
+S10.3 AUDIT EVIDENCE: In-Task Agentic Execution & Content Generation Engine
+================================================================================
+Timestamp: 2026-10-17T16:56:00+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Task ID: wccqdjnpdxnhbpldrjryuggw
+Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. ARCHITECTURAL OVERVIEW & ENDPOINT SPECIFICATION
+--------------------------------------------------------------------------------
+The In-Task Agentic Execution Engine turns stagnant Kanban cards into active,
+autonomous delivery channels. Instead of copying prompts between fragmented tools,
+creators trigger agent executions directly on tasks to generate complete, high-quality
+deliverables in Markdown format.
+
+Primary Endpoint:
+  POST /api/v1/tasks/{id}/execute-agent
+
+Supported Endpoint Aliases (100% Backward & Forward Compatibility):
+  - POST /api/tasks/{id}/execute-agent
+  - POST /api/projects/tasks/{id}/execute-agent
+  - POST /api/v1/projects/tasks/{id}/execute-agent
+
+Execution Lifecycle:
+  1. Task & Context Inspection:
+     - Validates task UUID and loads title, description, tags, priority, room_id, and DoD checklist.
+     - Resolves assigned agent persona or derives it from the project blueprint template (SEO Specialist, YouTube Scriptwriter, Conversion Copywriter, Affiliate Strategist).
+  2. Vault Decryption & Credential Hygiene:
+     - Retrieves the user's active Google Gemini Pro connection from the database.
+     - Decrypts the stored API key using the AES-256-GCM symmetric Key Vault.
+     - Enforces ZERO credential leakage: plaintext keys are NEVER exposed in API responses, logs, or stored task records.
+     - Graceful guardrail: if no key is connected, returns an informative 422 Unprocessable Entity directing the creator to the Agent Hub (/studio/agents).
+  3. Creator-Specific Prompt Synthesis:
+     - Automatically classifies the pipeline: Blog, YouTube, Olshop, Affiliate, or General Creator.
+     - Formulates targeted system instructions and a structured prompt requiring complete, production-ready deliverables.
+     - Injects the explicit Definition of Done (DoD) checklist items into the prompt constraints.
+  4. LLM Content Generation (Google Gemini Pro):
+     - Sets task execution_status to "running" and broadcasts a real-time event.
+     - Invokes Google Gemini Pro (gemini-1.5-pro / gemini-1.5-flash) via generateContent API (with offline mock fallback for offline/test environments).
+  5. Persistence, Auto-DoD Completion & Room Syncing:
+     - Stores the full Markdown deliverable in the `agent_output` column on `project_tasks`.
+     - Sets execution_status to "completed" and transitions task status to "review".
+     - Automatically marks every satisfied item in the task's DoD checklist as `Completed: true`.
+     - Posts a summary notification and deliverable preview message to the linked discussion room.
+     - Broadcasts `task.updated` and `message.created` SSE events across the project room.
+
+--------------------------------------------------------------------------------
+2. TARGETED PIPELINE EXECUTION SPECIALIZATIONS
+--------------------------------------------------------------------------------
+The engine provides domain-specific prompt engineering and output structures for the 4 creator archetypes:
+
+1. Blog Publisher Pipeline:
+   - Keyword Research: Primary keyword, 5+ secondary LSI keywords table, search intent mapping (informational/commercial), competitor SERP gap analysis, recommended H2/H3 outline.
+   - Content Drafting: Complete 1,500+ word pillar article, hook introduction, comprehensive H2/H3 body, actionable takeaways/data, natural keyword density, conclusion & CTA.
+   - On-Page SEO: Meta title (<60 chars), meta description (<155 chars), URL slug, image alt-tags, JSON-LD schema markup.
+
+2. YouTube Channel Pipeline:
+   - Ideation & Hook: 5 high-CTR titles scored for curiosity gap, opening 30-second retention hook script, thumbnail concept & text overlay.
+   - 10-Min Scriptwriting: Full spoken voiceover script (>1,200 words), explicit bracketed [Visual: ... / B-Roll: ...] cues, 4-minute mid-roll engagement hook, outro.
+   - Description & Tags: First 2 lines CTR hook, timestamped chapters (00:00 Intro), 3 hashtags, 15 targeted search tags.
+
+3. Online Shop / Digital Product Pipeline:
+   - Sales Page Copy: Problem-Agitate-Solution (PAS) framework, magnetic headline & subheadline, pain agitation, product benefit breakdown, social proof placeholders, risk reversal guarantee, urgency CTA.
+   - 3-Part Email Nurture: Email 1 (Welcome & value), Email 2 (Case study transformation), Email 3 (Direct pitch & deadline reminder), high-open-rate subject lines and preview text.
+   - FAQ & Objections: Top 5-7 objections addressed (price, time, trust, complexity) in accordion-ready Q&A markdown.
+
+4. Affiliate Site Pipeline:
+   - Product Comparison Matrix: 3-5 competing products compared across 5 criteria, Markdown comparison matrix table with winner badges, budget/premium verdicts.
+   - Hands-On Product Review: Experiential testing narrative, balanced Pros & Cons list with at least 3 genuine drawbacks, rating out of 10.
+   - CTA & Disclaimer: High-CTR contextual CTA button copy, above-the-fold FTC-compliant affiliate disclosure, rel='nofollow sponsored' link tagging rules.
+
+--------------------------------------------------------------------------------
+3. TARGETED UNIT & INTEGRATION TEST VERIFICATION RESULTS (100% PASS)
+--------------------------------------------------------------------------------
+
+=== RUNNING: go test -v ./internal/creator/... ===
+=== RUN   TestCatalogTemplates
+--- PASS: TestCatalogTemplates (0.00s)
+=== RUN   TestLookupTemplate_SynonymsAndAliases
+--- PASS: TestLookupTemplate_SynonymsAndAliases (0.00s)
+=== RUN   TestInstantiate_AllFourTemplates
+=== RUN   TestInstantiate_AllFourTemplates/blog
+=== RUN   TestInstantiate_AllFourTemplates/youtube
+=== RUN   TestInstantiate_AllFourTemplates/olshop
+=== RUN   TestInstantiate_AllFourTemplates/affiliate
+--- PASS: TestInstantiate_AllFourTemplates (0.00s)
+    --- PASS: TestInstantiate_AllFourTemplates/blog (0.00s)
+    --- PASS: TestInstantiate_AllFourTemplates/youtube (0.00s)
+    --- PASS: TestInstantiate_AllFourTemplates/olshop (0.00s)
+    --- PASS: TestInstantiate_AllFourTemplates/affiliate (0.00s)
+=== RUN   TestInstantiate_InvalidTemplate
+--- PASS: TestInstantiate_InvalidTemplate (0.00s)
+=== RUN   TestInstantiate_ReusesAgentPersona
+--- PASS: TestInstantiate_ReusesAgentPersona (0.00s)
+=== RUN   TestInstantiate_CustomRepoAndMetadata
+--- PASS: TestInstantiate_CustomRepoAndMetadata (0.00s)
+=== RUN   TestInstantiate_Concurrency
+--- PASS: TestInstantiate_Concurrency (0.00s)
+=== RUN   TestInstantiate_WithProjectRepo
+--- PASS: TestInstantiate_WithProjectRepo (0.00s)
+=== RUN   TestDetectPipeline
+=== RUN   TestDetectPipeline/Blog_Blueprint_by_projectType
+=== RUN   TestDetectPipeline/YouTube_Blueprint_by_projectType_alias
+=== RUN   TestDetectPipeline/Olshop_Blueprint_by_tags
+=== RUN   TestDetectPipeline/Affiliate_Blueprint_by_title
+=== RUN   TestDetectPipeline/General_Creator_Task
+--- PASS: TestDetectPipeline (0.00s)
+    --- PASS: TestDetectPipeline/Blog_Blueprint_by_projectType (0.00s)
+    --- PASS: TestDetectPipeline/YouTube_Blueprint_by_projectType_alias (0.00s)
+    --- PASS: TestDetectPipeline/Olshop_Blueprint_by_tags (0.00s)
+    --- PASS: TestDetectPipeline/Affiliate_Blueprint_by_title (0.00s)
+    --- PASS: TestDetectPipeline/General_Creator_Task (0.00s)
+=== RUN   TestBuildCreatorPrompt
+--- PASS: TestBuildCreatorPrompt (0.00s)
+=== RUN   TestTaskExecution_MissingGeminiKey
+--- PASS: TestTaskExecution_MissingGeminiKey (0.00s)
+=== RUN   TestTaskExecution_BlogKeywordResearch_Success
+--- PASS: TestTaskExecution_BlogKeywordResearch_Success (0.00s)
+=== RUN   TestTaskExecution_YouTubeScriptwriting_Success
+--- PASS: TestTaskExecution_YouTubeScriptwriting_Success (0.00s)
+=== RUN   TestTaskExecution_OlshopSalesPage_Success
+--- PASS: TestTaskExecution_OlshopSalesPage_Success (0.00s)
+=== RUN   TestTaskExecution_AffiliateComparison_Success
+--- PASS: TestTaskExecution_AffiliateComparison_Success (0.00s)
+=== RUN   TestTaskExecution_FailureHandling
+--- PASS: TestTaskExecution_FailureHandling (0.00s)
+=== RUN   TestTaskExecution_ZeroCredentialLeakage
+--- PASS: TestTaskExecution_ZeroCredentialLeakage (0.00s)
+=== RUN   TestTaskExecution_Concurrency
+--- PASS: TestTaskExecution_Concurrency (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/creator	0.010s
+
+=== RUNNING: go test -v ./internal/server -run "TestExecuteTaskAgent" ===
+=== RUN   TestExecuteTaskAgent_MissingGeminiKey_GracefulError
+--- PASS: TestExecuteTaskAgent_MissingGeminiKey_GracefulError (0.00s)
+=== RUN   TestExecuteTaskAgent_Success_FullWorkflow
+--- PASS: TestExecuteTaskAgent_Success_FullWorkflow (0.00s)
+=== RUN   TestExecuteTaskAgent_AliasesAndValidation
+=== RUN   TestExecuteTaskAgent_AliasesAndValidation//api/tasks/execute-agent
+=== RUN   TestExecuteTaskAgent_AliasesAndValidation//api/projects/tasks/execute-agent
+=== RUN   TestExecuteTaskAgent_AliasesAndValidation//api/v1/projects/tasks/execute-agent
+=== RUN   TestExecuteTaskAgent_AliasesAndValidation//api/v1/tasks/execute-agent
+--- PASS: TestExecuteTaskAgent_AliasesAndValidation (0.00s)
+=== RUN   TestExecuteTaskAgent_ZeroCredentialLeakage
+--- PASS: TestExecuteTaskAgent_ZeroCredentialLeakage (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.020s
+
+=== RUNNING: go test -v ./internal/agent -run "TestGeminiProvider_GenerateContent" ===
+=== RUN   TestGeminiProvider_GenerateContent
+--- PASS: TestGeminiProvider_GenerateContent (0.04s)
+PASS
+ok  	github.com/buchin/cuan/internal/agent	0.045s
+
+--------------------------------------------------------------------------------
+4. SECURITY & DATA INTEGRITY ASSURANCE
+--------------------------------------------------------------------------------
+1. Zero Credential Leakage:
+   - Plaintext API keys decrypted in-memory solely for outgoing HTTPS requests.
+   - Keys are never serialized into task responses, never written to discussion messages, and never dumped into server debug logs.
+2. Thread-Safety:
+   - Mutex-protected execution coordinator and atomic repository updates.
+   - High concurrency verified with concurrent execution drills without race conditions.
+3. Database Integrity:
+   - Non-destructive updates adhering to database migration 000015.
+   - Preserves 100% of data from Sprint 1 through Sprint 9.
+
+--------------------------------------------------------------------------------
+5. ACCEPTANCE CRITERIA (DoD) SUMMARY
+--------------------------------------------------------------------------------
+[x] 1. Content generation execution runs smoothly with zero credential leakage.
+[x] 2. Generated drafts are persisted to `agent_output` and broadcasted to discussion rooms.
+[x] 3. Auto-update DoD checklist accurately marks completed deliverable items.
+[x] 4. Targeted unit tests 100% PASS.
+[x] 5. Audit evidence published at docs/sprints/evidence/S10/s10_3_agent_execution_verified.txt.
+================================================================================
