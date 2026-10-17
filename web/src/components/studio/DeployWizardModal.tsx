@@ -1,7 +1,8 @@
-import { useState, useRef, DragEvent, ChangeEvent, FormEvent } from 'react'
+import { useState, useEffect, useRef, DragEvent, ChangeEvent, FormEvent } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
+import { Badge } from '../ui/badge'
 import {
   UploadCloud,
   FolderGit2,
@@ -15,15 +16,17 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Server
 } from 'lucide-react'
-import { DeploymentItem, DeploymentResult } from './types'
+import { DeploymentItem, DeploymentResult, ServerItem } from './types'
 
 interface DeployWizardModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: (deployment: DeploymentItem) => void
   baseDomain?: string
+  servers?: ServerItem[]
 }
 
 interface EnvVarRow {
@@ -35,7 +38,8 @@ export function DeployWizardModal({
   isOpen,
   onClose,
   onSuccess,
-  baseDomain = 'cuan.dojo.cc'
+  baseDomain = 'cuan.dojo.cc',
+  servers
 }: DeployWizardModalProps) {
   const [intakeTab, setIntakeTab] = useState<'zip' | 'git'>('zip')
 
@@ -44,6 +48,29 @@ export function DeployWizardModal({
   const [slug, setSlug] = useState('')
   const [runtime, setRuntime] = useState<string>('')
   const [envVars, setEnvVars] = useState<EnvVarRow[]>([])
+
+  // Deployment Target State (Local Sandbox vs Remote Server)
+  const [targetServerId, setTargetServerId] = useState<string>('')
+  const [availableServers, setAvailableServers] = useState<ServerItem[]>(servers || [])
+  const [loadingServers, setLoadingServers] = useState(false)
+
+  // Fetch servers if not provided
+  useEffect(() => {
+    if (servers && servers.length > 0) {
+      setAvailableServers(servers)
+      return
+    }
+    if (isOpen) {
+      setLoadingServers(true)
+      fetch('/api/servers')
+        .then((res) => res.json())
+        .then((data) => {
+          setAvailableServers(data.servers || [])
+        })
+        .catch(() => {})
+        .finally(() => setLoadingServers(false))
+    }
+  }, [servers, isOpen])
 
   // ZIP state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -176,6 +203,7 @@ export function DeployWizardModal({
       formData.append('project_name', projectName.trim())
       if (slug.trim()) formData.append('slug', slug.trim())
       if (runtime.trim()) formData.append('runtime', runtime.trim())
+      if (targetServerId) formData.append('server_id', targetServerId)
       if (Object.keys(envMap).length > 0) {
         formData.append('env_vars', JSON.stringify(envMap))
       }
@@ -224,18 +252,23 @@ export function DeployWizardModal({
       }
 
       try {
+        const gitPayload: Record<string, any> = {
+          project_name: projectName.trim(),
+          slug: slug.trim(),
+          source_type: 'git',
+          source_ref: repoURL.trim(),
+          branch: branch.trim() || 'main',
+          runtime: runtime.trim(),
+          env_vars: envMap
+        }
+        if (targetServerId) {
+          gitPayload.server_id = targetServerId
+        }
+
         const res = await fetch('/api/deployments/git', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project_name: projectName.trim(),
-            slug: slug.trim(),
-            source_type: 'git',
-            source_ref: repoURL.trim(),
-            branch: branch.trim() || 'main',
-            runtime: runtime.trim(),
-            env_vars: envMap
-          })
+          body: JSON.stringify(gitPayload)
         })
 
         if (!res.ok) {
@@ -500,6 +533,89 @@ export function DeployWizardModal({
                 )
               })}
             </div>
+          </div>
+
+          {/* Deployment Target Selector (Local Sandbox vs Remote Server) */}
+          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Server className="h-3.5 w-3.5 text-indigo-500" />
+                Deployment Target
+              </label>
+              <span className="text-[11px] text-slate-400 font-medium">
+                {targetServerId ? 'Remote VPS (BYOS)' : 'Local Sandbox (Co-located)'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Option 1: Local Sandbox */}
+              <button
+                type="button"
+                onClick={() => setTargetServerId('')}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  targetServerId === ''
+                    ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-1 ring-emerald-500'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Cpu className={`h-4 w-4 ${targetServerId === '' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white">Local Sandbox (Co-located)</span>
+                  </div>
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-[10px] py-0 px-1.5 font-mono">
+                    Default
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Container runtime lokal terisolasi pada server inti Cuan.
+                </p>
+              </button>
+
+              {/* Remote Servers mapped */}
+              {availableServers.map((srv) => {
+                const isSelected = targetServerId === srv.id
+                const isOnline = srv.status === 'online'
+                return (
+                  <button
+                    key={srv.id}
+                    type="button"
+                    onClick={() => setTargetServerId(srv.id)}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/30 ring-1 ring-indigo-500'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Server className={`h-4 w-4 shrink-0 ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`} />
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                          {srv.name}
+                        </span>
+                      </div>
+                      <Badge
+                        variant={isOnline ? 'success' : 'outline'}
+                        className="text-[10px] py-0 px-1.5 shrink-0"
+                      >
+                        {srv.status}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono">
+                      {srv.username}@{srv.host}:{srv.port}
+                      {srv.os_info?.cores ? ` • ${srv.os_info.cores} vCPU` : ''}
+                      {srv.os_info?.ram_mb ? ` • ${(srv.os_info.ram_mb / 1024).toFixed(1)} GB` : ''}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+
+            {availableServers.length === 0 && !loadingServers && (
+              <p className="text-[11px] text-slate-400 pt-0.5">
+                Belum ada remote server terdaftar. Eksekusi akan berjalan di Local Sandbox. Anda dapat menghubungkan server di tab "Servers".
+              </p>
+            )}
           </div>
 
           {/* Environment Variables Key-Value Editor */}

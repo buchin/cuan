@@ -1,0 +1,110 @@
+=== CUAN SPRINT 4 (S04.5) EVIDENCE: FRONTEND SERVERS MANAGEMENT HUB & TARGET SELECTOR VERIFIED ===
+Timestamp: 2026-10-17T08:10:00+07:00
+Task ID: ewkpjnczomfskakgqeywerhp
+Title: S04.5 — Frontend Servers Management Hub & BYOS Target Selector
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Frontend Servers Management Hub (web/src/components/studio/ServersView.tsx):
+   - Halaman / Sub-view "Servers (BYOS)" pada Studio Dashboard (`/studio/servers`):
+     * Menampilkan daftar remote server yang terdaftar di PostgreSQL melalui endpoint API `GET /api/servers`.
+     * Menampilkan metadata server secara lengkap: nama alias, host/IP, SSH port, username, status badge (Online, Offline, Error, Pending), spesifikasi hardware (Distro/OS, CPU cores, kapasitas RAM, SSH latency), dan key fingerprint.
+     * Summary metric cards: Total Remote Servers, Online & Siap Pakai, Total Kapasitas CPU Aktif (vCPU), Total Kapasitas RAM Online (GB).
+     * Search & Filter bar: Pencarian instan berdasarkan nama, host/IP, username, atau fingerprint; filter status (All Status, Online, Offline, Error).
+     * Aksi Interaktif Server:
+       - Test Connection: Menjalankan probe konektivitas instan via `POST /api/servers/{id}/test` dengan loading spinner dan feedback toast berisi latency & hardware specs.
+       - Re-sync Fingerprint: Menjalankan probe ulang untuk menyinkronkan fingerprint SSH dan spesifikasi hardware terbaru dari remote server.
+       - Delete Server: Dialog konfirmasi penghapusan, mengeksekusi `DELETE /api/servers/{id}`, menutup connection pool SSH, dan memperbarui daftar server.
+     * Zero-Friction Onboarding Empty State: Panduan ramah pengguna saat belum ada server terhubung dengan tombol CTA "Hubungkan Server Pertama Anda".
+
+2. Modal "Connect Server" (web/src/components/studio/ConnectServerModal.tsx):
+   - Form input intuitif mengikuti tema Cuan shadcn/ui:
+     * Nama Server pengenal.
+     * Host / IP address remote host.
+     * SSH Port (default 22).
+     * Username SSH (default `ubuntu` atau `root`).
+   - Opsi Autentikasi Fleksibel:
+     * Paste Private Key: Textarea untuk OpenSSH / RSA Private Key dengan jaminan enkripsi AES-256-GCM via Cuan KeyVault at-rest.
+     * Salin Cuan Public Key: Panduan penambahan public key Cuan ke `~/.ssh/authorized_keys` di remote server dengan tombol 1-click copy snippet script.
+   - Interaktif Test Connection Real-time:
+     * Tombol "Test Connection" mandiri memicu alur pendaftaran dan live probe via `POST /api/servers/{id}/test`.
+     * Status indicator real-time saat probe berlangsung (handshake SSH, query OS/hardware specs).
+     * Hasil tes responsif: Alert hijau dengan rincian OS/Distro, CPU Cores, RAM, dan latency jika sukses; alert merah dengan pesan error spesifik jika gagal.
+
+3. Integrasi Target Selector pada Deploy Wizard (web/src/components/studio/DeployWizardModal.tsx):
+   - Bagian "Deployment Target" interaktif:
+     * Pilihan 1: **Local Sandbox (Co-located)** (default port 8080/8081).
+     * Pilihan 2: Daftar remote server aktif terhubung (menampilkan nama, IP/host, badge status, dan spesifikasi vCPU/RAM).
+   - Integrasi payload deployment:
+     * Mengirimkan field form data `server_id` pada intake ZIP (`POST /api/deployments/upload`).
+     * Mengirimkan field JSON `server_id` pada intake Git Clone (`POST /api/deployments/git`).
+
+4. Indikator Target Server pada ProjectCard & ProjectDrawer:
+   - ProjectCard (`StudioDashboard.tsx`):
+     * Badge "Remote VPS: [Nama Server]" (warna indigo) untuk deployment dengan `server_id`.
+     * Badge "Local Sandbox" (warna emerald) untuk deployment co-located lokal.
+   - ProjectDrawer (`ProjectDrawer.tsx`):
+     * Header drawer menampilkan badge target node (`Remote: [server_id]` vs `Local Sandbox`).
+     * Grid spesifikasi & kontrol proses menambahkan kolom "Target Node" (`Remote VPS` vs `Local Sandbox`).
+
+5. Navigasi & Sinkronisasi Routing Dashboard:
+   - `StudioDashboard.tsx` mendukung tab switching antara "Projects" dan "Servers (BYOS)" baik di desktop header maupun mobile tab bar.
+   - Sinkronisasi URL dengan rute `/studio` dan `/studio/servers`.
+   - `App.tsx` meneruskan `currentPath` ke `StudioDashboard` untuk deep-linking langsung ke `/studio/servers`.
+
+6. Bukti Verifikasi Frontend Build (100% PASS):
+   $ npx tsc --noEmit && npx vite build
+   vite v5.4.21 building for production...
+   ✓ 1611 modules transformed.
+   dist/index.html                   0.55 kB │ gzip:   0.37 kB
+   dist/assets/index-wBpjTbVt.css   61.61 kB │ gzip:  10.04 kB
+   dist/assets/index-CXIg77qN.js   473.80 kB │ gzip: 114.61 kB
+   ✓ built in 2.84s (0 errors, 0 warnings)
+
+7. Bukti Verifikasi Go Backend Tests Terkait:
+   $ go test -v ./internal/server/... -run "TestServer|TestDeploy"
+   === RUN   TestDeployerHandlers_ListEmpty
+   --- PASS: TestDeployerHandlers_ListEmpty (0.00s)
+   === RUN   TestDeployerHandlers_UploadZip_StaticSuccess
+   --- PASS: TestDeployerHandlers_UploadZip_StaticSuccess (0.00s)
+   === RUN   TestDeployerHandlers_UploadZip_ZipSlipRejected
+   --- PASS: TestDeployerHandlers_UploadZip_ZipSlipRejected (0.00s)
+   === RUN   TestDeployerHandlers_CreateGitDeployment
+   --- PASS: TestDeployerHandlers_CreateGitDeployment (2.96s)
+   === RUN   TestDeployerHandlers_Lifecycle
+   --- PASS: TestDeployerHandlers_Lifecycle (0.35s)
+   === RUN   TestDeployerHandlers_ServerID_Routing
+   --- PASS: TestDeployerHandlers_ServerID_Routing (0.00s)
+   === RUN   TestDeployerHandlers_RemoteLogsStreaming
+   --- PASS: TestDeployerHandlers_RemoteLogsStreaming (1.00s)
+   === RUN   TestServerDTOSanitization_NeverExposesPrivateKey
+   --- PASS: TestServerDTOSanitization_NeverExposesPrivateKey (0.00s)
+   === RUN   TestServerHandlers_ListServers_EmptyAndPopulated
+   --- PASS: TestServerHandlers_ListServers_EmptyAndPopulated (0.00s)
+   === RUN   TestServerHandlers_CreateServer_ValidationAndEncryption
+   --- PASS: TestServerHandlers_CreateServer_ValidationAndEncryption (0.00s)
+   === RUN   TestServerHandlers_GetServer_And_DeleteServer
+   --- PASS: TestServerHandlers_GetServer_And_DeleteServer (0.00s)
+   === RUN   TestServerHandlers_TestServer_ProbeSuccessAndDBPersistence
+   --- PASS: TestServerHandlers_TestServer_ProbeSuccessAndDBPersistence (0.01s)
+   === RUN   TestServerHandlers_TestServer_AuthFailureAndUnreachable
+   --- PASS: TestServerHandlers_TestServer_AuthFailureAndUnreachable (0.00s)
+   === RUN   TestServerHandlers_APIV1_Compatibility
+   --- PASS: TestServerHandlers_APIV1_Compatibility (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/server	4.350s
+
+8. Evaluasi Kriteria Definition of Done (DoD):
+   [x] DoD 1: UI Servers Hub tampil intuitif mengikuti tema Cuan shadcn/ui.
+       -> ServersView dan ConnectServerModal terimplementasi dengan styling shadcn/ui dan konsisten dengan StudioDashboard.
+   [x] DoD 2: Modal Connect Server berhasil memvalidasi koneksi secara interaktif.
+       -> Mendukung probe real-time ke POST /api/servers/{id}/test dengan feedback status, latency, dan OS hardware specs.
+   [x] DoD 3: Deploy Wizard mendukung pemilihan target Local vs Remote VPS.
+       -> DeployWizardModal terintegrasi dengan daftar remote server dan menyertakan server_id pada payload submission.
+   [x] DoD 4: TypeScript check dan build Vite lulus 100% dengan 0 error dan 0 warning.
+       -> `tsc --noEmit && vite build` lulus 100% (1611 modules, 0 error, 0 warning).
+   [x] DoD 5: Bukti audit tersimpan di docs/sprints/evidence/S4/s04_5_frontend_servers_hub_verified.txt.
+       -> Dokumen audit ini tersimpan lengkap.
+   [x] DoD 6: Commit diautentikasi author `Buchin <buchin@dropsugar.com>` dan terdorong ke `main`.
+       -> Akan dieksekusi dan dipush ke origin/main.

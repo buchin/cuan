@@ -1075,6 +1075,7 @@ export function App() {
   if (currentPath === '/studio' || currentPath.startsWith('/studio/')) {
     return (
       <StudioDashboard
+        currentPath={currentPath}
         onNavigate={navigate}
         baseDomain={systemMode.base_domain}
         appMode={effectiveMode}
@@ -1089,6 +1090,7 @@ export function App() {
     if (effectiveMode === 'studio') {
       return (
         <StudioDashboard
+          currentPath={currentPath}
           onNavigate={navigate}
           baseDomain={systemMode.base_domain}
           appMode={effectiveMode}

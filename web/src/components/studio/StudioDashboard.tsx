@@ -26,11 +26,13 @@ import {
   Copy,
   Server
 } from 'lucide-react'
-import { DeploymentItem } from './types'
+import { DeploymentItem, ServerItem } from './types'
 import { DeployWizardModal } from './DeployWizardModal'
 import { ProjectDrawer } from './ProjectDrawer'
+import { ServersView } from './ServersView'
 
 interface StudioDashboardProps {
+  currentPath?: string
   onNavigate?: (path: string) => void
   baseDomain?: string
   appMode?: 'marketing' | 'studio'
@@ -39,6 +41,7 @@ interface StudioDashboardProps {
 }
 
 export function StudioDashboard({
+  currentPath,
   onNavigate,
   baseDomain = 'cuan.dojo.cc',
   appMode = 'studio',
@@ -49,6 +52,42 @@ export function StudioDashboard({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  // Tab state: 'projects' | 'servers'
+  const [activeTab, setActiveTab] = useState<'projects' | 'servers'>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/studio/servers')) {
+      return 'servers'
+    }
+    return 'projects'
+  })
+
+  // Synchronize when currentPath prop changes
+  useEffect(() => {
+    if (currentPath === '/studio/servers') {
+      setActiveTab('servers')
+    } else if (currentPath === '/studio') {
+      setActiveTab('projects')
+    }
+  }, [currentPath])
+
+  // Remote servers state
+  const [servers, setServers] = useState<ServerItem[]>([])
+
+  const fetchServers = async () => {
+    try {
+      const res = await fetch('/api/servers')
+      if (res.ok) {
+        const data = await res.json()
+        setServers(data.servers || [])
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchServers()
+    const interval = setInterval(fetchServers, 8000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('')
@@ -276,6 +315,45 @@ export function StudioDashboard({
             </div>
           </div>
 
+          {/* Navigation Tabs (Desktop) */}
+          <div className="hidden md:flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700/60 text-xs">
+            <button
+              onClick={() => {
+                setActiveTab('projects')
+                onNavigate?.('/studio')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'projects'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Projects</span>
+              <span className="h-4 px-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-mono flex items-center justify-center">
+                {deployments.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('servers')
+                onNavigate?.('/studio/servers')
+              }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'servers'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Server className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Servers (BYOS)</span>
+              <span className="h-4 px-1.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono flex items-center justify-center">
+                {servers.length}
+              </span>
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 sm:gap-3">
             {onToggleMode ? (
               <Button
@@ -303,7 +381,10 @@ export function StudioDashboard({
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchDeployments}
+              onClick={() => {
+                fetchDeployments()
+                fetchServers()
+              }}
               className="h-9 text-xs flex items-center gap-1.5"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -338,6 +419,39 @@ export function StudioDashboard({
             </button>
           </div>
         )}
+
+        {/* Mobile Navigation Tab Bar */}
+        <div className="flex md:hidden items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700/60 text-xs">
+          <button
+            onClick={() => {
+              setActiveTab('projects')
+              onNavigate?.('/studio')
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'projects'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Projects ({deployments.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('servers')
+              onNavigate?.('/studio/servers')
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'servers'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+            }`}
+          >
+            <Server className="h-3.5 w-3.5 text-indigo-500" />
+            <span>Servers ({servers.length})</span>
+          </button>
+        </div>
 
         {/* Studio Mode Active Banner (APP_MODE=studio) */}
         {(isStudioModeActive || appMode === 'studio') && (
@@ -375,13 +489,18 @@ export function StudioDashboard({
           </div>
         )}
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Kesalahan</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        {/* Tab View Switching: Servers Hub vs Projects Dashboard */}
+        {activeTab === 'servers' ? (
+          <ServersView onNavigate={onNavigate} baseDomain={baseDomain} />
+        ) : (
+          <>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Kesalahan</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
         {/* 1. Stat Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -672,12 +791,27 @@ export function StudioDashboard({
                       </button>
                     </div>
 
-                    {/* Metadata tags: Stack, Port, Source */}
+                    {/* Metadata tags: Stack, Target Server, Port, Source */}
                     <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] text-slate-500 dark:text-slate-400">
                       <span className="inline-flex items-center gap-1 font-semibold capitalize bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                         {getRuntimeIcon(dep.runtime)}
                         {dep.runtime}
                       </span>
+
+                      {/* Target Server Badge (Local Sandbox vs Remote VPS) */}
+                      {dep.server_id ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 px-2 py-0.5 rounded-md">
+                          <Server className="h-3 w-3" />
+                          <span>
+                            {servers.find((s) => s.id === dep.server_id)?.name || 'Remote VPS'}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">
+                          <Cpu className="h-3 w-3" /> Local Sandbox
+                        </span>
+                      )}
+
                       {dep.internal_port > 0 && (
                         <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                           :{dep.internal_port}
@@ -758,6 +892,8 @@ export function StudioDashboard({
             })}
           </div>
         )}
+          </>
+        )}
       </main>
 
       {/* Deploy Wizard Modal */}
@@ -766,6 +902,7 @@ export function StudioDashboard({
         onClose={() => setIsWizardOpen(false)}
         onSuccess={handleDeploymentCreated}
         baseDomain={baseDomain}
+        servers={servers}
       />
 
       {/* Project Control Drawer */}

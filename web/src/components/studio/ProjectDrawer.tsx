@@ -19,7 +19,8 @@ import {
   X,
   AlertCircle,
   RefreshCw,
-  Radio
+  Radio,
+  Server
 } from 'lucide-react'
 import { DeploymentItem, DeploymentLog, HealthStatus } from './types'
 
@@ -290,7 +291,18 @@ export function ProjectDrawer({
               </h2>
               {getStatusBadge(deployment.status)}
             </div>
-            <p className="text-xs font-mono text-slate-400">ID: {deployment.id}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs font-mono text-slate-400">ID: {deployment.id}</p>
+              {deployment.server_id ? (
+                <Badge variant="outline" className="border-indigo-400/60 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] gap-1 font-mono">
+                  <Server className="h-3 w-3" /> Remote: {deployment.server_id}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-emerald-400/60 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] gap-1 font-mono">
+                  <Cpu className="h-3 w-3" /> Local Sandbox
+                </Badge>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -440,10 +452,24 @@ export function ProjectDrawer({
           )}
 
           {/* 3. Specs & Process Details Card */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
             <div>
               <span className="text-[11px] text-slate-400 uppercase tracking-wider block">Stack Profile</span>
               <div className="mt-1">{getRuntimeBadge(deployment.runtime)}</div>
+            </div>
+            <div>
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider block">Target Node</span>
+              <div className="mt-1">
+                {deployment.server_id ? (
+                  <Badge variant="outline" className="border-indigo-400 text-indigo-600 dark:text-indigo-400 gap-1 text-xs">
+                    <Server className="h-3 w-3" /> Remote VPS
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-1 text-xs">
+                    <Cpu className="h-3 w-3" /> Local Sandbox
+                  </Badge>
+                )}
+              </div>
             </div>
             <div>
               <span className="text-[11px] text-slate-400 uppercase tracking-wider block">Internal Port</span>

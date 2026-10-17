@@ -1,5 +1,6 @@
 export interface DeploymentItem {
   id: string
+  server_id?: string
   project_name: string
   slug: string
   source_type: 'zip' | 'git'
@@ -36,3 +37,40 @@ export interface DeploymentResult {
   extracted_path: string
   status: string
 }
+
+export interface ServerSpecs {
+  os?: string
+  distro?: string
+  kernel?: string
+  arch?: string
+  cores?: number
+  ram_mb?: number
+  hostname?: string
+  ping_ms?: number
+  error?: string
+  [key: string]: any
+}
+
+export interface ServerItem {
+  id: string
+  name: string
+  host: string
+  port: number
+  username: string
+  auth_type: string
+  key_fingerprint?: string
+  status: 'pending' | 'online' | 'unreachable' | 'error' | 'offline' | string
+  last_ping_at?: string
+  os_info?: ServerSpecs
+  created_at: string
+  updated_at: string
+}
+
+export interface TestServerResult {
+  success: boolean
+  status: string
+  error?: string
+  specs?: ServerSpecs
+  server: ServerItem
+}
+
