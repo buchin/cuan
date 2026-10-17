@@ -1,0 +1,133 @@
+=== CUAN SPRINT 4 (S04.3) EVIDENCE: REMOTESSHDRIVER ENGINE (DEPLOYDRIVER IMPLEMENTATION) VERIFIED ===
+Timestamp: 2026-10-17T07:38:00+07:00
+Task ID: mxfgkkphinjmuwhybtcgtdbi
+Title: S04.3 — RemoteSSHDriver Engine (DeployDriver Implementation)
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Implementasi Struct RemoteSSHDriver (Kontrak Penuh DeployDriver):
+   - File: internal/deployer/ssh_driver.go
+   - Mematuhi seluruh kontrak interface `DeployDriver`:
+     * Deploy(ctx, req): Mentransfer bundle aplikasi via tar over SSH stream langsung ke remote path terisolasi `~/cuan-apps/<deployment_id>/`. Menjalankan auto-detection runtime (PHP, NodeJS, Static, Custom) berdasarkan isi arsip, menetapkan domain Caddy virtual host, dan menyimpan metadata deployment ke Store dengan server_id terasosiasi.
+     * Start(ctx, id): Mengalokasikan dynamic port lease (9000-9999) via PortPool, mendekripsi private key via KeyVault, menghubungkan SSH via SSHManager/ClientPool, mengeksekusi runner aplikasi di background host remote via `nohup env PORT=... <cmd> > app.log 2>&1 & echo $! > app.pid`, membaca PID remote, memperbarui status DB ke 'running', dan mendaftarkan dynamic route ke Caddy router.
+     * Stop(ctx, id): Menghentikan proses remote secara graceful: mengirim SIGTERM (kill -15), melakukan polling liveness hingga 2 detik, mengeksekusi force SIGKILL (kill -9) jika timeout, membersihkan `app.pid`, melepaskan port lease dari PortPool, mencabut route Caddy, dan mengupdate status DB ke 'stopped' serta process_pid ke 0.
+     * Restart(ctx, id): Menjalankan Stop secara graceful lalu mengeksekusi Start ulang pada remote host.
+     * Health(ctx, id): Melakukan verifikasi runtime remote melalui PID probe `kill -0 <pid>` over SSH channel dan connectivity test pada port remote yang dialokasikan.
+     * GetLogs(ctx, id, limit): Mengambil log terbaru dari Store.
+     * List(ctx) & Get(ctx, id): Mengambil record deployment dari persistent Store.
+     * Delete(ctx, id): Menghentikan proses remote, menghapus direktori terisolasi `rm -rf ~/cuan-apps/<id>` di remote VPS, mencabut route Caddy, membersihkan cache lokal jika ada, dan menghapus record deployment dari Store.
+
+2. Remote Path Traversal Defense:
+   - File: internal/deployer/ssh_driver.go
+   - `ValidateDeploymentID`: Memvalidasi format ID aplikasi remote dengan whitelist alphanumeric, dash, dan underscore (`^[a-zA-Z0-9_-]+$`). Menolak keras token traversal `..`, slashes `/`, backslashes `\`, control chars, null bytes, dan shell metacharacters untuk mencegah path traversal dan command injection.
+   - `ValidateRemotePath`: Memastikan seluruh path operasi file terkurung secara absolut di dalam `cuan-apps/<deployment_id>/` dan mengembalikan `ErrRemotePathTraversal` jika terdapat traversal escaping (`../../etc/passwd`, dsb).
+   - `StreamZipAsTarToSSH`: Melakukan inspeksi ketat anti-ZipSlip sebelum streaming ke host remote, menolak arsip yang mengandung relative escaping atau absolute path.
+
+3. Driver Factory & Deployer Engine Routing:
+   - File: internal/deployer/driver_factory.go
+   - Struct `DriverFactory` mematuhi interface `DeployDriver`:
+     * Jika `server_id` kosong/null -> Mendelegasikan seluruh eksekusi ke `LocalDriver` (menjaga kompatibilitas 100% dan zero regression untuk deployment Sprint 3).
+     * Jika `server_id` terisi -> Mendelegasikan eksekusi ke `RemoteSSHDriver` (Sprint 4 BYOS).
+     * `DriverFor(ctx, id)`: Secara dinamis membaca deployment record di Store untuk merouting `Start`, `Stop`, `Restart`, `Health`, `Delete` ke driver yang sesuai.
+   - Integrasi Control Plane:
+     * File: internal/server/server.go: Server deployerDriver diinisialisasi menggunakan `NewDriverFactory(localDriver, remoteDriver, depStore)`.
+     * File: internal/server/deployer_handlers.go: Mendukung parameter `server_id` pada payload JSON `POST /api/deployments` dan multipart form upload `POST /api/deployments/upload`.
+     * File: internal/deployer/store_db.go: Kolom `server_id` diintegrasikan pada queries PostgreSQL (Create, Get, Update, List) dengan penanganan safe NULL/COALESCE.
+
+4. Bukti Eksekusi Targeted Automated Tests (100% PASS):
+
+   A. RemoteSSHDriver & DriverFactory Unit Tests (internal/deployer/ssh_driver_test.go):
+   === RUN   TestRemoteSSHDriver_InterfaceCompliance
+   --- PASS: TestRemoteSSHDriver_InterfaceCompliance (0.00s)
+   === RUN   TestRemotePathTraversalDefense
+   --- PASS: TestRemotePathTraversalDefense (0.00s)
+   === RUN   TestRemoteSSHDriver_FullLifecycle
+   --- PASS: TestRemoteSSHDriver_FullLifecycle (0.11s)
+   === RUN   TestRemoteSSHDriver_ErrorHandling
+   --- PASS: TestRemoteSSHDriver_ErrorHandling (0.01s)
+   === RUN   TestDriverFactory_Routing
+   --- PASS: TestDriverFactory_Routing (0.02s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	0.151s
+
+   B. Deployer Handlers ServerID Integration Test (internal/server/deployer_handlers_test.go):
+   === RUN   TestDeployerHandlers_ServerID_Routing
+   --- PASS: TestDeployerHandlers_ServerID_Routing (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/server	0.008s
+
+   C. Full Suite deployer Package Verification:
+   === RUN   TestCaddyDomainFormatting
+   --- PASS: TestCaddyDomainFormatting (0.00s)
+   === RUN   TestCaddyMockAdminAPI
+   --- PASS: TestCaddyMockAdminAPI (0.01s)
+   === RUN   TestCaddySnippetGenerationAndLifecycle
+   --- PASS: TestCaddySnippetGenerationAndLifecycle (0.00s)
+   === RUN   TestCaddyReconcileRoutes
+   --- PASS: TestCaddyReconcileRoutes (0.00s)
+   === RUN   TestLocalDriverWithCaddyRouter
+   --- PASS: TestLocalDriverWithCaddyRouter (0.11s)
+   === RUN   TestRealCaddyIntegration
+   --- PASS: TestRealCaddyIntegration (0.27s)
+   === RUN   TestZipSlipProtection
+   --- PASS: TestZipSlipProtection (0.01s)
+   === RUN   TestStackAutoDetection
+   --- PASS: TestStackAutoDetection (0.01s)
+   === RUN   TestDeployerMigrations
+   --- PASS: TestDeployerMigrations (0.00s)
+   === RUN   TestLocalDriverLifecycle
+   --- PASS: TestLocalDriverLifecycle (0.17s)
+   === RUN   TestStorageEngine_Isolation
+   --- PASS: TestStorageEngine_Isolation (0.00s)
+   === RUN   TestPortPool_ZeroCollision
+   --- PASS: TestPortPool_ZeroCollision (0.01s)
+   === RUN   TestLocalDriver_Lifecycle
+   --- PASS: TestLocalDriver_Lifecycle (0.43s)
+   === RUN   TestLogStreamer
+   --- PASS: TestLogStreamer (0.00s)
+   === RUN   TestSSHConnector_Success
+   --- PASS: TestSSHConnector_Success (0.00s)
+   === RUN   TestSSHConnector_AuthFailure
+   --- PASS: TestSSHConnector_AuthFailure (0.00s)
+   === RUN   TestSSHConnector_HostUnreachableAndTimeout
+   --- PASS: TestSSHConnector_HostUnreachableAndTimeout (0.10s)
+   === RUN   TestSSHClientPool_Lifecycle
+   --- PASS: TestSSHClientPool_Lifecycle (0.01s)
+   === RUN   TestParseProbeOutput_Variations
+   --- PASS: TestParseProbeOutput_Variations (0.00s)
+   === RUN   TestRemoteSSHDriver_InterfaceCompliance
+   --- PASS: TestRemoteSSHDriver_InterfaceCompliance (0.00s)
+   === RUN   TestRemotePathTraversalDefense
+   --- PASS: TestRemotePathTraversalDefense (0.00s)
+   === RUN   TestRemoteSSHDriver_FullLifecycle
+   --- PASS: TestRemoteSSHDriver_FullLifecycle (0.11s)
+   === RUN   TestRemoteSSHDriver_ErrorHandling
+   --- PASS: TestRemoteSSHDriver_ErrorHandling (0.01s)
+   === RUN   TestDriverFactory_Routing
+   --- PASS: TestDriverFactory_Routing (0.01s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	1.315s
+
+   D. Zero Regression Across All Internal Packages:
+   - internal/deployer: PASS (1.026s)
+   - internal/crypto: PASS (cached)
+   - internal/db: PASS (cached)
+   - internal/git: PASS (cached)
+   - internal/task: PASS (0.027s)
+   - internal/runner: PASS (0.022s)
+   - internal/auth: PASS (cached)
+   - internal/agent: PASS (cached)
+   - internal/sponsorship: PASS (cached)
+   - internal/project: PASS (19.292s)
+   - internal/server: PASS (39.583s)
+
+5. Definition of Done (DoD) Checklist:
+   [x] 1. `RemoteSSHDriver` memenuhi seluruh kontrak interface `DeployDriver`.
+   [x] 2. Transfer bundle dan eksekusi remote runner teruji aman tanpa error.
+   [x] 3. Path traversal defense di remote host terverifikasi.
+   [x] 4. Targeted unit tests Go lulus 100%.
+   [x] 5. Bukti audit tersimpan di `docs/sprints/evidence/S4/s04_3_ssh_driver_verified.txt`.
+   [x] 6. Commit diautentikasi author `Buchin <buchin@dropsugar.com>` dan terdorong ke `main`.
+
+=== RESULT: PASS (100% LULUS, SELURUH KRITERIA DoD TERPENUHI TANPA REGRESI) ===

@@ -22,10 +22,10 @@ func NewDBStore(db *sql.DB) *DBStore {
 func (s *DBStore) CreateDeployment(ctx context.Context, dep *Deployment) error {
 	query := `
 		INSERT INTO deployments (
-			id, project_name, slug, source_type, source_ref, runtime,
+			id, server_id, project_name, slug, source_type, source_ref, runtime,
 			status, internal_port, domain, env_vars, process_pid,
 			created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	now := time.Now().UTC()
@@ -39,8 +39,14 @@ func (s *DBStore) CreateDeployment(ctx context.Context, dep *Deployment) error {
 		envJSON = []byte("{}")
 	}
 
+	var serverIDVal *string
+	if dep.ServerID != "" {
+		serverIDVal = &dep.ServerID
+	}
+
 	_, err = s.db.ExecContext(ctx, query,
 		dep.ID,
+		serverIDVal,
 		dep.ProjectName,
 		dep.Slug,
 		dep.SourceType,
@@ -65,7 +71,7 @@ func (s *DBStore) CreateDeployment(ctx context.Context, dep *Deployment) error {
 
 func (s *DBStore) GetDeployment(ctx context.Context, id string) (*Deployment, error) {
 	query := `
-		SELECT id, project_name, slug, source_type, COALESCE(source_ref, ''),
+		SELECT id, COALESCE(server_id, ''), project_name, slug, source_type, COALESCE(source_ref, ''),
 		       runtime, status, internal_port, domain, env_vars, process_pid,
 		       created_at, updated_at
 		FROM deployments
@@ -76,7 +82,7 @@ func (s *DBStore) GetDeployment(ctx context.Context, id string) (*Deployment, er
 
 func (s *DBStore) GetDeploymentBySlug(ctx context.Context, slug string) (*Deployment, error) {
 	query := `
-		SELECT id, project_name, slug, source_type, COALESCE(source_ref, ''),
+		SELECT id, COALESCE(server_id, ''), project_name, slug, source_type, COALESCE(source_ref, ''),
 		       runtime, status, internal_port, domain, env_vars, process_pid,
 		       created_at, updated_at
 		FROM deployments
@@ -88,9 +94,9 @@ func (s *DBStore) GetDeploymentBySlug(ctx context.Context, slug string) (*Deploy
 func (s *DBStore) UpdateDeployment(ctx context.Context, dep *Deployment) error {
 	query := `
 		UPDATE deployments
-		SET project_name = $2, slug = $3, source_type = $4, source_ref = $5,
-		    runtime = $6, status = $7, internal_port = $8, domain = $9,
-		    env_vars = $10, process_pid = $11, updated_at = $12
+		SET server_id = $2, project_name = $3, slug = $4, source_type = $5, source_ref = $6,
+		    runtime = $7, status = $8, internal_port = $9, domain = $10,
+		    env_vars = $11, process_pid = $12, updated_at = $13
 		WHERE id = $1
 	`
 	dep.UpdatedAt = time.Now().UTC()
@@ -99,8 +105,14 @@ func (s *DBStore) UpdateDeployment(ctx context.Context, dep *Deployment) error {
 		envJSON = []byte("{}")
 	}
 
+	var serverIDVal *string
+	if dep.ServerID != "" {
+		serverIDVal = &dep.ServerID
+	}
+
 	res, err := s.db.ExecContext(ctx, query,
 		dep.ID,
+		serverIDVal,
 		dep.ProjectName,
 		dep.Slug,
 		dep.SourceType,
@@ -153,7 +165,7 @@ func (s *DBStore) UpdateDeploymentStatus(ctx context.Context, id, status string)
 
 func (s *DBStore) ListDeployments(ctx context.Context) ([]Deployment, error) {
 	query := `
-		SELECT id, project_name, slug, source_type, COALESCE(source_ref, ''),
+		SELECT id, COALESCE(server_id, ''), project_name, slug, source_type, COALESCE(source_ref, ''),
 		       runtime, status, internal_port, domain, env_vars, process_pid,
 		       created_at, updated_at
 		FROM deployments
@@ -171,6 +183,7 @@ func (s *DBStore) ListDeployments(ctx context.Context) ([]Deployment, error) {
 		var envRaw []byte
 		if err := rows.Scan(
 			&dep.ID,
+			&dep.ServerID,
 			&dep.ProjectName,
 			&dep.Slug,
 			&dep.SourceType,
@@ -277,6 +290,7 @@ func (s *DBStore) scanDeployment(row *sql.Row) (*Deployment, error) {
 	var envRaw []byte
 	err := row.Scan(
 		&dep.ID,
+		&dep.ServerID,
 		&dep.ProjectName,
 		&dep.Slug,
 		&dep.SourceType,

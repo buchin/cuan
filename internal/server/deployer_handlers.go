@@ -101,6 +101,7 @@ func (s *Server) handleUploadDeploymentZip(w http.ResponseWriter, r *http.Reques
 
 	slug := strings.TrimSpace(r.FormValue("slug"))
 	runtime := strings.TrimSpace(r.FormValue("runtime"))
+	serverID := strings.TrimSpace(r.FormValue("server_id"))
 
 	var envVars map[string]interface{}
 	envVarsStr := strings.TrimSpace(r.FormValue("env_vars"))
@@ -112,6 +113,7 @@ func (s *Server) handleUploadDeploymentZip(w http.ResponseWriter, r *http.Reques
 	}
 
 	req := deployer.DeploymentRequest{
+		ServerID:    serverID,
 		ProjectName: projectName,
 		Slug:        slug,
 		SourceType:  deployer.SourceTypeZip,
@@ -137,6 +139,7 @@ func (s *Server) handleUploadDeploymentZip(w http.ResponseWriter, r *http.Reques
 
 // CreateDeploymentPayload models JSON request for Git or custom deployment creation.
 type CreateDeploymentPayload struct {
+	ServerID    string                 `json:"server_id,omitempty"`
 	ProjectName string                 `json:"project_name"`
 	Slug        string                 `json:"slug"`
 	SourceType  string                 `json:"source_type"` // 'git' or 'zip'
@@ -180,6 +183,7 @@ func (s *Server) handleCreateDeployment(w http.ResponseWriter, r *http.Request) 
 	}
 
 	req := deployer.DeploymentRequest{
+		ServerID:    payload.ServerID,
 		ProjectName: payload.ProjectName,
 		Slug:        payload.Slug,
 		SourceType:  sourceType,

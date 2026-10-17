@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -174,8 +175,8 @@ func (c *SSHClient) Client() *ssh.Client {
 	return c.client
 }
 
-// RunCommand executes a shell command on the remote host, capturing stdout and stderr.
-func (c *SSHClient) RunCommand(ctx context.Context, cmd string) (string, string, error) {
+// RunCommandWithInput executes a shell command on the remote host with optional stdin streaming.
+func (c *SSHClient) RunCommandWithInput(ctx context.Context, cmd string, stdin io.Reader) (string, string, error) {
 	c.mu.Lock()
 	if c.closed || c.client == nil {
 		c.mu.Unlock()
@@ -190,6 +191,10 @@ func (c *SSHClient) RunCommand(ctx context.Context, cmd string) (string, string,
 		return "", "", fmt.Errorf("create ssh session: %w", err)
 	}
 	defer session.Close()
+
+	if stdin != nil {
+		session.Stdin = stdin
+	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	session.Stdout = &stdoutBuf
@@ -208,6 +213,11 @@ func (c *SSHClient) RunCommand(ctx context.Context, cmd string) (string, string,
 	case err := <-done:
 		return stdoutBuf.String(), stderrBuf.String(), err
 	}
+}
+
+// RunCommand executes a shell command on the remote host, capturing stdout and stderr.
+func (c *SSHClient) RunCommand(ctx context.Context, cmd string) (string, string, error) {
+	return c.RunCommandWithInput(ctx, cmd, nil)
 }
 
 // Ping measures round-trip latency to the remote host.

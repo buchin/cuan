@@ -3,6 +3,7 @@ package server
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -366,5 +367,104 @@ func TestDeployerHandlers_Lifecycle(t *testing.T) {
 
 	if recGetAfter.Code != http.StatusNotFound {
 		t.Errorf("expected 404 after delete, got %d", recGetAfter.Code)
+	}
+}
+
+type mockDeployDriverWithRequestTracking struct {
+	deployer.DeployDriver
+	lastReq *deployer.DeploymentRequest
+}
+
+func (m *mockDeployDriverWithRequestTracking) Deploy(ctx context.Context, req deployer.DeploymentRequest) (*deployer.DeploymentResult, error) {
+	m.lastReq = &req
+	return &deployer.DeploymentResult{
+		Deployment: &deployer.Deployment{
+			ID:          "dep_mock_server_id_test",
+			ServerID:    req.ServerID,
+			ProjectName: req.ProjectName,
+			Slug:        req.Slug,
+			Status:      deployer.StatusPending,
+		},
+		DetectedRuntime: req.Runtime,
+		Status:          deployer.StatusPending,
+	}, nil
+}
+
+func TestDeployerHandlers_ServerID_Routing(t *testing.T) {
+	srv, _, _ := setupTestServerWithDeployer(t)
+
+	mockDrv := &mockDeployDriverWithRequestTracking{}
+	srv.SetDeployerDriver(mockDrv)
+
+	// 1. JSON Create Deployment with server_id
+	createPayload := map[string]interface{}{
+		"server_id":    "srv_remote_byos_vps",
+		"project_name": "BYOS Project",
+		"source_type":  "git",
+		"source_ref":   "https://github.com/cuan/test-app",
+	}
+	body, _ := json.Marshal(createPayload)
+	reqJSON := httptest.NewRequest("POST", "/api/deployments", bytes.NewReader(body))
+	reqJSON.Header.Set("Content-Type", "application/json")
+	recJSON := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(recJSON, reqJSON)
+
+	if recJSON.Code != http.StatusCreated {
+		t.Fatalf("create deployment failed: %d %s", recJSON.Code, recJSON.Body.String())
+	}
+
+	if mockDrv.lastReq == nil || mockDrv.lastReq.ServerID != "srv_remote_byos_vps" {
+		t.Errorf("expected mock driver to receive ServerID 'srv_remote_byos_vps', got: %+v", mockDrv.lastReq)
+	}
+
+	var jsonRes struct {
+		Deployment deployer.Deployment `json:"deployment"`
+	}
+	if err := json.NewDecoder(recJSON.Body).Decode(&jsonRes); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if jsonRes.Deployment.ServerID != "srv_remote_byos_vps" {
+		t.Errorf("expected response deployment.server_id to be 'srv_remote_byos_vps', got %s", jsonRes.Deployment.ServerID)
+	}
+
+	// 2. Multipart ZIP Upload with server_id form field
+	zipBytes, err := createZipArchive(map[string]string{
+		"index.php": "<?php echo 1; ?>",
+	})
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+
+	var multipartBuf bytes.Buffer
+	mw := multipart.NewWriter(&multipartBuf)
+	_ = mw.WriteField("project_name", "Uploaded BYOS App")
+	_ = mw.WriteField("server_id", "srv_upload_vps_99")
+	part, _ := mw.CreateFormFile("file", "app.zip")
+	_, _ = part.Write(zipBytes)
+	_ = mw.Close()
+
+	reqUpload := httptest.NewRequest("POST", "/api/deployments/upload", &multipartBuf)
+	reqUpload.Header.Set("Content-Type", mw.FormDataContentType())
+	recUpload := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(recUpload, reqUpload)
+
+	if recUpload.Code != http.StatusCreated {
+		t.Fatalf("upload deployment failed: %d %s", recUpload.Code, recUpload.Body.String())
+	}
+
+	if mockDrv.lastReq == nil || mockDrv.lastReq.ServerID != "srv_upload_vps_99" {
+		t.Errorf("expected mock driver to receive ServerID 'srv_upload_vps_99', got: %+v", mockDrv.lastReq)
+	}
+
+	var uploadRes struct {
+		Deployment deployer.Deployment `json:"deployment"`
+	}
+	if err := json.NewDecoder(recUpload.Body).Decode(&uploadRes); err != nil {
+		t.Fatalf("decode upload response: %v", err)
+	}
+	if uploadRes.Deployment.ServerID != "srv_upload_vps_99" {
+		t.Errorf("expected upload response deployment.server_id to be 'srv_upload_vps_99', got %s", uploadRes.Deployment.ServerID)
 	}
 }

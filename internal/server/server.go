@@ -131,7 +131,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		caddyCfg.AdminURL = cfg.CaddyAdminURL
 	}
 	caddyRouter := deployer.NewCaddyRouter(caddyCfg)
-	depDriver := deployer.NewLocalDriverWithRouter(depStorage, depStore, deployer.NewPortPool(), caddyRouter)
+	portPool := deployer.NewPortPool()
+	localDriver := deployer.NewLocalDriverWithRouter(depStorage, depStore, portPool, caddyRouter)
 
 	var srvRepo cuanDB.ServerRepository
 	if db != nil {
@@ -141,6 +142,10 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 	vault := crypto.DefaultKeyVault()
 	sshMgr := deployer.NewClientPool(deployer.DefaultSSHTimeout)
+
+	remoteDriver := deployer.NewRemoteSSHDriver(srvRepo, vault, sshMgr, depStore, portPool, caddyRouter)
+	remoteDriver.SetStorage(depStorage)
+	depDriver := deployer.NewDriverFactory(localDriver, remoteDriver, depStore)
 
 	s := &Server{
 		cfg:            cfg,
