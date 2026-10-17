@@ -106,6 +106,11 @@ type RunnerListener interface {
 	OnCampaignComplete(campaignID string, result *CampaignRunResult)
 }
 
+// CampaignStartListener optionally receives notifications when a campaign run is initialized with all subtasks.
+type CampaignStartListener interface {
+	OnCampaignStart(campaignID string, tasks []*db.ProjectTask)
+}
+
 // RunnerOption configures the MultiProjectRunner.
 type RunnerOption func(*MultiProjectRunner)
 
@@ -143,6 +148,15 @@ func WithRunnerBatchRepo(repo db.BatchCampaignRepository) RunnerOption {
 func WithDecompiler(decompiler *DecompilerEngine) RunnerOption {
 	return func(r *MultiProjectRunner) {
 		r.decompiler = decompiler
+	}
+}
+
+// WithRunnerAggregator registers a RollupAggregator as a lifecycle listener.
+func WithRunnerAggregator(aggregator *RollupAggregator) RunnerOption {
+	return func(r *MultiProjectRunner) {
+		if aggregator != nil {
+			r.AddListener(aggregator)
+		}
 	}
 }
 
@@ -245,6 +259,13 @@ func (r *MultiProjectRunner) ExecuteTasks(ctx context.Context, tasks []*db.Proje
 
 	var completedCount int64
 	var failedCount int64
+
+	// Notify listeners that implement CampaignStartListener
+	for _, l := range listeners {
+		if csl, ok := l.(CampaignStartListener); ok {
+			csl.OnCampaignStart(bID, tasks)
+		}
+	}
 
 	// Concurrency semaphore
 	sem := make(chan struct{}, maxWorkers)

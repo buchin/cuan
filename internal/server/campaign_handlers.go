@@ -3,9 +3,11 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -149,6 +151,17 @@ func (s *Server) handleGetBatchCampaign(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	// Include rollup metrics if aggregator is available
+	if s.campaignAggregator != nil {
+		rollup := s.campaignAggregator.GetRollup(id)
+		if rollup == nil && s.projectStudioRepo != nil {
+			rollup, _ = s.campaignAggregator.RefreshFromRepository(r.Context(), id)
+		}
+		if rollup != nil {
+			resp["rollup"] = rollup
+		}
+	}
+
 	respondJSON(w, http.StatusOK, resp)
 }
 
@@ -214,4 +227,166 @@ func (s *Server) handleExecuteBatchCampaign(w http.ResponseWriter, r *http.Reque
 		"duration_ms":      runResult.DurationMs,
 		"results":          runResult.Results,
 	})
+}
+
+// handleGetCampaignRollup retrieves aggregated rollup metrics for a batch campaign.
+// Route: GET /api/campaigns/{id}/rollup
+// Aliases: GET /api/v1/campaigns/{id}/rollup
+func (s *Server) handleGetCampaignRollup(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "campaign id is required")
+		return
+	}
+	if !db.IsValidUUID(id) {
+		respondJSONError(w, http.StatusBadRequest, "invalid campaign uuid format")
+		return
+	}
+
+	if s.batchCampaignRepo != nil {
+		_, err := s.batchCampaignRepo.GetByID(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, db.ErrBatchCampaignNotFound) {
+				respondJSONError(w, http.StatusNotFound, "batch campaign not found")
+				return
+			}
+			respondJSONError(w, http.StatusInternalServerError, "failed to get batch campaign: "+err.Error())
+			return
+		}
+	}
+
+	if s.campaignAggregator == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "campaign aggregator engine is unavailable")
+		return
+	}
+
+	rollup := s.campaignAggregator.GetRollup(id)
+	if rollup == nil {
+		var err error
+		rollup, err = s.campaignAggregator.RefreshFromRepository(r.Context(), id)
+		if err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "failed to aggregate campaign rollup: "+err.Error())
+			return
+		}
+	}
+
+	if rollup == nil {
+		rollup = &campaign.RollupMetrics{
+			CampaignID: id,
+			Status:     "draft",
+			UpdatedAt:  time.Now().UTC(),
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":      "success",
+		"campaign_id": id,
+		"rollup":      rollup,
+	})
+}
+
+// handleCampaignEventsSSE streams real-time campaign progress, task status changes,
+// and completion events via Server-Sent Events (SSE) with heartbeat and graceful cleanup.
+// Route: GET /api/campaigns/{id}/events
+// Aliases: GET /api/v1/campaigns/{id}/events
+func (s *Server) handleCampaignEventsSSE(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		respondJSONError(w, http.StatusInternalServerError, "server-sent events streaming unsupported")
+		return
+	}
+
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "campaign id is required")
+		return
+	}
+	if !db.IsValidUUID(id) {
+		respondJSONError(w, http.StatusBadRequest, "invalid campaign uuid format")
+		return
+	}
+
+	// Verify campaign existence if repository is configured
+	if s.batchCampaignRepo != nil {
+		_, err := s.batchCampaignRepo.GetByID(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, db.ErrBatchCampaignNotFound) {
+				respondJSONError(w, http.StatusNotFound, "batch campaign not found")
+				return
+			}
+			respondJSONError(w, http.StatusInternalServerError, "failed to retrieve batch campaign: "+err.Error())
+			return
+		}
+	}
+
+	// Ensure campaignAggregator is initialized
+	if s.campaignAggregator == nil {
+		s.campaignAggregator = campaign.NewRollupAggregator(
+			campaign.WithAggregatorStudioRepo(s.projectStudioRepo),
+			campaign.WithAggregatorBatchRepo(s.batchCampaignRepo),
+		)
+		if s.campaignRunner != nil {
+			s.campaignRunner.AddListener(s.campaignAggregator)
+		}
+	}
+
+	// Set standard SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Subscribe client channel before sending handshake
+	clientChan := s.campaignAggregator.Subscribe(id)
+	defer s.campaignAggregator.Unsubscribe(id, clientChan)
+
+	// Emit initial connection handshake event
+	fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"campaign_id\":\"%s\"}\n\n", id)
+	flusher.Flush()
+
+	// Emit initial campaign.progress event with current rollup state if available
+	initialRollup := s.campaignAggregator.GetRollup(id)
+	if initialRollup == nil && s.projectStudioRepo != nil {
+		initialRollup, _ = s.campaignAggregator.RefreshFromRepository(r.Context(), id)
+	}
+	if initialRollup != nil {
+		dataBytes, err := json.Marshal(campaign.CampaignProgressData{
+			CampaignID: id,
+			Rollup:     initialRollup,
+			Timestamp:  time.Now().UTC(),
+		})
+		if err == nil {
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", campaign.EventCampaignProgress, string(dataBytes))
+			flusher.Flush()
+		}
+	}
+
+	// Heartbeat ticker (15s default interval emitting ": ping\n\n")
+	ticker := time.NewTicker(s.campaignAggregator.HeartbeatInterval())
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			// Client disconnected gracefully; deferred unsubscribe will clean up channel and map
+			return
+
+		case <-ticker.C:
+			// Send heartbeat comment as requested (: ping\n\n)
+			fmt.Fprintf(w, ": ping\n\n")
+			flusher.Flush()
+
+		case ev, ok := <-clientChan:
+			if !ok {
+				return
+			}
+			dataBytes, err := json.Marshal(ev.Data)
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, string(dataBytes))
+			flusher.Flush()
+		}
+	}
 }

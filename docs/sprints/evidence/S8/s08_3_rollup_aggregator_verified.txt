@@ -1,0 +1,150 @@
+=== CUAN SPRINT 8 (S08.3) EVIDENCE: CENTRALIZED ROLLUP AGGREGATOR & REAL-TIME SSE STREAM VERIFIED ===
+Timestamp: 2026-10-17T13:46:00+07:00
+Task ID: lguctoweczcaweghevsdcvja
+Title: S08.3 — Centralized Rollup Aggregator & Real-Time SSE Stream
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Centralized Rollup Aggregator Engine (internal/campaign/aggregator.go):
+   - Package: internal/campaign
+   - Source File: internal/campaign/aggregator.go
+   - Model & Metrik:
+     * RollupMetrics:
+       - campaign_id & batch_id (UUID string)
+       - total_target & total_tasks (jumlah target subtask proyek)
+       - pending_tasks (subtasks berstatus backlog, pending, draft, queued, todo)
+       - running_tasks (subtasks berstatus doing, running, in_progress)
+       - completed_tasks (subtasks berstatus done, completed, success)
+       - review_tasks (subtasks berstatus review, in_review)
+       - failed_tasks (subtasks berstatus failed, blocked, error)
+       - success_percentage (persentase penyelesaian 0.0% – 100.0% dibulatkan 2 desimal)
+       - status ("draft", "pending", "running", "completed", "failed", "review")
+       - updated_at (timestamptz UTC)
+   - Kemampuan Komputasi & Aggregasi:
+     * Akurasi 100% & Parent Epic Filtering:
+       Secara otomatis memisahkan child subtasks proyek dari parent epic task bila keduanya tercatat dalam satu batch_id, sehingga penghitungan metrik total_target dan persentase sukses mencerminkan target aktual tanpa bias.
+     * Standardisasi Status Terpadu (ClassifyTaskStatus):
+       Mengklasifikasikan ragam status task menjadi 5 bucket agregat secara konsisten dan aman.
+     * Pemutakhiran Cepat In-Memory & Repository Refresh:
+       - UpdateRollupInMemory: Cache thread-safe berbasis sync.RWMutex untuk update instan tanpa membebani IO database.
+       - RefreshFromRepository: Membaca status mutakhir dari ProjectStudioRepository (berdasarkan batch_id atau parent_task_id) untuk sinkronisasi state.
+   - Runner Lifecycle Listeners:
+     * OnCampaignStart(campaignID, tasks):
+       Mendaftarkan seluruh subtask secara instan saat runner mulai dipicu (status awal: pending/backlog).
+     * OnTaskStart(task):
+       Memperbarui status subtask menjadi 'doing', menghitung ulang rollup, dan memancarkan event 'task.status_changed' serta 'campaign.progress'.
+     * OnTaskComplete(task, result):
+       Memperbarui status subtask menjadi 'done', meningkatkan completed_tasks, menghitung ulang success_percentage, dan memancarkan event 'task.status_changed' serta 'campaign.progress'.
+     * OnTaskFail(task, err):
+       Memperbarui status subtask menjadi 'failed', meningkatkan failed_tasks, dan memancarkan event 'task.status_changed' serta 'campaign.progress'.
+     * OnCampaignComplete(campaignID, result):
+       Menentukan status akhir kampanye ('completed' atau 'failed') dan memancarkan event 'campaign.completed' serta 'campaign.progress'.
+
+2. Real-Time Server-Sent Events (SSE) Streaming Engine & Endpoints:
+   - Handler File: internal/server/campaign_handlers.go
+   - Integrasi Server: internal/server/server.go
+   - Endpoints Terpasang:
+     * GET /api/campaigns/{id}/events & GET /api/v1/campaigns/{id}/events (HTTP 200 text/event-stream):
+       Endpoint real-time SSE stream untuk browser client / UI.
+     * GET /api/campaigns/{id}/rollup & GET /api/v1/campaigns/{id}/rollup (HTTP 200 OK):
+       Endpoint REST cepat untuk inspeksi metrik agregat tanpa membuka koneksi streaming.
+   - Header Standar SSE:
+     * Content-Type: text/event-stream
+     * Cache-Control: no-cache
+     * Connection: keep-alive
+     * X-Accel-Buffering: no
+     * Access-Control-Allow-Origin: *
+   - Format Event Terpancar:
+     * connected: Handshake awal saat client tersambung ({"status":"connected","campaign_id":"..."}).
+     * campaign.progress: Snapshot RollupMetrics mutakhir dikirim saat koneksi awal dan setiap kali terjadi perubahan state subtask.
+     * task.status_changed: Detail transisi status subtask individual (task_id, project_id, title, old_status, new_status, timestamp).
+     * campaign.completed: Sinyal finalisasi kampanye batch lengkap dengan status akhir dan ringkasan eksekusi.
+   - Heartbeat & Graceful Cleanup (Zero Memory Leak):
+     * Heartbeat Interval 15 Detik:
+       Secara periodik memancarkan komentar SSE ": ping\n\n" untuk menjaga koneksi tetap hidup melewati reverse proxy Nginx/Caddy/Cloudflare tanpa idle timeout.
+     * Graceful Cleanup:
+       Mendeteksi pemutusan koneksi client via r.Context().Done(), menghentikan heartbeat ticker, menghapus subscription dari broker map, dan menutup channel buffer subscriber. Terverifikasi SubscriberCount kembali ke 0 tanpa leak memory.
+
+3. Targeted Automated Test Results:
+
+=== RUN   TestClassifyTaskStatus
+--- PASS: TestClassifyTaskStatus (0.00s)
+=== RUN   TestRollupAggregator_CalculateRollup
+--- PASS: TestRollupAggregator_CalculateRollup (0.00s)
+=== RUN   TestRollupAggregator_ParentEpicFiltering
+--- PASS: TestRollupAggregator_ParentEpicFiltering (0.00s)
+=== RUN   TestRollupAggregator_InMemoryAndRepositoryRefresh
+--- PASS: TestRollupAggregator_InMemoryAndRepositoryRefresh (0.00s)
+=== RUN   TestRollupAggregator_RunnerLifecycleListeners
+--- PASS: TestRollupAggregator_RunnerLifecycleListeners (0.20s)
+=== RUN   TestRollupAggregator_ConcurrentSubscribersAndCleanup
+--- PASS: TestRollupAggregator_ConcurrentSubscribersAndCleanup (0.00s)
+=== RUN   TestMultiProjectRunner_IntegratedWithAggregator
+--- PASS: TestMultiProjectRunner_IntegratedWithAggregator (0.00s)
+=== RUN   TestParseTargetCriteria
+--- PASS: TestParseTargetCriteria (0.00s)
+=== RUN   TestParseTemplatePayload
+--- PASS: TestParseTemplatePayload (0.00s)
+=== RUN   TestDecompilerEngine_ProjectResolution
+--- PASS: TestDecompilerEngine_ProjectResolution (0.00s)
+=== RUN   TestDecompilerEngine_DoDChecklistGuarantee
+--- PASS: TestDecompilerEngine_DoDChecklistGuarantee (0.00s)
+=== RUN   TestDecompilerEngine_DecompileAndPersist
+--- PASS: TestDecompilerEngine_DecompileAndPersist (0.00s)
+=== RUN   TestDecompilerEngine_ErrorsAndEdgeCases
+--- PASS: TestDecompilerEngine_ErrorsAndEdgeCases (0.00s)
+=== RUN   TestMultiProjectRunner_ControlledConcurrency
+--- PASS: TestMultiProjectRunner_ControlledConcurrency (0.08s)
+=== RUN   TestMultiProjectRunner_FaultIsolation
+--- PASS: TestMultiProjectRunner_FaultIsolation (0.00s)
+=== RUN   TestMultiProjectRunner_ExecuteCampaign
+--- PASS: TestMultiProjectRunner_ExecuteCampaign (0.00s)
+=== RUN   TestMultiProjectRunner_LifecycleListeners
+--- PASS: TestMultiProjectRunner_LifecycleListeners (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/campaign	0.294s
+
+=== RUN   TestServer_CreateBatchCampaign
+--- PASS: TestServer_CreateBatchCampaign (0.00s)
+=== RUN   TestServer_ListBatchCampaigns
+--- PASS: TestServer_ListBatchCampaigns (0.00s)
+=== RUN   TestServer_GetBatchCampaign
+--- PASS: TestServer_GetBatchCampaign (0.00s)
+=== RUN   TestServer_ExecuteBatchCampaign
+--- PASS: TestServer_ExecuteBatchCampaign (0.00s)
+=== RUN   TestServer_CampaignRoutes_V1_Aliases
+--- PASS: TestServer_CampaignRoutes_V1_Aliases (0.00s)
+=== RUN   TestServer_GetCampaignRollup
+--- PASS: TestServer_GetCampaignRollup (0.00s)
+=== RUN   TestServer_CampaignEventsSSE
+--- PASS: TestServer_CampaignEventsSSE (0.50s)
+=== RUN   TestServer_Integrated_ExecuteAndLiveSSEStream
+--- PASS: TestServer_Integrated_ExecuteAndLiveSSEStream (0.19s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.720s
+
+4. Full Backend Test Suite Zero Regression:
+ok  	github.com/buchin/cuan/internal/agent	(cached)
+ok  	github.com/buchin/cuan/internal/auth	(cached)
+ok  	github.com/buchin/cuan/internal/campaign	0.283s
+?   	github.com/buchin/cuan/internal/config	[no test files]
+ok  	github.com/buchin/cuan/internal/crypto	(cached)
+ok  	github.com/buchin/cuan/internal/db	(cached)
+ok  	github.com/buchin/cuan/internal/deployer	(cached)
+ok  	github.com/buchin/cuan/internal/domain	(cached)
+ok  	github.com/buchin/cuan/internal/git	(cached)
+ok  	github.com/buchin/cuan/internal/observability	(cached)
+ok  	github.com/buchin/cuan/internal/project	(cached)
+ok  	github.com/buchin/cuan/internal/runner	(cached)
+ok  	github.com/buchin/cuan/internal/server	71.494s
+ok  	github.com/buchin/cuan/internal/sponsorship	(cached)
+ok  	github.com/buchin/cuan/internal/studio	(cached)
+ok  	github.com/buchin/cuan/internal/task	(cached)
+
+5. Evaluasi Definition of Done (DoD) S08.3:
+   - DoD 1: Aggregator menghitung metrik agregat dari seluruh subtask anak dengan akurasi 100% (LULUS).
+   - DoD 2: Endpoint SSE menyiarkan event progress real-time dengan heartbeat dan auto cleanup saat koneksi ditutup (LULUS).
+   - DoD 3: Targeted unit tests lulus 100% tanpa regresi (LULUS).
+   - DoD 4: Bukti audit tersimpan di docs/sprints/evidence/S8/s08_3_rollup_aggregator_verified.txt (LULUS).
+   - DoD 5: Git commit author Buchin <buchin@dropsugar.com> terdorong ke origin/main (LULUS).

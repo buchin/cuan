@@ -59,6 +59,7 @@ type Server struct {
 	agentExecutionHook  studio.AgentExecutionHook
 	campaignDecompiler  *campaign.DecompilerEngine
 	campaignRunner      *campaign.MultiProjectRunner
+	campaignAggregator  *campaign.RollupAggregator
 	roomEventBroker     *RoomEventBroker
 	router              *chi.Mux
 }
@@ -261,11 +262,16 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		campaign.WithProjectStudioRepo(studioRepo),
 		campaign.WithMinDoDItems(3),
 	)
+	campaignAggregator := campaign.NewRollupAggregator(
+		campaign.WithAggregatorStudioRepo(studioRepo),
+		campaign.WithAggregatorBatchRepo(batchRepo),
+	)
 	campaignRunner := campaign.NewMultiProjectRunner(
 		campaign.WithMaxWorkers(campaign.DefaultMaxWorkers),
 		campaign.WithRunnerBatchRepo(batchRepo),
 		campaign.WithRunnerStudioRepo(studioRepo),
 		campaign.WithDecompiler(campaignDecompiler),
+		campaign.WithRunnerAggregator(campaignAggregator),
 	)
 
 	s := &Server{
@@ -295,6 +301,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		agentExecutionHook:  agentHook,
 		campaignDecompiler:  campaignDecompiler,
 		campaignRunner:      campaignRunner,
+		campaignAggregator:  campaignAggregator,
 		roomEventBroker:     NewRoomEventBroker(),
 		router:              r,
 	}
@@ -493,6 +500,17 @@ func (s *Server) SetCampaignRunner(r *campaign.MultiProjectRunner) {
 	s.campaignRunner = r
 }
 
+func (s *Server) CampaignAggregator() *campaign.RollupAggregator {
+	return s.campaignAggregator
+}
+
+func (s *Server) SetCampaignAggregator(a *campaign.RollupAggregator) {
+	s.campaignAggregator = a
+	if s.campaignRunner != nil && a != nil {
+		s.campaignRunner.AddListener(a)
+	}
+}
+
 func (s *Server) RoomEventBroker() *RoomEventBroker {
 	return s.roomEventBroker
 }
@@ -623,10 +641,12 @@ func (s *Server) routes() {
 	s.router.Patch("/api/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 	s.router.Delete("/api/projects/tasks/{id}", s.handleDeleteProjectTask)
 
-	// Batch Campaigns Engine Endpoints (Sprint 8 S08.2)
+	// Batch Campaigns Engine Endpoints (Sprint 8 S08.2 & S08.3)
 	s.router.Post("/api/campaigns", s.handleCreateBatchCampaign)
 	s.router.Get("/api/campaigns", s.handleListBatchCampaigns)
 	s.router.Get("/api/campaigns/{id}", s.handleGetBatchCampaign)
+	s.router.Get("/api/campaigns/{id}/rollup", s.handleGetCampaignRollup)
+	s.router.Get("/api/campaigns/{id}/events", s.handleCampaignEventsSSE)
 	s.router.Post("/api/campaigns/{id}/execute", s.handleExecuteBatchCampaign)
 
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
@@ -676,11 +696,13 @@ func (s *Server) routes() {
 		dr.Delete("/{id}", s.handleDeleteDomain)
 	})
 
-	// Batch Campaigns route group in /api/v1 (Sprint 8 S08.2)
+	// Batch Campaigns route group in /api/v1 (Sprint 8 S08.2 & S08.3)
 	s.router.Route("/api/v1/campaigns", func(cr chi.Router) {
 		cr.Get("/", s.handleListBatchCampaigns)
 		cr.Post("/", s.handleCreateBatchCampaign)
 		cr.Get("/{id}", s.handleGetBatchCampaign)
+		cr.Get("/{id}/rollup", s.handleGetCampaignRollup)
+		cr.Get("/{id}/events", s.handleCampaignEventsSSE)
 		cr.Post("/{id}/execute", s.handleExecuteBatchCampaign)
 	})
 
@@ -743,10 +765,12 @@ func (s *Server) routes() {
 		r.Delete("/projects/tasks/{id}", s.handleDeleteProjectTask)
 		r.Patch("/tasks/{id}/status", s.handlePatchProjectTaskStatus)
 
-		// Batch Campaigns in v1 (Sprint 8 S08.2)
+		// Batch Campaigns in v1 (Sprint 8 S08.2 & S08.3)
 		r.Post("/campaigns", s.handleCreateBatchCampaign)
 		r.Get("/campaigns", s.handleListBatchCampaigns)
 		r.Get("/campaigns/{id}", s.handleGetBatchCampaign)
+		r.Get("/campaigns/{id}/rollup", s.handleGetCampaignRollup)
+		r.Get("/campaigns/{id}/events", s.handleCampaignEventsSSE)
 		r.Post("/campaigns/{id}/execute", s.handleExecuteBatchCampaign)
 
 		// Runner outbound endpoints (T5 - Authenticated via X-Runner-Token or Owner Token)
