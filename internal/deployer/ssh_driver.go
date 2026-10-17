@@ -38,6 +38,8 @@ type RemoteSSHDriver struct {
 	router        Router
 	storage       *StorageEngine
 	remoteBaseDir string
+	streamers     map[string]*RemoteLogStreamer
+	healthPoller  *ProcessHealthPoller
 	mu            sync.RWMutex
 }
 
@@ -58,6 +60,7 @@ func NewRemoteSSHDriver(
 		portPool:      portPool,
 		router:        router,
 		remoteBaseDir: "cuan-apps",
+		streamers:     make(map[string]*RemoteLogStreamer),
 	}
 }
 
@@ -66,6 +69,67 @@ func (d *RemoteSSHDriver) SetStorage(s *StorageEngine) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.storage = s
+}
+
+// SetHealthPoller configures the background process health poller and hooks lifecycle state transitions.
+func (d *RemoteSSHDriver) SetHealthPoller(p *ProcessHealthPoller) {
+	d.mu.Lock()
+	d.healthPoller = p
+	d.mu.Unlock()
+
+	if p != nil {
+		p.onStateChange = func(depID string, oldStatus, newStatus string) {
+			if newStatus == StatusCrashed || newStatus == StatusStopped {
+				d.stopLogStreamer(depID)
+			}
+		}
+	}
+}
+
+// HealthPoller returns the configured ProcessHealthPoller if any.
+func (d *RemoteSSHDriver) HealthPoller() *ProcessHealthPoller {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.healthPoller
+}
+
+// GetStreamer returns the active in-memory LogStreamer for the given deployment ID.
+func (d *RemoteSSHDriver) GetStreamer(id string) *LogStreamer {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if s, ok := d.streamers[id]; ok {
+		return s.Streamer()
+	}
+	return nil
+}
+
+func (d *RemoteSSHDriver) startLogStreamer(dep *Deployment) {
+	d.mu.Lock()
+	if d.streamers == nil {
+		d.streamers = make(map[string]*RemoteLogStreamer)
+	}
+	if existing, ok := d.streamers[dep.ID]; ok {
+		existing.Stop()
+		delete(d.streamers, dep.ID)
+	}
+	rls := NewRemoteLogStreamer(dep.ID, dep.ServerID, d.serverRepo, d.keyVault, d.sshManager, d.store)
+	d.streamers[dep.ID] = rls
+	d.mu.Unlock()
+
+	_ = rls.Start(context.Background())
+}
+
+func (d *RemoteSSHDriver) stopLogStreamer(id string) {
+	d.mu.Lock()
+	rls, ok := d.streamers[id]
+	if ok {
+		delete(d.streamers, id)
+	}
+	d.mu.Unlock()
+
+	if ok && rls != nil {
+		rls.Stop()
+	}
 }
 
 // ValidateDeploymentID validates that the deployment ID is safe and contains no traversal sequences.
@@ -494,6 +558,9 @@ func (d *RemoteSSHDriver) Start(ctx context.Context, id string) error {
 		Timestamp:    time.Now().UTC(),
 	})
 
+	// 8. Start background remote log streaming
+	d.startLogStreamer(dep)
+
 	return nil
 }
 
@@ -503,6 +570,9 @@ func (d *RemoteSSHDriver) Stop(ctx context.Context, id string) error {
 	if err := ValidateDeploymentID(id); err != nil {
 		return err
 	}
+
+	// Stop active log streamer goroutines first
+	d.stopLogStreamer(id)
 
 	dep, err := d.store.GetDeployment(ctx, id)
 	if err != nil {
@@ -645,12 +715,92 @@ func (d *RemoteSSHDriver) Health(ctx context.Context, id string) (*HealthStatus,
 	}, nil
 }
 
-// GetLogs retrieves recent log entries for the deployment from Store.
+// GetLogs retrieves recent log entries for the deployment from Store, in-memory streamer ring buffer,
+// or via direct remote log file read fallback.
 func (d *RemoteSSHDriver) GetLogs(ctx context.Context, id string, limit int) ([]LogEntry, error) {
 	if err := ValidateDeploymentID(id); err != nil {
 		return nil, err
 	}
-	return d.store.GetLogs(ctx, id, limit)
+
+	// 1. Check persistent database store
+	logs, err := d.store.GetLogs(ctx, id, limit)
+	if err == nil && len(logs) > 0 {
+		return logs, nil
+	}
+
+	// 2. Check active in-memory ring buffer
+	if s := d.GetStreamer(id); s != nil {
+		recent := s.GetRecent(limit)
+		if len(recent) > 0 {
+			return recent, nil
+		}
+	}
+
+	// 3. Fallback: fetch remote log file directly if store is empty and deployment exists
+	if dep, getErr := d.store.GetDeployment(ctx, id); getErr == nil && dep.ServerID != "" {
+		if remoteEntries, snapErr := d.FetchRemoteLogs(ctx, id, limit); snapErr == nil && len(remoteEntries) > 0 {
+			return remoteEntries, nil
+		}
+	}
+
+	return logs, err
+}
+
+// FetchRemoteLogs performs a direct read of recent lines from the remote ~/cuan-apps/<id>/app.log
+// via an SSH command and records any new lines into the store.
+func (d *RemoteSSHDriver) FetchRemoteLogs(ctx context.Context, id string, lines int) ([]LogEntry, error) {
+	if err := ValidateDeploymentID(id); err != nil {
+		return nil, err
+	}
+	if lines <= 0 {
+		lines = 100
+	}
+
+	dep, err := d.store.GetDeployment(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	srv, err := d.serverRepo.GetByID(ctx, dep.ServerID)
+	if err != nil {
+		return nil, fmt.Errorf("lookup server %s: %w", dep.ServerID, err)
+	}
+
+	decryptedKey, err := d.keyVault.Decrypt(srv.EncryptedKey)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt server ssh key: %w", err)
+	}
+
+	client, err := d.sshManager.GetClient(ctx, srv, decryptedKey)
+	if err != nil {
+		return nil, fmt.Errorf("connect to remote host: %w", err)
+	}
+
+	remoteLog := fmt.Sprintf("~/cuan-apps/%s/app.log", id)
+	cmd := fmt.Sprintf("if [ -f %s ]; then tail -n %d %s; fi", remoteLog, lines, remoteLog)
+
+	stdout, stderr, err := client.RunCommand(ctx, cmd)
+	if err != nil {
+		return nil, fmt.Errorf("read remote log file: %w (stderr: %s)", err, stderr)
+	}
+
+	var entries []LogEntry
+	for _, l := range strings.Split(strings.TrimSpace(stdout), "\n") {
+		line := strings.TrimSpace(l)
+		if line == "" {
+			continue
+		}
+		entry := LogEntry{
+			DeploymentID: id,
+			Stream:       StreamStdout,
+			Message:      line,
+			Timestamp:    time.Now().UTC(),
+		}
+		_ = d.store.AppendLog(ctx, &entry)
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
 }
 
 // List retrieves all deployment records from the Store.

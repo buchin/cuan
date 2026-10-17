@@ -104,6 +104,19 @@ func (f *DriverFactory) GetLogs(ctx context.Context, id string, limit int) ([]Lo
 	return driver.GetLogs(ctx, id, limit)
 }
 
+// GetStreamer returns the active in-memory LogStreamer for the given deployment ID.
+func (f *DriverFactory) GetStreamer(id string) *LogStreamer {
+	if sp, ok := f.remoteDriver.(interface{ GetStreamer(string) *LogStreamer }); ok {
+		if s := sp.GetStreamer(id); s != nil {
+			return s
+		}
+	}
+	if sp, ok := f.localDriver.(interface{ GetStreamer(string) *LogStreamer }); ok {
+		return sp.GetStreamer(id)
+	}
+	return nil
+}
+
 // List retrieves all deployments from the persistent store.
 func (f *DriverFactory) List(ctx context.Context) ([]Deployment, error) {
 	return f.store.ListDeployments(ctx)

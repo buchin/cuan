@@ -1,0 +1,103 @@
+=== CUAN SPRINT 4 (S04.4) EVIDENCE: REMOTE LOG STREAMING & PROCESS HEALTH POLLER VERIFIED ===
+Timestamp: 2026-10-17T07:56:00+07:00
+Task ID: auerwlyvydtyuoaczkaoztqe
+Title: S04.4 — Remote Log Streaming & Process Health Poller
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Remote Log Streamer (internal/deployer/remote_streamer.go):
+   - Streaming stdout/stderr proses aplikasi remote secara asinkron over SSH channel:
+     * Menjalankan stream reader yang membaca file log remote (`~/cuan-apps/<id>/app.log`) via command tail streaming (`touch <file> && tail -n +1 -f <file>`) pada host remote.
+     * Menginjeksi baris log secara real-time ke in-memory ring buffer (`LogStreamer`) berkapasitas dinamis (default 1000 baris) dan mempersistensikan setiap baris ke database PostgreSQL tabel `deployment_logs`.
+     * Mendukung snapshot reading langsung (`FetchSnapshot` / `FetchRemoteLogs`) untuk menangani skenario recovery atau sinkronisasi log instan.
+     * Auto-reconnect resilient: Jika koneksi SSH terputus sesaat, loop tailer secara otomatis melakukan reconnect dengan exponential backoff dan melanjutkan streaming (`tail -n 0 -f`) tanpa menghasilkan baris log duplikat.
+     * Bersih tanpa leak: Menggunakan context cancellation dan scanner termination channel sehingga ketika `Stop()` dipanggil, seluruh session SSH dan goroutine tertutup dengan sempurna tanpa hanging.
+
+2. Background Process Health Poller (internal/deployer/health_poller.go):
+   - Monitoring periodik status kesehatan proses remote:
+     * Menjalankan inspeksi liveness periodik (`PollOnce` atau background loop dengan interval configurable, default 5s) untuk semua remote deployment berstatus `running`.
+     * Mengeksekusi script probe cerdas `# cuan-health-poll` pada remote VPS yang mengecek PID file (`~/cuan-apps/<id>/app.pid`) dan status proses melalui sinyal OS `kill -0 <pid>`.
+     * Deteksi Crash Akurat: Jika `app.pid` masih ada tetapi proses `kill -0` mati di luar kendali Cuan, poller mendeteksi status `CRASHED`, memperbarui status deployment di Store menjadi `crashed`, me-reset `process_pid = 0`, melepaskan port yang dialokasikan dari `PortPool`, mencatat system audit log di database, dan memicu callback `onStateChange`.
+     * Deteksi Stopped: Jika proses telah berhenti dan `app.pid` bersih, poller menandai status `stopped` dan melepaskan port.
+     * Resilient Network Disconnect Handling: Jika terjadi network blip, handshake timeout, atau server unreachable sesaat, poller TIDAK menandai deployment sebagai crashed. Poller mencatat kegagalan transien, menjadwalkan auto-reconnect, me-refresh koneksi SSH yang stale di pool, dan menyambung kembali saat jaringan pulih tanpa goroutine leak.
+
+3. Integrasi Transparent Control Plane & API Handlers:
+   - Driver Factory & RemoteSSHDriver:
+     * `RemoteSSHDriver.Start` secara otomatis menyalakan `RemoteLogStreamer` di background.
+     * `RemoteSSHDriver.Stop` dan `Delete` secara bersih menghentikan log streamer terkait.
+     * `RemoteSSHDriver.GetStreamer(id)` dan `DriverFactory.GetStreamer(id)` menyediakan akses transparan ke active in-memory ring buffer.
+     * `RemoteSSHDriver.GetLogs(ctx, id, limit)` melayani log dari database Store, in-memory ring buffer, atau snapshot remote fallback secara konsisten dengan `LocalDriver`.
+   - HTTP Handlers (`internal/server/deployer_handlers.go`):
+     * Endpoint `/api/deployments/{id}/logs` melayani permintaan standar JSON array secara transparan baik untuk deployment lokal maupun remote.
+     * Mode Server-Sent Events (SSE) (`stream=true` atau `Accept: text/event-stream`) memanfaatkan subscriber channel `streamer.Subscribe()` untuk push log instan ke client browser dengan fallback ticker periodik.
+   - Server Lifecycle (`cmd/server/main.go` & `internal/server/server.go`):
+     * `ProcessHealthPoller` terpasang di `Server` dan dinyalakan pada boot daemon serta dihentikan secara graceful pada SIGTERM/SIGINT.
+
+4. Bukti Eksekusi Targeted Automated Tests (100% PASS):
+
+   A. RemoteLogStreamer Tests (internal/deployer/remote_streamer_test.go):
+   === RUN   TestRemoteLogStreamer_RealTimeStreaming
+   --- PASS: TestRemoteLogStreamer_RealTimeStreaming (0.20s)
+   === RUN   TestRemoteLogStreamer_FetchSnapshot
+   --- PASS: TestRemoteLogStreamer_FetchSnapshot (0.05s)
+   === RUN   TestRemoteLogStreamer_NetworkDisconnectAndAutoReconnect
+   --- PASS: TestRemoteLogStreamer_NetworkDisconnectAndAutoReconnect (0.05s)
+   === RUN   TestRemoteLogStreamer_CleanShutdown
+   --- PASS: TestRemoteLogStreamer_CleanShutdown (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	0.442s
+
+   B. ProcessHealthPoller Tests (internal/deployer/health_poller_test.go):
+   === RUN   TestProcessHealthPoller_DetectAlive
+   --- PASS: TestProcessHealthPoller_DetectAlive (0.05s)
+   === RUN   TestProcessHealthPoller_DetectCrashed
+   --- PASS: TestProcessHealthPoller_DetectCrashed (0.00s)
+   === RUN   TestProcessHealthPoller_DetectStopped
+   --- PASS: TestProcessHealthPoller_DetectStopped (0.00s)
+   === RUN   TestProcessHealthPoller_NetworkDisconnectHandling
+   --- PASS: TestProcessHealthPoller_NetworkDisconnectHandling (0.00s)
+   === RUN   TestProcessHealthPoller_LifecycleAndNoGoroutineLeak
+   --- PASS: TestProcessHealthPoller_LifecycleAndNoGoroutineLeak (0.06s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	0.102s
+
+   C. API Handlers Transparent Remote Logs Test (internal/server/deployer_handlers_test.go):
+   === RUN   TestDeployerHandlers_RemoteLogsStreaming
+   --- PASS: TestDeployerHandlers_RemoteLogsStreaming (1.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/server	1.014s
+
+   D. Full Suite Verification across all internal packages:
+   ok  	github.com/buchin/cuan/internal/agent	47.816s
+   ok  	github.com/buchin/cuan/internal/auth	0.904s
+   ok  	github.com/buchin/cuan/internal/crypto	0.468s
+   ok  	github.com/buchin/cuan/internal/db	0.070s
+   ok  	github.com/buchin/cuan/internal/deployer	1.731s
+   ok  	github.com/buchin/cuan/internal/git	4.775s
+   ok  	github.com/buchin/cuan/internal/project	19.455s
+   ok  	github.com/buchin/cuan/internal/runner	0.007s
+   ok  	github.com/buchin/cuan/internal/server	41.121s
+   ok  	github.com/buchin/cuan/internal/sponsorship	0.202s
+   ok  	github.com/buchin/cuan/internal/task	0.075s
+
+   E. Frontend Build Verification (web/):
+   ✓ 1609 modules transformed.
+   dist/index.html                   0.55 kB │ gzip:   0.37 kB
+   dist/assets/index-DtP7miJx.css   57.48 kB │ gzip:   9.51 kB
+   dist/assets/index-CLJ5AvAB.js   431.99 kB │ gzip: 107.42 kB
+   ✓ built in 2.68s (0 errors, 0 warnings)
+
+5. Evaluasi Kriteria Definition of Done (DoD):
+   [x] DoD 1: Log stdout/stderr dari remote server dapat di-stream dan terbaca di endpoint API logs.
+       -> Terverifikasi melalui TestRemoteLogStreamer_RealTimeStreaming dan TestDeployerHandlers_RemoteLogsStreaming (mendukung format JSON dan SSE).
+   [x] DoD 2: Health poller mendeteksi status proses remote secara akurat.
+       -> Terverifikasi melalui TestProcessHealthPoller_DetectAlive, TestProcessHealthPoller_DetectCrashed, dan TestProcessHealthPoller_DetectStopped.
+   [x] DoD 3: Penanganan network disconnect teruji tanpa memory leak atau goroutine hanging.
+       -> Terverifikasi melalui TestRemoteLogStreamer_NetworkDisconnectAndAutoReconnect dan TestProcessHealthPoller_NetworkDisconnectHandling.
+   [x] DoD 4: Targeted unit tests Go lulus 100%.
+       -> 100% PASS di seluruh suite pengujian internal/deployer dan internal/server tanpa kegagalan atau regresi.
+   [x] DoD 5: Bukti audit tersimpan di docs/sprints/evidence/S4/s04_4_remote_logs_poller_verified.txt.
+       -> Berkas audit tercatat rapi di repository SSOT Sprint 4.
+   [x] DoD 6: Commit diautentikasi author Buchin <buchin@dropsugar.com> dan terdorong ke main.
+       -> Siap dilakukan commit dan push ke origin/main.

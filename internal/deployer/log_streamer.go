@@ -120,8 +120,12 @@ func (s *LogStreamer) Subscribe() (<-chan LogEntry, func()) {
 		once.Do(func() {
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			delete(s.subscribers, ch)
-			close(ch)
+			if _, exists := s.subscribers[ch]; exists {
+				delete(s.subscribers, ch)
+			}
+			if !s.closed {
+				close(ch)
+			}
 		})
 	}
 

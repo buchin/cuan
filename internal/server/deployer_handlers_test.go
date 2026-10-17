@@ -10,10 +10,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/buchin/cuan/internal/config"
+	"github.com/buchin/cuan/internal/crypto"
+	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/deployer"
 )
 
@@ -466,5 +469,89 @@ func TestDeployerHandlers_ServerID_Routing(t *testing.T) {
 	}
 	if uploadRes.Deployment.ServerID != "srv_upload_vps_99" {
 		t.Errorf("expected upload response deployment.server_id to be 'srv_upload_vps_99', got %s", uploadRes.Deployment.ServerID)
+	}
+}
+
+func TestDeployerHandlers_RemoteLogsStreaming(t *testing.T) {
+	srv, _, tempDir := setupTestServerWithDeployer(t)
+	defer os.RemoveAll(tempDir)
+
+	store := deployer.NewMemoryStore()
+	depID := "dep_remote_log_api_test"
+	_ = store.CreateDeployment(context.Background(), &deployer.Deployment{
+		ID:          depID,
+		ServerID:    "srv_remote_1",
+		ProjectName: "Remote Logs App",
+		Slug:        "remote-logs-app",
+		Status:      deployer.StatusRunning,
+	})
+
+	_ = store.AppendLog(context.Background(), &deployer.LogEntry{
+		DeploymentID: depID,
+		Stream:       deployer.StreamStdout,
+		Message:      "remote log line 1: booting app",
+		Timestamp:    time.Now().UTC(),
+	})
+	_ = store.AppendLog(context.Background(), &deployer.LogEntry{
+		DeploymentID: depID,
+		Stream:       deployer.StreamStdout,
+		Message:      "remote log line 2: request served 200 OK",
+		Timestamp:    time.Now().UTC(),
+	})
+
+	storage, _ := deployer.NewStorageEngine(filepath.Join(tempDir, "deployments_remote"))
+	pool := deployer.NewPortPool()
+	caddyCfg := deployer.DefaultCaddyConfig()
+	router := deployer.NewCaddyRouter(caddyCfg)
+	localDrv := deployer.NewLocalDriverWithRouter(storage, store, pool, router)
+
+	srvRepo := cuanDB.NewMemoryServerRepository()
+	vault := crypto.DefaultKeyVault()
+	sshMgr := deployer.NewClientPool(1 * time.Second)
+	remoteDrv := deployer.NewRemoteSSHDriver(srvRepo, vault, sshMgr, store, pool, router)
+
+	factory := deployer.NewDriverFactory(localDrv, remoteDrv, store)
+	srv.SetDeployerDriver(factory)
+
+	// 1. Standard GET /api/deployments/{id}/logs
+	req := httptest.NewRequest("GET", "/api/deployments/"+depID+"/logs", nil)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var jsonResp struct {
+		Logs  []deployer.LogEntry `json:"logs"`
+		Count int                 `json:"count"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&jsonResp); err != nil {
+		t.Fatalf("decode logs json: %v", err)
+	}
+
+	if jsonResp.Count < 2 || len(jsonResp.Logs) < 2 {
+		t.Fatalf("expected at least 2 logs returned, got %d", jsonResp.Count)
+	}
+	if !strings.Contains(jsonResp.Logs[0].Message, "remote log line 1") {
+		t.Errorf("unexpected log message: %s", jsonResp.Logs[0].Message)
+	}
+
+	// 2. SSE streaming GET /api/deployments/{id}/logs?stream=true
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	reqSSE := httptest.NewRequest("GET", "/api/deployments/"+depID+"/logs?stream=true", nil).WithContext(ctx)
+	reqSSE.Header.Set("Accept", "text/event-stream")
+	recSSE := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(recSSE, reqSSE)
+
+	sseBody := recSSE.Body.String()
+	if !strings.Contains(sseBody, "data: ") {
+		t.Errorf("expected SSE data prefix in response body, got: %s", sseBody)
+	}
+	if !strings.Contains(sseBody, "remote log line 1") {
+		t.Errorf("expected remote log content in SSE stream, got: %s", sseBody)
 	}
 }

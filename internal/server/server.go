@@ -40,6 +40,7 @@ type Server struct {
 	serverRepo     cuanDB.ServerRepository
 	keyVault       *crypto.KeyVault
 	sshManager     deployer.SSHManager
+	healthPoller   *deployer.ProcessHealthPoller
 	router         *chi.Mux
 }
 
@@ -147,6 +148,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	remoteDriver.SetStorage(depStorage)
 	depDriver := deployer.NewDriverFactory(localDriver, remoteDriver, depStore)
 
+	healthPoller := deployer.NewProcessHealthPoller(depStore, srvRepo, vault, sshMgr, portPool)
+	remoteDriver.SetHealthPoller(healthPoller)
+
 	s := &Server{
 		cfg:            cfg,
 		db:             db,
@@ -159,6 +163,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		serverRepo:     srvRepo,
 		keyVault:       vault,
 		sshManager:     sshMgr,
+		healthPoller:   healthPoller,
 		router:         r,
 	}
 
@@ -237,6 +242,14 @@ func (s *Server) SSHManager() deployer.SSHManager {
 
 func (s *Server) SetSSHManager(m deployer.SSHManager) {
 	s.sshManager = m
+}
+
+func (s *Server) HealthPoller() *deployer.ProcessHealthPoller {
+	return s.healthPoller
+}
+
+func (s *Server) SetHealthPoller(p *deployer.ProcessHealthPoller) {
+	s.healthPoller = p
 }
 
 func (s *Server) AppMode() string {

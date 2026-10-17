@@ -126,6 +126,11 @@ func main() {
 
 	srv := server.NewServer(cfg, dbConn)
 
+	// Start background remote worker health poller if configured
+	if srv.HealthPoller() != nil {
+		_ = srv.HealthPoller().Start(context.Background())
+	}
+
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{
 		Addr:         addr,
@@ -153,6 +158,10 @@ func main() {
 		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+
+		if srv.HealthPoller() != nil {
+			srv.HealthPoller().Stop()
+		}
 
 		if err := httpServer.Shutdown(ctx); err != nil {
 			log.Printf("Graceful shutdown failed: %v", err)

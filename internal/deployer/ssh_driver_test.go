@@ -25,13 +25,19 @@ import (
 
 // mockSSHExecution captures commands and files received by mock SSH server.
 type mockSSHExecution struct {
-	mu             sync.Mutex
-	commands       []string
-	extractedFiles map[string][]byte
-	processAlive   bool
-	pid            int
-	portOpen       bool
-	forceExecError bool
+	mu                  sync.Mutex
+	commands            []string
+	extractedFiles      map[string][]byte
+	processAlive        bool
+	pid                 int
+	portOpen            bool
+	forceExecError      bool
+	logLines            []string
+	streamChan          chan string
+	disconnectOnTail    bool
+	tailCount           int
+	probeState          string
+	simulateNetworkDrop bool
 }
 
 type mockDriverSSHServer struct {
@@ -211,7 +217,38 @@ func (s *mockDriverSSHServer) handleConnection(netConn net.Conn) {
 						return
 					}
 
-					// 2. Read PID
+					// 2. Health probe script from ProcessHealthPoller
+					if strings.Contains(cmd, "cuan-health-poll") {
+						s.execState.mu.Lock()
+						netDrop := s.execState.simulateNetworkDrop
+						pState := s.execState.probeState
+						pidVal := s.execState.pid
+						s.execState.mu.Unlock()
+
+						if netDrop {
+							_ = ch.Close()
+							return
+						}
+
+						if pState == "" {
+							pState = "ALIVE"
+						}
+
+						switch pState {
+						case "CRASHED":
+							_, _ = ch.Write([]byte(fmt.Sprintf("CRASHED:%d\n", pidVal)))
+						case "STOPPED":
+							_, _ = ch.Write([]byte(fmt.Sprintf("STOPPED:%d\n", pidVal)))
+						default:
+							_, _ = ch.Write([]byte(fmt.Sprintf("ALIVE:%d\n", pidVal)))
+						}
+
+						status := struct{ Status uint32 }{0}
+						_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(&status))
+						return
+					}
+
+					// 2b. Read PID
 					if strings.Contains(cmd, "cat ") && strings.Contains(cmd, "app.pid") {
 						_, _ = ch.Write([]byte(fmt.Sprintf("%d\n", pid)))
 						status := struct{ Status uint32 }{0}
@@ -263,6 +300,38 @@ func (s *mockDriverSSHServer) handleConnection(netConn net.Conn) {
 						return
 					}
 
+
+					// 8. Tail app.log (Streaming / Snapshot)
+					if strings.Contains(cmd, "tail -") || strings.Contains(cmd, "tail ") {
+						s.execState.mu.Lock()
+						s.execState.tailCount++
+						disconnect := s.execState.disconnectOnTail && s.execState.tailCount == 1
+						lines := append([]string{}, s.execState.logLines...)
+						sChan := s.execState.streamChan
+						s.execState.mu.Unlock()
+
+						if disconnect {
+							_ = ch.Close()
+							return
+						}
+
+						for _, l := range lines {
+							_, _ = ch.Write([]byte(l + "\n"))
+						}
+
+						if sChan != nil {
+							for l := range sChan {
+								_, _ = ch.Write([]byte(l + "\n"))
+							}
+						} else {
+							time.Sleep(50 * time.Millisecond)
+						}
+
+						status := struct{ Status uint32 }{0}
+						_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(&status))
+						return
+					}
+
 					// Default success
 					status := struct{ Status uint32 }{0}
 					_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(&status))
@@ -288,6 +357,36 @@ func (s *mockDriverSSHServer) Close() {
 	for _, c := range s.conns {
 		_ = c.Close()
 	}
+}
+
+func (s *mockDriverSSHServer) SetProbeState(state string) {
+	s.execState.mu.Lock()
+	defer s.execState.mu.Unlock()
+	s.execState.probeState = state
+}
+
+func (s *mockDriverSSHServer) SetSimulateNetworkDrop(drop bool) {
+	s.execState.mu.Lock()
+	defer s.execState.mu.Unlock()
+	s.execState.simulateNetworkDrop = drop
+}
+
+func (s *mockDriverSSHServer) AddLogLine(line string) {
+	s.execState.mu.Lock()
+	defer s.execState.mu.Unlock()
+	s.execState.logLines = append(s.execState.logLines, line)
+}
+
+func (s *mockDriverSSHServer) SetDisconnectOnTail(disconnect bool) {
+	s.execState.mu.Lock()
+	defer s.execState.mu.Unlock()
+	s.execState.disconnectOnTail = disconnect
+}
+
+func (s *mockDriverSSHServer) SetStreamChan(ch chan string) {
+	s.execState.mu.Lock()
+	defer s.execState.mu.Unlock()
+	s.execState.streamChan = ch
 }
 
 func createTestZipArchive(t *testing.T, files map[string]string) ([]byte, int64) {

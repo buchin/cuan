@@ -28,6 +28,7 @@ const (
 	StatusRunning    = "running"
 	StatusStopped    = "stopped"
 	StatusFailed     = "failed"
+	StatusCrashed    = "crashed"
 )
 
 // Stream constants

@@ -390,6 +390,16 @@ func (s *Server) handleGetDeploymentLogs(w http.ResponseWriter, r *http.Request)
 	}
 	flusher.Flush()
 
+	// If driver exposes active in-memory LogStreamer, subscribe for instant event push
+	var subCh <-chan deployer.LogEntry
+	if streamerProvider, ok := s.deployerDriver.(interface{ GetStreamer(string) *deployer.LogStreamer }); ok {
+		if st := streamerProvider.GetStreamer(id); st != nil {
+			var unsub func()
+			subCh, unsub = st.Subscribe()
+			defer unsub()
+		}
+	}
+
 	ticker := time.NewTicker(750 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -397,6 +407,17 @@ func (s *Server) handleGetDeploymentLogs(w http.ResponseWriter, r *http.Request)
 		select {
 		case <-r.Context().Done():
 			return
+		case entry, ok := <-subCh:
+			if !ok {
+				subCh = nil
+				continue
+			}
+			if entry.ID > lastLogID || lastLogID == 0 {
+				lastLogID = entry.ID
+				data, _ := json.Marshal(entry)
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				flusher.Flush()
+			}
 		case <-ticker.C:
 			currentLogs, err := s.deployerDriver.GetLogs(r.Context(), id, 50)
 			if err != nil {
