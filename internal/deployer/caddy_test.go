@@ -667,3 +667,393 @@ func TestRealCaddyIntegration(t *testing.T) {
 		}
 	}
 }
+
+// TestCaddyCustomDomainRouting verifies dynamic reverse proxy registration,
+// target mapping (local sandbox and remote BYOS runner), status checking,
+// unregistration, and validation.
+func TestCaddyCustomDomainRouting(t *testing.T) {
+	var mu sync.Mutex
+	routesStore := make(map[string]map[string]interface{})
+	errorsStore := make(map[string]map[string]interface{})
+	tlsStore := make(map[string]interface{})
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		path := r.URL.Path
+
+		if path == "/config/" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"admin": map[string]interface{}{}})
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"listen": []string{":443"}})
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0/errors" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"routes": []interface{}{}})
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0/routes" && r.Method == http.MethodPost {
+			var body map[string]interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			id, _ := body["@id"].(string)
+			routesStore[id] = body
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0/errors/routes" && r.Method == http.MethodPost {
+			var body map[string]interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			id, _ := body["@id"].(string)
+			errorsStore[id] = body
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if strings.HasPrefix(path, "/config/apps/tls") {
+			var body interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			tlsStore[path] = body
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if strings.HasPrefix(path, "/id/") {
+			id := strings.TrimPrefix(path, "/id/")
+			if r.Method == http.MethodGet {
+				if item, exists := routesStore[id]; exists {
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(item)
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				delete(routesStore, id)
+				delete(errorsStore, id)
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	ctx := context.Background()
+	tempSnippetsDir := t.TempDir()
+
+	cfg := CaddyConfig{
+		AdminURL:     mockServer.URL,
+		BaseDomain:   "cuan.dojo.cc",
+		ServerName:   "srv0",
+		SnippetsDir:  tempSnippetsDir,
+		HTTPClient:   mockServer.Client(),
+		FallbackHTML: "<html><body>Loading</body></html>",
+		AskURL:       "http://localhost:8080/api/caddy/ask",
+		OnDemandTLS:  true,
+	}
+	router := NewCaddyRouter(cfg)
+
+	// 1. Register local sandbox custom domain route
+	err := router.AddCustomDomainRoute(ctx, "app.clientbrand.com", LocalTarget(8081))
+	if err != nil {
+		t.Fatalf("AddCustomDomainRoute failed: %v", err)
+	}
+
+	// Verify route status
+	active, err := router.GetCustomDomainRouteStatus(ctx, "app.clientbrand.com")
+	if err != nil {
+		t.Fatalf("GetCustomDomainRouteStatus error: %v", err)
+	}
+	if !active {
+		t.Errorf("expected route for app.clientbrand.com to be active")
+	}
+
+	// Verify mock Caddy received correct payload
+	mu.Lock()
+	routePayload, exists := routesStore["cuan-custom-app.clientbrand.com"]
+	mu.Unlock()
+	if !exists {
+		t.Fatalf("expected route cuan-custom-app.clientbrand.com in Caddy store")
+	}
+
+	handles := routePayload["handle"].([]interface{})
+	upstreamDial := handles[0].(map[string]interface{})["upstreams"].([]interface{})[0].(map[string]interface{})["dial"].(string)
+	if upstreamDial != "127.0.0.1:8081" {
+		t.Errorf("expected upstream dial '127.0.0.1:8081', got %q", upstreamDial)
+	}
+
+	// Verify snippet file was written
+	snippetPath := filepath.Join(tempSnippetsDir, "custom_app.clientbrand.com.caddy")
+	content, err := os.ReadFile(snippetPath)
+	if err != nil {
+		t.Fatalf("failed to read snippet file: %v", err)
+	}
+	if !strings.Contains(string(content), "on_demand") || !strings.Contains(string(content), "127.0.0.1:8081") {
+		t.Errorf("snippet content missing on_demand or upstream: %s", string(content))
+	}
+
+	// 2. Register remote BYOS runner custom domain route
+	err = router.AddCustomDomainRoute(ctx, "remote.clientbrand.com", RemoteTarget("10.0.0.50", 9000))
+	if err != nil {
+		t.Fatalf("AddCustomDomainRoute for remote BYOS failed: %v", err)
+	}
+
+	mu.Lock()
+	remotePayload, exists := routesStore["cuan-custom-remote.clientbrand.com"]
+	mu.Unlock()
+	if !exists {
+		t.Fatalf("expected route cuan-custom-remote.clientbrand.com in Caddy store")
+	}
+
+	remoteHandles := remotePayload["handle"].([]interface{})
+	remoteDial := remoteHandles[0].(map[string]interface{})["upstreams"].([]interface{})[0].(map[string]interface{})["dial"].(string)
+	if remoteDial != "10.0.0.50:9000" {
+		t.Errorf("expected remote upstream dial '10.0.0.50:9000', got %q", remoteDial)
+	}
+
+	// 3. Remove custom domain route (clean unregister without reload)
+	err = router.RemoveCustomDomainRoute(ctx, "app.clientbrand.com")
+	if err != nil {
+		t.Fatalf("RemoveCustomDomainRoute failed: %v", err)
+	}
+
+	activeAfter, err := router.GetCustomDomainRouteStatus(ctx, "app.clientbrand.com")
+	if err != nil {
+		t.Fatalf("GetCustomDomainRouteStatus error: %v", err)
+	}
+	if activeAfter {
+		t.Errorf("expected route for app.clientbrand.com to be inactive after removal")
+	}
+
+	// Verify snippet file was deleted
+	if _, err := os.Stat(snippetPath); !os.IsNotExist(err) {
+		t.Errorf("expected snippet file to be removed, but it still exists")
+	}
+
+	// 4. Test input validation
+	if err := router.AddCustomDomainRoute(ctx, "", LocalTarget(8080)); err == nil {
+		t.Errorf("expected error on empty domain, got nil")
+	}
+	if err := router.AddCustomDomainRoute(ctx, "http://invalid.com", LocalTarget(8080)); err == nil {
+		t.Errorf("expected error on invalid domain format, got nil")
+	}
+	if err := router.AddCustomDomainRoute(ctx, "valid.domain.com", LocalTarget(0)); err == nil {
+		t.Errorf("expected error on invalid port 0, got nil")
+	}
+	if err := router.AddCustomDomainRoute(ctx, "valid.domain.com", LocalTarget(70000)); err == nil {
+		t.Errorf("expected error on invalid port 70000, got nil")
+	}
+}
+
+// TestCaddyCustomDomainDuplicationPrevention verifies that registering the same custom domain
+// multiple times updates the existing route cleanly without creating duplicate routes in Caddy or in memory.
+func TestCaddyCustomDomainDuplicationPrevention(t *testing.T) {
+	var mu sync.Mutex
+	routesStore := make(map[string]map[string]interface{})
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		path := r.URL.Path
+
+		if path == "/config/" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"admin": map[string]interface{}{}})
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"listen": []string{":443"}})
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0/errors" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"routes": []interface{}{}})
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0/routes" && r.Method == http.MethodPost {
+			var body map[string]interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			id, _ := body["@id"].(string)
+			routesStore[id] = body
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if path == "/config/apps/http/servers/srv0/errors/routes" && r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if strings.HasPrefix(path, "/config/apps/tls") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if strings.HasPrefix(path, "/id/") {
+			id := strings.TrimPrefix(path, "/id/")
+			if r.Method == http.MethodGet {
+				if item, exists := routesStore[id]; exists {
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(item)
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				delete(routesStore, id)
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	ctx := context.Background()
+	cfg := CaddyConfig{
+		AdminURL:     mockServer.URL,
+		BaseDomain:   "cuan.dojo.cc",
+		ServerName:   "srv0",
+		HTTPClient:   mockServer.Client(),
+		FallbackHTML: "<html><body>Loading</body></html>",
+	}
+	router := NewCaddyRouter(cfg)
+
+	// Step 1: First registration
+	err := router.AddCustomDomainRoute(ctx, "app.startup.io", LocalTarget(8001))
+	if err != nil {
+		t.Fatalf("first AddCustomDomainRoute failed: %v", err)
+	}
+
+	mu.Lock()
+	initialCount := len(routesStore)
+	mu.Unlock()
+	if initialCount != 1 {
+		t.Errorf("expected 1 route in Caddy routesStore, got %d", initialCount)
+	}
+
+	routesList := router.ListCustomDomainRoutes()
+	if len(routesList) != 1 {
+		t.Errorf("expected 1 custom route in in-memory list, got %d", len(routesList))
+	}
+	if routesList[0].Target.InternalPort != 8001 {
+		t.Errorf("expected target port 8001, got %d", routesList[0].Target.InternalPort)
+	}
+
+	// Step 2: Second registration (duplicate domain, updated port)
+	err = router.AddCustomDomainRoute(ctx, "app.startup.io", LocalTarget(8002))
+	if err != nil {
+		t.Fatalf("second AddCustomDomainRoute failed: %v", err)
+	}
+
+	mu.Lock()
+	updatedCount := len(routesStore)
+	routePayload := routesStore["cuan-custom-app.startup.io"]
+	mu.Unlock()
+
+	// Duplication check: Caddy routesStore must STILL have exactly 1 route for this ID
+	if updatedCount != 1 {
+		t.Errorf("duplication prevention failed: expected 1 route in routesStore, got %d", updatedCount)
+	}
+
+	handles := routePayload["handle"].([]interface{})
+	updatedDial := handles[0].(map[string]interface{})["upstreams"].([]interface{})[0].(map[string]interface{})["dial"].(string)
+	if updatedDial != "127.0.0.1:8002" {
+		t.Errorf("expected updated dial '127.0.0.1:8002', got %q", updatedDial)
+	}
+
+	// In-memory list must still have exactly 1 entry
+	updatedRoutesList := router.ListCustomDomainRoutes()
+	if len(updatedRoutesList) != 1 {
+		t.Errorf("duplication prevention failed in-memory: expected 1 route, got %d", len(updatedRoutesList))
+	}
+	if updatedRoutesList[0].Target.InternalPort != 8002 {
+		t.Errorf("expected updated target port 8002, got %d", updatedRoutesList[0].Target.InternalPort)
+	}
+}
+
+// TestCaddyOnDemandTLSConfiguration verifies ask URL configuration and policies.
+func TestCaddyOnDemandTLSConfiguration(t *testing.T) {
+	var mu sync.Mutex
+	tlsCalls := make(map[string]interface{})
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		path := r.URL.Path
+
+		if path == "/config/" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"admin": map[string]interface{}{}})
+			return
+		}
+
+		if strings.HasPrefix(path, "/config/apps/tls") {
+			var body interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			tlsCalls[path] = body
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	ctx := context.Background()
+	tempSnippetsDir := t.TempDir()
+
+	cfg := CaddyConfig{
+		AdminURL:    mockServer.URL,
+		BaseDomain:  "cuan.dojo.cc",
+		ServerName:  "srv0",
+		SnippetsDir: tempSnippetsDir,
+		HTTPClient:  mockServer.Client(),
+		AskURL:      "http://127.0.0.1:8080/api/caddy/ask",
+		OnDemandTLS: true,
+	}
+	router := NewCaddyRouter(cfg)
+
+	err := router.ConfigureOnDemandTLS(ctx, "http://127.0.0.1:8080/api/caddy/ask")
+	if err != nil {
+		t.Fatalf("ConfigureOnDemandTLS failed: %v", err)
+	}
+
+	if router.AskURL() != "http://127.0.0.1:8080/api/caddy/ask" {
+		t.Errorf("expected AskURL to be updated, got %q", router.AskURL())
+	}
+	if !router.OnDemandTLS() {
+		t.Errorf("expected OnDemandTLS to be enabled")
+	}
+
+	// Verify global snippet was written
+	globalSnippetPath := filepath.Join(tempSnippetsDir, "on_demand_tls.caddy")
+	content, err := os.ReadFile(globalSnippetPath)
+	if err != nil {
+		t.Fatalf("failed to read global snippet: %v", err)
+	}
+	if !strings.Contains(string(content), "http://127.0.0.1:8080/api/caddy/ask") {
+		t.Errorf("snippet content missing ask url: %s", string(content))
+	}
+}
+

@@ -38,9 +38,11 @@ type Server struct {
 	sponsorshipSvc *sponsorship.Service
 	deployerDriver deployer.DeployDriver
 	serverRepo     cuanDB.ServerRepository
+	domainRepo     cuanDB.DomainRepository
 	keyVault       *crypto.KeyVault
 	sshManager     deployer.SSHManager
 	healthPoller   *deployer.ProcessHealthPoller
+	caddyRouter    *deployer.CaddyRouter
 	router         *chi.Mux
 }
 
@@ -141,6 +143,14 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	} else {
 		srvRepo = cuanDB.NewMemoryServerRepository()
 	}
+
+	var domRepo cuanDB.DomainRepository
+	if db != nil {
+		domRepo = cuanDB.NewSQLDomainRepository(db)
+	} else {
+		domRepo = cuanDB.NewMemoryDomainRepository()
+	}
+
 	vault := crypto.DefaultKeyVault()
 	sshMgr := deployer.NewClientPool(deployer.DefaultSSHTimeout)
 
@@ -161,9 +171,11 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		sponsorshipSvc: spSvc,
 		deployerDriver: depDriver,
 		serverRepo:     srvRepo,
+		domainRepo:     domRepo,
 		keyVault:       vault,
 		sshManager:     sshMgr,
 		healthPoller:   healthPoller,
+		caddyRouter:    caddyRouter,
 		router:         r,
 	}
 
@@ -252,6 +264,22 @@ func (s *Server) SetHealthPoller(p *deployer.ProcessHealthPoller) {
 	s.healthPoller = p
 }
 
+func (s *Server) DomainRepository() cuanDB.DomainRepository {
+	return s.domainRepo
+}
+
+func (s *Server) SetDomainRepository(r cuanDB.DomainRepository) {
+	s.domainRepo = r
+}
+
+func (s *Server) CaddyRouter() *deployer.CaddyRouter {
+	return s.caddyRouter
+}
+
+func (s *Server) SetCaddyRouter(r *deployer.CaddyRouter) {
+	s.caddyRouter = r
+}
+
 func (s *Server) AppMode() string {
 	if s.cfg != nil && s.cfg.AppMode != "" {
 		return s.cfg.AppMode
@@ -270,6 +298,11 @@ func (s *Server) routes() {
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
 	s.router.Get("/api/system/mode", s.handleGetSystemMode)
+
+	// Caddy On-Demand TLS Security Gatekeeper (Sprint 5 S05.2)
+	s.router.Get("/api/caddy/ask", s.handleCaddyAsk)
+	s.router.Get("/api/domains/check-ask", s.handleCaddyAsk)
+	s.router.Get("/api/v1/caddy/ask", s.handleCaddyAsk)
 
 	// Dojo Webhook Receiver (SSOT S02.1 spec: /api/webhooks/dojo)
 	s.router.Post("/api/webhooks/dojo", s.handleDojoWebhook)

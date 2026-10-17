@@ -7,12 +7,47 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	cuanDB "github.com/buchin/cuan/internal/db"
 )
+
+// CustomDomainTarget represents the upstream dial destination for a custom domain.
+type CustomDomainTarget struct {
+	Host         string `json:"host,omitempty"` // dial host: empty or "127.0.0.1" for local, or remote IP/hostname
+	InternalPort int    `json:"internal_port"`   // internal target port
+}
+
+// DialAddress returns the "host:port" upstream dial string.
+func (t CustomDomainTarget) DialAddress() string {
+	host := strings.TrimSpace(t.Host)
+	if host == "" || host == "localhost" {
+		host = "127.0.0.1"
+	}
+	return fmt.Sprintf("%s:%d", host, t.InternalPort)
+}
+
+// LocalTarget creates a CustomDomainTarget for local sandbox deployments.
+func LocalTarget(internalPort int) CustomDomainTarget {
+	return CustomDomainTarget{Host: "127.0.0.1", InternalPort: internalPort}
+}
+
+// RemoteTarget creates a CustomDomainTarget for remote BYOS runner deployments.
+func RemoteTarget(host string, internalPort int) CustomDomainTarget {
+	return CustomDomainTarget{Host: host, InternalPort: internalPort}
+}
+
+// CustomDomainRouteInfo captures active routing metadata for a custom domain.
+type CustomDomainRouteInfo struct {
+	Domain       string             `json:"domain"`
+	Target       CustomDomainTarget `json:"target"`
+	RegisteredAt time.Time          `json:"registered_at"`
+}
 
 // Router defines the contract for dynamic virtual host and reverse proxy routing.
 type Router interface {
@@ -33,18 +68,32 @@ type Router interface {
 
 	// Reconcile synchronizes active routes with the given list of running deployments.
 	Reconcile(ctx context.Context, activeDeployments []*Deployment) error
+
+	// AddCustomDomainRoute maps a custom domain (e.g. app.client.com) to a deployment target.
+	AddCustomDomainRoute(ctx context.Context, domain string, target CustomDomainTarget) error
+
+	// RemoveCustomDomainRoute revokes a custom domain route cleanly without downtime.
+	RemoveCustomDomainRoute(ctx context.Context, domain string) error
+
+	// GetCustomDomainRouteStatus checks whether a custom domain route is currently registered.
+	GetCustomDomainRouteStatus(ctx context.Context, domain string) (bool, error)
+
+	// ConfigureOnDemandTLS configures Caddy's On-Demand TLS ask endpoint.
+	ConfigureOnDemandTLS(ctx context.Context, askURL string) error
 }
 
 // CaddyConfig configures the dynamic Caddy virtual host engine.
 type CaddyConfig struct {
-	AdminURL             string       // e.g. "http://localhost:2019" (env: CADDY_ADMIN_URL)
-	BaseDomain           string       // e.g. "cuan.dojo.cc" (env: BASE_DOMAIN)
-	ServerName           string       // e.g. "srv0" (env: CADDY_SERVER_NAME)
-	SnippetsDir          string       // directory for Caddyfile snippets fallback (optional)
-	FallbackHTML         string       // custom HTML body for 502/503 graceful fallback
-	HTTPClient           *http.Client // custom HTTP client (for mocks/timeouts)
-	AutoCreateServer     bool         // auto-initialize HTTP server if missing in Caddy
-	AutomaticHTTPSDisable bool        // disable auto-https redirects (useful in local dev / non-root)
+	AdminURL              string       // e.g. "http://localhost:2019" (env: CADDY_ADMIN_URL)
+	BaseDomain            string       // e.g. "cuan.dojo.cc" (env: BASE_DOMAIN)
+	ServerName            string       // e.g. "srv0" (env: CADDY_SERVER_NAME)
+	SnippetsDir           string       // directory for Caddyfile snippets fallback (optional)
+	FallbackHTML          string       // custom HTML body for 502/503 graceful fallback
+	HTTPClient            *http.Client // custom HTTP client (for mocks/timeouts)
+	AutoCreateServer      bool         // auto-initialize HTTP server if missing in Caddy
+	AutomaticHTTPSDisable bool         // disable auto-https redirects (useful in local dev / non-root)
+	AskURL                string       // e.g. "http://localhost:8080/api/caddy/ask" (env: CADDY_ASK_URL)
+	OnDemandTLS           bool         // enable on-demand TLS automation in Caddy (env: CADDY_ON_DEMAND_TLS)
 }
 
 // DefaultCaddyConfig builds a default configuration using environment variables and sensible defaults.
@@ -69,15 +118,31 @@ func DefaultCaddyConfig() CaddyConfig {
 
 	snippetsDir := os.Getenv("CADDY_SNIPPETS_DIR")
 
+	askURL := os.Getenv("CADDY_ASK_URL")
+	if askURL == "" {
+		askURL = os.Getenv("CUAN_ASK_URL")
+	}
+	if askURL == "" {
+		askURL = "http://localhost:8080/api/caddy/ask"
+	}
+
+	onDemandTLSEnv := strings.ToLower(strings.TrimSpace(os.Getenv("CADDY_ON_DEMAND_TLS")))
+	onDemandTLS := true
+	if onDemandTLSEnv == "false" || onDemandTLSEnv == "0" {
+		onDemandTLS = false
+	}
+
 	return CaddyConfig{
-		AdminURL:             adminURL,
-		BaseDomain:           baseDomain,
-		ServerName:           serverName,
-		SnippetsDir:          snippetsDir,
-		FallbackHTML:         DefaultFallbackHTML,
-		HTTPClient:           &http.Client{Timeout: 5 * time.Second},
-		AutoCreateServer:     true,
+		AdminURL:              adminURL,
+		BaseDomain:            baseDomain,
+		ServerName:            serverName,
+		SnippetsDir:           snippetsDir,
+		FallbackHTML:          DefaultFallbackHTML,
+		HTTPClient:            &http.Client{Timeout: 5 * time.Second},
+		AutoCreateServer:      true,
 		AutomaticHTTPSDisable: false,
+		AskURL:                askURL,
+		OnDemandTLS:           onDemandTLS,
 	}
 }
 
@@ -91,17 +156,20 @@ type CaddyRouteInfo struct {
 
 // CaddyRouter implements the Router interface using Caddy Admin API (v2) and dynamic snippets.
 type CaddyRouter struct {
-	adminURL             string
-	baseDomain           string
-	serverName           string
-	snippetsDir          string
-	fallbackHTML         string
-	httpClient           *http.Client
-	autoCreateServer     bool
+	adminURL              string
+	baseDomain            string
+	serverName            string
+	snippetsDir           string
+	fallbackHTML          string
+	httpClient            *http.Client
+	autoCreateServer      bool
 	automaticHTTPSDisable bool
+	askURL                string
+	onDemandTLS           bool
 
-	routes map[string]*CaddyRouteInfo
-	mu     sync.RWMutex
+	routes       map[string]*CaddyRouteInfo
+	customRoutes map[string]*CustomDomainRouteInfo
+	mu           sync.RWMutex
 }
 
 // NewCaddyRouter initializes a new CaddyRouter with the supplied configuration.
@@ -128,16 +196,23 @@ func NewCaddyRouter(cfg CaddyConfig) *CaddyRouter {
 		cfg.HTTPClient = &http.Client{Timeout: 5 * time.Second}
 	}
 
+	if cfg.AskURL == "" {
+		cfg.AskURL = "http://localhost:8080/api/caddy/ask"
+	}
+
 	return &CaddyRouter{
-		adminURL:             cfg.AdminURL,
-		baseDomain:           cfg.BaseDomain,
-		serverName:           cfg.ServerName,
-		snippetsDir:          cfg.SnippetsDir,
-		fallbackHTML:         cfg.FallbackHTML,
-		httpClient:           cfg.HTTPClient,
-		autoCreateServer:     cfg.AutoCreateServer,
+		adminURL:              cfg.AdminURL,
+		baseDomain:            cfg.BaseDomain,
+		serverName:            cfg.ServerName,
+		snippetsDir:           cfg.SnippetsDir,
+		fallbackHTML:          cfg.FallbackHTML,
+		httpClient:            cfg.HTTPClient,
+		autoCreateServer:      cfg.AutoCreateServer,
 		automaticHTTPSDisable: cfg.AutomaticHTTPSDisable,
-		routes:               make(map[string]*CaddyRouteInfo),
+		askURL:                cfg.AskURL,
+		onDemandTLS:           cfg.OnDemandTLS,
+		routes:                make(map[string]*CaddyRouteInfo),
+		customRoutes:          make(map[string]*CustomDomainRouteInfo),
 	}
 }
 
@@ -415,6 +490,382 @@ func (r *CaddyRouter) RemoveSnippet(slug string) error {
 	return nil
 }
 
+// AskURL returns the configured Caddy On-Demand TLS ask URL.
+func (r *CaddyRouter) AskURL() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.askURL
+}
+
+// SetAskURL updates the Caddy On-Demand TLS ask URL.
+func (r *CaddyRouter) SetAskURL(url string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.askURL = strings.TrimSpace(url)
+}
+
+// OnDemandTLS returns whether On-Demand TLS is enabled.
+func (r *CaddyRouter) OnDemandTLS() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.onDemandTLS
+}
+
+// SetOnDemandTLS enables or disables On-Demand TLS.
+func (r *CaddyRouter) SetOnDemandTLS(enabled bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.onDemandTLS = enabled
+}
+
+// ConfigureOnDemandTLS dynamically configures Caddy's TLS automation policy with the ask URL.
+func (r *CaddyRouter) ConfigureOnDemandTLS(ctx context.Context, askURL string) error {
+	askURL = strings.TrimSpace(askURL)
+	if askURL == "" {
+		askURL = r.AskURL()
+	}
+	if askURL == "" {
+		return fmt.Errorf("ask URL cannot be empty")
+	}
+
+	r.mu.Lock()
+	r.askURL = askURL
+	r.onDemandTLS = true
+	r.mu.Unlock()
+
+	if !r.IsAdminReachable(ctx) {
+		if r.snippetsDir != "" {
+			_ = r.writeOnDemandTLSSnippet(askURL)
+		}
+		return nil
+	}
+
+	// 1. Configure on_demand ask URL in /config/apps/tls/automation/on_demand
+	onDemandURL := fmt.Sprintf("%s/config/apps/tls/automation/on_demand", r.adminURL)
+	onDemandPayload := map[string]interface{}{
+		"ask": askURL,
+	}
+
+	if err := r.putJSON(ctx, onDemandURL, onDemandPayload); err != nil {
+		// If tls or automation doesn't exist yet, initialize full apps/tls
+		tlsURL := fmt.Sprintf("%s/config/apps/tls", r.adminURL)
+		fullTLSPayload := map[string]interface{}{
+			"automation": map[string]interface{}{
+				"on_demand": map[string]interface{}{
+					"ask": askURL,
+				},
+				"policies": []map[string]interface{}{
+					{
+						"on_demand": true,
+					},
+				},
+			},
+		}
+		if err2 := r.putJSON(ctx, tlsURL, fullTLSPayload); err2 != nil {
+			return fmt.Errorf("configure caddy on-demand tls: %w", err2)
+		}
+	} else {
+		// Ensure policies have on_demand: true
+		policiesURL := fmt.Sprintf("%s/config/apps/tls/automation/policies", r.adminURL)
+		policiesPayload := []map[string]interface{}{
+			{
+				"on_demand": true,
+			},
+		}
+		_ = r.putJSON(ctx, policiesURL, policiesPayload)
+	}
+
+	if r.snippetsDir != "" {
+		_ = r.writeOnDemandTLSSnippet(askURL)
+	}
+
+	return nil
+}
+
+// EnsureOnDemandTLS verifies and activates On-Demand TLS with the active ask URL.
+func (r *CaddyRouter) EnsureOnDemandTLS(ctx context.Context) error {
+	askURL := r.AskURL()
+	if askURL == "" {
+		return nil
+	}
+	return r.ConfigureOnDemandTLS(ctx, askURL)
+}
+
+func (r *CaddyRouter) writeOnDemandTLSSnippet(askURL string) error {
+	if r.snippetsDir == "" {
+		return nil
+	}
+	if err := os.MkdirAll(r.snippetsDir, 0755); err != nil {
+		return fmt.Errorf("create snippets directory: %w", err)
+	}
+	filePath := filepath.Join(r.snippetsDir, "on_demand_tls.caddy")
+	content := fmt.Sprintf("{\n\ton_demand_tls {\n\t\task %s\n\t}\n}\n", askURL)
+	return os.WriteFile(filePath, []byte(content), 0644)
+}
+
+// AddCustomDomainRoute registers or updates a dynamic reverse proxy route for a custom domain.
+// It maps the custom domain (Host/SNI) to the target upstream (local port or remote BYOS runner address)
+// with zero downtime and without server reload.
+func (r *CaddyRouter) AddCustomDomainRoute(ctx context.Context, domain string, target CustomDomainTarget) error {
+	domain = cuanDB.NormalizeDomain(domain)
+	if domain == "" {
+		return fmt.Errorf("domain cannot be empty")
+	}
+	if err := cuanDB.ValidateDomain(domain); err != nil {
+		return fmt.Errorf("invalid custom domain %q: %w", domain, err)
+	}
+
+	if target.InternalPort <= 0 || target.InternalPort > 65535 {
+		return fmt.Errorf("invalid internal_port: %d (must be between 1 and 65535)", target.InternalPort)
+	}
+
+	upstreamDial := target.DialAddress()
+	routeID := fmt.Sprintf("cuan-custom-%s", domain)
+	errorRouteID := fmt.Sprintf("cuan-custom-error-%s", domain)
+
+	// 1. If Caddy Admin API is reachable, inject route via API
+	if r.IsAdminReachable(ctx) {
+		serverName, err := r.resolveServerName(ctx)
+		if err != nil {
+			return fmt.Errorf("resolve caddy server name: %w", err)
+		}
+
+		// Ensure On-Demand TLS is configured if enabled
+		if r.onDemandTLS {
+			_ = r.EnsureOnDemandTLS(ctx)
+		}
+
+		// Idempotency / duplication prevention: Clean up any previous route with these IDs
+		_ = r.deleteID(ctx, routeID)
+		_ = r.deleteID(ctx, errorRouteID)
+
+		// Register reverse proxy route
+		routePayload := map[string]interface{}{
+			"@id": routeID,
+			"match": []map[string]interface{}{
+				{
+					"host": []string{domain},
+				},
+			},
+			"handle": []map[string]interface{}{
+				{
+					"handler": "reverse_proxy",
+					"headers": map[string]interface{}{
+						"request": map[string]interface{}{
+							"set": map[string][]string{
+								"Host":              {"{http.request.host}"},
+								"X-Real-IP":         {"{http.request.remote.host}"},
+								"X-Forwarded-For":   {"{http.request.remote.host}"},
+								"X-Forwarded-Proto": {"{http.request.scheme}"},
+							},
+						},
+					},
+					"upstreams": []map[string]interface{}{
+						{
+							"dial": upstreamDial,
+						},
+					},
+				},
+			},
+			"terminal": true,
+		}
+
+		routesURL := fmt.Sprintf("%s/config/apps/http/servers/%s/routes", r.adminURL, serverName)
+		if err := r.postJSON(ctx, routesURL, routePayload); err != nil {
+			return fmt.Errorf("register custom domain route: %w", err)
+		}
+
+		// Register custom 503 graceful fallback in errors/routes
+		if err := r.ensureErrorsRoutesExists(ctx, serverName); err == nil {
+			errorRoutePayload := map[string]interface{}{
+				"@id": errorRouteID,
+				"match": []map[string]interface{}{
+					{
+						"host": []string{domain},
+					},
+				},
+				"handle": []map[string]interface{}{
+					{
+						"handler": "subroute",
+						"routes": []map[string]interface{}{
+							{
+								"handle": []map[string]interface{}{
+									{
+										"handler":     "static_response",
+										"status_code": 503,
+										"headers": map[string][]string{
+											"Content-Type": {"text/html; charset=utf-8"},
+											"Retry-After":  {"5"},
+										},
+										"body": r.fallbackHTML,
+									},
+								},
+							},
+						},
+					},
+				},
+				"terminal": true,
+			}
+			errRoutesURL := fmt.Sprintf("%s/config/apps/http/servers/%s/errors/routes", r.adminURL, serverName)
+			_ = r.postJSON(ctx, errRoutesURL, errorRoutePayload)
+		}
+	}
+
+	// 2. Write dynamic snippet if SnippetsDir is specified
+	if r.snippetsDir != "" {
+		_ = r.WriteCustomDomainSnippet(domain, target)
+	}
+
+	// 3. Update in-memory registry
+	r.mu.Lock()
+	r.customRoutes[domain] = &CustomDomainRouteInfo{
+		Domain:       domain,
+		Target:       target,
+		RegisteredAt: time.Now().UTC(),
+	}
+	r.mu.Unlock()
+
+	return nil
+}
+
+// AddCustomDomainRoutePort is a convenience method that routes a custom domain to a local port.
+func (r *CaddyRouter) AddCustomDomainRoutePort(ctx context.Context, domain string, internalPort int) error {
+	return r.AddCustomDomainRoute(ctx, domain, LocalTarget(internalPort))
+}
+
+// RemoveCustomDomainRoute revokes the dynamic custom domain route cleanly without downtime.
+func (r *CaddyRouter) RemoveCustomDomainRoute(ctx context.Context, domain string) error {
+	domain = cuanDB.NormalizeDomain(domain)
+	if domain == "" {
+		return nil
+	}
+
+	routeID := fmt.Sprintf("cuan-custom-%s", domain)
+	errorRouteID := fmt.Sprintf("cuan-custom-error-%s", domain)
+
+	// 1. Delete from Caddy Admin API if reachable
+	if r.IsAdminReachable(ctx) {
+		_ = r.deleteID(ctx, routeID)
+		_ = r.deleteID(ctx, errorRouteID)
+	}
+
+	// 2. Remove snippet if SnippetsDir is specified
+	if r.snippetsDir != "" {
+		_ = r.RemoveCustomDomainSnippet(domain)
+	}
+
+	// 3. Remove from in-memory cache
+	r.mu.Lock()
+	delete(r.customRoutes, domain)
+	r.mu.Unlock()
+
+	return nil
+}
+
+// UnregisterCustomDomainRoute is an alias for RemoveCustomDomainRoute.
+func (r *CaddyRouter) UnregisterCustomDomainRoute(ctx context.Context, domain string) error {
+	return r.RemoveCustomDomainRoute(ctx, domain)
+}
+
+// GetCustomDomainRouteStatus checks whether a route for the given custom domain is currently registered.
+func (r *CaddyRouter) GetCustomDomainRouteStatus(ctx context.Context, domain string) (bool, error) {
+	domain = cuanDB.NormalizeDomain(domain)
+	if domain == "" {
+		return false, nil
+	}
+	routeID := fmt.Sprintf("cuan-custom-%s", domain)
+
+	if r.IsAdminReachable(ctx) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/id/%s", r.adminURL, url.PathEscape(routeID)), nil)
+		if err != nil {
+			return false, err
+		}
+		resp, err := r.httpClient.Do(req)
+		if err != nil {
+			return false, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			return true, nil
+		}
+		if resp.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+	}
+
+	// Fallback to in-memory cache
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, exists := r.customRoutes[domain]
+	return exists, nil
+}
+
+// ListCustomDomainRoutes returns all currently registered custom domain routes.
+func (r *CaddyRouter) ListCustomDomainRoutes() []*CustomDomainRouteInfo {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	list := make([]*CustomDomainRouteInfo, 0, len(r.customRoutes))
+	for _, info := range r.customRoutes {
+		list = append(list, info)
+	}
+	return list
+}
+
+// GenerateCustomDomainSnippet produces a Caddyfile snippet for the custom domain with On-Demand TLS.
+func (r *CaddyRouter) GenerateCustomDomainSnippet(domain string, target CustomDomainTarget) string {
+	upstreamDial := target.DialAddress()
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("# Auto-generated Caddyfile snippet for Custom Domain by Cuan Deployer\n"))
+	sb.WriteString(fmt.Sprintf("# Domain: %s | Target: %s | GeneratedAt: %s\n\n", domain, upstreamDial, time.Now().UTC().Format(time.RFC3339)))
+	sb.WriteString(fmt.Sprintf("%s {\n", domain))
+	sb.WriteString("\ttls {\n")
+	sb.WriteString("\t\ton_demand\n")
+	sb.WriteString("\t}\n")
+	sb.WriteString(fmt.Sprintf("\treverse_proxy %s {\n", upstreamDial))
+	sb.WriteString("\t\theader_up Host {host}\n")
+	sb.WriteString("\t\theader_up X-Real-IP {remote_host}\n")
+	sb.WriteString("\t\theader_up X-Forwarded-For {remote_host}\n")
+	sb.WriteString("\t\theader_up X-Forwarded-Proto {scheme}\n")
+	sb.WriteString("\t}\n")
+	sb.WriteString("\thandle_errors {\n")
+	sb.WriteString("\t\trespond `")
+	sb.WriteString(strings.ReplaceAll(r.fallbackHTML, "`", "'"))
+	sb.WriteString("` 503 {\n")
+	sb.WriteString("\t\t\tclose\n")
+	sb.WriteString("\t\t}\n")
+	sb.WriteString("\t}\n")
+	sb.WriteString("}\n")
+
+	return sb.String()
+}
+
+// WriteCustomDomainSnippet writes the custom domain snippet to disk.
+func (r *CaddyRouter) WriteCustomDomainSnippet(domain string, target CustomDomainTarget) error {
+	if r.snippetsDir == "" {
+		return nil
+	}
+	if err := os.MkdirAll(r.snippetsDir, 0755); err != nil {
+		return fmt.Errorf("create snippets directory: %w", err)
+	}
+	filePath := filepath.Join(r.snippetsDir, fmt.Sprintf("custom_%s.caddy", domain))
+	content := r.GenerateCustomDomainSnippet(domain, target)
+	return os.WriteFile(filePath, []byte(content), 0644)
+}
+
+// RemoveCustomDomainSnippet deletes the custom domain snippet file.
+func (r *CaddyRouter) RemoveCustomDomainSnippet(domain string) error {
+	if r.snippetsDir == "" {
+		return nil
+	}
+	filePath := filepath.Join(r.snippetsDir, fmt.Sprintf("custom_%s.caddy", domain))
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // resolveServerName queries Caddy to verify or detect the target HTTP server name (default: "srv0").
 func (r *CaddyRouter) resolveServerName(ctx context.Context) (string, error) {
 	if r.serverName != "" {
@@ -498,7 +949,7 @@ func (r *CaddyRouter) ensureErrorsRoutesExists(ctx context.Context, serverName s
 }
 
 func (r *CaddyRouter) deleteID(ctx context.Context, id string) error {
-	url := fmt.Sprintf("%s/id/%s", r.adminURL, id)
+	url := fmt.Sprintf("%s/id/%s", r.adminURL, url.PathEscape(id))
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err

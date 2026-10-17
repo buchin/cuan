@@ -1,0 +1,77 @@
+=== CUAN SPRINT 5 (S05.2) EVIDENCE: CADDY ON-DEMAND TLS ENGINE, DOMAIN ROUTER & SECURITY GATE VERIFIED ===
+Timestamp: 2026-10-17T09:10:00+07:00
+Task ID: jmujircteveddyvuggkchjre
+Title: S05.2 — Caddy On-Demand TLS Engine, Domain Router & Security Gate (/api/caddy/ask)
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Security Gatekeeper Endpoint (/api/caddy/ask):
+   - File: internal/server/caddy_ask_handler.go
+   - Routes:
+     * GET /api/caddy/ask?domain={domain}
+     * GET /api/domains/check-ask?domain={domain} (SSOT S5 alias)
+     * GET /api/v1/caddy/ask?domain={domain} (v1 API alias)
+   - Domain Normalization & Syntax Validation:
+     * Trims whitespace and converts domain parameter to lowercase.
+     * Enforces RFC 1123 / RFC 952 DNS hostname standards (rejects empty, scheme http/https, port, path, illegal characters, purely numeric TLD).
+   - Domain Store Integration:
+     * Queries DomainRepository via GetCustomDomainByDomain.
+     * Responds HTTP 200 OK only for domains registered with dns_status == 'verified'/'active' or ssl_status == 'active'.
+     * Responds HTTP 403 Forbidden for missing, empty, malformed, unregistered, pending, or failed domains.
+   - Anti-Abuse Protection:
+     * Caddy On-Demand TLS halts certificate issuance when receiving non-2xx status, preventing Let's Encrypt / ZeroSSL rate-limit exhaustion and Denial-of-Wallet attacks.
+
+2. Caddy Dynamic On-Demand TLS & Domain Router Engine (internal/deployer/caddy.go):
+   - CaddyRouter Implementation:
+     * Supports CaddyConfig.AskURL (default: http://localhost:8080/api/caddy/ask, env: CADDY_ASK_URL) and OnDemandTLS boolean flag.
+     * ConfigureOnDemandTLS(ctx, askURL): Dynamically injects TLS automation policy with ask endpoint via Caddy Admin API (/config/apps/tls/automation/on_demand) and writes global Caddyfile snippet fallback.
+     * EnsureOnDemandTLS(ctx): Verifies and activates On-Demand TLS policy idempotently.
+   - Dynamic Custom Domain Routing:
+     * AddCustomDomainRoute(ctx, domain, target): Injects dynamic reverse proxy route mapped to target dial upstream.
+     * CustomDomainTarget: Ergonomic abstraction supporting both local sandbox (127.0.0.1:port) and remote BYOS runner (remote_ip:port).
+     * Headers: Preserves Host, X-Real-IP, X-Forwarded-For, and X-Forwarded-Proto headers.
+     * Graceful Error Handling: Configures custom 503 fallback subroute in errors/routes for booting/restarting backends.
+   - Zero-Downtime Unregister & Route Cleanup:
+     * RemoveCustomDomainRoute(ctx, domain) / UnregisterCustomDomainRoute(ctx, domain): Revokes Caddy route rule via Admin API DELETE /id/cuan-custom-{domain} instantly without server reload or active connection termination.
+     * Cleans up snippet files and in-memory routing registry.
+   - Route Duplication Prevention:
+     * Re-registering the same custom domain with updated target port or upstream dial safely replaces the existing route via @id without duplicating routes or causing route table bloat.
+
+3. Targeted Automated Unit Test Verification:
+
+A. Caddy Ask Gatekeeper Handler Test Suite (internal/server/caddy_ask_handler_test.go):
+=== RUN   TestCaddyAskHandler_AuthorizedDomain
+--- PASS: TestCaddyAskHandler_AuthorizedDomain (0.00s)
+=== RUN   TestCaddyAskHandler_ActiveSSLDomain
+--- PASS: TestCaddyAskHandler_ActiveSSLDomain (0.00s)
+=== RUN   TestCaddyAskHandler_UnauthorizedDomain_NotFound
+--- PASS: TestCaddyAskHandler_UnauthorizedDomain_NotFound (0.00s)
+=== RUN   TestCaddyAskHandler_UnverifiedDomain_PendingOrFailed
+--- PASS: TestCaddyAskHandler_UnverifiedDomain_PendingOrFailed (0.00s)
+=== RUN   TestCaddyAskHandler_MissingOrEmptyDomainParam
+--- PASS: TestCaddyAskHandler_MissingOrEmptyDomainParam (0.00s)
+=== RUN   TestCaddyAskHandler_InvalidDomainFormat
+--- PASS: TestCaddyAskHandler_InvalidDomainFormat (0.00s)
+=== RUN   TestCaddyAskHandler_NormalizationAndAliases
+--- PASS: TestCaddyAskHandler_NormalizationAndAliases (0.00s)
+=== RUN   TestCaddyAskHandler_NilRepositorySafeguard
+--- PASS: TestCaddyAskHandler_NilRepositorySafeguard (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.012s
+
+B. Caddy Dynamic Domain Router & On-Demand TLS Test Suite (internal/deployer/caddy_test.go):
+=== RUN   TestCaddyCustomDomainRouting
+--- PASS: TestCaddyCustomDomainRouting (0.04s)
+=== RUN   TestCaddyCustomDomainDuplicationPrevention
+--- PASS: TestCaddyCustomDomainDuplicationPrevention (0.00s)
+=== RUN   TestCaddyOnDemandTLSConfiguration
+--- PASS: TestCaddyOnDemandTLSConfiguration (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/deployer	0.043s
+
+C. Zero Regression Suite Run (internal/db, internal/deployer, internal/server):
+ok  	github.com/buchin/cuan/internal/db	0.006s
+ok  	github.com/buchin/cuan/internal/deployer	1.653s
+ok  	github.com/buchin/cuan/internal/server	46.993s
+Result: 100% PASS across all unit, integration, and end-to-end regression test suites.
