@@ -4,6 +4,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
+import { cn } from '../../lib/utils'
 import {
   Plus,
   RefreshCw,
@@ -78,6 +79,7 @@ interface StudioDashboardProps {
   appMode?: 'marketing' | 'studio'
   isStudioModeActive?: boolean
   onToggleMode?: (newMode: 'marketing' | 'studio') => void
+  hideHeader?: boolean
 }
 
 export function StudioDashboard({
@@ -87,6 +89,7 @@ export function StudioDashboard({
   appMode = 'studio',
   isStudioModeActive = false,
   onToggleMode,
+  hideHeader = false,
 }: StudioDashboardProps) {
   const [deployments, setDeployments] = useState<DeploymentItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -574,8 +577,12 @@ export function StudioDashboard({
   }, [deployments, projectsList])
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div className={cn(
+      "flex flex-col",
+      hideHeader ? "bg-transparent text-foreground w-full" : "min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+    )}>
       {/* Top Navigation Bar */}
+      {!hideHeader && (
       <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -909,6 +916,7 @@ export function StudioDashboard({
           </div>
         </div>
       </header>
+      )}
 
       {/* Dynamic Workspace Switcher & Module Bar (S11.4 DoD 1) */}
       <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 px-4 sm:px-6 lg:px-8 shadow-xs">

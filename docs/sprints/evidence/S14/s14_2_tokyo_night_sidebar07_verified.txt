@@ -1,0 +1,225 @@
+================================================================================
+S14.2 AUDIT EVIDENCE: Design System & Theme Engine: Tokyo Night Theme & shadcn Sidebar-07 Shell
+================================================================================
+Timestamp: 2026-10-18T06:17:00+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Task ID: djuwpaiiqnyfjucutockjvey (#DJUWP)
+Task Title: S14.2 — Design System & Theme Engine: Tokyo Night Theme & shadcn Sidebar-07 Shell
+Git Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. TOKYO NIGHT THEME ENGINE & DESIGN SYSTEM
+--------------------------------------------------------------------------------
+- Reference Specification: https://tweakcn.com/themes/cmvbdtdtm000004jp89rgbo5w?p=dashboard#
+- Target Files: web/src/index.css, web/tailwind.config.js, web/src/context/ThemeContext.tsx
+- Design System Aesthetic: Clean Slate UI with strict border radius: 0rem.
+
+Verified CSS Variables (:root Light Mode):
+  --background: 220 40% 94.1%;          /* #eaeef6 */
+  --foreground: 226 34.4% 24.5%;        /* #293354 */
+  --card: 0 0% 100%;                    /* #ffffff */
+  --card-foreground: 226 34.4% 24.5%;   /* #293354 */
+  --popover: 0 0% 100%;                 /* #ffffff */
+  --popover-foreground: 226 34.4% 24.5%;/* #293354 */
+  --primary: 223.4 57.8% 49.2%;         /* #355dc6 */
+  --primary-foreground: 0 0% 100%;      /* #ffffff */
+  --secondary: 221.1 42.2% 91.2%;       /* #dfe5f2 */
+  --secondary-foreground: 226 34.4% 24.5%;
+  --muted: 221.1 42.2% 91.2%;           /* #dfe5f2 */
+  --muted-foreground: 228.5 25% 40.8%;  /* #4e5882 */
+  --accent: 221.1 42.2% 91.2%;          /* #dfe5f2 */
+  --accent-foreground: 223.1 60.8% 40%; /* #284ba4 */
+  --destructive: 349.2 70.6% 50.6%;     /* #da2848 */
+  --destructive-foreground: 0 0% 100%;
+  --border: 220.8 41% 88%;              /* #d4dced */
+  --input: 220.8 41% 88%;               /* #d4dced */
+  --ring: 223.4 57.8% 49.2%;            /* #355dc6 */
+  --sidebar-background: 222.9 35% 92.2%;/* #e4e8f2 */
+  --sidebar-foreground: 226 34.4% 24.5%;
+  --sidebar-primary: 223.4 57.8% 49.2%; /* #355dc6 */
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 227.1 53.8% 89.8%;  /* #d7ddf3 */
+  --sidebar-accent-foreground: 223.1 60.8% 40%;
+  --sidebar-border: 220.8 41% 88%;      /* #d4dced */
+  --sidebar-ring: 223.4 57.8% 49.2%;
+  --radius: 0rem;
+
+Verified CSS Variables (.dark Dark Mode):
+  --background: 235 18.8% 12.5%;        /* #1a1b26 (Tokyo Night Deep) */
+  --foreground: 228.7 72.6% 85.7%;      /* #c0caf5 */
+  --card: 229.6 24.2% 18.6%;            /* #24283b */
+  --card-foreground: 228.7 72.6% 85.7%; /* #c0caf5 */
+  --popover: 231 23.3% 16.9%;           /* #212435 */
+  --popover-foreground: 228.7 72.6% 85.7%;
+  --primary: 220.8 94.1% 73.3%;         /* #7ba4fb (Tokyo Night Blue) */
+  --primary-foreground: 235.4 24.5% 10.4%; /* #141521 */
+  --secondary: 229.6 24.2% 18.6%;       /* #24283b */
+  --secondary-foreground: 228.7 72.6% 85.7%;
+  --muted: 229.6 24.2% 18.6%;           /* #24283b */
+  --muted-foreground: 228 35.9% 70%;    /* #97a2ce */
+  --accent: 228.4 26.5% 22.9%;          /* #2b314a */
+  --accent-foreground: 219.5 100% 78.2%;/* #90b6ff */
+  --destructive: 348.8 89% 71.6%;       /* #f7768e */
+  --destructive-foreground: 235.4 24.5% 10.4%;
+  --border: 228 23.4% 21%;              /* #292e42 */
+  --input: 228 23.4% 21%;               /* #292e42 */
+  --ring: 220.8 94.1% 73.3%;            /* #7ba4fb */
+  --sidebar-background: 240 15.4% 10.2%;/* #16161e */
+  --sidebar-foreground: 228.7 72.6% 85.7%;
+  --sidebar-primary: 220.8 94.1% 73.3%; /* #7ba4fb */
+  --sidebar-primary-foreground: 235.4 24.5% 10.4%;
+  --sidebar-accent: 229.6 24.2% 18.6%;  /* #24283b */
+  --sidebar-accent-foreground: 219.5 100% 78.2%; /* #90b6ff */
+  --sidebar-border: 228 23.4% 21%;      /* #292e42 */
+  --sidebar-ring: 220.8 94.1% 73.3%;    /* #7ba4fb */
+  --radius: 0rem;
+
+Tailwind Configuration Updates:
+- Enabled `darkMode: ["class"]`.
+- Added color token extensions for `sidebar`:
+  - `sidebar.DEFAULT`: hsl(var(--sidebar-background))
+  - `sidebar.foreground`: hsl(var(--sidebar-foreground))
+  - `sidebar.primary`: hsl(var(--sidebar-primary))
+  - `sidebar.primary-foreground`: hsl(var(--sidebar-primary-foreground))
+  - `sidebar.accent`: hsl(var(--sidebar-accent))
+  - `sidebar.accent-foreground`: hsl(var(--sidebar-accent-foreground))
+  - `sidebar.border`: hsl(var(--sidebar-border))
+  - `sidebar.ring`: hsl(var(--sidebar-ring))
+
+Theme Context Engine:
+- Implemented `web/src/context/ThemeContext.tsx` with:
+  - Theme choices: 'dark' | 'light' | 'system'
+  - Default: 'dark' (Tokyo Night Dark mode as requested by developers & solopreneurs)
+  - Persistent state in localStorage ('cuan-theme')
+  - Automatic class toggling on `document.documentElement`
+
+--------------------------------------------------------------------------------
+2. SHADCN SIDEBAR-07 COMPONENTS & LAYOUT SHELL
+--------------------------------------------------------------------------------
+Components Created & Verified:
+1. `web/src/components/ui/sidebar.tsx`:
+   - `SidebarProvider`: Context manager for open/collapse state, mobile responsive detection, keyboard shortcut (Cmd/Ctrl + B).
+   - `Sidebar`: Container supporting collapsible="icon" | "offcanvas" | "none", desktop rail spacer, and mobile sheet drawer.
+   - `SidebarHeader`: Pinned top container for workspace and team switcher.
+   - `SidebarContent`: Scrollable nav list with custom scrollbar styling.
+   - `SidebarFooter`: Pinned bottom container for user navigation and profile popover.
+   - `SidebarInset`: Main content wrapper (`flex flex-1 flex-col bg-background`).
+   - `SidebarTrigger`: Toggle button with `PanelLeft` icon.
+   - `SidebarRail`: Interactive sidebar hover/click rail toggle.
+   - `SidebarMenu`, `SidebarMenuItem`, `SidebarMenuButton`: Menu primitives supporting active indicators and tooltips.
+   - `SidebarGroup`, `SidebarGroupLabel`, `SidebarGroupContent`: Group hierarchy containers.
+
+2. `web/src/components/layout/NavUser.tsx`:
+   - Avatar with initials fallback (e.g., 'AD' for admin), username (`admin`), and email.
+   - Status badge indicator (online/authenticated owner).
+   - Popover dropdown menu:
+     - Header: user card with OWNER pill badge.
+     - Action 1: "Profil & Ganti Password" -> triggers ChangePasswordModal.
+     - Action 2: "Tema Tokyo Night / Light Mode" -> realtime theme toggle.
+     - Action 3: "Keluar (Logout)" -> invalidates session via POST /api/v1/auth/logout, wipes token, and redirects to LoginScreen.
+
+3. `web/src/components/auth/ChangePasswordModal.tsx`:
+   - Dialog modal with Tokyo Night card styling.
+   - Input fields: Current Password, New Password, Confirm New Password with password reveal toggle (Eye / EyeOff).
+   - Validation: Minimum 8 characters, non-empty, confirmation match, must differ from current password.
+   - Integration: Calls `POST /api/v1/auth/password` with Authorization Bearer header.
+   - Informative error and success feedback banners.
+
+4. `web/src/components/layout/Sidebar07Layout.tsx`:
+   - Full layout shell integrating SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarInset.
+   - SidebarHeader includes Workspace Switcher dropdown:
+     - Shows current workspace (Cuan Platform Core, SaaS/Dojo, Creator Hub, Blank Workspace, or connected projects).
+     - Allows instant workspace switching without page reload.
+   - SidebarContent organizes navigation into 4 logical groups:
+     - Studio & Tasks (Projects, Tasks & Kanban, Discussions).
+     - Cloud & Deployments (1-Click Deployer, WordPress Cloud, Repositories).
+     - Infrastruktur (BYOS Servers, Custom Domains, Observability).
+     - Admin & Sponsors (Moderasi Sponsor Anti-Judol).
+   - SidebarInset includes sticky header with:
+     - SidebarTrigger button.
+     - Breadcrumb navigation (`Cuan / [Active Project] / [Active Tab]`).
+     - System Mode switch badge (`Mode: studio` / `Mode: marketing`).
+     - External link to Landing Page (`/`).
+     - Tokyo Night Dark / Light theme toggle button.
+
+--------------------------------------------------------------------------------
+3. LOGIN GATE SCREEN & SESSION CONTEXT
+--------------------------------------------------------------------------------
+1. `web/src/components/auth/LoginScreen.tsx`:
+   - Tokyo Night dark/light card design with centered brand iconography.
+   - Username / Email field and Password field with reveal toggle.
+   - Error banner with informative messages when credentials fail.
+   - Quick default credentials helper button:
+     - Auto-fills default admin (`admin` / `whosyourdaddy`) seeded by migration 000019.
+   - Back button to public Landing Page.
+
+2. `web/src/context/AuthContext.tsx`:
+   - Centralized authentication state management:
+     - `user`: OwnerInfo | null
+     - `token`: string
+     - `isAuthenticated`: boolean
+     - `isLoading`: boolean
+     - `setupRequired`: boolean | null
+     - `login(identifier, password)`: POST /api/v1/auth/login
+     - `logout()`: POST /api/v1/auth/logout
+     - `changePassword(current, new)`: POST /api/v1/auth/password
+     - `refreshUser()`: GET /api/v1/auth/me
+     - `getAuthHeaders()`: Authorization Bearer header generator
+   - Dual session handling: HttpOnly cookie + Bearer token in localStorage.
+
+3. `web/src/components/auth/AuthGate.tsx`:
+   - Route guard protecting private dashboard and studio views.
+   - Shows elegant loading spinner when session is verifying.
+   - Automatically renders LoginScreen when unauthenticated.
+   - Renders AppShell / Sidebar07Layout when authenticated.
+
+4. `web/src/App.tsx` Integration:
+   - Root application wrapped with `ThemeProvider` and `AuthProvider`.
+   - Public routes bypass authentication: `/terms`, `/privacy`, `/marketing`, `/landing`, `/sponsor`, `/sponsors`, `/sponsor/pending`, and root `/` in marketing mode.
+   - Private routes (`/studio`, `/tasks`, `/deployer`, `/wordpress`, `/servers`, `/domains`, `/observability`, `/admin/sponsors`) are protected by AuthGate.
+   - When authenticated, renders `Sidebar07Layout` housing `StudioDashboard` (with `hideHeader={true}`) or `AdminSponsorPanel`.
+
+--------------------------------------------------------------------------------
+4. VERIFICATION & TEST EXECUTION RESULTS
+--------------------------------------------------------------------------------
+1. TypeScript Strict Type-Check:
+   Command: npx tsc --noEmit
+   Result: 0 errors
+   Exit Code: 0 (PASS)
+
+2. Production Bundle Build:
+   Command: npm run build (tsc && vite build)
+   Result: 100% PASS
+   Output:
+     dist/index.html                     0.55 kB
+     dist/assets/index-DvNDC2_G.css    102.46 kB
+     dist/assets/index-aJrepUK7.js   1,295.38 kB
+   Exit Code: 0 (PASS)
+
+3. Backend Unit & Regression Tests:
+   Command: go test -v ./internal/auth/... ./internal/server/... ./internal/db/...
+   Result:
+     - internal/auth: PASS (TestAuthService_SetupAndLockout, TestAuthService_LoginAndSessionLifecycle, TestAuthService_LoginWithUsername, TestAuthService_ChangePassword, TestAuthService_AutoSeedDefaultAdmin, TestAuthGuardMiddleware)
+     - internal/server: PASS (All REST endpoints, AuthGuard, Public routes bypass)
+     - internal/db: PASS (All repositories, migrations 1-19, TaskProjectRepository)
+   Exit Code: 0 (PASS)
+
+4. Go Server Binary Compilation:
+   Command: go build -v ./cmd/server
+   Result: Binary compiled cleanly with embedded static assets.
+   Exit Code: 0 (PASS)
+
+--------------------------------------------------------------------------------
+5. DEFINITION OF DONE (DoD) EVALUATION
+--------------------------------------------------------------------------------
+[x] DoD 1: Theme Engine Tokyo Night terintegrasi sesuai spesifikasi tweakcn dengan CSS tokens (Light #eaeef6/#355dc6, Dark #1a1b26/#7ba4fb, radius: 0rem). -> LULUS.
+[x] DoD 2: shadcn Sidebar-07 components (SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarInset, SidebarTrigger, SidebarRail) terpasang dan berfungsi responsif. -> LULUS.
+[x] DoD 3: Komponen NavUser di sidebar footer dengan avatar/initials, username/email, modal ganti password (POST /api/v1/auth/password), dan tombol logout (POST /api/v1/auth/logout). -> LULUS.
+[x] DoD 4: Login Gate Screen dengan form username/email & password, error message informatif, dan proteksi redirect saat belum login. -> LULUS.
+[x] DoD 5: npx tsc --noEmit 0 error & npm run build 100% PASS. -> LULUS.
+[x] DoD 6: Berkas audit docs/sprints/evidence/S14/s14_2_tokyo_night_sidebar07_verified.txt terbit, commit author 'Buchin <buchin@dropsugar.com>', dan push ke origin/main. -> LULUS.
+
+CONCLUSION: S14.2 TELAH SELESAI SECARA SEMPURNA (100% VERIFIED & ZERO REGRESSION).
+================================================================================

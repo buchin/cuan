@@ -1,0 +1,249 @@
+import { useState, FormEvent } from 'react'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
+import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
+import {
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  AlertCircle,
+  RefreshCw,
+  Sun,
+  Moon,
+  ArrowLeft,
+  Key
+} from 'lucide-react'
+
+interface LoginScreenProps {
+  onNavigate?: (path: string) => void
+}
+
+export function LoginScreen({ onNavigate }: LoginScreenProps) {
+  const { login, isLoading } = useAuth()
+  const { resolvedTheme, toggleTheme } = useTheme()
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (!identifier.trim()) {
+      setError('Masukkan username atau email pemilik.')
+      return
+    }
+    if (!password) {
+      setError('Masukkan kata sandi.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await login(identifier, password)
+      // Login successful! AuthContext updates state, which triggers AuthGate/App to render the authenticated shell.
+    } catch (err: any) {
+      setError(err.message || 'Username atau kata sandi tidak cocok. Silakan coba lagi.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleFillDefaultAdmin = () => {
+    setIdentifier('admin')
+    setPassword('whosyourdaddy')
+    setError(null)
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
+      {/* Top Bar with Brand & Theme Toggle */}
+      <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 bg-primary text-primary-foreground font-mono font-black text-sm flex items-center justify-center shadow-xs">
+            C
+          </div>
+          <span className="font-bold text-base tracking-tight text-foreground">
+            Cuan
+          </span>
+          <span className="hidden sm:inline-block text-[11px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-muted">
+            Clean Slate UI
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onNavigate && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onNavigate('/')}
+              className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Landing Page</span>
+            </Button>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleTheme}
+            aria-label="Toggle Theme"
+            className="h-8 w-8 p-0"
+            title={`Beralih ke tema ${resolvedTheme === 'dark' ? 'Light' : 'Tokyo Night Dark'}`}
+          >
+            {resolvedTheme === 'dark' ? (
+              <Moon className="h-4 w-4 text-primary" />
+            ) : (
+              <Sun className="h-4 w-4 text-amber-500" />
+            )}
+          </Button>
+        </div>
+      </header>
+
+      {/* Main Login Card */}
+      <main className="w-full max-w-md mx-auto my-auto py-8">
+        <div className="space-y-6">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center justify-center p-3 bg-primary/10 text-primary border border-primary/20 mb-1">
+              <Lock className="h-7 w-7" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Masuk ke Cuan
+            </h1>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Digital Project Studio & Universal App Deployer. Akses dilindungi oleh otentikasi sesi terenkripsi.
+            </p>
+          </div>
+
+          <Card className="bg-card text-card-foreground border-border shadow-2xl">
+            <CardHeader className="space-y-1 pb-4 border-b border-border">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">
+                  Autentikasi Pemilik
+                </CardTitle>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5">
+                  Single-Owner
+                </span>
+              </div>
+              <CardDescription className="text-xs text-muted-foreground">
+                Gunakan kredensial admin default atau akun pemilik terkonfigurasi.
+              </CardDescription>
+            </CardHeader>
+
+            <form onSubmit={handleSubmit}>
+              <CardContent className="space-y-4 pt-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Autentikasi Gagal</AlertTitle>
+                    <AlertDescription className="text-xs">{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span>Username atau Email</span>
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="admin atau owner@cuan.local"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      disabled={submitting || isLoading}
+                      required
+                      autoFocus
+                      className="pl-9"
+                    />
+                    <User className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-foreground">
+                      Kata Sandi
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleFillDefaultAdmin}
+                      className="text-[11px] text-primary hover:underline flex items-center gap-1 font-mono"
+                      title="Isi kredensial admin default: admin / whosyourdaddy"
+                    >
+                      <Key className="h-3 w-3" />
+                      Gunakan Default Admin
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={submitting || isLoading}
+                      required
+                      className="pl-9 pr-10"
+                    />
+                    <Lock className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Default Credentials Callout */}
+                <div className="p-3 bg-muted/50 border border-border text-xs text-muted-foreground space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-medium text-foreground text-[11px]">
+                    <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                    Kredensial Bawaan Migrasi 000019
+                  </div>
+                  <p className="text-[11px]">
+                    Username: <code className="text-primary font-mono font-bold">admin</code> | Sandi:{' '}
+                    <code className="text-primary font-mono font-bold">whosyourdaddy</code>
+                  </p>
+                </div>
+              </CardContent>
+
+              <CardFooter className="pt-2 flex flex-col gap-2 border-t border-border">
+                <Button
+                  type="submit"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                  disabled={submitting || isLoading}
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Memverifikasi Sesi...
+                    </>
+                  ) : (
+                    'Masuk ke Dashboard'
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+          </Card>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="w-full max-w-5xl mx-auto py-3 text-center text-xs text-muted-foreground border-t border-border/60">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>Cuan Platform — Tokyo Night Theme Engine & shadcn Sidebar-07 Shell</span>
+          <span className="font-mono text-[11px]">PostgreSQL Session Guard • Bcrypt Hash</span>
+        </div>
+      </footer>
+    </div>
+  )
+}
