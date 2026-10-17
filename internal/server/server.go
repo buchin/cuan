@@ -18,6 +18,8 @@ import (
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/config"
+	"github.com/buchin/cuan/internal/crypto"
+	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/deployer"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
@@ -35,6 +37,9 @@ type Server struct {
 	runnerSvc      *runner.RunnerService
 	sponsorshipSvc *sponsorship.Service
 	deployerDriver deployer.DeployDriver
+	serverRepo     cuanDB.ServerRepository
+	keyVault       *crypto.KeyVault
+	sshManager     deployer.SSHManager
 	router         *chi.Mux
 }
 
@@ -128,6 +133,15 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	caddyRouter := deployer.NewCaddyRouter(caddyCfg)
 	depDriver := deployer.NewLocalDriverWithRouter(depStorage, depStore, deployer.NewPortPool(), caddyRouter)
 
+	var srvRepo cuanDB.ServerRepository
+	if db != nil {
+		srvRepo = cuanDB.NewSQLServerRepository(db)
+	} else {
+		srvRepo = cuanDB.NewMemoryServerRepository()
+	}
+	vault := crypto.DefaultKeyVault()
+	sshMgr := deployer.NewClientPool(deployer.DefaultSSHTimeout)
+
 	s := &Server{
 		cfg:            cfg,
 		db:             db,
@@ -137,6 +151,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		runnerSvc:      rSvc,
 		sponsorshipSvc: spSvc,
 		deployerDriver: depDriver,
+		serverRepo:     srvRepo,
+		keyVault:       vault,
+		sshManager:     sshMgr,
 		router:         r,
 	}
 
@@ -193,6 +210,30 @@ func (s *Server) SetDeployerDriver(d deployer.DeployDriver) {
 	s.deployerDriver = d
 }
 
+func (s *Server) ServerRepository() cuanDB.ServerRepository {
+	return s.serverRepo
+}
+
+func (s *Server) SetServerRepository(r cuanDB.ServerRepository) {
+	s.serverRepo = r
+}
+
+func (s *Server) KeyVault() *crypto.KeyVault {
+	return s.keyVault
+}
+
+func (s *Server) SetKeyVault(v *crypto.KeyVault) {
+	s.keyVault = v
+}
+
+func (s *Server) SSHManager() deployer.SSHManager {
+	return s.sshManager
+}
+
+func (s *Server) SetSSHManager(m deployer.SSHManager) {
+	s.sshManager = m
+}
+
 func (s *Server) AppMode() string {
 	if s.cfg != nil && s.cfg.AppMode != "" {
 		return s.cfg.AppMode
@@ -239,6 +280,13 @@ func (s *Server) routes() {
 	s.router.Get("/api/deployments/{id}/logs", s.handleGetDeploymentLogs)
 	s.router.Get("/api/deployments/{id}/health", s.handleGetDeploymentHealth)
 
+	// BYOS Server Management Endpoints (Sprint 4 S04.2)
+	s.router.Get("/api/servers", s.handleListServers)
+	s.router.Post("/api/servers", s.handleCreateServer)
+	s.router.Get("/api/servers/{id}", s.handleGetServer)
+	s.router.Post("/api/servers/{id}/test", s.handleTestServer)
+	s.router.Delete("/api/servers/{id}", s.handleDeleteServer)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -263,6 +311,15 @@ func (s *Server) routes() {
 		dr.Delete("/{id}", s.handleDeleteDeployment)
 		dr.Get("/{id}/logs", s.handleGetDeploymentLogs)
 		dr.Get("/{id}/health", s.handleGetDeploymentHealth)
+	})
+
+	// BYOS Server Management route group in /api/v1
+	s.router.Route("/api/v1/servers", func(sr chi.Router) {
+		sr.Get("/", s.handleListServers)
+		sr.Post("/", s.handleCreateServer)
+		sr.Get("/{id}", s.handleGetServer)
+		sr.Post("/{id}/test", s.handleTestServer)
+		sr.Delete("/{id}", s.handleDeleteServer)
 	})
 
 	s.router.Route("/api/v1", func(r chi.Router) {
