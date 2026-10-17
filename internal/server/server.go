@@ -29,6 +29,7 @@ import (
 	"github.com/buchin/cuan/internal/inspector"
 	"github.com/buchin/cuan/internal/observability"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/publisher"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/studio"
@@ -72,6 +73,8 @@ type Server struct {
 	roomEventBroker     *RoomEventBroker
 	terminalManager     *terminal.Manager
 	terminalHandler     *terminal.Handler
+	projectIntegrationRepo cuanDB.ProjectIntegrationRepository
+	publisherEngine     *publisher.Engine
 	router              *chi.Mux
 }
 
@@ -337,6 +340,23 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		creator.WithEventBroadcaster(roomBroker),
 	)
 
+	var intRepo cuanDB.ProjectIntegrationRepository
+	if db != nil {
+		intRepo = cuanDB.NewSQLProjectIntegrationRepository(db)
+	} else {
+		intRepo = cuanDB.NewMemoryProjectIntegrationRepository()
+	}
+
+	pubSecret := cfg.AuthSecret
+	if pubSecret == "" {
+		pubSecret = "cuan-default-publisher-secret-key-32b"
+	}
+	pubEngine := publisher.NewEngine(
+		publisher.WithStudioRepo(studioRepo),
+		publisher.WithIntegrationRepo(intRepo),
+		publisher.WithSecretKey(pubSecret),
+	)
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -373,6 +393,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		roomEventBroker:     roomBroker,
 		terminalManager:     termMgr,
 		terminalHandler:     termHandler,
+		projectIntegrationRepo: intRepo,
+		publisherEngine:     pubEngine,
 		router:              r,
 	}
 
@@ -670,6 +692,29 @@ func (s *Server) SetTerminalHandler(h *terminal.Handler) {
 	s.terminalHandler = h
 }
 
+func (s *Server) PublisherEngine() *publisher.Engine {
+	return s.publisherEngine
+}
+
+func (s *Server) SetPublisherEngine(e *publisher.Engine) {
+	s.publisherEngine = e
+}
+
+func (s *Server) ProjectIntegrationRepository() cuanDB.ProjectIntegrationRepository {
+	return s.projectIntegrationRepo
+}
+
+func (s *Server) SetProjectIntegrationRepository(r cuanDB.ProjectIntegrationRepository) {
+	s.projectIntegrationRepo = r
+	if s.publisherEngine != nil {
+		s.publisherEngine = publisher.NewEngine(
+			publisher.WithStudioRepo(s.projectStudioRepo),
+			publisher.WithIntegrationRepo(r),
+			publisher.WithSecretKey(s.cfg.AuthSecret),
+		)
+	}
+}
+
 func (s *Server) routes() {
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
@@ -837,6 +882,20 @@ func (s *Server) routes() {
 	s.router.Post("/api/inspector/inspect-zip", s.handleInspectZip)
 	s.router.Post("/api/v1/inspector/inspect-zip", s.handleInspectZip)
 
+	// WordPress CMS Publishing Engine & Multi-Format Exporter Endpoints (Sprint 11 S11.3)
+	s.router.Post("/api/projects/{id}/integrations/wordpress", s.handleSetupWordPressIntegration)
+	s.router.Get("/api/projects/{id}/integrations/wordpress", s.handleGetWordPressIntegration)
+	s.router.Post("/api/v1/projects/{id}/integrations/wordpress", s.handleSetupWordPressIntegration)
+	s.router.Get("/api/v1/projects/{id}/integrations/wordpress", s.handleGetWordPressIntegration)
+	s.router.Post("/api/tasks/{id}/publish", s.handlePublishTask)
+	s.router.Post("/api/projects/tasks/{id}/publish", s.handlePublishTask)
+	s.router.Post("/api/v1/tasks/{id}/publish", s.handlePublishTask)
+	s.router.Post("/api/v1/projects/tasks/{id}/publish", s.handlePublishTask)
+	s.router.Get("/api/tasks/{id}/export", s.handleExportTask)
+	s.router.Get("/api/projects/tasks/{id}/export", s.handleExportTask)
+	s.router.Get("/api/v1/tasks/{id}/export", s.handleExportTask)
+	s.router.Get("/api/v1/projects/tasks/{id}/export", s.handleExportTask)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -981,6 +1040,14 @@ func (s *Server) routes() {
 		// In-Task Agentic Execution Engine in v1 (Sprint 10 S10.3)
 		r.Post("/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 		r.Post("/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+
+		// WordPress CMS Integration & Task Publishing / Export in v1 (Sprint 11 S11.3)
+		r.Post("/projects/{id}/integrations/wordpress", s.handleSetupWordPressIntegration)
+		r.Get("/projects/{id}/integrations/wordpress", s.handleGetWordPressIntegration)
+		r.Post("/tasks/{id}/publish", s.handlePublishTask)
+		r.Post("/projects/tasks/{id}/publish", s.handlePublishTask)
+		r.Get("/tasks/{id}/export", s.handleExportTask)
+		r.Get("/projects/tasks/{id}/export", s.handleExportTask)
 
 		// WebSocket Pseudo-Terminal (PTY) Engine in v1 (Sprint 9 S09.3)
 		r.Get("/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
