@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/studio"
 )
 
 // RoomEvent represents an event pushed over Server-Sent Events (SSE).
@@ -676,7 +677,25 @@ func (s *Server) handleDistillTaskFromRoom(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	task := DistillTaskFromMessages(room, messages, payload)
+	distiller := s.distillerEngine
+	if distiller == nil {
+		distiller = studio.DefaultDistiller
+	}
+
+	opts := studio.DistillOptions{
+		Title:      payload.Title,
+		MessageIDs: payload.MessageIDs,
+		BatchID:    payload.BatchID,
+		Tags:       payload.Tags,
+	}
+
+	res, err := distiller.DistillWithResult(r.Context(), room, messages, opts)
+	if err != nil || res == nil || res.Task == nil {
+		respondJSONError(w, http.StatusInternalServerError, "failed to distill task from discussion: "+err.Error())
+		return
+	}
+
+	task := res.Task
 
 	if err := s.projectStudioRepo.CreateTask(r.Context(), task); err != nil {
 		respondJSONError(w, http.StatusInternalServerError, "failed to persist distilled task: "+err.Error())
@@ -687,111 +706,27 @@ func (s *Server) handleDistillTaskFromRoom(w http.ResponseWriter, r *http.Reques
 		s.roomEventBroker.Broadcast(roomID, "task.distilled", task.ToDTO())
 	}
 
-	respondJSON(w, http.StatusCreated, map[string]interface{}{
+	resp := map[string]interface{}{
 		"task":                     task.ToDTO(),
 		"distilled_from_messages": len(messages),
-	})
+		"explicit_dod_count":      res.ExplicitDoDCount,
+		"inferred_dod_count":      res.InferredDoDCount,
+	}
+	if res.ExecutionDispatch != nil {
+		resp["execution_dispatch"] = res.ExecutionDispatch
+	}
+
+	respondJSON(w, http.StatusCreated, resp)
 }
 
 // DistillTaskFromMessages extracts structured task title, description, and DoD checklist items
-// from discussion room context and chat messages.
+// from discussion room context and chat messages using the DistillerEngine.
 func DistillTaskFromMessages(room *db.ProjectRoom, messages []db.ProjectMessage, payload DistillTaskPayload) *db.ProjectTask {
-	title := strings.TrimSpace(payload.Title)
-	if title == "" {
-		if room.Title != "" {
-			title = "Task: " + room.Title
-		} else {
-			title = "Distilled Task from Discussion"
-		}
+	opts := studio.DistillOptions{
+		Title:      payload.Title,
+		MessageIDs: payload.MessageIDs,
+		BatchID:    payload.BatchID,
+		Tags:       payload.Tags,
 	}
-
-	var descLines []string
-	if room.Topic != "" {
-		descLines = append(descLines, "Room Topic: "+room.Topic)
-	}
-
-	var dodItems []db.DoDItem
-	dodSeen := make(map[string]bool)
-
-	selectedIDs := make(map[string]bool)
-	for _, id := range payload.MessageIDs {
-		selectedIDs[id] = true
-	}
-
-	for _, msg := range messages {
-		if len(selectedIDs) > 0 && !selectedIDs[msg.ID] {
-			continue
-		}
-
-		lines := strings.Split(msg.Content, "\n")
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" {
-				continue
-			}
-
-			// Extract markdown checklist items e.g. - [ ] Item or - [x] Item
-			if strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "* [ ]") {
-				itemText := strings.TrimSpace(trimmed[5:])
-				if itemText != "" && !dodSeen[itemText] {
-					dodItems = append(dodItems, db.DoDItem{
-						ID:        db.GenerateUUID(),
-						Text:      itemText,
-						Completed: false,
-					})
-					dodSeen[itemText] = true
-				}
-			} else if strings.HasPrefix(trimmed, "- [x]") || strings.HasPrefix(trimmed, "- [X]") || strings.HasPrefix(trimmed, "* [x]") {
-				itemText := strings.TrimSpace(trimmed[5:])
-				if itemText != "" && !dodSeen[itemText] {
-					dodItems = append(dodItems, db.DoDItem{
-						ID:        db.GenerateUUID(),
-						Text:      itemText,
-						Completed: true,
-					})
-					dodSeen[itemText] = true
-				}
-			} else if strings.HasPrefix(strings.ToLower(trimmed), "dod:") {
-				itemText := strings.TrimSpace(trimmed[4:])
-				if itemText != "" && !dodSeen[itemText] {
-					dodItems = append(dodItems, db.DoDItem{
-						ID:        db.GenerateUUID(),
-						Text:      itemText,
-						Completed: false,
-					})
-					dodSeen[itemText] = true
-				}
-			}
-		}
-
-		descLines = append(descLines, fmt.Sprintf("[%s - %s]: %s", msg.AuthorType, msg.AuthorName, msg.Content))
-	}
-
-	// Fallback DoD item if none extracted
-	if len(dodItems) == 0 {
-		dodItems = append(dodItems, db.DoDItem{
-			ID:        db.GenerateUUID(),
-			Text:      "Complete implementation based on room discussion",
-			Completed: false,
-		})
-	}
-
-	tags := payload.Tags
-	if tags == nil {
-		tags = []string{"studio", "distilled"}
-	}
-
-	task := &db.ProjectTask{
-		ProjectID:    room.ProjectID,
-		RoomID:       &room.ID,
-		Title:        title,
-		Description:  strings.Join(descLines, "\n\n"),
-		Status:       "backlog",
-		Priority:     "normal",
-		DoDChecklist: dodItems,
-		BatchID:      payload.BatchID,
-		Tags:         tags,
-	}
-
-	return task
+	return studio.DefaultDistiller.Distill(room, messages, opts)
 }

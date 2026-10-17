@@ -27,6 +27,7 @@ import (
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/sponsorship"
+	"github.com/buchin/cuan/internal/studio"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -52,6 +53,8 @@ type Server struct {
 	obsMetricsCollector *observability.MetricsCollector
 	obsAlertDispatcher  *observability.AlertDispatcher
 	projectStudioRepo   cuanDB.ProjectStudioRepository
+	distillerEngine     *studio.DistillerEngine
+	agentExecutionHook  studio.AgentExecutionHook
 	roomEventBroker     *RoomEventBroker
 	router              *chi.Mux
 }
@@ -234,6 +237,13 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		studioRepo = cuanDB.NewMemoryProjectStudioRepository()
 	}
 
+	var hookDispatcher studio.ExecutionDispatcher
+	if tStore != nil {
+		hookDispatcher = studio.NewRunnerTaskBridgeDispatcher(tStore)
+	}
+	agentHook := studio.NewAgentExecutionHook(hookDispatcher)
+	distiller := studio.NewDistillerEngine(studio.WithExecutionHook(agentHook))
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -256,6 +266,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		obsMetricsCollector: obsMetricsCollector,
 		obsAlertDispatcher:  obsAlertDispatcher,
 		projectStudioRepo:   studioRepo,
+		distillerEngine:     distiller,
+		agentExecutionHook:  agentHook,
 		roomEventBroker:     NewRoomEventBroker(),
 		router:              r,
 	}
@@ -436,6 +448,22 @@ func (s *Server) RoomEventBroker() *RoomEventBroker {
 
 func (s *Server) SetRoomEventBroker(b *RoomEventBroker) {
 	s.roomEventBroker = b
+}
+
+func (s *Server) DistillerEngine() *studio.DistillerEngine {
+	return s.distillerEngine
+}
+
+func (s *Server) SetDistillerEngine(e *studio.DistillerEngine) {
+	s.distillerEngine = e
+}
+
+func (s *Server) AgentExecutionHook() studio.AgentExecutionHook {
+	return s.agentExecutionHook
+}
+
+func (s *Server) SetAgentExecutionHook(h studio.AgentExecutionHook) {
+	s.agentExecutionHook = h
 }
 
 func (s *Server) routes() {

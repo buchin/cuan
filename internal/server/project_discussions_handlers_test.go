@@ -517,3 +517,168 @@ func TestProjectDiscussions_V1AliasEndpoints(t *testing.T) {
 		t.Fatalf("expected 200 on /api/v1/rooms/{id}/messages, got %d", rec.Code)
 	}
 }
+
+func TestDistillerEngine_And_ExecutionHook_E2E(t *testing.T) {
+	s := newTestServerWithMemoryDB(t)
+	projectID := "proj-" + db.GenerateUUID()[:8]
+
+	// 1. Create discussion room
+	room := &db.ProjectRoom{
+		ProjectID: projectID,
+		Title:     "Sprint 7 Distiller & Runner Integration",
+		Topic:     "End-to-End verification of distiller and runner dispatching",
+	}
+	if err := s.ProjectStudioRepository().CreateRoom(context.Background(), room); err != nil {
+		t.Fatalf("failed to create room: %v", err)
+	}
+
+	// 2. Set up SSE listener using httptest.Server
+	ts := httptest.NewServer(s.Router())
+	defer ts.Close()
+
+	sseClient := &http.Client{Timeout: 5 * time.Second}
+	sseReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/rooms/%s/events", ts.URL, room.ID), nil)
+	if err != nil {
+		t.Fatalf("create sse request: %v", err)
+	}
+	sseResp, err := sseClient.Do(sseReq)
+	if err != nil {
+		t.Fatalf("connect sse: %v", err)
+	}
+	defer sseResp.Body.Close()
+
+	eventChan := make(chan string, 32)
+	go func() {
+		scanner := bufio.NewScanner(sseResp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "event:") || strings.HasPrefix(line, "data:") {
+				eventChan <- line
+			}
+		}
+	}()
+
+	// Wait for connected handshake
+	select {
+	case ev := <-eventChan:
+		if !strings.Contains(ev, "connected") {
+			t.Logf("initial sse event: %s", ev)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for sse handshake")
+	}
+
+	// 3. Post discussion messages (single checkbox -> requires inference to reach min 3 DoD)
+	messages := []string{
+		"Tim, mari breakdown task:\n- [ ] Implement Distiller Engine service in internal/studio/distiller.go",
+		"Pastikan juga zero regression pada internal/server dan internal/db serta audit file.",
+	}
+	for _, content := range messages {
+		msg := &db.ProjectMessage{
+			RoomID:     room.ID,
+			AuthorType: "user",
+			AuthorName: "Buchin",
+			Content:    content,
+		}
+		_ = s.ProjectStudioRepository().CreateMessage(context.Background(), msg)
+	}
+
+	// 4. Call POST /api/projects/rooms/{id}/distill
+	distillReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/projects/rooms/%s/distill", ts.URL, room.ID), bytes.NewReader([]byte(`{"title":"S07.3 - Distiller Engine Task"}`)))
+	distillReq.Header.Set("Content-Type", "application/json")
+	distillRec := httptest.NewRecorder()
+	s.Router().ServeHTTP(distillRec, distillReq)
+
+	if distillRec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 from /api/projects/rooms/{id}/distill, got %d: %s", distillRec.Code, distillRec.Body.String())
+	}
+
+	var distillResp struct {
+		Task                  db.ProjectTaskDTO `json:"task"`
+		DistilledFromMessages int               `json:"distilled_from_messages"`
+		ExplicitDoDCount      int               `json:"explicit_dod_count"`
+		InferredDoDCount      int               `json:"inferred_dod_count"`
+	}
+	if err := json.Unmarshal(distillRec.Body.Bytes(), &distillResp); err != nil {
+		t.Fatalf("unmarshal distill response: %v", err)
+	}
+
+	taskID := distillResp.Task.ID
+	if len(distillResp.Task.DoDChecklist) < 3 {
+		t.Fatalf("expected at least 3 DoD checklist items, got %d", len(distillResp.Task.DoDChecklist))
+	}
+	if distillResp.ExplicitDoDCount != 1 {
+		t.Fatalf("expected 1 explicit DoD item, got %d", distillResp.ExplicitDoDCount)
+	}
+	if distillResp.InferredDoDCount < 2 {
+		t.Fatalf("expected at least 2 inferred DoD items, got %d", distillResp.InferredDoDCount)
+	}
+
+	// 5. Verify task.distilled SSE event arrived
+	receivedDistilledEvent := false
+	for i := 0; i < 6; i++ {
+		select {
+		case ev := <-eventChan:
+			if strings.Contains(ev, "task.distilled") {
+				receivedDistilledEvent = true
+				break
+			}
+		case <-time.After(500 * time.Millisecond):
+		}
+		if receivedDistilledEvent {
+			break
+		}
+	}
+	if !receivedDistilledEvent {
+		t.Fatalf("expected task.distilled SSE event was not received")
+	}
+
+	// 6. Transition task status to doing via PATCH /api/tasks/{id}/status
+	patchReq := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("%s/api/tasks/%s/status", ts.URL, taskID), bytes.NewReader([]byte(`{"status":"doing"}`)))
+	patchReq.Header.Set("Content-Type", "application/json")
+	patchRec := httptest.NewRecorder()
+	s.Router().ServeHTTP(patchRec, patchReq)
+
+	if patchRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on patch status, got %d: %s", patchRec.Code, patchRec.Body.String())
+	}
+
+	var patchResp struct {
+		Task              db.ProjectTaskDTO `json:"task"`
+		ExecutionDispatch struct {
+			Dispatched bool   `json:"dispatched"`
+			TaskID     string `json:"task_id"`
+			AttemptID  string `json:"attempt_id"`
+			AgentName  string `json:"agent_name"`
+		} `json:"execution_dispatch"`
+	}
+	if err := json.Unmarshal(patchRec.Body.Bytes(), &patchResp); err != nil {
+		t.Fatalf("unmarshal patch response: %v", err)
+	}
+
+	if patchResp.Task.Status != "doing" {
+		t.Fatalf("expected status doing, got %s", patchResp.Task.Status)
+	}
+	if !patchResp.ExecutionDispatch.Dispatched || patchResp.ExecutionDispatch.AttemptID == "" {
+		t.Fatalf("expected agent runner auto-trigger dispatch, got %+v", patchResp.ExecutionDispatch)
+	}
+
+	// 7. Verify task.status_changed SSE event
+	receivedStatusEvent := false
+	for i := 0; i < 6; i++ {
+		select {
+		case ev := <-eventChan:
+			if strings.Contains(ev, "task.status_changed") {
+				receivedStatusEvent = true
+				break
+			}
+		case <-time.After(500 * time.Millisecond):
+		}
+		if receivedStatusEvent {
+			break
+		}
+	}
+	if !receivedStatusEvent {
+		t.Fatalf("expected task.status_changed SSE event was not received")
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/studio"
 )
 
 // CreateProjectTaskPayload defines the request body for creating a task in a project.
@@ -151,13 +152,23 @@ func (s *Server) handleCreateProjectTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	var dispatchRes *studio.ExecutionDispatchResult
+	if s.agentExecutionHook != nil && task.Status == "doing" {
+		dispatchRes, _ = s.agentExecutionHook.OnTaskStatusChanged(r.Context(), &task, "backlog", task.Status)
+	}
+
 	if s.roomEventBroker != nil && task.RoomID != nil && *task.RoomID != "" {
 		s.roomEventBroker.Broadcast(*task.RoomID, "task.created", task.ToDTO())
 	}
 
-	respondJSON(w, http.StatusCreated, map[string]interface{}{
+	resp := map[string]interface{}{
 		"task": task.ToDTO(),
-	})
+	}
+	if dispatchRes != nil {
+		resp["execution_dispatch"] = dispatchRes
+	}
+
+	respondJSON(w, http.StatusCreated, resp)
 }
 
 // handleListProjectTasks retrieves project tasks matching query filters (?parent_task_id=, ?batch_id=, ?tag=, ?status=, etc.).
@@ -278,6 +289,8 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	oldStatus := task.Status
+
 	var payload UpdateProjectTaskPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request json: "+err.Error())
@@ -371,13 +384,29 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if s.roomEventBroker != nil && task.RoomID != nil && *task.RoomID != "" {
-		s.roomEventBroker.Broadcast(*task.RoomID, "task.updated", task.ToDTO())
+	var dispatchRes *studio.ExecutionDispatchResult
+	if s.agentExecutionHook != nil && task.Status == "doing" && oldStatus != "doing" {
+		dispatchRes, _ = s.agentExecutionHook.OnTaskStatusChanged(r.Context(), task, oldStatus, task.Status)
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	if s.roomEventBroker != nil && task.RoomID != nil && *task.RoomID != "" {
+		eventData := map[string]interface{}{
+			"task": task.ToDTO(),
+		}
+		if dispatchRes != nil {
+			eventData["execution_dispatch"] = dispatchRes
+		}
+		s.roomEventBroker.Broadcast(*task.RoomID, "task.updated", eventData)
+	}
+
+	resp := map[string]interface{}{
 		"task": task.ToDTO(),
-	})
+	}
+	if dispatchRes != nil {
+		resp["execution_dispatch"] = dispatchRes
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }
 
 // handlePatchProjectTaskStatus updates only the status of a project task.
@@ -410,6 +439,17 @@ func (s *Server) handlePatchProjectTaskStatus(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	oldTask, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID)
+	if err != nil {
+		if errors.Is(err, db.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "project task not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to get project task: "+err.Error())
+		return
+	}
+	oldStatus := oldTask.Status
+
 	if err := s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, normStatus); err != nil {
 		if errors.Is(err, db.ErrTaskNotFound) {
 			respondJSONError(w, http.StatusNotFound, "project task not found")
@@ -425,17 +465,31 @@ func (s *Server) handlePatchProjectTaskStatus(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	var dispatchRes *studio.ExecutionDispatchResult
+	if s.agentExecutionHook != nil && normStatus == "doing" && oldStatus != "doing" {
+		dispatchRes, _ = s.agentExecutionHook.OnTaskStatusChanged(r.Context(), task, oldStatus, normStatus)
+	}
+
 	if s.roomEventBroker != nil && task.RoomID != nil && *task.RoomID != "" {
-		s.roomEventBroker.Broadcast(*task.RoomID, "task.status_changed", map[string]interface{}{
+		eventData := map[string]interface{}{
 			"id":     taskID,
 			"status": normStatus,
 			"task":   task.ToDTO(),
-		})
+		}
+		if dispatchRes != nil {
+			eventData["execution_dispatch"] = dispatchRes
+		}
+		s.roomEventBroker.Broadcast(*task.RoomID, "task.status_changed", eventData)
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	resp := map[string]interface{}{
 		"task": task.ToDTO(),
-	})
+	}
+	if dispatchRes != nil {
+		resp["execution_dispatch"] = dispatchRes
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }
 
 // handleDeleteProjectTask deletes a project task by its ID.
