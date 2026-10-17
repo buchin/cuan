@@ -14,6 +14,7 @@ type Repositories struct {
 	ProjectIntegrations ProjectIntegrationRepository
 	ScriptDeployments   ScriptDeploymentRepository
 	ProvisionedDatabases ProvisionedDatabaseRepository
+	WordPress            WordPressRepository
 }
 
 // NewSQLRepositories constructs all SQL-backed repositories.
@@ -29,6 +30,7 @@ func NewSQLRepositories(sqlDB *sql.DB) *Repositories {
 		ProjectIntegrations:  NewSQLProjectIntegrationRepository(sqlDB),
 		ScriptDeployments:    NewSQLScriptDeploymentRepository(sqlDB),
 		ProvisionedDatabases: NewSQLProvisionedDatabaseRepository(sqlDB),
+		WordPress:            NewSQLWordPressRepository(sqlDB),
 	}
 }
 
@@ -45,5 +47,6 @@ func NewMemoryRepositories() *Repositories {
 		ProjectIntegrations:  NewMemoryProjectIntegrationRepository(),
 		ScriptDeployments:    NewMemoryScriptDeploymentRepository(),
 		ProvisionedDatabases: NewMemoryProvisionedDatabaseRepository(),
+		WordPress:            NewMemoryWordPressRepository(),
 	}
 }

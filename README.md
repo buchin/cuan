@@ -4,10 +4,10 @@
 
 ## Status
 
-**Sprint 12: Running (S12.1 — Database Migration 000017 & Script Deployer Data Layer)**.
-Sprints 1–11 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, Creator Blueprints, and Modular Workspace OS with AI Script Onboarding & Creator Publishing Hub). Sprint 12 develops Cuan into an **Automated Environment Provisioner & 1-Click Script Deployer** (multi-database provisioning & schema import, AES-256-GCM secrets vault, runtime build runner, process supervisor, and 1-click deploy wizard).
+**Sprint 13: Running (S13.1 — Database Migration 000018 & WordPress Turnkey Data Layer)**.
+Sprints 1–12 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, Creator Blueprints, Modular Workspace OS with AI Script Onboarding, and Automated Environment Provisioner & 1-Click Script Deployer). Sprint 13 develops Cuan into a **Turnkey WordPress Cloud & Agentic Webmaster Engine** (1-click WordPress container deployer, isolated MySQL database, AES-256-GCM credentials vault, WP-CLI core bootstrapping, theme & plugin ZIP manager, and AI Webmaster action engine).
 
-Single Source of Truth (SSOT): [docs/sprints/S12.md](docs/sprints/S12.md) | [docs/sprints/S11.md](docs/sprints/S11.md) | [docs/product-vision.md](docs/product-vision.md).
+Single Source of Truth (SSOT): [docs/sprints/S13.md](docs/sprints/S13.md) | [docs/sprints/S12.md](docs/sprints/S12.md) | [docs/product-vision.md](docs/product-vision.md).
 
 ### Documentation & Guides
 

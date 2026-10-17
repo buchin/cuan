@@ -357,6 +357,44 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(deployerMig17.DownSQL, "DROP TABLE IF EXISTS script_deployments CASCADE") {
 		t.Errorf("expected 000017 DownSQL to drop script_deployments table")
 	}
+
+	if len(migs) < 18 {
+		t.Fatalf("expected at least 18 migrations, got %d", len(migs))
+	}
+	wpMig18 := migs[17]
+	if wpMig18.Version != "000018" {
+		t.Errorf("expected version 000018, got %s", wpMig18.Version)
+	}
+	if wpMig18.Name != "wordpress_turnkey" {
+		t.Errorf("expected name wordpress_turnkey, got %s", wpMig18.Name)
+	}
+	if !strings.Contains(wpMig18.UpSQL, "CREATE TABLE IF NOT EXISTS wordpress_deployments") {
+		t.Errorf("expected 000018 UpSQL to create wordpress_deployments table")
+	}
+	if !strings.Contains(wpMig18.UpSQL, "CREATE TABLE IF NOT EXISTS wordpress_plugins_themes") {
+		t.Errorf("expected 000018 UpSQL to create wordpress_plugins_themes table")
+	}
+	if !strings.Contains(wpMig18.UpSQL, "CREATE TABLE IF NOT EXISTS wordpress_webmaster_actions") {
+		t.Errorf("expected 000018 UpSQL to create wordpress_webmaster_actions table")
+	}
+	if !strings.Contains(wpMig18.UpSQL, "idx_wordpress_deployments_project_id") {
+		t.Errorf("expected 000018 UpSQL to create idx_wordpress_deployments_project_id")
+	}
+	if !strings.Contains(wpMig18.UpSQL, "idx_wordpress_plugins_themes_slug") {
+		t.Errorf("expected 000018 UpSQL to create idx_wordpress_plugins_themes_slug")
+	}
+	if !strings.Contains(wpMig18.UpSQL, "idx_wordpress_webmaster_actions_action_type") {
+		t.Errorf("expected 000018 UpSQL to create idx_wordpress_webmaster_actions_action_type")
+	}
+	if !strings.Contains(wpMig18.DownSQL, "DROP TABLE IF EXISTS wordpress_webmaster_actions CASCADE") {
+		t.Errorf("expected 000018 DownSQL to drop wordpress_webmaster_actions table")
+	}
+	if !strings.Contains(wpMig18.DownSQL, "DROP TABLE IF EXISTS wordpress_plugins_themes CASCADE") {
+		t.Errorf("expected 000018 DownSQL to drop wordpress_plugins_themes table")
+	}
+	if !strings.Contains(wpMig18.DownSQL, "DROP TABLE IF EXISTS wordpress_deployments CASCADE") {
+		t.Errorf("expected 000018 DownSQL to drop wordpress_deployments table")
+	}
 }
 
 func TestDryRun(t *testing.T) {

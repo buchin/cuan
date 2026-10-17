@@ -79,6 +79,8 @@ Prinsip produk: **pengguna dapat meninggalkan Cuan dengan membawa kode, data, da
   Mengembangkan Cuan menjadi Modular Workspace OS dengan dynamic module navigation (`enabled_modules`), AI Script Onboarding (ZIP upload dropzone, stack detection, setup pipeline auto-generation), serta Creator Publishing Hub (WordPress REST API 1-click publishing & Teleprompter).
 * **Sprint 12 (Automated Environment Provisioner & 1-Click Script Deployer):**
   Menyempurnakan alur script onboarding menjadi platform turnkey mandiri: multi-database provisioning (MySQL/PostgreSQL/SQLite) & automated SQL schema importer, brankas kredensial & environment AES-256-GCM, runtime build runner (`composer`/`npm`/`pip`), dynamic port allocation & process supervisor, registrasi HTTPS reverse proxy Caddy otomatis, serta live build console wizard di antarmuka Kanban/Studio.
+* **Sprint 13 (Turnkey WordPress Cloud & Agentic Webmaster Engine):**
+  Menyediakan solusi 1-click turnkey WordPress hosting di container terisolasi (WordPress + MySQL/MariaDB + Caddy auto-SSL), brankas kredensial admin dan database AES-256-GCM, manajemen ZIP theme dan plugin instan, serta Agentic AI Webmaster untuk script injection, config tweaking, dan optimasi performa tanpa cPanel/FTP.
 
 ---
 
