@@ -22,11 +22,18 @@ import {
   Terminal as TerminalIcon,
   X,
   Bot,
-  Sparkles
+  Sparkles,
+  Globe,
+  ExternalLink,
+  Video,
+  KeyRound,
+  Send,
+  Lock
 } from 'lucide-react'
-import { ProjectTaskDTO, ExecuteTaskAgentResponse } from './types'
+import { ProjectTaskDTO, ExecuteTaskAgentResponse, WordPressIntegrationDTO, PublishTaskResult } from './types'
 import { DistillTaskModal } from './DistillTaskModal'
 import { TaskTerminal } from './TaskTerminal'
+import { TeleprompterModal } from './TeleprompterModal'
 import { MarkdownViewer } from '../ui/MarkdownViewer'
 
 interface ProjectTasksBoardProps {
@@ -116,12 +123,155 @@ export function ProjectTasksBoard({
   // Distill / Create Task Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
-  // Interactive Terminal & Detail Drawer States (S09.4 & S10.4)
+  // Interactive Terminal & Detail Drawer States (S09.4, S10.4, S11.4)
   const [selectedTerminalTask, setSelectedTerminalTask] = useState<ProjectTaskDTO | null>(null)
   const [detailTask, setDetailTask] = useState<ProjectTaskDTO | null>(null)
-  const [detailModalTab, setDetailModalTab] = useState<'details' | 'terminal' | 'agent_output'>('details')
+  const [detailModalTab, setDetailModalTab] = useState<'details' | 'terminal' | 'agent_output' | 'wordpress'>('details')
   const [runningAgentTaskIds, setRunningAgentTaskIds] = useState<Record<string, boolean>>({})
   const [geminiKeyWarning, setGeminiKeyWarning] = useState<string | null>(null)
+
+  // Teleprompter View State (S11.4)
+  const [isTeleprompterOpen, setIsTeleprompterOpen] = useState(false)
+  const [teleprompterTask, setTeleprompterTask] = useState<ProjectTaskDTO | null>(null)
+
+  // WordPress Integration & Publishing State (S11.4)
+  const [wpIntegration, setWpIntegration] = useState<WordPressIntegrationDTO | null>(null)
+  const [wpConfigured, setWpConfigured] = useState<boolean | null>(null)
+  const [wpLoading, setWpLoading] = useState(false)
+  const [wpSiteURL, setWpSiteURL] = useState('')
+  const [wpUsername, setWpUsername] = useState('')
+  const [wpAppPassword, setWpAppPassword] = useState('')
+  const [wpIsConnecting, setWpIsConnecting] = useState(false)
+  const [wpConnectError, setWpConnectError] = useState<string | null>(null)
+  const [wpConnectSuccess, setWpConnectSuccess] = useState<string | null>(null)
+  const [wpIsReconfiguring, setWpIsReconfiguring] = useState(false)
+
+  // Publish Form State (S11.4)
+  const [wpPublishTitle, setWpPublishTitle] = useState('')
+  const [wpPublishStatus, setWpPublishStatus] = useState<'draft' | 'publish' | 'pending'>('draft')
+  const [wpConvertMarkdown, setWpConvertMarkdown] = useState(true)
+  const [wpIsPublishing, setWpIsPublishing] = useState(false)
+  const [wpPublishError, setWpPublishError] = useState<string | null>(null)
+  const [wpPublishResult, setWpPublishResult] = useState<PublishTaskResult | null>(null)
+
+  // Fetch WordPress integration status
+  const fetchWordPressIntegration = async (projId: string) => {
+    setWpLoading(true)
+    setWpConnectError(null)
+    try {
+      const res = await fetch(`/api/v1/projects/${projId}/integrations/wordpress`)
+      if (res.ok) {
+        const data = await res.json()
+        setWpIntegration(data)
+        setWpSiteURL(data.site_url || '')
+        setWpUsername(data.username || '')
+        setWpConfigured(true)
+      } else if (res.status === 404) {
+        setWpIntegration(null)
+        setWpConfigured(false)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setWpConnectError(err.error || `HTTP ${res.status}`)
+        setWpConfigured(false)
+      }
+    } catch {
+      setWpConfigured(false)
+    } finally {
+      setWpLoading(false)
+    }
+  }
+
+  // Connect or reconfigure WordPress
+  const handleConnectWordPress = async () => {
+    setWpConnectError(null)
+    setWpConnectSuccess(null)
+    if (!wpSiteURL.trim() || !wpUsername.trim() || !wpAppPassword.trim()) {
+      setWpConnectError('Site URL, Username, dan Application Password wajib diisi.')
+      return
+    }
+
+    setWpIsConnecting(true)
+    try {
+      const res = await fetch(`/api/v1/projects/${selectedProjectId}/integrations/wordpress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_url: wpSiteURL.trim(),
+          username: wpUsername.trim(),
+          application_password: wpAppPassword.trim(),
+          test_connection: true,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}: Gagal menghubungkan ke WordPress`)
+      }
+
+      setWpIntegration(data)
+      setWpConfigured(true)
+      setWpIsReconfiguring(false)
+      setWpAppPassword('')
+      setWpConnectSuccess(`Koneksi berhasil ke ${data.site_url}! Kredensial tersimpan aman via AES-256-GCM.`)
+    } catch (err: any) {
+      setWpConnectError(err.message || 'Koneksi ke WordPress REST API gagal.')
+    } finally {
+      setWpIsConnecting(false)
+    }
+  }
+
+  // Publish Task to WordPress
+  const handlePublishToWordPress = async () => {
+    if (!detailTask) return
+    setWpPublishError(null)
+    setWpPublishResult(null)
+
+    const contentToPublish = detailTask.agent_output || detailTask.description
+    if (!contentToPublish || !contentToPublish.trim()) {
+      setWpPublishError('Task belum memiliki deliverable konten atau draf agent output untuk dipublikasikan.')
+      return
+    }
+
+    setWpIsPublishing(true)
+    try {
+      const payload = {
+        title: wpPublishTitle.trim() || detailTask.title,
+        content: contentToPublish,
+        status: wpPublishStatus,
+        tags: detailTask.tags || [],
+        convert_markdown: wpConvertMarkdown,
+      }
+
+      const res = await fetch(`/api/v1/tasks/${detailTask.id}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data: PublishTaskResult = await res.json()
+      if (!res.ok) {
+        const errData = data as any
+        throw new Error(errData.error || errData.message || `HTTP ${res.status}: Gagal mempublikasikan task`)
+      }
+
+      setWpPublishResult(data)
+      const updatedTask: ProjectTaskDTO = {
+        ...detailTask,
+        publication_url: data.publication_url,
+        published_at: data.published_at || new Date().toISOString(),
+      }
+      setDetailTask(updatedTask)
+      setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)))
+      setNotification({
+        type: 'success',
+        message: `🎉 Berhasil mempublikasikan artikel ke WordPress! Status: ${data.status.toUpperCase()}`,
+      })
+    } catch (err: any) {
+      setWpPublishError(err.message || 'Terjadi kesalahan saat mempublikasikan ke WordPress.')
+    } finally {
+      setWpIsPublishing(false)
+    }
+  }
 
   // Fetch tasks
   const fetchTasks = async (projId: string) => {
@@ -796,23 +946,56 @@ export function ProjectTasksBoard({
                           </button>
 
                           {task.agent_output && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setDetailTask(task)
-                                setDetailModalTab('agent_output')
-                              }}
-                              className="w-full flex items-center justify-between px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-medium transition-colors"
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDetailTask(task)
+                                  setDetailModalTab('agent_output')
+                                }}
+                                className="flex-1 flex items-center justify-between px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-medium transition-colors"
+                              >
+                                <span className="flex items-center gap-1.5 truncate">
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                                  <span className="truncate">Draf Konten Siap</span>
+                                </span>
+                                <span className="font-mono text-[9px] text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+                                  Output &rarr;
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setTeleprompterTask(task)
+                                  setIsTeleprompterOpen(true)
+                                }}
+                                className="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[10px] font-medium flex items-center gap-1 shrink-0 transition-colors"
+                                title="Buka Naskah di Teleprompter Fullscreen"
+                              >
+                                <Video className="h-3 w-3 text-red-500" />
+                                <span>Prompter</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* WordPress Published Indicator */}
+                          {task.publication_url && (
+                            <a
+                              href={task.publication_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full flex items-center justify-between px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-[10px] font-medium transition-colors"
+                              title={`Terbit di WordPress: ${task.publication_url}`}
                             >
-                              <span className="flex items-center gap-1.5">
-                                <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
-                                <span className="truncate">Draf Konten Siap</span>
+                              <span className="flex items-center gap-1.5 truncate">
+                                <Globe className="h-3 w-3 text-blue-500 shrink-0" />
+                                <span className="truncate">WordPress: {task.publication_url.replace(/^https?:\/\//, '')}</span>
                               </span>
-                              <span className="font-mono text-[9px] text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
-                                Buka Output &rarr;
-                              </span>
-                            </button>
+                              <ExternalLink className="h-3 w-3 text-blue-500 shrink-0" />
+                            </a>
                           )}
                         </div>
 
@@ -951,7 +1134,7 @@ export function ProjectTasksBoard({
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                {/* Tab switcher: Detail vs Agent Output vs Terminal */}
+                {/* Tab switcher: Detail vs Agent Output vs Terminal vs WordPress */}
                 <div className="flex items-center bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-semibold">
                   <button
                     type="button"
@@ -983,6 +1166,25 @@ export function ProjectTasksBoard({
 
                   <button
                     type="button"
+                    onClick={() => {
+                      setDetailModalTab('wordpress')
+                      fetchWordPressIntegration(selectedProjectId)
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
+                      detailModalTab === 'wordpress'
+                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                    }`}
+                  >
+                    <Globe className="h-3.5 w-3.5 text-blue-500" />
+                    <span>Publish to WordPress</span>
+                    {detailTask.publication_url && (
+                      <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setDetailModalTab('terminal')}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
                       detailModalTab === 'terminal'
@@ -994,6 +1196,21 @@ export function ProjectTasksBoard({
                     <span>Terminal (PTY)</span>
                   </button>
                 </div>
+
+                {/* Teleprompter Fullscreen Button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setTeleprompterTask(detailTask)
+                    setIsTeleprompterOpen(true)
+                  }}
+                  className="h-7 text-xs font-semibold gap-1.5 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  title="Buka Naskah di Teleprompter View Fullscreen"
+                >
+                  <Video className="h-3.5 w-3.5 text-red-500" />
+                  <span>Teleprompter</span>
+                </Button>
 
                 <button
                   type="button"
@@ -1007,7 +1224,296 @@ export function ProjectTasksBoard({
 
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto flex-1">
-              {detailModalTab === 'agent_output' ? (
+              {detailModalTab === 'wordpress' ? (
+                <div className="space-y-6">
+                  {/* WordPress Publisher Header Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-slate-50 to-slate-100 dark:from-blue-950/30 dark:via-slate-900/60 dark:to-slate-900 border border-blue-200 dark:border-blue-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-lg bg-blue-500/20 text-blue-600 dark:text-purple-400">
+                          <Globe className="h-4 w-4 text-blue-500" />
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                          WordPress 1-Click Publishing Hub
+                        </h3>
+                        {wpConfigured && (
+                          <Badge className="bg-emerald-600 text-white text-[10px] font-mono py-0 px-2">
+                            Connected {wpIntegration ? `(${wpIntegration.site_url})` : ''}
+                          </Badge>
+                        )}
+                        {wpLoading && (
+                          <span className="text-[11px] text-slate-400 animate-pulse">Memeriksa...</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Publikasikan draf konten atau deliverable task langsung ke WordPress REST API dengan enkripsi kredensial AES-256-GCM.
+                      </p>
+                    </div>
+
+                    {wpConfigured && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWpIsReconfiguring(!wpIsReconfiguring)}
+                        className="text-xs h-8 border-slate-300 dark:border-slate-700 shrink-0"
+                      >
+                        <KeyRound className="h-3.5 w-3.5 mr-1" />
+                        <span>{wpIsReconfiguring ? 'Tutup Pengaturan' : 'Ganti Kredensial'}</span>
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Publication Success Banner if published */}
+                  {detailTask.publication_url && (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-4 w-4" /> Artikel Berhasil Terbit di WordPress!
+                        </span>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          URL: <a href={detailTask.publication_url} target="_blank" rel="noopener noreferrer" className="font-mono text-emerald-600 dark:text-emerald-400 underline">{detailTask.publication_url}</a>
+                        </p>
+                        {detailTask.published_at && (
+                          <span className="text-[10px] text-slate-400 font-mono block">
+                            Diterbitkan pada: {new Date(detailTask.published_at).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <a
+                        href={detailTask.publication_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 transition-colors shadow-sm"
+                      >
+                        <span>Kunjungi Postingan</span>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Connect Form (if not configured or reconfiguring) */}
+                  {(!wpConfigured || wpIsReconfiguring) ? (
+                    <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4">
+                      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                        <Lock className="h-4 w-4 text-amber-500" />
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                          Konfigurasi WordPress REST API
+                        </h4>
+                      </div>
+
+                      {wpConnectError && (
+                        <Alert className="bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-300">
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          <AlertTitle className="text-xs font-bold">Koneksi Gagal</AlertTitle>
+                          <AlertDescription className="text-xs mt-0.5">{wpConnectError}</AlertDescription>
+                        </Alert>
+                      )}
+
+                      {wpConnectSuccess && (
+                        <Alert className="bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          <AlertTitle className="text-xs font-bold">Terhubung</AlertTitle>
+                          <AlertDescription className="text-xs mt-0.5">{wpConnectSuccess}</AlertDescription>
+                        </Alert>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-700 dark:text-slate-300">
+                            WordPress Site URL
+                          </label>
+                          <Input
+                            value={wpSiteURL}
+                            onChange={(e) => setWpSiteURL(e.target.value)}
+                            placeholder="https://myblog.com"
+                            className="text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-700 dark:text-slate-300">
+                            Username WordPress
+                          </label>
+                          <Input
+                            value={wpUsername}
+                            onChange={(e) => setWpUsername(e.target.value)}
+                            placeholder="admin"
+                            className="text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 text-xs">
+                        <label className="font-bold text-slate-700 dark:text-slate-300">
+                          Application Password
+                        </label>
+                        <Input
+                          type="password"
+                          value={wpAppPassword}
+                          onChange={(e) => setWpAppPassword(e.target.value)}
+                          placeholder="xxxx xxxx xxxx xxxx"
+                          className="text-xs font-mono"
+                        />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Buat di WP Admin &rarr; Users &rarr; Profile &rarr; Application Passwords. Password Anda dienkripsi AES-256-GCM dan tidak pernah bocor.
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          size="sm"
+                          disabled={wpIsConnecting}
+                          onClick={handleConnectWordPress}
+                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold gap-1.5"
+                        >
+                          {wpIsConnecting ? (
+                            <>
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              <span>Memverifikasi Koneksi...</span>
+                            </>
+                          ) : (
+                            <>
+                              <KeyRound className="h-3.5 w-3.5" />
+                              <span>Test & Simpan Koneksi WordPress</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Publish Form (when configured) */}
+                  {wpConfigured && (
+                    <div className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                        <div className="space-y-0.5">
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                            <Send className="h-3.5 w-3.5 text-blue-500" />
+                            <span>Form Publikasi Konten</span>
+                          </h4>
+                          <span className="text-[11px] text-slate-400">
+                            Target: <strong className="text-slate-700 dark:text-slate-200">{wpSiteURL}</strong> ({wpUsername})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={wpConvertMarkdown}
+                              onChange={(e) => setWpConvertMarkdown(e.target.checked)}
+                              className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                            />
+                            <span>Convert Markdown to HTML</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {wpPublishError && (
+                        <Alert className="bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-300">
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          <AlertTitle className="text-xs font-bold">Publikasi Gagal</AlertTitle>
+                          <AlertDescription className="text-xs mt-0.5">{wpPublishError}</AlertDescription>
+                        </Alert>
+                      )}
+
+                      {wpPublishResult && (
+                        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-200 flex items-center justify-between">
+                          <span>Post berhasil dibuat! ID: #{wpPublishResult.post_id} | Status: {wpPublishResult.status}</span>
+                          {wpPublishResult.publication_url && (
+                            <a href={wpPublishResult.publication_url} target="_blank" rel="noopener noreferrer" className="underline font-bold text-emerald-600">
+                              Buka Link
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="font-bold text-slate-700 dark:text-slate-300">
+                            Judul Postingan
+                          </label>
+                          <Input
+                            value={wpPublishTitle || detailTask.title}
+                            onChange={(e) => setWpPublishTitle(e.target.value)}
+                            placeholder="Judul artikel WordPress"
+                            className="text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-700 dark:text-slate-300">
+                            Status Postingan
+                          </label>
+                          <select
+                            value={wpPublishStatus}
+                            onChange={(e: any) => setWpPublishStatus(e.target.value)}
+                            className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="draft">Draft (Draf - Aman direview)</option>
+                            <option value="publish">Publish (Langsung Live Publik)</option>
+                            <option value="pending">Pending Review</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Content Preview */}
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-slate-700 dark:text-slate-300">
+                            Konten yang Akan Diterbitkan
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {detailTask.agent_output
+                              ? `Output Agent (${detailTask.agent_output.length} karakter)`
+                              : `Deskripsi Task (${detailTask.description?.length || 0} karakter)`}
+                          </span>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 max-h-48 overflow-y-auto whitespace-pre-wrap font-sans leading-relaxed">
+                          {detailTask.agent_output || detailTask.description || (
+                            <span className="text-slate-400 italic">Belum ada konten atau draf output agent.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setTeleprompterTask(detailTask)
+                            setIsTeleprompterOpen(true)
+                          }}
+                          className="text-xs gap-1.5 border-slate-300 dark:border-slate-700"
+                        >
+                          <Video className="h-3.5 w-3.5 text-red-500" />
+                          <span>Buka Teleprompter</span>
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          disabled={wpIsPublishing || (!detailTask.agent_output && !detailTask.description)}
+                          onClick={handlePublishToWordPress}
+                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold gap-1.5 shadow-md shadow-blue-600/20 px-5"
+                        >
+                          {wpIsPublishing ? (
+                            <>
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              <span>Menerbitkan ke WordPress...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Globe className="h-3.5 w-3.5" />
+                              <span>Publish to WordPress Sekarang</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : detailModalTab === 'agent_output' ? (
                 <div className="space-y-6">
                   {/* Agent Output Header Card */}
                   <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-slate-50 to-slate-100 dark:from-purple-950/30 dark:via-slate-900/60 dark:to-slate-900 border border-purple-200 dark:border-purple-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1039,6 +1545,33 @@ export function ProjectTasksBoard({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setTeleprompterTask(detailTask)
+                          setIsTeleprompterOpen(true)
+                        }}
+                        className="text-xs font-semibold gap-1.5 border-slate-300 dark:border-slate-700"
+                        title="Buka naskah di Teleprompter View Fullscreen"
+                      >
+                        <Video className="h-3.5 w-3.5 text-red-500" />
+                        <span>Teleprompter View</span>
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setDetailModalTab('wordpress')
+                          fetchWordPressIntegration(selectedProjectId)
+                        }}
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold gap-1.5 shadow-sm"
+                        title="Publikasikan langsung ke WordPress REST API"
+                      >
+                        <Globe className="h-3.5 w-3.5" />
+                        <span>Publish to WordPress</span>
+                      </Button>
+
                       <Button
                         size="sm"
                         disabled={runningAgentTaskIds[detailTask.id] || detailTask.execution_status === 'running'}
@@ -1225,6 +1758,19 @@ export function ProjectTasksBoard({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Teleprompter Fullscreen View (Sprint 11 S11.4) */}
+      {teleprompterTask && (
+        <TeleprompterModal
+          isOpen={isTeleprompterOpen}
+          onClose={() => {
+            setIsTeleprompterOpen(false)
+            setTeleprompterTask(null)
+          }}
+          title={teleprompterTask.title}
+          content={teleprompterTask.agent_output || teleprompterTask.description}
+        />
       )}
     </div>
   )

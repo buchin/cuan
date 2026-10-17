@@ -16,7 +16,9 @@ import {
   MessageSquare,
   ListTodo,
   Layers,
-  FolderGit2
+  FolderGit2,
+  FileArchive,
+  UploadCloud
 } from 'lucide-react'
 import {
   CreatorTemplate,
@@ -28,6 +30,7 @@ interface CreatorWizardModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: (result: InstantiateCreatorProjectResponse) => void
+  onOpenZipWizard?: () => void
 }
 
 const FALLBACK_TEMPLATES: CreatorTemplate[] = [
@@ -266,7 +269,7 @@ const FALLBACK_TEMPLATES: CreatorTemplate[] = [
   },
 ]
 
-export function CreatorWizardModal({ isOpen, onClose, onSuccess }: CreatorWizardModalProps) {
+export function CreatorWizardModal({ isOpen, onClose, onSuccess, onOpenZipWizard }: CreatorWizardModalProps) {
   const [templates, setTemplates] = useState<CreatorTemplate[]>(FALLBACK_TEMPLATES)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('blog')
   const [projectName, setProjectName] = useState<string>('Blog Publisher Niche')
@@ -408,6 +411,41 @@ export function CreatorWizardModal({ isOpen, onClose, onSuccess }: CreatorWizard
               <AlertTitle className="text-xs font-bold">Gagal Membuat Project</AlertTitle>
               <AlertDescription className="text-xs">{error}</AlertDescription>
             </Alert>
+          )}
+
+          {/* AI Script ZIP Onboarding Banner */}
+          {onOpenZipWizard && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-slate-900 border border-teal-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <FileArchive className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white">Punya File ZIP Script Pembelian Online?</span>
+                    <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[10px] font-mono py-0 px-1.5">
+                      AI Stack Inspector
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Unggah ZIP script Anda — Cuan otomatis mendeteksi stack, .env, skema .sql, dan menghasilkan task setup Kanban!
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose()
+                  onOpenZipWizard()
+                }}
+                className="border-teal-500/50 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs gap-1.5 shrink-0"
+              >
+                <UploadCloud className="h-3.5 w-3.5" />
+                <span>Upload Script ZIP</span>
+              </Button>
+            </div>
           )}
 
           {/* 1. Template Catalog Selection */}

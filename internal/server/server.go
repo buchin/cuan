@@ -896,6 +896,14 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/tasks/{id}/export", s.handleExportTask)
 	s.router.Get("/api/v1/projects/tasks/{id}/export", s.handleExportTask)
 
+	// Dynamic Project Modules Endpoints (Sprint 11 S11.4)
+	s.router.Get("/api/projects", s.handleListProjects)
+	s.router.Get("/api/projects/{id}", s.handleGetProject)
+	s.router.Patch("/api/projects/{id}/modules", s.handleUpdateProjectModules)
+	s.router.Put("/api/projects/{id}/modules", s.handleUpdateProjectModules)
+	s.router.Patch("/api/v1/projects/{id}/modules", s.handleUpdateProjectModules)
+	s.router.Put("/api/v1/projects/{id}/modules", s.handleUpdateProjectModules)
+
 	// Admin Sponsorship Moderation Endpoints (Single-Owner access only)
 	s.router.Group(func(ar chi.Router) {
 		ar.Use(auth.Middleware(s.authSvc))
@@ -1134,6 +1142,8 @@ func (s *Server) routes() {
 			pr.Post("/projects/{id}/sync", s.handleSyncProject)
 			pr.Delete("/projects/{id}", s.handleDeleteProject)
 			pr.Get("/projects/{id}/branches", s.handleGetProjectBranches)
+			pr.Patch("/projects/{id}/modules", s.handleUpdateProjectModules)
+			pr.Put("/projects/{id}/modules", s.handleUpdateProjectModules)
 
 			// Sponsorship Moderation endpoints (S02.4)
 			pr.Get("/admin/sponsors", s.handleAdminListSponsors)
@@ -1744,6 +1754,40 @@ func (s *Server) handleGetProjectBranches(w http.ResponseWriter, r *http.Request
 		"branches":       branches,
 		"default_branch": defaultBranch,
 	})
+}
+
+func (s *Server) handleUpdateProjectModules(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if strings.TrimSpace(id) == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	var payload struct {
+		EnabledModules []string `json:"enabled_modules"`
+		Modules        []string `json:"modules"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	mods := payload.EnabledModules
+	if len(mods) == 0 && len(payload.Modules) > 0 {
+		mods = payload.Modules
+	}
+
+	res, err := s.projectSvc.UpdateModules(r.Context(), id, mods)
+	if err != nil {
+		if errors.Is(err, project.ErrProjectNotFound) {
+			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update project modules: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, res)
 }
 
 

@@ -235,6 +235,9 @@ export interface ProjectTaskDTO {
   tags: string[]
   agent_output?: string
   execution_status?: 'idle' | 'running' | 'completed' | 'failed' | string
+  scheduled_at?: string | null
+  published_at?: string | null
+  publication_url?: string
   created_at: string
   updated_at: string
 }
@@ -541,5 +544,98 @@ export interface ExecuteTaskAgentResponse {
   dod_completed_count: number
   dod_total_count: number
   room_message_id?: string
+}
+
+// ============================================================================
+// Sprint 11 (S11.4): Modular Workspace, ZIP Inspector & Publishing Types
+// ============================================================================
+
+export interface ProjectItemDTO {
+  id: string
+  name: string
+  repo_url?: string
+  repo_owner?: string
+  repo_name?: string
+  default_branch?: string
+  clone_status?: string
+  project_type?: string
+  metadata?: Record<string, any>
+  enabled_modules?: string[]
+  source_type?: 'blank' | 'template' | 'zip' | string
+  source_metadata?: Record<string, any>
+  created_at?: string
+  updated_at?: string
+}
+
+export interface TechStackInfoDTO {
+  primary_stack: string
+  framework: string
+  language: string
+  confidence: number
+  description: string
+  signatures: string[]
+}
+
+export interface SQLFileInfoDTO {
+  path: string
+  size: number
+  dialect: string
+}
+
+export interface EnvVarInfoDTO {
+  source_file?: string
+  all_keys: string[]
+  required_keys: string[]
+  database_keys: string[]
+  security_keys: string[]
+}
+
+export interface TaskTemplateDTO {
+  title: string
+  description: string
+  priority: string
+  tags: string[]
+  dod_checklist: DoDItem[]
+}
+
+export interface InspectionResultDTO {
+  archive_name?: string
+  tech_stack: TechStackInfoDTO
+  env: EnvVarInfoDTO
+  sql_files: SQLFileInfoDTO[]
+  total_files: number
+  total_size: number
+  root_prefix?: string
+  recommended_modules: string[]
+  recommended_tasks: TaskTemplateDTO[]
+}
+
+export interface CreateFromZipResponse {
+  status: string
+  project: ProjectItemDTO
+  inspection?: InspectionResultDTO
+  room: ProjectRoomDTO
+  agent: AgentDTO
+  tasks: ProjectTaskDTO[]
+}
+
+export interface WordPressIntegrationDTO {
+  id: string
+  project_id: string
+  integration_type: string
+  site_url: string
+  username: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface PublishTaskResult {
+  success: boolean
+  task_id: string
+  post_id: number
+  status: string
+  publication_url: string
+  published_at?: string
 }
 

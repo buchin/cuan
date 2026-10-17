@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -258,4 +259,30 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 
 	// Remote repository is untouched and remains safe on GitHub
 	return nil
+}
+
+// UpdateModules updates the enabled_modules configuration for a project.
+func (s *Service) UpdateModules(ctx context.Context, id string, modules []string) (*ProjectResponse, error) {
+	p, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if modules == nil {
+		modules = []string{"tasks", "discussions"}
+	}
+
+	raw, err := json.Marshal(modules)
+	if err != nil {
+		return nil, fmt.Errorf("marshal modules: %w", err)
+	}
+
+	p.EnabledModules = raw
+	p.UpdatedAt = time.Now().UTC()
+
+	if err := s.store.UpdateProject(ctx, p); err != nil {
+		return nil, err
+	}
+
+	return p.ToResponse(), nil
 }

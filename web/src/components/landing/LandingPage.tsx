@@ -25,9 +25,11 @@ import {
   ShoppingBag,
   Percent,
   Bot,
-  ListTodo,
-  FileText,
-  KeyRound
+  KeyRound,
+  UploadCloud,
+  Globe,
+  FileArchive,
+  Sliders
 } from 'lucide-react'
 
 interface LandingPageProps {
@@ -339,7 +341,7 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Problem Card 1 */}
             <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6 space-y-3">
               <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-2">
@@ -370,6 +372,17 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
               <h3 className="text-lg font-bold text-white">3. Tools AI Terfragmentasi</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
                 Langganan belasan SaaS AI secara terpisah (ChatGPT, Jasper, Copy.ai) dengan format yang berantakan, tagihan per bulan membengkak, dan prompt terbuang sia-sia tanpa tersinkronisasi ke alur kerja proyek nyata.
+              </p>
+            </Card>
+
+            {/* Problem Card 4 (PO Explicit Requirement) */}
+            <Card className="bg-slate-900/90 border-slate-800 hover:border-red-500/40 transition-all p-6 space-y-3">
+              <div className="h-12 w-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-2">
+                <FileArchive className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white">4. Script Teronggok di Hard Disk</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Membeli script web di CodeCanyon/Envato/GitHub, tapi mengendap berbulan-bulan karena bingung setup .env, bingung impor skema database .sql, instalasi dependensi rumit, dan kebingungan deploy ke server/VPS.
               </p>
             </Card>
           </div>
@@ -449,69 +462,69 @@ export function LandingPage({ onNavigate, appMode = 'marketing', onToggleMode }:
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Feature 1 */}
+            {/* Feature 1: AI Script Onboarding from ZIP */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
               <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <Layers className="h-5 w-5" />
+                <UploadCloud className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Creator Blueprint Templates</h3>
+              <h3 className="text-lg font-bold text-white">AI Script Onboarding (from ZIP)</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Deploy proyek Blog Publisher, YouTube Channel, Online Shop, atau Affiliate Site dalam 1 klik lengkap dengan papan Kanban, ruang diskusi, dan alur task terstruktur.
+                Drop arsip ZIP script web hasil beli di marketplace. AI Inspector membedah tech stack, ekstrak konfigurasi .env, mendeteksi skema database .sql, dan merangkai setup pipeline otomatis di Kanban.
               </p>
             </div>
 
-            {/* Feature 2 */}
+            {/* Feature 2: Modular Workspace OS */}
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold">
+                <Sliders className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Modular Workspace OS</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Navigasi adaptif tanpa bloatware. Sidebar dan navbar hanya me-render modul aktif proyek (tasks, discussions, repos, servers, publishing, support) dengan fleksibilitas "+ Add Modules" kapan saja.
+              </p>
+            </div>
+
+            {/* Feature 3: 1-Click WordPress Publishing */}
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold">
+                <Globe className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-white">1-Click WordPress Publishing</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Publikasikan artikel deliverable task langsung ke WordPress REST API (status draft/publish) dalam 1 klik dengan enkripsi Application Password AES-256-GCM tanpa risiko kebocoran kredensial.
+              </p>
+            </div>
+
+            {/* Feature 4: Fullscreen Teleprompter */}
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center font-bold">
+                <Video className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Fullscreen Teleprompter Studio</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Mode teleprompter fullscreen untuk YouTuber & video creator. Dilengkapi auto-scroll halus terkontrol kecepatan, pengatur ukuran font, mode mirror horizontal, dan shortcut keyboard.
+              </p>
+            </div>
+
+            {/* Feature 5: In-Task Agent Runner */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
               <div className="h-10 w-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">
                 <Bot className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">In-Task Agent Runner</h3>
+              <h3 className="text-lg font-bold text-white">In-Task Agent Runner & Blueprints</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Tekan tombol "Run with Agent" langsung pada kartu task Kanban. Agent membaca instruksi prompt & DoD, mengeksekusi pembuatan konten via Google Gemini Pro, dan menyimpan draf deliverable.
+                Tekan tombol "Run with Agent" pada kartu task Kanban. Agent membaca instruksi prompt & DoD, mengeksekusi pembuatan konten via Google Gemini Pro, dan otomatis mencentang kriteria DoD.
               </p>
             </div>
 
-            {/* Feature 3 */}
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
-                <KeyRound className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Key Vault Aman (BYOK)</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Gunakan Google Gemini Pro API Key Anda sendiri tanpa biaya mark-up per token. Kredensial tersimpan aman di server Key Vault terenkripsi tanpa kebocoran data.
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <FileText className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Markdown Viewer & One-Click Copy</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Tab khusus di task detail drawer yang menyajikan draf artikel, skrip video, atau sales copy dalam format Markdown bersih lengkap dengan tombol salin instan 1-klik ke clipboard.
-              </p>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold">
-                <ListTodo className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Auto-Updated Definition of Done</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Agent otomatis memvalidasi dan mencentang kriteria checklist DoD saat draf selesai digenerate, memastikan deliverable memenuhi standar kualitas tinggi sebelum dipublikasikan.
-              </p>
-            </div>
-
-            {/* Feature 6 */}
+            {/* Feature 6: 100% Self-Hosted & Zero Lock-in */}
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 transition-all space-y-3">
               <div className="h-10 w-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-bold">
                 <Server className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">100% Self-Hosted & Zero Lock-in</h3>
+              <h3 className="text-lg font-bold text-white">100% Self-Hosted & Key Vault (BYOK)</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Lisensi open-source Apache-2.0. Berjalan di server VPS milik Anda sendiri. Seluruh data proyek, draf konten, dan database tersimpan aman di bawah kendali penuh Anda.
+                Lisensi open-source Apache-2.0. Berjalan di server VPS milik Anda sendiri. Seluruh data proyek, draf konten, kredensial dan database tersimpan aman di bawah kendali penuh Anda.
               </p>
             </div>
           </div>

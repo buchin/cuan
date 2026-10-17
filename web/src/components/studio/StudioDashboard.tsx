@@ -22,9 +22,21 @@ import {
   MessageSquare,
   Kanban,
   Rocket,
-  Bot
+  Bot,
+  Settings2,
+  GitBranch,
+  Share2,
+  HelpCircle,
+  ChevronDown
 } from 'lucide-react'
-import { DeploymentItem, ServerItem, CustomDomainItem, InstantiateCreatorProjectResponse } from './types'
+import {
+  DeploymentItem,
+  ServerItem,
+  CustomDomainItem,
+  InstantiateCreatorProjectResponse,
+  ProjectItemDTO,
+  CreateFromZipResponse
+} from './types'
 import { DeployWizardModal } from './DeployWizardModal'
 import { CreatorWizardModal } from './CreatorWizardModal'
 import { ProjectDrawer } from './ProjectDrawer'
@@ -39,6 +51,21 @@ import { BatchCampaignModal } from './BatchCampaignModal'
 import { CampaignDashboardView } from './CampaignDashboardView'
 import { CampaignDetailView } from './CampaignDetailView'
 import { AgentsHubView } from './AgentsHubView'
+import { ModuleToggleModal } from './ModuleToggleModal'
+import { ZipUploadWizardModal } from './ZipUploadWizardModal'
+
+export type StudioTab =
+  | 'projects'
+  | 'discussions'
+  | 'tasks'
+  | 'campaigns'
+  | 'agents'
+  | 'servers'
+  | 'domains'
+  | 'observability'
+  | 'repositories'
+  | 'publishing'
+  | 'support'
 
 interface StudioDashboardProps {
   currentPath?: string
@@ -65,8 +92,8 @@ export function StudioDashboard({
   // Drawer initial tab state
   const [drawerInitialTab, setDrawerInitialTab] = useState<'overview' | 'discussions' | 'tasks'>('overview')
 
-  // Tab state: 'projects' | 'discussions' | 'tasks' | 'campaigns' | 'agents' | 'servers' | 'domains' | 'observability'
-  const [activeTab, setActiveTab] = useState<'projects' | 'discussions' | 'tasks' | 'campaigns' | 'agents' | 'servers' | 'domains' | 'observability'>(() => {
+  // Tab state: StudioTab
+  const [activeTab, setActiveTab] = useState<StudioTab>(() => {
     if (typeof window !== 'undefined') {
       if (window.location.pathname.startsWith('/studio/agents') || window.location.pathname.startsWith('/agents')) {
         return 'agents'
@@ -89,6 +116,15 @@ export function StudioDashboard({
       if (window.location.pathname.startsWith('/studio/servers')) {
         return 'servers'
       }
+      if (window.location.pathname.startsWith('/studio/repositories')) {
+        return 'repositories'
+      }
+      if (window.location.pathname.startsWith('/studio/publishing')) {
+        return 'publishing'
+      }
+      if (window.location.pathname.startsWith('/studio/support')) {
+        return 'support'
+      }
     }
     return 'projects'
   })
@@ -104,6 +140,118 @@ export function StudioDashboard({
 
   // Batch Campaign Modal state
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
+
+  // Preset Workspaces for Dynamic Navigation (S11.4 DoD 1)
+  const DEFAULT_PRESET_PROJECTS: ProjectItemDTO[] = useMemo(() => [
+    {
+      id: 'saas-dojo',
+      name: 'SaaS / Dojo Workspace',
+      slug: 'saas-dojo',
+      project_type: 'saas',
+      enabled_modules: ['tasks', 'discussions', 'repositories', 'servers'],
+    },
+    {
+      id: 'creator-hub',
+      name: 'Creator Hub Workspace',
+      slug: 'creator-hub',
+      project_type: 'creator',
+      enabled_modules: ['tasks', 'discussions', 'publishing'],
+    },
+    {
+      id: 'blank-workspace',
+      name: 'Blank Workspace',
+      slug: 'blank-workspace',
+      project_type: 'blank',
+      enabled_modules: ['tasks', 'discussions'],
+    },
+  ], [])
+
+  const [projectsList, setProjectsList] = useState<ProjectItemDTO[]>(DEFAULT_PRESET_PROJECTS)
+  const [activeProjectId, setActiveProjectId] = useState<string>('saas-dojo')
+  const [isModuleToggleModalOpen, setIsModuleToggleModalOpen] = useState(false)
+  const [isZipWizardOpen, setIsZipWizardOpen] = useState(false)
+
+  const fetchProjectsList = async () => {
+    try {
+      const res = await fetch('/api/v1/projects')
+      if (res.ok) {
+        const data = await res.json()
+        const serverProjects: ProjectItemDTO[] = data.projects || []
+        const existingIds = new Set(serverProjects.map((p) => p.id))
+        const combined = [
+          ...serverProjects,
+          ...DEFAULT_PRESET_PROJECTS.filter((p) => !existingIds.has(p.id)),
+        ]
+        setProjectsList(combined)
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchProjectsList()
+  }, [])
+
+  const activeProject = useMemo<ProjectItemDTO>(() => {
+    return (
+      projectsList.find((p) => p.id === activeProjectId) ||
+      projectsList[0] ||
+      DEFAULT_PRESET_PROJECTS[0]
+    )
+  }, [projectsList, activeProjectId, DEFAULT_PRESET_PROJECTS])
+
+  const enabledModules = useMemo<string[]>(() => {
+    return activeProject.enabled_modules && activeProject.enabled_modules.length > 0
+      ? activeProject.enabled_modules
+      : ['tasks', 'discussions']
+  }, [activeProject])
+
+  const handleSelectProject = (projectId: string) => {
+    setActiveProjectId(projectId)
+    const targetProj = projectsList.find((p) => p.id === projectId)
+    const targetModules = targetProj?.enabled_modules || ['tasks', 'discussions']
+    if (
+      ['tasks', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      !targetModules.includes(activeTab)
+    ) {
+      if (targetModules.includes('tasks')) {
+        setActiveTab('tasks')
+      } else if (targetModules.includes('discussions')) {
+        setActiveTab('discussions')
+      } else {
+        setActiveTab('projects')
+      }
+    }
+    showToast('success', `Beralih ke workspace "${targetProj?.name || projectId}"`)
+  }
+
+  const handleSaveModules = async (updatedModules: string[]) => {
+    setProjectsList((prev) =>
+      prev.map((p) => (p.id === activeProject.id ? { ...p, enabled_modules: updatedModules } : p))
+    )
+    try {
+      await fetch(`/api/v1/projects/${activeProject.id}/modules`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled_modules: updatedModules }),
+      })
+    } catch {}
+    showToast(
+      'success',
+      `Modul proyek "${activeProject.name}" berhasil diperbarui: ${updatedModules.join(', ')}`
+    )
+    if (
+      ['tasks', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      !updatedModules.includes(activeTab)
+    ) {
+      if (updatedModules.includes('tasks')) {
+        setActiveTab('tasks')
+      } else if (updatedModules.includes('discussions')) {
+        setActiveTab('discussions')
+      } else {
+        setActiveTab('projects')
+      }
+    }
+  }
 
   // Agents count for header badge
   const [agentsCount, setAgentsCount] = useState<number>(0)
@@ -143,6 +291,12 @@ export function StudioDashboard({
       setActiveTab('domains')
     } else if (currentPath === '/studio/servers') {
       setActiveTab('servers')
+    } else if (currentPath === '/studio/repositories' || currentPath?.startsWith('/studio/repositories')) {
+      setActiveTab('repositories')
+    } else if (currentPath === '/studio/publishing' || currentPath?.startsWith('/studio/publishing')) {
+      setActiveTab('publishing')
+    } else if (currentPath === '/studio/support' || currentPath?.startsWith('/studio/support')) {
+      setActiveTab('support')
     } else if (currentPath === '/studio') {
       setActiveTab('projects')
     }
@@ -384,6 +538,19 @@ export function StudioDashboard({
     })
   }, [deployments, runtimeFilter, statusFilter, searchQuery])
 
+  // Combined project list for Tasks Board & Discussions (deployments + projects)
+  const combinedProjectsForTasks = useMemo(() => {
+    const list = deployments.map((d) => ({ id: d.id, name: d.project_name }))
+    const existingIds = new Set(list.map((p) => p.id))
+    for (const p of projectsList) {
+      if (!existingIds.has(p.id)) {
+        list.push({ id: p.id, name: p.name })
+        existingIds.add(p.id)
+      }
+    }
+    return list
+  }, [deployments, projectsList])
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
       {/* Top Navigation Bar */}
@@ -429,7 +596,7 @@ export function StudioDashboard({
             </div>
           </div>
 
-          {/* Navigation Tabs (Desktop) */}
+          {/* Navigation Tabs (Desktop - Filtered by activeProject.enabled_modules) */}
           <div className="hidden md:flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700/60 text-xs">
             <button
               onClick={() => {
@@ -449,36 +616,112 @@ export function StudioDashboard({
               </span>
             </button>
 
-            <button
-              onClick={() => {
-                setActiveTab('discussions')
-                onNavigate?.('/studio/discussions')
-              }}
-              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
-                activeTab === 'discussions'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <MessageSquare className="h-3.5 w-3.5 text-emerald-500" />
-              <span>Discussions</span>
-            </button>
+            {enabledModules.includes('discussions') && (
+              <button
+                onClick={() => {
+                  setActiveTab('discussions')
+                  onNavigate?.('/studio/discussions')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'discussions'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <MessageSquare className="h-3.5 w-3.5 text-emerald-500" />
+                <span>Discussions</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                setActiveTab('tasks')
-                onNavigate?.('/studio/tasks')
-              }}
-              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
-                activeTab === 'tasks'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <Kanban className="h-3.5 w-3.5 text-indigo-500" />
-              <span>Tasks</span>
-            </button>
+            {enabledModules.includes('tasks') && (
+              <button
+                onClick={() => {
+                  setActiveTab('tasks')
+                  onNavigate?.('/studio/tasks')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'tasks'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <Kanban className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Tasks</span>
+              </button>
+            )}
 
+            {enabledModules.includes('repositories') && (
+              <button
+                onClick={() => {
+                  setActiveTab('repositories')
+                  onNavigate?.('/studio/repositories')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'repositories'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <GitBranch className="h-3.5 w-3.5 text-amber-500" />
+                <span>Repositories</span>
+              </button>
+            )}
+
+            {enabledModules.includes('servers') && (
+              <button
+                onClick={() => {
+                  setActiveTab('servers')
+                  onNavigate?.('/studio/servers')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'servers'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <Server className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Servers</span>
+                <span className="h-4 px-1.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono flex items-center justify-center">
+                  {servers.length}
+                </span>
+              </button>
+            )}
+
+            {enabledModules.includes('publishing') && (
+              <button
+                onClick={() => {
+                  setActiveTab('publishing')
+                  onNavigate?.('/studio/publishing')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'publishing'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <Share2 className="h-3.5 w-3.5 text-blue-500" />
+                <span>Publishing</span>
+              </button>
+            )}
+
+            {enabledModules.includes('support') && (
+              <button
+                onClick={() => {
+                  setActiveTab('support')
+                  onNavigate?.('/studio/support')
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'support'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-purple-500" />
+                <span>Support</span>
+              </button>
+            )}
+
+            {/* Platform Services Tabs */}
             <button
               onClick={() => {
                 setActiveTab('agents')
@@ -536,25 +779,6 @@ export function StudioDashboard({
 
             <button
               onClick={() => {
-                setActiveTab('servers')
-                onNavigate?.('/studio/servers')
-              }}
-              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
-                activeTab === 'servers'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <Server className="h-3.5 w-3.5 text-indigo-500" />
-              <span>Servers (BYOS)</span>
-              <span className="h-4 px-1.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono flex items-center justify-center">
-                {servers.length}
-              </span>
-            </button>
-
-            {/* Observability Tab Button (S06.4 DoD) */}
-            <button
-              onClick={() => {
                 setActiveTab('observability')
                 onNavigate?.('/studio/observability')
               }}
@@ -602,6 +826,7 @@ export function StudioDashboard({
               onClick={() => {
                 fetchDeployments()
                 fetchServers()
+                fetchProjectsList()
               }}
               className="h-9 text-xs flex items-center gap-1.5"
             >
@@ -629,6 +854,82 @@ export function StudioDashboard({
         </div>
       </header>
 
+      {/* Dynamic Workspace Switcher & Module Bar (S11.4 DoD 1) */}
+      <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 px-4 sm:px-6 lg:px-8 shadow-xs">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+          {/* Active Workspace Switcher */}
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Workspace Aktif:</span>
+            <div className="relative">
+              <select
+                value={activeProjectId}
+                onChange={(e) => handleSelectProject(e.target.value)}
+                className="h-8 pl-3 pr-8 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer hover:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors appearance-none shadow-xs"
+              >
+                <optgroup label="Preset Workspaces">
+                  <option value="saas-dojo">⚡ SaaS / Dojo Workspace (Full Stack)</option>
+                  <option value="creator-hub">🎨 Creator Hub Workspace (Publishing)</option>
+                  <option value="blank-workspace">📄 Blank Workspace (Lean)</option>
+                </optgroup>
+                {projectsList.filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id)).length > 0 && (
+                  <optgroup label="Proyek Terhubung / Hasil Import">
+                    {projectsList
+                      .filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          📦 {p.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
+              <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Active Modules Badges */}
+            <div className="hidden sm:flex items-center gap-1.5 ml-2">
+              <span className="text-[11px] text-slate-400">Modul Aktif:</span>
+              <div className="flex items-center gap-1">
+                {enabledModules.map((m) => (
+                  <Badge
+                    key={m}
+                    variant="outline"
+                    className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 py-0 px-1.5"
+                  >
+                    {m}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions: + Add Modules & + New Project from ZIP */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsModuleToggleModalOpen(true)}
+              className="h-8 px-2.5 text-xs text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5 font-semibold"
+              title="Atur modul aktif pada project ini"
+            >
+              <Settings2 className="h-3.5 w-3.5 text-emerald-500" />
+              <span>+ Add Modules</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsZipWizardOpen(true)}
+              className="h-8 px-2.5 text-xs text-teal-700 dark:text-teal-300 border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 gap-1.5 font-bold shadow-xs"
+              title="Upload Script ZIP & AI Inspection Wizard"
+            >
+              <UploadCloud className="h-3.5 w-3.5 text-teal-500" />
+              <span>+ New Project from ZIP</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Toast Notification Banner */}
@@ -647,7 +948,7 @@ export function StudioDashboard({
           </div>
         )}
 
-        {/* Mobile Navigation Tab Bar */}
+        {/* Mobile Navigation Tab Bar - Dynamic according to enabledModules */}
         <div className="flex md:hidden items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700/60 text-xs overflow-x-auto gap-1">
           <button
             onClick={() => {
@@ -664,35 +965,107 @@ export function StudioDashboard({
             <span>Projects ({deployments.length})</span>
           </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('discussions')
-              onNavigate?.('/studio/discussions')
-            }}
-            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
-              activeTab === 'discussions'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-            }`}
-          >
-            <MessageSquare className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Discussions</span>
-          </button>
+          {enabledModules.includes('discussions') && (
+            <button
+              onClick={() => {
+                setActiveTab('discussions')
+                onNavigate?.('/studio/discussions')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'discussions'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <MessageSquare className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Discussions</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => {
-              setActiveTab('tasks')
-              onNavigate?.('/studio/tasks')
-            }}
-            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
-              activeTab === 'tasks'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-            }`}
-          >
-            <Kanban className="h-3.5 w-3.5 text-indigo-500" />
-            <span>Tasks</span>
-          </button>
+          {enabledModules.includes('tasks') && (
+            <button
+              onClick={() => {
+                setActiveTab('tasks')
+                onNavigate?.('/studio/tasks')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'tasks'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <Kanban className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Tasks</span>
+            </button>
+          )}
+
+          {enabledModules.includes('repositories') && (
+            <button
+              onClick={() => {
+                setActiveTab('repositories')
+                onNavigate?.('/studio/repositories')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'repositories'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <GitBranch className="h-3.5 w-3.5 text-amber-500" />
+              <span>Repos</span>
+            </button>
+          )}
+
+          {enabledModules.includes('servers') && (
+            <button
+              onClick={() => {
+                setActiveTab('servers')
+                onNavigate?.('/studio/servers')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'servers'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <Server className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Servers ({servers.length})</span>
+            </button>
+          )}
+
+          {enabledModules.includes('publishing') && (
+            <button
+              onClick={() => {
+                setActiveTab('publishing')
+                onNavigate?.('/studio/publishing')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'publishing'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <Share2 className="h-3.5 w-3.5 text-blue-500" />
+              <span>Publishing</span>
+            </button>
+          )}
+
+          {enabledModules.includes('support') && (
+            <button
+              onClick={() => {
+                setActiveTab('support')
+                onNavigate?.('/studio/support')
+              }}
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'support'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+              }`}
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-purple-500" />
+              <span>Support</span>
+            </button>
+          )}
 
           <button
             onClick={() => {
@@ -830,7 +1203,7 @@ export function StudioDashboard({
           )
         ) : activeTab === 'discussions' ? (
           <ProjectDiscussionsView
-            projects={deployments.map((d) => ({ id: d.id, name: d.project_name }))}
+            projects={combinedProjectsForTasks}
             onOpenTaskBoard={() => {
               setActiveTab('tasks')
               onNavigate?.('/studio/tasks')
@@ -838,12 +1211,168 @@ export function StudioDashboard({
           />
         ) : activeTab === 'tasks' ? (
           <ProjectTasksBoard
-            projects={deployments.map((d) => ({ id: d.id, name: d.project_name }))}
+            projects={combinedProjectsForTasks}
             onOpenDiscussions={() => {
               setActiveTab('discussions')
               onNavigate?.('/studio/discussions')
             }}
           />
+        ) : activeTab === 'publishing' ? (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20 flex items-center justify-center">
+                    <Share2 className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                        WordPress CMS Publishing Center
+                      </h2>
+                      <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-mono">
+                        REST API v2
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Publikasikan konten naskah, deliverable blog, dan artikel secara langsung ke WordPress via REST API berenkripsi AES-256-GCM.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setActiveTab('tasks')
+                      onNavigate?.('/studio/tasks')
+                    }}
+                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold gap-1.5 shadow-md shadow-blue-600/20"
+                  >
+                    <Kanban className="h-3.5 w-3.5" />
+                    <span>Pilih Deliverable di Tasks Board</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Status Integration Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    Workspace Aktif
+                  </span>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                    {activeProject.name}
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-mono">ID: {activeProject.id}</span>
+                </div>
+
+                <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                    Enkripsi Kredensial Application Password
+                  </span>
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300 mt-1 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    AES-256-GCM Active
+                  </p>
+                  <span className="text-[10px] text-slate-400">Zero plaintext leakage terjamin</span>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    Target CMS Integrasi
+                  </span>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                    WordPress REST API
+                  </p>
+                  <span className="text-[10px] text-slate-400">Endpoint: /wp-json/wp/v2/posts</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 text-xs text-blue-900 dark:text-blue-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <strong>Alur 1-Click Publishing Cuan:</strong>
+                  <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80 mt-0.5">
+                    Buka Task Detail Drawer di Kanban Tasks Board, pilih tab <strong>"Publish to WordPress"</strong> untuk melakukan pengujian kredensial atau menerbitkan naskah/deliverable dalam status <code>draft</code> atau <code>publish</code>.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab('tasks')
+                    onNavigate?.('/studio/tasks')
+                  }}
+                  className="border-blue-500/30 text-blue-600 dark:text-blue-300 text-xs h-8 shrink-0 hover:bg-blue-500/10"
+                >
+                  Buka Tasks Board
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'repositories' ? (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center">
+                    <GitBranch className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                      Connected Git Repositories & Branches
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Kelola repository kode sumber, cabang Git aktif, dan sinkronisasi runner pada workspace {activeProject.name}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                    Repository Workspace: {activeProject.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                    {activeProject.repo_url || 'Repo default terhubung via Cuan Git Runner'}
+                  </p>
+                </div>
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                  Branch: {activeProject.default_branch || 'main'}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'support' ? (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl bg-purple-500/10 text-purple-500 border border-purple-500/20 flex items-center justify-center">
+                    <HelpCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                      Support & Customer License Management Hub
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Pantau tiket support pelanggan, investigasi kendala lisensi/aktivasi AGC Dracin, dan audit log aktivasi.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                  SLA Support & License Status: Aktif
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Modul support aktif untuk workspace {activeProject.name}. Tiket masuk otomatis disinkronkan ke room diskusi studio.
+                </p>
+              </div>
+            </div>
+          </div>
         ) : activeTab === 'agents' ? (
           <AgentsHubView onNavigate={onNavigate} />
         ) : activeTab === 'observability' ? (
@@ -892,14 +1421,25 @@ export function StudioDashboard({
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={() => setIsCreatorWizardOpen(true)}
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shrink-0 shadow-md shadow-emerald-600/20"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Buka Creator Wizard</span>
-              </Button>
+              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                <Button
+                  onClick={() => setIsZipWizardOpen(true)}
+                  size="sm"
+                  variant="outline"
+                  className="border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 font-bold text-xs gap-1.5"
+                >
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  <span>Upload Script ZIP</span>
+                </Button>
+                <Button
+                  onClick={() => setIsCreatorWizardOpen(true)}
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shadow-md shadow-emerald-600/20"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Buka Creator Wizard</span>
+                </Button>
+              </div>
             </div>
 
         {/* 1. Stat Summary Cards */}
@@ -1163,6 +1703,37 @@ export function StudioDashboard({
         isOpen={isCreatorWizardOpen}
         onClose={() => setIsCreatorWizardOpen(false)}
         onSuccess={handleCreatorProjectCreated}
+        onOpenZipWizard={() => setIsZipWizardOpen(true)}
+      />
+
+      {/* Dynamic Project Module Configuration Modal (S11.4) */}
+      <ModuleToggleModal
+        isOpen={isModuleToggleModalOpen}
+        onClose={() => setIsModuleToggleModalOpen(false)}
+        currentModules={enabledModules}
+        projectName={activeProject.name}
+        projectId={activeProject.id}
+        onSaveModules={handleSaveModules}
+      />
+
+      {/* AI Script ZIP Onboarding Wizard Modal (S11.4) */}
+      <ZipUploadWizardModal
+        isOpen={isZipWizardOpen}
+        onClose={() => setIsZipWizardOpen(false)}
+        onProjectCreated={(response: CreateFromZipResponse) => {
+          setIsZipWizardOpen(false)
+          fetchProjectsList()
+          fetchDeployments()
+          if (response.project) {
+            setActiveProjectId(response.project.id)
+            setActiveTab('tasks')
+            onNavigate?.('/studio/tasks')
+          }
+          showToast(
+            'success',
+            `🎉 Project "${response.project?.name || 'Baru'}" berhasil dibuat via AI ZIP Onboarding!`
+          )
+        }}
       />
 
       {/* Project Control Drawer */}
