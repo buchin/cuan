@@ -325,9 +325,6 @@ export function AgentsHubView({ onNavigate: _onNavigate }: AgentsHubViewProps) {
               <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
                 Native Agents Hub
               </h1>
-              <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/40 text-[10px] py-0 px-2 font-mono">
-                Sprint 9 Architecture
-              </Badge>
               {connection ? (
                 <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] py-0 px-2 font-mono flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />

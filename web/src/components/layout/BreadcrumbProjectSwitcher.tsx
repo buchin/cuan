@@ -15,7 +15,7 @@ import { cn } from '../../lib/utils'
 import { ProjectOption } from './Sidebar07Layout'
 
 interface BreadcrumbProjectSwitcherProps {
-  currentProject: ProjectOption
+  currentProject?: ProjectOption | null
   projects: ProjectOption[]
   onSelectProject: (project: ProjectOption) => void
   onCreateProjectClick?: () => void
@@ -101,29 +101,31 @@ export function BreadcrumbProjectSwitcher({
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-[200px] md:max-w-[260px]">
-          {getProjectIcon(currentProject.type)}
+          {getProjectIcon(currentProject?.type)}
           <span className="truncate font-semibold text-xs text-foreground">
-            {currentProject.name}
+            {currentProject?.name || (projects.length === 0 ? 'Belum Ada Proyek' : 'Pilih Proyek')}
           </span>
         </div>
 
         {/* Status Badge Indicator */}
-        <span
-          className={cn(
-            'hidden sm:inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.2 border rounded-xs uppercase',
-            currentProject.status === 'archived'
-              ? 'border-zinc-500/40 bg-zinc-500/10 text-zinc-400'
-              : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-          )}
-        >
+        {currentProject && (
           <span
             className={cn(
-              'h-1.5 w-1.5 rounded-full',
-              currentProject.status === 'archived' ? 'bg-zinc-400' : 'bg-emerald-400 animate-pulse'
+              'hidden sm:inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.2 border rounded-xs uppercase',
+              currentProject.status === 'archived'
+                ? 'border-zinc-500/40 bg-zinc-500/10 text-zinc-400'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
             )}
-          />
-          {currentProject.status === 'archived' ? 'Arsip' : 'Active'}
-        </span>
+          >
+            <span
+              className={cn(
+                'h-1.5 w-1.5 rounded-full',
+                currentProject.status === 'archived' ? 'bg-zinc-400' : 'bg-emerald-400 animate-pulse'
+              )}
+            />
+            {currentProject.status === 'archived' ? 'Arsip' : 'Active'}
+          </span>
+        )}
 
         <ChevronDown
           className={cn(
@@ -178,7 +180,7 @@ export function BreadcrumbProjectSwitcher({
               </div>
             ) : (
               filteredProjects.map((proj) => {
-                const isSelected = currentProject.id === proj.id
+                const isSelected = currentProject?.id === proj.id
                 const isArchived = proj.status === 'archived'
 
                 return (

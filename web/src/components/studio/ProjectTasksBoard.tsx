@@ -29,8 +29,10 @@ import {
   KeyRound,
   Send,
   Lock,
-  FolderGit2
+  FolderGit2,
+  Edit3
 } from 'lucide-react'
+import { cn } from '../../lib/utils'
 import { ProjectTaskDTO, ExecuteTaskAgentResponse, WordPressIntegrationDTO, PublishTaskResult } from './types'
 import { DistillTaskModal } from './DistillTaskModal'
 import { TaskTerminal } from './TaskTerminal'
@@ -124,8 +126,15 @@ export function ProjectTasksBoard({
   // Expanded DoD cards (map of task ID to boolean)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
 
+  // View Mode: 'kanban' vs 'list'
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+
   // Distill / Create Task Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+
+  // Edit Task Modal State (S15.3 Requirement 3)
+  const [taskToEdit, setTaskToEdit] = useState<ProjectTaskDTO | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   // Interactive Terminal & Detail Drawer States (S09.4, S10.4, S11.4)
   const [selectedTerminalTask, setSelectedTerminalTask] = useState<ProjectTaskDTO | null>(null)
@@ -650,6 +659,38 @@ export function ProjectTasksBoard({
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
 
+          {/* View Mode Switcher: Kanban vs List */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              className={cn(
+                'flex items-center gap-1 px-2.5 py-1 rounded-md transition-all',
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+              )}
+              title="Tampilan Papan Kanban"
+            >
+              <Kanban className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Kanban</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'flex items-center gap-1 px-2.5 py-1 rounded-md transition-all',
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+              )}
+              title="Tampilan List View"
+            >
+              <ListTodo className="h-3.5 w-3.5 text-emerald-500" />
+              <span>List</span>
+            </button>
+          </div>
+
           {/* New Task Button */}
           <Button
             size="sm"
@@ -789,8 +830,9 @@ export function ProjectTasksBoard({
         </div>
       </div>
 
-      {/* 4-Column Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+      {viewMode === 'kanban' ? (
+        /* 4-Column Kanban Board */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
         {COLUMNS.map((col) => {
           const colTasks = filteredTasks.filter((t) => t.status === col.id)
 
@@ -882,6 +924,21 @@ export function ProjectTasksBoard({
                             >
                               <TerminalIcon className="h-3 w-3 text-emerald-500" />
                               <span className="hidden sm:inline">PTY</span>
+                            </button>
+
+                            {/* Edit Task Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setTaskToEdit(task)
+                                setIsEditModalOpen(true)
+                              }}
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 transition-colors"
+                              title="Edit Task & Multi-Project Linking"
+                            >
+                              <Edit3 className="h-3 w-3 text-indigo-500" />
+                              <span className="hidden sm:inline">Edit</span>
                             </button>
 
                             {/* Delete Card Button */}
@@ -1174,6 +1231,206 @@ export function ProjectTasksBoard({
           )
         })}
       </div>
+      ) : (
+        /* List View (S15.3 Requirement 3) */
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+          {filteredTasks.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 space-y-2">
+              <ListTodo className="h-8 w-8 mx-auto text-slate-400 stroke-[1.5]" />
+              <p className="text-sm font-medium">Tidak ada task yang cocok dengan filter aktif</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+              {filteredTasks.map((task) => {
+                const dodList = task.dod_checklist || []
+                const completedDoD = dodList.filter((d) => d.completed).length
+                const totalDoD = dodList.length
+                const dodPercent = totalDoD > 0 ? Math.round((completedDoD / totalDoD) * 100) : 0
+                const colInfo = COLUMNS.find((c) => c.id === task.status) || COLUMNS[0]
+
+                return (
+                  <div
+                    key={task.id}
+                    className="p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {getPriorityBadge(task.priority)}
+                        <Badge className={`${colInfo.badgeColor} text-[10px] font-mono py-0 px-2 rounded-full font-bold uppercase`}>
+                          {colInfo.label}
+                        </Badge>
+                        <span className="font-mono text-[10px] text-slate-400">
+                          #{task.id.slice(0, 8)}
+                        </span>
+                        {task.batch_id && (
+                          <Badge variant="outline" className="text-[9px] py-0 px-1 border-indigo-400/40 text-indigo-600 dark:text-indigo-400 font-mono">
+                            {task.batch_id}
+                          </Badge>
+                        )}
+                        {task.parent_task_id && (
+                          <Badge variant="outline" className="text-[9px] py-0 px-1 border-amber-400/40 text-amber-600 dark:text-amber-400 font-mono">
+                            Subtask
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Title & Description */}
+                      <div>
+                        <h4
+                          onClick={() => {
+                            setDetailTask(task)
+                            setDetailModalTab('details')
+                          }}
+                          className="text-sm font-bold text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer transition-colors"
+                        >
+                          {task.title}
+                        </h4>
+                        {task.description && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Linked Projects Badges (Multi-Project Linking) */}
+                      {((task.project_ids && task.project_ids.length > 0) || task.project_id) && (
+                        <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                          {(task.project_ids && task.project_ids.length > 0
+                            ? task.project_ids
+                            : [task.project_id]
+                          ).map((pid) => {
+                            const proj = effectiveProjects.find((p) => p.id === pid)
+                            const name = proj ? proj.name : pid
+                            return (
+                              <span
+                                key={pid}
+                                className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded"
+                                title={`Proyek tertaut: ${name} (${pid})`}
+                              >
+                                <FolderGit2 className="h-2.5 w-2.5 shrink-0" />
+                                <span className="truncate max-w-[120px]">{name}</span>
+                              </span>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* DoD Progress */}
+                      {totalDoD > 0 && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <div className="w-24 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-300 ${
+                                dodPercent === 100
+                                  ? 'bg-emerald-500'
+                                  : dodPercent >= 50
+                                  ? 'bg-blue-500'
+                                  : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${dodPercent}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            DoD: {completedDoD}/{totalDoD} ({dodPercent}%)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions on List Row */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* PTY */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTerminalTask(task)}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors"
+                        title="Interactive PTY Terminal"
+                      >
+                        <TerminalIcon className="h-3.5 w-3.5 text-emerald-500" />
+                        <span>PTY</span>
+                      </button>
+
+                      {/* Edit Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaskToEdit(task)
+                          setIsEditModalOpen(true)
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 transition-colors"
+                        title="Edit Task & Multi-Project Linking"
+                      >
+                        <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
+                        <span>Edit</span>
+                      </button>
+
+                      {/* Run Agent */}
+                      <button
+                        type="button"
+                        disabled={runningAgentTaskIds[task.id] || task.execution_status === 'running'}
+                        onClick={() => handleRunAgent(task)}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 transition-colors"
+                        title="Run Agent"
+                      >
+                        <Bot className="h-3.5 w-3.5 text-purple-500" />
+                        <span className="hidden md:inline">Run</span>
+                      </button>
+
+                      {/* Status Transition Button */}
+                      {task.status === 'backlog' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleUpdateStatus(task, 'doing')}
+                          className="h-7 px-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white gap-1"
+                        >
+                          <span>Start</span>
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {task.status === 'doing' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleUpdateStatus(task, 'review')}
+                          className="h-7 px-2 text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white gap-1"
+                        >
+                          <span>Review</span>
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {task.status === 'review' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleUpdateStatus(task, 'done')}
+                          className="h-7 px-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white gap-1"
+                        >
+                          <Check className="h-3 w-3" />
+                          <span>Done</span>
+                        </Button>
+                      )}
+                      {task.status === 'done' && (
+                        <span className="text-xs font-semibold text-emerald-500 px-2 flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>Selesai</span>
+                        </span>
+                      )}
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTask(task.id, task.title)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 rounded transition-colors"
+                        title="Hapus task"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Task Creation Modal */}
       <DistillTaskModal
@@ -1186,6 +1443,28 @@ export function ProjectTasksBoard({
           setNotification({
             type: 'success',
             message: `Task "${newTask.title}" berhasil dibuat dan ditambahkan ke board!`,
+          })
+        }}
+      />
+
+      {/* Task Edit Modal (S15.3 Requirement 3) */}
+      <DistillTaskModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setTaskToEdit(null)
+        }}
+        projectId={selectedProjectId}
+        availableProjects={effectiveProjects}
+        initialTask={taskToEdit}
+        onTaskUpdated={(updatedTask) => {
+          setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)))
+          if (detailTask && detailTask.id === updatedTask.id) {
+            setDetailTask(updatedTask)
+          }
+          setNotification({
+            type: 'success',
+            message: `Task "${updatedTask.title}" berhasil diperbarui!`,
           })
         }}
       />
@@ -1303,6 +1582,21 @@ export function ProjectTasksBoard({
                 >
                   <Video className="h-3.5 w-3.5 text-red-500" />
                   <span>Teleprompter</span>
+                </Button>
+
+                {/* Edit Task Button (S15.3 Requirement 3) */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setTaskToEdit(detailTask)
+                    setIsEditModalOpen(true)
+                  }}
+                  className="h-7 text-xs font-semibold gap-1.5 border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                  title="Edit Task & Multi-Project Linking"
+                >
+                  <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
+                  <span>Edit Task</span>
                 </Button>
 
                 <button

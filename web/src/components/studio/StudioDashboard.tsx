@@ -1,21 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Card } from '../ui/card'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
-import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
 import { cn } from '../../lib/utils'
 import {
   Plus,
   RefreshCw,
-  Search,
   ExternalLink,
-  Play,
-  Square,
   Globe,
   Layers,
   Sparkles,
-  AlertCircle,
   UploadCloud,
   Server,
   Activity,
@@ -25,9 +19,8 @@ import {
   Bot,
   Settings2,
   GitBranch,
-  Share2,
-  HelpCircle,
-  ChevronDown
+  ChevronDown,
+  FolderGit2
 } from 'lucide-react'
 import {
   DeploymentItem,
@@ -43,13 +36,8 @@ import { ProjectDrawer } from './ProjectDrawer'
 import { ServersView } from './ServersView'
 import { DomainsView } from './DomainsView'
 import { ObservabilityView } from './ObservabilityView'
-import { CustomDomainsModal } from './CustomDomainsModal'
-import { ProjectCard } from './ProjectCard'
 import { ProjectDiscussionsView } from './ProjectDiscussionsView'
 import { ProjectTasksBoard } from './ProjectTasksBoard'
-import { BatchCampaignModal } from './BatchCampaignModal'
-import { CampaignDashboardView } from './CampaignDashboardView'
-import { CampaignDetailView } from './CampaignDetailView'
 import { AgentsHubView } from './AgentsHubView'
 import { ModuleToggleModal } from './ModuleToggleModal'
 import { ZipUploadWizardModal } from './ZipUploadWizardModal'
@@ -61,20 +49,18 @@ import { CreateProjectModal } from './CreateProjectModal'
 import { ProjectsDirectoryView } from './ProjectsDirectoryView'
 
 export type StudioTab =
+  | 'dashboard'
   | 'projects'
   | 'deployer'
   | 'wordpress'
   | 'discussions'
   | 'tasks'
-  | 'campaigns'
   | 'agents'
   | 'team'
   | 'servers'
   | 'domains'
   | 'observability'
   | 'repositories'
-  | 'publishing'
-  | 'support'
 
 interface StudioDashboardProps {
   currentPath?: string
@@ -98,90 +84,37 @@ export function StudioDashboard({
   const [drawerInitialTab, setDrawerInitialTab] = useState<'overview' | 'discussions' | 'tasks'>('overview')
 
   // Tab state: StudioTab
+  // Tab state: StudioTab
   const [activeTab, setActiveTab] = useState<StudioTab>(() => {
     if (typeof window !== 'undefined') {
-      if (window.location.pathname.startsWith('/studio/agents') || window.location.pathname.startsWith('/agents')) {
-        return 'agents'
-      }
-      if (window.location.pathname.startsWith('/studio/team') || window.location.pathname.startsWith('/team')) {
-        return 'team'
-      }
-      if (window.location.pathname.startsWith('/studio/deployer') || window.location.pathname.startsWith('/deployer')) {
-        return 'deployer'
-      }
-      if (window.location.pathname.startsWith('/studio/wordpress') || window.location.pathname.startsWith('/wordpress')) {
-        return 'wordpress'
-      }
-      if (window.location.pathname.startsWith('/studio/campaigns') || window.location.pathname.startsWith('/campaigns')) {
-        return 'campaigns'
-      }
-      if (window.location.pathname.startsWith('/studio/discussions') || window.location.pathname.startsWith('/discussions')) {
-        return 'discussions'
-      }
-      if (window.location.pathname.startsWith('/studio/tasks') || window.location.pathname.startsWith('/tasks')) {
-        return 'tasks'
-      }
-      if (window.location.pathname.startsWith('/studio/observability') || window.location.pathname.startsWith('/observability')) {
-        return 'observability'
-      }
-      if (window.location.pathname.startsWith('/studio/domains') || window.location.pathname.startsWith('/domains') || window.location.pathname.startsWith('/studio/settings') || window.location.pathname.startsWith('/settings')) {
-        return 'domains'
-      }
-      if (window.location.pathname.startsWith('/studio/servers') || window.location.pathname.startsWith('/servers')) {
-        return 'servers'
-      }
-      if (window.location.pathname.startsWith('/studio/repositories') || window.location.pathname.startsWith('/repositories')) {
-        return 'repositories'
-      }
-      if (window.location.pathname.startsWith('/studio/publishing')) {
-        return 'publishing'
-      }
-      if (window.location.pathname.startsWith('/studio/support')) {
-        return 'support'
-      }
+      const p = window.location.pathname
+      if (p.startsWith('/studio/agents') || p.startsWith('/agents')) return 'agents'
+      if (p.startsWith('/studio/team') || p.startsWith('/team')) return 'team'
+      if (p.startsWith('/studio/deployer') || p.startsWith('/deployer')) return 'deployer'
+      if (p.startsWith('/studio/wordpress') || p.startsWith('/wordpress')) return 'wordpress'
+      if (p.startsWith('/studio/discussions') || p.startsWith('/discussions')) return 'discussions'
+      if (p.startsWith('/studio/tasks') || p.startsWith('/tasks')) return 'tasks'
+      if (p.startsWith('/studio/observability') || p.startsWith('/observability')) return 'observability'
+      if (p.startsWith('/studio/domains') || p.startsWith('/domains') || p.startsWith('/studio/settings') || p.startsWith('/settings')) return 'domains'
+      if (p.startsWith('/studio/servers') || p.startsWith('/servers')) return 'servers'
+      if (p.startsWith('/studio/repositories') || p.startsWith('/repositories')) return 'repositories'
+      if (p.startsWith('/studio/projects') || p === '/projects') return 'projects'
+      if (p === '/' || p === '/dashboard' || p === '/studio' || p === '/studio/dashboard') return 'dashboard'
     }
-    return 'projects'
+    return 'dashboard'
   })
 
-  // Selected Campaign ID for Detail View
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      const m = window.location.pathname.match(/\/(?:studio\/)?campaigns\/([a-zA-Z0-9_-]+)/)
-      return m ? m[1] : null
-    }
-    return null
-  })
+  // Fallback project representation when projectsList is empty
+  const FALLBACK_EMPTY_PROJECT: ProjectItemDTO = useMemo(() => ({
+    id: 'default',
+    name: 'Default Workspace',
+    slug: 'default',
+    project_type: 'saas',
+    enabled_modules: ['tasks', 'discussions'],
+  }), [])
 
-  // Batch Campaign Modal state
-  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
-
-  // Preset Workspaces for Dynamic Navigation (S11.4 DoD 1)
-  const DEFAULT_PRESET_PROJECTS: ProjectItemDTO[] = useMemo(() => [
-    {
-      id: 'saas-dojo',
-      name: 'SaaS / Dojo Workspace',
-      slug: 'saas-dojo',
-      project_type: 'saas',
-      enabled_modules: ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers'],
-    },
-    {
-      id: 'creator-hub',
-      name: 'Creator Hub Workspace',
-      slug: 'creator-hub',
-      project_type: 'creator',
-      enabled_modules: ['tasks', 'wordpress', 'discussions', 'publishing'],
-    },
-    {
-      id: 'blank-workspace',
-      name: 'Blank Workspace',
-      slug: 'blank-workspace',
-      project_type: 'blank',
-      enabled_modules: ['tasks', 'discussions'],
-    },
-  ], [])
-
-  const [projectsList, setProjectsList] = useState<ProjectItemDTO[]>(DEFAULT_PRESET_PROJECTS)
-  const [activeProjectId, setActiveProjectId] = useState<string>('saas-dojo')
+  const [projectsList, setProjectsList] = useState<ProjectItemDTO[]>([])
+  const [activeProjectId, setActiveProjectId] = useState<string>('')
   const [isModuleToggleModalOpen, setIsModuleToggleModalOpen] = useState(false)
   const [isZipWizardOpen, setIsZipWizardOpen] = useState(false)
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false)
@@ -199,12 +132,13 @@ export function StudioDashboard({
       if (res.ok) {
         const data = await res.json()
         const serverProjects: ProjectItemDTO[] = data.projects || []
-        const existingIds = new Set(serverProjects.map((p) => p.id))
-        const combined = [
-          ...serverProjects,
-          ...DEFAULT_PRESET_PROJECTS.filter((p) => !existingIds.has(p.id)),
-        ]
-        setProjectsList(combined)
+        setProjectsList(serverProjects)
+        if (serverProjects.length > 0 && !activeProjectId) {
+          const firstActive = serverProjects.find((p) => !p.is_archived && p.status !== 'archived')
+          if (firstActive) {
+            setActiveProjectId(firstActive.id)
+          }
+        }
       }
     } catch {}
   }
@@ -251,14 +185,17 @@ export function StudioDashboard({
     fetchProjectsList()
   }, [])
 
+  const activeProjects = useMemo(() => {
+    return projectsList.filter((p) => !p.is_archived && p.status !== 'archived')
+  }, [projectsList])
+
   const activeProject = useMemo<ProjectItemDTO>(() => {
-    const activeProjects = projectsList.filter((p) => !p.is_archived && p.status !== 'archived')
     return (
       activeProjects.find((p) => p.id === activeProjectId) ||
       activeProjects[0] ||
-      DEFAULT_PRESET_PROJECTS[0]
+      FALLBACK_EMPTY_PROJECT
     )
-  }, [projectsList, activeProjectId, DEFAULT_PRESET_PROJECTS])
+  }, [activeProjects, activeProjectId, FALLBACK_EMPTY_PROJECT])
 
   const enabledModules = useMemo<string[]>(() => {
     return activeProject.enabled_modules && activeProject.enabled_modules.length > 0
@@ -271,7 +208,7 @@ export function StudioDashboard({
     const targetProj = projectsList.find((p) => p.id === projectId)
     const targetModules = targetProj?.enabled_modules || ['tasks', 'discussions']
     if (
-      ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers'].includes(activeTab) &&
       !targetModules.includes(activeTab)
     ) {
       if (targetModules.includes('tasks')) {
@@ -283,7 +220,7 @@ export function StudioDashboard({
       } else if (targetModules.includes('discussions')) {
         setActiveTab('discussions')
       } else {
-        setActiveTab('projects')
+        setActiveTab('dashboard')
       }
     }
     showToast('success', `Beralih ke workspace "${targetProj?.name || projectId}"`)
@@ -305,7 +242,7 @@ export function StudioDashboard({
       `Modul proyek "${activeProject.name}" berhasil diperbarui: ${updatedModules.join(', ')}`
     )
     if (
-      ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers', 'publishing', 'support'].includes(activeTab) &&
+      ['tasks', 'deployer', 'wordpress', 'discussions', 'repositories', 'servers'].includes(activeTab) &&
       !updatedModules.includes(activeTab)
     ) {
       if (updatedModules.includes('tasks')) {
@@ -317,7 +254,7 @@ export function StudioDashboard({
       } else if (updatedModules.includes('discussions')) {
         setActiveTab('discussions')
       } else {
-        setActiveTab('projects')
+        setActiveTab('dashboard')
       }
     }
   }
@@ -340,25 +277,18 @@ export function StudioDashboard({
 
   // Synchronize when currentPath prop changes
   useEffect(() => {
-    if (currentPath === '/studio/agents' || currentPath?.startsWith('/studio/agents') || currentPath === '/agents' || currentPath?.startsWith('/agents')) {
+    if (!currentPath) return
+    if (currentPath === '/studio/agents' || currentPath.startsWith('/studio/agents') || currentPath === '/agents' || currentPath.startsWith('/agents')) {
       setActiveTab('agents')
-    } else if (currentPath === '/studio/team' || currentPath?.startsWith('/studio/team') || currentPath === '/team' || currentPath?.startsWith('/team')) {
+    } else if (currentPath === '/studio/team' || currentPath.startsWith('/studio/team') || currentPath === '/team' || currentPath.startsWith('/team')) {
       setActiveTab('team')
-    } else if (currentPath === '/studio/deployer' || currentPath?.startsWith('/studio/deployer') || currentPath === '/deployer' || currentPath?.startsWith('/deployer')) {
+    } else if (currentPath === '/studio/deployer' || currentPath.startsWith('/studio/deployer') || currentPath === '/deployer' || currentPath.startsWith('/deployer')) {
       setActiveTab('deployer')
-    } else if (currentPath === '/studio/wordpress' || currentPath?.startsWith('/studio/wordpress') || currentPath === '/wordpress' || currentPath?.startsWith('/wordpress')) {
+    } else if (currentPath === '/studio/wordpress' || currentPath.startsWith('/studio/wordpress') || currentPath === '/wordpress' || currentPath.startsWith('/wordpress')) {
       setActiveTab('wordpress')
-    } else if (currentPath === '/studio/campaigns' || currentPath?.startsWith('/studio/campaigns') || currentPath === '/campaigns' || currentPath?.startsWith('/campaigns')) {
-      setActiveTab('campaigns')
-      const m = currentPath.match(/\/(?:studio\/)?campaigns\/([a-zA-Z0-9_-]+)/)
-      if (m && m[1] && m[1] !== 'new') {
-        setSelectedCampaignId(m[1])
-      } else {
-        setSelectedCampaignId(null)
-      }
-    } else if (currentPath === '/studio/discussions' || currentPath?.startsWith('/studio/discussions') || currentPath === '/discussions' || currentPath?.startsWith('/discussions')) {
+    } else if (currentPath === '/studio/discussions' || currentPath.startsWith('/studio/discussions') || currentPath === '/discussions' || currentPath.startsWith('/discussions')) {
       setActiveTab('discussions')
-    } else if (currentPath === '/studio/tasks' || currentPath?.startsWith('/studio/tasks') || currentPath === '/tasks' || currentPath?.startsWith('/tasks')) {
+    } else if (currentPath === '/studio/tasks' || currentPath.startsWith('/studio/tasks') || currentPath === '/tasks' || currentPath.startsWith('/tasks')) {
       setActiveTab('tasks')
     } else if (currentPath === '/studio/observability' || currentPath === '/observability') {
       setActiveTab('observability')
@@ -366,27 +296,22 @@ export function StudioDashboard({
       setActiveTab('domains')
     } else if (currentPath === '/studio/servers' || currentPath === '/servers') {
       setActiveTab('servers')
-    } else if (currentPath === '/studio/repositories' || currentPath?.startsWith('/studio/repositories') || currentPath === '/repositories' || currentPath?.startsWith('/repositories')) {
+    } else if (currentPath === '/studio/repositories' || currentPath.startsWith('/studio/repositories') || currentPath === '/repositories' || currentPath.startsWith('/repositories')) {
       setActiveTab('repositories')
-    } else if (currentPath === '/studio/publishing' || currentPath?.startsWith('/studio/publishing')) {
-      setActiveTab('publishing')
-    } else if (currentPath === '/studio/support' || currentPath?.startsWith('/studio/support')) {
-      setActiveTab('support')
+    } else if (currentPath === '/studio/projects' || currentPath === '/projects' || currentPath.startsWith('/projects')) {
+      setActiveTab('projects')
     } else if (
+      currentPath === '/' ||
       currentPath === '/studio' ||
       currentPath === '/studio/dashboard' ||
-      currentPath === '/dashboard' ||
-      currentPath === '/studio/projects' ||
-      currentPath === '/projects'
+      currentPath === '/dashboard'
     ) {
-      setActiveTab('projects')
+      setActiveTab('dashboard')
     }
   }, [currentPath])
 
   // Custom domains state (S05.4)
   const [domains, setDomains] = useState<CustomDomainItem[]>([])
-  const [selectedDomainDeployment, setSelectedDomainDeployment] = useState<DeploymentItem | null>(null)
-  const [isCustomDomainsModalOpen, setIsCustomDomainsModalOpen] = useState(false)
 
   const fetchDomains = async () => {
     try {
@@ -396,11 +321,6 @@ export function StudioDashboard({
         setDomains(data.domains || [])
       }
     } catch {}
-  }
-
-  const handleOpenCustomDomains = (dep: DeploymentItem) => {
-    setSelectedDomainDeployment(dep)
-    setIsCustomDomainsModalOpen(true)
   }
 
   // Remote servers state
@@ -426,20 +346,11 @@ export function StudioDashboard({
     return () => clearInterval(interval)
   }, [])
 
-  // Filters & Search
-  const [searchQuery, setSearchQuery] = useState('')
-  const [runtimeFilter, setRuntimeFilter] = useState<'all' | 'php' | 'nodejs' | 'static'>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'running' | 'stopped' | 'failed'>('all')
-
   // Modals & Drawer
   const [isWizardOpen, setIsWizardOpen] = useState(false)
   const [isCreatorWizardOpen, setIsCreatorWizardOpen] = useState(false)
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentItem | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-
-  // Fast action loading states per ID
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const fetchDeployments = async () => {
     setError(null)
@@ -470,66 +381,10 @@ export function StudioDashboard({
     setTimeout(() => setNotification(null), 4000)
   }
 
-  // 1-Click quick actions on card
-  const handleQuickStart = async (dep: DeploymentItem) => {
-    setActionLoadingId(dep.id)
-    try {
-      const res = await fetch(`/api/deployments/${dep.id}/start`, { method: 'POST' })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      const data = await res.json()
-      handleDeploymentUpdated(data.deployment)
-      showToast('success', `Aplikasi "${dep.project_name}" berhasil dijalankan.`)
-    } catch (err: any) {
-      showToast('error', `Gagal memulai: ${err.message}`)
-    } finally {
-      setActionLoadingId(null)
-    }
-  }
-
-  const handleQuickStop = async (dep: DeploymentItem) => {
-    setActionLoadingId(dep.id)
-    try {
-      const res = await fetch(`/api/deployments/${dep.id}/stop`, { method: 'POST' })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      const data = await res.json()
-      handleDeploymentUpdated(data.deployment)
-      showToast('success', `Aplikasi "${dep.project_name}" berhasil dihentikan.`)
-    } catch (err: any) {
-      showToast('error', `Gagal menghentikan: ${err.message}`)
-    } finally {
-      setActionLoadingId(null)
-    }
-  }
-
-  const handleQuickRestart = async (dep: DeploymentItem) => {
-    setActionLoadingId(dep.id)
-    try {
-      const res = await fetch(`/api/deployments/${dep.id}/restart`, { method: 'POST' })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      const data = await res.json()
-      handleDeploymentUpdated(data.deployment)
-      showToast('success', `Aplikasi "${dep.project_name}" berhasil di-restart.`)
-    } catch (err: any) {
-      showToast('error', `Gagal restart: ${err.message}`)
-    } finally {
-      setActionLoadingId(null)
-    }
-  }
-
   const handleDeploymentCreated = (newDep: DeploymentItem) => {
     setDeployments([newDep, ...deployments])
     setIsWizardOpen(false)
     showToast('success', `Proyek "${newDep.project_name}" berhasil dibuat!`)
-    // Automatically open drawer to inspect or start
     setSelectedDeployment(newDep)
     setIsDrawerOpen(true)
   }
@@ -566,58 +421,6 @@ export function StudioDashboard({
     setDrawerInitialTab('overview')
     setIsDrawerOpen(true)
   }
-
-  const handleOpenDiscussionsDrawer = (dep: DeploymentItem) => {
-    setSelectedDeployment(dep)
-    setDrawerInitialTab('discussions')
-    setIsDrawerOpen(true)
-  }
-
-  const handleOpenTasksDrawer = (dep: DeploymentItem) => {
-    setSelectedDeployment(dep)
-    setDrawerInitialTab('tasks')
-    setIsDrawerOpen(true)
-  }
-
-  const copyUrl = (id: string, url: string) => {
-    navigator.clipboard.writeText(url)
-    setCopiedId(id)
-    setTimeout(() => setCopiedId(null), 2000)
-  }
-
-  // Statistics calculation
-  const stats = useMemo(() => {
-    const total = deployments.length
-    const running = deployments.filter((d) => d.status === 'running').length
-    const stopped = deployments.filter((d) => d.status === 'stopped').length
-    const activePorts = deployments.filter((d) => d.status === 'running' && d.internal_port > 0).length
-    return { total, running, stopped, activePorts }
-  }, [deployments])
-
-  // Filtered list
-  const filteredDeployments = useMemo(() => {
-    return deployments.filter((dep) => {
-      // Runtime filter
-      if (runtimeFilter !== 'all' && dep.runtime !== runtimeFilter) {
-        return false
-      }
-      // Status filter
-      if (statusFilter !== 'all' && dep.status !== statusFilter) {
-        return false
-      }
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase()
-        const matchName = dep.project_name.toLowerCase().includes(q)
-        const matchSlug = dep.slug.toLowerCase().includes(q)
-        const matchId = dep.id.toLowerCase().includes(q)
-        if (!matchName && !matchSlug && !matchId) {
-          return false
-        }
-      }
-      return true
-    })
-  }, [deployments, runtimeFilter, statusFilter, searchQuery])
 
   // Combined project list for Tasks Board & Discussions (deployments + active projects)
   const combinedProjectsForTasks = useMemo(() => {
@@ -789,40 +592,6 @@ export function StudioDashboard({
               </button>
             )}
 
-            {enabledModules.includes('publishing') && (
-              <button
-                onClick={() => {
-                  setActiveTab('publishing')
-                  onNavigate?.('/studio/publishing')
-                }}
-                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
-                  activeTab === 'publishing'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
-              >
-                <Share2 className="h-3.5 w-3.5 text-blue-500" />
-                <span>Publishing</span>
-              </button>
-            )}
-
-            {enabledModules.includes('support') && (
-              <button
-                onClick={() => {
-                  setActiveTab('support')
-                  onNavigate?.('/studio/support')
-                }}
-                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
-                  activeTab === 'support'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
-              >
-                <HelpCircle className="h-3.5 w-3.5 text-purple-500" />
-                <span>Support</span>
-              </button>
-            )}
-
             {/* Platform Services Tabs */}
             <button
               onClick={() => {
@@ -839,25 +608,6 @@ export function StudioDashboard({
               <span>Agents</span>
               <span className="h-4 px-1.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono flex items-center justify-center">
                 {agentsCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('campaigns')
-                setSelectedCampaignId(null)
-                onNavigate?.('/studio/campaigns')
-              }}
-              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition-all ${
-                activeTab === 'campaigns'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <Rocket className="h-3.5 w-3.5 text-emerald-500" />
-              <span>Campaigns</span>
-              <span className="h-4 px-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono flex items-center justify-center">
-                Batch
               </span>
             </button>
 
@@ -936,81 +686,72 @@ export function StudioDashboard({
       </header>
       )}
 
-      {/* Dynamic Workspace Switcher & Module Bar (S11.4 DoD 1) */}
-      <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 px-4 sm:px-6 lg:px-8 shadow-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Active Workspace Switcher */}
-          <div className="flex items-center gap-2.5">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Workspace Aktif:</span>
-            <div className="relative">
-              <select
-                value={activeProjectId}
-                onChange={(e) => handleSelectProject(e.target.value)}
-                className="h-8 pl-3 pr-8 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer hover:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors appearance-none shadow-xs"
-              >
-                <optgroup label="Preset Workspaces">
-                  <option value="saas-dojo">⚡ SaaS / Dojo Workspace (Full Stack)</option>
-                  <option value="creator-hub">🎨 Creator Hub Workspace (Publishing)</option>
-                  <option value="blank-workspace">📄 Blank Workspace (Lean)</option>
-                </optgroup>
-                {projectsList.filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id) && !p.is_archived && p.status !== 'archived').length > 0 && (
-                  <optgroup label="Proyek Terhubung / Hasil Import">
-                    {projectsList
-                      .filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id) && !p.is_archived && p.status !== 'archived')
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          📦 {p.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                )}
-              </select>
-              <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+      {/* Dynamic Workspace Switcher & Module Bar (Only shown in standalone mode) */}
+      {!hideHeader && (
+        <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 px-4 sm:px-6 lg:px-8 shadow-xs">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+            {/* Active Workspace Switcher */}
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Workspace Aktif:</span>
+              <div className="relative">
+                <select
+                  value={activeProjectId}
+                  onChange={(e) => handleSelectProject(e.target.value)}
+                  className="h-8 pl-3 pr-8 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer hover:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors appearance-none shadow-xs"
+                >
+                  {projectsList.filter((p) => !p.is_archived && p.status !== 'archived').map((p) => (
+                    <option key={p.id} value={p.id}>
+                      📦 {p.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-            {/* Active Modules Badges */}
-            <div className="hidden sm:flex items-center gap-1.5 ml-2">
-              <span className="text-[11px] text-slate-400">Modul Aktif:</span>
-              <div className="flex items-center gap-1">
-                {enabledModules.map((m) => (
-                  <Badge
-                    key={m}
-                    variant="outline"
-                    className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 py-0 px-1.5"
-                  >
-                    {m}
-                  </Badge>
-                ))}
+              {/* Active Modules Badges */}
+              <div className="hidden sm:flex items-center gap-1.5 ml-2">
+                <span className="text-[11px] text-slate-400">Modul Aktif:</span>
+                <div className="flex items-center gap-1">
+                  {enabledModules.map((m) => (
+                    <Badge
+                      key={m}
+                      variant="outline"
+                      className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 py-0 px-1.5"
+                    >
+                      {m}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Quick Actions: + Add Modules & + New Project from ZIP */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsModuleToggleModalOpen(true)}
-              className="h-8 px-2.5 text-xs text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5 font-semibold"
-              title="Atur modul aktif pada project ini"
-            >
-              <Settings2 className="h-3.5 w-3.5 text-emerald-500" />
-              <span>+ Add Modules</span>
-            </Button>
+            {/* Quick Actions: + Add Modules & + New Project from ZIP */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsModuleToggleModalOpen(true)}
+                className="h-8 px-2.5 text-xs text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5 font-semibold"
+                title="Atur modul aktif pada project ini"
+              >
+                <Settings2 className="h-3.5 w-3.5 text-emerald-500" />
+                <span>+ Add Modules</span>
+              </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsZipWizardOpen(true)}
-              className="h-8 px-2.5 text-xs text-teal-700 dark:text-teal-300 border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 gap-1.5 font-bold shadow-xs"
-              title="Upload Script ZIP & AI Inspection Wizard"
-            >
-              <UploadCloud className="h-3.5 w-3.5 text-teal-500" />
-              <span>+ New Project from ZIP</span>
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsZipWizardOpen(true)}
+                className="h-8 px-2.5 text-xs text-teal-700 dark:text-teal-300 border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 gap-1.5 font-bold shadow-xs"
+                title="Upload Script ZIP & AI Inspection Wizard"
+              >
+                <UploadCloud className="h-3.5 w-3.5 text-teal-500" />
+                <span>+ New Project from ZIP</span>
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -1026,6 +767,15 @@ export function StudioDashboard({
             <span>{notification.message}</span>
             <button onClick={() => setNotification(null)} className="opacity-80 hover:opacity-100">
               <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 rounded-xl flex items-center justify-between text-xs font-semibold shadow-md bg-red-500 text-white shadow-red-500/20">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="opacity-80 hover:opacity-100 font-bold">
+              ✕
             </button>
           </div>
         )}
@@ -1149,40 +899,6 @@ export function StudioDashboard({
             </button>
           )}
 
-          {enabledModules.includes('publishing') && (
-            <button
-              onClick={() => {
-                setActiveTab('publishing')
-                onNavigate?.('/studio/publishing')
-              }}
-              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
-                activeTab === 'publishing'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-              }`}
-            >
-              <Share2 className="h-3.5 w-3.5 text-blue-500" />
-              <span>Publishing</span>
-            </button>
-          )}
-
-          {enabledModules.includes('support') && (
-            <button
-              onClick={() => {
-                setActiveTab('support')
-                onNavigate?.('/studio/support')
-              }}
-              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
-                activeTab === 'support'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-              }`}
-            >
-              <HelpCircle className="h-3.5 w-3.5 text-purple-500" />
-              <span>Support</span>
-            </button>
-          )}
-
           <button
             onClick={() => {
               setActiveTab('agents')
@@ -1196,22 +912,6 @@ export function StudioDashboard({
           >
             <Bot className="h-3.5 w-3.5 text-indigo-500" />
             <span>Agents ({agentsCount})</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('campaigns')
-              setSelectedCampaignId(null)
-              onNavigate?.('/studio/campaigns')
-            }}
-            className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-semibold transition-all ${
-              activeTab === 'campaigns'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-            }`}
-          >
-            <Rocket className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Campaigns</span>
           </button>
 
           <button
@@ -1262,26 +962,177 @@ export function StudioDashboard({
 
 
 
-        {/* Tab View Switching: Campaigns vs Discussions vs Tasks vs Observability Hub vs Domains Hub vs Servers Hub vs Projects Dashboard */}
-        {activeTab === 'campaigns' ? (
-          selectedCampaignId ? (
-            <CampaignDetailView
-              campaignId={selectedCampaignId}
-              onBack={() => {
-                setSelectedCampaignId(null)
-                onNavigate?.('/studio/campaigns')
+        {/* Tab View Switching: Dashboard vs Discussions vs Tasks vs Projects vs Contextual Modules */}
+        {activeTab === 'dashboard' ? (
+          activeProjects.length === 0 ? (
+            <DashboardEmptyState
+              onCreateProjectClick={() => setIsCreateProjectModalOpen(true)}
+              onExploreGlobalClick={() => {
+                setActiveTab('projects')
+                onNavigate?.('/projects')
               }}
-              onNavigate={onNavigate}
             />
           ) : (
-            <CampaignDashboardView
-              onSelectCampaign={(id) => {
-                setSelectedCampaignId(id)
-                onNavigate?.(`/studio/campaigns/${id}`)
-              }}
-              onOpenCreateModal={() => setIsBatchModalOpen(true)}
-              onNavigate={onNavigate}
-            />
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Minimalist Tokyo Night Dashboard Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                    Workspace Overview
+                  </h1>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                    Ringkasan performa proyek aktif, status pengerjaan task, dan ekosistem autonomous agent.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => setIsCreateProjectModalOpen(true)}
+                    className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Create New Project</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* 4 Essential Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="p-4 bg-card text-card-foreground border-border space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Active Projects</span>
+                    <FolderGit2 className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {activeProjects.length}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Workspace terdaftar & aktif
+                  </p>
+                </Card>
+
+                <Card className="p-4 bg-card text-card-foreground border-border space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>AI Agents</span>
+                    <Bot className="h-4 w-4 text-purple-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {agentsCount}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Autonomous AI personas
+                  </p>
+                </Card>
+
+                <Card className="p-4 bg-card text-card-foreground border-border space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Running Deployments</span>
+                    <Rocket className="h-4 w-4 text-cyan-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {deployments.length}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Container & static instances
+                  </p>
+                </Card>
+
+                <Card className="p-4 bg-card text-card-foreground border-border space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Connected Servers</span>
+                    <Server className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {servers.length}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Node & host remote aktif
+                  </p>
+                </Card>
+              </div>
+
+              {/* Active Projects Grid Overview */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-primary" />
+                    <span>Active Projects ({activeProjects.length})</span>
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('projects')
+                      onNavigate?.('/projects')
+                    }}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    Buka Direktori Proyek →
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {activeProjects.map((p) => (
+                    <Card
+                      key={p.id}
+                      className="p-4 bg-card text-card-foreground border-border hover:border-primary/50 transition-colors space-y-3 flex flex-col justify-between"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-sm text-foreground truncate">
+                            {p.name}
+                          </span>
+                          <Badge variant="outline" className="text-[10px] font-mono py-0 px-1.5 uppercase">
+                            {p.project_type || 'saas'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground font-mono truncate">
+                          ID: #{p.id}
+                        </p>
+                        {p.enabled_modules && p.enabled_modules.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {p.enabled_modules.map((m) => (
+                              <span
+                                key={m}
+                                className="text-[9.5px] font-mono px-1.5 py-0.2 bg-muted text-muted-foreground rounded-xs uppercase"
+                              >
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-border flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectProject(p.id)
+                            setActiveTab('tasks')
+                            onNavigate?.('/tasks')
+                          }}
+                          className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                        >
+                          <Kanban className="h-3 w-3" />
+                          <span>Tasks</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectProject(p.id)
+                            setActiveTab('discussions')
+                            onNavigate?.('/discussions')
+                          }}
+                          className="text-xs font-semibold text-cyan-400 hover:underline flex items-center gap-1"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          <span>Rooms</span>
+                        </button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
           )
         ) : activeTab === 'discussions' ? (
           <ProjectDiscussionsView
@@ -1326,99 +1177,6 @@ export function StudioDashboard({
               onNavigate?.('/studio/discussions')
             }}
           />
-        ) : activeTab === 'publishing' ? (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
-                <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20 flex items-center justify-center">
-                    <Share2 className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                        WordPress CMS Publishing Center
-                      </h2>
-                      <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-mono">
-                        REST API v2
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Publikasikan konten naskah, deliverable blog, dan artikel secara langsung ke WordPress via REST API berenkripsi AES-256-GCM.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setActiveTab('tasks')
-                      onNavigate?.('/studio/tasks')
-                    }}
-                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold gap-1.5 shadow-md shadow-blue-600/20"
-                  >
-                    <Kanban className="h-3.5 w-3.5" />
-                    <span>Pilih Deliverable di Tasks Board</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Status Integration Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                    Workspace Aktif
-                  </span>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
-                    {activeProject.name}
-                  </p>
-                  <span className="text-[10px] text-slate-400 font-mono">ID: {activeProject.id}</span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
-                    Enkripsi Kredensial Application Password
-                  </span>
-                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300 mt-1 flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    AES-256-GCM Active
-                  </p>
-                  <span className="text-[10px] text-slate-400">Zero plaintext leakage terjamin</span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                    Target CMS Integrasi
-                  </span>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
-                    WordPress REST API
-                  </p>
-                  <span className="text-[10px] text-slate-400">Endpoint: /wp-json/wp/v2/posts</span>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 text-xs text-blue-900 dark:text-blue-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                  <strong>Alur 1-Click Publishing Cuan:</strong>
-                  <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80 mt-0.5">
-                    Buka Task Detail Drawer di Kanban Tasks Board, pilih tab <strong>"Publish to WordPress"</strong> untuk melakukan pengujian kredensial atau menerbitkan naskah/deliverable dalam status <code>draft</code> atau <code>publish</code>.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setActiveTab('tasks')
-                    onNavigate?.('/studio/tasks')
-                  }}
-                  className="border-blue-500/30 text-blue-600 dark:text-blue-300 text-xs h-8 shrink-0 hover:bg-blue-500/10"
-                >
-                  Buka Tasks Board
-                </Button>
-              </div>
-            </div>
-          </div>
         ) : activeTab === 'repositories' ? (
           <div className="space-y-6 animate-in fade-in duration-200">
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
@@ -1453,35 +1211,6 @@ export function StudioDashboard({
               </div>
             </div>
           </div>
-        ) : activeTab === 'support' ? (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
-                <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl bg-purple-500/10 text-purple-500 border border-purple-500/20 flex items-center justify-center">
-                    <HelpCircle className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                      Support & Customer License Management Hub
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Pantau tiket support pelanggan, investigasi kendala lisensi/aktivasi AGC Dracin, dan audit log aktivasi.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                  SLA Support & License Status: Aktif
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Modul support aktif untuk workspace {activeProject.name}. Tiket masuk otomatis disinkronkan ke room diskusi studio.
-                </p>
-              </div>
-            </div>
-          </div>
         ) : activeTab === 'team' ? (
           <TeamView />
         ) : activeTab === 'agents' ? (
@@ -1503,236 +1232,25 @@ export function StudioDashboard({
         ) : activeTab === 'servers' ? (
           <ServersView onNavigate={onNavigate} baseDomain={baseDomain} />
         ) : (
-          <>
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Kesalahan</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {/* Creator Blueprint Fast Launcher Banner (S10.4) */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-              <div className="flex items-start gap-3.5">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white tracking-tight">
-                      Creator Project Blueprints (Blog, YouTube, Olshop, Affiliate)
-                    </h3>
-                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-mono py-0 px-1.5">
-                      Instant Pipeline
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-slate-300">
-                    Mulai proyek kreator instan dengan alur kerja nyata: rooms diskusi, alur pipeline task, dan AI Agent persona terpasang.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                <Button
-                  onClick={() => setIsZipWizardOpen(true)}
-                  size="sm"
-                  variant="outline"
-                  className="border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 font-bold text-xs gap-1.5"
-                >
-                  <UploadCloud className="h-3.5 w-3.5" />
-                  <span>Upload Script ZIP</span>
-                </Button>
-                <Button
-                  onClick={() => setIsCreatorWizardOpen(true)}
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shadow-md shadow-emerald-600/20"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>Buka Creator Wizard</span>
-                </Button>
-              </div>
-            </div>
-
-        {/* 1. Stat Summary Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Proyek</p>
-                <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-0.5">
-                  {stats.total}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
-                <Layers className="h-5 w-5" />
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Aktif Berjalan</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                    {stats.running}
-                  </p>
-                  {stats.running > 0 && <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />}
-                </div>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                <Play className="h-5 w-5 fill-current" />
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Dihentikan (Stopped)</p>
-                <p className="text-2xl font-bold tracking-tight text-slate-600 dark:text-slate-400 mt-0.5">
-                  {stats.stopped}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
-                <Square className="h-5 w-5" />
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Port Terpakai</p>
-                <p className="text-2xl font-bold tracking-tight text-blue-600 dark:text-blue-400 mt-0.5">
-                  {stats.activePorts} <span className="text-xs font-normal text-slate-400">/ 1000 pool</span>
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                <Server className="h-5 w-5" />
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* 2. Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Cari nama atau slug..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-xs bg-slate-50 dark:bg-slate-800/50"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* Runtime Filter */}
-            <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 text-xs">
-              {(['all', 'static', 'php', 'nodejs'] as const).map((rt) => (
-                <button
-                  key={rt}
-                  onClick={() => setRuntimeFilter(rt)}
-                  className={`px-2.5 py-1 rounded-md font-semibold capitalize transition-all ${
-                    runtimeFilter === rt
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-                  }`}
-                >
-                  {rt === 'all' ? 'All Stacks' : rt}
-                </button>
-              ))}
-            </div>
-
-            {/* Status Filter */}
-            <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 text-xs">
-              {(['all', 'running', 'stopped'] as const).map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setStatusFilter(st)}
-                  className={`px-2.5 py-1 rounded-md font-semibold capitalize transition-all ${
-                    statusFilter === st
-                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-                  }`}
-                >
-                  {st === 'all' ? 'All Status' : st}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Projects Grid / Cards View */}
-        {loading && deployments.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center gap-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <RefreshCw className="h-8 w-8 text-emerald-500 animate-spin" />
-            <p className="text-sm text-slate-500">Memuat daftar aplikasi Studio...</p>
-          </div>
-        ) : deployments.length === 0 ? (
-          /* Educational Empty State (S14.3 Requirement 4) */
-          <DashboardEmptyState
-            onCreateProjectClick={() => setIsCreateProjectModalOpen(true)}
-            onExploreGlobalClick={() => {
-              if (onNavigate) {
-                onNavigate('/studio/tasks')
-              } else {
-                setActiveTab('tasks')
-              }
-            }}
-          />
-        ) : filteredDeployments.length === 0 ? (
-          /* Filtered Empty State */
-          <div className="h-80 flex flex-col items-center justify-center text-center p-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="h-14 w-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-              <Sparkles className="h-7 w-7" />
-            </div>
-            <div className="max-w-md space-y-1">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Tidak ada proyek yang cocok dengan filter
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Coba atur ulang kata kunci pencarian atau filter stack Anda.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchQuery('')
-                setRuntimeFilter('all')
-                setStatusFilter('all')
+          activeProjects.length === 0 ? (
+            <DashboardEmptyState
+              onCreateProjectClick={() => setIsCreateProjectModalOpen(true)}
+              onExploreGlobalClick={() => {
+                setActiveTab('projects')
+                onNavigate?.('/projects')
               }}
-              className="text-xs"
-            >
-              Reset Filter
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredDeployments.map((dep) => (
-              <ProjectCard
-                key={dep.id}
-                deployment={dep}
-                baseDomain={baseDomain}
-                servers={servers}
-                customDomains={domains}
-                onOpenDrawer={handleOpenDrawer}
-                onOpenCustomDomains={handleOpenCustomDomains}
-                onOpenDiscussions={handleOpenDiscussionsDrawer}
-                onOpenTasks={handleOpenTasksDrawer}
-                onQuickStart={handleQuickStart}
-                onQuickStop={handleQuickStop}
-                onQuickRestart={handleQuickRestart}
-                isActionLoading={actionLoadingId === dep.id}
-                copiedId={copiedId}
-                onCopyUrl={copyUrl}
-              />
-            ))}
-          </div>
-        )}
-          </>
+            />
+          ) : (
+            <ProjectsDirectoryView
+              projects={projectsList}
+              activeProjectId={activeProjectId}
+              onSelectProject={(id) => handleSelectProject(id)}
+              onArchiveProject={handleArchiveProject}
+              onUnarchiveProject={handleUnarchiveProject}
+              onCreateProjectClick={() => setIsCreateProjectModalOpen(true)}
+              onNavigate={onNavigate}
+            />
+          )
         )}
       </main>
 
@@ -1792,41 +1310,6 @@ export function StudioDashboard({
         onDelete={handleDeploymentDeleted}
         baseDomain={baseDomain}
         initialTab={drawerInitialTab}
-      />
-
-      {/* Custom Domains Modal (S05.4) */}
-      <CustomDomainsModal
-        deployment={selectedDomainDeployment}
-        isOpen={isCustomDomainsModalOpen}
-        onClose={() => {
-          setIsCustomDomainsModalOpen(false)
-          fetchDomains()
-        }}
-        baseDomain={baseDomain}
-        onDomainsUpdated={fetchDomains}
-      />
-
-      {/* Batch Campaign Studio Modal (S08.4) */}
-      <BatchCampaignModal
-        isOpen={isBatchModalOpen}
-        onClose={() => setIsBatchModalOpen(false)}
-        onCreated={(newCampaign) => {
-          setIsBatchModalOpen(false)
-          setActiveTab('campaigns')
-          setSelectedCampaignId(newCampaign.id)
-          onNavigate?.(`/studio/campaigns/${newCampaign.id}`)
-          showToast('success', `Kampanye batch "${newCampaign.title}" berhasil dibuat!`)
-        }}
-        projects={deployments.map((d) => ({
-          id: d.id,
-          name: d.project_name,
-          tags: [
-            d.runtime,
-            d.project_name.toLowerCase().includes('wp') || d.runtime === 'php' ? 'wordpress' : '',
-            d.project_name.toLowerCase().includes('ad') ? 'adsense' : '',
-          ].filter(Boolean),
-          repo_url: d.domain,
-        }))}
       />
 
       {/* Global Interactive Create Project Modal */}

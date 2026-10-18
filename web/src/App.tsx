@@ -60,14 +60,9 @@ export function App() {
   // Notifications
   const [successNotification, setSuccessNotification] = useState<string | null>(null)
 
-  // Project List for Workspace Switcher
-  const [projectsList, setProjectsList] = useState<ProjectOption[]>([
-    { id: 'cuan-core', name: 'Cuan Platform Core', type: 'saas', status: 'active' },
-    { id: 'saas-dojo', name: 'SaaS / Dojo Workspace', type: 'saas', status: 'active' },
-    { id: 'creator-hub', name: 'Creator Hub Workspace', type: 'creator', status: 'active' },
-    { id: 'blank-workspace', name: 'Blank Workspace', type: 'blank', status: 'active' },
-  ])
-  const [activeProject, setActiveProject] = useState<ProjectOption>(() => projectsList[0])
+  // Project List for Workspace Switcher (S15.3: defaults to empty for true 0-project empty state)
+  const [projectsList, setProjectsList] = useState<ProjectOption[]>([])
+  const [activeProject, setActiveProject] = useState<ProjectOption | undefined>(undefined)
   const [navMode, setNavMode] = useState<'global' | 'project'>('global')
 
   const handleSelectProject = (proj: ProjectOption) => {
@@ -102,8 +97,8 @@ export function App() {
 
         if (projectsRes.status === 'fulfilled' && projectsRes.value.ok) {
           const pData = await projectsRes.value.json()
-          if (pData.projects && Array.isArray(pData.projects) && pData.projects.length > 0) {
-            const mapped = pData.projects
+          if (pData.projects && Array.isArray(pData.projects)) {
+            const mapped: ProjectOption[] = pData.projects
               .filter((p: any) => !p.is_archived && p.status !== 'archived')
               .map((p: any) => ({
                 id: p.id,
@@ -112,10 +107,10 @@ export function App() {
                 status: p.is_archived ? 'archived' : 'active',
                 is_archived: p.is_archived,
               }))
-            setProjectsList((prev) => {
-              const existingIds = new Set(mapped.map((m: any) => m.id))
-              return [...mapped, ...prev.filter((item) => !existingIds.has(item.id))]
-            })
+            setProjectsList(mapped)
+            if (mapped.length > 0) {
+              setActiveProject(mapped[0])
+            }
           }
         }
       } catch (err) {

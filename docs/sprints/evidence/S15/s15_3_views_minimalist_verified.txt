@@ -1,0 +1,123 @@
+================================================================================
+S15.3 AUDIT EVIDENCE: Dashboard & Views Minimalist Overhaul (Focus on 9 Core Features)
+================================================================================
+Timestamp: 2026-10-18T09:05:00+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Task ID: gouaujbiodkgxmkcvzymjfap
+Task Title: S15.3 — Dashboard & Views Minimalist Overhaul (Focus on 9 Core Features)
+Git Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. DASHBOARD MINIMALIST OVERHAUL VERIFICATION
+--------------------------------------------------------------------------------
+File: web/src/components/studio/StudioDashboard.tsx
+File: web/src/components/studio/DashboardEmptyState.tsx
+
+Key Implementations & Verifications:
+  1. Elimination of Legacy Widgets & Clutter:
+     - Removed legacy Creator Project Blueprint Fast Launcher banner.
+     - Removed legacy deployments table with outdated filter inputs and controls.
+     - Purged dead code, handlers (handleQuickStart, handleQuickStop, handleQuickRestart, copyUrl), and obsolete stats cards.
+     - Secondary workspace selector bar wrapped inside `{!hideHeader && (...) }`, preventing duplicate headers when hosted inside Sidebar07Layout.
+  2. Tab Elimination:
+     - Purged obsolete tabs: 'publishing' (WordPress CMS Publishing Center), 'support' (SLA Support & License Hub), and 'campaigns' (Marketing Batch Campaigns).
+     - Cleaned desktop and mobile navigation headers to present only valid, modern studio tools.
+  3. Zero-Project Empty State:
+     - When an instance has 0 active projects (`activeProjects.length === 0`), the Dashboard unconditionally renders `DashboardEmptyState`.
+     - Displays clean, educational illustration and copy explaining the autonomous developer ecosystem.
+     - Features primary action button 'Create New Project' which opens `CreateProjectModal`.
+     - Secondary link allows exploration of tasks.
+  4. Active Projects Overview:
+     - When active projects exist (`activeProjects.length > 0`), renders a focused Tokyo Night workspace overview.
+     - 4 essential metric cards: Active Projects, AI Agents, Running Deployments, Connected Servers.
+     - Grid of active project cards with direct action shortcuts: 'Tasks' (Kanban/List) and 'Rooms' (Discussions).
+
+--------------------------------------------------------------------------------
+2. PROJECTS DIRECTORY CLEAN VIEW VERIFICATION
+--------------------------------------------------------------------------------
+File: web/src/components/studio/ProjectsDirectoryView.tsx
+
+Key Implementations & Verifications:
+  1. Tab Separation:
+     - Clear tab toggle between 'Active Projects' and 'Archived Projects' with dynamic count badges.
+     - No promotional banners, sponsor elements, or unnecessary marketing callouts.
+  2. Search & Filtering:
+     - Instant search input filtering projects in real-time by project name, slug, or connected repo URL.
+     - Clean empty state with search reset button if no matches are found.
+  3. Archive / Restore Lifecycle:
+     - Active projects feature an 'Arsipkan' button triggering `PATCH /api/v1/projects/:id/archive`.
+     - Archived projects feature a 'Pulihkan' button triggering `PATCH /api/v1/projects/:id/unarchive`.
+  4. Theme Consistency:
+     - Purged legacy sprint badges (e.g. 'Sprint 14 S14.4').
+     - Strictly styled using Tokyo Night theme semantic tokens (`bg-card`, `border-border`, `text-card-foreground`, `bg-muted`).
+
+--------------------------------------------------------------------------------
+3. TASK BOARD & MULTI-PROJECT LINKING VERIFICATION
+--------------------------------------------------------------------------------
+File: web/src/components/studio/ProjectTasksBoard.tsx
+File: web/src/components/studio/DistillTaskModal.tsx
+
+Key Implementations & Verifications:
+  1. Dual View Modes (Kanban vs List):
+     - Added view toggle button in Task Board header: Kanban view (`LayoutGrid`) vs List view (`ListFilter`).
+     - Kanban view preserves drag-and-drop columns (Backlog, Todo, In Progress, Testing, Done).
+     - List view provides a structured table layout with title, linked project badges (`FolderGit2`), priority badges, status, DoD checklist progress bar, and quick actions (Edit, Delete).
+  2. Multi-Project Dropdown Checkbox Selector:
+     - Implemented in `DistillTaskModal.tsx` for both 'New Task' and 'Edit Task' workflows.
+     - Multi-select popover allows linking a single task across multiple project workspaces via `project_ids`.
+     - Selected projects display as inline badges within the dropdown trigger with clear removal buttons.
+  3. Edit Task Capability:
+     - Added Edit button on Kanban task cards and in the Task Detail Drawer header.
+     - Pre-fills task title, description, priority, DoD criteria, and linked `project_ids`.
+     - Saves modifications via `PUT /api/v1/projects/tasks/:id` with real-time UI refresh.
+
+--------------------------------------------------------------------------------
+4. DISCUSSIONS, AGENTS, AND TEAM VIEW CLEANLINESS
+--------------------------------------------------------------------------------
+File: web/src/components/studio/ProjectDiscussionsView.tsx
+File: web/src/components/studio/AgentsHubView.tsx
+File: web/src/components/studio/TeamView.tsx
+
+Key Implementations & Verifications:
+  1. Purged Legacy Sprint Badges:
+     - Removed legacy badge "Sprint 9 Architecture" from `AgentsHubView.tsx`.
+  2. Tokyo Night Visual Polish:
+     - Removed outdated action buttons and obsolete external links.
+     - Consistent Tokyo Night semantic tokens (`bg-background`, `border-border`, `text-foreground`, `text-muted-foreground`).
+  3. Responsive Layout:
+     - All views verified clean, readable, and responsive across mobile, tablet, and desktop viewports.
+
+--------------------------------------------------------------------------------
+5. QUALITY GATES & VERIFICATION RESULTS
+--------------------------------------------------------------------------------
+1. TypeScript Strict Typecheck:
+   Command: cd web && npx tsc --noEmit
+   Result: Exit Code 0 (0 errors) - PASS
+
+2. Frontend Production Build:
+   Command: cd web && npm run build
+   Result: Exit Code 0 - PASS
+   Output:
+     dist/index.html                     0.55 kB
+     dist/assets/index-CNG7IPWY.css    107.49 kB
+     dist/assets/index-CTSDIKnM.js   1,164.20 kB
+     built in 4.91s
+
+3. Backend Unit & Regression Tests:
+   Command: go test -v ./internal/project/... ./internal/task/...
+   Result: PASS (All test suites passed 100%)
+   Command: go test -v ./internal/server -run "TestProject|TestTask"
+   Result: PASS (All project & task server endpoints passed 100%)
+
+--------------------------------------------------------------------------------
+6. DEFINITION OF DONE (DoD) EVALUATION
+--------------------------------------------------------------------------------
+[x] DoD 1: Dashboard empty state tampil responsif saat instance belum memiliki proyek. -> PASS
+[x] DoD 2: Tab Active vs Archived di Projects directory teruji bersih. -> PASS
+[x] DoD 3: Dropdown checkbox multi-project di modal task berfungsi mulus. -> PASS
+[x] DoD 4: npx tsc --noEmit 0 error & npm run build PASS. -> PASS
+[x] DoD 5: Audit pack docs/sprints/evidence/S15/s15_3_views_minimalist_verified.txt terbit, commit author Buchin <buchin@dropsugar.com> & push origin/main. -> PASS
+
+=== AUDIT CONCLUSION: S15.3 IMPLEMENTATION COMPLETED AND VERIFIED 100% ===

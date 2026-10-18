@@ -114,22 +114,22 @@ export function ProjectsDirectoryView({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header Banner */}
-      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+      <div className="p-6 rounded-2xl bg-card text-card-foreground border border-border shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
               <FolderGit2 className="h-6 w-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                <h1 className="text-lg font-bold tracking-tight text-foreground">
                   Direktori Proyek & Workspace
                 </h1>
-                <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
-                  Sprint 14 S14.4
+                <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
+                  Active vs Archived
                 </Badge>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Kelola proyek aktif dan proyek terarsip. Proyek terarsip otomatis disembunyikan dari dropdown navigasi dan switcher workspace aktif.
               </p>
             </div>
@@ -146,9 +146,9 @@ export function ProjectsDirectoryView({
         </div>
 
         {/* Tab Switcher & Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-border">
           {/* Active vs Archived Tab Switcher */}
-          <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1 gap-1 text-xs font-semibold">
+          <div className="flex items-center rounded-xl bg-muted p-1 gap-1 text-xs font-semibold">
             <button
               type="button"
               onClick={() => {
@@ -158,8 +158,8 @@ export function ProjectsDirectoryView({
               className={cn(
                 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all',
                 activeTab === 'active'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'bg-card text-foreground shadow-xs font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <span>Proyek Aktif</span>
@@ -167,8 +167,8 @@ export function ProjectsDirectoryView({
                 className={cn(
                   'px-1.5 py-0.2 rounded-full text-[10px] font-mono',
                   activeTab === 'active'
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-muted text-muted-foreground'
                 )}
               >
                 {activeProjects.length}
@@ -184,18 +184,18 @@ export function ProjectsDirectoryView({
               className={cn(
                 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all',
                 activeTab === 'archived'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'bg-card text-foreground shadow-xs font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <Archive className="h-3.5 w-3.5 text-zinc-400" />
+              <Archive className="h-3.5 w-3.5 text-muted-foreground" />
               <span>Proyek Terarsip</span>
               <span
                 className={cn(
                   'px-1.5 py-0.2 rounded-full text-[10px] font-mono',
                   activeTab === 'archived'
                     ? 'bg-zinc-500/20 text-zinc-300 font-bold'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    : 'bg-muted text-muted-foreground'
                 )}
               >
                 {archivedProjects.length}
@@ -205,13 +205,13 @@ export function ProjectsDirectoryView({
 
           {/* Quick Search */}
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
               placeholder={`Cari proyek ${activeTab === 'active' ? 'aktif' : 'terarsip'}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 text-xs bg-slate-50 dark:bg-slate-800/60"
+              className="pl-8 h-8 text-xs bg-muted/40 border-border"
             />
           </div>
         </div>
@@ -219,8 +219,8 @@ export function ProjectsDirectoryView({
 
       {/* Projects Grid */}
       {displayedList.length === 0 ? (
-        <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-          <div className="h-12 w-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+        <div className="p-12 text-center bg-card text-card-foreground rounded-2xl border border-border shadow-xs space-y-3">
+          <div className="h-12 w-12 rounded-2xl bg-muted text-muted-foreground flex items-center justify-center mx-auto">
             {activeTab === 'active' ? <FolderGit2 className="h-6 w-6" /> : <Archive className="h-6 w-6" />}
           </div>
           <div className="max-w-md mx-auto space-y-1">
@@ -260,11 +260,11 @@ export function ProjectsDirectoryView({
               <Card
                 key={p.id}
                 className={cn(
-                  'p-5 bg-white dark:bg-slate-900 border transition-all flex flex-col justify-between space-y-4 rounded-2xl shadow-xs',
+                  'p-5 bg-card text-card-foreground border transition-all flex flex-col justify-between space-y-4 rounded-2xl shadow-xs',
                   isSelected && !isArchived
-                    ? 'border-emerald-500/60 ring-1 ring-emerald-500/30'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700',
-                  isArchived && 'bg-slate-50/60 dark:bg-slate-900/60 opacity-90'
+                    ? 'border-primary ring-1 ring-primary/30'
+                    : 'border-border hover:border-border/80',
+                  isArchived && 'bg-muted/40 opacity-90'
                 )}
               >
                 {/* Card Top: Header & Badges */}
@@ -277,17 +277,17 @@ export function ProjectsDirectoryView({
                           isArchived
                             ? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
                             : isSelected
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                            ? 'bg-primary/15 text-primary border-primary/30'
+                            : 'bg-muted text-muted-foreground border-border'
                         )}
                       >
                         {isArchived ? <Archive className="h-4 w-4" /> : <FolderGit2 className="h-4 w-4" />}
                       </div>
                       <div className="truncate">
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate" title={p.name}>
+                        <h4 className="text-xs font-bold text-foreground truncate" title={p.name}>
                           {p.name}
                         </h4>
-                        <span className="text-[10px] font-mono text-slate-400 block truncate">{p.id}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground block truncate">{p.id}</span>
                       </div>
                     </div>
 
@@ -303,8 +303,8 @@ export function ProjectsDirectoryView({
                   </div>
 
                   {/* Repo URL / Branch */}
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 space-y-1.5 text-[11px]">
-                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="p-2.5 rounded-xl bg-muted/40 border border-border space-y-1.5 text-[11px]">
+                    <div className="flex items-center justify-between text-muted-foreground">
                       <span className="flex items-center gap-1 truncate font-mono">
                         <GitBranch className="h-3 w-3 shrink-0" />
                         <span className="truncate">{p.default_branch || 'main'}</span>
@@ -314,8 +314,8 @@ export function ProjectsDirectoryView({
                           className={cn(
                             'text-[9px] font-mono uppercase px-1 py-0.2 rounded-xs border',
                             p.clone_status === 'synced'
-                              ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10'
-                              : 'border-slate-300 dark:border-slate-700 text-slate-400'
+                              ? 'border-primary/30 text-primary bg-primary/10'
+                              : 'border-border text-muted-foreground'
                           )}
                         >
                           {p.clone_status}
@@ -323,7 +323,7 @@ export function ProjectsDirectoryView({
                       )}
                     </div>
                     {p.repo_url && (
-                      <p className="text-[10px] font-mono text-slate-400 truncate" title={p.repo_url}>
+                      <p className="text-[10px] font-mono text-muted-foreground truncate" title={p.repo_url}>
                         {p.repo_url.replace('https://github.com/', '')}
                       </p>
                     )}
@@ -335,7 +335,7 @@ export function ProjectsDirectoryView({
                       {p.enabled_modules.map((m) => (
                         <span
                           key={m}
-                          className="text-[9px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded"
+                          className="text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
                         >
                           {m}
                         </span>
@@ -345,7 +345,7 @@ export function ProjectsDirectoryView({
                 </div>
 
                 {/* Card Actions */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
                   {isArchived ? (
                     /* Archived Action: Restore / Unarchive */
                     <Button
@@ -354,7 +354,7 @@ export function ProjectsDirectoryView({
                       variant="outline"
                       disabled={isLoading}
                       onClick={() => handleUnarchive(p.id, p.name)}
-                      className="w-full text-xs font-semibold border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1.5"
+                      className="w-full text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10 gap-1.5"
                     >
                       <ArchiveRestore className="h-3.5 w-3.5" />
                       <span>{isLoading ? 'Memulihkan...' : 'Pulihkan ke Aktif'}</span>
@@ -369,14 +369,14 @@ export function ProjectsDirectoryView({
                         onClick={() => {
                           onSelectProject(p.id)
                           if (onNavigate) {
-                            onNavigate('/studio/tasks')
+                            onNavigate('/tasks')
                           }
                         }}
                         className={cn(
                           'text-xs font-semibold flex-1 gap-1',
                           isSelected
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                            : 'text-slate-700 dark:text-slate-300'
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                            : 'text-foreground'
                         )}
                       >
                         <span>{isSelected ? 'Workspace Aktif' : 'Pilih Workspace'}</span>
@@ -389,7 +389,7 @@ export function ProjectsDirectoryView({
                         variant="ghost"
                         disabled={isLoading}
                         onClick={() => handleArchive(p.id, p.name)}
-                        className="text-xs text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 gap-1 px-2.5"
+                        className="text-xs text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 gap-1 px-2.5"
                         title="Arsipkan proyek (sembunyikan dari navbar dan switcher)"
                       >
                         <Archive className="h-3.5 w-3.5" />

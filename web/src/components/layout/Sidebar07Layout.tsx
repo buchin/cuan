@@ -81,8 +81,8 @@ export function Sidebar07Layout({
 }: Sidebar07LayoutProps) {
   const { resolvedTheme, toggleTheme } = useTheme()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [currentProject, setCurrentProject] = useState<ProjectOption>(
-    activeProject || projects[0] || DEFAULT_PROJECTS[0]
+  const [currentProject, setCurrentProject] = useState<ProjectOption | undefined>(
+    activeProject || projects[0]
   )
 
   // Internal navigation mode: 'global' or 'project'
@@ -107,12 +107,14 @@ export function Sidebar07Layout({
     onToggleNavMode?.(mode)
   }
 
-  // Update current project if activeProject prop changes
+  // Update current project if activeProject or projects prop changes
   useEffect(() => {
     if (activeProject) {
       setCurrentProject(activeProject)
+    } else if (projects.length > 0) {
+      setCurrentProject(projects[0])
     }
-  }, [activeProject])
+  }, [activeProject, projects])
 
   // Sync navMode based on deep routes
   useEffect(() => {
@@ -222,10 +224,10 @@ export function Sidebar07Layout({
                   </div>
                   <div className="grid flex-1 text-left leading-tight truncate">
                     <span className="truncate font-bold text-xs text-sidebar-foreground">
-                      {currentProject.name}
+                      {currentProject?.name || 'Workspace'}
                     </span>
                     <span className="truncate text-[9px] text-sidebar-foreground/60 font-mono uppercase">
-                      Modul Proyek • {currentProject.type || 'SaaS'}
+                      Modul Proyek • {currentProject?.type || 'SaaS'}
                     </span>
                   </div>
                 </div>
@@ -354,7 +356,7 @@ export function Sidebar07Layout({
               /*       Studio Rooms, Settings                                   */
               /* ============================================================== */
               <SidebarGroup>
-                <SidebarGroupLabel>Modul Proyek: {currentProject.name}</SidebarGroupLabel>
+                <SidebarGroupLabel>Modul Proyek: {currentProject?.name || 'Workspace'}</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {/* 1. Overview */}

@@ -28,6 +28,8 @@ interface DistillTaskModalProps {
   selectedMessageContent?: string
   availableProjects?: { id: string; name: string; is_archived?: boolean; status?: string }[]
   onTaskCreated?: (task: ProjectTaskDTO) => void
+  initialTask?: ProjectTaskDTO | null
+  onTaskUpdated?: (task: ProjectTaskDTO) => void
 }
 
 export function DistillTaskModal({
@@ -40,8 +42,12 @@ export function DistillTaskModal({
   selectedMessageContent,
   availableProjects,
   onTaskCreated,
+  initialTask,
+  onTaskUpdated,
 }: DistillTaskModalProps) {
   if (!isOpen) return null
+
+  const isEditMode = !!initialTask
 
   // Form states
   const [title, setTitle] = useState('')
@@ -76,18 +82,64 @@ export function DistillTaskModal({
 
   // Initialize draft when opened
   useEffect(() => {
-    if (selectedMessageContent) {
-      // Pre-populate description or title
-      const lines = selectedMessageContent.split('\n').filter(Boolean)
-      if (lines.length > 0) {
-        const firstLine = lines[0].replace(/^[#\-*\s]+/, '').trim()
-        setTitle(firstLine.slice(0, 80))
-        setDescription(selectedMessageContent)
+    if (isOpen) {
+      if (initialTask) {
+        setTitle(initialTask.title || '')
+        setDescription(initialTask.description || '')
+        setPriority((initialTask.priority as any) || 'normal')
+        setStatus((initialTask.status as any) || 'backlog')
+        setBatchId(initialTask.batch_id || '')
+        setParentTaskId(initialTask.parent_task_id || '')
+        setTags(initialTask.tags || [])
+        setDodItems(
+          initialTask.dod_checklist && initialTask.dod_checklist.length > 0
+            ? initialTask.dod_checklist
+            : [
+                { text: 'Kode lolos lint & typecheck TypeScript (npx tsc --noEmit)', completed: false },
+                { text: 'Targeted automated test lulus 100%', completed: false },
+                { text: 'Audit trail terdokumentasi dan siap deploy', completed: false },
+              ]
+        )
+        const pids =
+          initialTask.project_ids && initialTask.project_ids.length > 0
+            ? initialTask.project_ids
+            : initialTask.project_id
+            ? [initialTask.project_id]
+            : []
+        setSelectedProjectIds(pids)
+      } else {
+        if (selectedMessageContent) {
+          // Pre-populate description or title
+          const lines = selectedMessageContent.split('\n').filter(Boolean)
+          if (lines.length > 0) {
+            const firstLine = lines[0].replace(/^[#\-*\s]+/, '').trim()
+            setTitle(firstLine.slice(0, 80))
+            setDescription(selectedMessageContent)
+          }
+        } else if (roomTitle) {
+          setTitle(`Task dari: ${roomTitle}`)
+        } else {
+          setTitle('')
+          setDescription('')
+        }
+        setPriority('normal')
+        setStatus('backlog')
+        setBatchId('')
+        setParentTaskId('')
+        setTags([])
+        setDodItems([
+          { text: 'Kode lolos lint & typecheck TypeScript (npx tsc --noEmit)', completed: false },
+          { text: 'Targeted automated test lulus 100%', completed: false },
+          { text: 'Audit trail terdokumentasi dan siap deploy', completed: false },
+        ])
+        if (projectId) {
+          setSelectedProjectIds([projectId])
+        } else {
+          setSelectedProjectIds([])
+        }
       }
-    } else if (roomTitle) {
-      setTitle(`Task dari: ${roomTitle}`)
     }
-  }, [selectedMessageContent, roomTitle])
+  }, [isOpen, initialTask, selectedMessageContent, roomTitle, projectId])
 
   const projectDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -122,17 +174,6 @@ export function DistillTaskModal({
       }
     }
   }, [isOpen, availableProjects])
-
-  // Pre-select current projectId when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      if (projectId) {
-        setSelectedProjectIds([projectId])
-      } else {
-        setSelectedProjectIds([])
-      }
-    }
-  }, [isOpen, projectId])
 
   const toggleProjectSelection = (id: string) => {
     if (selectedProjectIds.includes(id)) {
@@ -249,33 +290,62 @@ export function DistillTaskModal({
       const finalProjectIds = selectedProjectIds.length > 0 ? selectedProjectIds : (projectId ? [projectId] : [])
       const primaryProjectId = finalProjectIds[0] || projectId
 
-      const payload = {
-        title: title.trim(),
-        description: description.trim(),
-        priority,
-        status,
-        project_ids: finalProjectIds,
-        room_id: roomId || undefined,
-        batch_id: batchId.trim() || undefined,
-        parent_task_id: parentTaskId.trim() || undefined,
-        tags,
-        dod_checklist: dodItems,
+      if (isEditMode && initialTask) {
+        const payload = {
+          title: title.trim(),
+          description: description.trim(),
+          priority,
+          status,
+          project_ids: finalProjectIds,
+          batch_id: batchId.trim() || undefined,
+          parent_task_id: parentTaskId.trim() || undefined,
+          tags,
+          dod_checklist: dodItems,
+        }
+
+        const res = await fetch(`/api/tasks/${initialTask.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error(errData.error || `HTTP ${res.status}: Gagal memperbarui task`)
+        }
+
+        const data = await res.json()
+        onTaskUpdated?.(data.task)
+        onClose()
+      } else {
+        const payload = {
+          title: title.trim(),
+          description: description.trim(),
+          priority,
+          status,
+          project_ids: finalProjectIds,
+          room_id: roomId || undefined,
+          batch_id: batchId.trim() || undefined,
+          parent_task_id: parentTaskId.trim() || undefined,
+          tags,
+          dod_checklist: dodItems,
+        }
+
+        const res = await fetch(`/api/projects/${primaryProjectId}/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error(errData.error || `HTTP ${res.status}: Gagal menyimpan task`)
+        }
+
+        const data = await res.json()
+        onTaskCreated?.(data.task)
+        onClose()
       }
-
-      const res = await fetch(`/api/projects/${primaryProjectId}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.error || `HTTP ${res.status}: Gagal menyimpan task`)
-      }
-
-      const data = await res.json()
-      onTaskCreated?.(data.task)
-      onClose()
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan saat menyimpan task.')
     } finally {
@@ -284,23 +354,25 @@ export function DistillTaskModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-8 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl bg-card text-card-foreground rounded-2xl shadow-2xl border border-border overflow-hidden my-8 animate-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="p-5 border-b border-border flex items-center justify-between bg-muted/30">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                Distill Discussion to Task
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px]">
-                  Sprint Task Draft
+              <h2 className="text-base font-bold text-foreground tracking-tight flex items-center gap-2">
+                {isEditMode ? 'Edit Task & Multi-Project Linking' : 'Distill Discussion to Task'}
+                <Badge variant="outline" className="border-primary/30 text-primary text-[10px]">
+                  {isEditMode ? 'Edit Task Mode' : 'Sprint Task Draft'}
                 </Badge>
               </h2>
-              <p className="text-xs text-slate-400">
-                Ekstraksi kesepakatan obrolan menjadi item backlog terstruktur dengan acceptance criteria checklist.
+              <p className="text-xs text-muted-foreground">
+                {isEditMode
+                  ? 'Perbarui parameter tugas, acceptance criteria DoD, dan penautan multi-proyek.'
+                  : 'Ekstraksi kesepakatan obrolan menjadi item backlog terstruktur dengan acceptance criteria checklist.'}
               </p>
             </div>
           </div>
@@ -721,7 +793,7 @@ export function DistillTaskModal({
                 ) : (
                   <Check className="h-3.5 w-3.5" />
                 )}
-                <span>Simpan ke Project Tasks</span>
+                <span>{isEditMode ? 'Simpan Perubahan Task' : 'Simpan ke Project Tasks'}</span>
               </Button>
             </div>
           </div>
