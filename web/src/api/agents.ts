@@ -53,7 +53,20 @@ export interface ConnectCLIAgentResponse {
   message: string
 }
 
+export interface HarnessAuth {
+  authenticated: boolean
+  verified?: boolean
+  credentials_present?: boolean
+  message?: string
+  auth_url?: string
+  session_id?: string
+}
+
 export const agentsApi = {
+  authStatus: (harness: string, verify = false) => apiFetch<HarnessAuth>(`/api/v1/agents/auth-status?harness=${encodeURIComponent(harness)}&verify=${verify}`),
+  authInit: () => apiFetch<HarnessAuth>('/api/v1/agents/auth-init', { method: 'POST', body: JSON.stringify({ harness: 'agy' }) }),
+  authCode: (session_id: string, code: string) => apiFetch<HarnessAuth>('/api/v1/agents/auth-code', { method: 'POST', body: JSON.stringify({ session_id, code }) }),
+  authCancel: (session_id: string) => apiFetch('/api/v1/agents/auth-code?cancel=true', { method: 'POST', body: JSON.stringify({ session_id, code: '' }) }),
   list: async (): Promise<Agent[]> => {
     const res = await apiFetch<{ status: string; agents: Agent[]; count: number }>('/api/v1/agents')
     return res.agents || []

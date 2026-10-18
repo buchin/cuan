@@ -12,7 +12,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { agentsApi } from '../../api/agents'
+import { agentsApi, type HarnessAuth } from '../../api/agents'
 
 export interface TeamMember {
   id: string
@@ -115,7 +115,7 @@ export function TeamView({
   selectedRole?: string
   onAgentAdded?: () => void
 }) {
-  const [members, setMembers] = useState<TeamMember[]>(DEFAULT_TEAM_MEMBERS)
+  const [members, setMembers] = useState<TeamMember[]>(DEFAULT_TEAM_MEMBERS.filter(member => member.type === 'human'))
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // S23.2: Direct UI Add Agent Form State
@@ -125,6 +125,46 @@ export function TeamView({
   const [customEndpoint, setCustomEndpoint] = useState('')
   const [useHostSession, setUseHostSession] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [auth, setAuth] = useState<HarnessAuth | null>(null)
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [authCode, setAuthCode] = useState('')
+
+  useEffect(() => {
+    if (!isModalOpen || newHarness === 'custom') { setAuthBusy(false); return }
+    let active = true
+    setAuth(null)
+    setAuthError('')
+    setAuthBusy(true)
+    agentsApi.authStatus(newHarness, true).then(value => { if (active) setAuth(value) })
+      .catch(() => { if (active) setAuthError('Tidak dapat memeriksa koneksi server. Coba lagi.') })
+      .finally(() => { if (active) setAuthBusy(false) })
+    return () => { active = false }
+  }, [isModalOpen, newHarness])
+
+  const closeModal = () => {
+    if (auth?.session_id) void agentsApi.authCancel(auth.session_id).catch(() => {})
+    setAuth(null)
+    setAuthCode('')
+    setIsModalOpen(false)
+  }
+
+  const login = async () => {
+    setAuthBusy(true)
+    setAuthError('')
+    try { setAuth(await agentsApi.authInit()) }
+    catch (error) { setAuthError(error instanceof Error ? error.message : 'Login gagal. Mulai ulang login.') }
+    finally { setAuthBusy(false) }
+  }
+
+  const submitCode = async () => {
+    if (!auth?.session_id) return
+    setAuthBusy(true)
+    setAuthError('')
+    try { setAuth(await agentsApi.authCode(auth.session_id, authCode)); setAuthCode('') }
+    catch (error) { setAuthError(error instanceof Error ? error.message : 'Kode gagal diverifikasi. Mulai ulang login.') }
+    finally { setAuthCode(''); setAuthBusy(false) }
+  }
 
   // Fetch registered agents from backend DB on mount
   useEffect(() => {
@@ -149,7 +189,7 @@ export function TeamView({
             roleTitle: `Harness: ${harness.toUpperCase()}`,
             type: 'agent',
             avatar: handle.replace('@', '').substring(0, 2).toUpperCase() || 'AG',
-            status: a.enabled === false || a.status === 'inactive' ? 'Disabled' : 'Connected (Active)',
+            status: a.enabled === false || a.status === 'inactive' ? 'Disabled' : 'Registered — connection unverified',
             detail: `Agent terhubung dengan harness ${harness}.`,
             model: a.model_id || harness,
             authModel: a.model_id ? a.model_id : `Harness ${harness.toUpperCase()}`,
@@ -191,7 +231,7 @@ export function TeamView({
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault()
     const sanitized = newHandle.trim()
-    if (!sanitized || sanitized === '@') return
+    if (!sanitized || sanitized === '@' || (newHarness !== 'custom' && !auth?.verified)) return
 
     setIsConnecting(true)
     try {
@@ -199,25 +239,9 @@ export function TeamView({
       const isHostSession = newHarness === 'agy' && useHostSession
       const activeApiKey = isHostSession ? '' : apiKey.trim()
 
-      // 1. Create agent entity via REST API POST /api/v1/agents with direct UI connection credentials
-      const agentRes = await agentsApi.create({
-        name: sanitized,
-        harness: newHarness,
-        connection_id: connID,
-        enabled: true,
-        api_key: activeApiKey,
-        endpoint: newHarness === 'custom' ? customEndpoint.trim() : undefined,
-        host_session: isHostSession,
-      })
-
-      // 2. Also register connection session in backend for runner compatibility
-      await agentsApi.connectCLI({
-        name: sanitized,
-        handle: sanitized,
-        provider: newHarness,
-        model_id: newHarness === 'custom' ? customEndpoint || 'Custom Model' : newHarness.toUpperCase(),
-        session_token: activeApiKey || connID,
-      })
+      const agentRes = newHarness === 'agy'
+        ? (await agentsApi.connectCLI({ name: sanitized, handle: sanitized, provider: 'agy', auth_type: 'oauth' })).agent
+        : await agentsApi.create({ name: sanitized, harness: newHarness, connection_id: connID, enabled: true, api_key: activeApiKey, endpoint: customEndpoint.trim(), host_session: isHostSession })
 
       let computedAuthModel = ''
       if (newHarness === 'custom') {
@@ -257,27 +281,7 @@ export function TeamView({
       if (onAgentAdded) onAgentAdded()
     } catch (err) {
       console.error('Failed to connect agent via UI:', err)
-      const fallbackMember: TeamMember = {
-        id: `agent-${Date.now()}`,
-        name: sanitized,
-        handle: sanitized,
-        role: 'dev_team',
-        roleTitle: `Harness: ${newHarness}`,
-        type: 'agent',
-        avatar: sanitized.replace(/^@/, '').substring(0, 2).toUpperCase() || 'AG',
-        status: 'Connected (Active)',
-        detail: 'Agent terdaftar langsung via UI.',
-        model: newHarness,
-        authModel: 'Koneksi UI Langsung',
-        provider: newHarness,
-        responsibilities: [
-          'Merespons dinamis sesuai konteks pesan',
-          'Menjalankan eksekusi task PTY runner',
-        ],
-      }
-      setMembers((prev) => [fallbackMember, ...prev])
-      setIsModalOpen(false)
-      if (onAgentAdded) onAgentAdded()
+      setAuthError(err instanceof Error ? err.message : 'Koneksi gagal. Agen belum terhubung.')
     } finally {
       setIsConnecting(false)
     }
@@ -418,7 +422,7 @@ export function TeamView({
                     ) : (
                       <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>Connected</span>
+                        <span>{member.status}</span>
                       </span>
                     )}
                   </div>
@@ -490,7 +494,7 @@ export function TeamView({
                 </div>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={closeModal}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -577,21 +581,17 @@ export function TeamView({
               {/* 3. Panel Status Sesi Akun / API Key jika custom model */}
               {newHarness !== 'custom' ? (
                 <div className="bg-muted/40 p-3 rounded-lg border border-border text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-foreground flex items-center gap-1.5">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                      <span>Status Deteksi Sesi Server Aktif</span>
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
-                      Zero API Key &amp; Zero Client Terminal
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Sesi host server terdeteksi aktif untuk harness <span className="font-semibold text-foreground">{newHarness === 'agy' ? 'Antigravity (agy)' : newHarness}</span>. Akun agent langsung dihubungkan tanpa perlu memasukkan raw API Key atau menjalankan terminal client.
-                  </p>
+                  <p role="status">{authBusy ? 'Memeriksa koneksi provider…' : auth?.verified ? 'Koneksi provider terverifikasi' : auth?.message || 'Login belum diverifikasi'}</p>
+                  {newHarness === 'agy' && !auth?.verified && <>
+                    <button type="button" disabled={authBusy} onClick={login} className="px-3 py-2 rounded bg-primary text-primary-foreground">Login dengan Google</button>
+                    {auth?.auth_url && <>
+                      <a href={auth.auth_url} target="_blank" rel="noopener noreferrer" className="block underline">Buka otorisasi Google</a>
+                      <p>Selesaikan login di browser, lalu tempel kode. Sesi berlaku 5 menit.</p>
+                      <input type="password" autoComplete="off" aria-label="Kode otorisasi Google" value={authCode} onChange={event => setAuthCode(event.target.value)} className="w-full p-2 bg-background border rounded" />
+                      <button type="button" disabled={authBusy || !authCode.trim()} onClick={submitCode} className="px-3 py-2 border rounded">Verifikasi kode dan koneksi</button>
+                    </>}
+                  </>}
+                  {newHarness !== 'agy' && <p>Autentikasi harness ini belum dapat diverifikasi.</p>}
                 </div>
               ) : (
                 <div className="bg-muted/40 p-3 rounded-lg border border-border text-xs space-y-3">
@@ -631,18 +631,19 @@ export function TeamView({
                 </div>
               )}
 
+              {authError && <p role="alert" className="text-sm text-destructive">{authError}</p>}
               {/* Submit Buttons */}
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeModal}
                   className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={isConnecting || !newHandle || newHandle === '@'}
+                  disabled={isConnecting || authBusy || !newHandle || newHandle === '@' || (newHarness !== 'custom' && !auth?.verified)}
                   className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground font-semibold text-xs rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {isConnecting ? (

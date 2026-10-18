@@ -1,20 +1,22 @@
 package agent
 
 import (
-	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/creack/pty"
 )
 
 var (
@@ -31,13 +33,13 @@ const (
 
 // AntigravityAuthSession tracks an in-flight agy interactive login process.
 type AntigravityAuthSession struct {
-	ID        string          `json:"session_id"`
-	AuthURL   string          `json:"auth_url"`
-	CreatedAt time.Time       `json:"created_at"`
-	Cmd       *exec.Cmd       `json:"-"`
-	Stdin     io.WriteCloser  `json:"-"`
-	Done      chan struct{}   `json:"-"`
-	Err       error           `json:"-"`
+	ID        string         `json:"session_id"`
+	AuthURL   string         `json:"auth_url"`
+	CreatedAt time.Time      `json:"created_at"`
+	Cmd       *exec.Cmd      `json:"-"`
+	Stdin     io.WriteCloser `json:"-"`
+	Done      chan struct{}  `json:"-"`
+	Err       error          `json:"-"`
 }
 
 // ConfigHome returns the base configuration directory for the user.
@@ -177,172 +179,187 @@ func jsonHasCredentialValue(val any) bool {
 
 // GetAntigravityAuthStatus returns current authentication status for the Antigravity harness.
 func GetAntigravityAuthStatus() map[string]interface{} {
-	tokenPath, loggedIn := ResolveAntigravityTokenPath()
+	_, loggedIn := ResolveAntigravityTokenPath()
 	msg := "Sesi Antigravity server belum terotentikasi"
 	if loggedIn {
-		msg = "Sesi Antigravity server aktif & siap digunakan"
+		msg = "Kredensial server tersedia; koneksi provider belum diverifikasi"
 	}
 	return map[string]interface{}{
-		"status":        "success",
-		"harness":       "agy",
-		"authenticated": loggedIn,
-		"message":       msg,
-		"token_path":    tokenPath,
+		"status":              "success",
+		"harness":             "agy",
+		"authenticated":       false,
+		"message":             msg,
+		"credentials_present": loggedIn,
+		"verified":            false,
 	}
 }
 
-// StartAntigravityAuthSession spawns an agy login process and waits for the Google OAuth URL.
+// StartAntigravityAuthSession starts the interactive headless OAuth flow.
+// Its lifetime is independent of the HTTP request and is bounded to five minutes.
 func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, error) {
-	// If already logged in, no need to spawn
-	if IsAntigravityLoggedIn() {
-		return &AntigravityAuthSession{
-			ID:        "active-session",
-			AuthURL:   "",
-			CreatedAt: time.Now().UTC(),
-		}, nil
+	authSessionsMu.Lock()
+	defer authSessionsMu.Unlock()
+	for _, existing := range authSessions {
+		select {
+		case <-existing.Done:
+			continue
+		default:
+		}
+		if time.Since(existing.CreatedAt) < 5*time.Minute {
+			return existing, nil
+		}
 	}
-
 	bin, err := exec.LookPath("agy")
 	if err != nil {
-		candidates := []string{
-			"/home/dev/.local/bin/agy",
-			"/usr/local/bin/agy",
-			"/usr/bin/agy",
-		}
-		for _, c := range candidates {
-			if _, statErr := os.Stat(c); statErr == nil {
-				bin = c
+		return nil, errors.New("Antigravity CLI unavailable on server")
+	}
+	nonce := make([]byte, 24)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+	lifetime, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	cmd := exec.CommandContext(lifetime, bin)
+	cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0", "TERM=xterm-256color", "CI=", "DBUS_SESSION_BUS_ADDRESS=", "GNOME_KEYRING_CONTROL=")
+	terminal, err := pty.Start(cmd)
+	if err != nil {
+		cancel()
+		return nil, errors.New("cannot start Antigravity login terminal")
+	}
+	session := &AntigravityAuthSession{ID: hex.EncodeToString(nonce), Cmd: cmd, Stdin: terminal, CreatedAt: time.Now().UTC(), Done: make(chan struct{})}
+	urls := make(chan string, 1)
+	go func() {
+		defer terminal.Close()
+		var tail string
+		buf := make([]byte, 4096)
+		found := false
+		selectedGoogle := false
+		for {
+			n, readErr := terminal.Read(buf)
+			tail += string(buf[:n])
+			if !selectedGoogle && strings.Contains(tail, "Select login method:") && strings.Contains(tail, "1. Google OAuth") {
+				selectedGoogle = true
+				_, _ = terminal.Write([]byte("\r"))
+			}
+			if !found {
+				if match := googleOAuthURLRegex.FindString(tail); validGoogleAuthURL(match) && len(tail) > strings.Index(tail, match)+len(match) {
+					found = true
+					urls <- match
+				}
+			}
+			if len(tail) > 32768 {
+				tail = tail[len(tail)-16384:]
+			}
+			if readErr != nil {
 				break
 			}
 		}
-		if bin == "" {
-			return nil, fmt.Errorf("agy binary not found on server: %w", err)
-		}
-	}
-
-	sessionID := fmt.Sprintf("auth_%d", time.Now().UnixNano())
-	cmd := exec.CommandContext(ctx, bin, "--print", "login")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open stdin pipe: %w", err)
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		_ = stdin.Close()
-		return nil, fmt.Errorf("failed to open stdout pipe: %w", err)
-	}
-	cmd.Stderr = cmd.Stdout // combine
-
-	if err := cmd.Start(); err != nil {
-		_ = stdin.Close()
-		return nil, fmt.Errorf("failed to start agy: %w", err)
-	}
-
-	session := &AntigravityAuthSession{
-		ID:        sessionID,
-		Cmd:       cmd,
-		Stdin:     stdin,
-		CreatedAt: time.Now().UTC(),
-		Done:      make(chan struct{}),
-	}
-
-	authSessionsMu.Lock()
-	authSessions[sessionID] = session
-	authSessionsMu.Unlock()
-
-	urlChan := make(chan string, 1)
-	errChan := make(chan error, 1)
-
-	go func() {
-		defer close(session.Done)
-		defer func() {
-			authSessionsMu.Lock()
-			delete(authSessions, sessionID)
-			authSessionsMu.Unlock()
-		}()
-
-		scanner := bufio.NewScanner(stdout)
-		foundURL := false
-
-		for scanner.Scan() {
-			line := scanner.Text()
-			if !foundURL {
-				if match := googleOAuthURLRegex.FindString(line); match != "" {
-					foundURL = true
-					urlChan <- match
-				}
-			}
-		}
-
-		if err := cmd.Wait(); err != nil {
-			session.Err = err
-		}
-		if !foundURL {
-			errChan <- errors.New("agy exited without emitting Google OAuth URL")
-		}
+		_ = cmd.Wait()
+		close(session.Done)
+		cancel()
+		authSessionsMu.Lock()
+		delete(authSessions, session.ID)
+		authSessionsMu.Unlock()
 	}()
-
 	select {
-	case url := <-urlChan:
+	case url := <-urls:
 		session.AuthURL = url
+		authSessions[session.ID] = session
 		return session, nil
-	case err := <-errChan:
-		return nil, err
+	case <-session.Done:
+		cancel()
+		return nil, errors.New("Antigravity exited before an OAuth URL appeared")
 	case <-time.After(15 * time.Second):
-		return nil, errors.New("timed out waiting for agy to output Google OAuth URL")
+		cancel()
+		return nil, errors.New("OAuth URL unavailable; login timed out before browser authorization")
 	case <-ctx.Done():
+		cancel()
 		return nil, ctx.Err()
 	}
 }
 
-// SubmitAntigravityAuthCode sends the authorization code from Google to the waiting agy process.
+// SubmitAntigravityAuthCode passes a code only to a live OAuth terminal.
+// Raw credential JSON is never accepted as an authorization code.
 func SubmitAntigravityAuthCode(sessionID, code string) error {
-	trimmedCode := strings.TrimSpace(code)
-	if trimmedCode == "" {
-		return errors.New("authorization code cannot be empty")
+	code = strings.TrimSpace(code)
+	if code == "" || strings.ContainsAny(code, "\r\n{}") || len(code) > 4096 {
+		return errors.New("invalid authorization code")
 	}
-
-	// Direct token payload support (if user pastes complete JSON)
-	if strings.HasPrefix(trimmedCode, "{") && strings.HasSuffix(trimmedCode, "}") {
-		var tokenMap map[string]any
-		if err := json.Unmarshal([]byte(trimmedCode), &tokenMap); err == nil && len(tokenMap) > 0 {
-			tokenPath := AntigravityCredentialsFilePath(ConfigHome())
-			_ = os.MkdirAll(filepath.Dir(tokenPath), 0700)
-			return os.WriteFile(tokenPath, []byte(trimmedCode), 0600)
-		}
-	}
-
 	authSessionsMu.Lock()
-	session, exists := authSessions[sessionID]
+	session := authSessions[sessionID]
 	authSessionsMu.Unlock()
-
-	if !exists || session == nil || session.Stdin == nil {
-		// If no active in-memory session but token already exists
-		if IsAntigravityLoggedIn() {
-			return nil
+	if session == nil {
+		return errors.New("login session expired or cancelled; start login again")
+	}
+	if time.Since(session.CreatedAt) >= 5*time.Minute {
+		CancelAntigravityAuthSession(sessionID)
+		return errors.New("login session expired; start login again")
+	}
+	select {
+	case <-session.Done:
+		return errors.New("login ended; start login again")
+	default:
+	}
+	if _, err := session.Stdin.Write([]byte(code + "\n")); err != nil {
+		return errors.New("login terminal closed; start login again")
+	}
+	deadline := time.NewTimer(20 * time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(250 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-tick.C:
+			if IsAntigravityLoggedIn() {
+				CancelAntigravityAuthSession(sessionID)
+				return nil
+			}
+		case <-session.Done:
+			if IsAntigravityLoggedIn() {
+				return nil
+			}
+			return errors.New("authorization failed; restart login")
+		case <-deadline.C:
+			return errors.New("credentials not saved; code invalid or authorization still pending")
 		}
-		return errors.New("no active agy login session found for ID " + sessionID)
 	}
+}
 
-	// Write authorization code + newline to stdin
-	if _, err := session.Stdin.Write([]byte(trimmedCode + "\n")); err != nil {
-		return fmt.Errorf("failed to write authorization code to agy stdin: %w", err)
-	}
-
-	// Wait up to 10 seconds for credentials to be persisted
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if IsAntigravityLoggedIn() {
-			return nil
+func CancelAntigravityAuthSession(id string) {
+	authSessionsMu.Lock()
+	session := authSessions[id]
+	delete(authSessions, id)
+	authSessionsMu.Unlock()
+	if session != nil {
+		if session.Cmd != nil && session.Cmd.Process != nil {
+			_ = session.Cmd.Process.Kill()
 		}
-		time.Sleep(300 * time.Millisecond)
+		if session.Stdin != nil {
+			_ = session.Stdin.Close()
+		}
 	}
+}
 
-	if IsAntigravityLoggedIn() {
-		return nil
+// VerifyAntigravityConnection distinguishes stored credentials from a working provider.
+func VerifyAntigravityConnection(ctx context.Context) error {
+	if !IsAntigravityLoggedIn() {
+		return errors.New("Google login required")
 	}
-	return errors.New("authorization code submitted, but credentials were not verified within 10s")
+	ctx, cancel := context.WithTimeout(ctx, 35*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "agy", "--print", "Reply with exactly CUAN_AUTH_OK. Do not use tools.", "--print-timeout", "30s")
+	cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+	out, err := cmd.Output()
+	if err != nil || !strings.Contains(string(out), "CUAN_AUTH_OK") {
+		return errors.New("provider verification failed; login may have expired or provider is unavailable")
+	}
+	return nil
+}
+
+func validGoogleAuthURL(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.Host != "accounts.google.com" {
+		return false
+	}
+	q := parsed.Query()
+	return (parsed.Path == "/o/oauth2/v2/auth" || parsed.Path == "/o/oauth2/auth") && q.Get("client_id") != "" && q.Get("redirect_uri") != "" && q.Get("response_type") == "code"
 }

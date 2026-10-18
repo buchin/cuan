@@ -91,6 +91,12 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Harness == "agy" {
+		if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
+			respondJSONError(w, http.StatusConflict, err.Error())
+			return
+		}
+	}
 	entity, err := input.ToEntity()
 	if err != nil {
 		respondJSONError(w, http.StatusBadRequest, err.Error())
@@ -765,9 +771,15 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		provider = "antigravity"
 	}
 
+	if provider == "agy" || provider == "antigravity" {
+		if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
+			respondJSONError(w, http.StatusConflict, err.Error())
+			return
+		}
+	}
 	modelID := strings.TrimSpace(req.ModelID)
 	if modelID == "" {
-		modelID = "Gemini 3.8 Flash (High-Speed)"
+		modelID = "default"
 	}
 
 	role := strings.TrimSpace(req.Role)
@@ -889,6 +901,14 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 
 	if harness == "agy" {
 		status := agent.GetAntigravityAuthStatus()
+		if r.URL.Query().Get("verify") == "true" {
+			err := agent.VerifyAntigravityConnection(r.Context())
+			status["verified"] = err == nil
+			status["authenticated"] = err == nil
+			if err != nil {
+				status["message"] = err.Error()
+			}
+		}
 		respondJSON(w, http.StatusOK, status)
 		return
 	}
@@ -897,8 +917,8 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":        "success",
 		"harness":       harness,
-		"authenticated": true,
-		"message":       fmt.Sprintf("Sesi %s siap digunakan", strings.ToUpper(harness)),
+		"authenticated": false,
+		"message":       "Harness authentication is not verified by this integration",
 	})
 }
 
@@ -921,13 +941,14 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if harness == "agy" {
-		if agent.IsAntigravityLoggedIn() {
+		if agent.IsAntigravityLoggedIn() && agent.VerifyAntigravityConnection(r.Context()) == nil {
 			respondJSON(w, http.StatusOK, map[string]interface{}{
 				"status":        "success",
 				"harness":       "agy",
 				"authenticated": true,
 				"message":       "Sesi Antigravity server aktif & siap digunakan",
 				"auth_url":      "",
+				"verified":      true,
 			})
 			return
 		}
@@ -952,8 +973,8 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":        "success",
 		"harness":       harness,
-		"authenticated": true,
-		"message":       fmt.Sprintf("Sesi %s siap digunakan", strings.ToUpper(harness)),
+		"authenticated": false,
+		"message":       "Harness authentication is not verified by this integration",
 	})
 }
 
@@ -970,6 +991,11 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if req.Code == "" && req.SessionID != "" && r.URL.Query().Get("cancel") == "true" {
+		agent.CancelAntigravityAuthSession(req.SessionID)
+		respondJSON(w, http.StatusOK, map[string]any{"status": "cancelled", "authenticated": false})
+		return
+	}
 	code := strings.TrimSpace(req.Code)
 	if code == "" {
 		respondJSONError(w, http.StatusBadRequest, "authorization code is required")
@@ -981,11 +1007,14 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
+		respondJSONError(w, http.StatusBadGateway, err.Error())
+		return
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"verified":      true,
 		"status":        "success",
 		"authenticated": true,
 		"message":       "Otentikasi berhasil! Sesi Antigravity server aktif & siap digunakan.",
 	})
 }
-
-

@@ -98,7 +98,7 @@ var globalChatManager = &ChatSessionManager{
 
 const (
 	defaultScrumMasterRoomID = "00000000-0000-4000-8000-000000000001"
-	defaultAntigravityRoomID  = "00000000-0000-4000-8000-000000000002"
+	defaultAntigravityRoomID = "00000000-0000-4000-8000-000000000002"
 )
 
 // chatCORSMiddleware ensures all chat endpoints and widget JS have open CORS headers.
@@ -642,13 +642,13 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						globalChatManager.Lock()
 						if _, exists := globalChatManager.sessions[rm.ID]; !exists {
 							sess := &LiveChatSession{
-								UUID:        rm.ID,
-								GuestUUID:   rm.ID,
-								Product:     rm.Topic,
-								Name:        rm.Title,
-								Status:      "online",
-								CreatedAt:   rm.CreatedAt,
-								UpdatedAt:   rm.UpdatedAt,
+								UUID:      rm.ID,
+								GuestUUID: rm.ID,
+								Product:   rm.Topic,
+								Name:      rm.Title,
+								Status:    "online",
+								CreatedAt: rm.CreatedAt,
+								UpdatedAt: rm.UpdatedAt,
 							}
 							globalChatManager.sessions[rm.ID] = sess
 							sessionList = append(sessionList, sess)
@@ -1036,7 +1036,8 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		}); err != nil {
-			log.Printf("[handleInternalSendConversationMessage] failed to save user message: %v", err)
+			respondJSONError(w, http.StatusInternalServerError, "Failed to save user message")
+			return
 		}
 	}
 
@@ -1118,11 +1119,15 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		} else {
 			// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
 			agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role)
+			if agentReplyText == "" {
+				respondJSON(w, http.StatusBadGateway, map[string]any{"error": "Provider unavailable or login expired. User message saved; no agent reply was generated.", "user_message_saved": true})
+				return
+			}
 			agentUUID := db.GenerateUUID()
 			agentNow := now.Add(100 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
-				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
 					RoomID:     resolved.RoomID,
 					AuthorType: "agent",
@@ -1131,7 +1136,10 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 					Content:    agentReplyText,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
-				})
+				}); err != nil {
+					respondJSONError(w, http.StatusInternalServerError, "Provider replied but saving the reply failed")
+					return
+				}
 			}
 
 			agentMsgDTO = &ChatMessageDTO{
@@ -1239,11 +1247,11 @@ func extractMentionHandle(msg string) string {
 	return ""
 }
 
-// executeAgentContextualResponse runs CLI or intelligent fallback to generate contextual response
+// executeAgentContextualResponse returns only actual CLI output; an empty result means provider failure.
 // based on dynamic role (RoleScrumMaster, RoleDeveloper, RoleFriendly).
 func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole) string {
-	// Attempt CLI execution if binary is present and not testing/staging
-	if s.cfg == nil || (s.cfg.Environment != "testing" && s.cfg.Environment != "staging") {
+	// Execute the real CLI in development, staging and production.
+	if s.cfg == nil || s.cfg.Environment != "testing" {
 		binName := "agy"
 		if harness == "claude" {
 			binName = "claude"
@@ -1275,6 +1283,9 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 			}
 
 			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "12s")
+			if binName == "agy" {
+				cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+			}
 			var stdoutBuf, stderrBuf bytes.Buffer
 			cmd.Stdout = &stdoutBuf
 			cmd.Stderr = &stderrBuf
@@ -1291,8 +1302,8 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 		}
 	}
 
-	// Fallback intelligent response based on dynamic contextual role
-	return getFallbackAgentContextualResponse(agentName, userPrompt, role)
+	// Provider failure is reported by the caller; never fabricate a reply.
+	return ""
 }
 
 func getFallbackAgentContextualResponse(agentName string, userPrompt string, role ChatContextRole) string {

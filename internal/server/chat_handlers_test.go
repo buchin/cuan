@@ -362,96 +362,40 @@ func TestChatHandlers_DynamicRoles(t *testing.T) {
 		}
 	}
 
-	// 2. Chat with @dev via mention in a room -> Sprint Coordination / Planning / Review (Scrum Master Persona)
-	scrumMsg := "@dev mari kita evaluasi sprint 23 dan review DoD backlog kita"
-	bodyScrum, _ := json.Marshal(map[string]interface{}{"message": scrumMsg})
-	reqScrum := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/general-room-01/messages", bytes.NewReader(bodyScrum))
-	reqScrum.Header.Set("Content-Type", "application/json")
-	reqScrum.Header.Set("Authorization", "Bearer "+token)
-	recScrum := httptest.NewRecorder()
-	srv.Router().ServeHTTP(recScrum, reqScrum)
-
-	if recScrum.Code != http.StatusOK {
-		t.Fatalf("expected 200 for scrum message, got %d: %s", recScrum.Code, recScrum.Body.String())
+	// An unavailable provider must not produce canned persona text.
+	for _, message := range []string{"@dev evaluasi sprint dan review", "Tolong fix bug database", "Halo @dev"} {
+		body, _ := json.Marshal(map[string]string{"message": message})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("expected provider failure, got %d: %s", rec.Code, rec.Body.String())
+		}
+		if strings.Contains(rec.Body.String(), "agent_reply") {
+			t.Fatal("failure fabricated an agent reply")
+		}
 	}
-	var respScrum struct {
-		AgentReply *ChatMessageDTO `json:"agent_reply"`
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatal(rec.Body.String())
 	}
-	_ = json.Unmarshal(recScrum.Body.Bytes(), &respScrum)
-	if respScrum.AgentReply == nil {
-		t.Fatalf("expected agent reply for mention @dev")
+	var history struct {
+		Messages []ChatMessageDTO `json:"messages"`
 	}
-	if !strings.Contains(respScrum.AgentReply.Message, "Scrum Master") {
-		t.Errorf("expected Scrum Master persona response, got: %s", respScrum.AgentReply.Message)
+	if err := json.Unmarshal(rec.Body.Bytes(), &history); err != nil {
+		t.Fatal(err)
 	}
-
-	// 3. Chat with @dev via direct room -> Technical instruction / Bug fix (Developer Persona)
-	devMsg := "Tolong perbaiki bug di endpoint database dan buatkan unit test"
-	bodyDev, _ := json.Marshal(map[string]interface{}{"message": devMsg})
-	reqDev := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", bytes.NewReader(bodyDev))
-	reqDev.Header.Set("Content-Type", "application/json")
-	reqDev.Header.Set("Authorization", "Bearer "+token)
-	recDev := httptest.NewRecorder()
-	srv.Router().ServeHTTP(recDev, reqDev)
-
-	if recDev.Code != http.StatusOK {
-		t.Fatalf("expected 200 for dev message, got %d: %s", recDev.Code, recDev.Body.String())
+	if len(history.Messages) != 3 {
+		t.Fatalf("expected three saved user messages, got %d", len(history.Messages))
 	}
-	var respDev struct {
-		AgentReply *ChatMessageDTO `json:"agent_reply"`
-	}
-	_ = json.Unmarshal(recDev.Body.Bytes(), &respDev)
-	if respDev.AgentReply == nil {
-		t.Fatalf("expected agent reply from @dev direct room")
-	}
-	if !strings.Contains(respDev.AgentReply.Message, "Developer") {
-		t.Errorf("expected Developer persona response, got: %s", respDev.AgentReply.Message)
-	}
-
-	// 4. Chat with @dev via direct room -> Casual greeting (Friendly Persona)
-	greetMsg := "Halo @dev, apa kabar hari ini?"
-	bodyGreet, _ := json.Marshal(map[string]interface{}{"message": greetMsg})
-	reqGreet := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", bytes.NewReader(bodyGreet))
-	reqGreet.Header.Set("Content-Type", "application/json")
-	reqGreet.Header.Set("Authorization", "Bearer "+token)
-	recGreet := httptest.NewRecorder()
-	srv.Router().ServeHTTP(recGreet, reqGreet)
-
-	if recGreet.Code != http.StatusOK {
-		t.Fatalf("expected 200 for greet message, got %d: %s", recGreet.Code, recGreet.Body.String())
-	}
-	var respGreet struct {
-		AgentReply *ChatMessageDTO `json:"agent_reply"`
-	}
-	_ = json.Unmarshal(recGreet.Body.Bytes(), &respGreet)
-	if respGreet.AgentReply == nil {
-		t.Fatalf("expected agent reply for friendly greeting")
-	}
-	if !strings.Contains(respGreet.AgentReply.Message, "Kabar baik") && !strings.Contains(respGreet.AgentReply.Message, "Halo Buchin") {
-		t.Errorf("expected friendly natural response, got: %s", respGreet.AgentReply.Message)
-	}
-
-	// 5. Verify chat history persistence via GET /api/v1/chat/conversations/{id}/messages
-	reqHist := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", nil)
-	reqHist.Header.Set("Authorization", "Bearer "+token)
-	recHist := httptest.NewRecorder()
-	srv.Router().ServeHTTP(recHist, reqHist)
-
-	if recHist.Code != http.StatusOK {
-		t.Fatalf("expected 200 for chat history, got %d: %s", recHist.Code, recHist.Body.String())
-	}
-	var histResp struct {
-		ConversationID string           `json:"conversation_id"`
-		Messages       []ChatMessageDTO `json:"messages"`
-		Contact        ChatContact      `json:"contact"`
-	}
-	if err := json.Unmarshal(recHist.Body.Bytes(), &histResp); err != nil {
-		t.Fatalf("failed to decode history response: %v", err)
-	}
-	if len(histResp.Messages) < 4 { // 2 user messages (devMsg, greetMsg) + 2 agent replies
-		t.Fatalf("expected at least 4 messages in history for @dev, got %d", len(histResp.Messages))
-	}
-	if histResp.Contact.Name != "@dev" {
-		t.Errorf("expected contact name @dev, got %s", histResp.Contact.Name)
+	for _, message := range history.Messages {
+		if message.AuthorType == "agent" {
+			t.Fatal("unavailable provider reply persisted")
+		}
 	}
 }

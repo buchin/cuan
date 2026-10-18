@@ -1,0 +1,32 @@
+=== RUN   TestS25RejectCredentialInjection
+--- PASS: TestS25RejectCredentialInjection (0.00s)
+=== RUN   TestS25ExpiredSession
+--- PASS: TestS25ExpiredSession (0.00s)
+=== RUN   TestS25RealOAuthURL
+    antigravityauth_s25_test.go:46: Official Google OAuth URL captured from real interactive agy; URL and session withheld. Account owner must consent and provide authorization code.
+--- PASS: TestS25RealOAuthURL (1.26s)
+=== RUN   TestIsAntigravityLoggedIn
+--- PASS: TestIsAntigravityLoggedIn (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/agent	1.352s
+=== RUN   TestAgentHandlers_S23_1_FuralStyleRegistry
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000001] "POST http://example.com/api/v1/agents HTTP/1.1" from 192.0.2.1:1234 - 201 326B in 300.512µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000002] "GET http://example.com/api/v1/agents/a6ea9157-ed7e-40f7-ab2a-9222b2a2fb9e HTTP/1.1" from 192.0.2.1:1234 - 200 326B in 10.626µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000003] "GET http://example.com/api/v1/agents HTTP/1.1" from 192.0.2.1:1234 - 200 349B in 15.243µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000004] "PATCH http://example.com/api/v1/agents/a6ea9157-ed7e-40f7-ab2a-9222b2a2fb9e HTTP/1.1" from 192.0.2.1:1234 - 200 338B in 28.253µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000005] "DELETE http://example.com/api/v1/agents/a6ea9157-ed7e-40f7-ab2a-9222b2a2fb9e HTTP/1.1" from 192.0.2.1:1234 - 200 60B in 3.966µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000006] "GET http://example.com/api/v1/agents/a6ea9157-ed7e-40f7-ab2a-9222b2a2fb9e HTTP/1.1" from 192.0.2.1:1234 - 404 28B in 7.752µs
+--- PASS: TestAgentHandlers_S23_1_FuralStyleRegistry (0.00s)
+=== RUN   TestS25UnverifiedOAuthRegistrationRejected
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000007] "POST http://example.com/api/v1/agents HTTP/1.1" from 192.0.2.1:1234 - 409 34B in 48.112µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000008] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 409 34B in 78.928µs
+--- PASS: TestS25UnverifiedOAuthRegistrationRejected (0.00s)
+=== RUN   TestChatHandlers_DynamicRoles
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000009] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 56.817908ms
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000010] "POST http://example.com/api/v1/chat/conversations/d398f0d7-90e9-4754-9bb1-07d1cb1a8685/messages HTTP/1.1" from 192.0.2.1:1234 - 502 127B in 55.423µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000011] "POST http://example.com/api/v1/chat/conversations/d398f0d7-90e9-4754-9bb1-07d1cb1a8685/messages HTTP/1.1" from 192.0.2.1:1234 - 502 127B in 18.668µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000012] "POST http://example.com/api/v1/chat/conversations/d398f0d7-90e9-4754-9bb1-07d1cb1a8685/messages HTTP/1.1" from 192.0.2.1:1234 - 502 127B in 15.003µs
+2026/10/19 05:41:45 [p1-mv/qoWWo0Xtnr-000013] "GET http://example.com/api/v1/chat/conversations/d398f0d7-90e9-4754-9bb1-07d1cb1a8685/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1434B in 464.427µs
+--- PASS: TestChatHandlers_DynamicRoles (0.12s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.139s

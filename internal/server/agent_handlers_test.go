@@ -302,9 +302,9 @@ func TestAgentConnectionHandlers_EncryptionAndVerification(t *testing.T) {
 	}
 
 	var listResp struct {
-		Status      string                    `json:"status"`
-		Connections []db.AgentConnectionDTO   `json:"connections"`
-		Count       int                       `json:"count"`
+		Status      string                  `json:"status"`
+		Connections []db.AgentConnectionDTO `json:"connections"`
+		Count       int                     `json:"count"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &listResp); err != nil {
 		t.Fatalf("failed to decode list response: %v", err)
@@ -490,7 +490,7 @@ func TestAgentHandlers_S23_1_FuralStyleRegistry(t *testing.T) {
 	// 1. POST /api/v1/agents with Fural entity format { id, name, harness, connection_id, enabled }
 	createPayload := map[string]interface{}{
 		"name":          "@dev",
-		"harness":       "agy",
+		"harness":       "custom",
 		"connection_id": "conn_dev_session_123",
 		"enabled":       true,
 	}
@@ -520,8 +520,8 @@ func TestAgentHandlers_S23_1_FuralStyleRegistry(t *testing.T) {
 	if agent.Name != "@dev" {
 		t.Errorf("expected agent name '@dev', got %q", agent.Name)
 	}
-	if agent.Harness != "agy" {
-		t.Errorf("expected harness 'agy', got %q", agent.Harness)
+	if agent.Harness != "custom" {
+		t.Errorf("expected harness 'custom', got %q", agent.Harness)
 	}
 	if agent.ConnectionID != "conn_dev_session_123" {
 		t.Errorf("expected connection_id 'conn_dev_session_123', got %q", agent.ConnectionID)
@@ -545,7 +545,7 @@ func TestAgentHandlers_S23_1_FuralStyleRegistry(t *testing.T) {
 		Agent  db.AgentDTO `json:"agent"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &getResp)
-	if getResp.Agent.Name != "@dev" || getResp.Agent.Harness != "agy" || getResp.Agent.ConnectionID != "conn_dev_session_123" || !getResp.Agent.Enabled {
+	if getResp.Agent.Name != "@dev" || getResp.Agent.Harness != "custom" || getResp.Agent.ConnectionID != "conn_dev_session_123" || !getResp.Agent.Enabled {
 		t.Errorf("get agent mismatch: %+v", getResp.Agent)
 	}
 
@@ -684,4 +684,18 @@ func TestServer_HarnessAuthEndpoints(t *testing.T) {
 	}
 }
 
-
+func TestS25UnverifiedOAuthRegistrationRejected(t *testing.T) {
+	srv, repo, _ := setupTestServer(t)
+	for _, route := range []string{"/api/v1/agents", "/api/v1/agents/connect-cli"} {
+		req := httptest.NewRequest(http.MethodPost, route, strings.NewReader(`{"name":"@unverified","harness":"agy","provider":"agy","enabled":true}`))
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("expected login gate, got %d", rec.Code)
+		}
+	}
+	agents, err := repo.ListAgents(context.Background(), db.AgentFilter{})
+	if err != nil || len(agents) != 0 {
+		t.Fatal("unverified login created agent")
+	}
+}
