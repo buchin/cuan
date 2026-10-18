@@ -1,0 +1,27 @@
+================================================================================
+AUDIT EVIDENCE S21.3: NAVIGATION RESTRUCTURE 4 MENU UTAMA (DESKTOP & MOBILE)
+================================================================================
+Timestamp:     2026-10-18T13:56:00Z
+Task ID:       wbmicpeaalxxnkzwgbnpenuc
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. RESTRUCTURE SUMMARY:
+   - Primary rail navigation items unified into exactly 4 core menus:
+     1. Inbox (Direct Messenger & Chat Hub: PO, Scrum Master, Worker Agents, Live Chat)
+     2. Tasks (Global Task Board / Unified Backlog)
+     3. Projects (Workspace Repositories)
+     4. Team (Unified Team Directory: Humans + AI Agents)
+
+2. COMPONENT VERIFICATION:
+   - [x] AppShell.tsx AppTab type: 'inbox' | 'tasks' | 'projects' | 'team'
+   - [x] NAV_ITEMS in AppShell.tsx mirrors the 4 items with distinct Lucide icons.
+   - [x] Contextual sub-panel dynamically renders:
+         - inbox: InboxSubPanel (Messenger contact list & filter tabs)
+         - tasks: TasksSubPanel (Backlog status filter & project filter)
+         - projects: DefaultProjectsSubPanel (Project list & New Project)
+         - team: TeamSubPanel (Role hierarchy filters & add agent button)
+   - [x] Mobile Bottom Navigation Bar:
+         - Renders 4 primary menus in 100% responsive bottom bar.
+         - Seamlessly auto-hides when a mobile chat conversation is active (hideBottomNav=true).

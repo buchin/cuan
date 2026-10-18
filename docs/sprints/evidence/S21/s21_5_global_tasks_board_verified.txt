@@ -1,0 +1,23 @@
+================================================================================
+AUDIT EVIDENCE S21.5: GLOBAL TASK BOARD VIEW (UNIFIED BACKLOG)
+================================================================================
+Timestamp:     2026-10-18T13:56:00Z
+Task ID:       wbmicpeaalxxnkzwgbnpenuc
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. GLOBAL TASK BOARD FEATURES:
+   - Unified Backlog: In Tasks tab, all tasks across all projects are displayed by default.
+   - Project Badges: Each card shows the project badge indicating origin project.
+   - Quick Search: Instant search input filters tasks by title, description, or assignee.
+   - Status Filters: Filter pills (All, Backlog, To Do, In Progress, In Review, Completed).
+   - Fast Actions:
+     * "+ Task" button opens task creation modal with multi-project selector.
+     * "Play" button triggers worker agent execution on the task.
+     * "ChevronRight" button moves task to next kanban column.
+     * Card click opens TaskSidePeek drawer.
+
+2. SUB-PANEL INTEGRATION:
+   - TasksSubPanel.tsx displays task counters per status and per project.
+   - Selecting a project or status in sub-panel instantly refines the active Kanban board.

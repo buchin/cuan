@@ -1,0 +1,27 @@
+================================================================================
+AUDIT EVIDENCE S21.2: DEPLOY FRESH FRONTEND BUNDLE KE VPS PRODUKSI (CUAN.DOJO.CC)
+================================================================================
+Timestamp:     2026-10-18T13:57:46Z
+Task ID:       wbmicpeaalxxnkzwgbnpenuc
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED ON LIVE PRODUCTION)
+
+1. LIVE FRONTEND BUNDLE SYNCHRONIZATION:
+   - Target Host: VPS cuan.dojo.cc (/opt/cuan/web/dist)
+   - Status: SPRINT 19 BUNDLE (index-9S5Q1eNg.js) REPLACED WITH SPRINT 21 FRESH BUNDLE
+   - Active HTML: /opt/cuan/web/dist/index.html
+     * <script type="module" crossorigin src="/assets/index-DR52B_9v.js"></script>
+     * <link rel="stylesheet" crossorigin href="/assets/index-DlwK45ZG.css">
+
+2. MOBILE AUTO-HIDE BOTTOM NAV & VIEWPORT VERIFICATION:
+   - AppShell.tsx hideBottomNav prop and h-[100dvh] container active in live bundle.
+   - When user taps a contact on mobile (< md), Bottom Navigation Bar auto-hides (100% viewport allocated to chat stream).
+   - Chat input textarea & Send button anchor cleanly to the bottom of the screen with safe-area padding.
+   - Pressing back button (<) instantly reveals the Bottom Navigation Bar.
+
+3. LIVE HTTP SMOKE TEST (https://cuan.dojo.cc):
+   - GET / -> HTTP 200 OK (Serving fresh index-DR52B_9v.js)
+   - GET /healthz -> HTTP 200 OK {"app":"cuan","status":"healthy"}
+   - GET /readyz -> HTTP 200 OK {"database":"connected","migrations":"applied","migrations_count":19,"owner_configured":true,"status":"ready"}
+   - GET /chat/widget.js -> HTTP 200 OK (Access-Control-Allow-Origin: *)

@@ -1,0 +1,21 @@
+================================================================================
+AUDIT EVIDENCE S21.1: HOTFIX POSTGRESQL ROOM/MESSAGE FK & SEED DEFAULT PROJECT
+================================================================================
+Timestamp:     2026-10-18T13:56:00Z
+Task ID:       wbmicpeaalxxnkzwgbnpenuc
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. ROOT CAUSE RESOLUTION:
+   - Issue: project_rooms has FK project_rooms_project_id_fkey referencing projects(id).
+   - In a fresh production DB, projects table was empty (0 rows).
+   - Solved: Automatically seed/ensure row 'default' in projects table at boot (cmd/server/main.go) and in ensureDefaultAgentRooms (internal/server/chat_handlers.go).
+
+2. VERIFICATION CHECKS:
+   - [x] Default project 'default' exists in database.
+   - [x] Scrum Master room (00000000-0000-4000-8000-000000000001) successfully created in project_rooms.
+   - [x] Antigravity Flash room (00000000-0000-4000-8000-000000000002) successfully created in project_rooms.
+   - [x] User message successfully inserted into project_messages without FK violation.
+   - [x] Scrum Master triage reply automatically generated and persisted in project_messages.
+   - [x] Messages history persists across page reloads and query returns all saved messages.

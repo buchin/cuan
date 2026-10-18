@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -120,50 +121,81 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 		return
 	}
 
+	// 0. Ensure default project exists first so foreign key constraints on project_rooms pass
+	if s.db != nil {
+		_, _ = s.db.ExecContext(ctx, `
+			INSERT INTO projects (id, name, repo_url, default_branch, clone_status, project_type, created_at, updated_at)
+			VALUES ('default', 'cuan', 'https://github.com/buchin/cuan', 'main', 'connected', 'custom', NOW(), NOW())
+			ON CONFLICT (id) DO UPDATE SET name = 'cuan' WHERE projects.name != 'cuan';
+		`)
+	}
+	if s.projectRepo != nil {
+		if proj, err := s.projectRepo.GetProjectByID(ctx, "default"); err != nil || proj == nil {
+			_ = s.projectRepo.CreateProject(ctx, &db.Project{
+				ID:            "default",
+				Name:          "cuan",
+				RepoURL:       "https://github.com/buchin/cuan",
+				DefaultBranch: "main",
+				CloneStatus:   "connected",
+				ProjectType:   "custom",
+			})
+		}
+	}
+
 	// 1. Ensure Scrum Master room
 	if _, err := s.projectStudioRepo.GetRoomByID(ctx, defaultScrumMasterRoomID); err != nil {
 		now := time.Now().UTC()
-		_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
 			ID:        defaultScrumMasterRoomID,
 			ProjectID: "default",
 			Title:     "Scrum Master Direct",
 			Topic:     "Agentic Scrum Management",
 			CreatedAt: now,
 			UpdatedAt: now,
-		})
-		_ = s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
-			ID:         db.GenerateUUID(),
-			RoomID:     defaultScrumMasterRoomID,
-			AuthorType: "agent",
-			AuthorID:   "agent_scrum_master",
-			AuthorName: "Scrum Master",
-			Content:    "Halo Buchin! Saya Scrum Master Anda. Sampaikan kebutuhan, bug, atau ide sprint Anda di sini.",
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		})
+		}); err != nil {
+			log.Printf("[ensureDefaultAgentRooms] failed to create Scrum Master room: %v", err)
+		} else {
+			if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
+				ID:         db.GenerateUUID(),
+				RoomID:     defaultScrumMasterRoomID,
+				AuthorType: "agent",
+				AuthorID:   "agent_scrum_master",
+				AuthorName: "Scrum Master",
+				Content:    "Halo Buchin! Saya Scrum Master Anda. Sampaikan kebutuhan, bug, atau ide sprint Anda di sini.",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}); err != nil {
+				log.Printf("[ensureDefaultAgentRooms] failed to create initial Scrum Master message: %v", err)
+			}
+		}
 	}
 
 	// 2. Ensure Antigravity Agent room
 	if _, err := s.projectStudioRepo.GetRoomByID(ctx, defaultAntigravityRoomID); err != nil {
 		now := time.Now().UTC()
-		_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
 			ID:        defaultAntigravityRoomID,
 			ProjectID: "default",
 			Title:     "Antigravity Flash",
 			Topic:     "Autonomous Worker Agent",
 			CreatedAt: now,
 			UpdatedAt: now,
-		})
-		_ = s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
-			ID:         db.GenerateUUID(),
-			RoomID:     defaultAntigravityRoomID,
-			AuthorType: "agent",
-			AuthorID:   "antigravity-flash",
-			AuthorName: "Antigravity Flash",
-			Content:    "Antigravity Worker siap menjalankan eksekusi task berkecepatan tinggi.",
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		})
+		}); err != nil {
+			log.Printf("[ensureDefaultAgentRooms] failed to create Antigravity room: %v", err)
+		} else {
+			if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
+				ID:         db.GenerateUUID(),
+				RoomID:     defaultAntigravityRoomID,
+				AuthorType: "agent",
+				AuthorID:   "antigravity-flash",
+				AuthorName: "Antigravity Flash",
+				Content:    "Antigravity Worker siap menjalankan eksekusi task berkecepatan tinggi.",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}); err != nil {
+				log.Printf("[ensureDefaultAgentRooms] failed to create initial Antigravity message: %v", err)
+			}
+		}
 	}
 }
 
@@ -802,6 +834,8 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 
+	s.ensureDefaultAgentRooms(r.Context())
+
 	var payload struct {
 		Message    string `json:"message"`
 		Content    string `json:"content"`
@@ -852,7 +886,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 
 	// Save the operator/user message
 	if s.projectStudioRepo != nil {
-		_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+		if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 			ID:         msgUUID,
 			RoomID:     convID,
 			AuthorType: authorType,
@@ -861,7 +895,22 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			Content:    text,
 			CreatedAt:  now,
 			UpdatedAt:  now,
-		})
+		}); err != nil {
+			log.Printf("[handleInternalSendConversationMessage] failed to save user message: %v (re-ensuring default agent rooms)", err)
+			s.ensureDefaultAgentRooms(r.Context())
+			if err2 := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				ID:         msgUUID,
+				RoomID:     convID,
+				AuthorType: authorType,
+				AuthorID:   "operator_user",
+				AuthorName: authorName,
+				Content:    text,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}); err2 != nil {
+				log.Printf("[handleInternalSendConversationMessage] retry save user message failed: %v", err2)
+			}
+		}
 	}
 
 	// If conversation is with Scrum Master agent, trigger automated triage response
@@ -872,7 +921,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		agentNow := now.Add(200 * time.Millisecond)
 
 		if s.projectStudioRepo != nil {
-			_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 				ID:         agentUUID,
 				RoomID:     convID,
 				AuthorType: "agent",
@@ -881,7 +930,9 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 				Content:    triage.Text,
 				CreatedAt:  agentNow,
 				UpdatedAt:  agentNow,
-			})
+			}); err != nil {
+				log.Printf("[handleInternalSendConversationMessage] failed to save Scrum Master message: %v", err)
+			}
 		}
 
 		card := &AgentActionCard{
@@ -930,7 +981,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			agentNow := now.Add(200 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
-				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
 					RoomID:     convID,
 					AuthorType: "agent",
@@ -939,7 +990,9 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 					Content:    agentReplyText,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
-				})
+				}); err != nil {
+					log.Printf("[handleInternalSendConversationMessage] failed to save agent reply: %v", err)
+				}
 			}
 
 			agentMsgDTO = &ChatMessageDTO{

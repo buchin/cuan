@@ -6,7 +6,8 @@ import { ProjectsView } from './features/projects/ProjectsView'
 import { CreateProjectModal } from './features/projects/CreateProjectModal'
 import { CreateTaskModal } from './features/tasks/CreateTaskModal'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
-import { AgentsView, AgentsSubPanel } from './features/agents/AgentsView'
+import { TaskBoardView } from './features/tasks/TaskBoardView'
+import { TasksSubPanel } from './features/tasks/TasksSubPanel'
 import { TeamView, TeamSubPanel } from './features/team/TeamView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
@@ -39,6 +40,8 @@ export function App() {
   const [contactTab, setContactTab] = useState<ContactFilterTab>('all')
   const [contactSearch, setContactSearch] = useState('')
   const [selectedTeamRole, setSelectedTeamRole] = useState('all')
+  const [selectedTaskStatus, setSelectedTaskStatus] = useState('all')
+  const [selectedTaskProject, setSelectedTaskProject] = useState('all')
   const [isMobileChatActive, setIsMobileChatActive] = useState(false)
 
   // Fetch Projects and Tasks
@@ -57,12 +60,14 @@ export function App() {
 
   const refreshTasks = useCallback(async () => {
     try {
-      const data = await tasksApi.list(activeProject?.id)
+      // In Tasks tab or when no project is active, list all tasks across projects
+      const projId = currentTab === 'projects' ? activeProject?.id : undefined
+      const data = await tasksApi.list(projId)
       setTasks(data)
     } catch (err) {
       console.error('Failed to load tasks:', err)
     }
-  }, [activeProject])
+  }, [currentTab, activeProject])
 
   const refreshContacts = useCallback(async () => {
     try {
@@ -184,15 +189,26 @@ export function App() {
             onSearchChange={setContactSearch}
           />
         }
-        agentsSubPanel={<AgentsSubPanel />}
+        tasksSubPanel={
+          <TasksSubPanel
+            tasks={tasks}
+            projects={projects}
+            selectedStatus={selectedTaskStatus}
+            onSelectStatus={setSelectedTaskStatus}
+            selectedProject={selectedTaskProject}
+            onSelectProject={setSelectedTaskProject}
+            onCreateTaskClick={() => setIsCreateTaskOpen(true)}
+          />
+        }
         teamSubPanel={
           <TeamSubPanel
             selectedRole={selectedTeamRole}
             onSelectRole={setSelectedTeamRole}
+            onAddAgentClick={() => setSelectedTeamRole('agent')}
           />
         }
       >
-        {/* Messenger View — S18/S19 Direct Messenger with Mobile Single-View */}
+        {/* 1. Messenger View — Inbox */}
         {currentTab === 'inbox' && (
           <InboxView
             contacts={contacts}
@@ -207,6 +223,26 @@ export function App() {
           />
         )}
 
+        {/* 2. Global Task Board View — Tasks */}
+        {currentTab === 'tasks' && (
+          <div className="h-full p-4 md:p-6 overflow-hidden">
+            <TaskBoardView
+              tasks={tasks}
+              projects={projects}
+              activeProject={selectedTaskProject !== 'all' ? projects.find((p) => p.id === selectedTaskProject) : undefined}
+              selectedStatusFilter={selectedTaskStatus}
+              onSelectTask={(t) => {
+                setSelectedTask(t)
+                setIsSidePeekOpen(true)
+              }}
+              onCreateTask={() => setIsCreateTaskOpen(true)}
+              onUpdateTaskStatus={(taskId, status) => handleUpdateTask(taskId, { status })}
+              onRunAgent={handleRunAgent}
+            />
+          </div>
+        )}
+
+        {/* 3. Projects Workspace & Repositories */}
         {currentTab === 'projects' && (
           <ProjectsView
             projects={projects}
@@ -220,10 +256,15 @@ export function App() {
           />
         )}
 
-        {currentTab === 'agents' && <AgentsView onAddAgent={() => refreshContacts()} />}
-
-        {/* Team Directory — S17.4 */}
-        {currentTab === 'team' && <TeamView selectedRole={selectedTeamRole} />}
+        {/* 4. Unified Team Directory — Humans + AI Agents */}
+        {currentTab === 'team' && (
+          <div className="h-full p-4 md:p-6 overflow-y-auto">
+            <TeamView
+              selectedRole={selectedTeamRole}
+              onAgentAdded={refreshContacts}
+            />
+          </div>
+        )}
       </AppShell>
 
       {/* Modals & Drawers */}

@@ -4,8 +4,8 @@ import { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
 import {
   Inbox,
+  CheckSquare,
   FolderGit2,
-  Bot,
   Users,
   Plus,
   ChevronLeft,
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-export type AppTab = 'inbox' | 'projects' | 'agents' | 'team'
+export type AppTab = 'inbox' | 'tasks' | 'projects' | 'team'
 
 interface AppShellProps {
   currentTab: AppTab
@@ -29,18 +29,18 @@ interface AppShellProps {
   hideBottomNav?: boolean
   // Inbox sub-panel
   inboxSubPanel?: React.ReactNode
+  // Tasks sub-panel
+  tasksSubPanel?: React.ReactNode
   // Projects sub-panel content (project list)
   projectsSubPanel?: React.ReactNode
-  // Agents sub-panel
-  agentsSubPanel?: React.ReactNode
   // Team sub-panel
   teamSubPanel?: React.ReactNode
 }
 
 const NAV_ITEMS: { id: AppTab; label: string; icon: React.ElementType }[] = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
-  { id: 'agents', label: 'Agents', icon: Bot },
   { id: 'team', label: 'Team', icon: Users },
 ]
 
@@ -53,8 +53,8 @@ export function AppShell({
   children,
   hideBottomNav = false,
   inboxSubPanel,
+  tasksSubPanel,
   projectsSubPanel,
-  agentsSubPanel,
   teamSubPanel,
 }: AppShellProps) {
   const [subPanelOpen, setSubPanelOpen] = useState(true)
@@ -64,6 +64,8 @@ export function AppShell({
     switch (currentTab) {
       case 'inbox':
         return inboxSubPanel ?? <DefaultSubPanel title="Inbox" description="Pesan & diskusi dengan Scrum Master" />
+      case 'tasks':
+        return tasksSubPanel ?? <DefaultSubPanel title="Tasks" description="Global Task Board & Backlog" />
       case 'projects':
         return projectsSubPanel ?? (
           <DefaultProjectsSubPanel
@@ -72,10 +74,8 @@ export function AppShell({
             onCreateProjectClick={onCreateProjectClick}
           />
         )
-      case 'agents':
-        return agentsSubPanel ?? <DefaultSubPanel title="Agents" description="Worker agent yang tersedia" />
       case 'team':
-        return teamSubPanel ?? <DefaultSubPanel title="Team" description="Anggota tim & peran" />
+        return teamSubPanel ?? <DefaultSubPanel title="Team" description="Unified Team: Manusia & AI Agent" />
     }
   }
 
