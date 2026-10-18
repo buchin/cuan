@@ -21,8 +21,8 @@ import { CreateProjectModal } from '../studio/CreateProjectModal'
 import { useTheme } from '../../context/ThemeContext'
 import {
   LayoutDashboard,
-  Kanban,
-  Layers,
+  CheckSquare,
+  FolderGit2,
   MessageSquare,
   Bot,
   Users,
@@ -31,14 +31,11 @@ import {
   Rocket,
   Activity,
   Settings2,
-  Server,
-  HardDrive,
   ArrowLeft,
   ChevronRight,
   Sun,
   Moon,
-  Command,
-  FolderGit2
+  Command
 } from 'lucide-react'
 
 
@@ -117,24 +114,27 @@ export function Sidebar07Layout({
     }
   }, [activeProject])
 
-  // Sync navMode based on deep routes if propNavMode is not explicitly controlled
+  // Sync navMode based on deep routes
   useEffect(() => {
-    if (propNavMode === undefined) {
-      if (
-        currentPath.includes('/wordpress') ||
-        currentPath.includes('/repositories') ||
-        currentPath.includes('/deployer') ||
-        currentPath.includes('/observability') ||
-        currentPath.includes('/settings') ||
-        currentPath.includes('/project/')
-      ) {
-        setInternalNavMode('project')
+    if (
+      currentPath.includes('/wordpress') ||
+      currentPath.includes('/repositories') ||
+      currentPath.includes('/deployer') ||
+      currentPath.includes('/observability') ||
+      currentPath.includes('/settings') ||
+      currentPath.includes('/domains') ||
+      currentPath.includes('/servers') ||
+      currentPath.includes('/project/')
+    ) {
+      if (effectiveNavMode !== 'project') {
+        setEffectiveNavMode('project')
       }
     }
-  }, [currentPath, propNavMode])
+  }, [currentPath, effectiveNavMode])
 
   const handleProjectSelect = (proj: ProjectOption) => {
     setCurrentProject(proj)
+    setEffectiveNavMode('project')
     onSelectProject?.(proj)
   }
 
@@ -155,11 +155,9 @@ export function Sidebar07Layout({
     if (currentPath.includes('/deployer')) return 'deployer'
     if (currentPath.includes('/wordpress')) return 'wordpress'
     if (currentPath.includes('/repositories')) return 'repositories'
-    if (currentPath.includes('/servers')) return 'servers'
-    if (currentPath.includes('/domains')) return 'domains'
     if (currentPath.includes('/observability')) return 'observability'
-    if (currentPath.includes('/settings')) return 'settings'
-    if (currentPath === '/projects' || currentPath === '/studio/projects') return 'projects'
+    if (currentPath.includes('/settings') || currentPath.includes('/domains') || currentPath.includes('/servers')) return 'settings'
+    if (currentPath === '/projects' || currentPath === '/studio/projects' || currentPath.includes('/projects')) return 'projects'
     return 'dashboard'
   }
 
@@ -183,15 +181,11 @@ export function Sidebar07Layout({
       case 'wordpress':
         return 'WordPress Cloud'
       case 'repositories':
-        return 'Repositories'
+        return effectiveNavMode === 'project' ? 'Repos' : 'Repositories'
       case 'deployer':
-        return '1-Click Deployer'
+        return effectiveNavMode === 'project' ? 'Deployments' : '1-Click Deployer'
       case 'observability':
-        return 'Telemetry & Health'
-      case 'servers':
-        return 'BYOS Servers'
-      case 'domains':
-        return 'Custom Domains'
+        return effectiveNavMode === 'project' ? 'Telemetry' : 'Telemetry & Health'
       case 'settings':
         return 'Settings'
       default:
@@ -213,13 +207,13 @@ export function Sidebar07Layout({
                   type="button"
                   onClick={() => {
                     setEffectiveNavMode('global')
-                    onNavigate('/studio')
+                    onNavigate('/dashboard')
                   }}
                   className="flex w-full items-center gap-2 p-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors rounded-xs group select-none"
                   title="Kembali ke Navigasi Global Platform"
                 >
                   <ArrowLeft className="h-3.5 w-3.5 text-primary transition-transform group-hover:-translate-x-0.5" />
-                  <span className="truncate">Navigasi Global</span>
+                  <span className="truncate">← Navigasi Global</span>
                 </button>
 
                 <div className="flex items-center gap-2.5 p-1.5 bg-sidebar-accent/50 border border-sidebar-border rounded-xs">
@@ -269,127 +263,93 @@ export function Sidebar07Layout({
           <SidebarContent>
             {effectiveNavMode === 'global' ? (
               /* ============================================================== */
-              /* 1. GLOBAL NAVIGATION MENU (S14.3 Requirement 1)                 */
+              /* 1. STRICT 6 GLOBAL NAVIGATION MENU (S15.2 Requirement 1)        */
               /* Menu: Dashboard, Tasks, Projects, Discussions, Agents, Team    */
               /* ============================================================== */
-              <>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {/* 1. Dashboard */}
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'dashboard' && effectiveNavMode === 'global'}
-                          onClick={() => {
-                            setEffectiveNavMode('global')
-                            onNavigate('/studio')
-                          }}
-                          tooltip="Dashboard"
-                        >
-                          <LayoutDashboard className="h-4 w-4 text-emerald-400 shrink-0" />
-                          <span>Dashboard</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+              <SidebarGroup>
+                <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {/* 1. Dashboard */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={activeTab === 'dashboard' && effectiveNavMode === 'global'}
+                        onClick={() => {
+                          setEffectiveNavMode('global')
+                          onNavigate('/dashboard')
+                        }}
+                        tooltip="Dashboard"
+                      >
+                        <LayoutDashboard className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span>Dashboard</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
 
-                      {/* 2. Tasks */}
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'tasks'}
-                          onClick={() => onNavigate('/studio/tasks')}
-                          tooltip="Tasks & Kanban"
-                        >
-                          <Kanban className="h-4 w-4 text-indigo-400 shrink-0" />
-                          <span>Tasks</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                    {/* 2. Tasks */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={activeTab === 'tasks'}
+                        onClick={() => onNavigate('/tasks')}
+                        tooltip="Tasks"
+                      >
+                        <CheckSquare className="h-4 w-4 text-indigo-400 shrink-0" />
+                        <span>Tasks</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
 
-                      {/* 3. Projects */}
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'projects'}
-                          onClick={() => onNavigate('/studio/projects')}
-                          tooltip="Projects Directory"
-                        >
-                          <Layers className="h-4 w-4 text-blue-400 shrink-0" />
-                          <span>Projects</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                    {/* 3. Projects */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={activeTab === 'projects'}
+                        onClick={() => onNavigate('/projects')}
+                        tooltip="Projects"
+                      >
+                        <FolderGit2 className="h-4 w-4 text-blue-400 shrink-0" />
+                        <span>Projects</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
 
-                      {/* 4. Discussions */}
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'discussions'}
-                          onClick={() => onNavigate('/studio/discussions')}
-                          tooltip="Discussions"
-                        >
-                          <MessageSquare className="h-4 w-4 text-cyan-400 shrink-0" />
-                          <span>Discussions</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                    {/* 4. Discussions */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={activeTab === 'discussions'}
+                        onClick={() => onNavigate('/discussions')}
+                        tooltip="Discussions"
+                      >
+                        <MessageSquare className="h-4 w-4 text-cyan-400 shrink-0" />
+                        <span>Discussions</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
 
-                      {/* 5. Agents */}
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'agents'}
-                          onClick={() => onNavigate('/studio/agents')}
-                          tooltip="AI Agents Hub"
-                        >
-                          <Bot className="h-4 w-4 text-purple-400 shrink-0" />
-                          <span>Agents</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                    {/* 5. Agents */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={activeTab === 'agents'}
+                        onClick={() => onNavigate('/agents')}
+                        tooltip="Agents"
+                      >
+                        <Bot className="h-4 w-4 text-purple-400 shrink-0" />
+                        <span>Agents</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
 
-                      {/* 6. Team */}
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'team'}
-                          onClick={() => onNavigate('/studio/team')}
-                          tooltip="Team & Collaborators"
-                        >
-                          <Users className="h-4 w-4 text-amber-400 shrink-0" />
-                          <span>Team</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-
-                {/* Secondary Group: Platform & Infra */}
-                <SidebarGroup>
-                  <SidebarGroupLabel>Infrastruktur & Admin</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'servers'}
-                          onClick={() => onNavigate('/studio/servers')}
-                          tooltip="BYOS Remote Servers"
-                        >
-                          <Server className="h-4 w-4 text-purple-400 shrink-0" />
-                          <span>BYOS Servers</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'domains'}
-                          onClick={() => onNavigate('/studio/domains')}
-                          tooltip="Custom Domains & Caddy TLS"
-                        >
-                          <HardDrive className="h-4 w-4 text-teal-400 shrink-0" />
-                          <span>Custom Domains</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-
-
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              </>
+                    {/* 6. Team */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={activeTab === 'team'}
+                        onClick={() => onNavigate('/team')}
+                        tooltip="Team"
+                      >
+                        <Users className="h-4 w-4 text-amber-400 shrink-0" />
+                        <span>Team</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
             ) : (
               /* ============================================================== */
-              /* 2. CONTEXTUAL PROJECT MODULE SIDEBAR (S14.3 Requirement 3)      */
+              /* 2. CONTEXTUAL PROJECT MODULE SIDEBAR (S15.2 Requirement 3)      */
               /* Menu: Overview, WordPress Cloud, Repos, Deployments, Telemetry, */
               /*       Studio Rooms, Settings                                   */
               /* ============================================================== */
@@ -401,7 +361,7 @@ export function Sidebar07Layout({
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         isActive={activeTab === 'dashboard' && effectiveNavMode === 'project'}
-                        onClick={() => onNavigate('/studio')}
+                        onClick={() => onNavigate('/dashboard')}
                         tooltip="Project Overview"
                       >
                         <LayoutDashboard className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -409,11 +369,11 @@ export function Sidebar07Layout({
                       </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    {/* 2. WordPress Cloud / Turnkey */}
+                    {/* 2. WordPress Cloud */}
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         isActive={activeTab === 'wordpress'}
-                        onClick={() => onNavigate('/studio/wordpress')}
+                        onClick={() => onNavigate('/wordpress')}
                         tooltip="WordPress Cloud Studio"
                       >
                         <Globe className="h-4 w-4 text-blue-400 shrink-0" />
@@ -425,7 +385,7 @@ export function Sidebar07Layout({
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         isActive={activeTab === 'repositories'}
-                        onClick={() => onNavigate('/studio/repositories')}
+                        onClick={() => onNavigate('/repositories')}
                         tooltip="Git Repositories & Sync"
                       >
                         <GitBranch className="h-4 w-4 text-amber-400 shrink-0" />
@@ -437,7 +397,7 @@ export function Sidebar07Layout({
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         isActive={activeTab === 'deployer'}
-                        onClick={() => onNavigate('/studio/deployer')}
+                        onClick={() => onNavigate('/deployer')}
                         tooltip="1-Click Deployer"
                       >
                         <Rocket className="h-4 w-4 text-primary shrink-0" />
@@ -449,7 +409,7 @@ export function Sidebar07Layout({
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         isActive={activeTab === 'observability'}
-                        onClick={() => onNavigate('/studio/observability')}
+                        onClick={() => onNavigate('/observability')}
                         tooltip="Telemetry, Observability & Alerts"
                       >
                         <Activity className="h-4 w-4 text-rose-400 shrink-0" />
@@ -461,7 +421,7 @@ export function Sidebar07Layout({
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         isActive={activeTab === 'discussions'}
-                        onClick={() => onNavigate('/studio/discussions')}
+                        onClick={() => onNavigate('/discussions')}
                         tooltip="Studio Rooms & AI Agent Chat"
                       >
                         <MessageSquare className="h-4 w-4 text-cyan-400 shrink-0" />
@@ -472,8 +432,8 @@ export function Sidebar07Layout({
                     {/* 7. Settings */}
                     <SidebarMenuItem>
                       <SidebarMenuButton
-                        isActive={activeTab === 'settings' || activeTab === 'domains' || activeTab === 'servers'}
-                        onClick={() => onNavigate('/studio/domains')}
+                        isActive={activeTab === 'settings'}
+                        onClick={() => onNavigate('/settings')}
                         tooltip="Project Settings & Infra"
                       >
                         <Settings2 className="h-4 w-4 text-zinc-400 shrink-0" />
@@ -512,7 +472,7 @@ export function Sidebar07Layout({
                   type="button"
                   onClick={() => {
                     setEffectiveNavMode('global')
-                    onNavigate('/studio')
+                    onNavigate('/dashboard')
                   }}
                   className="font-semibold text-foreground hover:text-primary transition-colors cursor-pointer select-none"
                   title="Kembali ke Dashboard Utama"

@@ -1,0 +1,138 @@
+================================================================================
+S15.2 AUDIT EVIDENCE: Strict 6 Global Menu Sidebar & Clean Breadcrumb Navbar
+================================================================================
+Timestamp: 2026-10-18T08:32:30+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Task ID: eedhggaftsbmcfeliepccsxg
+Task Title: S15.2 — Strict 6 Global Menu Sidebar & Clean Breadcrumb Navbar
+Git Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. STRICT 6 GLOBAL MENU SIDEBAR VERIFICATION
+--------------------------------------------------------------------------------
+File: web/src/components/layout/Sidebar07Layout.tsx
+Kondisi Navigasi: effectiveNavMode === 'global'
+Total Items di Global Sidebar Menu: Tepat 6 item (100% compliant)
+
+Rincian 6 Menu Utama Global:
+  1. Dashboard:
+     - Icon: LayoutDashboard (emerald-400)
+     - Label: "Dashboard"
+     - Target Route: /dashboard (atau /)
+     - Action: setEffectiveNavMode('global') + onNavigate('/dashboard')
+  2. Tasks:
+     - Icon: CheckSquare (indigo-400)
+     - Label: "Tasks"
+     - Target Route: /tasks
+     - Action: onNavigate('/tasks')
+  3. Projects:
+     - Icon: FolderGit2 (blue-400)
+     - Label: "Projects"
+     - Target Route: /projects
+     - Action: onNavigate('/projects')
+  4. Discussions:
+     - Icon: MessageSquare (cyan-400)
+     - Label: "Discussions"
+     - Target Route: /discussions
+     - Action: onNavigate('/discussions')
+  5. Agents:
+     - Icon: Bot (purple-400)
+     - Label: "Agents"
+     - Target Route: /agents
+     - Action: onNavigate('/agents')
+  6. Team:
+     - Icon: Users (amber-400)
+     - Label: "Team"
+     - Target Route: /team
+     - Action: onNavigate('/team')
+
+Pembersihan Sub-Grup:
+  - Sub-grup 'Infrastruktur & Admin' (BYOS Servers, Custom Domains) telah dihapus 100% dari sidebar navigasi global.
+  - Menu Moderasi Sponsor dan seluruh artefak tautan sponsor dihapus 100%.
+  - Zero sub-group ekstra, zero link eksternal di luar 6 menu utama global.
+
+--------------------------------------------------------------------------------
+2. CLEAN BREADCRUMB NAVBAR VERIFICATION
+--------------------------------------------------------------------------------
+File: web/src/components/layout/Sidebar07Layout.tsx
+Komponen Header Navbar:
+  1. SidebarTrigger (Toggle expand/collapse sidebar)
+  2. Separator tegak (h-4 w-[1px] bg-border)
+  3. Breadcrumb Navigation (model Jean):
+     - Root: Tombol 'Dashboard' (klik mereset ke navigasi global dan menuju /dashboard)
+     - Separator: '/'
+     - Project Switcher: BreadcrumbProjectSwitcher (dropdown 1-klik switch, filter pencarian, filter proyek arsip, tombol create new project)
+     - Separator: '/'
+     - Leaf Module Name: Label modul dinamis sesuai tab aktif (Dashboard, Tasks & Kanban, Projects Directory, Discussions, AI Agents Hub, Team Workspace, Overview, WordPress Cloud, Repos, Deployments, Telemetry, Studio Rooms, Settings)
+  4. Right Actions:
+     - Tokyo Night Theme Toggle (Moon / Sun) dengan transisi mulus Dark (#1a1b26) / Light (#eaeef6)
+
+Verifikasi Kebersihan Header:
+  - Tombol toggle mode ('Mode: studio/marketing'): TIDAK ADA (0%)
+  - Tombol 'Beranda': TIDAK ADA (0%)
+  - Tombol sponsor atau tautan promosi: TIDAK ADA (0%)
+  - Clutter navigasi lainnya: NIHIL (100% Clean)
+
+--------------------------------------------------------------------------------
+3. CONTEXTUAL PROJECT MODULE SIDEBAR & NAVUSER VERIFICATION
+--------------------------------------------------------------------------------
+A. Contextual Project Sidebar:
+  Kondisi Navigasi: effectiveNavMode === 'project'
+  Header Contextual Sidebar:
+    - Tombol kembali: '← Navigasi Global' (ArrowLeft) -> mereset mode ke 'global' dan menuju /dashboard
+    - Badge proyek aktif: Nama proyek ({currentProject.name}) + Jenis proyek (Modul Proyek • {currentProject.type})
+  Modul-modul Kontekstual Proyek:
+    1. Overview (LayoutDashboard) -> /dashboard
+    2. WordPress Cloud (Globe) -> /wordpress
+    3. Repos (GitBranch) -> /repositories
+    4. Deployments (Rocket) -> /deployer
+    5. Telemetry (Activity) -> /observability
+    6. Studio Rooms (MessageSquare) -> /discussions
+    7. Settings (Settings2) -> /settings (mengelola server, custom domains, konfigurasi)
+
+B. NavUser Footer:
+  File: web/src/components/layout/NavUser.tsx
+  Lokasi: SidebarFooter (menempel di bagian bawah sidebar)
+  Fitur:
+    - Avatar pengguna dengan inisial (AD / BU) dan status indikator hijau
+    - Identitas pengguna aktif (username: admin / email: admin@cuan.local) dengan badge 'OWNER'
+    - Popover menu:
+      * Menu Profil & Ganti Password (membuka dialog ChangePasswordModal)
+      * Toggle Tema Tokyo Night Dark / Light
+      * Tombol Keluar (Logout) aman via auth context
+
+--------------------------------------------------------------------------------
+4. QUALITY GATES & VERIFICATION RESULTS
+--------------------------------------------------------------------------------
+A. TypeScript Compilation Check:
+  $ cd web && npx tsc --noEmit
+  Exit Code: 0
+  Errors: 0
+
+B. Production Bundle Build:
+  $ cd web && npm run build
+  Exit Code: 0
+  vite v5.4.21 building for production...
+  ✓ 1653 modules transformed.
+  dist/index.html                     0.55 kB │ gzip:   0.36 kB
+  dist/assets/index-Dr2PMvSa.css    106.98 kB │ gzip:  17.49 kB
+  dist/assets/index-BJVsCCkm.js   1,231.22 kB │ gzip: 285.47 kB
+  ✓ built in 4.89s
+
+C. Go Targeted Tests (Zero Regression):
+  $ go test ./internal/server/... ./internal/auth/...
+  ok  	github.com/buchin/cuan/internal/server	117.308s
+  ok  	github.com/buchin/cuan/internal/auth	(cached)
+  Exit Code: 0 (100% PASS)
+
+--------------------------------------------------------------------------------
+5. DEFINITION OF DONE (DoD) CHECKLIST
+--------------------------------------------------------------------------------
+[x] 1. Tepat 6 item di menu sidebar utama global tanpa sub-grup tambahan.
+[x] 2. Navbar bersih bebas tombol mode atau link landing page.
+[x] 3. Navigasi modul proyek kontekstual dan breadcrumb switcher tetap berfungsi instan.
+[x] 4. npx tsc --noEmit 0 error & npm run build PASS.
+[x] 5. Audit pack docs/sprints/evidence/S15/s15_2_strict_sidebar_navbar_verified.txt terbit, commit author Buchin <buchin@dropsugar.com> & push origin/main.
+================================================================================

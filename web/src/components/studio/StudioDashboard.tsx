@@ -115,22 +115,22 @@ export function StudioDashboard({
       if (window.location.pathname.startsWith('/studio/campaigns') || window.location.pathname.startsWith('/campaigns')) {
         return 'campaigns'
       }
-      if (window.location.pathname.startsWith('/studio/discussions')) {
+      if (window.location.pathname.startsWith('/studio/discussions') || window.location.pathname.startsWith('/discussions')) {
         return 'discussions'
       }
-      if (window.location.pathname.startsWith('/studio/tasks')) {
+      if (window.location.pathname.startsWith('/studio/tasks') || window.location.pathname.startsWith('/tasks')) {
         return 'tasks'
       }
-      if (window.location.pathname.startsWith('/studio/observability')) {
+      if (window.location.pathname.startsWith('/studio/observability') || window.location.pathname.startsWith('/observability')) {
         return 'observability'
       }
-      if (window.location.pathname.startsWith('/studio/domains')) {
+      if (window.location.pathname.startsWith('/studio/domains') || window.location.pathname.startsWith('/domains') || window.location.pathname.startsWith('/studio/settings') || window.location.pathname.startsWith('/settings')) {
         return 'domains'
       }
-      if (window.location.pathname.startsWith('/studio/servers')) {
+      if (window.location.pathname.startsWith('/studio/servers') || window.location.pathname.startsWith('/servers')) {
         return 'servers'
       }
-      if (window.location.pathname.startsWith('/studio/repositories')) {
+      if (window.location.pathname.startsWith('/studio/repositories') || window.location.pathname.startsWith('/repositories')) {
         return 'repositories'
       }
       if (window.location.pathname.startsWith('/studio/publishing')) {
@@ -356,17 +356,17 @@ export function StudioDashboard({
       } else {
         setSelectedCampaignId(null)
       }
-    } else if (currentPath === '/studio/discussions' || currentPath?.startsWith('/studio/discussions')) {
+    } else if (currentPath === '/studio/discussions' || currentPath?.startsWith('/studio/discussions') || currentPath === '/discussions' || currentPath?.startsWith('/discussions')) {
       setActiveTab('discussions')
-    } else if (currentPath === '/studio/tasks' || currentPath?.startsWith('/studio/tasks')) {
+    } else if (currentPath === '/studio/tasks' || currentPath?.startsWith('/studio/tasks') || currentPath === '/tasks' || currentPath?.startsWith('/tasks')) {
       setActiveTab('tasks')
-    } else if (currentPath === '/studio/observability') {
+    } else if (currentPath === '/studio/observability' || currentPath === '/observability') {
       setActiveTab('observability')
-    } else if (currentPath === '/studio/domains') {
+    } else if (currentPath === '/studio/domains' || currentPath === '/domains' || currentPath === '/studio/settings' || currentPath === '/settings') {
       setActiveTab('domains')
-    } else if (currentPath === '/studio/servers') {
+    } else if (currentPath === '/studio/servers' || currentPath === '/servers') {
       setActiveTab('servers')
-    } else if (currentPath === '/studio/repositories' || currentPath?.startsWith('/studio/repositories')) {
+    } else if (currentPath === '/studio/repositories' || currentPath?.startsWith('/studio/repositories') || currentPath === '/repositories' || currentPath?.startsWith('/repositories')) {
       setActiveTab('repositories')
     } else if (currentPath === '/studio/publishing' || currentPath?.startsWith('/studio/publishing')) {
       setActiveTab('publishing')
