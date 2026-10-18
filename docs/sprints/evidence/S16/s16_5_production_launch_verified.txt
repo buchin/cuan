@@ -1,7 +1,7 @@
 ================================================================================
 VERIFIKASI AUDIT SPRINT 16: S16.5 — STAGING E2E DRILL, ZERO-REGRESSION VERIFICATION & PRODUCTION LAUNCH DI CUAN.DOJO.CC
 ================================================================================
-Timestamp:     2026-10-18T06:28:44Z
+Timestamp:     2026-10-18T06:36:41Z
 Title:         S16.5 — Staging E2E Drill, Zero-Regression Verification & Production Launch cuan.dojo.cc
 Author:        Buchin <buchin@dropsugar.com>
 Repository:    https://github.com/buchin/cuan
@@ -13,7 +13,7 @@ Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
 ================================================================================
    - [STEP 1A: AUTH GATEKEEPER] Protected endpoints (/api/v1/projects) strictly return 401 Unauthorized
    - [STEP 1B: ADMIN LOGIN] Successfully authenticated default admin (admin / whosyourdaddy) -> Token issued
-   - [STEP 1C: PROJECTS HUB] Project 'Creator Toko Sepatu' (proj_427bd80c3ac8) created successfully
+   - [STEP 1C: PROJECTS HUB] Project 'Creator Toko Sepatu' (proj_0179c868d22f) created successfully
    - [STEP 1D: TASK BOARD & DOD] Task 'Setup Stripe checkout and product catalog' created with 3 acceptance criteria
    - [STEP 1E: STATUS ADVANCE] 1-Click Status flow (todo -> doing -> review -> done) verified
    - [STEP 1F: CLEAN BUNDLE] JS size: 259 KB (77% reduction), CSS size: 39 KB (Zero monster components)
@@ -29,6 +29,7 @@ Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
 ================================================================================
    - Public Live Probe: GET https://cuan.dojo.cc/healthz -> 200 OK
    - Public Live Probe: GET https://cuan.dojo.cc/readyz -> 200 OK
+   - Public Live Single-Page App: GET https://cuan.dojo.cc/ -> 200 OK (Clean Slate Assets index-DjGiPRgm.js & index-BEG97NUv.css verified live!)
    - Caddy On-Demand TLS Gatekeeper Probe -> Authorized
 
 ================================================================================

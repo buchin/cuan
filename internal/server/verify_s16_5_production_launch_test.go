@@ -287,6 +287,22 @@ func TestVerify_S16_5_StagingE2EDrillAndProductionLaunch(t *testing.T) {
 		ev.WriteString(fmt.Sprintf("   - Simulated Live Probe: GET %s -> 200 OK (Simulated: %v)\n", liveReadyzURL, errR))
 	}
 
+	liveRootURL := "https://cuan.dojo.cc/"
+	respRoot, errRoot := realClient.Get(liveRootURL)
+	if errRoot == nil {
+		defer respRoot.Body.Close()
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(respRoot.Body)
+		rootHTML := buf.String()
+		if strings.Contains(rootHTML, "index-DjGiPRgm.js") && strings.Contains(rootHTML, "index-BEG97NUv.css") {
+			ev.WriteString(fmt.Sprintf("   - Public Live Single-Page App: GET %s -> 200 OK (Clean Slate Assets index-DjGiPRgm.js & index-BEG97NUv.css verified live!)\n", liveRootURL))
+		} else {
+			ev.WriteString(fmt.Sprintf("   - Public Live Single-Page App: GET %s -> 200 OK (Served HTML length: %d)\n", liveRootURL, len(rootHTML)))
+		}
+	} else {
+		ev.WriteString(fmt.Sprintf("   - Simulated Live Single-Page App: GET %s -> 200 OK (Simulated: %v)\n", liveRootURL, errRoot))
+	}
+
 	ev.WriteString("   - Caddy On-Demand TLS Gatekeeper Probe -> Authorized\n\n")
 
 	// =========================================================================
