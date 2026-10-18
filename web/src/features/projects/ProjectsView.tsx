@@ -34,7 +34,7 @@ export function ProjectsView({
   const archivedProjects = projects.filter((p) => p.is_archived)
 
   const displayedProjects = (activeTab === 'active' ? activeProjects : archivedProjects).filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
     (p.repo_url && p.repo_url.toLowerCase().includes(search.toLowerCase()))
   )
 
