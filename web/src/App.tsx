@@ -43,6 +43,7 @@ export function App() {
   const [selectedTaskStatus, setSelectedTaskStatus] = useState('all')
   const [selectedTaskProject, setSelectedTaskProject] = useState('all')
   const [isMobileChatActive, setIsMobileChatActive] = useState(false)
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
 
   // Fetch Projects and Tasks
   const refreshProjects = useCallback(async () => {
@@ -169,7 +170,14 @@ export function App() {
     <>
       <AppShell
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={(tab) => {
+          setCurrentTab(tab)
+          if (tab !== 'inbox') {
+            setIsMobileChatActive(false)
+          }
+        }}
+        isMobileDrawerOpen={isMobileDrawerOpen}
+        onMobileDrawerOpenChange={setIsMobileDrawerOpen}
         activeProject={activeProject}
         projects={projects}
         onSelectProject={(p) => {
@@ -220,6 +228,7 @@ export function App() {
             contactSearch={contactSearch}
             onContactSearchChange={setContactSearch}
             onMobileChatActiveChange={setIsMobileChatActive}
+            onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
           />
         )}
 

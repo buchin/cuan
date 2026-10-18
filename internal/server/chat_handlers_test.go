@@ -237,3 +237,84 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 		t.Fatalf("expected CORS *, got %s", cors)
 	}
 }
+
+func TestChatHandlers_ScrumMasterConversationalGreetings(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// Test Cases for Conversational Greetings / Questions (Should have NO ActionCard)
+	casualInputs := []string{
+		"Apa kabar",
+		"Halo",
+		"Pagi",
+		"Bagaimana sprint?",
+		"Siapa kamu?",
+	}
+
+	for _, input := range casualInputs {
+		payload := map[string]interface{}{"message": input}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+defaultScrumMasterRoomID+"/messages", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 for casual message '%s', got %d", input, rec.Code)
+		}
+
+		var resp struct {
+			Message    ChatMessageDTO  `json:"message"`
+			AgentReply *ChatMessageDTO `json:"agent_reply"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to decode response for '%s': %v", input, err)
+		}
+
+		if resp.AgentReply == nil {
+			t.Fatalf("expected agent reply for '%s'", input)
+		}
+
+		// Verify NO ActionCard for casual conversation
+		if resp.AgentReply.ActionCard != nil {
+			t.Fatalf("expected NO ActionCard for casual greeting '%s', but got: %+v", input, resp.AgentReply.ActionCard)
+		}
+
+		// Verify it does NOT contain rigid problem statement template
+		if strings.Contains(resp.AgentReply.Message, "Problem Statement: "+input) || strings.Contains(resp.AgentReply.Message, "Mulai Kerjakan") {
+			t.Fatalf("expected natural response without rigid template for '%s', got: %s", input, resp.AgentReply.Message)
+		}
+	}
+
+	// Test Case for Technical Task Instruction (MUST have ActionCard & DoD)
+	taskMsg := "Tolong buatkan fitur export CSV transaksi"
+	taskPayload := map[string]interface{}{"message": taskMsg}
+	taskBody, _ := json.Marshal(taskPayload)
+	reqTask := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+defaultScrumMasterRoomID+"/messages", bytes.NewReader(taskBody))
+	reqTask.Header.Set("Content-Type", "application/json")
+	reqTask.Header.Set("Authorization", "Bearer "+token)
+	recTask := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recTask, reqTask)
+
+	if recTask.Code != http.StatusOK {
+		t.Fatalf("expected 200 for task message, got %d", recTask.Code)
+	}
+
+	var taskResp struct {
+		Message    ChatMessageDTO  `json:"message"`
+		AgentReply *ChatMessageDTO `json:"agent_reply"`
+	}
+	if err := json.Unmarshal(recTask.Body.Bytes(), &taskResp); err != nil {
+		t.Fatalf("failed to decode task response: %v", err)
+	}
+
+	if taskResp.AgentReply == nil || taskResp.AgentReply.ActionCard == nil {
+		t.Fatalf("expected ActionCard for technical task message, got nil")
+	}
+	if !strings.Contains(taskResp.AgentReply.ActionCard.TaskTitle, "export CSV") {
+		t.Fatalf("expected TaskTitle to reflect task, got: %s", taskResp.AgentReply.ActionCard.TaskTitle)
+	}
+	if len(taskResp.AgentReply.ActionCard.DoDChecklist) == 0 {
+		t.Fatalf("expected DoDChecklist for technical task")
+	}
+}

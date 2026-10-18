@@ -98,15 +98,30 @@ Saat fungsi `ensureDefaultAgentRooms` dieksekusi dengan `ProjectID: "default"`, 
 3. **Graceful Retry:**
    Jika `CreateMessage` mengalami kendala, sistem secara otomatis mere-ensure room default dan mengulang penyimpanan pesan sekali lagi.
 
+### 3.3. Conversational vs Technical Task Intelligence
+Sistem chat Scrum Master kini mampu membedakan jenis pesan:
+1. **Percakapan Biasa & Sapaan Kasual:**
+   - Pertanyaan seperti *"Apa kabar"*, *"Halo"*, *"Pagi"*, *"Bagaimana sprint?"*, atau *"Siapa kamu?"* direspons secara hangat, natural, dan kontekstual sebagai asisten Scrum Master cerdas.
+   - Tidak menampilkan Action Card atau template kaku Problem Statement/DoD agar percakapan terasa manusiawi dan nyaman.
+2. **Instruksi Tugas & Pekerjaan Teknis:**
+   - Pesan yang mengandung kata kunci tugas seperti *buat*, *perbaiki*, *fix*, *bug*, *deploy*, *fitur*, atau *sprint backlog* dianalisis secara cerdas.
+   - Sistem merumuskan Problem Statement yang terarah, menyusun checklist Definition of Done (DoD) dinamis (investigasi root cause, implementasi kode, testing terarah), dan menyajikan kartu aksi interaktif (*Action Card*) dengan tombol **Mulai Kerjakan**.
+
 ---
 
-## 4. Restrukturisasi Navigasi 4 Menu Utama (S21.3)
+## 4. Restrukturisasi Navigasi 4 Menu Utama & Mobile Drawer (S21.3)
 
-Navigasi aplikasi pada desktop sidebar rail dan mobile bottom navigation bar kini disederhanakan menjadi 4 menu utama:
+Navigasi aplikasi pada desktop sidebar rail dan mobile kini disederhanakan menjadi 4 menu utama:
 1. **Inbox:** Pusat komunikasi langsung antara Product Owner (manusia), Scrum Master (AI), worker agents, serta live chat visitor Dojo.
 2. **Tasks:** Global Task Board (Unified Backlog) yang merangkum seluruh tugas dari seluruh workspace proyek dalam satu antarmuka Kanban terpadu.
 3. **Projects:** Ruang kerja proyek, repositori GitHub terhubung, dan pengaturan workspace.
 4. **Team:** Unified Team Directory yang menggabungkan direktori manusia dan agen AI dalam satu tempat yang transparan.
+
+### 4.1. Mobile Drawer / Slide-Over Sidebar di Layar Ponsel (< md)
+Pada smartphone:
+- **Hamburger Button (☰):** Tersedia di header atas `AppShell` dan langsung di dalam header chat `InboxView`.
+- **Slide-Over Sidebar:** Membuka laci navigasi dari kiri yang menampilkan 4 menu utama (Inbox, Tasks dengan badge Global Board, Projects, Team), subpanel kontekstual, serta tombol Dark/Light mode.
+- **Transisi Fleksibel saat Chat Aktif:** Ketika pengguna sedang mengobrol dengan Scrum Master atau agen di ponsel, pengguna dapat kembali via tombol Back (`<`) atau membuka Mobile Drawer (`☰`) untuk langsung melompat ke tab Tasks kapan saja tanpa hambatan.
 
 ---
 

@@ -1,7 +1,7 @@
 ================================================================================
 VERIFIKASI AUDIT SPRINT 21: S21.6 — STAGING E2E DRILL, ZERO-REGRESSION & PRODUCTION LAUNCH DI CUAN.DOJO.CC
 ================================================================================
-Timestamp:     2026-10-18T13:56:00Z
+Timestamp:     2026-10-18T14:27:18Z
 Task ID:       wbmicpeaalxxnkzwgbnpenuc
 Title:         Sprint 21: Unified Team, Global Tasks Navigation & Fix Chat Scrum Master Persistence
 Author:        Buchin <buchin@dropsugar.com>
@@ -13,7 +13,7 @@ Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
 1. STAGING ENVIRONMENT INITIALIZATION & AUTH GATEKEEPER
 ================================================================================
    - [STEP 1A: AUTH GATEKEEPER] Protected endpoints (/api/v1/chat/contacts) strictly return 401 Unauthorized
-   - [STEP 1B: AUTH SUCCESS] Admin logged in successfully with token: Bearer ed9bb192084d782...
+   - [STEP 1B: AUTH SUCCESS] Admin logged in successfully with token: Bearer 2ac8e3e992b680c...
 
 ================================================================================
 2. S21.1: HOTFIX POSTGRESQL ROOM/MESSAGE FK & SEED DEFAULT PROJECT
@@ -26,6 +26,7 @@ Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
 
 **Prob..."
    - [S21.1: CHAT PERSISTENCE VERIFIED] Successfully retrieved 3 persisted messages from DB (no 0 rows / no data loss)
+   - [S21.1: CONVERSATIONAL SM CHAT] 'Apa kabar' responded naturally: "Kabar baik dan luar biasa, Buchin! Saya Scrum Master Cuan, siap m..." (ActionCard: nil)
 
 ================================================================================
 3. S21.3: NAVIGATION RESTRUCTURE 4 MENU UTAMA (DESKTOP & MOBILE)
@@ -33,6 +34,7 @@ Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
    - [S21.3: APPTAB DEFINITION] AppTab defines exactly 4 items: 'inbox' | 'tasks' | 'projects' | 'team'
    - [S21.3: NAV_ITEMS] 4 Primary Rail Items verified: 1. Inbox, 2. Tasks, 3. Projects, 4. Team
    - [S21.3: MOBILE BOTTOM NAV] Bottom Navigation Bar mirrors 4 menus with auto-hide capability
+   - [S21.3: MOBILE DRAWER] Slide-over Mobile Drawer (hamburger button ☰ & back button <) verified in AppShell & InboxView
 
 ================================================================================
 4. S21.4: UNIFIED TEAM DIRECTORY (HUMANS + AGENTS)
@@ -58,7 +60,7 @@ Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
 ================================================================================
 7. OPERATIONAL GUIDE VERIFICATION (docs/guides/unified_team_and_global_tasks_guide.md)
 ================================================================================
-   - [GUIDE VERIFIED] docs/guides/unified_team_and_global_tasks_guide.md (8611 bytes) intact with D2 TALA diagrams
+   - [GUIDE VERIFIED] docs/guides/unified_team_and_global_tasks_guide.md (10180 bytes) intact with D2 TALA diagrams
 
 ================================================================================
 SUMMARY AUDIT MATRIX SPRINT 21

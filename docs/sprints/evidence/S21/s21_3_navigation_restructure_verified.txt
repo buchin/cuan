@@ -25,3 +25,10 @@ Status:        PASS (100% VERIFIED)
    - [x] Mobile Bottom Navigation Bar:
          - Renders 4 primary menus in 100% responsive bottom bar.
          - Seamlessly auto-hides when a mobile chat conversation is active (hideBottomNav=true).
+   - [x] Mobile Drawer / Slide-Over Sidebar (< md):
+         - Hamburger menu button (☰) placed prominently in AppShell top header.
+         - Dedicated drawer trigger (☰) and Back button (<) available inside mobile chat header in InboxView.
+         - Slide-over drawer contains all 4 primary menus (Inbox, Tasks, Projects, Team), contextual subpanel, theme toggle, and account info.
+         - Tapping 'Tasks' (Global Board) navigates instantly to Global Task Board from any screen on HP.
+   - [x] Desktop Sidebar Rail:
+         - CheckSquare icon for Tasks tab interactive with hover and active states.

@@ -197,6 +197,39 @@ func TestVerify_S21_6_StagingE2EDrillAndProductionLaunch(t *testing.T) {
 	}
 	ev.WriteString(fmt.Sprintf("   - [S21.1: CHAT PERSISTENCE VERIFIED] Successfully retrieved %d persisted messages from DB (no 0 rows / no data loss)\n", len(smHistory.Messages)))
 
+	// Step 2D: Verify Conversational Chat (Apa kabar -> Natural response without Action Card)
+	casualMsgPayload := map[string]interface{}{
+		"message":     "Apa kabar",
+		"author_type": "user",
+		"author_name": "Buchin",
+	}
+	casualMsgBody, _ := json.Marshal(casualMsgPayload)
+	reqCasual := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/chat/conversations/%s/messages", defaultScrumMasterRoomID), bytes.NewReader(casualMsgBody))
+	reqCasual.Header.Set("Authorization", "Bearer "+token)
+	reqCasual.Header.Set("Content-Type", "application/json")
+	recCasual := httptest.NewRecorder()
+	srvStaging.router.ServeHTTP(recCasual, reqCasual)
+
+	if recCasual.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for casual greeting 'Apa kabar', got %d", recCasual.Code)
+	}
+
+	var casualResp struct {
+		Message    ChatMessageDTO  `json:"message"`
+		AgentReply *ChatMessageDTO `json:"agent_reply"`
+	}
+	if err := json.Unmarshal(recCasual.Body.Bytes(), &casualResp); err != nil {
+		t.Fatalf("failed to decode casual response: %v", err)
+	}
+
+	if casualResp.AgentReply == nil || casualResp.AgentReply.ActionCard != nil {
+		t.Fatalf("expected natural response with NO ActionCard for 'Apa kabar', got: %+v", casualResp.AgentReply)
+	}
+	if strings.Contains(casualResp.AgentReply.Message, "Problem Statement: Apa kabar") || strings.Contains(casualResp.AgentReply.Message, "Mulai Kerjakan") {
+		t.Fatalf("expected conversational reply without rigid Problem Statement template, got: %s", casualResp.AgentReply.Message)
+	}
+	ev.WriteString(fmt.Sprintf("   - [S21.1: CONVERSATIONAL SM CHAT] 'Apa kabar' responded naturally: \"%s\" (ActionCard: nil)\n", casualResp.AgentReply.Message[:65]+"..."))
+
 	// =========================================================================
 	// SECTION 3: S21.3 NAVIGATION RESTRUCTURE 4 MENU UTAMA
 	// =========================================================================
@@ -231,6 +264,22 @@ func TestVerify_S21_6_StagingE2EDrillAndProductionLaunch(t *testing.T) {
 		t.Fatalf("AppShell.tsx mobile bottom nav does not render NAV_ITEMS cleanly")
 	}
 	ev.WriteString("   - [S21.3: MOBILE BOTTOM NAV] Bottom Navigation Bar mirrors 4 menus with auto-hide capability\n")
+
+	// Check Mobile Drawer in AppShell.tsx and InboxView.tsx
+	if !strings.Contains(appShellContent, "Buka Menu Navigasi") || !strings.Contains(appShellContent, "Mobile Slide-Over Drawer") {
+		t.Fatalf("AppShell.tsx missing Mobile Drawer slide-over implementation")
+	}
+
+	inboxViewPath := filepath.Join("..", "..", "web", "src", "features", "inbox", "InboxView.tsx")
+	inboxViewBytes, errIV := os.ReadFile(inboxViewPath)
+	if errIV != nil {
+		t.Fatalf("failed to read InboxView.tsx: %v", errIV)
+	}
+	inboxViewContent := string(inboxViewBytes)
+	if !strings.Contains(inboxViewContent, "onOpenMobileDrawer") || !strings.Contains(inboxViewContent, "Buka Navigasi Utama") {
+		t.Fatalf("InboxView.tsx missing onOpenMobileDrawer trigger in chat header")
+	}
+	ev.WriteString("   - [S21.3: MOBILE DRAWER] Slide-over Mobile Drawer (hamburger button ☰ & back button <) verified in AppShell & InboxView\n")
 
 	// =========================================================================
 	// SECTION 4: S21.4 UNIFIED TEAM DIRECTORY (HUMANS + AGENTS)

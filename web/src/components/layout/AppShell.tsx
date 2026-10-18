@@ -13,6 +13,8 @@ import {
   PanelLeft,
   Sun,
   Moon,
+  Menu,
+  X,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -35,6 +37,9 @@ interface AppShellProps {
   projectsSubPanel?: React.ReactNode
   // Team sub-panel
   teamSubPanel?: React.ReactNode
+  // Mobile drawer controls
+  isMobileDrawerOpen?: boolean
+  onMobileDrawerOpenChange?: (open: boolean) => void
 }
 
 const NAV_ITEMS: { id: AppTab; label: string; icon: React.ElementType }[] = [
@@ -56,8 +61,16 @@ export function AppShell({
   tasksSubPanel,
   projectsSubPanel,
   teamSubPanel,
+  isMobileDrawerOpen,
+  onMobileDrawerOpenChange,
 }: AppShellProps) {
   const [subPanelOpen, setSubPanelOpen] = useState(true)
+  const [internalDrawerOpen, setInternalDrawerOpen] = useState(false)
+  const isDrawerOpen = isMobileDrawerOpen !== undefined ? isMobileDrawerOpen : internalDrawerOpen
+  const setDrawerOpen = (open: boolean) => {
+    setInternalDrawerOpen(open)
+    if (onMobileDrawerOpenChange) onMobileDrawerOpenChange(open)
+  }
   const { resolvedTheme, toggleTheme } = useTheme()
 
   const getSubPanelContent = () => {
@@ -179,8 +192,22 @@ export function AppShell({
       {/* ── TIER 3: Main Viewport ── */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Bar Header */}
-        <header className="h-12 border-b border-border px-3 md:px-4 flex items-center justify-between bg-background shrink-0">
+        <header
+          className={cn(
+            'h-12 border-b border-border px-3 md:px-4 flex items-center justify-between bg-background shrink-0',
+            hideBottomNav && 'hidden md:flex'
+          )}
+        >
           <div className="flex items-center gap-2 text-xs">
+            {/* Mobile Hamburger Menu button (☰) */}
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="md:hidden p-1.5 -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              title="Buka Menu Navigasi"
+              aria-label="Open Navigation Drawer"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             {!subPanelOpen && (
               <button
                 onClick={() => setSubPanelOpen(true)}
@@ -191,7 +218,7 @@ export function AppShell({
               </button>
             )}
             {/* Mobile brand badge */}
-            <div className="md:hidden h-6 w-6 bg-primary text-primary-foreground font-mono font-black text-[11px] flex items-center justify-center rounded shrink-0">
+            <div className="hidden sm:flex md:hidden h-6 w-6 bg-primary text-primary-foreground font-mono font-black text-[11px] items-center justify-center rounded shrink-0">
               C
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -233,6 +260,109 @@ export function AppShell({
           {children}
         </div>
       </main>
+
+      {/* ── Mobile Slide-Over Drawer / Sidebar (< md) ── */}
+      {isDrawerOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 md:hidden animate-in fade-in duration-200"
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-sidebar border-r border-border z-50 md:hidden flex flex-col shadow-2xl transition-transform duration-300 ease-in-out',
+          isDrawerOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {/* Drawer Header */}
+        <div className="h-14 px-4 flex items-center justify-between border-b border-sidebar-border shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 bg-primary text-primary-foreground font-mono font-black text-xs flex items-center justify-center rounded">
+              C
+            </div>
+            <div>
+              <span className="font-bold text-sm text-foreground">Cuan</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">v0.6.0</span>
+            </div>
+          </div>
+          <button
+            onClick={() => setDrawerOpen(false)}
+            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 rounded-md transition-colors"
+            title="Tutup Menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Drawer Navigation List */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            Navigasi Utama
+          </div>
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => {
+                onSelectTab(id)
+                setDrawerOpen(false)
+              }}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors text-left',
+                currentTab === id
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                  : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">{label}</span>
+              {id === 'tasks' && (
+                <span
+                  className={cn(
+                    'text-[10px] px-1.5 py-0.5 rounded font-mono font-medium',
+                    currentTab === id
+                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : 'bg-sidebar-accent text-sidebar-foreground'
+                  )}
+                >
+                  Global Board
+                </span>
+              )}
+            </button>
+          ))}
+
+          {/* Contextual Sub-panel inside Mobile Drawer */}
+          <div className="pt-3 mt-3 border-t border-sidebar-border">
+            <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Sub-Panel: {NAV_ITEMS.find((n) => n.id === currentTab)?.label}
+            </div>
+            <div className="mt-1 bg-background/50 rounded-lg p-2 border border-border/50 text-xs">
+              {getSubPanelContent()}
+            </div>
+          </div>
+        </div>
+
+        {/* Drawer Footer */}
+        <div className="p-3 border-t border-sidebar-border bg-sidebar/50 shrink-0 flex items-center justify-between">
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 rounded-md transition-colors"
+          >
+            {resolvedTheme === 'dark' ? (
+              <>
+                <Moon className="h-4 w-4 text-primary" />
+                <span>Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <Sun className="h-4 w-4 text-amber-500" />
+                <span>Light Mode</span>
+              </>
+            )}
+          </button>
+          <NavUser isCollapsed dropdownPosition="bottom-right" />
+        </div>
+      </aside>
 
       {/* ── Mobile Bottom Navigation Bar (md:hidden) — Hidden when chat is active in mobile ── */}
       {!hideBottomNav && (

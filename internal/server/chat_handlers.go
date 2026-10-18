@@ -913,48 +913,83 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		}
 	}
 
-	// If conversation is with Scrum Master agent, trigger automated triage response
+	// If conversation is with Scrum Master agent, differentiate conversational vs task instruction
 	var agentMsgDTO *ChatMessageDTO
 	if convID == defaultScrumMasterRoomID || strings.Contains(convID, "scrum") {
-		triage := generateSMTriageResponse(text)
-		agentUUID := db.GenerateUUID()
-		agentNow := now.Add(200 * time.Millisecond)
+		if isTechnicalTaskInstruction(text) {
+			triage := generateSMTriageResponse(text)
+			agentUUID := db.GenerateUUID()
+			agentNow := now.Add(200 * time.Millisecond)
 
-		if s.projectStudioRepo != nil {
-			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-				ID:         agentUUID,
-				RoomID:     convID,
-				AuthorType: "agent",
-				AuthorID:   "agent_scrum_master",
-				AuthorName: "Scrum Master",
-				Content:    triage.Text,
-				CreatedAt:  agentNow,
-				UpdatedAt:  agentNow,
-			}); err != nil {
-				log.Printf("[handleInternalSendConversationMessage] failed to save Scrum Master message: %v", err)
+			if s.projectStudioRepo != nil {
+				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+					ID:         agentUUID,
+					RoomID:     convID,
+					AuthorType: "agent",
+					AuthorID:   "agent_scrum_master",
+					AuthorName: "Scrum Master",
+					Content:    triage.Text,
+					CreatedAt:  agentNow,
+					UpdatedAt:  agentNow,
+				}); err != nil {
+					log.Printf("[handleInternalSendConversationMessage] failed to save Scrum Master message: %v", err)
+				}
 			}
-		}
 
-		card := &AgentActionCard{
-			TaskTitle:      triage.ProblemTitle,
-			DoDChecklist:   triage.DoDItems,
-			WorkerAgent:    triage.WorkerAgent,
-			Recommended:    true,
-			ApproveURL:     fmt.Sprintf("/api/v1/inbox/%s/approve", convID),
-			ExecutionState: "ready",
-		}
+			card := &AgentActionCard{
+				TaskTitle:      triage.ProblemTitle,
+				DoDChecklist:   triage.DoDItems,
+				WorkerAgent:    triage.WorkerAgent,
+				Recommended:    true,
+				ApproveURL:     fmt.Sprintf("/api/v1/inbox/%s/approve", convID),
+				ExecutionState: "ready",
+			}
 
-		agentMsgDTO = &ChatMessageDTO{
-			ID:         2,
-			UUID:       agentUUID,
-			RoomID:     convID,
-			SenderType: "operator",
-			AuthorType: "agent",
-			AuthorName: "Scrum Master",
-			Message:    triage.Text,
-			Content:    triage.Text,
-			ActionCard: card,
-			CreatedAt:  agentNow,
+			agentMsgDTO = &ChatMessageDTO{
+				ID:         2,
+				UUID:       agentUUID,
+				RoomID:     convID,
+				SenderType: "operator",
+				AuthorType: "agent",
+				AuthorName: "Scrum Master",
+				Message:    triage.Text,
+				Content:    triage.Text,
+				ActionCard: card,
+				CreatedAt:  agentNow,
+			}
+		} else {
+			// Natural, friendly conversational response without Action Card or rigid DoD
+			convReplyText := s.generateSMConversationalResponse(r.Context(), text)
+			agentUUID := db.GenerateUUID()
+			agentNow := now.Add(200 * time.Millisecond)
+
+			if s.projectStudioRepo != nil {
+				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+					ID:         agentUUID,
+					RoomID:     convID,
+					AuthorType: "agent",
+					AuthorID:   "agent_scrum_master",
+					AuthorName: "Scrum Master",
+					Content:    convReplyText,
+					CreatedAt:  agentNow,
+					UpdatedAt:  agentNow,
+				}); err != nil {
+					log.Printf("[handleInternalSendConversationMessage] failed to save Scrum Master message: %v", err)
+				}
+			}
+
+			agentMsgDTO = &ChatMessageDTO{
+				ID:         2,
+				UUID:       agentUUID,
+				RoomID:     convID,
+				SenderType: "operator",
+				AuthorType: "agent",
+				AuthorName: "Scrum Master",
+				Message:    convReplyText,
+				Content:    convReplyText,
+				ActionCard: nil,
+				CreatedAt:  agentNow,
+			}
 		}
 	} else {
 		isAgentRoom := false
@@ -1064,8 +1099,144 @@ func (s *Server) executeAgentCLIResponse(ctx context.Context, agentName string, 
 		}
 	}
 
-	// Graceful response when CLI is in mock/offline test mode or times out
-	return fmt.Sprintf("Halo Buchin! Saya %s. Sesi CLI telah menerima instruksi: \"%s\". Sesi otonom aktif dan siap mengeksekusi kebutuhan sprint ini.", agentName, userPrompt)
+	// Graceful intelligent response when CLI is in mock/offline test mode, on VPS without agy, or times out
+	cleaned := strings.ToLower(strings.TrimSpace(userPrompt))
+	if strings.Contains(cleaned, "kabar") || strings.Contains(cleaned, "halo") || strings.Contains(cleaned, "hai") || strings.Contains(cleaned, "pagi") || strings.Contains(cleaned, "siang") || strings.Contains(cleaned, "sore") || strings.Contains(cleaned, "malam") {
+		return fmt.Sprintf("Halo Buchin! Saya %s, dalam kondisi prima dan siap membantu kebutuhan teknis atau eksekusi backlog di sprint ini.", agentName)
+	}
+	if strings.Contains(cleaned, "siapa") {
+		return fmt.Sprintf("Saya %s, agen AI otonom di tim pengembangan Cuan yang bertugas mengeksekusi implementasi kode, automated testing, dan perbaikan bug.", agentName)
+	}
+
+	return fmt.Sprintf("Halo Buchin! Saya %s. Instruksi Anda telah saya terima: \"%s\". Sesi otonom aktif dan siap mengeksekusi kebutuhan sprint ini.", agentName, userPrompt)
+}
+
+// isTechnicalTaskInstruction determines whether a message contains explicit task/technical work instructions
+// versus general greeting, inquiry, status question, or casual chat.
+func isTechnicalTaskInstruction(msg string) bool {
+	raw := strings.ToLower(strings.TrimSpace(msg))
+	cleaned := strings.TrimRight(raw, "?!.,;: \t\n\r")
+	if cleaned == "" {
+		return false
+	}
+
+	// 1. Explicit casual conversation, greeting, status inquiry, social phrases
+	casualPrefixes := []string{
+		"apa kabar", "gimana kabar", "kabar baik", "bagaimana kabar", "bagaimana kabarmu", "kabar",
+		"halo", "hai", "hello", "hi", "hey",
+		"selamat pagi", "pagi", "selamat siang", "siang", "selamat sore", "sore", "selamat malam", "malam",
+		"siapa kamu", "kamu siapa", "siapa anda", "anda siapa", "who are you",
+		"terima kasih", "makasih", "thanks", "thank you",
+		"oke", "ok", "siap", "mantap", "sip", "keren", "good", "nice",
+		"bisa bantu apa", "apa yang bisa kamu lakukan", "apa fungsi kamu",
+		"bagaimana sprint", "gimana sprint", "status sprint", "update sprint", "progress sprint", "progres sprint",
+		"lagi apa", "sedang apa", "lagi ngapain",
+	}
+
+	for _, cp := range casualPrefixes {
+		if cleaned == cp {
+			return false
+		}
+		// If message is a pure greeting or short casual question
+		if (strings.HasPrefix(cleaned, cp+" ") || strings.HasPrefix(cleaned, cp+"?")) && len(cleaned) < 35 {
+			return false
+		}
+	}
+
+	// 2. Clear technical action keywords
+	taskKeywords := []string{
+		"buat", "bikin", "ciptakan", "tambahkan", "tambah", "create", "build", "add",
+		"perbaiki", "fix", "repair", "patch", "hotfix", "atasi",
+		"bug", "error", "issue", "crash", "problem statement",
+		"deploy", "deployment", "rilis", "release", "ship",
+		"sprint backlog", "backlog", "task", "tugas",
+		"fitur", "feature",
+		"refactor", "migrasi", "migration", "database", "tabel", "foreign key",
+		"endpoint", "api", "route", "handler",
+		"implementasi", "implementasikan", "kerjakan", "eksekusi",
+		"setup", "konfigurasi", "config", "test suite", "testing",
+	}
+
+	for _, kw := range taskKeywords {
+		if strings.Contains(cleaned, kw) {
+			return true
+		}
+	}
+
+	// If longer instruction (over 50 chars) and not a casual question, treat as task
+	if len(cleaned) > 50 && !strings.Contains(cleaned, "kabar") && !strings.Contains(cleaned, "siapa") {
+		return true
+	}
+
+	return false
+}
+
+// generateSMConversationalResponse generates natural, friendly, and contextual responses for Scrum Master
+// without action cards, rigid problem statements, or DoD templates.
+func (s *Server) generateSMConversationalResponse(ctx context.Context, userPrompt string) string {
+	if s.cfg != nil && (s.cfg.Environment == "testing" || s.cfg.Environment == "staging") {
+		return getFallbackSMConversationResponse(userPrompt)
+	}
+
+	// Attempt agy execution with bounded timeout if CLI is present
+	binPath, err := exec.LookPath("agy")
+	if err != nil {
+		candidate := "/home/dev/.local/bin/agy"
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			binPath = candidate
+			err = nil
+		}
+	}
+
+	if err == nil && binPath != "" {
+		execCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		systemContext := fmt.Sprintf("Anda adalah Scrum Master cerdas, ramah, dan solutif di sistem Cuan. Pengguna (Product Owner: Buchin) mengatakan: \"%s\". Berikan balasan percakapan natural, hangat, dan ringkas dalam Bahasa Indonesia (2-3 kalimat saja) sebagai rekan kerja yang responsif. Jangan gunakan format Action Card, jangan gunakan template Problem Statement/DoD, dan jangan ada tombol.", userPrompt)
+		cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "4s")
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+
+		if cmdErr := cmd.Run(); cmdErr == nil {
+			out := strings.TrimSpace(stdoutBuf.String())
+			if out != "" && !strings.Contains(out, "Problem Statement:") {
+				out = strings.TrimPrefix(out, "[Scrum Master] ")
+				return out
+			}
+		}
+	}
+
+	return getFallbackSMConversationResponse(userPrompt)
+}
+
+func getFallbackSMConversationResponse(userPrompt string) string {
+	cleaned := strings.ToLower(strings.TrimSpace(userPrompt))
+	cleaned = strings.TrimRight(cleaned, "?!.,;: \t\n\r")
+
+	if strings.Contains(cleaned, "kabar") {
+		return "Kabar baik dan luar biasa, Buchin! Saya Scrum Master Cuan, siap mendampingi Anda mengawal ritme sprint dan koordinasi tim agen. Ada yang ingin kita diskusikan atau rencanakan hari ini?"
+	}
+	if strings.Contains(cleaned, "halo") || strings.Contains(cleaned, "hai") || strings.Contains(cleaned, "hello") || strings.Contains(cleaned, "pagi") || strings.Contains(cleaned, "siang") || strings.Contains(cleaned, "sore") || strings.Contains(cleaned, "malam") {
+		return "Halo Buchin! Selamat beraktivitas. Scrum Master di sini siap membantu mengelola backlog, memantau sprint, atau berkoordinasi dengan agen pekerja. Apa yang bisa saya bantu hari ini?"
+	}
+	if strings.Contains(cleaned, "siapa kamu") || strings.Contains(cleaned, "kamu siapa") || strings.Contains(cleaned, "siapa anda") {
+		return "Saya Scrum Master di Cuan, asisten cerdas Anda yang bertugas memfasilitasi Agentic Scrum, memecah ide Anda menjadi Definition of Done (DoD) yang terukur, dan mengorkestrasi agen pekerja seperti Antigravity Flash untuk menyelesaikan sprint tepat waktu."
+	}
+	if strings.Contains(cleaned, "bagaimana sprint") || strings.Contains(cleaned, "gimana sprint") || strings.Contains(cleaned, "status sprint") || strings.Contains(cleaned, "update sprint") || strings.Contains(cleaned, "progress sprint") || strings.Contains(cleaned, "progres sprint") {
+		return "Sprint saat ini berjalan aktif dengan tim yang terkoordinasi dengan baik! Seluruh backlog prioritas terpantau di Global Task Board (tab Tasks). Jika ada penyesuaian scope atau instruksi baru untuk tim pengembang, silakan beri tahu saya!"
+	}
+	if strings.Contains(cleaned, "terima kasih") || strings.Contains(cleaned, "makasih") || strings.Contains(cleaned, "thanks") {
+		return "Sama-sama, Buchin! Senang bisa membantu kelancaran sprint Anda. Jangan ragu hubungi saya kembali jika butuh bantuan."
+	}
+	if strings.Contains(cleaned, "oke") || strings.Contains(cleaned, "ok") || strings.Contains(cleaned, "siap") || strings.Contains(cleaned, "mantap") || strings.Contains(cleaned, "sip") || strings.Contains(cleaned, "keren") {
+		return "Siap, dipahami Buchin! Saya selalu stand by memantau progres tim. Beri tahu saya jika Anda ingin memulai task atau ada instruksi teknis baru."
+	}
+	if strings.Contains(cleaned, "bisa bantu apa") || strings.Contains(cleaned, "apa yang bisa kamu lakukan") || strings.Contains(cleaned, "apa fungsi kamu") {
+		return "Sebagai Scrum Master cerdas di Cuan, saya dapat: 1) Berdiskusi santai mengenai arah produk, 2) Membedah kebutuhan fitur atau bug menjadi Problem Statement & DoD terukur, 3) Menugaskan Worker Agent untuk eksekusi otomatis. Cukup sampaikan ide atau instruksi Anda!"
+	}
+
+	return "Halo Buchin! Senang mengobrol dengan Anda. Sebagai Scrum Master, saya siap membantu kapan pun Anda membutuhkan arahan sprint, pembuatan backlog fitur, atau investigasi bug. Silakan beri tahu apa yang ingin kita capai hari ini!"
 }
 
 // ============================================================================
@@ -1163,20 +1334,62 @@ type SMTriageResult struct {
 }
 
 func generateSMTriageResponse(userMessage string) SMTriageResult {
-	title := strings.TrimSpace(userMessage)
-	if len(title) > 50 {
-		title = title[:47] + "..."
+	raw := strings.TrimSpace(userMessage)
+	title := raw
+	lower := strings.ToLower(raw)
+	for _, prefix := range []string{
+		"halo scrum master, tolong siapkan sprint backlog untuk ",
+		"halo scrum master, tolong buatkan ",
+		"halo scrum master, tolong perbaiki ",
+		"halo scrum master, ",
+		"scrum master, tolong ",
+		"tolong siapkan sprint backlog untuk ",
+		"tolong buatkan ",
+		"tolong perbaiki ",
+		"tolong ",
+		"buatkan ",
+		"perbaiki ",
+	} {
+		if strings.HasPrefix(lower, prefix) {
+			title = strings.TrimSpace(raw[len(prefix):])
+			break
+		}
+	}
+
+	if len(title) > 60 {
+		title = title[:57] + "..."
 	}
 	if title == "" {
-		title = "Sprint Task"
+		title = raw
+		if len(title) > 60 {
+			title = title[:57] + "..."
+		}
 	}
 
 	worker := "antigravity-flash"
 
-	dodList := []db.DoDItem{
-		{Text: "Implementasikan solusi spesifik di repositori", Completed: false},
-		{Text: "Targeted automated unit test PASS", Completed: false},
-		{Text: "Zero regression verifikasi DB & build bundle", Completed: false},
+	// Dynamic DoD based on user prompt topic
+	lowerPrompt := strings.ToLower(raw)
+	var dodList []db.DoDItem
+
+	if strings.Contains(lowerPrompt, "bug") || strings.Contains(lowerPrompt, "error") || strings.Contains(lowerPrompt, "perbaiki") || strings.Contains(lowerPrompt, "fix") {
+		dodList = []db.DoDItem{
+			{Text: "Investigasi root cause & isolasi bug pada modul terkait", Completed: false},
+			{Text: "Implementasikan perbaikan bug & patch di repositori", Completed: false},
+			{Text: "Targeted automated test PASS & zero regression verifikasi", Completed: false},
+		}
+	} else if strings.Contains(lowerPrompt, "deploy") || strings.Contains(lowerPrompt, "vps") || strings.Contains(lowerPrompt, "rilis") || strings.Contains(lowerPrompt, "release") {
+		dodList = []db.DoDItem{
+			{Text: "Build frontend bundle & kompilasi binary produksi", Completed: false},
+			{Text: "Sinkronisasi ke /opt/cuan di VPS target & restart service", Completed: false},
+			{Text: "Public smoke test HTTP 200 OK & verifikasi live pass", Completed: false},
+		}
+	} else {
+		dodList = []db.DoDItem{
+			{Text: "Rancang spesifikasi teknis & breakdown task di repositori", Completed: false},
+			{Text: "Implementasikan solusi fitur sesuai standar arsitektur", Completed: false},
+			{Text: "Targeted automated unit test PASS & audit evidence", Completed: false},
+		}
 	}
 
 	respText := fmt.Sprintf(`Halo Buchin! Saya telah menganalisis kebutuhan Anda:
@@ -1185,12 +1398,12 @@ func generateSMTriageResponse(userMessage string) SMTriageResult {
 %s
 
 **Rencana Eksekusi & Definition of Done (DoD):**
-1. Implementasikan solusi spesifik di repositori
-2. Targeted automated unit test PASS
-3. Zero regression verifikasi DB & build bundle
+1. %s
+2. %s
+3. %s
 
 **Rekomendasi Worker Agent:** %s (Limit kuota mencukupi).
-Silakan klik tombol **Mulai Kerjakan** di bawah untuk memulai eksekusi sprint.`, title, worker)
+Silakan klik tombol **Mulai Kerjakan** di bawah untuk memulai eksekusi sprint.`, title, dodList[0].Text, dodList[1].Text, dodList[2].Text, worker)
 
 	return SMTriageResult{
 		ProblemTitle: title,

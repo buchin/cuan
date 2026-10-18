@@ -12,10 +12,17 @@ Status:        PASS (100% VERIFIED)
    - In a fresh production DB, projects table was empty (0 rows).
    - Solved: Automatically seed/ensure row 'default' in projects table at boot (cmd/server/main.go) and in ensureDefaultAgentRooms (internal/server/chat_handlers.go).
 
-2. VERIFICATION CHECKS:
-   - [x] Default project 'default' exists in database.
+2. CONVERSATIONAL & TECHNICAL TASK INTELLIGENCE RESOLUTION:
+   - Issue: Scrum Master sebelumnya selalu membalas dengan template kaku 'Problem Statement: <input>' dan tombol 'Mulai Kerjakan' bahkan untuk sapaan 'Apa kabar'.
+   - Solved: Diterapkan classifier `isTechnicalTaskInstruction` dan generator `generateSMConversationalResponse` di `internal/server/chat_handlers.go`.
+   - Sapaan & percakapan umum ('Apa kabar', 'Halo', 'Pagi', 'Bagaimana sprint?', 'Siapa kamu?') dibalas natural dan bersahabat tanpa Action Card.
+   - Instruksi fitur/bug/task teknis dibalas dengan Problem Statement & DoD terarah serta tombol 'Mulai Kerjakan' (Action Card).
+
+3. VERIFICATION CHECKS:
+   - [x] Default project 'default' exists in database (cuan).
    - [x] Scrum Master room (00000000-0000-4000-8000-000000000001) successfully created in project_rooms.
    - [x] Antigravity Flash room (00000000-0000-4000-8000-000000000002) successfully created in project_rooms.
    - [x] User message successfully inserted into project_messages without FK violation.
-   - [x] Scrum Master triage reply automatically generated and persisted in project_messages.
-   - [x] Messages history persists across page reloads and query returns all saved messages.
+   - [x] Conversational chat ('Apa kabar') returns natural response with action_card: null.
+   - [x] Technical task message returns dynamic Problem Statement + DoD + Action Card ('Mulai Kerjakan').
+   - [x] Riwayat percakapan tersimpan permanen di PostgreSQL produksi (11+ messages verified).
