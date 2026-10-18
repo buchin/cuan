@@ -685,9 +685,12 @@ func TestServer_HarnessAuthEndpoints(t *testing.T) {
 }
 
 func TestS25UnverifiedOAuthRegistrationRejected(t *testing.T) {
-	srv, repo, _ := setupTestServer(t)
+	srv, token := setupTestChatServer(t)
+	repo := db.NewMemoryAgentRepository()
+	srv.SetAgentRepository(repo)
 	for _, route := range []string{"/api/v1/agents", "/api/v1/agents/connect-cli"} {
 		req := httptest.NewRequest(http.MethodPost, route, strings.NewReader(`{"name":"@unverified","harness":"agy","provider":"agy","enabled":true}`))
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		srv.Router().ServeHTTP(rec, req)
 		if rec.Code != http.StatusConflict {
@@ -697,5 +700,17 @@ func TestS25UnverifiedOAuthRegistrationRejected(t *testing.T) {
 	agents, err := repo.ListAgents(context.Background(), db.AgentFilter{})
 	if err != nil || len(agents) != 0 {
 		t.Fatal("unverified login created agent")
+	}
+}
+
+func TestS25OAuthRequiresOwnerSession(t *testing.T) {
+	srv, _, _ := setupTestServer(t)
+	for _, route := range []string{"/api/v1/agents/auth-init", "/api/v1/agents/auth-code", "/api/v1/agents/connect-cli"} {
+		req := httptest.NewRequest(http.MethodPost, route, strings.NewReader(`{}`))
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s must require owner session: %d", route, rec.Code)
+		}
 	}
 }

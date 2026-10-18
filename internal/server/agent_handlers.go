@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -92,6 +93,9 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if input.Harness == "agy" {
+		if !s.requireOAuthOwner(w, r) {
+			return
+		}
 		if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
 			respondJSONError(w, http.StatusConflict, err.Error())
 			return
@@ -125,9 +129,6 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var encryptedCred string
-	if enc, err := agent.EncryptCredential("host_session_active"); err == nil {
-		encryptedCred = enc
-	}
 
 	planHint := "Sesi Host Server (Tanpa API Key)"
 	switch entity.Harness {
@@ -151,7 +152,6 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:            time.Now().UTC(),
 		UpdatedAt:            time.Now().UTC(),
 	}
-	_ = s.agentRepo.DeleteConnection(r.Context(), connID)
 	_ = s.agentRepo.CreateConnection(r.Context(), conn)
 
 	// Ensure direct chat room exists for this agent
@@ -731,6 +731,9 @@ func (s *Server) handleVerifyAgentConnection(w http.ResponseWriter, r *http.Requ
 // handleConnectCLIAgent registers an agent and its connection without a raw API Key.
 // Route: POST /api/v1/agents/connect-cli, POST /api/agents/connect-cli
 func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOAuthOwner(w, r) {
+		return
+	}
 	if s.agentRepo == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
 		return
@@ -787,15 +790,15 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		role = "Development Team (Worker)"
 	}
 
-	sessionToken := strings.TrimSpace(req.SessionToken)
-	if sessionToken == "" {
-		sessionToken = fmt.Sprintf("cuan_cli_token_%s_%s", strings.TrimPrefix(handle, "@"), db.GenerateUUID())
-	}
-
-	encryptedToken, err := agent.EncryptCredential(sessionToken)
-	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "failed to encrypt session token: "+err.Error())
-		return
+	// OAuth credentials remain in the CLI-owned credential store; do not invent a token.
+	var encryptedToken string
+	if req.SessionToken != "" && provider != "agy" && provider != "antigravity" {
+		var err error
+		encryptedToken, err = agent.EncryptCredential(strings.TrimSpace(req.SessionToken))
+		if err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "Failed to protect credential")
+			return
+		}
 	}
 
 	// 1. Create / Persist Agent
@@ -803,7 +806,14 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	cleanHandle = strings.ReplaceAll(cleanHandle, "-", "_")
 	agentID := "agent_" + cleanHandle
 	connID := "conn_" + agentID
-	agentDisplayName := fmt.Sprintf("%s (%s)", name, handle)
+	agentDisplayName := handle
+	if name != handle {
+		agentDisplayName = fmt.Sprintf("%s (%s)", name, handle)
+	}
+	if _, err := s.agentRepo.GetAgentByID(r.Context(), agentID); err == nil {
+		respondJSONError(w, http.StatusConflict, "Nama agen sudah digunakan. Pilih nama lain.")
+		return
+	}
 
 	agentEntity := &db.Agent{
 		ID:           agentID,
@@ -821,14 +831,12 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:    time.Now().UTC(),
 	}
 
-	_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
 	if err := s.agentRepo.CreateAgent(r.Context(), agentEntity); err != nil {
 		respondJSONError(w, http.StatusInternalServerError, "failed to create agent: "+err.Error())
 		return
 	}
 
 	// 2. Create / Persist Connection
-	_ = s.agentRepo.DeleteConnection(r.Context(), connID)
 	connEntity := &db.AgentConnection{
 		ID:                   connID,
 		UserID:               "default",
@@ -839,7 +847,11 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:            time.Now().UTC(),
 		UpdatedAt:            time.Now().UTC(),
 	}
-	_ = s.agentRepo.CreateConnection(r.Context(), connEntity)
+	if err := s.agentRepo.CreateConnection(r.Context(), connEntity); err != nil {
+		_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
+		respondJSONError(w, http.StatusInternalServerError, "Failed to save agent connection")
+		return
+	}
 
 	// 3. Ensure a room in projectStudioRepo for direct chat with this agent
 	var roomID string
@@ -891,6 +903,19 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// requireOAuthOwner protects account login and provider probes with the owner session.
+func (s *Server) requireOAuthOwner(w http.ResponseWriter, r *http.Request) bool {
+	if s.authSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Owner authentication unavailable")
+		return false
+	}
+	if _, err := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); err != nil {
+		respondJSONError(w, http.StatusUnauthorized, "Masuk ke Cuan terlebih dahulu")
+		return false
+	}
+	return true
+}
+
 // handleGetHarnessAuthStatus checks whether the server environment is authenticated for a harness.
 // Route: GET /api/v1/agents/auth-status, GET /api/agents/auth-status
 func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Request) {
@@ -902,6 +927,9 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 	if harness == "agy" {
 		status := agent.GetAntigravityAuthStatus()
 		if r.URL.Query().Get("verify") == "true" {
+			if !s.requireOAuthOwner(w, r) {
+				return
+			}
 			err := agent.VerifyAntigravityConnection(r.Context())
 			status["verified"] = err == nil
 			status["authenticated"] = err == nil
@@ -925,6 +953,9 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 // handleInitHarnessAuth initiates authentication flow for a CLI harness (e.g. agy Google OAuth).
 // Route: POST /api/v1/agents/auth-init, POST /api/agents/auth-init
 func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOAuthOwner(w, r) {
+		return
+	}
 	var req struct {
 		Harness string `json:"harness"`
 	}
@@ -981,6 +1012,9 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 // handleSubmitHarnessAuthCode exchanges the authorization code from browser Google OAuth.
 // Route: POST /api/v1/agents/auth-code, POST /api/agents/auth-code
 func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOAuthOwner(w, r) {
+		return
+	}
 	var req struct {
 		SessionID string `json:"session_id"`
 		Code      string `json:"code"`

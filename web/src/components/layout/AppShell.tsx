@@ -78,7 +78,7 @@ export function AppShell({
   const getSubPanelContent = () => {
     switch (currentTab) {
       case 'inbox':
-        return inboxSubPanel ?? <DefaultSubPanel title="Inbox" description="Pesan & diskusi dengan Scrum Master" />
+        return inboxSubPanel ?? <DefaultSubPanel title="Inbox" description="Pesan dengan agen dan pelanggan" />
       case 'tasks':
         return tasksSubPanel ?? <DefaultSubPanel title="Tasks" description="Global Task Board & Backlog" />
       case 'projects':

@@ -72,11 +72,8 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 		t.Fatalf("failed to unmarshal contacts: %v", err)
 	}
 
-	if len(contactsResp.Contacts) < 2 {
-		t.Fatalf("expected at least 2 default agent contacts, got %d", len(contactsResp.Contacts))
-	}
-	if contactsResp.Contacts[0].Name != "Scrum Master" {
-		t.Fatalf("expected first contact to be Scrum Master, got %s", contactsResp.Contacts[0].Name)
+	if len(contactsResp.Contacts) != 0 {
+		t.Fatalf("expected no fabricated agent contacts: %+v", contactsResp.Contacts)
 	}
 
 	// 2. Visitor Live Chat Initialization (POST /api/chat/session)
@@ -198,31 +195,6 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 		t.Fatalf("unexpected operator message in visitor poll: %+v", pollResp.Messages[0])
 	}
 
-	// 7. Test Scrum Master Direct Chat with Automated Triage & 1-Click Action Card
-	smMsgPayload := map[string]interface{}{
-		"message": "Tolong perbaiki responsive modal pembayaran di mobile",
-	}
-	smMsgBody, _ := json.Marshal(smMsgPayload)
-	reqSM := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+defaultScrumMasterRoomID+"/messages", bytes.NewReader(smMsgBody))
-	reqSM.Header.Set("Content-Type", "application/json")
-	reqSM.Header.Set("Authorization", "Bearer "+token)
-	recSM := httptest.NewRecorder()
-	srv.Router().ServeHTTP(recSM, reqSM)
-	if recSM.Code != http.StatusOK {
-		t.Fatalf("expected 200 for SM message, got %d", recSM.Code)
-	}
-	var smResp struct {
-		Message    ChatMessageDTO  `json:"message"`
-		AgentReply *ChatMessageDTO `json:"agent_reply"`
-	}
-	_ = json.Unmarshal(recSM.Body.Bytes(), &smResp)
-	if smResp.AgentReply == nil {
-		t.Fatalf("expected automated agent reply from Scrum Master")
-	}
-	if smResp.AgentReply.ActionCard == nil || len(smResp.AgentReply.ActionCard.DoDChecklist) == 0 {
-		t.Fatalf("expected ActionCard with DoD checklist from Scrum Master")
-	}
-
 	// 8. Test /chat/widget.js Serving
 	reqWidget := httptest.NewRequest(http.MethodGet, "/chat/widget.js", nil)
 	recWidget := httptest.NewRecorder()
@@ -238,84 +210,25 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 	}
 }
 
-func TestChatHandlers_ScrumMasterConversationalGreetings(t *testing.T) {
+func TestChatHandlers_NoSyntheticAgentReplies(t *testing.T) {
 	srv, token := setupTestChatServer(t)
-
-	// Test Cases for Conversational Greetings / Questions (Should have NO ActionCard)
-	casualInputs := []string{
-		"Apa kabar",
-		"Halo",
-		"Pagi",
-		"Bagaimana sprint?",
-		"Siapa kamu?",
-	}
-
-	for _, input := range casualInputs {
-		payload := map[string]interface{}{"message": input}
-		body, _ := json.Marshal(payload)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+defaultScrumMasterRoomID+"/messages", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+	for _, id := range []string{defaultScrumMasterRoomID, defaultAntigravityRoomID, "@unknown"} {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+id+"/messages", strings.NewReader(`{"message":"Halo @unknown"}`))
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		srv.Router().ServeHTTP(rec, req)
-
 		if rec.Code != http.StatusOK {
-			t.Fatalf("expected 200 for casual message '%s', got %d", input, rec.Code)
+			t.Fatalf("expected saved user message, got %d", rec.Code)
 		}
-
-		var resp struct {
-			Message    ChatMessageDTO  `json:"message"`
+		var response struct {
 			AgentReply *ChatMessageDTO `json:"agent_reply"`
 		}
-		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-			t.Fatalf("failed to decode response for '%s': %v", input, err)
+		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
 		}
-
-		if resp.AgentReply == nil {
-			t.Fatalf("expected agent reply for '%s'", input)
+		if response.AgentReply != nil {
+			t.Fatal("unregistered agent fabricated reply")
 		}
-
-		// Verify NO ActionCard for casual conversation
-		if resp.AgentReply.ActionCard != nil {
-			t.Fatalf("expected NO ActionCard for casual greeting '%s', but got: %+v", input, resp.AgentReply.ActionCard)
-		}
-
-		// Verify it does NOT contain rigid problem statement template
-		if strings.Contains(resp.AgentReply.Message, "Problem Statement: "+input) || strings.Contains(resp.AgentReply.Message, "Mulai Kerjakan") {
-			t.Fatalf("expected natural response without rigid template for '%s', got: %s", input, resp.AgentReply.Message)
-		}
-	}
-
-	// Test Case for Technical Task Instruction (MUST have ActionCard & DoD)
-	taskMsg := "Tolong buatkan fitur export CSV transaksi"
-	taskPayload := map[string]interface{}{"message": taskMsg}
-	taskBody, _ := json.Marshal(taskPayload)
-	reqTask := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+defaultScrumMasterRoomID+"/messages", bytes.NewReader(taskBody))
-	reqTask.Header.Set("Content-Type", "application/json")
-	reqTask.Header.Set("Authorization", "Bearer "+token)
-	recTask := httptest.NewRecorder()
-	srv.Router().ServeHTTP(recTask, reqTask)
-
-	if recTask.Code != http.StatusOK {
-		t.Fatalf("expected 200 for task message, got %d", recTask.Code)
-	}
-
-	var taskResp struct {
-		Message    ChatMessageDTO  `json:"message"`
-		AgentReply *ChatMessageDTO `json:"agent_reply"`
-	}
-	if err := json.Unmarshal(recTask.Body.Bytes(), &taskResp); err != nil {
-		t.Fatalf("failed to decode task response: %v", err)
-	}
-
-	if taskResp.AgentReply == nil || taskResp.AgentReply.ActionCard == nil {
-		t.Fatalf("expected ActionCard for technical task message, got nil")
-	}
-	if !strings.Contains(taskResp.AgentReply.ActionCard.TaskTitle, "export CSV") {
-		t.Fatalf("expected TaskTitle to reflect task, got: %s", taskResp.AgentReply.ActionCard.TaskTitle)
-	}
-	if len(taskResp.AgentReply.ActionCard.DoDChecklist) == 0 {
-		t.Fatalf("expected DoDChecklist for technical task")
 	}
 }
 
@@ -397,5 +310,41 @@ func TestChatHandlers_DynamicRoles(t *testing.T) {
 		if message.AuthorType == "agent" {
 			t.Fatal("unavailable provider reply persisted")
 		}
+	}
+}
+
+func TestS25InboxOnlyRegisteredAgents(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	repo := cuanDB.NewMemoryAgentRepository()
+	srv.SetAgentRepository(repo)
+	if err := repo.CreateAgent(context.Background(), &cuanDB.Agent{ID: "agent_real", Name: "@real", Harness: "agy", Enabled: true, Status: cuanDB.AgentStatusActive}); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	var response struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatal(rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Contacts) != 1 || response.Contacts[0].Name != "@real" {
+		t.Fatalf("unexpected contacts: %+v", response.Contacts)
+	}
+	resolved := srv.resolveConversationContext(context.Background(), response.Contacts[0].ConversationID, "")
+	if !resolved.IsAgent || resolved.TargetAgentID != "agent_real" {
+		t.Fatal("registered Inbox agent not resolved")
+	}
+	if err := repo.DeleteAgent(context.Background(), "agent_real"); err != nil {
+		t.Fatal(err)
+	}
+	resolved = srv.resolveConversationContext(context.Background(), response.Contacts[0].ConversationID, "")
+	if resolved.IsAgent {
+		t.Fatal("deleted agent still active through its old Inbox URL")
 	}
 }

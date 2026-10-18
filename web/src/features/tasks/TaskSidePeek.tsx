@@ -36,11 +36,6 @@ interface AgentRunnerOption {
   binary: string
 }
 
-const DEFAULT_AGENTS: AgentRunnerOption[] = [
-  { id: 'sm-agent', name: 'Scrum Master (@sm)', role: 'Scrum Master (AI Manager)', harness: 'agy', binary: 'agy' },
-  { id: 'worker-flash', name: 'Antigravity Flash Worker (@pin)', role: 'Fast Worker (High-Speed)', harness: 'agy', binary: 'agy' },
-  { id: 'worker-pro', name: 'Antigravity Pro Architect (@pin2)', role: 'Deep Architect', harness: 'agy', binary: 'agy' },
-]
 
 export function TaskSidePeek({
   task,
@@ -69,7 +64,7 @@ export function TaskSidePeek({
   const [executionStatus, setExecutionStatus] = useState<string>(
     task.execution_status || 'idle'
   )
-  const [availableAgents, setAvailableAgents] = useState<AgentRunnerOption[]>(DEFAULT_AGENTS)
+  const [availableAgents, setAvailableAgents] = useState<AgentRunnerOption[]>([])
 
   // Terminal state & refs
   const terminalContainerRef = useRef<HTMLDivElement>(null)
@@ -82,7 +77,7 @@ export function TaskSidePeek({
   useEffect(() => {
     agentsApi.list().then((dbAgents) => {
       if (dbAgents && dbAgents.length > 0) {
-        const extra = dbAgents.map((a) => {
+        const extra = dbAgents.filter(agent => agent.enabled !== false).map((a) => {
           const harness = a.harness || a.provider || 'agy'
           const binary = harness === 'claude' ? 'claude' : (harness === 'codex' ? 'codex' : (harness === 'custom' ? 'shell' : 'agy'))
           return {
@@ -94,7 +89,7 @@ export function TaskSidePeek({
           }
         })
         const map = new Map<string, any>()
-        for (const ag of [...DEFAULT_AGENTS, ...extra]) {
+        for (const ag of extra) {
           map.set(ag.id, ag)
         }
         setAvailableAgents(Array.from(map.values()))
@@ -295,6 +290,7 @@ export function TaskSidePeek({
   }
 
   const handleTriggerAgent = async () => {
+    if (!availableAgents.some(agent => agent.id === assignee)) return
     setAgentRunning(true)
     setExecutionStatus('running')
     setActiveTab('runner')
@@ -303,12 +299,12 @@ export function TaskSidePeek({
     const runnerBin = targetAgent?.binary || (targetAgent?.harness === 'claude' ? 'claude' : (targetAgent?.harness === 'codex' ? 'codex' : 'agy'))
 
     if (xtermRef.current) {
-      xtermRef.current.writeln(`\r\n\x1b[1;33m[Trigger]\x1b[0m Spawning Agent runner (${targetAgent?.name || assignee || 'worker-flash'})...\r\n`)
+      xtermRef.current.writeln(`\r\n\x1b[1;33m[Trigger]\x1b[0m Spawning Agent runner (${targetAgent?.name || assignee})...\r\n`)
     }
 
     try {
       await tasksApi.runAgent(task.id, {
-        agent_id: assignee || 'worker-flash',
+        agent_id: assignee,
         prompt: description || title,
         binary: runnerBin,
       })
@@ -376,7 +372,7 @@ export function TaskSidePeek({
         <div className="flex items-center gap-2">
           <button
             onClick={handleTriggerAgent}
-            disabled={agentRunning}
+            disabled={agentRunning || !availableAgents.some(agent => agent.id === assignee)}
             className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600 transition-colors disabled:opacity-50 rounded"
             title="Execute task with AI Agent CLI in real PTY"
           >
@@ -600,7 +596,7 @@ export function TaskSidePeek({
             <div className="flex items-center justify-between gap-3 pt-1">
               <button
                 onClick={handleTriggerAgent}
-                disabled={agentRunning}
+                disabled={agentRunning || !availableAgents.some(agent => agent.id === assignee)}
                 className="flex-1 py-2 bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 rounded shadow-xs"
               >
                 {agentRunning ? (

@@ -221,7 +221,7 @@ export function InboxView({
             </div>
             <h3 className="text-base font-bold text-foreground">Direct Messenger Hub</h3>
             <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-              Pilih salah satu kontak di panel kiri untuk memulai percakapan langsung dengan Scrum Master, Worker Agent, atau pelanggan live chat Dojo.
+              Pilih kontak untuk mulai mengobrol, atau tambahkan agen Anda di halaman Agen.
             </p>
           </div>
         ) : (
@@ -323,12 +323,12 @@ export function InboxView({
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary shrink-0" />
               <span className="text-[11px] font-medium leading-relaxed">
-                <strong>Koneksi BYO Agent Terhubung:</strong> Sesi server-side aktif dengan respons persona cerdas (@dev, @sm, dll.) dan riwayat chat tersimpan.
+                Pesan dikirim ke provider agen ini. Jika koneksi atau login bermasalah, pesan kesalahan akan ditampilkan.
               </span>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 shrink-0 self-end sm:self-auto">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Dispatcher
+              Agen terdaftar
             </span>
           </div>
         )}
@@ -352,7 +352,6 @@ export function InboxView({
           // In WhatsApp/Telegram: User is right-aligned, Contact (Agent/Customer) is left-aligned
           const isUser = msg.author_type === 'user' && activeContact.type === 'agent'
           const isOperatorReply = msg.author_type === 'agent' && activeContact.type === 'customer'
-          const isCustomerMessage = msg.author_type === 'user' && activeContact.type === 'customer'
           const isAgentMessage = msg.author_type === 'agent' && activeContact.type === 'agent'
 
           const isOutgoing = isUser || isOperatorReply
@@ -374,7 +373,7 @@ export function InboxView({
                 {!isOutgoing && (
                   <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-border/40">
                     <span className="text-xs font-bold text-primary">
-                      {msg.author_name || (isCustomerMessage ? activeContact.name : 'Scrum Master')}
+                      {msg.author_name || activeContact.name}
                     </span>
                     {msg.product && (
                       <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
@@ -484,7 +483,7 @@ export function InboxView({
             onKeyDown={handleKeyDown}
             placeholder={
               activeContact.type === 'agent'
-                ? 'Tulis instruksi atau masalah untuk Scrum Master... (Enter untuk kirim)'
+                ? 'Tulis pesan untuk agen... (Enter untuk kirim)'
                 : `Balas pesan untuk ${activeContact.name}... (Enter untuk kirim)`
             }
             className="flex-1 min-h-[42px] max-h-[140px] resize-none overflow-hidden rounded-xl bg-background border border-input text-foreground px-3.5 py-2.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"

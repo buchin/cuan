@@ -317,7 +317,6 @@ export function App() {
           <TeamSubPanel
             selectedRole={selectedTeamRole}
             onSelectRole={setSelectedTeamRole}
-            onAddAgentClick={() => setSelectedTeamRole('agent')}
           />
         }
       >

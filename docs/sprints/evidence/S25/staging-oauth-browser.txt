@@ -1,0 +1,13 @@
+2026-10-19 S25.1 managed staging verification
+Supported publisher: fural-agent sandboxes serve
+URL: https://cuan-s25-dojo.fural.space/team
+Sandbox: CSd9bffddac00994453568f6cc; backend port 8081
+/healthz: 200 healthy
+/readyz: 200 ready, database connected, migrations_count 19 (isolated staging clone)
+Browser: owner login successful; Team empty state; Inbox zero agent contacts after explicit cleanup.
+Add Agent: Google login required -> Login dengan Google -> official authorization link + password code input + Verifikasi login.
+Safe URL attributes only: authorizationHost accounts.google.com; callbackHost antigravity.google; callbackPath /oauth-callback; responseType code.
+No full URL, state, token or authorization code stored in evidence.
+Initial glibc binary failed in Alpine; corrected with official musl release 1.4.2. Real UI now reaches provider consent step.
+Account-owner consent/code exchange still pending. No actual provider reply or persistence success claimed.
+Production registry cleanup: three legacy unverified duplicate agent records deleted under explicit PO instruction; code not deployed.

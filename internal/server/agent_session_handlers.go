@@ -66,7 +66,8 @@ func (s *Server) handlePairAgentDevice(w http.ResponseWriter, r *http.Request) {
 
 	agentID := strings.TrimSpace(payload.AgentID)
 	if agentID == "" {
-		agentID = "worker-flash"
+		respondJSONError(w, http.StatusBadRequest, "agent_id is required")
+		return
 	}
 
 	sess, err := s.agentSessionStore.AuthorizeDevicePairing(r.Context(), agent.AuthorizePairingRequest{

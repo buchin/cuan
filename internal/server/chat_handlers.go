@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -115,7 +114,8 @@ func chatCORSMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// EnsureDefaultAgentRooms ensures default rooms exist for Scrum Master and Antigravity agents.
+// ensureDefaultAgentRooms retains the default project needed by registered agent conversations.
+// It never creates example agents, agent rooms or welcome messages.
 func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 	if s.projectStudioRepo == nil {
 		return
@@ -142,61 +142,6 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 		}
 	}
 
-	// 1. Ensure Scrum Master room
-	if _, err := s.projectStudioRepo.GetRoomByID(ctx, defaultScrumMasterRoomID); err != nil {
-		now := time.Now().UTC()
-		if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
-			ID:        defaultScrumMasterRoomID,
-			ProjectID: "default",
-			Title:     "Scrum Master Direct",
-			Topic:     "Agentic Scrum Management",
-			CreatedAt: now,
-			UpdatedAt: now,
-		}); err != nil {
-			log.Printf("[ensureDefaultAgentRooms] failed to create Scrum Master room: %v", err)
-		} else {
-			if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
-				ID:         db.GenerateUUID(),
-				RoomID:     defaultScrumMasterRoomID,
-				AuthorType: "agent",
-				AuthorID:   "agent_scrum_master",
-				AuthorName: "Scrum Master",
-				Content:    "Halo Buchin! Saya Scrum Master Anda. Sampaikan kebutuhan, bug, atau ide sprint Anda di sini.",
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			}); err != nil {
-				log.Printf("[ensureDefaultAgentRooms] failed to create initial Scrum Master message: %v", err)
-			}
-		}
-	}
-
-	// 2. Ensure Antigravity Agent room
-	if _, err := s.projectStudioRepo.GetRoomByID(ctx, defaultAntigravityRoomID); err != nil {
-		now := time.Now().UTC()
-		if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
-			ID:        defaultAntigravityRoomID,
-			ProjectID: "default",
-			Title:     "Antigravity Flash",
-			Topic:     "Autonomous Worker Agent",
-			CreatedAt: now,
-			UpdatedAt: now,
-		}); err != nil {
-			log.Printf("[ensureDefaultAgentRooms] failed to create Antigravity room: %v", err)
-		} else {
-			if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
-				ID:         db.GenerateUUID(),
-				RoomID:     defaultAntigravityRoomID,
-				AuthorType: "agent",
-				AuthorID:   "antigravity-flash",
-				AuthorName: "Antigravity Flash",
-				Content:    "Antigravity Worker siap menjalankan eksekusi task berkecepatan tinggi.",
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			}); err != nil {
-				log.Printf("[ensureDefaultAgentRooms] failed to create initial Antigravity message: %v", err)
-			}
-		}
-	}
 }
 
 // ============================================================================
@@ -515,68 +460,16 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 
 	contacts := make([]ChatContact, 0)
 
-	// 1. Scrum Master Agent Contact
-	smLastMsg := "Siap membantu merumuskan DoD dan mengoordinasikan sprint."
-	smLastAt := time.Now().UTC()
-	smUnread := 0
-	smRoomID := defaultScrumMasterRoomID
-
-	// S17 backward compatibility: check most recent room in projectStudioRepo
-	if s.projectStudioRepo != nil {
-		if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil && len(allRooms) > 0 {
-			// Find most active room or use default
-			for _, rm := range allRooms {
-				if rm.ID == defaultScrumMasterRoomID || strings.Contains(strings.ToLower(rm.Title), "scrum") {
-					smRoomID = rm.ID
-					if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), rm.ID); len(msgs) > 0 {
-						smLastMsg = msgs[len(msgs)-1].Content
-						smLastAt = msgs[len(msgs)-1].CreatedAt
-					}
-					break
-				}
-			}
-		}
-	}
-
-	smContact := ChatContact{
-		ID:             "contact_scrum_master",
-		Type:           "agent",
-		Name:           "Scrum Master",
-		Avatar:         "👔",
-		Status:         "online",
-		ConversationID: smRoomID,
-		UnreadCount:    smUnread,
-		LastMessage:    smLastMsg,
-		LastMessageAt:  smLastAt,
-		UpdatedAt:      smLastAt,
-	}
-
-	// 2. Antigravity Agent Contact
-	agContact := ChatContact{
-		ID:             "contact_antigravity",
-		Type:           "agent",
-		Name:           "Antigravity Flash",
-		Avatar:         "🤖",
-		Status:         "online",
-		ConversationID: defaultAntigravityRoomID,
-		UnreadCount:    0,
-		LastMessage:    "Antigravity Worker siap mengeksekusi task.",
-		LastMessageAt:  time.Now().UTC(),
-		UpdatedAt:      time.Now().UTC(),
-	}
-
 	if typeFilter != "customers" {
-		contacts = append(contacts, smContact, agContact)
-
 		// Include any agents from s.agentRepo that are active and not already included
 		if s.agentRepo != nil {
 			if dbAgents, err := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{Status: db.AgentStatusActive}); err == nil {
 				for _, a := range dbAgents {
-					if a.ID == "agent_scrum_master" || a.ID == "agent_antigravity" || a.ID == defaultAntigravityRoomID {
+					if !a.Enabled {
 						continue
 					}
 					roomID := ""
-					lastMsg := "Sesi CLI terhubung tanpa API Key. Siap menerima tugas."
+					lastMsg := "Belum ada percakapan."
 					lastAt := a.UpdatedAt
 					if s.projectStudioRepo != nil {
 						if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
@@ -612,7 +505,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						Type:           "agent",
 						Name:           a.Name,
 						Avatar:         a.Avatar,
-						Status:         "online",
+						Status:         "idle",
 						ConversationID: roomID,
 						UnreadCount:    0,
 						LastMessage:    lastMsg,
@@ -738,38 +631,8 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 
 	trimmedID := strings.TrimSpace(convID)
 
-	// 1. Check Scrum Master shortcuts
-	if trimmedID == defaultScrumMasterRoomID ||
-		trimmedID == "contact_scrum_master" ||
-		trimmedID == "scrum" ||
-		trimmedID == "agent_scrum_master" ||
-		trimmedID == "@sm" ||
-		trimmedID == "sm" {
-		result.RoomID = defaultScrumMasterRoomID
-		result.TargetAgentID = "agent_scrum_master"
-		result.TargetAgentName = "Scrum Master"
-		result.TargetHarness = "agy"
-		result.IsAgent = true
-		return result
-	}
-
-	// 2. Check Antigravity Flash shortcuts
-	if trimmedID == defaultAntigravityRoomID ||
-		trimmedID == "contact_antigravity" ||
-		trimmedID == "antigravity" ||
-		trimmedID == "agent_antigravity" ||
-		trimmedID == "@antigravity" {
-		result.RoomID = defaultAntigravityRoomID
-		result.TargetAgentID = "antigravity_flash"
-		result.TargetAgentName = "Antigravity Flash"
-		result.TargetHarness = "agy"
-		result.IsAgent = true
-		return result
-	}
-
 	// 3. Clean candidate agent ID from contact_ or agent_ prefix
 	cleanAgentID := strings.TrimPrefix(trimmedID, "contact_")
-	cleanAgentID = strings.TrimPrefix(cleanAgentID, "agent_")
 
 	// 4. Check if convID matches an agent in agentRepo
 	if s.agentRepo != nil {
@@ -826,7 +689,7 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if s.projectStudioRepo != nil {
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
-			if strings.HasPrefix(rm.Topic, "agent:") {
+			if strings.HasPrefix(rm.Topic, "agent:") && s.agentRepo != nil {
 				result.IsAgent = true
 				result.TargetAgentID = strings.TrimPrefix(rm.Topic, "agent:")
 				result.TargetAgentName = rm.Title
@@ -838,12 +701,10 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 						}
 					}
 				}
-				return result
-			} else if strings.Contains(rm.Topic, "Interactive Agent Chat") || strings.HasPrefix(rm.Title, "@") {
-				result.IsAgent = true
-				result.TargetAgentName = rm.Title
-				result.TargetAgentID = "agent_" + strings.TrimPrefix(rm.Title, "@")
-				return result
+				if _, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil {
+					return result
+				}
+				result.IsAgent = false
 			}
 		}
 	}
@@ -851,12 +712,7 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	// 6. Check mention in message if any
 	mention := extractMentionHandle(messageText)
 	if mention != "" {
-		if mention == "@sm" || mention == "@scrum" || strings.EqualFold(mention, "@scrum_master") {
-			result.TargetAgentID = "agent_scrum_master"
-			result.TargetAgentName = "Scrum Master"
-			result.TargetHarness = "agy"
-			result.IsAgent = true
-		} else if s.agentRepo != nil {
+		if s.agentRepo != nil {
 			if ags, err := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); err == nil {
 				for _, a := range ags {
 					if strings.EqualFold(a.Name, mention) || strings.EqualFold("@"+strings.TrimPrefix(a.Name, "@"), mention) {
@@ -868,12 +724,6 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 					}
 				}
 			}
-		}
-		if !result.IsAgent && strings.HasPrefix(mention, "@") {
-			result.TargetAgentName = mention
-			result.TargetAgentID = "agent_" + strings.TrimPrefix(mention, "@")
-			result.TargetHarness = "agy"
-			result.IsAgent = true
 		}
 	}
 
@@ -1046,116 +896,43 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	if resolved.IsAgent {
 		role := ClassifyMessageContext(text)
 
-		// Backward-compatible triage card for Scrum Master on technical task instructions
-		if (resolved.RoomID == defaultScrumMasterRoomID || resolved.TargetAgentName == "Scrum Master") && isTechnicalTaskInstruction(text) {
-			triage := generateSMTriageResponse(text)
-			agentUUID := db.GenerateUUID()
-			agentNow := now.Add(100 * time.Millisecond)
+		// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
+		agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role)
+		if agentReplyText == "" {
+			respondJSON(w, http.StatusBadGateway, map[string]any{"error": "Provider unavailable or login expired. User message saved; no agent reply was generated.", "user_message_saved": true})
+			return
+		}
+		agentUUID := db.GenerateUUID()
+		agentNow := now.Add(100 * time.Millisecond)
 
-			if s.projectStudioRepo != nil {
-				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-					ID:         agentUUID,
-					RoomID:     resolved.RoomID,
-					AuthorType: "agent",
-					AuthorID:   resolved.TargetAgentID,
-					AuthorName: resolved.TargetAgentName,
-					Content:    triage.Text,
-					CreatedAt:  agentNow,
-					UpdatedAt:  agentNow,
-				})
-			}
-
-			card := &AgentActionCard{
-				TaskTitle:      triage.ProblemTitle,
-				DoDChecklist:   triage.DoDItems,
-				WorkerAgent:    triage.WorkerAgent,
-				Recommended:    true,
-				ApproveURL:     fmt.Sprintf("/api/v1/inbox/%s/approve", resolved.RoomID),
-				ExecutionState: "ready",
-			}
-
-			agentMsgDTO = &ChatMessageDTO{
-				ID:         2,
-				UUID:       agentUUID,
+		if s.projectStudioRepo != nil {
+			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				ID:         agentUUID,
 				RoomID:     resolved.RoomID,
-				SenderType: "operator",
 				AuthorType: "agent",
+				AuthorID:   resolved.TargetAgentID,
 				AuthorName: resolved.TargetAgentName,
-				Message:    triage.Text,
-				Content:    triage.Text,
-				ActionCard: card,
-				CreatedAt:  agentNow,
-			}
-		} else if (resolved.RoomID == defaultScrumMasterRoomID || resolved.TargetAgentName == "Scrum Master") && role == RoleFriendly {
-			convReplyText := s.generateSMConversationalResponse(r.Context(), text)
-			agentUUID := db.GenerateUUID()
-			agentNow := now.Add(100 * time.Millisecond)
-
-			if s.projectStudioRepo != nil {
-				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-					ID:         agentUUID,
-					RoomID:     resolved.RoomID,
-					AuthorType: "agent",
-					AuthorID:   resolved.TargetAgentID,
-					AuthorName: resolved.TargetAgentName,
-					Content:    convReplyText,
-					CreatedAt:  agentNow,
-					UpdatedAt:  agentNow,
-				})
-			}
-
-			agentMsgDTO = &ChatMessageDTO{
-				ID:         2,
-				UUID:       agentUUID,
-				RoomID:     resolved.RoomID,
-				SenderType: "operator",
-				AuthorType: "agent",
-				AuthorName: resolved.TargetAgentName,
-				Message:    convReplyText,
-				Content:    convReplyText,
-				ActionCard: nil,
-				CreatedAt:  agentNow,
-			}
-		} else {
-			// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
-			agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role)
-			if agentReplyText == "" {
-				respondJSON(w, http.StatusBadGateway, map[string]any{"error": "Provider unavailable or login expired. User message saved; no agent reply was generated.", "user_message_saved": true})
-				return
-			}
-			agentUUID := db.GenerateUUID()
-			agentNow := now.Add(100 * time.Millisecond)
-
-			if s.projectStudioRepo != nil {
-				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-					ID:         agentUUID,
-					RoomID:     resolved.RoomID,
-					AuthorType: "agent",
-					AuthorID:   resolved.TargetAgentID,
-					AuthorName: resolved.TargetAgentName,
-					Content:    agentReplyText,
-					CreatedAt:  agentNow,
-					UpdatedAt:  agentNow,
-				}); err != nil {
-					respondJSONError(w, http.StatusInternalServerError, "Provider replied but saving the reply failed")
-					return
-				}
-			}
-
-			agentMsgDTO = &ChatMessageDTO{
-				ID:         2,
-				UUID:       agentUUID,
-				RoomID:     resolved.RoomID,
-				SenderType: "operator",
-				AuthorType: "agent",
-				AuthorName: resolved.TargetAgentName,
-				Message:    agentReplyText,
 				Content:    agentReplyText,
 				CreatedAt:  agentNow,
+				UpdatedAt:  agentNow,
+			}); err != nil {
+				respondJSONError(w, http.StatusInternalServerError, "Provider replied but saving the reply failed")
+				return
 			}
 		}
-	}
 
+		agentMsgDTO = &ChatMessageDTO{
+			ID:         2,
+			UUID:       agentUUID,
+			RoomID:     resolved.RoomID,
+			SenderType: "operator",
+			AuthorType: "agent",
+			AuthorName: resolved.TargetAgentName,
+			Message:    agentReplyText,
+			Content:    agentReplyText,
+			CreatedAt:  agentNow,
+		}
+	}
 	userDTO := ChatMessageDTO{
 		ID:         1,
 		UUID:       msgUUID,
@@ -1269,7 +1046,7 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 		}
 
 		if err == nil && binPath != "" {
-			execCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			execCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 			defer cancel()
 
 			var systemContext string
@@ -1282,7 +1059,8 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah ramah dan natural sebagai rekan kerja tim. Pengguna mengatakan: \"%s\". Berikan respon sapaan hangat, natural, dan ringkas (1-2 kalimat) dalam Bahasa Indonesia tanpa template kaku.", agentName, userPrompt)
 			}
 
-			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "12s")
+			systemContext += " Jawab hanya dalam percakapan; jangan gunakan tools atau menjalankan perintah."
+			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "40s")
 			if binName == "agy" {
 				cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
 			}
@@ -1304,184 +1082,6 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 
 	// Provider failure is reported by the caller; never fabricate a reply.
 	return ""
-}
-
-func getFallbackAgentContextualResponse(agentName string, userPrompt string, role ChatContextRole) string {
-	cleaned := strings.ToLower(strings.TrimSpace(userPrompt))
-	switch role {
-	case RoleScrumMaster:
-		if strings.Contains(cleaned, "evaluasi") || strings.Contains(cleaned, "review") {
-			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Scrum Master. Terkait evaluasi dan review sprint: mari kita tinjau pencapaian Definition of Done (DoD), velocity tim, serta backlog yang telah terselesaikan untuk memastikan kualitas rilis.", agentName)
-		}
-		if strings.Contains(cleaned, "planning") || strings.Contains(cleaned, "perencanaan") {
-			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Scrum Master. Terkait sprint planning: mari kita prioritaskan backlog item, tentukan kapasitas tim, dan tetapkan kriteria Definition of Done (DoD) yang jelas.", agentName)
-		}
-		if strings.Contains(cleaned, "dod") || strings.Contains(cleaned, "definition of done") {
-			return fmt.Sprintf("Halo Buchin! Saya %s sebagai Scrum Master. Definition of Done (DoD) mencakup: kode teruji (unit test pass 100%%), zero regression, clean code, dan dokumentasi audit yang lengkap.", agentName)
-		}
-		return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Scrum Master. Saya siap memfasilitasi koordinasi sprint, mengawal alur backlog, dan memastikan ritme kerja tim berjalan optimal.", agentName)
-
-	case RoleDeveloper:
-		if strings.Contains(cleaned, "bug") || strings.Contains(cleaned, "fix") || strings.Contains(cleaned, "error") || strings.Contains(cleaned, "crash") || strings.Contains(cleaned, "perbaiki") {
-			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Developer. Saya siap menganalisis root cause bug tersebut, memperbaiki kode pada komponen terkait, dan memastikan unit test lulus 100%%.", agentName)
-		}
-		if strings.Contains(cleaned, "ngoding") || strings.Contains(cleaned, "coding") || strings.Contains(cleaned, "code") || strings.Contains(cleaned, "fitur") || strings.Contains(cleaned, "endpoint") || strings.Contains(cleaned, "api") || strings.Contains(cleaned, "unit test") {
-			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Developer. Saya siap mengimplementasikan instruksi teknis ini, menyusun struktur kode yang bersih, dan menyiapkan endpoint/fungsi yang dibutuhkan.", agentName)
-		}
-		return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Developer. Instruksi teknis Anda telah saya catat dan siap dieksekusi dengan standar clean code dan automated tests.", agentName)
-
-	default: // RoleFriendly
-		if strings.Contains(cleaned, "kabar") {
-			return fmt.Sprintf("Kabar baik dan luar biasa, Buchin! Saya %s, siap mendampingi Anda berkolaborasi hari ini. Ada yang bisa saya bantu?", agentName)
-		}
-		if strings.Contains(cleaned, "halo") || strings.Contains(cleaned, "hai") || strings.Contains(cleaned, "pagi") || strings.Contains(cleaned, "siang") || strings.Contains(cleaned, "sore") || strings.Contains(cleaned, "malam") {
-			return fmt.Sprintf("Halo Buchin! Selamat beraktivitas. Saya %s di sini siap berkolaborasi bersama Anda.", agentName)
-		}
-		if strings.Contains(cleaned, "siapa kamu") || strings.Contains(cleaned, "kamu siapa") {
-			return fmt.Sprintf("Saya %s, agen AI otonom di Cuan yang siap beradaptasi mendukung kebutuhan sprint maupun teknis Anda.", agentName)
-		}
-		if strings.Contains(cleaned, "terima kasih") || strings.Contains(cleaned, "makasih") || strings.Contains(cleaned, "thanks") {
-			return fmt.Sprintf("Sama-sama, Buchin! Saya %s, senang bisa membantu Anda. Kabari saya jika butuh bantuan lagi.", agentName)
-		}
-		if strings.Contains(cleaned, "oke") || strings.Contains(cleaned, "ok") || strings.Contains(cleaned, "siap") || strings.Contains(cleaned, "mantap") {
-			return fmt.Sprintf("Siap, dipahami Buchin! Saya %s selalu stand by.", agentName)
-		}
-		return fmt.Sprintf("Halo Buchin! Senang mengobrol dengan Anda. Saya %s, siap membantu kapan pun dibutuhkan.", agentName)
-	}
-}
-
-// executeAgentCLIResponse runs the agent CLI runner (agy) or subprocess adapter and returns the agent text output.
-func (s *Server) executeAgentCLIResponse(ctx context.Context, agentName string, userPrompt string) string {
-	role := ClassifyMessageContext(userPrompt)
-	return s.executeAgentContextualResponse(ctx, agentName, "agy", userPrompt, role)
-}
-
-// isTechnicalTaskInstruction determines whether a message contains explicit task/technical work instructions
-// versus general greeting, inquiry, status question, or casual chat.
-func isTechnicalTaskInstruction(msg string) bool {
-	raw := strings.ToLower(strings.TrimSpace(msg))
-	cleaned := strings.TrimRight(raw, "?!.,;: \t\n\r")
-	if cleaned == "" {
-		return false
-	}
-
-	// 1. Explicit casual conversation, greeting, status inquiry, social phrases
-	casualPrefixes := []string{
-		"apa kabar", "gimana kabar", "kabar baik", "bagaimana kabar", "bagaimana kabarmu", "kabar",
-		"halo", "hai", "hello", "hi", "hey",
-		"selamat pagi", "pagi", "selamat siang", "siang", "selamat sore", "sore", "selamat malam", "malam",
-		"siapa kamu", "kamu siapa", "siapa anda", "anda siapa", "who are you",
-		"terima kasih", "makasih", "thanks", "thank you",
-		"oke", "ok", "siap", "mantap", "sip", "keren", "good", "nice",
-		"bisa bantu apa", "apa yang bisa kamu lakukan", "apa fungsi kamu",
-		"bagaimana sprint", "gimana sprint", "status sprint", "update sprint", "progress sprint", "progres sprint",
-		"lagi apa", "sedang apa", "lagi ngapain",
-	}
-
-	for _, cp := range casualPrefixes {
-		if cleaned == cp {
-			return false
-		}
-		// If message is a pure greeting or short casual question
-		if (strings.HasPrefix(cleaned, cp+" ") || strings.HasPrefix(cleaned, cp+"?")) && len(cleaned) < 35 {
-			return false
-		}
-	}
-
-	// 2. Clear technical action keywords
-	taskKeywords := []string{
-		"buat", "bikin", "ciptakan", "tambahkan", "tambah", "create", "build", "add",
-		"perbaiki", "fix", "repair", "patch", "hotfix", "atasi",
-		"bug", "error", "issue", "crash", "problem statement",
-		"deploy", "deployment", "rilis", "release", "ship",
-		"sprint backlog", "backlog", "task", "tugas",
-		"fitur", "feature",
-		"refactor", "migrasi", "migration", "database", "tabel", "foreign key",
-		"endpoint", "api", "route", "handler",
-		"implementasi", "implementasikan", "kerjakan", "eksekusi",
-		"setup", "konfigurasi", "config", "test suite", "testing",
-	}
-
-	for _, kw := range taskKeywords {
-		if strings.Contains(cleaned, kw) {
-			return true
-		}
-	}
-
-	// If longer instruction (over 50 chars) and not a casual question, treat as task
-	if len(cleaned) > 50 && !strings.Contains(cleaned, "kabar") && !strings.Contains(cleaned, "siapa") {
-		return true
-	}
-
-	return false
-}
-
-// generateSMConversationalResponse generates natural, friendly, and contextual responses for Scrum Master
-// without action cards, rigid problem statements, or DoD templates.
-func (s *Server) generateSMConversationalResponse(ctx context.Context, userPrompt string) string {
-	if s.cfg != nil && (s.cfg.Environment == "testing" || s.cfg.Environment == "staging") {
-		return getFallbackSMConversationResponse(userPrompt)
-	}
-
-	// Attempt agy execution with bounded timeout if CLI is present
-	binPath, err := exec.LookPath("agy")
-	if err != nil {
-		candidate := "/home/dev/.local/bin/agy"
-		if _, statErr := os.Stat(candidate); statErr == nil {
-			binPath = candidate
-			err = nil
-		}
-	}
-
-	if err == nil && binPath != "" {
-		execCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		systemContext := fmt.Sprintf("Anda adalah Scrum Master cerdas, ramah, dan solutif di sistem Cuan. Pengguna (Product Owner: Buchin) mengatakan: \"%s\". Berikan balasan percakapan natural, hangat, dan ringkas dalam Bahasa Indonesia (2-3 kalimat saja) sebagai rekan kerja yang responsif. Jangan gunakan format Action Card, jangan gunakan template Problem Statement/DoD, dan jangan ada tombol.", userPrompt)
-		cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "4s")
-		var stdoutBuf, stderrBuf bytes.Buffer
-		cmd.Stdout = &stdoutBuf
-		cmd.Stderr = &stderrBuf
-
-		if cmdErr := cmd.Run(); cmdErr == nil {
-			out := strings.TrimSpace(stdoutBuf.String())
-			if out != "" && !strings.Contains(out, "Problem Statement:") {
-				out = strings.TrimPrefix(out, "[Scrum Master] ")
-				return out
-			}
-		}
-	}
-
-	return getFallbackSMConversationResponse(userPrompt)
-}
-
-func getFallbackSMConversationResponse(userPrompt string) string {
-	cleaned := strings.ToLower(strings.TrimSpace(userPrompt))
-	cleaned = strings.TrimRight(cleaned, "?!.,;: \t\n\r")
-
-	if strings.Contains(cleaned, "kabar") {
-		return "Kabar baik dan luar biasa, Buchin! Saya Scrum Master Cuan, siap mendampingi Anda mengawal ritme sprint dan koordinasi tim agen. Ada yang ingin kita diskusikan atau rencanakan hari ini?"
-	}
-	if strings.Contains(cleaned, "halo") || strings.Contains(cleaned, "hai") || strings.Contains(cleaned, "hello") || strings.Contains(cleaned, "pagi") || strings.Contains(cleaned, "siang") || strings.Contains(cleaned, "sore") || strings.Contains(cleaned, "malam") {
-		return "Halo Buchin! Selamat beraktivitas. Scrum Master di sini siap membantu mengelola backlog, memantau sprint, atau berkoordinasi dengan agen pekerja. Apa yang bisa saya bantu hari ini?"
-	}
-	if strings.Contains(cleaned, "siapa kamu") || strings.Contains(cleaned, "kamu siapa") || strings.Contains(cleaned, "siapa anda") {
-		return "Saya Scrum Master di Cuan, asisten cerdas Anda yang bertugas memfasilitasi Agentic Scrum, memecah ide Anda menjadi Definition of Done (DoD) yang terukur, dan mengorkestrasi agen pekerja seperti Antigravity Flash untuk menyelesaikan sprint tepat waktu."
-	}
-	if strings.Contains(cleaned, "bagaimana sprint") || strings.Contains(cleaned, "gimana sprint") || strings.Contains(cleaned, "status sprint") || strings.Contains(cleaned, "update sprint") || strings.Contains(cleaned, "progress sprint") || strings.Contains(cleaned, "progres sprint") {
-		return "Sprint saat ini berjalan aktif dengan tim yang terkoordinasi dengan baik! Seluruh backlog prioritas terpantau di Global Task Board (tab Tasks). Jika ada penyesuaian scope atau instruksi baru untuk tim pengembang, silakan beri tahu saya!"
-	}
-	if strings.Contains(cleaned, "terima kasih") || strings.Contains(cleaned, "makasih") || strings.Contains(cleaned, "thanks") {
-		return "Sama-sama, Buchin! Senang bisa membantu kelancaran sprint Anda. Jangan ragu hubungi saya kembali jika butuh bantuan."
-	}
-	if strings.Contains(cleaned, "oke") || strings.Contains(cleaned, "ok") || strings.Contains(cleaned, "siap") || strings.Contains(cleaned, "mantap") || strings.Contains(cleaned, "sip") || strings.Contains(cleaned, "keren") {
-		return "Siap, dipahami Buchin! Saya selalu stand by memantau progres tim. Beri tahu saya jika Anda ingin memulai task atau ada instruksi teknis baru."
-	}
-	if strings.Contains(cleaned, "bisa bantu apa") || strings.Contains(cleaned, "apa yang bisa kamu lakukan") || strings.Contains(cleaned, "apa fungsi kamu") {
-		return "Sebagai Scrum Master cerdas di Cuan, saya dapat: 1) Berdiskusi santai mengenai arah produk, 2) Membedah kebutuhan fitur atau bug menjadi Problem Statement & DoD terukur, 3) Menugaskan Worker Agent untuk eksekusi otomatis. Cukup sampaikan ide atau instruksi Anda!"
-	}
-
-	return "Halo Buchin! Senang mengobrol dengan Anda. Sebagai Scrum Master, saya siap membantu kapan pun Anda membutuhkan arahan sprint, pembuatan backlog fitur, atau investigasi bug. Silakan beri tahu apa yang ingin kita capai hari ini!"
 }
 
 // ============================================================================

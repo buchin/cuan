@@ -33,7 +33,7 @@ func main() {
 	detectAgents := flag.Bool("detect-agents", false, "Detect installed agent binaries (agy, claude, shell) on the host")
 	pairAgent := flag.Bool("pair-agent", false, "Pair an agent CLI account using a device code")
 	pairCode := flag.String("code", "", "Device pairing code (e.g. CUAN-8892)")
-	agentIDFlag := flag.String("agent-id", "worker-flash", "Agent ID to pair")
+	agentIDFlag := flag.String("agent-id", "", "Agent ID to pair")
 	memberIDFlag := flag.String("member-id", "buchin", "Member ID authorizing the agent")
 	providerFlag := flag.String("provider", "antigravity", "Agent provider (antigravity, claude, shell)")
 	flag.Parse()
@@ -193,7 +193,7 @@ func main() {
 		Addr:         addr,
 		Handler:      srv.Router(),
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 90 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

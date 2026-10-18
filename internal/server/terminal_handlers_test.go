@@ -543,3 +543,14 @@ func TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness(t *testing.T) {
 	}
 }
 
+func TestS25NoImplicitTaskWorker(t *testing.T) {
+	srv := NewServer(&config.Config{AppMode: "studio"}, nil)
+	for _, payload := range []string{`{}`, `{"agent_id":"worker-flash"}`} {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/test/run-agent", strings.NewReader(payload))
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+		if rec.Code == http.StatusOK {
+			t.Fatal("unregistered worker was launched")
+		}
+	}
+}

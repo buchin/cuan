@@ -1,0 +1,44 @@
+[
+  {
+    "host": "https://cuan.dojo.cc",
+    "id": "agent_dev",
+    "name": "@dev (@dev)",
+    "deleted": true,
+    "reason": "Legacy duplicate registry record; no verified provider connection. Explicit PO removal instruction."
+  },
+  {
+    "host": "https://cuan.dojo.cc",
+    "id": "61342ff1-7bca-497d-8d45-0fc97b5ad20a",
+    "name": "@dev",
+    "deleted": true,
+    "reason": "Legacy duplicate registry record; no verified provider connection. Explicit PO removal instruction."
+  },
+  {
+    "host": "https://cuan.dojo.cc",
+    "id": "233fe212-b591-470c-a048-d11fe994067c",
+    "name": "@dev",
+    "deleted": true,
+    "reason": "Legacy duplicate registry record; no verified provider connection. Explicit PO removal instruction."
+  },
+  {
+    "host": "https://cuan-s25-dojo.fural.space",
+    "id": "agent_dev",
+    "name": "@dev (@dev)",
+    "deleted": true,
+    "reason": "Legacy duplicate registry record; no verified provider connection. Explicit PO removal instruction."
+  },
+  {
+    "host": "https://cuan-s25-dojo.fural.space",
+    "id": "61342ff1-7bca-497d-8d45-0fc97b5ad20a",
+    "name": "@dev",
+    "deleted": true,
+    "reason": "Legacy duplicate registry record; no verified provider connection. Explicit PO removal instruction."
+  },
+  {
+    "host": "https://cuan-s25-dojo.fural.space",
+    "id": "233fe212-b591-470c-a048-d11fe994067c",
+    "name": "@dev",
+    "deleted": true,
+    "reason": "Legacy duplicate registry record; no verified provider connection. Explicit PO removal instruction."
+  }
+]

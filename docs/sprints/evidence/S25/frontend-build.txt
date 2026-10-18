@@ -3,7 +3,7 @@
 > tsc && vite build
 
 vite v5.4.21 building for production...
-(node:2765) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:2132) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 transforming...
 node_modules/react-router/dist/development/index.mjs (11:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-router/dist/development/index.mjs" was ignored.
@@ -12,19 +12,19 @@ node_modules/react-router/dist/development/dom-export.mjs (1:0): Module level di
 warnings when minifying css:
 ▲ [WARNING] Expected identifier but found "-" [css-syntax-error]
 
-    <stdin>:2436:2:
-      2436 │   -: \s;
+    <stdin>:2372:2:
+      2372 │   -: \s;
            ╵   ^
 
 
 rendering chunks...
 computing gzip size...
 dist/index.html                   0.55 kB │ gzip:   0.37 kB
-dist/assets/index-B-nAFoMj.css   47.94 kB │ gzip:   9.89 kB
-dist/assets/index-DAafiXSf.js   688.67 kB │ gzip: 185.59 kB
+dist/assets/index-gMHNWJOc.css   46.49 kB │ gzip:   9.68 kB
+dist/assets/index-D1yfo4oG.js   672.96 kB │ gzip: 182.08 kB
 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-✓ built in 3.83s
+✓ built in 3.77s

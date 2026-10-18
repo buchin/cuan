@@ -61,15 +61,15 @@ func (s *Server) handleGetTerminalSessionsStatus(w http.ResponseWriter, r *http.
 
 	active := s.terminalManager.ActiveSessions()
 	type SessionSummary struct {
-		ID           string        `json:"id"`
-		TaskID       string        `json:"task_id"`
-		Subscribers  int           `json:"subscribers"`
-		CreatedAt    string        `json:"created_at"`
-		LastActivity string        `json:"last_activity"`
-		Cols         uint16        `json:"cols"`
-		Rows         uint16        `json:"rows"`
-		PID          int           `json:"pid"`
-		WorkDir      string        `json:"work_dir"`
+		ID           string `json:"id"`
+		TaskID       string `json:"task_id"`
+		Subscribers  int    `json:"subscribers"`
+		CreatedAt    string `json:"created_at"`
+		LastActivity string `json:"last_activity"`
+		Cols         uint16 `json:"cols"`
+		Rows         uint16 `json:"rows"`
+		PID          int    `json:"pid"`
+		WorkDir      string `json:"work_dir"`
 	}
 
 	summaries := make([]SessionSummary, len(active))
@@ -154,31 +154,31 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 
 	agentID := strings.TrimSpace(payload.AgentID)
 	if agentID == "" {
-		agentID = "worker-flash"
+		respondJSONError(w, http.StatusBadRequest, "Pilih agen terdaftar terlebih dahulu")
+		return
 	}
-	agentName := "Antigravity Flash Worker"
-
-	// Resolve BYO Agent from registry if available
-	if s.agentRepo != nil && agentID != "" {
-		if ag, err := s.agentRepo.GetAgentByID(r.Context(), agentID); err == nil && ag != nil {
-			agentName = ag.Name
-			if payload.Binary == "" {
-				switch ag.Harness {
-				case "claude":
-					payload.Binary = "claude"
-				case "codex":
-					payload.Binary = "codex"
-				default:
-					payload.Binary = "agy"
-				}
-			}
-		}
+	if s.agentRepo == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Agent registry unavailable")
+		return
 	}
-	if agentName == "Antigravity Flash Worker" {
-		if strings.Contains(agentID, "pro") {
-			agentName = "Antigravity Pro Architect"
-		} else if strings.Contains(agentID, "sm") {
-			agentName = "Scrum Master Agent"
+	registeredAgent, err := s.agentRepo.GetAgentByID(r.Context(), agentID)
+	if err != nil || registeredAgent == nil {
+		respondJSONError(w, http.StatusNotFound, "Agen tidak terdaftar")
+		return
+	}
+	if !registeredAgent.Enabled {
+		respondJSONError(w, http.StatusConflict, "Agen dinonaktifkan")
+		return
+	}
+	agentName := registeredAgent.Name
+	if payload.Binary == "" {
+		switch registeredAgent.Harness {
+		case "claude":
+			payload.Binary = "claude"
+		case "codex":
+			payload.Binary = "codex"
+		default:
+			payload.Binary = "agy"
 		}
 	}
 
