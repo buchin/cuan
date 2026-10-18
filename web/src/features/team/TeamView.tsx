@@ -7,10 +7,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   Plus,
-  Terminal,
   Zap,
   X,
-  Sparkles,
   RefreshCw,
   Copy,
 } from 'lucide-react'
@@ -121,13 +119,11 @@ export function TeamView({
   const [members, setMembers] = useState<TeamMember[]>(DEFAULT_TEAM_MEMBERS)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Add Agent Form State
-  const [newName, setNewName] = useState('')
+  // S23.2: Fural-Style Add Agent Form State
   const [newHandle, setNewHandle] = useState('@dev')
-  const [newProvider, setNewProvider] = useState('antigravity')
-  const [newModel, setNewModel] = useState('Gemini 3.8 Flash (High-Speed)')
-  const [newRole, setNewRole] = useState('Sprint Worker Agent')
-  const [authType, setAuthType] = useState<'cli_login' | 'oauth'>('cli_login')
+  const [newHarness, setNewHarness] = useState<'agy' | 'claude' | 'codex' | 'custom'>('agy')
+  const [apiKey, setApiKey] = useState('')
+  const [customEndpoint, setCustomEndpoint] = useState('')
   const [deviceCode, setDeviceCode] = useState('CUAN-8892')
   const [isConnecting, setIsConnecting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -139,27 +135,34 @@ export function TeamView({
       .list()
       .then((dbAgents) => {
         if (!isMounted || !dbAgents || dbAgents.length === 0) return
-        const mapped: TeamMember[] = dbAgents.map((a) => ({
-          id: a.id,
-          name: a.name,
-          handle: a.name.includes('@')
+        const mapped: TeamMember[] = dbAgents.map((a) => {
+          const handle = a.name.startsWith('@')
+            ? a.name
+            : a.name.includes('@')
             ? '@' + a.name.split('@')[1].replace(')', '')
-            : '@' + a.id.replace('agent_', ''),
-          role: 'dev_team',
-          roleTitle: a.role || 'Sprint Worker Agent',
-          type: 'agent',
-          avatar: a.name.substring(0, 2).toUpperCase(),
-          status: 'Connected (Active)',
-          detail: 'Agent terhubung via CLI login Model Fural tanpa raw API key.',
-          model: a.model_id || 'Gemini 3.8 Flash',
-          authModel: 'CLI Session (Model Fural)',
-          provider: a.provider || 'antigravity',
-          responsibilities: [
-            'Menjalankan instruksi task otomatis',
-            'Unit testing & verifikasi hasil kerja',
-            'Melaporkan progres ke Scrum Master',
-          ],
-        }))
+            : '@' + a.id.replace('agent_', '')
+          const harness = a.harness || a.provider || 'agy'
+
+          return {
+            id: a.id,
+            name: a.name,
+            handle: handle,
+            role: 'dev_team',
+            roleTitle: `Harness: ${harness.toUpperCase()}`,
+            type: 'agent',
+            avatar: handle.replace('@', '').substring(0, 2).toUpperCase() || 'AG',
+            status: a.enabled === false || a.status === 'inactive' ? 'Disabled' : 'Connected (Active)',
+            detail: `Agent BYO terhubung dengan harness ${harness} (Model Fural).`,
+            model: a.model_id || harness,
+            authModel: 'CLI Session (Model Fural)',
+            provider: harness,
+            responsibilities: [
+              'Merespons secara dinamis sesuai konteks pesan (SM saat koordinasi, Developer saat teknis)',
+              'Menjalankan instruksi task otomatis via PTY runner',
+              'Melaporkan progres ke Scrum Master',
+            ],
+          }
+        })
 
         setMembers((prev) => {
           const ids = new Set(prev.map((p) => p.id))
@@ -181,71 +184,88 @@ export function TeamView({
   }
 
   const handleCopyCommand = () => {
-    const cmd = `cuan agent auth --handle ${newHandle} --runtime ${newProvider}`
+    const cmd = `cuan agent auth --handle ${newHandle} --code ${deviceCode}`
     navigator.clipboard?.writeText(cmd)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleHandleChange = (val: string) => {
+    let clean = val.trim().toLowerCase()
+    if (!clean.startsWith('@')) {
+      clean = '@' + clean.replace(/^@+/, '')
+    }
+    clean = '@' + clean.slice(1).replace(/[\s\t\n]+/g, '_').replace(/[^a-z0-9_-]/g, '')
+    setNewHandle(clean)
+  }
+
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newName.trim()) return
+    const sanitized = newHandle.trim()
+    if (!sanitized || sanitized === '@') return
 
     setIsConnecting(true)
     try {
-      const res = await agentsApi.connectCLI({
-        name: newName.trim(),
-        handle: newHandle.trim(),
-        provider: newProvider,
-        model_id: newModel,
-        role: newRole.trim(),
-        auth_type: authType,
-        session_token: `cuan_cli_session_${Date.now()}`,
+      const connID = `conn_${sanitized.replace(/^@/, '')}_${Date.now()}`
+      // 1. Create standard Fural agent entity via REST API POST /api/v1/agents
+      const agentRes = await agentsApi.create({
+        name: sanitized,
+        harness: newHarness,
+        connection_id: connID,
+        enabled: true,
+      })
+
+      // 2. Also register CLI session connection in backend
+      await agentsApi.connectCLI({
+        name: sanitized,
+        handle: sanitized,
+        provider: newHarness,
+        model_id: newHarness === 'custom' ? customEndpoint || 'Custom Model' : newHarness.toUpperCase(),
+        session_token: connID,
       })
 
       const newMember: TeamMember = {
-        id: res.agent.id,
-        name: res.agent.name,
-        handle: res.handle || newHandle.trim(),
+        id: agentRes.id,
+        name: sanitized,
+        handle: sanitized,
         role: 'dev_team',
-        roleTitle: res.agent.role || newRole.trim(),
+        roleTitle: `Harness: ${newHarness === 'agy' ? 'Antigravity (agy)' : newHarness === 'claude' ? 'Claude' : newHarness === 'codex' ? 'Codex' : 'Custom Model'}`,
         type: 'agent',
-        avatar: newName.trim().substring(0, 2).toUpperCase(),
+        avatar: sanitized.replace(/^@/, '').substring(0, 2).toUpperCase() || 'AG',
         status: 'Connected (Active)',
-        detail: 'Agent terhubung via CLI login Model Fural tanpa raw API key.',
-        model: res.agent.model_id || newModel,
-        authModel: 'CLI Session (Model Fural)',
-        provider: res.provider || newProvider,
+        detail: `Agent BYO terhubung dengan harness ${newHarness} (Model Fural).`,
+        model: newHarness === 'custom' ? 'Custom LLM' : `${newHarness.toUpperCase()} Engine`,
+        authModel: newHarness === 'custom' ? 'API Key Configured' : 'CLI Session (Model Fural)',
+        provider: newHarness,
         responsibilities: [
-          'Menjalankan instruksi task otomatis',
-          'Unit testing & verifikasi hasil kerja',
+          'Merespons dinamis sesuai konteks pesan (SM saat koordinasi, Developer saat teknis)',
+          'Menjalankan eksekusi task PTY runner',
           'Melaporkan progres ke Scrum Master',
         ],
       }
 
       setMembers((prev) => [newMember, ...prev])
       setIsModalOpen(false)
-      setNewName('')
       setNewHandle('@dev')
       if (onAgentAdded) onAgentAdded()
     } catch (err) {
       console.error('Failed to connect agent via CLI:', err)
       const fallbackMember: TeamMember = {
         id: `agent-${Date.now()}`,
-        name: `${newName.trim()} (${newHandle.trim()})`,
-        handle: newHandle.trim(),
+        name: sanitized,
+        handle: sanitized,
         role: 'dev_team',
-        roleTitle: newRole.trim(),
+        roleTitle: `Harness: ${newHarness}`,
         type: 'agent',
-        avatar: newName.trim().substring(0, 2).toUpperCase(),
+        avatar: sanitized.replace(/^@/, '').substring(0, 2).toUpperCase() || 'AG',
         status: 'Connected (Active)',
-        detail: 'Agent terdaftar lokal via CLI Session fallback.',
-        model: newModel,
+        detail: 'Agent terdaftar lokal via BYO Agent fallback.',
+        model: newHarness,
         authModel: 'CLI Session (Fallback)',
-        provider: newProvider,
+        provider: newHarness,
         responsibilities: [
-          'Menjalankan instruksi task otomatis',
-          'Unit testing & verifikasi hasil kerja',
+          'Merespons dinamis sesuai konteks pesan',
+          'Menjalankan eksekusi task PTY runner',
         ],
       }
       setMembers((prev) => [fallbackMember, ...prev])
@@ -440,7 +460,7 @@ export function TeamView({
         </div>
       </div>
 
-      {/* Add Agent Modal — Model Fural (Zero API Key) */}
+      {/* S23.2: Fural-Style Add Agent Modal UI */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-card border border-border rounded-xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
@@ -452,13 +472,13 @@ export function TeamView({
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-                    Tambah Akun Agent (Model Fural)
+                    Tambah Agen (Fural BYO Agent)
                     <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.2 rounded font-mono">
                       No API Key
                     </span>
                   </h3>
                   <p className="text-[11px] text-muted-foreground">
-                    Hubungkan agent runtime via CLI / Sesi Akun terotorisasi tanpa meminta API Key mentah.
+                    Hubungkan akun agent mandiri dengan memilih Harness dan input nama @handle.
                   </p>
                 </div>
               </div>
@@ -472,167 +492,148 @@ export function TeamView({
 
             {/* Form */}
             <form onSubmit={handleCreateAgent} className="p-5 space-y-4 overflow-y-auto">
-              {/* Agent Handle Preset */}
+              {/* 1. Pilihan Harness */}
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Handle / Identifier
+                <label className="block text-xs font-semibold text-foreground mb-1.5">
+                  Pilihan Harness (Runtime Agent)
                 </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {['@dev', '@sm', '@assistant', '@tester'].map((handle) => (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'agy', label: 'Antigravity (agy)', desc: 'Google Deepmind CLI' },
+                    { id: 'claude', label: 'Claude', desc: 'Anthropic Claude Code' },
+                    { id: 'codex', label: 'Codex', desc: 'OpenAI Codex Runner' },
+                    { id: 'custom', label: 'Custom Model', desc: 'Custom LLM / API Key' },
+                  ].map((h) => (
                     <button
-                      key={handle}
+                      key={h.id}
                       type="button"
-                      onClick={() => {
-                        setNewHandle(handle)
-                        if (!newName) {
-                          setNewName(
-                            handle === '@dev'
-                              ? 'Dev Worker'
-                              : handle === '@sm'
-                              ? 'Scrum Master'
-                              : handle === '@assistant'
-                              ? 'Dojo Assistant'
-                              : 'QA Tester'
-                          )
-                        }
-                      }}
+                      onClick={() => setNewHarness(h.id as any)}
                       className={cn(
-                        'py-1 px-2 text-xs font-mono font-medium rounded border transition-colors',
-                        newHandle === handle
-                          ? 'border-primary bg-primary/10 text-primary font-bold'
-                          : 'border-border text-muted-foreground hover:bg-muted'
+                        'p-2.5 rounded-lg border text-left transition-all',
+                        newHarness === h.id
+                          ? 'border-primary bg-primary/10 ring-1 ring-primary text-foreground'
+                          : 'border-border text-muted-foreground hover:bg-muted/60'
                       )}
                     >
-                      {handle}
+                      <div className="text-xs font-bold text-foreground flex items-center justify-between">
+                        <span>{h.label}</span>
+                        {newHarness === h.id && (
+                          <span className="h-2 w-2 rounded-full bg-primary" />
+                        )}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{h.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Agent Name */}
+              {/* 2. Agent Name (@handle) dengan prefix @ dan auto-sanitasi */}
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Nama Agent
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Antigravity Fast Coder"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              {/* Role Title */}
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Peran / Tanggung Jawab
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sprint Worker Agent"
-                  value={newRole}
-                  onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              {/* Runtime Provider */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-foreground mb-1">
-                    Runtime Provider
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-foreground">
+                    Agent Name (Mention Handle)
                   </label>
-                  <select
-                    value={newProvider}
-                    onChange={(e) => setNewProvider(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="antigravity">Antigravity CLI (agy)</option>
-                    <option value="gemini">Gemini CLI</option>
-                    <option value="claude">Claude Code CLI</option>
-                  </select>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    Prefix @ & auto-sanitasi
+                  </span>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-foreground mb-1">
-                    Model Engine
-                  </label>
-                  <select
-                    value={newModel}
-                    onChange={(e) => setNewModel(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="Gemini 3.8 Flash (High-Speed)">Gemini 3.8 Flash (Fast)</option>
-                    <option value="Gemini Pro (Deep Reasoning)">Gemini Pro (Deep)</option>
-                    <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
-                    <option value="Auto (Scrum Orchestrated)">Auto (Orchestrated)</option>
-                  </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="@dev"
+                    value={newHandle}
+                    onChange={(e) => handleHandleChange(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-mono bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="text-[11px] text-muted-foreground">Preset cepat:</span>
+                  {['@dev', '@sm', '@coder', '@tester'].map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setNewHandle(h)}
+                      className={cn(
+                        'px-2 py-0.5 text-[10px] font-mono rounded border transition-colors',
+                        newHandle === h
+                          ? 'border-primary bg-primary/10 text-primary font-bold'
+                          : 'border-border text-muted-foreground hover:bg-muted'
+                      )}
+                    >
+                      {h}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Auth Mode — Zero API Key */}
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Mekanisme Otorisasi (No API Key Required)
-                </label>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setAuthType('cli_login')}
-                    className={cn(
-                      'flex items-center gap-2 p-2 rounded-lg border text-left transition-colors',
-                      authType === 'cli_login'
-                        ? 'border-primary bg-primary/10 text-foreground font-semibold'
-                        : 'border-border text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    <Terminal className="h-4 w-4 text-primary shrink-0" />
-                    <div>
-                      <div className="text-xs">CLI Session Auth</div>
-                      <div className="text-[10px] text-muted-foreground">Kredensial Sesi CLI Lokal</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAuthType('oauth')}
-                    className={cn(
-                      'flex items-center gap-2 p-2 rounded-lg border text-left transition-colors',
-                      authType === 'oauth'
-                        ? 'border-primary bg-primary/10 text-foreground font-semibold'
-                        : 'border-border text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
-                    <div>
-                      <div className="text-xs">Device Auth Code</div>
-                      <div className="text-[10px] text-muted-foreground">Otorisasi Device 1-Klik</div>
-                    </div>
-                  </button>
-                </div>
-
+              {/* 3. Panel Status Sesi Akun / API Key jika custom model */}
+              {newHarness !== 'custom' ? (
                 <div className="bg-muted/40 p-3 rounded-lg border border-border text-xs space-y-2">
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>Otorisasi via Terminal:</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span>Status Sesi Akun (BYO Agent)</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                      Connected / Active
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Sesi akun terhubung langsung ke runtime <span className="font-semibold text-foreground">{newHarness}</span> di host server tanpa memerlukan input raw API Key.
+                  </p>
+                  <div className="pt-2 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                    <span>Otorisasi Device Code: {deviceCode}</span>
                     <button
                       type="button"
                       onClick={handleCopyCommand}
                       className="text-primary hover:underline flex items-center gap-1"
                     >
                       <Copy className="h-3 w-3" />
-                      <span>{copied ? 'Tersalin!' : 'Salin Perintah'}</span>
+                      <span>{copied ? 'Tersalin!' : 'Salin Perintah CLI'}</span>
                     </button>
                   </div>
-                  <code className="block bg-background p-2 rounded border border-border font-mono text-[11px] text-primary break-all">
-                    cuan agent auth --handle {newHandle} --code {deviceCode}
-                  </code>
-                  <p className="text-[10px] text-muted-foreground">
-                    ✓ Tanpa API Key raw: Cuan memverifikasi token sesi melalui adapter CLI aman berstandar Fural.
-                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-muted/40 p-3 rounded-lg border border-border text-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <Zap className="h-3.5 w-3.5 text-amber-500" />
+                      <span>Konfigurasi Custom Model</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-bold">
+                      API Key Required
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-foreground mb-1">
+                      API Key / Access Token
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="sk-..."
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-foreground mb-1">
+                      Custom Endpoint / Base URL (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://api.openai.com/v1 atau http://localhost:11434"
+                      value={customEndpoint}
+                      onChange={(e) => setCustomEndpoint(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Submit Buttons */}
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
@@ -645,18 +646,18 @@ export function TeamView({
                 </button>
                 <button
                   type="submit"
-                  disabled={isConnecting || !newName.trim()}
+                  disabled={isConnecting || !newHandle || newHandle === '@'}
                   className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground font-semibold text-xs rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {isConnecting ? (
                     <>
                       <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      <span>Menghubungkan Agent...</span>
+                      <span>Menghubungkan...</span>
                     </>
                   ) : (
                     <>
-                      <Zap className="h-3.5 w-3.5" />
-                      <span>Hubungkan Agent (Model Fural)</span>
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Hubungkan Agent ({newHarness})</span>
                     </>
                   )}
                 </button>

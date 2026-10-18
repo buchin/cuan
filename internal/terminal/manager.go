@@ -377,6 +377,12 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		hasClaude = true
 		claudePath = p
 	}
+	hasCodex := false
+	var codexPath string
+	if p, err := exec.LookPath("codex"); err == nil {
+		hasCodex = true
+		codexPath = p
+	}
 
 	if (cmdName == "agy" || cmdName == "antigravity" || (cmdName == "" && hasAGY)) && hasAGY {
 		commandLabel = "agy"
@@ -416,6 +422,22 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 				"%s -p %q\n"+
 				"exit $?\n",
 			taskID, agentName, workDir, claudePath, promptText,
+		)
+		ptyArgs = []string{"-c", script}
+	} else if (cmdName == "codex" || (cmdName == "" && hasCodex)) && hasCodex {
+		commandLabel = "codex"
+		promptText := cfg.Prompt
+		if promptText == "" {
+			promptText = "Task #" + taskID
+		}
+		script := fmt.Sprintf(
+			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Task \\033[1;33m#%s\\033[0m\"\n"+
+				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Agent: \\033[1;37m%s (Codex)\\033[0m\"\n"+
+				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
+				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
+				"%s -p %q\n"+
+				"exit $?\n",
+			taskID, agentName, workDir, codexPath, promptText,
 		)
 		ptyArgs = []string{"-c", script}
 	} else {

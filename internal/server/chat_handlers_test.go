@@ -318,3 +318,116 @@ func TestChatHandlers_ScrumMasterConversationalGreetings(t *testing.T) {
 		t.Fatalf("expected DoDChecklist for technical task")
 	}
 }
+
+func TestChatHandlers_DynamicRoles(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// Register a BYO agent "@dev"
+	agentRepo := cuanDB.NewMemoryAgentRepository()
+	srv.SetAgentRepository(agentRepo)
+
+	createdAgent := &cuanDB.Agent{
+		ID:           cuanDB.GenerateUUID(),
+		Name:         "@dev",
+		Harness:      "agy",
+		ConnectionID: "conn_test_dev",
+		Enabled:      true,
+		Provider:     "agy",
+		Status:       cuanDB.AgentStatusActive,
+	}
+	if err := agentRepo.CreateAgent(context.Background(), createdAgent); err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+
+	// 1. Test Context Classifier directly
+	tests := []struct {
+		input string
+		want  ChatContextRole
+	}{
+		{"Halo apa kabar @dev?", RoleFriendly},
+		{"Selamat pagi tim!", RoleFriendly},
+		{"Terima kasih atas bantuannya", RoleFriendly},
+		{"Tolong evaluasi sprint 23 dan review backlog", RoleScrumMaster},
+		{"Bagaimana DoD untuk user story ini?", RoleScrumMaster},
+		{"Mari jadwalkan sprint planning dan koordinasi tim", RoleScrumMaster},
+		{"Tolong fix bug crash di endpoint api pembayaran", RoleDeveloper},
+		{"Bisa tolong buatkan unit test dan refactor query database?", RoleDeveloper},
+		{"Siapkan script migration untuk tabel baru", RoleDeveloper},
+	}
+
+	for _, tt := range tests {
+		got := ClassifyMessageContext(tt.input)
+		if got != tt.want {
+			t.Errorf("ClassifyMessageContext(%q) = %v; want %v", tt.input, got, tt.want)
+		}
+	}
+
+	// 2. Chat with @dev via mention in a room -> Sprint Coordination / Planning / Review (Scrum Master Persona)
+	scrumMsg := "@dev mari kita evaluasi sprint 23 dan review DoD backlog kita"
+	bodyScrum, _ := json.Marshal(map[string]interface{}{"message": scrumMsg})
+	reqScrum := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/general-room-01/messages", bytes.NewReader(bodyScrum))
+	reqScrum.Header.Set("Content-Type", "application/json")
+	reqScrum.Header.Set("Authorization", "Bearer "+token)
+	recScrum := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recScrum, reqScrum)
+
+	if recScrum.Code != http.StatusOK {
+		t.Fatalf("expected 200 for scrum message, got %d: %s", recScrum.Code, recScrum.Body.String())
+	}
+	var respScrum struct {
+		AgentReply *ChatMessageDTO `json:"agent_reply"`
+	}
+	_ = json.Unmarshal(recScrum.Body.Bytes(), &respScrum)
+	if respScrum.AgentReply == nil {
+		t.Fatalf("expected agent reply for mention @dev")
+	}
+	if !strings.Contains(respScrum.AgentReply.Message, "Scrum Master") {
+		t.Errorf("expected Scrum Master persona response, got: %s", respScrum.AgentReply.Message)
+	}
+
+	// 3. Chat with @dev via direct room -> Technical instruction / Bug fix (Developer Persona)
+	devMsg := "Tolong perbaiki bug di endpoint database dan buatkan unit test"
+	bodyDev, _ := json.Marshal(map[string]interface{}{"message": devMsg})
+	reqDev := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", bytes.NewReader(bodyDev))
+	reqDev.Header.Set("Content-Type", "application/json")
+	reqDev.Header.Set("Authorization", "Bearer "+token)
+	recDev := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recDev, reqDev)
+
+	if recDev.Code != http.StatusOK {
+		t.Fatalf("expected 200 for dev message, got %d: %s", recDev.Code, recDev.Body.String())
+	}
+	var respDev struct {
+		AgentReply *ChatMessageDTO `json:"agent_reply"`
+	}
+	_ = json.Unmarshal(recDev.Body.Bytes(), &respDev)
+	if respDev.AgentReply == nil {
+		t.Fatalf("expected agent reply from @dev direct room")
+	}
+	if !strings.Contains(respDev.AgentReply.Message, "Developer") {
+		t.Errorf("expected Developer persona response, got: %s", respDev.AgentReply.Message)
+	}
+
+	// 4. Chat with @dev via direct room -> Casual greeting (Friendly Persona)
+	greetMsg := "Halo @dev, apa kabar hari ini?"
+	bodyGreet, _ := json.Marshal(map[string]interface{}{"message": greetMsg})
+	reqGreet := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", bytes.NewReader(bodyGreet))
+	reqGreet.Header.Set("Content-Type", "application/json")
+	reqGreet.Header.Set("Authorization", "Bearer "+token)
+	recGreet := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recGreet, reqGreet)
+
+	if recGreet.Code != http.StatusOK {
+		t.Fatalf("expected 200 for greet message, got %d: %s", recGreet.Code, recGreet.Body.String())
+	}
+	var respGreet struct {
+		AgentReply *ChatMessageDTO `json:"agent_reply"`
+	}
+	_ = json.Unmarshal(recGreet.Body.Bytes(), &respGreet)
+	if respGreet.AgentReply == nil {
+		t.Fatalf("expected agent reply for friendly greeting")
+	}
+	if !strings.Contains(respGreet.AgentReply.Message, "Kabar baik") && !strings.Contains(respGreet.AgentReply.Message, "Halo Buchin") {
+		t.Errorf("expected friendly natural response, got: %s", respGreet.AgentReply.Message)
+	}
+}

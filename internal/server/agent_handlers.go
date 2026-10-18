@@ -202,6 +202,61 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handlePatchAgent modifies an existing agent partially (Fural format { id, name, harness, connection_id, enabled }).
+// Route: PATCH /api/agents/{id}
+// Aliases: PATCH /api/v1/agents/{id}
+func (s *Server) handlePatchAgent(w http.ResponseWriter, r *http.Request) {
+	if s.agentRepo == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
+		return
+	}
+
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "agent id is required")
+		return
+	}
+
+	entity, err := s.agentRepo.GetAgentByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, db.ErrAgentNotFound) {
+			respondJSONError(w, http.StatusNotFound, "agent not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to get agent: "+err.Error())
+		return
+	}
+
+	var input db.PatchAgentInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request json: "+err.Error())
+		return
+	}
+
+	if err := input.ApplyTo(entity); err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := s.agentRepo.UpdateAgent(r.Context(), entity); err != nil {
+		if errors.Is(err, db.ErrAgentNotFound) {
+			respondJSONError(w, http.StatusNotFound, "agent not found")
+			return
+		}
+		if errors.Is(err, db.ErrEmptyAgentName) || errors.Is(err, db.ErrInvalidAgentStatus) {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to update agent: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "success",
+		"agent":  entity.ToDTO(),
+	})
+}
+
 // handleDeleteAgent deletes an agent persona by ID.
 // Route: DELETE /api/agents/{id}
 // Aliases: DELETE /api/v1/agents/{id}
@@ -662,11 +717,15 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	cleanHandle := strings.TrimPrefix(handle, "@")
 	cleanHandle = strings.ReplaceAll(cleanHandle, "-", "_")
 	agentID := "agent_" + cleanHandle
+	connID := "conn_" + agentID
 	agentDisplayName := fmt.Sprintf("%s (%s)", name, handle)
 
 	agentEntity := &db.Agent{
 		ID:           agentID,
 		Name:         agentDisplayName,
+		Harness:      provider,
+		ConnectionID: connID,
+		Enabled:      true,
 		Avatar:       "🤖",
 		Role:         role,
 		SystemPrompt: req.SystemPrompt,
@@ -684,7 +743,6 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Create / Persist Connection
-	connID := "conn_" + agentID
 	_ = s.agentRepo.DeleteConnection(r.Context(), connID)
 	connEntity := &db.AgentConnection{
 		ID:                   connID,

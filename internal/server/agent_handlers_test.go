@@ -484,3 +484,135 @@ func TestAgentConnectionHandlers_ValidationAndErrors(t *testing.T) {
 	}
 }
 
+func TestAgentHandlers_S23_1_FuralStyleRegistry(t *testing.T) {
+	srv, _, _ := setupTestServer(t)
+
+	// 1. POST /api/v1/agents with Fural entity format { id, name, harness, connection_id, enabled }
+	createPayload := map[string]interface{}{
+		"name":          "@dev",
+		"harness":       "agy",
+		"connection_id": "conn_dev_session_123",
+		"enabled":       true,
+	}
+	body, _ := json.Marshal(createPayload)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/agents", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on POST /api/v1/agents, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var createResp struct {
+		Status string      `json:"status"`
+		Agent  db.AgentDTO `json:"agent"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &createResp); err != nil {
+		t.Fatalf("failed to decode create agent response: %v", err)
+	}
+
+	agent := createResp.Agent
+	if agent.ID == "" {
+		t.Errorf("expected generated agent id")
+	}
+	if agent.Name != "@dev" {
+		t.Errorf("expected agent name '@dev', got %q", agent.Name)
+	}
+	if agent.Harness != "agy" {
+		t.Errorf("expected harness 'agy', got %q", agent.Harness)
+	}
+	if agent.ConnectionID != "conn_dev_session_123" {
+		t.Errorf("expected connection_id 'conn_dev_session_123', got %q", agent.ConnectionID)
+	}
+	if !agent.Enabled {
+		t.Errorf("expected enabled true")
+	}
+
+	agentID := agent.ID
+
+	// 2. GET /api/v1/agents/{id}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/agents/"+agentID, nil)
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on GET /api/v1/agents/%s, got %d", agentID, w.Code)
+	}
+
+	var getResp struct {
+		Status string      `json:"status"`
+		Agent  db.AgentDTO `json:"agent"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &getResp)
+	if getResp.Agent.Name != "@dev" || getResp.Agent.Harness != "agy" || getResp.Agent.ConnectionID != "conn_dev_session_123" || !getResp.Agent.Enabled {
+		t.Errorf("get agent mismatch: %+v", getResp.Agent)
+	}
+
+	// 3. GET /api/v1/agents (List)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/agents", nil)
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on GET /api/v1/agents, got %d", w.Code)
+	}
+
+	var listResp struct {
+		Status string        `json:"status"`
+		Agents []db.AgentDTO `json:"agents"`
+		Count  int           `json:"count"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &listResp)
+	if listResp.Count < 1 {
+		t.Errorf("expected at least 1 agent, got %d", listResp.Count)
+	}
+
+	// 4. PATCH /api/v1/agents/{id} to update harness and toggle enabled
+	patchPayload := map[string]interface{}{
+		"name":    "@worker_flash",
+		"harness": "claude",
+		"enabled": false,
+	}
+	patchBody, _ := json.Marshal(patchPayload)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/agents/"+agentID, bytes.NewReader(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on PATCH /api/v1/agents/%s, got %d: %s", agentID, w.Code, w.Body.String())
+	}
+
+	var patchResp struct {
+		Status string      `json:"status"`
+		Agent  db.AgentDTO `json:"agent"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &patchResp)
+	if patchResp.Agent.Name != "@worker_flash" {
+		t.Errorf("expected name '@worker_flash', got %q", patchResp.Agent.Name)
+	}
+	if patchResp.Agent.Harness != "claude" {
+		t.Errorf("expected harness 'claude', got %q", patchResp.Agent.Harness)
+	}
+	if patchResp.Agent.Enabled {
+		t.Errorf("expected enabled false after patch")
+	}
+
+	// 5. DELETE /api/v1/agents/{id}
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/agents/"+agentID, nil)
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on DELETE /api/v1/agents/%s, got %d", agentID, w.Code)
+	}
+
+	// Verify 404 after delete
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/agents/"+agentID, nil)
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 after agent deletion, got %d", w.Code)
+	}
+}
+
+

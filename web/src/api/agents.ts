@@ -3,6 +3,9 @@ import { apiFetch } from './client'
 export interface Agent {
   id: string
   name: string
+  harness?: string
+  connection_id?: string
+  enabled?: boolean
   avatar?: string
   role?: string
   system_prompt?: string
@@ -59,6 +62,20 @@ export const agentsApi = {
       body: JSON.stringify(data),
     })
     return res.agent
+  },
+
+  patch: async (id: string, data: Partial<Agent>): Promise<Agent> => {
+    const res = await apiFetch<{ status: string; agent: Agent }>(`/api/v1/agents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+    return res.agent
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await apiFetch(`/api/v1/agents/${id}`, {
+      method: 'DELETE',
+    })
   },
 
   connectCLI: async (data: ConnectCLIAgentRequest): Promise<ConnectCLIAgentResponse> => {

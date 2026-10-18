@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Task, TaskStatus, Project } from '../../api/types'
 import { Plus, Bot, CheckSquare, Play, ChevronRight, Search, X, FolderGit2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { agentsApi } from '../../api/agents'
 
 interface TaskBoardViewProps {
   tasks: Task[]
@@ -35,6 +36,20 @@ export function TaskBoardView({
   const [filterProject, setFilterProject] = useState<string>(activeProject ? activeProject.id : 'all')
   const [statusFilter, setStatusFilter] = useState<string>(selectedStatusFilter)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const [agentsMap, setAgentsMap] = useState<Map<string, { name: string; harness?: string }>>(new Map())
+
+  useEffect(() => {
+    agentsApi.list().then((list) => {
+      if (list && list.length > 0) {
+        const m = new Map<string, { name: string; harness?: string }>()
+        for (const ag of list) {
+          m.set(ag.id, { name: ag.name, harness: ag.harness || ag.provider || 'agy' })
+        }
+        setAgentsMap(m)
+      }
+    }).catch(() => {})
+  }, [])
 
   // Map project ID to Project Name for fast lookup
   const projectMap = useMemo(() => {
@@ -295,34 +310,40 @@ export function TaskBoardView({
                                 </span>
                               </span>
                             )}
-                            {(task.assignee || task.assignee_id) && (
-                              <span
-                                className={cn(
-                                  'flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded',
-                                  task.execution_status === 'running'
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20'
-                                    : task.execution_status === 'completed'
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                    : task.execution_status === 'failed'
-                                    ? 'bg-destructive/10 text-destructive'
-                                    : 'bg-primary/10 text-primary'
-                                )}
-                                title={`Assigned: ${task.assignee || task.assignee_id} (${task.execution_status || 'idle'})`}
-                              >
-                                <Bot className="h-3 w-3 shrink-0" />
-                                <span className="truncate max-w-[80px]">{task.assignee || task.assignee_id}</span>
-                                {task.execution_status === 'running' ? (
-                                  <span className="relative flex h-1.5 w-1.5 ml-0.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                                  </span>
-                                ) : task.execution_status === 'completed' ? (
-                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />
-                                ) : task.execution_status === 'failed' ? (
-                                  <span className="h-1.5 w-1.5 rounded-full bg-destructive ml-0.5" />
-                                ) : null}
-                              </span>
-                            )}
+                            {(task.assignee || task.assignee_id) && (() => {
+                              const rawAssignee = task.assignee || task.assignee_id || ''
+                              const agentInfo = agentsMap.get(rawAssignee)
+                              const displayName = agentInfo ? `${agentInfo.name} (${agentInfo.harness || 'agy'})` : rawAssignee
+
+                              return (
+                                <span
+                                  className={cn(
+                                    'flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded',
+                                    task.execution_status === 'running'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20'
+                                      : task.execution_status === 'completed'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                      : task.execution_status === 'failed'
+                                      ? 'bg-destructive/10 text-destructive'
+                                      : 'bg-primary/10 text-primary'
+                                  )}
+                                  title={`Assigned: ${displayName} (${task.execution_status || 'idle'})`}
+                                >
+                                  <Bot className="h-3 w-3 shrink-0" />
+                                  <span className="truncate max-w-[110px]">{displayName}</span>
+                                  {task.execution_status === 'running' ? (
+                                    <span className="relative flex h-1.5 w-1.5 ml-0.5">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                    </span>
+                                  ) : task.execution_status === 'completed' ? (
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />
+                                  ) : task.execution_status === 'failed' ? (
+                                    <span className="h-1.5 w-1.5 rounded-full bg-destructive ml-0.5" />
+                                  ) : null}
+                                </span>
+                              )
+                            })()}
                           </div>
                         </div>
                       </div>

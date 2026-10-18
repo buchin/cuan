@@ -913,27 +913,79 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		}
 	}
 
-	// If conversation is with Scrum Master agent, differentiate conversational vs task instruction
+	// Resolve agent mention or conversation context
 	var agentMsgDTO *ChatMessageDTO
-	if convID == defaultScrumMasterRoomID || strings.Contains(convID, "scrum") {
-		if isTechnicalTaskInstruction(text) {
+
+	mention := extractMentionHandle(text)
+	var targetAgentName string
+	var targetAgentID string
+	var targetHarness string
+
+	if mention != "" {
+		if s.agentRepo != nil {
+			if agents, err := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{}); err == nil {
+				for _, a := range agents {
+					if strings.EqualFold(a.Name, mention) || strings.EqualFold("@"+strings.TrimPrefix(a.Name, "@"), mention) {
+						targetAgentName = a.Name
+						targetAgentID = a.ID
+						targetHarness = a.Harness
+						break
+					}
+				}
+			}
+		}
+		if targetAgentName == "" {
+			targetAgentName = mention
+			targetAgentID = "agent_" + strings.TrimPrefix(mention, "@")
+			targetHarness = "agy"
+		}
+	}
+
+	if targetAgentName == "" {
+		if convID == defaultScrumMasterRoomID || strings.Contains(convID, "scrum") {
+			targetAgentName = "Scrum Master"
+			targetAgentID = "agent_scrum_master"
+		} else if convID == defaultAntigravityRoomID || convID == "contact_antigravity" {
+			targetAgentName = "Antigravity Flash"
+			targetAgentID = "antigravity_flash"
+			targetHarness = "agy"
+		} else if s.agentRepo != nil {
+			if ag, err := s.agentRepo.GetAgentByID(r.Context(), convID); err == nil && ag != nil {
+				targetAgentName = ag.Name
+				targetAgentID = ag.ID
+				targetHarness = ag.Harness
+			}
+		}
+		if targetAgentName == "" && s.projectStudioRepo != nil {
+			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
+				if strings.HasPrefix(rm.Topic, "agent:") || strings.Contains(rm.Topic, "Interactive Agent Chat") {
+					targetAgentID = strings.TrimPrefix(rm.Topic, "agent:")
+					targetAgentName = rm.Title
+				}
+			}
+		}
+	}
+
+	if targetAgentName != "" {
+		role := ClassifyMessageContext(text)
+
+		// Backward-compatible triage card for Scrum Master on technical task instructions
+		if (convID == defaultScrumMasterRoomID || targetAgentName == "Scrum Master") && role == RoleDeveloper && isTechnicalTaskInstruction(text) {
 			triage := generateSMTriageResponse(text)
 			agentUUID := db.GenerateUUID()
 			agentNow := now.Add(200 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
-				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
 					RoomID:     convID,
 					AuthorType: "agent",
-					AuthorID:   "agent_scrum_master",
-					AuthorName: "Scrum Master",
+					AuthorID:   targetAgentID,
+					AuthorName: targetAgentName,
 					Content:    triage.Text,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
-				}); err != nil {
-					log.Printf("[handleInternalSendConversationMessage] failed to save Scrum Master message: %v", err)
-				}
+				})
 			}
 
 			card := &AgentActionCard{
@@ -951,31 +1003,29 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 				RoomID:     convID,
 				SenderType: "operator",
 				AuthorType: "agent",
-				AuthorName: "Scrum Master",
+				AuthorName: targetAgentName,
 				Message:    triage.Text,
 				Content:    triage.Text,
 				ActionCard: card,
 				CreatedAt:  agentNow,
 			}
-		} else {
-			// Natural, friendly conversational response without Action Card or rigid DoD
+		} else if (convID == defaultScrumMasterRoomID || targetAgentName == "Scrum Master") && role == RoleFriendly {
+			// Natural, friendly conversational response for Scrum Master
 			convReplyText := s.generateSMConversationalResponse(r.Context(), text)
 			agentUUID := db.GenerateUUID()
 			agentNow := now.Add(200 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
-				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
 					RoomID:     convID,
 					AuthorType: "agent",
-					AuthorID:   "agent_scrum_master",
-					AuthorName: "Scrum Master",
+					AuthorID:   targetAgentID,
+					AuthorName: targetAgentName,
 					Content:    convReplyText,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
-				}); err != nil {
-					log.Printf("[handleInternalSendConversationMessage] failed to save Scrum Master message: %v", err)
-				}
+				})
 			}
 
 			agentMsgDTO = &ChatMessageDTO{
@@ -984,50 +1034,29 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 				RoomID:     convID,
 				SenderType: "operator",
 				AuthorType: "agent",
-				AuthorName: "Scrum Master",
+				AuthorName: targetAgentName,
 				Message:    convReplyText,
 				Content:    convReplyText,
 				ActionCard: nil,
 				CreatedAt:  agentNow,
 			}
-		}
-	} else {
-		isAgentRoom := false
-		agentID := ""
-		agentName := "Worker Agent"
-
-		if convID == defaultAntigravityRoomID || convID == "contact_antigravity" {
-			isAgentRoom = true
-			agentID = "antigravity_flash"
-			agentName = "Antigravity Flash"
-		} else if s.projectStudioRepo != nil {
-			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
-				if strings.HasPrefix(rm.Topic, "agent:") || strings.Contains(rm.Topic, "Interactive Agent Chat") {
-					isAgentRoom = true
-					agentID = strings.TrimPrefix(rm.Topic, "agent:")
-					agentName = rm.Title
-				}
-			}
-		}
-
-		if isAgentRoom {
-			agentReplyText := s.executeAgentCLIResponse(r.Context(), agentName, text)
+		} else {
+			// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
+			agentReplyText := s.executeAgentContextualResponse(r.Context(), targetAgentName, targetHarness, text, role)
 			agentUUID := db.GenerateUUID()
 			agentNow := now.Add(200 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
-				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
 					RoomID:     convID,
 					AuthorType: "agent",
-					AuthorID:   agentID,
-					AuthorName: agentName,
+					AuthorID:   targetAgentID,
+					AuthorName: targetAgentName,
 					Content:    agentReplyText,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
-				}); err != nil {
-					log.Printf("[handleInternalSendConversationMessage] failed to save agent reply: %v", err)
-				}
+				})
 			}
 
 			agentMsgDTO = &ChatMessageDTO{
@@ -1036,7 +1065,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 				RoomID:     convID,
 				SenderType: "operator",
 				AuthorType: "agent",
-				AuthorName: agentName,
+				AuthorName: targetAgentName,
 				Message:    agentReplyText,
 				Content:    agentReplyText,
 				CreatedAt:  agentNow,
@@ -1066,49 +1095,179 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	respondJSON(w, http.StatusOK, resp)
 }
 
-// executeAgentCLIResponse runs the agent CLI runner (agy) or subprocess adapter and returns the agent text output.
-func (s *Server) executeAgentCLIResponse(ctx context.Context, agentName string, userPrompt string) string {
-	// Prepare bounded timeout context so HTTP request does not hang
-	execCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
+// ChatContextRole defines the dynamic contextual persona an agent adopts in chat.
+type ChatContextRole string
 
-	binPath, err := exec.LookPath("agy")
-	if err != nil {
-		candidate := "/home/dev/.local/bin/agy"
-		if _, statErr := os.Stat(candidate); statErr == nil {
-			binPath = candidate
-			err = nil
+const (
+	RoleScrumMaster ChatContextRole = "scrum_master"
+	RoleDeveloper   ChatContextRole = "developer"
+	RoleFriendly    ChatContextRole = "friendly"
+)
+
+// ClassifyMessageContext analyzes message text and returns the dynamic persona role:
+// - RoleScrumMaster: sprint planning, review, evaluation, DoD, backlog, standup, coordination
+// - RoleDeveloper: technical instructions, coding, bug fixing, endpoints, refactoring, unit tests
+// - RoleFriendly: greetings, status inquiries, casual conversational phrases
+func ClassifyMessageContext(msg string) ChatContextRole {
+	raw := strings.ToLower(strings.TrimSpace(msg))
+	cleaned := strings.TrimRight(raw, "?!.,;: \t\n\r")
+	if cleaned == "" {
+		return RoleFriendly
+	}
+
+	// 1. Check for Sprint / Scrum / Planning / Review / Evaluation / DoD keywords
+	scrumKeywords := []string{
+		"sprint", "planning", "review", "evaluasi", "eval", "retrospektif", "retro",
+		"backlog", "dod", "definition of done", "standup", "daily standup",
+		"scrum master", "scrum", "burndown", "velocity", "scope",
+		"koordinasi tim", "koordinasi sprint", "prioritas backlog",
+		"user story", "acceptance criteria",
+	}
+	for _, kw := range scrumKeywords {
+		if strings.Contains(cleaned, kw) {
+			return RoleScrumMaster
 		}
 	}
 
-	if err == nil && binPath != "" {
-		systemContext := fmt.Sprintf("Anda adalah %s di sistem Cuan. Pengguna mengatakan: \"%s\". Berikan respon konfirmasi singkat dalam Bahasa Indonesia sebagai %s.", agentName, userPrompt, agentName)
-		cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "12s")
-		var stdoutBuf, stderrBuf bytes.Buffer
-		cmd.Stdout = &stdoutBuf
-		cmd.Stderr = &stderrBuf
+	// 2. Check for Technical / Developer / Coding / Fix keywords
+	devKeywords := []string{
+		"ngoding", "coding", "code", "koding", "fix", "perbaiki", "repair", "patch",
+		"bug", "error", "issue", "crash", "hotfix", "atasi",
+		"endpoint", "api", "route", "handler",
+		"database", "sql", "migration", "migrasi", "tabel", "query", "foreign key",
+		"refactor", "unit test", "test suite", "testing",
+		"build", "compile", "deploy", "deployment", "ship", "rilis",
+		"pty", "terminal", "git", "commit", "push",
+		"buatkan fungsi", "buat fungsi", "bikin script", "script",
+		"backend", "frontend", "react", "golang",
+		"buatkan fitur", "buat fitur", "bikin fitur", "tambah fitur", "implementasi",
+	}
+	for _, kw := range devKeywords {
+		if strings.Contains(cleaned, kw) {
+			return RoleDeveloper
+		}
+	}
 
-		if cmdErr := cmd.Run(); cmdErr == nil {
-			out := strings.TrimSpace(stdoutBuf.String())
-			if out != "" {
-				if !strings.Contains(out, agentName) && !strings.Contains(out, "Antigravity") {
-					out = fmt.Sprintf("[%s] %s", agentName, out)
+	// 3. Fallback / Casual Greeting & General Inquiry
+	return RoleFriendly
+}
+
+// extractMentionHandle finds the first @handle mention in the message, e.g. "@dev" -> "@dev".
+func extractMentionHandle(msg string) string {
+	parts := strings.Fields(msg)
+	for _, p := range parts {
+		clean := strings.Trim(p, ",!?:;\"'()[]{}")
+		if strings.HasPrefix(clean, "@") && len(clean) > 1 {
+			return clean
+		}
+	}
+	return ""
+}
+
+// executeAgentContextualResponse runs CLI or intelligent fallback to generate contextual response
+// based on dynamic role (RoleScrumMaster, RoleDeveloper, RoleFriendly).
+func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole) string {
+	// Attempt CLI execution if binary is present and not testing/staging
+	if s.cfg == nil || (s.cfg.Environment != "testing" && s.cfg.Environment != "staging") {
+		binName := "agy"
+		if harness == "claude" {
+			binName = "claude"
+		} else if harness == "codex" {
+			binName = "codex"
+		}
+
+		binPath, err := exec.LookPath(binName)
+		if err != nil && binName == "agy" {
+			candidate := "/home/dev/.local/bin/agy"
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				binPath = candidate
+				err = nil
+			}
+		}
+
+		if err == nil && binPath != "" {
+			execCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			defer cancel()
+
+			var systemContext string
+			switch role {
+			case RoleScrumMaster:
+				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah sebagai Scrum Master yang memfasilitasi koordinasi sprint, evaluasi backlog, Definition of Done (DoD), dan alur kerja tim. Pengguna mengatakan: \"%s\". Berikan respon profesional terarah dalam Bahasa Indonesia.", agentName, userPrompt)
+			case RoleDeveloper:
+				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah sebagai Developer handal yang berfokus pada implementasi teknis, coding, arsitektur, debugging, dan unit testing. Pengguna mengatakan: \"%s\". Berikan respon teknis yang solutif dalam Bahasa Indonesia.", agentName, userPrompt)
+			default:
+				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah ramah dan natural sebagai rekan kerja tim. Pengguna mengatakan: \"%s\". Berikan respon sapaan hangat, natural, dan ringkas (1-2 kalimat) dalam Bahasa Indonesia tanpa template kaku.", agentName, userPrompt)
+			}
+
+			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "12s")
+			var stdoutBuf, stderrBuf bytes.Buffer
+			cmd.Stdout = &stdoutBuf
+			cmd.Stderr = &stderrBuf
+
+			if cmdErr := cmd.Run(); cmdErr == nil {
+				out := strings.TrimSpace(stdoutBuf.String())
+				if out != "" {
+					if !strings.Contains(out, agentName) && !strings.Contains(out, "Antigravity") {
+						out = fmt.Sprintf("[%s] %s", agentName, out)
+					}
+					return out
 				}
-				return out
 			}
 		}
 	}
 
-	// Graceful intelligent response when CLI is in mock/offline test mode, on VPS without agy, or times out
-	cleaned := strings.ToLower(strings.TrimSpace(userPrompt))
-	if strings.Contains(cleaned, "kabar") || strings.Contains(cleaned, "halo") || strings.Contains(cleaned, "hai") || strings.Contains(cleaned, "pagi") || strings.Contains(cleaned, "siang") || strings.Contains(cleaned, "sore") || strings.Contains(cleaned, "malam") {
-		return fmt.Sprintf("Halo Buchin! Saya %s, dalam kondisi prima dan siap membantu kebutuhan teknis atau eksekusi backlog di sprint ini.", agentName)
-	}
-	if strings.Contains(cleaned, "siapa") {
-		return fmt.Sprintf("Saya %s, agen AI otonom di tim pengembangan Cuan yang bertugas mengeksekusi implementasi kode, automated testing, dan perbaikan bug.", agentName)
-	}
+	// Fallback intelligent response based on dynamic contextual role
+	return getFallbackAgentContextualResponse(agentName, userPrompt, role)
+}
 
-	return fmt.Sprintf("Halo Buchin! Saya %s. Instruksi Anda telah saya terima: \"%s\". Sesi otonom aktif dan siap mengeksekusi kebutuhan sprint ini.", agentName, userPrompt)
+func getFallbackAgentContextualResponse(agentName string, userPrompt string, role ChatContextRole) string {
+	cleaned := strings.ToLower(strings.TrimSpace(userPrompt))
+	switch role {
+	case RoleScrumMaster:
+		if strings.Contains(cleaned, "evaluasi") || strings.Contains(cleaned, "review") {
+			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Scrum Master. Terkait evaluasi dan review sprint: mari kita tinjau pencapaian Definition of Done (DoD), velocity tim, serta backlog yang telah terselesaikan untuk memastikan kualitas rilis.", agentName)
+		}
+		if strings.Contains(cleaned, "planning") || strings.Contains(cleaned, "perencanaan") {
+			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Scrum Master. Terkait sprint planning: mari kita prioritaskan backlog item, tentukan kapasitas tim, dan tetapkan kriteria Definition of Done (DoD) yang jelas.", agentName)
+		}
+		if strings.Contains(cleaned, "dod") || strings.Contains(cleaned, "definition of done") {
+			return fmt.Sprintf("Halo Buchin! Saya %s sebagai Scrum Master. Definition of Done (DoD) mencakup: kode teruji (unit test pass 100%%), zero regression, clean code, dan dokumentasi audit yang lengkap.", agentName)
+		}
+		return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Scrum Master. Saya siap memfasilitasi koordinasi sprint, mengawal alur backlog, dan memastikan ritme kerja tim berjalan optimal.", agentName)
+
+	case RoleDeveloper:
+		if strings.Contains(cleaned, "bug") || strings.Contains(cleaned, "fix") || strings.Contains(cleaned, "error") || strings.Contains(cleaned, "crash") || strings.Contains(cleaned, "perbaiki") {
+			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Developer. Saya siap menganalisis root cause bug tersebut, memperbaiki kode pada komponen terkait, dan memastikan unit test lulus 100%%.", agentName)
+		}
+		if strings.Contains(cleaned, "ngoding") || strings.Contains(cleaned, "coding") || strings.Contains(cleaned, "code") || strings.Contains(cleaned, "fitur") || strings.Contains(cleaned, "endpoint") || strings.Contains(cleaned, "api") || strings.Contains(cleaned, "unit test") {
+			return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Developer. Saya siap mengimplementasikan instruksi teknis ini, menyusun struktur kode yang bersih, dan menyiapkan endpoint/fungsi yang dibutuhkan.", agentName)
+		}
+		return fmt.Sprintf("Halo Buchin! Saya %s bertindak sebagai Developer. Instruksi teknis Anda telah saya catat dan siap dieksekusi dengan standar clean code dan automated tests.", agentName)
+
+	default: // RoleFriendly
+		if strings.Contains(cleaned, "kabar") {
+			return fmt.Sprintf("Kabar baik dan luar biasa, Buchin! Saya %s, siap mendampingi Anda berkolaborasi hari ini. Ada yang bisa saya bantu?", agentName)
+		}
+		if strings.Contains(cleaned, "halo") || strings.Contains(cleaned, "hai") || strings.Contains(cleaned, "pagi") || strings.Contains(cleaned, "siang") || strings.Contains(cleaned, "sore") || strings.Contains(cleaned, "malam") {
+			return fmt.Sprintf("Halo Buchin! Selamat beraktivitas. Saya %s di sini siap berkolaborasi bersama Anda.", agentName)
+		}
+		if strings.Contains(cleaned, "siapa kamu") || strings.Contains(cleaned, "kamu siapa") {
+			return fmt.Sprintf("Saya %s, agen AI otonom di Cuan yang siap beradaptasi mendukung kebutuhan sprint maupun teknis Anda.", agentName)
+		}
+		if strings.Contains(cleaned, "terima kasih") || strings.Contains(cleaned, "makasih") || strings.Contains(cleaned, "thanks") {
+			return fmt.Sprintf("Sama-sama, Buchin! Saya %s, senang bisa membantu Anda. Kabari saya jika butuh bantuan lagi.", agentName)
+		}
+		if strings.Contains(cleaned, "oke") || strings.Contains(cleaned, "ok") || strings.Contains(cleaned, "siap") || strings.Contains(cleaned, "mantap") {
+			return fmt.Sprintf("Siap, dipahami Buchin! Saya %s selalu stand by.", agentName)
+		}
+		return fmt.Sprintf("Halo Buchin! Senang mengobrol dengan Anda. Saya %s, siap membantu kapan pun dibutuhkan.", agentName)
+	}
+}
+
+// executeAgentCLIResponse runs the agent CLI runner (agy) or subprocess adapter and returns the agent text output.
+func (s *Server) executeAgentCLIResponse(ctx context.Context, agentName string, userPrompt string) string {
+	role := ClassifyMessageContext(userPrompt)
+	return s.executeAgentContextualResponse(ctx, agentName, "agy", userPrompt, role)
 }
 
 // isTechnicalTaskInstruction determines whether a message contains explicit task/technical work instructions

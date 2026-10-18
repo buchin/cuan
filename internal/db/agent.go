@@ -65,16 +65,19 @@ func NormalizeConnectionStatus(status string) (string, error) {
 	}
 }
 
-// Agent represents an autonomous or interactive AI assistant persona in the system.
+// Agent represents an autonomous or interactive AI assistant persona in the system (standardized to Fural format).
 type Agent struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
-	Avatar       string    `json:"avatar"`
-	Role         string    `json:"role"`
-	SystemPrompt string    `json:"system_prompt"`
-	ModelID      string    `json:"model_id"`
-	Provider     string    `json:"provider"`
-	Status       string    `json:"status"`
+	Harness      string    `json:"harness"`
+	ConnectionID string    `json:"connection_id"`
+	Enabled      bool      `json:"enabled"`
+	Avatar       string    `json:"avatar,omitempty"`
+	Role         string    `json:"role,omitempty"`
+	SystemPrompt string    `json:"system_prompt,omitempty"`
+	ModelID      string    `json:"model_id,omitempty"`
+	Provider     string    `json:"provider,omitempty"`
+	Status       string    `json:"status,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -87,6 +90,9 @@ func (a *Agent) Clone() *Agent {
 	return &Agent{
 		ID:           a.ID,
 		Name:         a.Name,
+		Harness:      a.Harness,
+		ConnectionID: a.ConnectionID,
+		Enabled:      a.Enabled,
 		Avatar:       a.Avatar,
 		Role:         a.Role,
 		SystemPrompt: a.SystemPrompt,
@@ -98,31 +104,59 @@ func (a *Agent) Clone() *Agent {
 	}
 }
 
-// AgentDTO represents the public Data Transfer Object for an Agent.
+// AgentDTO represents the public Data Transfer Object for an Agent in Fural format.
 type AgentDTO struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
-	Avatar       string    `json:"avatar"`
-	Role         string    `json:"role"`
-	SystemPrompt string    `json:"system_prompt"`
-	ModelID      string    `json:"model_id"`
-	Provider     string    `json:"provider"`
-	Status       string    `json:"status"`
+	Harness      string    `json:"harness"`
+	ConnectionID string    `json:"connection_id"`
+	Enabled      bool      `json:"enabled"`
+	Avatar       string    `json:"avatar,omitempty"`
+	Role         string    `json:"role,omitempty"`
+	SystemPrompt string    `json:"system_prompt,omitempty"`
+	ModelID      string    `json:"model_id,omitempty"`
+	Provider     string    `json:"provider,omitempty"`
+	Status       string    `json:"status,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // ToDTO converts an Agent entity to its public AgentDTO representation.
 func (a *Agent) ToDTO() AgentDTO {
+	harness := strings.TrimSpace(a.Harness)
+	if harness == "" {
+		harness = strings.TrimSpace(a.Provider)
+	}
+	if harness == "" {
+		harness = "agy"
+	}
+	connID := strings.TrimSpace(a.ConnectionID)
+	if connID == "" && strings.HasPrefix(a.ModelID, "conn_") {
+		connID = a.ModelID
+	}
+	enabled := a.Enabled || a.Status == AgentStatusActive || a.Status == ""
+
+	status := a.Status
+	if status == "" {
+		if enabled {
+			status = AgentStatusActive
+		} else {
+			status = AgentStatusInactive
+		}
+	}
+
 	return AgentDTO{
 		ID:           a.ID,
 		Name:         a.Name,
+		Harness:      harness,
+		ConnectionID: connID,
+		Enabled:      enabled,
 		Avatar:       a.Avatar,
 		Role:         a.Role,
 		SystemPrompt: a.SystemPrompt,
 		ModelID:      a.ModelID,
 		Provider:     a.Provider,
-		Status:       a.Status,
+		Status:       status,
 		CreatedAt:    a.CreatedAt,
 		UpdatedAt:    a.UpdatedAt,
 	}
@@ -132,6 +166,9 @@ func (a *Agent) ToDTO() AgentDTO {
 type CreateAgentInput struct {
 	ID           string `json:"id,omitempty"`
 	Name         string `json:"name"`
+	Harness      string `json:"harness,omitempty"`
+	ConnectionID string `json:"connection_id,omitempty"`
+	Enabled      *bool  `json:"enabled,omitempty"`
 	Avatar       string `json:"avatar,omitempty"`
 	Role         string `json:"role,omitempty"`
 	SystemPrompt string `json:"system_prompt,omitempty"`
@@ -158,22 +195,50 @@ func (in *CreateAgentInput) ToEntity() (*Agent, error) {
 	if err := in.Validate(); err != nil {
 		return nil, err
 	}
-	status := DefaultAgentStatus
-	if in.Status != "" {
-		norm, err := NormalizeAgentStatus(in.Status)
-		if err != nil {
-			return nil, err
-		}
-		status = norm
-	}
-	modelID := strings.TrimSpace(in.ModelID)
-	if modelID == "" {
-		modelID = DefaultAgentModelID
-	}
+	harness := strings.TrimSpace(in.Harness)
 	provider := strings.TrimSpace(in.Provider)
+	if harness != "" && provider == "" {
+		provider = harness
+	}
+	if provider != "" && harness == "" {
+		harness = provider
+	}
 	if provider == "" {
 		provider = DefaultAgentProvider
 	}
+	if harness == "" {
+		harness = "agy"
+	}
+
+	enabled := true
+	if in.Enabled != nil {
+		enabled = *in.Enabled
+	} else if in.Status != "" {
+		norm, _ := NormalizeAgentStatus(in.Status)
+		enabled = (norm == AgentStatusActive)
+	}
+
+	status := AgentStatusActive
+	if !enabled {
+		status = AgentStatusInactive
+	}
+	if in.Status != "" {
+		norm, err := NormalizeAgentStatus(in.Status)
+		if err == nil {
+			status = norm
+		}
+	}
+
+	connectionID := strings.TrimSpace(in.ConnectionID)
+	modelID := strings.TrimSpace(in.ModelID)
+	if modelID == "" {
+		if connectionID != "" {
+			modelID = connectionID
+		} else {
+			modelID = DefaultAgentModelID
+		}
+	}
+
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
 		id = GenerateUUID()
@@ -182,6 +247,9 @@ func (in *CreateAgentInput) ToEntity() (*Agent, error) {
 	return &Agent{
 		ID:           id,
 		Name:         strings.TrimSpace(in.Name),
+		Harness:      harness,
+		ConnectionID: connectionID,
+		Enabled:      enabled,
 		Avatar:       strings.TrimSpace(in.Avatar),
 		Role:         strings.TrimSpace(in.Role),
 		SystemPrompt: strings.TrimSpace(in.SystemPrompt),
@@ -194,6 +262,9 @@ func (in *CreateAgentInput) ToEntity() (*Agent, error) {
 // UpdateAgentInput specifies mutable fields on an existing Agent.
 type UpdateAgentInput struct {
 	Name         *string `json:"name,omitempty"`
+	Harness      *string `json:"harness,omitempty"`
+	ConnectionID *string `json:"connection_id,omitempty"`
+	Enabled      *bool   `json:"enabled,omitempty"`
 	Avatar       *string `json:"avatar,omitempty"`
 	Role         *string `json:"role,omitempty"`
 	SystemPrompt *string `json:"system_prompt,omitempty"`
@@ -201,6 +272,9 @@ type UpdateAgentInput struct {
 	Provider     *string `json:"provider,omitempty"`
 	Status       *string `json:"status,omitempty"`
 }
+
+// PatchAgentInput is an alias for UpdateAgentInput.
+type PatchAgentInput = UpdateAgentInput
 
 // Validate verifies non-nil fields in UpdateAgentInput.
 func (in *UpdateAgentInput) Validate() error {
@@ -223,6 +297,24 @@ func (in *UpdateAgentInput) ApplyTo(agent *Agent) error {
 	if in.Name != nil {
 		agent.Name = strings.TrimSpace(*in.Name)
 	}
+	if in.Harness != nil {
+		agent.Harness = strings.TrimSpace(*in.Harness)
+		agent.Provider = agent.Harness
+	}
+	if in.ConnectionID != nil {
+		agent.ConnectionID = strings.TrimSpace(*in.ConnectionID)
+		if strings.HasPrefix(agent.ConnectionID, "conn_") {
+			agent.ModelID = agent.ConnectionID
+		}
+	}
+	if in.Enabled != nil {
+		agent.Enabled = *in.Enabled
+		if agent.Enabled {
+			agent.Status = AgentStatusActive
+		} else {
+			agent.Status = AgentStatusInactive
+		}
+	}
 	if in.Avatar != nil {
 		agent.Avatar = strings.TrimSpace(*in.Avatar)
 	}
@@ -237,10 +329,14 @@ func (in *UpdateAgentInput) ApplyTo(agent *Agent) error {
 	}
 	if in.Provider != nil && strings.TrimSpace(*in.Provider) != "" {
 		agent.Provider = strings.TrimSpace(*in.Provider)
+		if agent.Harness == "" {
+			agent.Harness = agent.Provider
+		}
 	}
 	if in.Status != nil {
 		norm, _ := NormalizeAgentStatus(*in.Status)
 		agent.Status = norm
+		agent.Enabled = (norm == AgentStatusActive)
 	}
 	return nil
 }
@@ -453,14 +549,39 @@ func (r *SQLAgentRepository) CreateAgent(ctx context.Context, agent *Agent) erro
 	if strings.TrimSpace(agent.Name) == "" {
 		return ErrEmptyAgentName
 	}
+	if agent.Status == "" {
+		if agent.Enabled {
+			agent.Status = AgentStatusActive
+		} else {
+			agent.Status = AgentStatusInactive
+		}
+	}
 	normStatus, err := NormalizeAgentStatus(agent.Status)
 	if err != nil {
 		return err
 	}
 	agent.Status = normStatus
+	agent.Enabled = (agent.Status == AgentStatusActive)
 
 	if strings.TrimSpace(agent.ID) == "" {
 		agent.ID = GenerateUUID()
+	}
+	if strings.TrimSpace(agent.Provider) == "" {
+		if strings.TrimSpace(agent.Harness) != "" {
+			agent.Provider = agent.Harness
+		} else {
+			agent.Provider = DefaultAgentProvider
+		}
+	}
+	if strings.TrimSpace(agent.Harness) == "" {
+		if agent.Provider != DefaultAgentProvider {
+			agent.Harness = agent.Provider
+		} else {
+			agent.Harness = "agy"
+		}
+	}
+	if strings.TrimSpace(agent.ConnectionID) != "" && (agent.ModelID == "" || agent.ModelID == DefaultAgentModelID) {
+		agent.ModelID = agent.ConnectionID
 	}
 	if strings.TrimSpace(agent.ModelID) == "" {
 		agent.ModelID = DefaultAgentModelID
@@ -530,6 +651,13 @@ func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agen
 		}
 		return nil, fmt.Errorf("get agent by id: %w", err)
 	}
+	if a.Harness == "" {
+		a.Harness = a.Provider
+	}
+	if a.ConnectionID == "" && strings.HasPrefix(a.ModelID, "conn_") {
+		a.ConnectionID = a.ModelID
+	}
+	a.Enabled = (a.Status == AgentStatusActive || a.Status == "")
 	return &a, nil
 }
 
@@ -606,6 +734,13 @@ func (r *SQLAgentRepository) ListAgents(ctx context.Context, filter AgentFilter)
 		); err != nil {
 			return nil, fmt.Errorf("scan agent: %w", err)
 		}
+		if a.Harness == "" {
+			a.Harness = a.Provider
+		}
+		if a.ConnectionID == "" && strings.HasPrefix(a.ModelID, "conn_") {
+			a.ConnectionID = a.ModelID
+		}
+		a.Enabled = (a.Status == AgentStatusActive || a.Status == "")
 		agents = append(agents, a)
 	}
 	if err := rows.Err(); err != nil {
@@ -621,11 +756,25 @@ func (r *SQLAgentRepository) UpdateAgent(ctx context.Context, agent *Agent) erro
 	if strings.TrimSpace(agent.Name) == "" {
 		return ErrEmptyAgentName
 	}
+	if strings.TrimSpace(agent.Harness) != "" {
+		agent.Provider = agent.Harness
+	}
+	if strings.TrimSpace(agent.ConnectionID) != "" {
+		agent.ModelID = agent.ConnectionID
+	}
+	if agent.Status == "" {
+		if agent.Enabled {
+			agent.Status = AgentStatusActive
+		} else {
+			agent.Status = AgentStatusInactive
+		}
+	}
 	normStatus, err := NormalizeAgentStatus(agent.Status)
 	if err != nil {
 		return err
 	}
 	agent.Status = normStatus
+	agent.Enabled = (agent.Status == AgentStatusActive)
 	agent.UpdatedAt = time.Now().UTC()
 
 	query := `
@@ -1010,11 +1159,36 @@ func (m *MemoryAgentRepository) CreateAgent(_ context.Context, agent *Agent) err
 	if strings.TrimSpace(agent.Name) == "" {
 		return ErrEmptyAgentName
 	}
+	if strings.TrimSpace(agent.Provider) == "" {
+		if strings.TrimSpace(agent.Harness) != "" {
+			agent.Provider = agent.Harness
+		} else {
+			agent.Provider = DefaultAgentProvider
+		}
+	}
+	if strings.TrimSpace(agent.Harness) == "" {
+		if agent.Provider != DefaultAgentProvider {
+			agent.Harness = agent.Provider
+		} else {
+			agent.Harness = "agy"
+		}
+	}
+	if strings.TrimSpace(agent.ConnectionID) != "" && (agent.ModelID == "" || agent.ModelID == DefaultAgentModelID) {
+		agent.ModelID = agent.ConnectionID
+	}
+	if agent.Status == "" {
+		if agent.Enabled {
+			agent.Status = AgentStatusActive
+		} else {
+			agent.Status = AgentStatusInactive
+		}
+	}
 	normStatus, err := NormalizeAgentStatus(agent.Status)
 	if err != nil {
 		return err
 	}
 	agent.Status = normStatus
+	agent.Enabled = (normStatus == AgentStatusActive)
 
 	if strings.TrimSpace(agent.ID) == "" {
 		agent.ID = GenerateUUID()
@@ -1110,6 +1284,13 @@ func (m *MemoryAgentRepository) UpdateAgent(_ context.Context, agent *Agent) err
 	if strings.TrimSpace(agent.Name) == "" {
 		return ErrEmptyAgentName
 	}
+	if agent.Status == "" {
+		if agent.Enabled {
+			agent.Status = AgentStatusActive
+		} else {
+			agent.Status = AgentStatusInactive
+		}
+	}
 	normStatus, err := NormalizeAgentStatus(agent.Status)
 	if err != nil {
 		return err
@@ -1124,6 +1305,14 @@ func (m *MemoryAgentRepository) UpdateAgent(_ context.Context, agent *Agent) err
 	}
 
 	existing.Name = agent.Name
+	if strings.TrimSpace(agent.Harness) != "" {
+		existing.Harness = agent.Harness
+		existing.Provider = agent.Harness
+	}
+	if strings.TrimSpace(agent.ConnectionID) != "" {
+		existing.ConnectionID = agent.ConnectionID
+	}
+	existing.Enabled = (normStatus == AgentStatusActive)
 	existing.Avatar = agent.Avatar
 	existing.Role = agent.Role
 	existing.SystemPrompt = agent.SystemPrompt

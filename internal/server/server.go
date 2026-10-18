@@ -1078,6 +1078,7 @@ func (s *Server) routes() {
 	s.router.Post("/api/agents/connect-cli", s.handleConnectCLIAgent)
 	s.router.Get("/api/agents/{id}", s.handleGetAgent)
 	s.router.Put("/api/agents/{id}", s.handleUpdateAgent)
+	s.router.Patch("/api/agents/{id}", s.handlePatchAgent)
 	s.router.Delete("/api/agents/{id}", s.handleDeleteAgent)
 
 	s.router.Get("/api/agent-connections", s.handleListAgentConnections)
@@ -1274,6 +1275,7 @@ func (s *Server) routes() {
 		ar.Post("/connect-cli", s.handleConnectCLIAgent)
 		ar.Get("/{id}", s.handleGetAgent)
 		ar.Put("/{id}", s.handleUpdateAgent)
+		ar.Patch("/{id}", s.handlePatchAgent)
 		ar.Delete("/{id}", s.handleDeleteAgent)
 
 		// Nested /api/v1/agents/connections
@@ -1440,6 +1442,7 @@ func (s *Server) routes() {
 		r.Post("/agents/connect-cli", s.handleConnectCLIAgent)
 		r.Get("/agents/{id}", s.handleGetAgent)
 		r.Put("/agents/{id}", s.handleUpdateAgent)
+		r.Patch("/agents/{id}", s.handlePatchAgent)
 		r.Delete("/agents/{id}", s.handleDeleteAgent)
 
 		// Agent Connections in v1 (Sprint 9 S09.2)

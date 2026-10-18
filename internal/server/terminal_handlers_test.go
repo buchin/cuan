@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/config"
+	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/terminal"
 )
 
@@ -449,6 +451,95 @@ func TestServer_AgentCLIOnboardingAndBinariesEndpoints(t *testing.T) {
 
 	if respDel.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 OK for delete session, got %d", respDel.StatusCode)
+	}
+}
+
+func TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness(t *testing.T) {
+	tempBase := t.TempDir()
+
+	cfg := &config.Config{
+		WorkspacesDir: tempBase,
+		AppMode:       "studio",
+	}
+
+	repo := cuanDB.NewMemoryAgentRepository()
+	studioRepo := cuanDB.NewMemoryProjectStudioRepository()
+
+	byoAgent := &cuanDB.Agent{
+		ID:           cuanDB.GenerateUUID(),
+		Name:         "@dev",
+		Harness:      "agy",
+		ConnectionID: "conn_byo_runner_test",
+		Enabled:      true,
+		Provider:     "agy",
+		Status:       cuanDB.AgentStatusActive,
+	}
+	if err := repo.CreateAgent(context.Background(), byoAgent); err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+
+	taskID := cuanDB.GenerateUUID()
+	projectID := cuanDB.GenerateUUID()
+	err := studioRepo.CreateTask(context.Background(), &cuanDB.ProjectTask{
+		ID:          taskID,
+		ProjectID:   projectID,
+		Title:       "Sprint 23 BYO Runner Task",
+		Description: "Implement automated test runner",
+		Status:      "todo",
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	srv := NewServer(cfg, nil)
+	srv.SetAgentRepository(repo)
+	srv.SetProjectStudioRepository(studioRepo)
+
+	ts := httptest.NewServer(srv.Router())
+	defer ts.Close()
+
+	// Trigger run-agent with registered BYO Agent
+	runPayload := map[string]interface{}{
+		"agent_id": byoAgent.ID,
+		"prompt":   "Execute S23.4 BYO Agent Runner",
+	}
+	bodyBytes, _ := json.Marshal(runPayload)
+
+	resp, err := http.Post(ts.URL+"/api/v1/tasks/"+taskID+"/run-agent", "application/json", bytes.NewReader(bodyBytes))
+	if err != nil {
+		t.Fatalf("POST /run-agent failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for /run-agent, got %d", resp.StatusCode)
+	}
+
+	var runResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&runResp); err != nil {
+		t.Fatalf("failed to decode run-agent response: %v", err)
+	}
+
+	if runResp["status"] != "running" {
+		t.Errorf("expected status 'running', got %v", runResp["status"])
+	}
+	if runResp["agent_name"] != "@dev" {
+		t.Errorf("expected agent_name '@dev', got %v", runResp["agent_name"])
+	}
+	if runResp["agent_id"] != byoAgent.ID {
+		t.Errorf("expected agent_id %s, got %v", byoAgent.ID, runResp["agent_id"])
+	}
+
+	// Verify task in studioRepo was updated to running with assigned agent
+	updatedTask, err := studioRepo.GetTaskByID(context.Background(), taskID)
+	if err != nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+	if updatedTask.AssigneeID == nil || *updatedTask.AssigneeID != byoAgent.ID {
+		t.Errorf("expected assignee_id %s, got %v", byoAgent.ID, updatedTask.AssigneeID)
+	}
+	if updatedTask.ExecutionStatus != "running" && updatedTask.ExecutionStatus != "failed" && updatedTask.ExecutionStatus != "completed" {
+		t.Errorf("expected valid execution_status, got %s", updatedTask.ExecutionStatus)
 	}
 }
 

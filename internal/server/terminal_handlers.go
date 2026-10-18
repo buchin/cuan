@@ -157,10 +157,29 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		agentID = "worker-flash"
 	}
 	agentName := "Antigravity Flash Worker"
-	if strings.Contains(agentID, "pro") {
-		agentName = "Antigravity Pro Architect"
-	} else if strings.Contains(agentID, "sm") {
-		agentName = "Scrum Master Agent"
+
+	// Resolve BYO Agent from registry if available
+	if s.agentRepo != nil && agentID != "" {
+		if ag, err := s.agentRepo.GetAgentByID(r.Context(), agentID); err == nil && ag != nil {
+			agentName = ag.Name
+			if payload.Binary == "" {
+				switch ag.Harness {
+				case "claude":
+					payload.Binary = "claude"
+				case "codex":
+					payload.Binary = "codex"
+				default:
+					payload.Binary = "agy"
+				}
+			}
+		}
+	}
+	if agentName == "Antigravity Flash Worker" {
+		if strings.Contains(agentID, "pro") {
+			agentName = "Antigravity Pro Architect"
+		} else if strings.Contains(agentID, "sm") {
+			agentName = "Scrum Master Agent"
+		}
 	}
 
 	taskPrompt := strings.TrimSpace(payload.Prompt)
