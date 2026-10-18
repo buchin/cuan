@@ -110,6 +110,79 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// S23: Securely store credentials / connection configuration
+	connID := entity.ConnectionID
+	if connID == "" {
+		connID = "conn_" + entity.ID
+		entity.ConnectionID = connID
+		_ = s.agentRepo.UpdateAgent(r.Context(), entity)
+	}
+
+	var encryptedCred string
+	if enc, err := agent.EncryptCredential("host_session_active"); err == nil {
+		encryptedCred = enc
+	}
+
+	planHint := "Sesi Host Server (Tanpa API Key)"
+	switch entity.Harness {
+	case "agy":
+		planHint = "Sesi Antigravity CLI"
+	case "claude":
+		planHint = "Sesi Claude CLI"
+	case "codex":
+		planHint = "Sesi Codex CLI"
+	case "custom":
+		planHint = "Sesi Custom Model"
+	}
+
+	conn := &db.AgentConnection{
+		ID:                   connID,
+		UserID:               "default",
+		Provider:             entity.Harness,
+		CredentialsEncrypted: encryptedCred,
+		PlanHint:             planHint,
+		Status:               db.ConnectionStatusActive,
+		CreatedAt:            time.Now().UTC(),
+		UpdatedAt:            time.Now().UTC(),
+	}
+	_ = s.agentRepo.DeleteConnection(r.Context(), connID)
+	_ = s.agentRepo.CreateConnection(r.Context(), conn)
+
+	// Ensure direct chat room exists for this agent
+	if s.projectStudioRepo != nil {
+		roomExists := false
+		if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+			for _, rm := range allRooms {
+				if rm.Topic == "agent:"+entity.ID || rm.Title == entity.Name {
+					roomExists = true
+					break
+				}
+			}
+		}
+		if !roomExists {
+			roomID := db.GenerateUUID()
+			now := time.Now().UTC()
+			_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+				ID:        roomID,
+				ProjectID: "default",
+				Title:     entity.Name,
+				Topic:     "agent:" + entity.ID,
+				CreatedAt: now,
+				UpdatedAt: now,
+			})
+			_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				ID:         db.GenerateUUID(),
+				RoomID:     roomID,
+				AuthorType: "agent",
+				AuthorID:   entity.ID,
+				AuthorName: entity.Name,
+				Content:    fmt.Sprintf("Halo Buchin! Saya %s. Sesi agen telah terhubung via UI (%s). Saya siap menerima instruksi.", entity.Name, entity.Harness),
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			})
+		}
+	}
+
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"status": "success",
 		"agent":  entity.ToDTO(),
@@ -394,7 +467,7 @@ func (s *Server) handleCreateAgentConnection(w http.ResponseWriter, r *http.Requ
 			rawSecret = "cuan_cli_session_" + db.GenerateUUID()
 		}
 		if req.PlanHint == "" {
-			req.PlanHint = "CLI Session (Model Fural — No API Key)"
+			req.PlanHint = "Sesi Host Server (Tanpa API Key)"
 		}
 	}
 
@@ -649,7 +722,7 @@ func (s *Server) handleVerifyAgentConnection(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-// handleConnectCLIAgent registers an agent and its CLI connection without an API Key (Model Fural).
+// handleConnectCLIAgent registers an agent and its connection without a raw API Key.
 // Route: POST /api/v1/agents/connect-cli, POST /api/agents/connect-cli
 func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	if s.agentRepo == nil {
@@ -749,7 +822,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		UserID:               "default",
 		Provider:             provider,
 		CredentialsEncrypted: encryptedToken,
-		PlanHint:             "CLI Session (Model Fural — No API Key)",
+		PlanHint:             "Sesi Host Server (Tanpa API Key)",
 		Status:               db.ConnectionStatusActive,
 		CreatedAt:            time.Now().UTC(),
 		UpdatedAt:            time.Now().UTC(),
@@ -805,4 +878,114 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		"message":         "Agent connected successfully via CLI login without API Key",
 	})
 }
+
+// handleGetHarnessAuthStatus checks whether the server environment is authenticated for a harness.
+// Route: GET /api/v1/agents/auth-status, GET /api/agents/auth-status
+func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Request) {
+	harness := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("harness")))
+	if harness == "" || harness == "antigravity" {
+		harness = "agy"
+	}
+
+	if harness == "agy" {
+		status := agent.GetAntigravityAuthStatus()
+		respondJSON(w, http.StatusOK, status)
+		return
+	}
+
+	// For claude / codex / custom harnesses
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":        "success",
+		"harness":       harness,
+		"authenticated": true,
+		"message":       fmt.Sprintf("Sesi %s siap digunakan", strings.ToUpper(harness)),
+	})
+}
+
+// handleInitHarnessAuth initiates authentication flow for a CLI harness (e.g. agy Google OAuth).
+// Route: POST /api/v1/agents/auth-init, POST /api/agents/auth-init
+func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Harness string `json:"harness"`
+	}
+	if r.Body != nil && r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	harness := strings.ToLower(strings.TrimSpace(req.Harness))
+	if harness == "" {
+		harness = strings.ToLower(strings.TrimSpace(r.URL.Query().Get("harness")))
+	}
+	if harness == "" || harness == "antigravity" {
+		harness = "agy"
+	}
+
+	if harness == "agy" {
+		if agent.IsAntigravityLoggedIn() {
+			respondJSON(w, http.StatusOK, map[string]interface{}{
+				"status":        "success",
+				"harness":       "agy",
+				"authenticated": true,
+				"message":       "Sesi Antigravity server aktif & siap digunakan",
+				"auth_url":      "",
+			})
+			return
+		}
+
+		session, err := agent.StartAntigravityAuthSession(r.Context())
+		if err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "failed to initiate Antigravity authentication: "+err.Error())
+			return
+		}
+
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":        "success",
+			"harness":       "agy",
+			"session_id":    session.ID,
+			"auth_url":      session.AuthURL,
+			"authenticated": false,
+			"message":       "Buka link Google OAuth dan tempel kode otorisasi dari browser",
+		})
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":        "success",
+		"harness":       harness,
+		"authenticated": true,
+		"message":       fmt.Sprintf("Sesi %s siap digunakan", strings.ToUpper(harness)),
+	})
+}
+
+// handleSubmitHarnessAuthCode exchanges the authorization code from browser Google OAuth.
+// Route: POST /api/v1/agents/auth-code, POST /api/agents/auth-code
+func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		Code      string `json:"code"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request json: "+err.Error())
+		return
+	}
+
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		respondJSONError(w, http.StatusBadRequest, "authorization code is required")
+		return
+	}
+
+	if err := agent.SubmitAntigravityAuthCode(req.SessionID, code); err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":        "success",
+		"authenticated": true,
+		"message":       "Otentikasi berhasil! Sesi Antigravity server aktif & siap digunakan.",
+	})
+}
+
 

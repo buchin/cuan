@@ -615,4 +615,44 @@ func TestAgentHandlers_S23_1_FuralStyleRegistry(t *testing.T) {
 	}
 }
 
+func TestServer_HarnessAuthEndpoints(t *testing.T) {
+	srv := NewServer(&config.Config{}, nil)
+
+	// 1. GET /api/v1/agents/auth-status?harness=claude
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/auth-status?harness=claude", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on auth-status, got %d", w.Code)
+	}
+
+	var statusResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("failed to decode auth-status json: %v", err)
+	}
+	if statusResp["status"] != "success" || statusResp["harness"] != "claude" {
+		t.Errorf("unexpected status response: %v", statusResp)
+	}
+
+	// 2. POST /api/v1/agents/auth-init (non-agy harness)
+	initBody, _ := json.Marshal(map[string]string{"harness": "codex"})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/agents/auth-init", bytes.NewReader(initBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on auth-init, got %d", w.Code)
+	}
+
+	// 3. POST /api/v1/agents/auth-code (validation error on empty code)
+	codeBody, _ := json.Marshal(map[string]string{"session_id": "test", "code": ""})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/agents/auth-code", bytes.NewReader(codeBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request on empty code, got %d", w.Code)
+	}
+}
+
 

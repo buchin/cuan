@@ -14,6 +14,9 @@ export interface Agent {
   status?: string
   created_at?: string
   updated_at?: string
+  api_key?: string
+  endpoint?: string
+  host_session?: boolean
 }
 
 export interface AgentConnection {

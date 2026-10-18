@@ -970,7 +970,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		role := ClassifyMessageContext(text)
 
 		// Backward-compatible triage card for Scrum Master on technical task instructions
-		if (convID == defaultScrumMasterRoomID || targetAgentName == "Scrum Master") && role == RoleDeveloper && isTechnicalTaskInstruction(text) {
+		if (convID == defaultScrumMasterRoomID || targetAgentName == "Scrum Master") && isTechnicalTaskInstruction(text) {
 			triage := generateSMTriageResponse(text)
 			agentUUID := db.GenerateUUID()
 			agentNow := now.Add(200 * time.Millisecond)

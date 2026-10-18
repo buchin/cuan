@@ -175,6 +175,9 @@ type CreateAgentInput struct {
 	ModelID      string `json:"model_id,omitempty"`
 	Provider     string `json:"provider,omitempty"`
 	Status       string `json:"status,omitempty"`
+	ApiKey       string `json:"api_key,omitempty"`
+	Endpoint     string `json:"endpoint,omitempty"`
+	HostSession  bool   `json:"host_session,omitempty"`
 }
 
 // Validate checks constraints on CreateAgentInput.

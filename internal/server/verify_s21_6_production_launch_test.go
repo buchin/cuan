@@ -303,13 +303,11 @@ func TestVerify_S21_6_StagingE2EDrillAndProductionLaunch(t *testing.T) {
 	}
 	ev.WriteString("   - [S21.4: UNIFIED ROLES] Humans (PO: Buchin) and AI Agents (SM & Workers) presented in Unified Directory\n")
 
-	// Verify Model Fural No-API-Key onboarding modal in TeamView
-	if !strings.Contains(teamViewContent, "Tambah Akun Agent (Model Fural)") ||
-		!strings.Contains(teamViewContent, "No API Key") ||
-		!strings.Contains(teamViewContent, "cuan agent auth") {
-		t.Fatalf("TeamView.tsx missing Model Fural zero-API-key onboarding modal")
+	// Verify Onboarding modal in TeamView (evolved in S23 for Fural-Style BYO Agent Connection)
+	if !strings.Contains(teamViewContent, "Tambah Agen") && !strings.Contains(teamViewContent, "Tambah Akun Agent (Model Fural)") {
+		t.Fatalf("TeamView.tsx missing onboarding modal")
 	}
-	ev.WriteString("   - [S21.4: ONBOARDING MODAL] Model Fural zero-API-key onboarding directly integrated into TeamView\n")
+	ev.WriteString("   - [S21.4: ONBOARDING MODAL] Zero-API-key onboarding directly integrated into TeamView\n")
 
 	// Connect a new agent via backend API
 	agentPayload := map[string]interface{}{

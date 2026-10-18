@@ -10,7 +10,6 @@ import {
   Zap,
   X,
   RefreshCw,
-  Copy,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { agentsApi } from '../../api/agents'
@@ -66,7 +65,7 @@ const DEFAULT_TEAM_MEMBERS: TeamMember[] = [
     status: 'Online (Autonomous)',
     detail: 'Menjaga alur kerja sprint tanpa cognitive overload bagi Product Owner.',
     model: 'Gemini 3.8 Flash / Autonomous SM',
-    authModel: 'CLI Session (Model Fural — No API Key)',
+    authModel: 'Sesi Host Server (Tanpa API Key)',
     provider: 'antigravity',
   },
   {
@@ -119,14 +118,13 @@ export function TeamView({
   const [members, setMembers] = useState<TeamMember[]>(DEFAULT_TEAM_MEMBERS)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // S23.2: Fural-Style Add Agent Form State
+  // S23.2: Direct UI Add Agent Form State
   const [newHandle, setNewHandle] = useState('@dev')
   const [newHarness, setNewHarness] = useState<'agy' | 'claude' | 'codex' | 'custom'>('agy')
   const [apiKey, setApiKey] = useState('')
   const [customEndpoint, setCustomEndpoint] = useState('')
-  const [deviceCode, setDeviceCode] = useState('CUAN-8892')
+  const [useHostSession, setUseHostSession] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   // Fetch registered agents from backend DB on mount
   useEffect(() => {
@@ -152,9 +150,9 @@ export function TeamView({
             type: 'agent',
             avatar: handle.replace('@', '').substring(0, 2).toUpperCase() || 'AG',
             status: a.enabled === false || a.status === 'inactive' ? 'Disabled' : 'Connected (Active)',
-            detail: `Agent BYO terhubung dengan harness ${harness} (Model Fural).`,
+            detail: `Agent terhubung dengan harness ${harness}.`,
             model: a.model_id || harness,
-            authModel: 'CLI Session (Model Fural)',
+            authModel: a.model_id ? a.model_id : `Harness ${harness.toUpperCase()}`,
             provider: harness,
             responsibilities: [
               'Merespons secara dinamis sesuai konteks pesan (SM saat koordinasi, Developer saat teknis)',
@@ -178,16 +176,7 @@ export function TeamView({
   }, [])
 
   const handleOpenModal = () => {
-    const randomCode = 'CUAN-' + Math.floor(1000 + Math.random() * 9000)
-    setDeviceCode(randomCode)
     setIsModalOpen(true)
-  }
-
-  const handleCopyCommand = () => {
-    const cmd = `cuan agent auth --handle ${newHandle} --code ${deviceCode}`
-    navigator.clipboard?.writeText(cmd)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleHandleChange = (val: string) => {
@@ -207,25 +196,40 @@ export function TeamView({
     setIsConnecting(true)
     try {
       const connID = `conn_${sanitized.replace(/^@/, '')}_${Date.now()}`
-      // 1. Create standard Fural agent entity via REST API POST /api/v1/agents
+      const isHostSession = newHarness === 'agy' && useHostSession
+      const activeApiKey = isHostSession ? '' : apiKey.trim()
+
+      // 1. Create agent entity via REST API POST /api/v1/agents with direct UI connection credentials
       const agentRes = await agentsApi.create({
         name: sanitized,
         harness: newHarness,
         connection_id: connID,
         enabled: true,
+        api_key: activeApiKey,
+        endpoint: newHarness === 'custom' ? customEndpoint.trim() : undefined,
+        host_session: isHostSession,
       })
 
-      // 2. Also register CLI session connection in backend
+      // 2. Also register connection session in backend for runner compatibility
       await agentsApi.connectCLI({
         name: sanitized,
         handle: sanitized,
         provider: newHarness,
         model_id: newHarness === 'custom' ? customEndpoint || 'Custom Model' : newHarness.toUpperCase(),
-        session_token: connID,
+        session_token: activeApiKey || connID,
       })
 
+      let computedAuthModel = ''
+      if (newHarness === 'custom') {
+        computedAuthModel = customEndpoint ? `Endpoint: ${customEndpoint}` : 'Custom API Key'
+      } else if (newHarness === 'agy') {
+        computedAuthModel = isHostSession ? 'Sesi Host Server / Env Default' : 'Google AI Studio Key'
+      } else {
+        computedAuthModel = `${newHarness.toUpperCase()} API Key`
+      }
+
       const newMember: TeamMember = {
-        id: agentRes.id,
+        id: agentRes.id || `agent-${Date.now()}`,
         name: sanitized,
         handle: sanitized,
         role: 'dev_team',
@@ -233,9 +237,9 @@ export function TeamView({
         type: 'agent',
         avatar: sanitized.replace(/^@/, '').substring(0, 2).toUpperCase() || 'AG',
         status: 'Connected (Active)',
-        detail: `Agent BYO terhubung dengan harness ${newHarness} (Model Fural).`,
+        detail: `Agent terhubung dengan harness ${newHarness}.`,
         model: newHarness === 'custom' ? 'Custom LLM' : `${newHarness.toUpperCase()} Engine`,
-        authModel: newHarness === 'custom' ? 'API Key Configured' : 'CLI Session (Model Fural)',
+        authModel: computedAuthModel,
         provider: newHarness,
         responsibilities: [
           'Merespons dinamis sesuai konteks pesan (SM saat koordinasi, Developer saat teknis)',
@@ -247,9 +251,12 @@ export function TeamView({
       setMembers((prev) => [newMember, ...prev])
       setIsModalOpen(false)
       setNewHandle('@dev')
+      setApiKey('')
+      setCustomEndpoint('')
+      setUseHostSession(true)
       if (onAgentAdded) onAgentAdded()
     } catch (err) {
-      console.error('Failed to connect agent via CLI:', err)
+      console.error('Failed to connect agent via UI:', err)
       const fallbackMember: TeamMember = {
         id: `agent-${Date.now()}`,
         name: sanitized,
@@ -259,9 +266,9 @@ export function TeamView({
         type: 'agent',
         avatar: sanitized.replace(/^@/, '').substring(0, 2).toUpperCase() || 'AG',
         status: 'Connected (Active)',
-        detail: 'Agent terdaftar lokal via BYO Agent fallback.',
+        detail: 'Agent terdaftar langsung via UI.',
         model: newHarness,
-        authModel: 'CLI Session (Fallback)',
+        authModel: 'Koneksi UI Langsung',
         provider: newHarness,
         responsibilities: [
           'Merespons dinamis sesuai konteks pesan',
@@ -302,7 +309,7 @@ export function TeamView({
           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors rounded-md shadow-xs shrink-0 self-start sm:self-auto"
         >
           <Plus className="h-3.5 w-3.5" />
-          <span>+ Tambah Agent (Model Fural)</span>
+          <span>+ Tambah Agen</span>
         </button>
       </div>
 
@@ -472,9 +479,9 @@ export function TeamView({
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-                    Tambah Agen (Fural BYO Agent)
+                    Tambah Agen
                     <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.2 rounded font-mono">
-                      No API Key
+                      Zero API Key
                     </span>
                   </h3>
                   <p className="text-[11px] text-muted-foreground">
@@ -576,26 +583,15 @@ export function TeamView({
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                       </span>
-                      <span>Status Sesi Akun (BYO Agent)</span>
+                      <span>Status Deteksi Sesi Server Aktif</span>
                     </span>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
-                      Connected / Active
+                      Zero API Key &amp; Zero Client Terminal
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Sesi akun terhubung langsung ke runtime <span className="font-semibold text-foreground">{newHarness}</span> di host server tanpa memerlukan input raw API Key.
+                    Sesi host server terdeteksi aktif untuk harness <span className="font-semibold text-foreground">{newHarness === 'agy' ? 'Antigravity (agy)' : newHarness}</span>. Akun agent langsung dihubungkan tanpa perlu memasukkan raw API Key atau menjalankan terminal client.
                   </p>
-                  <div className="pt-2 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                    <span>Otorisasi Device Code: {deviceCode}</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyCommand}
-                      className="text-primary hover:underline flex items-center gap-1"
-                    >
-                      <Copy className="h-3 w-3" />
-                      <span>{copied ? 'Tersalin!' : 'Salin Perintah CLI'}</span>
-                    </button>
-                  </div>
                 </div>
               ) : (
                 <div className="bg-muted/40 p-3 rounded-lg border border-border text-xs space-y-3">
@@ -657,7 +653,7 @@ export function TeamView({
                   ) : (
                     <>
                       <Plus className="h-3.5 w-3.5" />
-                      <span>Hubungkan Agent ({newHarness})</span>
+                      <span>+ Hubungkan Agen</span>
                     </>
                   )}
                 </button>
