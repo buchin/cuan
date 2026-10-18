@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
-import { useSidebar } from '../ui/sidebar'
 import { ChangePasswordModal } from '../auth/ChangePasswordModal'
 import {
   LogOut,
@@ -12,10 +11,13 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-export function NavUser() {
+interface NavUserProps {
+  isCollapsed?: boolean
+}
+
+export function NavUser({ isCollapsed = false }: NavUserProps) {
   const { user, logout } = useAuth()
   const { resolvedTheme, toggleTheme } = useTheme()
-  const { state, isMobile, setOpenMobile } = useSidebar()
   const [menuOpen, setMenuOpen] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -45,7 +47,6 @@ export function NavUser() {
 
   const handleLogout = async () => {
     setMenuOpen(false)
-    if (isMobile) setOpenMobile(false)
     await logout()
   }
 
@@ -66,31 +67,31 @@ export function NavUser() {
           title={`${username} (${email})`}
           className={cn(
             "flex w-full items-center gap-3 p-2 text-left text-xs font-medium rounded-none transition-colors",
-            "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground outline-hidden select-none",
-            menuOpen && "bg-sidebar-accent text-sidebar-accent-foreground",
-            state === "collapsed" && !isMobile && "justify-center p-1.5"
+            "hover:bg-[#d5dce8] dark:hover:bg-[#1f2335] text-[#1a1b26] dark:text-[#c0caf5] outline-hidden select-none",
+            menuOpen && "bg-[#d5dce8] dark:bg-[#1f2335]",
+            isCollapsed && "justify-center p-1.5"
           )}
         >
           {/* Avatar / Initials */}
-          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs shadow-xs border border-sidebar-border">
+          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center bg-[#7aa2f7] text-[#16161e] font-mono font-bold text-xs shadow-xs border border-[#cfd6e6] dark:border-[#24283b]">
             {initials}
-            <span className="absolute bottom-0 right-0 h-2 w-2 rounded-none bg-emerald-500 border border-sidebar-background ring-1 ring-emerald-400/50" />
+            <span className="absolute bottom-0 right-0 h-2 w-2 rounded-none bg-emerald-500 ring-1 ring-emerald-400/50" />
           </div>
 
-          {/* User Details (hidden when sidebar collapsed on desktop) */}
-          {(!state || state === 'expanded' || isMobile) && (
+          {/* User Details (hidden when sidebar collapsed) */}
+          {!isCollapsed && (
             <div className="grid flex-1 text-left leading-tight truncate">
-              <span className="truncate font-semibold text-sidebar-foreground">
+              <span className="truncate font-semibold text-[#1a1b26] dark:text-[#c0caf5]">
                 {username}
               </span>
-              <span className="truncate text-[10px] text-sidebar-foreground/60">
+              <span className="truncate text-[10px] text-[#565f89]">
                 {email}
               </span>
             </div>
           )}
 
-          {(!state || state === 'expanded' || isMobile) && (
-            <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 text-sidebar-foreground/50" />
+          {!isCollapsed && (
+            <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 text-[#565f89]" />
           )}
         </button>
 
@@ -98,8 +99,8 @@ export function NavUser() {
         {menuOpen && (
           <div
             className={cn(
-              "absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-xl p-1",
-              state === "collapsed" && !isMobile
+              "absolute z-50 min-w-56 bg-[#e2e7f1] dark:bg-[#16161e] text-[#1a1b26] dark:text-[#c0caf5] border border-[#cfd6e6] dark:border-[#24283b] shadow-xl p-1",
+              isCollapsed
                 ? "left-full bottom-0 ml-2"
                 : "bottom-full left-0 mb-1 w-full"
             )}

@@ -204,7 +204,7 @@ export function AppShell({
         {/* Footer: User profile & Tokyo Night Theme Toggle */}
         <div className="p-2 border-t border-[#cfd6e6] dark:border-[#24283b] flex items-center justify-between">
           <div className="flex-1 truncate">
-            <NavUser />
+            <NavUser isCollapsed={sidebarCollapsed} />
           </div>
           <button
             onClick={toggleTheme}
