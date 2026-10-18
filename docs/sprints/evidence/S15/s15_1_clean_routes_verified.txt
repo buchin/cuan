@@ -1,0 +1,105 @@
+================================================================================
+S15.1 AUDIT EVIDENCE: Clean Routes & Clutter Removal (Zero-Marketing Overhead)
+================================================================================
+Timestamp: 2026-10-18T08:22:00+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Task ID: csrrivbfdobagcmlembmofqk (#CSRRI)
+Task Title: S15.1 — Clean Routes & Clutter Removal (Zero-Marketing Overhead)
+Git Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. SSOT SPRINT 15 DOCUMENTATION
+--------------------------------------------------------------------------------
+SSOT File: docs/sprints/S15.md
+Status: running (Disetujui secara eksplisit oleh Product Owner Buchin)
+Sprint Goal: UI Radical Simplification: Strict Minimalist Scope
+Sembilan (9) Pilar Utama:
+  1. Auth Gatekeeper (login mandatory, default admin/whosyourdaddy)
+  2. Design System Tokyo Night (#1a1b26/#eaeef6, radius 0rem)
+  3. 6 Menu Global Sidebar (Dashboard, Tasks, Projects, Discussions, Agents, Team)
+  4. NavUser Footer (profile, ganti password, logout)
+  5. Contextual Project Sidebar (Overview, WordPress Cloud, Repos, Deployments, Telemetry, Studio Rooms, Settings + tombol kembali)
+  6. Dashboard Empty State (jika 0 proyek -> edukatif Create New Project)
+  7. Breadcrumb Switcher Navbar model Jean (Dashboard / [Project Switcher] / [Modul])
+  8. Project Archiving (Active vs Archived tab, disembunyikan dari switcher)
+  9. Multi-Project Task Linking (checkbox dropdown di modal task)
+Diagram Alur Kerja: D2 TALA (render exit code 0)
+Diagram Alur Eksekusi Backlog: D2 TALA (render exit code 0)
+Backlog Tasks: S15.1, S15.2, S15.3, S15.4
+
+--------------------------------------------------------------------------------
+2. ROUTE INSPECTION & ZERO-MARKETING OVERHEAD
+--------------------------------------------------------------------------------
+A. Root Path '/' & App-First Gateway:
+  - Unauthenticated access to '/' atau rute privat:
+    Langsung diarahkan ke Tokyo Night Auth Gatekeeper (LoginScreen).
+  - Authenticated access to '/' atau '/dashboard':
+    Langsung merender Dashboard Workspace (StudioDashboard) di dalam Sidebar07Layout.
+  - Akses '/login' saat authenticated otomatis redirect ke '/dashboard'.
+
+B. Eliminasi Rute Marketing & Sponsor:
+  - Rute pemasaran dihapus/dinonaktifkan:
+    * /marketing (Dihapus dari routing)
+    * /landing (Dihapus dari routing)
+  - Rute sponsorship dihapus/dinonaktifkan:
+    * /sponsor (Dihapus dari routing)
+    * /sponsors (Dihapus dari routing)
+    * /sponsor/pending (Dihapus dari routing)
+    * /sponsors/pending (Dihapus dari routing)
+    * /sponsor/status (Dihapus dari routing)
+    * /admin/sponsors (Dihapus dari routing dan layout)
+  - Unused component imports dihapus dari web/src/App.tsx:
+    * LandingPage
+    * SponsorShowcase
+    * SponsorArchive
+    * SponsorPending
+    * AdminSponsorPanel
+
+C. Eliminasi State APP_MODE & Tombol Navigasi Marketing:
+  - State APP_MODE (marketing/studio toggle) dihapus dari web/src/App.tsx.
+  - Tombol 'Mode: studio/marketing' dihapus dari header navbar web/src/components/layout/Sidebar07Layout.tsx.
+  - Tombol 'Beranda' dihapus dari header navbar web/src/components/layout/Sidebar07Layout.tsx.
+  - Tombol 'Landing Page' dihapus dari header web/src/components/auth/LoginScreen.tsx.
+  - Menu item 'Moderasi Sponsor' dihapus dari sidebar navigasi global web/src/components/layout/Sidebar07Layout.tsx.
+  - Banner 'Studio Mode Active (APP_MODE=studio)' dan tombol 'Lihat Landing Page (/marketing)' dihapus dari web/src/components/studio/StudioDashboard.tsx.
+  - Tombol 'Switch to Marketing' / 'Landing Page' dihapus dari tabs row web/src/components/studio/StudioDashboard.tsx.
+  - Tombol '← Kembali ke Landing Page' pada setup pertama diubah menjadi '← Kembali ke Halaman Login'.
+
+--------------------------------------------------------------------------------
+3. QUALITY GATES & VERIFICATION RESULTS
+--------------------------------------------------------------------------------
+A. TypeScript Compilation Check:
+  $ cd web && npx tsc --noEmit
+  Exit Code: 0
+  Errors: 0
+
+B. Production Bundle Build:
+  $ cd web && npm run build
+  Exit Code: 0
+  vite v5.4.21 building for production...
+  ✓ 1653 modules transformed.
+  dist/index.html                     0.55 kB │ gzip:   0.37 kB
+  dist/assets/index-Dr2PMvSa.css    106.98 kB │ gzip:  17.49 kB
+  dist/assets/index-BFnmtf2z.js   1,231.21 kB │ gzip: 285.51 kB
+  ✓ built in 4.48s
+
+  Catatan Bundle:
+  Bundle JavaScript berkurang dari 1,344.79 kB menjadi 1,231.21 kB (pengurangan ~113.58 kB overhead marketing/sponsor).
+
+C. Backend Test Suite:
+  $ go test ./internal/server/... ./internal/auth/...
+  ok  	github.com/buchin/cuan/internal/server	112.870s
+  ok  	github.com/buchin/cuan/internal/auth	(cached)
+  Exit Code: 0 (100% PASS, Zero Regression)
+
+--------------------------------------------------------------------------------
+4. DEFINITION OF DONE (DoD) CHECKLIST
+--------------------------------------------------------------------------------
+[x] 1. Akses ke / langsung memicu Auth Gatekeeper atau Dashboard.
+[x] 2. Seluruh artefak sponsor dan marketing mode bersih dari UI.
+[x] 3. SSOT docs/sprints/S15.md terbit di repository cuan.
+[x] 4. npx tsc --noEmit 0 error & npm run build PASS.
+[x] 5. Audit pack docs/sprints/evidence/S15/s15_1_clean_routes_verified.txt terbit, commit author Buchin <buchin@dropsugar.com> & push origin/main.
+================================================================================

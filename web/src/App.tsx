@@ -1,9 +1,4 @@
 import { useEffect, useState, FormEvent } from 'react'
-import { LandingPage } from './components/landing/LandingPage'
-import { SponsorShowcase } from './components/sponsor/SponsorShowcase'
-import { SponsorArchive } from './components/sponsor/SponsorArchive'
-import { SponsorPending } from './components/sponsor/SponsorPending'
-import { AdminSponsorPanel } from './components/sponsor/AdminSponsorPanel'
 import { StudioDashboard } from './components/studio/StudioDashboard'
 import { TermsPage, PrivacyPage } from './components/legal/LegalPages'
 import { useAuth } from './context/AuthContext'
@@ -39,7 +34,6 @@ export function App() {
 
   // Consume Auth Context
   const {
-    user,
     token,
     isAuthenticated,
     isLoading: authLoading,
@@ -47,31 +41,14 @@ export function App() {
     refreshUser,
   } = useAuth()
 
-  // System Mode State (APP_MODE=marketing vs APP_MODE=studio - S03.5)
+  // System Info State
   const [systemMode, setSystemMode] = useState<{
-    app_mode: 'marketing' | 'studio'
     version: string
     base_domain: string
   }>({
-    app_mode: 'marketing',
     version: '0.1.0',
     base_domain: 'cuan.dojo.cc',
   })
-
-  const [overrideMode, setOverrideMode] = useState<'marketing' | 'studio' | null>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('cuan_app_mode_override')
-      return saved === 'marketing' || saved === 'studio' ? saved : null
-    }
-    return null
-  })
-
-  const effectiveMode: 'marketing' | 'studio' = overrideMode || systemMode.app_mode
-
-  const handleToggleMode = (newMode: 'marketing' | 'studio') => {
-    setOverrideMode(newMode)
-    localStorage.setItem('cuan_app_mode_override', newMode)
-  }
 
   // Setup Form states (for fresh first-time instances)
   const [setupLoading, setSetupLoading] = useState(false)
@@ -117,7 +94,10 @@ export function App() {
 
         if (modeRes.status === 'fulfilled' && modeRes.value.ok) {
           const modeData = await modeRes.value.json()
-          setSystemMode(modeData)
+          setSystemMode({
+            version: modeData.version || '0.1.0',
+            base_domain: modeData.base_domain || 'cuan.dojo.cc',
+          })
         }
 
         if (projectsRes.status === 'fulfilled' && projectsRes.value.ok) {
@@ -195,52 +175,10 @@ export function App() {
     return <PrivacyPage onNavigate={navigate} />
   }
 
-  // Explicit Marketing Landing Page route (/marketing & /landing)
-  if (currentPath === '/marketing' || currentPath === '/landing') {
-    return (
-      <LandingPage
-        onNavigate={navigate}
-        appMode={effectiveMode}
-        onToggleMode={handleToggleMode}
-      />
-    )
-  }
-
-  // Sponsorship Pending Confirmation Route
-  if (
-    currentPath === '/sponsor/pending' ||
-    currentPath === '/sponsors/pending' ||
-    currentPath === '/sponsor/status' ||
-    (currentPath === '/sponsor' && window.location.search.includes('status='))
-  ) {
-    return <SponsorPending onNavigate={navigate} />
-  }
-
-  // Sponsorship Showcase Route (/sponsor)
-  if (currentPath === '/sponsor') {
-    return <SponsorShowcase onNavigate={navigate} />
-  }
-
-  // Sponsorship Archive & Directory Route (/sponsors and /sponsors/:batch)
-  if (currentPath === '/sponsors' || currentPath.startsWith('/sponsors/')) {
-    return <SponsorArchive onNavigate={navigate} />
-  }
-
-  // Root ('/' and '/home') marketing mode
-  if ((currentPath === '/' || currentPath === '/home') && effectiveMode === 'marketing') {
-    return (
-      <LandingPage
-        onNavigate={navigate}
-        appMode={effectiveMode}
-        onToggleMode={handleToggleMode}
-      />
-    )
-  }
-
   // Explicit Login Route
   if (currentPath === '/login') {
     if (isAuthenticated) {
-      navigate('/studio')
+      navigate('/dashboard')
       return null
     }
     return <LoginScreen onNavigate={navigate} />
@@ -354,10 +292,10 @@ export function App() {
                 </Button>
                 <button
                   type="button"
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate('/login')}
                   className="text-xs text-muted-foreground hover:text-foreground underline pt-1"
                 >
-                  ← Kembali ke Landing Page
+                  ← Kembali ke Halaman Login
                 </button>
               </CardFooter>
             </form>
@@ -377,8 +315,6 @@ export function App() {
     <Sidebar07Layout
       currentPath={currentPath}
       onNavigate={navigate}
-      appMode={effectiveMode}
-      onToggleMode={handleToggleMode}
       projects={projectsList.filter((p) => !p.is_archived && p.status !== 'archived')}
       activeProject={activeProject}
       onSelectProject={handleSelectProject}
@@ -404,30 +340,18 @@ export function App() {
       )}
 
       {/* Main Content Area */}
-      {currentPath === '/admin/sponsors' ? (
-        <AdminSponsorPanel
-          token={token}
-          onNavigate={navigate}
-          onNotify={(msg) => setSuccessNotification(msg)}
-          ownerEmail={user?.email || 'admin@cuan.local'}
-        />
-      ) : (
-        <StudioDashboard
-          currentPath={
-            currentPath.startsWith('/studio')
-              ? currentPath
-              : currentPath === '/' || currentPath === '/dashboard'
-              ? '/studio'
-              : `/studio${currentPath}`
-          }
-          onNavigate={navigate}
-          baseDomain={systemMode.base_domain}
-          appMode={effectiveMode}
-          isStudioModeActive={effectiveMode === 'studio'}
-          onToggleMode={handleToggleMode}
-          hideHeader={true}
-        />
-      )}
+      <StudioDashboard
+        currentPath={
+          currentPath.startsWith('/studio')
+            ? currentPath
+            : currentPath === '/' || currentPath === '/dashboard'
+            ? '/studio'
+            : `/studio${currentPath}`
+        }
+        onNavigate={navigate}
+        baseDomain={systemMode.base_domain}
+        hideHeader={true}
+      />
     </Sidebar07Layout>
   )
 }

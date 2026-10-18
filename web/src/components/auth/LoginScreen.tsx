@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Sun,
   Moon,
-  ArrowLeft,
   Key
 } from 'lucide-react'
 
@@ -23,7 +22,7 @@ interface LoginScreenProps {
   onNavigate?: (path: string) => void
 }
 
-export function LoginScreen({ onNavigate }: LoginScreenProps) {
+export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
   const { login, isLoading } = useAuth()
   const { resolvedTheme, toggleTheme } = useTheme()
   const [identifier, setIdentifier] = useState('')
@@ -79,18 +78,6 @@ export function LoginScreen({ onNavigate }: LoginScreenProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {onNavigate && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onNavigate('/')}
-              className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Landing Page</span>
-            </Button>
-          )}
-
           <Button
             variant="outline"
             size="sm"

@@ -33,16 +33,14 @@ import {
   Settings2,
   Server,
   HardDrive,
-  ShieldCheck,
   ArrowLeft,
   ChevronRight,
-  ExternalLink,
   Sun,
   Moon,
   Command,
   FolderGit2
 } from 'lucide-react'
-import { cn } from '../../lib/utils'
+
 
 export interface ProjectOption {
   id: string
@@ -61,8 +59,6 @@ interface Sidebar07LayoutProps {
   projects?: ProjectOption[]
   onSelectProject?: (project: ProjectOption) => void
   onCreateProject?: (projectData: any) => Promise<void> | void
-  appMode?: 'marketing' | 'studio'
-  onToggleMode?: (newMode: 'marketing' | 'studio') => void
   navMode?: 'global' | 'project'
   onToggleNavMode?: (mode: 'global' | 'project') => void
   children: React.ReactNode
@@ -82,8 +78,6 @@ export function Sidebar07Layout({
   projects = DEFAULT_PROJECTS,
   onSelectProject,
   onCreateProject,
-  appMode = 'studio',
-  onToggleMode,
   navMode: propNavMode,
   onToggleNavMode,
   children,
@@ -164,7 +158,6 @@ export function Sidebar07Layout({
     if (currentPath.includes('/servers')) return 'servers'
     if (currentPath.includes('/domains')) return 'domains'
     if (currentPath.includes('/observability')) return 'observability'
-    if (currentPath.includes('/sponsors') || currentPath.includes('/admin')) return 'sponsors'
     if (currentPath.includes('/settings')) return 'settings'
     if (currentPath === '/projects' || currentPath === '/studio/projects') return 'projects'
     return 'dashboard'
@@ -199,8 +192,6 @@ export function Sidebar07Layout({
         return 'BYOS Servers'
       case 'domains':
         return 'Custom Domains'
-      case 'sponsors':
-        return 'Moderasi Sponsor'
       case 'settings':
         return 'Settings'
       default:
@@ -391,16 +382,7 @@ export function Sidebar07Layout({
                         </SidebarMenuButton>
                       </SidebarMenuItem>
 
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={activeTab === 'sponsors'}
-                          onClick={() => onNavigate('/admin/sponsors')}
-                          tooltip="Panel Moderasi Sponsor Anti-Judol"
-                        >
-                          <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-                          <span>Moderasi Sponsor</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </SidebarGroup>
@@ -559,39 +541,7 @@ export function Sidebar07Layout({
 
             {/* Right Top Header Actions */}
             <div className="flex items-center gap-2.5">
-              {/* App Mode Switcher (S03.5) */}
-              {onToggleMode && (
-                <button
-                  type="button"
-                  onClick={() => onToggleMode(appMode === 'studio' ? 'marketing' : 'studio')}
-                  className={cn(
-                    'hidden sm:flex items-center gap-1.5 px-2 py-1 text-[11px] font-mono border transition-colors',
-                    appMode === 'studio'
-                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                      : 'border-blue-500/40 bg-blue-500/10 text-blue-400'
-                  )}
-                  title="Klik untuk beralih mode runtime"
-                >
-                  <span
-                    className={cn(
-                      'h-1.5 w-1.5 rounded-full',
-                      appMode === 'studio' ? 'bg-emerald-400 animate-pulse' : 'bg-blue-400'
-                    )}
-                  />
-                  Mode: {appMode}
-                </button>
-              )}
 
-              {/* External Landing Page */}
-              <button
-                type="button"
-                onClick={() => onNavigate('/')}
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors border border-transparent hover:border-border"
-                title="Buka Landing Page"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                <span>Beranda</span>
-              </button>
 
               {/* Tokyo Night Theme Toggle */}
               <button
