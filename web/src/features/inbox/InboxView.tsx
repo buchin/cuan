@@ -10,21 +10,43 @@ import {
   Sparkles,
   RefreshCw,
   ShoppingBag,
+  ChevronLeft,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 
 interface InboxViewProps {
+  contacts?: ChatContact[]
   activeContact?: ChatContact
+  onSelectContact?: (contact: ChatContact) => void
   onContactUpdated?: () => void
+  contactTab?: ContactFilterTab
+  onContactTabChange?: (tab: ContactFilterTab) => void
+  contactSearch?: string
+  onContactSearchChange?: (q: string) => void
+  onBackToContacts?: () => void
 }
 
-export function InboxView({ activeContact, onContactUpdated }: InboxViewProps) {
+export function InboxView({
+  contacts = [],
+  activeContact,
+  onSelectContact,
+  onContactUpdated,
+  contactTab = 'all',
+  onContactTabChange,
+  contactSearch = '',
+  onContactSearchChange,
+  onBackToContacts,
+}: InboxViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [approving, setApproving] = useState<string | null>(null)
   const [approvedTasks, setApprovedTasks] = useState<Record<string, boolean>>({})
+
+  // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
+  const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
 
   const messageListRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -138,26 +160,73 @@ export function InboxView({ activeContact, onContactUpdated }: InboxViewProps) {
     }
   }
 
-  if (!activeContact) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-background select-none">
-        <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground mb-4 shadow-sm border border-border">
-          <Bot className="h-8 w-8 text-primary" />
-        </div>
-        <h3 className="text-base font-bold text-foreground">Direct Messenger Hub</h3>
-        <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-          Pilih salah satu kontak di panel kiri untuk memulai percakapan langsung dengan Scrum Master, Worker Agent, atau pelanggan live chat Dojo.
-        </p>
-      </div>
-    )
+  const handleSelectContactInternal = (contact: ChatContact) => {
+    if (onSelectContact) {
+      onSelectContact(contact)
+    }
+    setMobileView('chat')
+  }
+
+  const handleBackToContacts = () => {
+    setMobileView('contacts')
+    if (onBackToContacts) {
+      onBackToContacts()
+    }
   }
 
   return (
-    <div className="h-full flex flex-col bg-background overflow-hidden">
-      {/* ── Top Header ── */}
-      <div className="h-14 px-6 border-b border-border bg-card text-card-foreground flex items-center justify-between shrink-0 shadow-xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="relative shrink-0">
+    <div className="h-full w-full flex overflow-hidden">
+      {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
+      <div
+        className={cn(
+          'w-full h-full md:hidden flex-col',
+          mobileView === 'contacts' ? 'flex' : 'hidden'
+        )}
+      >
+        <InboxSubPanel
+          contacts={contacts}
+          activeContactId={activeContact?.id}
+          onSelectContact={handleSelectContactInternal}
+          selectedTab={contactTab}
+          onTabChange={onContactTabChange}
+          searchQuery={contactSearch}
+          onSearchChange={onContactSearchChange}
+        />
+      </div>
+
+      {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
+      <div
+        className={cn(
+          'flex-1 flex-col h-full bg-background overflow-hidden',
+          mobileView === 'chat' ? 'flex' : 'hidden md:flex'
+        )}
+      >
+        {!activeContact ? (
+          <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-background select-none">
+            <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground mb-4 shadow-sm border border-border">
+              <Bot className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-base font-bold text-foreground">Direct Messenger Hub</h3>
+            <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
+              Pilih salah satu kontak di panel kiri untuk memulai percakapan langsung dengan Scrum Master, Worker Agent, atau pelanggan live chat Dojo.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* ── Top Header ── */}
+            <div className="h-14 px-3 sm:px-6 border-b border-border bg-card text-card-foreground flex items-center justify-between shrink-0 shadow-xs">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                {/* Mobile Back Button (<) */}
+                <button
+                  type="button"
+                  onClick={handleBackToContacts}
+                  title="Kembali ke Daftar Kontak"
+                  className="md:hidden p-1.5 -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors shrink-0"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+
+                <div className="relative shrink-0">
             <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-bold border border-border">
               {activeContact.avatar ? (
                 <span>{activeContact.avatar}</span>
@@ -364,6 +433,9 @@ export function InboxView({ activeContact, onContactUpdated }: InboxViewProps) {
             <Send className="h-4 w-4" />
           </button>
         </div>
+      </div>
+          </>
+        )}
       </div>
     </div>
   )

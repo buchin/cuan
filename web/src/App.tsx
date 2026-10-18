@@ -190,11 +190,17 @@ export function App() {
           />
         }
       >
-        {/* Messenger View — S18 Direct Messenger */}
+        {/* Messenger View — S18/S19 Direct Messenger with Mobile Single-View */}
         {currentTab === 'inbox' && (
           <InboxView
+            contacts={contacts}
             activeContact={activeContact}
+            onSelectContact={(c) => setActiveContact(c)}
             onContactUpdated={refreshContacts}
+            contactTab={contactTab}
+            onContactTabChange={setContactTab}
+            contactSearch={contactSearch}
+            onContactSearchChange={setContactSearch}
           />
         )}
 

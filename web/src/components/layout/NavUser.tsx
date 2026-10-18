@@ -6,9 +6,10 @@ import { cn } from '../../lib/utils'
 
 interface NavUserProps {
   isCollapsed?: boolean
+  dropdownPosition?: 'side' | 'bottom-right' | 'bottom-left'
 }
 
-export function NavUser({ isCollapsed = false }: NavUserProps) {
+export function NavUser({ isCollapsed = false, dropdownPosition }: NavUserProps) {
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -81,7 +82,11 @@ export function NavUser({ isCollapsed = false }: NavUserProps) {
           <div
             className={cn(
               'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1 rounded-lg',
-              isCollapsed
+              dropdownPosition === 'bottom-right'
+                ? 'right-0 top-full mt-1.5'
+                : dropdownPosition === 'bottom-left'
+                ? 'left-0 top-full mt-1.5'
+                : isCollapsed
                 ? 'left-full bottom-0 ml-2'
                 : 'bottom-full left-0 mb-1 w-full'
             )}

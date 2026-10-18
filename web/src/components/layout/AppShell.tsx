@@ -79,8 +79,8 @@ export function AppShell({
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-background">
-      {/* ── TIER 1: Primary Icon Rail (48px) ── */}
-      <nav className="w-12 shrink-0 flex flex-col border-r border-border bg-sidebar">
+      {/* ── TIER 1: Primary Icon Rail (48px) — Hidden on mobile ── */}
+      <nav className="hidden md:flex w-12 shrink-0 flex-col border-r border-border bg-sidebar">
         {/* Logo */}
         <div className="h-12 flex items-center justify-center border-b border-sidebar-border shrink-0">
           <div className="h-7 w-7 bg-primary text-primary-foreground font-mono font-black text-xs flex items-center justify-center rounded">
@@ -144,10 +144,10 @@ export function AppShell({
         </div>
       </nav>
 
-      {/* ── TIER 2: Contextual Sub-Panel (240px, collapsible) ── */}
+      {/* ── TIER 2: Contextual Sub-Panel (240px, collapsible) — Hidden on mobile ── */}
       <div
         className={cn(
-          'shrink-0 flex flex-col border-r border-border bg-sidebar/50 overflow-hidden transition-all duration-200',
+          'hidden md:flex shrink-0 flex-col border-r border-border bg-sidebar/50 overflow-hidden transition-all duration-200',
           subPanelOpen ? 'w-60' : 'w-0'
         )}
       >
@@ -176,29 +176,79 @@ export function AppShell({
 
       {/* ── TIER 3: Main Viewport ── */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Top Bar */}
-        <header className="h-12 border-b border-border px-4 flex items-center gap-2 bg-background shrink-0">
-          {!subPanelOpen && (
+        {/* Top Bar Header */}
+        <header className="h-12 border-b border-border px-3 md:px-4 flex items-center justify-between bg-background shrink-0">
+          <div className="flex items-center gap-2 text-xs">
+            {!subPanelOpen && (
+              <button
+                onClick={() => setSubPanelOpen(true)}
+                className="hidden md:flex p-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors"
+                title="Open sub-panel"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
+            {/* Mobile brand badge */}
+            <div className="md:hidden h-6 w-6 bg-primary text-primary-foreground font-mono font-black text-[11px] flex items-center justify-center rounded shrink-0">
+              C
+            </div>
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="font-semibold text-foreground">Cuan</span>
+              <span>/</span>
+              <span className="capitalize font-medium text-foreground">
+                {NAV_ITEMS.find((n) => n.id === currentTab)?.label}
+              </span>
+            </div>
+          </div>
+
+          {/* Mobile Right Actions: Theme Toggle & User Profile */}
+          <div className="flex md:hidden items-center gap-1.5">
             <button
-              onClick={() => setSubPanelOpen(true)}
-              className="p-1.5 text-muted-foreground hover:text-foreground rounded-md transition-colors"
-              title="Open sub-panel"
+              onClick={toggleTheme}
+              title={`Tema ${resolvedTheme === 'dark' ? 'Dark' : 'Light'}`}
+              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
-              <ChevronRight className="h-4 w-4" />
+              {resolvedTheme === 'dark' ? (
+                <Moon className="h-4 w-4 text-primary" />
+              ) : (
+                <Sun className="h-4 w-4 text-amber-500" />
+              )}
             </button>
-          )}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Cuan</span>
-            <span>/</span>
-            <span className="capitalize">{NAV_ITEMS.find((n) => n.id === currentTab)?.label}</span>
+            <div className="relative">
+              <NavUser isCollapsed dropdownPosition="bottom-right" />
+            </div>
           </div>
         </header>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-auto p-6">
+        {/* Content Area with pb-16 for mobile bottom navigation */}
+        <div
+          className={cn(
+            'flex-1 overflow-hidden pb-16 md:pb-0',
+            currentTab === 'inbox' ? 'p-0' : 'overflow-auto p-4 md:p-6'
+          )}
+        >
           {children}
         </div>
       </main>
+
+      {/* ── Mobile Bottom Navigation Bar (md:hidden) ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-border z-30 flex items-center justify-around px-2 shadow-lg">
+        {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => onSelectTab(id)}
+            className={cn(
+              'flex flex-col items-center justify-center flex-1 py-1 gap-1 transition-colors relative',
+              currentTab === id
+                ? 'text-primary font-bold'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="text-[10px] tracking-tight">{label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   )
 }
