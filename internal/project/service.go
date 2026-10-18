@@ -286,3 +286,37 @@ func (s *Service) UpdateModules(ctx context.Context, id string, modules []string
 
 	return p.ToResponse(), nil
 }
+
+// Archive marks a project as archived (is_archived = true).
+func (s *Service) Archive(ctx context.Context, id string) (*ProjectResponse, error) {
+	p, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	p.IsArchived = true
+	p.UpdatedAt = time.Now().UTC()
+
+	if err := s.store.UpdateProject(ctx, p); err != nil {
+		return nil, err
+	}
+
+	return p.ToResponse(), nil
+}
+
+// Unarchive restores an archived project to active status (is_archived = false).
+func (s *Service) Unarchive(ctx context.Context, id string) (*ProjectResponse, error) {
+	p, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	p.IsArchived = false
+	p.UpdatedAt = time.Now().UTC()
+
+	if err := s.store.UpdateProject(ctx, p); err != nil {
+		return nil, err
+	}
+
+	return p.ToResponse(), nil
+}

@@ -187,6 +187,7 @@ type DoDItem struct {
 type ProjectTask struct {
 	ID              string     `json:"id"`
 	ProjectID       string     `json:"project_id"`
+	ProjectIDs      []string   `json:"project_ids,omitempty"`
 	RoomID          *string    `json:"room_id,omitempty"`
 	Title           string     `json:"title"`
 	Description     string     `json:"description"`
@@ -210,6 +211,7 @@ type ProjectTask struct {
 type ProjectTaskDTO struct {
 	ID              string     `json:"id"`
 	ProjectID       string     `json:"project_id"`
+	ProjectIDs      []string   `json:"project_ids,omitempty"`
 	RoomID          *string    `json:"room_id,omitempty"`
 	Title           string     `json:"title"`
 	Description     string     `json:"description"`
@@ -241,6 +243,12 @@ func (t *ProjectTask) ToDTO() ProjectTaskDTO {
 		execStatus = "idle"
 	}
 
+	pidsCopy := make([]string, len(t.ProjectIDs))
+	copy(pidsCopy, t.ProjectIDs)
+	if len(pidsCopy) == 0 && t.ProjectID != "" {
+		pidsCopy = []string{t.ProjectID}
+	}
+
 	var scheduledAt *time.Time
 	if t.ScheduledAt != nil {
 		st := *t.ScheduledAt
@@ -255,6 +263,7 @@ func (t *ProjectTask) ToDTO() ProjectTaskDTO {
 	return ProjectTaskDTO{
 		ID:              t.ID,
 		ProjectID:       t.ProjectID,
+		ProjectIDs:      pidsCopy,
 		RoomID:          t.RoomID,
 		Title:           t.Title,
 		Description:     t.Description,

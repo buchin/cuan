@@ -59,6 +59,7 @@ import { WordPressDashboardView } from './wordpress'
 import { TeamView } from './TeamView'
 import { DashboardEmptyState } from './DashboardEmptyState'
 import { CreateProjectModal } from './CreateProjectModal'
+import { ProjectsDirectoryView } from './ProjectsDirectoryView'
 
 export type StudioTab =
   | 'projects'
@@ -201,7 +202,7 @@ export function StudioDashboard({
 
   const fetchProjectsList = async () => {
     try {
-      const res = await fetch('/api/v1/projects')
+      const res = await fetch('/api/v1/projects?include_archived=true')
       if (res.ok) {
         const data = await res.json()
         const serverProjects: ProjectItemDTO[] = data.projects || []
@@ -215,14 +216,53 @@ export function StudioDashboard({
     } catch {}
   }
 
+  const handleArchiveProject = async (id: string, name: string) => {
+    try {
+      const res = await fetch(`/api/v1/projects/${id}/archive`, {
+        method: 'PATCH',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: Gagal mengarsipkan proyek`)
+      }
+      showToast('success', `Proyek "${name}" berhasil diarsipkan.`)
+      await fetchProjectsList()
+      if (activeProjectId === id) {
+        const remaining = projectsList.filter(
+          (p) => p.id !== id && !p.is_archived && p.status !== 'archived'
+        )
+        if (remaining.length > 0) {
+          setActiveProjectId(remaining[0].id)
+        }
+      }
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal mengarsipkan proyek')
+    }
+  }
+
+  const handleUnarchiveProject = async (id: string, name: string) => {
+    try {
+      const res = await fetch(`/api/v1/projects/${id}/unarchive`, {
+        method: 'PATCH',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: Gagal memulihkan proyek`)
+      }
+      showToast('success', `Proyek "${name}" berhasil dipulihkan ke proyek aktif.`)
+      await fetchProjectsList()
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal memulihkan proyek')
+    }
+  }
+
   useEffect(() => {
     fetchProjectsList()
   }, [])
 
   const activeProject = useMemo<ProjectItemDTO>(() => {
+    const activeProjects = projectsList.filter((p) => !p.is_archived && p.status !== 'archived')
     return (
-      projectsList.find((p) => p.id === activeProjectId) ||
-      projectsList[0] ||
+      activeProjects.find((p) => p.id === activeProjectId) ||
+      activeProjects[0] ||
       DEFAULT_PRESET_PROJECTS[0]
     )
   }, [projectsList, activeProjectId, DEFAULT_PRESET_PROJECTS])
@@ -586,14 +626,16 @@ export function StudioDashboard({
     })
   }, [deployments, runtimeFilter, statusFilter, searchQuery])
 
-  // Combined project list for Tasks Board & Discussions (deployments + projects)
+  // Combined project list for Tasks Board & Discussions (deployments + active projects)
   const combinedProjectsForTasks = useMemo(() => {
     const list = deployments.map((d) => ({ id: d.id, name: d.project_name }))
     const existingIds = new Set(list.map((p) => p.id))
     for (const p of projectsList) {
-      if (!existingIds.has(p.id)) {
-        list.push({ id: p.id, name: p.name })
-        existingIds.add(p.id)
+      if (!p.is_archived && p.status !== 'archived') {
+        if (!existingIds.has(p.id)) {
+          list.push({ id: p.id, name: p.name })
+          existingIds.add(p.id)
+        }
       }
     }
     return list
@@ -958,10 +1000,10 @@ export function StudioDashboard({
                   <option value="creator-hub">🎨 Creator Hub Workspace (Publishing)</option>
                   <option value="blank-workspace">📄 Blank Workspace (Lean)</option>
                 </optgroup>
-                {projectsList.filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id)).length > 0 && (
+                {projectsList.filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id) && !p.is_archived && p.status !== 'archived').length > 0 && (
                   <optgroup label="Proyek Terhubung / Hasil Import">
                     {projectsList
-                      .filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id))
+                      .filter((p) => !['saas-dojo', 'creator-hub', 'blank-workspace'].includes(p.id) && !p.is_archived && p.status !== 'archived')
                       .map((p) => (
                         <option key={p.id} value={p.id}>
                           📦 {p.name}
@@ -1330,10 +1372,20 @@ export function StudioDashboard({
               onNavigate?.('/studio/tasks')
             }}
           />
+        ) : activeTab === 'projects' ? (
+          <ProjectsDirectoryView
+            projects={projectsList}
+            activeProjectId={activeProjectId}
+            onSelectProject={(id) => handleSelectProject(id)}
+            onArchiveProject={handleArchiveProject}
+            onUnarchiveProject={handleUnarchiveProject}
+            onCreateProjectClick={() => setIsCreateProjectModalOpen(true)}
+            onNavigate={onNavigate}
+          />
         ) : activeTab === 'deployer' ? (
           <ScriptDeployerView
             projectId={activeProjectId}
-            projects={projectsList}
+            projects={projectsList.filter((p) => !p.is_archived && p.status !== 'archived')}
             servers={servers}
             baseDomain={baseDomain}
             onToast={(type, message) => showToast(type, message)}
@@ -1342,7 +1394,7 @@ export function StudioDashboard({
         ) : activeTab === 'wordpress' ? (
           <WordPressDashboardView
             projectId={activeProjectId}
-            projects={projectsList}
+            projects={projectsList.filter((p) => !p.is_archived && p.status !== 'archived')}
             servers={servers}
             baseDomain={baseDomain}
             onToast={(type, message) => showToast(type, message)}

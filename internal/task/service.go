@@ -104,9 +104,19 @@ func (s *Service) CreateTask(ctx context.Context, author string, req CreateTaskR
 		assignedAgent = "agy"
 	}
 
+	projectIDs := req.ProjectIDs
+	projectID := strings.TrimSpace(req.ProjectID)
+	if projectID == "" && len(projectIDs) > 0 {
+		projectID = projectIDs[0]
+	}
+	if len(projectIDs) == 0 && projectID != "" {
+		projectIDs = []string{projectID}
+	}
+
 	t := &Task{
 		ID:            generateID("task"),
-		ProjectID:     strings.TrimSpace(req.ProjectID),
+		ProjectID:     projectID,
+		ProjectIDs:    projectIDs,
 		Title:         title,
 		Instructions:  strings.TrimSpace(req.Instructions),
 		Status:        TaskStatusBacklog,
@@ -160,9 +170,19 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 		}
 	}
 
+	var projectNamesList []string
+	for _, pid := range t.ProjectIDs {
+		if s.projectFinder != nil {
+			if p, err := s.projectFinder.Get(ctx, pid); err == nil && p != nil {
+				projectNamesList = append(projectNamesList, p.Name)
+			}
+		}
+	}
+
 	return &TaskDetailResponse{
 		Task:          *t,
 		ProjectName:   projectName,
+		ProjectNames:  projectNamesList,
 		RepoURL:       repoURL,
 		LatestAttempt: latestAttempt,
 		Attempts:      attempts,
@@ -176,7 +196,7 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 
-	if len(tasks) == 0 && filter.ProjectID == "" && filter.Status == "" && filter.Search == "" {
+	if len(tasks) == 0 && filter.ProjectID == "" && len(filter.ProjectIDs) == 0 && filter.Status == "" && filter.Search == "" {
 		_ = s.SeedSprint1Tasks(ctx)
 		tasks, _ = s.store.ListTasks(ctx, filter)
 	}
@@ -198,10 +218,23 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 			}
 		}
 
+		var pNames []string
+		for _, pid := range t.ProjectIDs {
+			if cached, ok := projectNames[pid]; ok {
+				pNames = append(pNames, cached)
+			} else if s.projectFinder != nil {
+				if p, err := s.projectFinder.Get(ctx, pid); err == nil && p != nil {
+					projectNames[pid] = p.Name
+					pNames = append(pNames, p.Name)
+				}
+			}
+		}
+
 		latestAttempt, _ := s.store.GetLatestAttempt(ctx, t.ID)
 		items = append(items, &TaskItemResponse{
 			Task:          *t,
 			ProjectName:   pName,
+			ProjectNames:  pNames,
 			LatestAttempt: latestAttempt,
 		})
 	}
@@ -229,6 +262,13 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 
 	if req.Instructions != nil {
 		t.Instructions = strings.TrimSpace(*req.Instructions)
+	}
+
+	if req.ProjectIDs != nil {
+		t.ProjectIDs = *req.ProjectIDs
+		if len(t.ProjectIDs) > 0 && t.ProjectID == "" {
+			t.ProjectID = t.ProjectIDs[0]
+		}
 	}
 
 	if req.Priority != nil {

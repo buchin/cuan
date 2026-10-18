@@ -158,6 +158,8 @@ type ProjectRepository interface {
 	ListProjectsBySourceType(ctx context.Context, sourceType string) ([]*Project, error)
 	UpdateProject(ctx context.Context, p *Project) error
 	DeleteProject(ctx context.Context, id string) error
+	ArchiveProject(ctx context.Context, id string) error
+	UnarchiveProject(ctx context.Context, id string) error
 }
 
 // SQLProjectRepository implements ProjectRepository using PostgreSQL.
@@ -741,6 +743,38 @@ func (r *SQLProjectRepository) DeleteProject(ctx context.Context, id string) err
 	return nil
 }
 
+func (r *SQLProjectRepository) ArchiveProject(ctx context.Context, id string) error {
+	query := "UPDATE projects SET is_archived = TRUE, updated_at = $2 WHERE id = $1"
+	res, err := r.db.ExecContext(ctx, query, id, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("archive project: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("archive project rows affected: %w", err)
+	}
+	if rows == 0 {
+		return ErrProjectNotFound
+	}
+	return nil
+}
+
+func (r *SQLProjectRepository) UnarchiveProject(ctx context.Context, id string) error {
+	query := "UPDATE projects SET is_archived = FALSE, updated_at = $2 WHERE id = $1"
+	res, err := r.db.ExecContext(ctx, query, id, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("unarchive project: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("unarchive project rows affected: %w", err)
+	}
+	if rows == 0 {
+		return ErrProjectNotFound
+	}
+	return nil
+}
+
 // MemoryProjectRepository implements ProjectRepository in-memory for testing and non-persistent mode.
 type MemoryProjectRepository struct {
 	mu       sync.RWMutex
@@ -936,5 +970,33 @@ func (m *MemoryProjectRepository) DeleteProject(ctx context.Context, id string) 
 	}
 
 	delete(m.projects, id)
+	return nil
+}
+
+func (m *MemoryProjectRepository) ArchiveProject(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, exists := m.projects[id]
+	if !exists {
+		return ErrProjectNotFound
+	}
+
+	p.IsArchived = true
+	p.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+func (m *MemoryProjectRepository) UnarchiveProject(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, exists := m.projects[id]
+	if !exists {
+		return ErrProjectNotFound
+	}
+
+	p.IsArchived = false
+	p.UpdatedAt = time.Now().UTC()
 	return nil
 }

@@ -107,6 +107,7 @@ type LogRecord struct {
 type TaskItemResponse struct {
 	Task
 	ProjectName   string       `json:"project_name,omitempty"`
+	ProjectNames  []string     `json:"project_names,omitempty"`
 	LatestAttempt *TaskAttempt `json:"latest_attempt,omitempty"`
 }
 
@@ -114,6 +115,7 @@ type TaskItemResponse struct {
 type TaskDetailResponse struct {
 	Task
 	ProjectName   string          `json:"project_name,omitempty"`
+	ProjectNames  []string        `json:"project_names,omitempty"`
 	RepoURL       string          `json:"repo_url,omitempty"`
 	LatestAttempt *TaskAttempt    `json:"latest_attempt,omitempty"`
 	Attempts      []*TaskAttempt  `json:"attempts"`
@@ -162,7 +164,8 @@ type UpdateAttemptRequest struct {
 }
 
 type TaskFilter struct {
-	ProjectID string
-	Status    string
-	Search    string
+	ProjectID  string
+	ProjectIDs []string
+	Status     string
+	Search     string
 }

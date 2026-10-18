@@ -223,6 +223,8 @@ export interface DoDItem {
 export interface ProjectTaskDTO {
   id: string
   project_id: string
+  project_ids?: string[]
+  project_names?: string[]
   room_id?: string | null
   title: string
   description: string
@@ -563,6 +565,8 @@ export interface ProjectItemDTO {
   enabled_modules?: string[]
   source_type?: 'blank' | 'template' | 'zip' | string
   source_metadata?: Record<string, any>
+  is_archived?: boolean
+  status?: string
   created_at?: string
   updated_at?: string
 }

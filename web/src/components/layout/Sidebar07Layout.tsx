@@ -49,6 +49,7 @@ export interface ProjectOption {
   name: string
   type?: string
   status?: string
+  is_archived?: boolean
   repo_url?: string
   enabled_modules?: string[]
 }

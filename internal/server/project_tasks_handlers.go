@@ -15,6 +15,7 @@ import (
 // CreateProjectTaskPayload defines the request body for creating a task in a project.
 type CreateProjectTaskPayload struct {
 	ID           string        `json:"id,omitempty"`
+	ProjectIDs   []string      `json:"project_ids,omitempty"`
 	RoomID       *string       `json:"room_id,omitempty"`
 	Title        string        `json:"title"`
 	Description  string        `json:"description"`
@@ -31,6 +32,7 @@ type CreateProjectTaskPayload struct {
 
 // UpdateProjectTaskPayload defines the request body for updating a project task.
 type UpdateProjectTaskPayload struct {
+	ProjectIDs      *[]string     `json:"project_ids,omitempty"`
 	RoomID          *string       `json:"room_id,omitempty"`
 	Title           *string       `json:"title,omitempty"`
 	Description     *string       `json:"description,omitempty"`
@@ -138,9 +140,15 @@ func (s *Server) handleCreateProjectTask(w http.ResponseWriter, r *http.Request)
 		normExec = ne
 	}
 
+	pids := payload.ProjectIDs
+	if len(pids) == 0 && projectID != "" {
+		pids = []string{projectID}
+	}
+
 	task := db.ProjectTask{
 		ID:              payload.ID,
 		ProjectID:       projectID,
+		ProjectIDs:      pids,
 		RoomID:          payload.RoomID,
 		Title:           title,
 		Description:     strings.TrimSpace(payload.Description),
@@ -168,6 +176,10 @@ func (s *Server) handleCreateProjectTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if s.taskProjectRepo != nil && len(pids) > 0 {
+		_ = s.taskProjectRepo.SetTaskProjects(r.Context(), task.ID, pids)
+	}
+
 	var dispatchRes *studio.ExecutionDispatchResult
 	if s.agentExecutionHook != nil && task.Status == "doing" {
 		dispatchRes, _ = s.agentExecutionHook.OnTaskStatusChanged(r.Context(), &task, "backlog", task.Status)
@@ -177,8 +189,10 @@ func (s *Server) handleCreateProjectTask(w http.ResponseWriter, r *http.Request)
 		s.roomEventBroker.Broadcast(*task.RoomID, "task.created", task.ToDTO())
 	}
 
+	taskDTO := task.ToDTO()
+	taskDTO.ProjectIDs = pids
 	resp := map[string]interface{}{
-		"task": task.ToDTO(),
+		"task": taskDTO,
 	}
 	if dispatchRes != nil {
 		resp["execution_dispatch"] = dispatchRes
@@ -236,7 +250,46 @@ func (s *Server) handleListProjectTasks(w http.ResponseWriter, r *http.Request) 
 
 	dtos := make([]db.ProjectTaskDTO, len(tasks))
 	for i, t := range tasks {
-		dtos[i] = t.ToDTO()
+		dto := t.ToDTO()
+		if s.taskProjectRepo != nil {
+			if linkedPids, pErr := s.taskProjectRepo.GetProjectsByTask(r.Context(), t.ID); pErr == nil && len(linkedPids) > 0 {
+				dto.ProjectIDs = linkedPids
+			}
+		}
+		dtos[i] = dto
+	}
+
+	// Support multi-project filter via ?project_ids=
+	projectIDsParam := strings.TrimSpace(q.Get("project_ids"))
+	if projectIDsParam != "" {
+		reqPids := strings.Split(projectIDsParam, ",")
+		var filteredDtos []db.ProjectTaskDTO
+		for _, dto := range dtos {
+			matched := false
+			for _, pid := range reqPids {
+				pid = strings.TrimSpace(pid)
+				if pid == "" {
+					continue
+				}
+				if dto.ProjectID == pid {
+					matched = true
+					break
+				}
+				for _, linked := range dto.ProjectIDs {
+					if linked == pid {
+						matched = true
+						break
+					}
+				}
+				if matched {
+					break
+				}
+			}
+			if matched {
+				filteredDtos = append(filteredDtos, dto)
+			}
+		}
+		dtos = filteredDtos
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -273,8 +326,15 @@ func (s *Server) handleGetProjectTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dto := task.ToDTO()
+	if s.taskProjectRepo != nil {
+		if linkedPids, pErr := s.taskProjectRepo.GetProjectsByTask(r.Context(), task.ID); pErr == nil && len(linkedPids) > 0 {
+			dto.ProjectIDs = linkedPids
+		}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"task": task.ToDTO(),
+		"task": dto,
 	})
 }
 
@@ -405,6 +465,13 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 		task.ExecutionStatus = normExec
 	}
 
+	if payload.ProjectIDs != nil {
+		task.ProjectIDs = *payload.ProjectIDs
+		if s.taskProjectRepo != nil {
+			_ = s.taskProjectRepo.SetTaskProjects(r.Context(), task.ID, *payload.ProjectIDs)
+		}
+	}
+
 	if err := s.projectStudioRepo.UpdateTask(r.Context(), task); err != nil {
 		if errors.Is(err, db.ErrTaskNotFound) {
 			respondJSONError(w, http.StatusNotFound, "project task not found")
@@ -419,9 +486,18 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 		dispatchRes, _ = s.agentExecutionHook.OnTaskStatusChanged(r.Context(), task, oldStatus, task.Status)
 	}
 
+	taskDTO := task.ToDTO()
+	if payload.ProjectIDs != nil {
+		taskDTO.ProjectIDs = *payload.ProjectIDs
+	} else if s.taskProjectRepo != nil {
+		if linkedPids, err := s.taskProjectRepo.GetProjectsByTask(r.Context(), task.ID); err == nil && len(linkedPids) > 0 {
+			taskDTO.ProjectIDs = linkedPids
+		}
+	}
+
 	if s.roomEventBroker != nil && task.RoomID != nil && *task.RoomID != "" {
 		eventData := map[string]interface{}{
-			"task": task.ToDTO(),
+			"task": taskDTO,
 		}
 		if dispatchRes != nil {
 			eventData["execution_dispatch"] = dispatchRes
@@ -430,7 +506,7 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 	}
 
 	resp := map[string]interface{}{
-		"task": task.ToDTO(),
+		"task": taskDTO,
 	}
 	if dispatchRes != nil {
 		resp["execution_dispatch"] = dispatchRes

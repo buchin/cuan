@@ -84,6 +84,8 @@ type Server struct {
 	wordpressRepo         cuanDB.WordPressRepository
 	wordpressOrchestrator *wordpress.Orchestrator
 	wordpressWebmaster    *wordpress.WebmasterEngine
+	projectRepo           cuanDB.ProjectRepository
+	taskProjectRepo       cuanDB.TaskProjectRepository
 	router                *chi.Mux
 }
 
@@ -425,6 +427,16 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		BaseDeployDir: wpDeployDir,
 	})
 
+	var projRepo cuanDB.ProjectRepository
+	var tpRepo cuanDB.TaskProjectRepository
+	if db != nil {
+		projRepo = cuanDB.NewSQLProjectRepository(db)
+		tpRepo = cuanDB.NewSQLTaskProjectRepository(db)
+	} else {
+		projRepo = cuanDB.NewMemoryProjectRepository()
+		tpRepo = cuanDB.NewMemoryTaskProjectRepository()
+	}
+
 	s := &Server{
 		cfg:                 cfg,
 		db:                  db,
@@ -471,6 +483,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		wordpressRepo:       wpRepo,
 		wordpressOrchestrator: wpOrchestrator,
 		wordpressWebmaster:  wpWebmaster,
+		projectRepo:         projRepo,
+		taskProjectRepo:     tpRepo,
 		router:              r,
 	}
 
@@ -493,6 +507,22 @@ func (s *Server) ProjectService() *project.Service {
 
 func (s *Server) SetProjectService(svc *project.Service) {
 	s.projectSvc = svc
+}
+
+func (s *Server) ProjectRepository() cuanDB.ProjectRepository {
+	return s.projectRepo
+}
+
+func (s *Server) SetProjectRepository(r cuanDB.ProjectRepository) {
+	s.projectRepo = r
+}
+
+func (s *Server) TaskProjectRepository() cuanDB.TaskProjectRepository {
+	return s.taskProjectRepo
+}
+
+func (s *Server) SetTaskProjectRepository(r cuanDB.TaskProjectRepository) {
+	s.taskProjectRepo = r
 }
 
 func (s *Server) TaskService() *task.Service {
@@ -1046,6 +1076,20 @@ func (s *Server) routes() {
 	s.router.Patch("/api/v1/projects/{id}/modules", s.handleUpdateProjectModules)
 	s.router.Put("/api/v1/projects/{id}/modules", s.handleUpdateProjectModules)
 
+	// Project Archiving Endpoints (Sprint 14 S14.4)
+	s.router.Patch("/api/projects/{id}/archive", s.handleArchiveProject)
+	s.router.Post("/api/projects/{id}/archive", s.handleArchiveProject)
+	s.router.Patch("/api/v1/projects/{id}/archive", s.handleArchiveProject)
+	s.router.Post("/api/v1/projects/{id}/archive", s.handleArchiveProject)
+	s.router.Patch("/api/projects/{id}/unarchive", s.handleUnarchiveProject)
+	s.router.Post("/api/projects/{id}/unarchive", s.handleUnarchiveProject)
+	s.router.Patch("/api/v1/projects/{id}/unarchive", s.handleUnarchiveProject)
+	s.router.Post("/api/v1/projects/{id}/unarchive", s.handleUnarchiveProject)
+	s.router.Patch("/api/projects/{id}/restore", s.handleUnarchiveProject)
+	s.router.Post("/api/projects/{id}/restore", s.handleUnarchiveProject)
+	s.router.Patch("/api/v1/projects/{id}/restore", s.handleUnarchiveProject)
+	s.router.Post("/api/v1/projects/{id}/restore", s.handleUnarchiveProject)
+
 	// Automated Database Provisioner & Environment Secrets Endpoints (Sprint 12 S12.2)
 	s.router.Post("/api/projects/{id}/provision-db", s.handleProvisionProjectDatabase)
 	s.router.Post("/api/v1/projects/{id}/provision-db", s.handleProvisionProjectDatabase)
@@ -1222,6 +1266,14 @@ func (s *Server) routes() {
 		r.Delete("/alert-channels/{id}", s.handleDeleteAlertChannel)
 		r.Get("/incidents", s.handleListIncidents)
 
+		// Project Archiving in v1 (Sprint 14 S14.4)
+		r.Patch("/projects/{id}/archive", s.handleArchiveProject)
+		r.Post("/projects/{id}/archive", s.handleArchiveProject)
+		r.Patch("/projects/{id}/unarchive", s.handleUnarchiveProject)
+		r.Post("/projects/{id}/unarchive", s.handleUnarchiveProject)
+		r.Patch("/projects/{id}/restore", s.handleUnarchiveProject)
+		r.Post("/projects/{id}/restore", s.handleUnarchiveProject)
+
 		// Project Studio Discussions, Messages, Tasks & Real-Time SSE in v1 (Sprint 7 S07.2)
 		r.Post("/projects/{id}/rooms", s.handleCreateProjectRoom)
 		r.Get("/projects/{id}/rooms", s.handleListProjectRooms)
@@ -1389,6 +1441,12 @@ func (s *Server) routes() {
 			pr.Get("/projects/{id}/branches", s.handleGetProjectBranches)
 			pr.Patch("/projects/{id}/modules", s.handleUpdateProjectModules)
 			pr.Put("/projects/{id}/modules", s.handleUpdateProjectModules)
+			pr.Patch("/projects/{id}/archive", s.handleArchiveProject)
+			pr.Post("/projects/{id}/archive", s.handleArchiveProject)
+			pr.Patch("/projects/{id}/unarchive", s.handleUnarchiveProject)
+			pr.Post("/projects/{id}/unarchive", s.handleUnarchiveProject)
+			pr.Patch("/projects/{id}/restore", s.handleUnarchiveProject)
+			pr.Post("/projects/{id}/restore", s.handleUnarchiveProject)
 
 			// Sponsorship Moderation endpoints (S02.4)
 			pr.Get("/admin/sponsors", s.handleAdminListSponsors)
@@ -1722,10 +1780,29 @@ func (s *Server) handleAuthPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
+	var projectIDs []string
+	if pids := r.URL.Query().Get("project_ids"); pids != "" {
+		for _, id := range strings.Split(pids, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				projectIDs = append(projectIDs, id)
+			}
+		}
+	}
+	if qPids := r.URL.Query()["project_id"]; len(qPids) > 1 {
+		for _, id := range qPids {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				projectIDs = append(projectIDs, id)
+			}
+		}
+	}
+
 	filter := task.TaskFilter{
-		ProjectID: r.URL.Query().Get("project_id"),
-		Status:    r.URL.Query().Get("status"),
-		Search:    r.URL.Query().Get("search"),
+		ProjectID:  r.URL.Query().Get("project_id"),
+		ProjectIDs: projectIDs,
+		Status:     r.URL.Query().Get("status"),
+		Search:     r.URL.Query().Get("search"),
 	}
 
 	tasks, err := s.taskSvc.ListTasks(r.Context(), filter)
@@ -1763,6 +1840,10 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create task: %v", err))
 		return
+	}
+
+	if s.taskProjectRepo != nil && len(req.ProjectIDs) > 0 {
+		_ = s.taskProjectRepo.SetTaskProjects(r.Context(), created.ID, req.ProjectIDs)
 	}
 
 	respondJSON(w, http.StatusCreated, created)
@@ -1816,6 +1897,10 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update task: %v", err))
 		return
+	}
+
+	if s.taskProjectRepo != nil && req.ProjectIDs != nil {
+		_ = s.taskProjectRepo.SetTaskProjects(r.Context(), id, *req.ProjectIDs)
 	}
 
 	respondJSON(w, http.StatusOK, updated)
@@ -1934,10 +2019,82 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	if projects == nil {
 		projects = []*project.ProjectResponse{}
 	}
+
+	archivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("archived")))
+	includeArchivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("include_archived")))
+	statusParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
+
+	var filtered []*project.ProjectResponse
+	for _, p := range projects {
+		if archivedParam == "true" || statusParam == "archived" {
+			if p.IsArchived {
+				filtered = append(filtered, p)
+			}
+		} else if archivedParam == "all" || includeArchivedParam == "true" || statusParam == "all" {
+			filtered = append(filtered, p)
+		} else {
+			// default: only active (is_archived == false)
+			if !p.IsArchived {
+				filtered = append(filtered, p)
+			}
+		}
+	}
+	if filtered == nil {
+		filtered = []*project.ProjectResponse{}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"projects": projects,
-		"total":    len(projects),
+		"projects": filtered,
+		"total":    len(filtered),
 	})
+}
+
+func (s *Server) handleArchiveProject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if strings.TrimSpace(id) == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	res, err := s.projectSvc.Archive(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, project.ErrProjectNotFound) {
+			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to archive project: %v", err))
+		return
+	}
+
+	if s.projectRepo != nil {
+		_ = s.projectRepo.ArchiveProject(r.Context(), id)
+	}
+
+	respondJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) handleUnarchiveProject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if strings.TrimSpace(id) == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	res, err := s.projectSvc.Unarchive(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, project.ErrProjectNotFound) {
+			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to unarchive project: %v", err))
+		return
+	}
+
+	if s.projectRepo != nil {
+		_ = s.projectRepo.UnarchiveProject(r.Context(), id)
+	}
+
+	respondJSON(w, http.StatusOK, res)
 }
 
 func (s *Server) handleConnectProject(w http.ResponseWriter, r *http.Request) {

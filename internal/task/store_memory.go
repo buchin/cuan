@@ -10,21 +10,23 @@ import (
 )
 
 type MemoryStore struct {
-	mu         sync.RWMutex
-	tasks      map[string]*Task
-	attempts   map[string]*TaskAttempt
-	activities map[string]*TaskActivity
-	logs       map[string][]*LogRecord
-	nextLogID  int64
+	mu           sync.RWMutex
+	tasks        map[string]*Task
+	attempts     map[string]*TaskAttempt
+	activities   map[string]*TaskActivity
+	logs         map[string][]*LogRecord
+	nextLogID    int64
+	taskProjects map[string][]string
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		tasks:      make(map[string]*Task),
-		attempts:   make(map[string]*TaskAttempt),
-		activities: make(map[string]*TaskActivity),
-		logs:       make(map[string][]*LogRecord),
-		nextLogID:  0,
+		tasks:        make(map[string]*Task),
+		attempts:     make(map[string]*TaskAttempt),
+		activities:   make(map[string]*TaskActivity),
+		logs:         make(map[string][]*LogRecord),
+		nextLogID:    0,
+		taskProjects: make(map[string][]string),
 	}
 }
 
@@ -37,6 +39,16 @@ func (m *MemoryStore) CreateTask(ctx context.Context, t *Task) error {
 		cp.CreatedAt = time.Now().UTC()
 	}
 	cp.UpdatedAt = cp.CreatedAt
+
+	pids := t.ProjectIDs
+	if len(pids) == 0 && t.ProjectID != "" {
+		pids = []string{t.ProjectID}
+	}
+	if len(pids) > 0 {
+		m.taskProjects[cp.ID] = append([]string{}, pids...)
+		cp.ProjectIDs = append([]string{}, pids...)
+	}
+
 	m.tasks[cp.ID] = &cp
 	return nil
 }
@@ -50,6 +62,11 @@ func (m *MemoryStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		return nil, ErrTaskNotFound
 	}
 	cp := *t
+	if pids, ok := m.taskProjects[cp.ID]; ok && len(pids) > 0 {
+		cp.ProjectIDs = append([]string{}, pids...)
+	} else if cp.ProjectID != "" {
+		cp.ProjectIDs = []string{cp.ProjectID}
+	}
 	return &cp, nil
 }
 
@@ -61,9 +78,48 @@ func (m *MemoryStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task
 	searchLower := strings.ToLower(strings.TrimSpace(filter.Search))
 
 	for _, t := range m.tasks {
-		if filter.ProjectID != "" && t.ProjectID != filter.ProjectID {
-			continue
+		pids := m.taskProjects[t.ID]
+		if len(pids) == 0 && t.ProjectID != "" {
+			pids = []string{t.ProjectID}
 		}
+
+		if filter.ProjectID != "" {
+			matched := t.ProjectID == filter.ProjectID
+			if !matched {
+				for _, pid := range pids {
+					if pid == filter.ProjectID {
+						matched = true
+						break
+					}
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		if len(filter.ProjectIDs) > 0 {
+			matched := false
+			for _, reqPid := range filter.ProjectIDs {
+				if t.ProjectID == reqPid {
+					matched = true
+					break
+				}
+				for _, pid := range pids {
+					if pid == reqPid {
+						matched = true
+						break
+					}
+				}
+				if matched {
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
 		if filter.Status != "" && t.Status != filter.Status {
 			continue
 		}
@@ -75,6 +131,7 @@ func (m *MemoryStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task
 			}
 		}
 		cp := *t
+		cp.ProjectIDs = append([]string{}, pids...)
 		result = append(result, &cp)
 	}
 
@@ -97,6 +154,14 @@ func (m *MemoryStore) UpdateTask(ctx context.Context, t *Task) error {
 	cp := *t
 	cp.CreatedAt = existing.CreatedAt
 	cp.UpdatedAt = time.Now().UTC()
+
+	if t.ProjectIDs != nil {
+		m.taskProjects[t.ID] = append([]string{}, t.ProjectIDs...)
+		cp.ProjectIDs = append([]string{}, t.ProjectIDs...)
+	} else if pids, ok := m.taskProjects[t.ID]; ok {
+		cp.ProjectIDs = append([]string{}, pids...)
+	}
+
 	m.tasks[t.ID] = &cp
 	return nil
 }
@@ -110,6 +175,7 @@ func (m *MemoryStore) DeleteTask(ctx context.Context, id string) error {
 	}
 
 	delete(m.tasks, id)
+	delete(m.taskProjects, id)
 
 	// Cascade delete attempts and activities
 	for attID, att := range m.attempts {

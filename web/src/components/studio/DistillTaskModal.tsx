@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
@@ -11,9 +11,12 @@ import {
   ShieldCheck,
   Check,
   RefreshCw,
-  ListTodo
+  ListTodo,
+  FolderGit2,
+  ChevronDown
 } from 'lucide-react'
 import { DoDItem, ProjectTaskDTO, DistillResult } from './types'
+import { cn } from '../../lib/utils'
 
 interface DistillTaskModalProps {
   isOpen: boolean
@@ -23,6 +26,7 @@ interface DistillTaskModalProps {
   roomTitle?: string
   selectedMessageIds?: string[]
   selectedMessageContent?: string
+  availableProjects?: { id: string; name: string; is_archived?: boolean; status?: string }[]
   onTaskCreated?: (task: ProjectTaskDTO) => void
 }
 
@@ -34,6 +38,7 @@ export function DistillTaskModal({
   roomTitle,
   selectedMessageIds = [],
   selectedMessageContent,
+  availableProjects,
   onTaskCreated,
 }: DistillTaskModalProps) {
   if (!isOpen) return null
@@ -45,6 +50,11 @@ export function DistillTaskModal({
   const [status, setStatus] = useState<'backlog' | 'doing' | 'review' | 'done'>('backlog')
   const [batchId, setBatchId] = useState('')
   const [parentTaskId, setParentTaskId] = useState('')
+
+  // Multi-Project Linking States
+  const [activeProjectsList, setActiveProjectsList] = useState<{ id: string; name: string }[]>([])
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false)
   
   // Tags
   const [tags, setTags] = useState<string[]>([])
@@ -78,6 +88,59 @@ export function DistillTaskModal({
       setTitle(`Task dari: ${roomTitle}`)
     }
   }, [selectedMessageContent, roomTitle])
+
+  const projectDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setIsProjectDropdownOpen(false)
+      }
+    }
+    if (isProjectDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isProjectDropdownOpen])
+
+  // Load active projects for multi-project linking
+  useEffect(() => {
+    if (isOpen) {
+      if (availableProjects && availableProjects.length > 0) {
+        const active = availableProjects.filter((p) => !p.is_archived && p.status !== 'archived')
+        setActiveProjectsList(active)
+      } else {
+        fetch('/api/v1/projects')
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && Array.isArray(data.projects)) {
+              setActiveProjectsList(data.projects)
+            }
+          })
+          .catch(() => {})
+      }
+    }
+  }, [isOpen, availableProjects])
+
+  // Pre-select current projectId when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (projectId) {
+        setSelectedProjectIds([projectId])
+      } else {
+        setSelectedProjectIds([])
+      }
+    }
+  }, [isOpen, projectId])
+
+  const toggleProjectSelection = (id: string) => {
+    if (selectedProjectIds.includes(id)) {
+      setSelectedProjectIds(selectedProjectIds.filter((pid) => pid !== id))
+    } else {
+      setSelectedProjectIds([...selectedProjectIds, id])
+    }
+  }
 
   // Handle Tag Addition
   const handleAddTag = (t: string) => {
@@ -183,11 +246,15 @@ export function DistillTaskModal({
     setError(null)
 
     try {
+      const finalProjectIds = selectedProjectIds.length > 0 ? selectedProjectIds : (projectId ? [projectId] : [])
+      const primaryProjectId = finalProjectIds[0] || projectId
+
       const payload = {
         title: title.trim(),
         description: description.trim(),
         priority,
         status,
+        project_ids: finalProjectIds,
         room_id: roomId || undefined,
         batch_id: batchId.trim() || undefined,
         parent_task_id: parentTaskId.trim() || undefined,
@@ -195,7 +262,7 @@ export function DistillTaskModal({
         dod_checklist: dodItems,
       }
 
-      const res = await fetch(`/api/projects/${projectId}/tasks`, {
+      const res = await fetch(`/api/projects/${primaryProjectId}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -305,6 +372,112 @@ export function DistillTaskModal({
               className="text-sm font-medium"
               required
             />
+          </div>
+
+          {/* Multi-Project Linking Dropdown (S14.4) */}
+          <div className="space-y-1.5 relative" ref={projectDropdownRef}>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
+                Tautkan ke Proyek (Multi-Project Linking)
+              </label>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Pilih satu atau lebih proyek aktif
+              </span>
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                className="w-full text-xs py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-medium flex items-center justify-between hover:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors shadow-xs"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <FolderGit2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span className="truncate">
+                    {selectedProjectIds.length === 0
+                      ? 'Pilih satu atau lebih proyek aktif...'
+                      : selectedProjectIds.length === 1
+                      ? activeProjectsList.find((p) => p.id === selectedProjectIds[0])?.name || selectedProjectIds[0]
+                      : `${selectedProjectIds.length} Proyek Terpilih (${selectedProjectIds
+                          .map((id) => activeProjectsList.find((p) => p.id === id)?.name || id)
+                          .join(', ')})`}
+                  </span>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0',
+                    isProjectDropdownOpen && 'rotate-180 text-emerald-500'
+                  )}
+                />
+              </button>
+
+              {/* Popover Dropdown with Checkboxes */}
+              {isProjectDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1.5 z-40 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-2 max-h-56 overflow-y-auto space-y-1 animate-in fade-in-50 zoom-in-95">
+                  <div className="flex items-center justify-between px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                    <span>Daftar Proyek Aktif</span>
+                    <span>{activeProjectsList.length} Proyek</span>
+                  </div>
+
+                  {activeProjectsList.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400">
+                      Tidak ada proyek aktif ditemukan
+                    </div>
+                  ) : (
+                    activeProjectsList.map((p) => {
+                      const isChecked = selectedProjectIds.includes(p.id)
+                      return (
+                        <label
+                          key={p.id}
+                          className={cn(
+                            'flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer text-xs select-none transition-colors',
+                            isChecked
+                              ? 'bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-semibold'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleProjectSelection(p.id)}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                          />
+                          <span className="truncate flex-1">{p.name}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{p.id}</span>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Projects Badges with Quick Removal */}
+            {selectedProjectIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {selectedProjectIds.map((pid) => {
+                  const proj = activeProjectsList.find((p) => p.id === pid)
+                  return (
+                    <Badge
+                      key={pid}
+                      variant="secondary"
+                      className="text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 py-0.5 px-2"
+                    >
+                      <FolderGit2 className="h-3 w-3 text-emerald-500" />
+                      <span className="truncate max-w-[150px]">{proj ? proj.name : pid}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleProjectSelection(pid)}
+                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-white font-bold ml-0.5 text-xs"
+                        title="Hapus tautan proyek"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Description Textarea */}

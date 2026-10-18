@@ -123,12 +123,15 @@ export function App() {
         if (projectsRes.status === 'fulfilled' && projectsRes.value.ok) {
           const pData = await projectsRes.value.json()
           if (pData.projects && Array.isArray(pData.projects) && pData.projects.length > 0) {
-            const mapped = pData.projects.map((p: any) => ({
-              id: p.id,
-              name: p.name || `${p.repo_owner || 'repo'}/${p.repo_name || p.id}`,
-              type: p.project_type || 'saas',
-              status: 'active',
-            }))
+            const mapped = pData.projects
+              .filter((p: any) => !p.is_archived && p.status !== 'archived')
+              .map((p: any) => ({
+                id: p.id,
+                name: p.name || `${p.repo_owner || 'repo'}/${p.repo_name || p.id}`,
+                type: p.project_type || 'saas',
+                status: p.is_archived ? 'archived' : 'active',
+                is_archived: p.is_archived,
+              }))
             setProjectsList((prev) => {
               const existingIds = new Set(mapped.map((m: any) => m.id))
               return [...mapped, ...prev.filter((item) => !existingIds.has(item.id))]
@@ -376,7 +379,7 @@ export function App() {
       onNavigate={navigate}
       appMode={effectiveMode}
       onToggleMode={handleToggleMode}
-      projects={projectsList}
+      projects={projectsList.filter((p) => !p.is_archived && p.status !== 'archived')}
       activeProject={activeProject}
       onSelectProject={handleSelectProject}
       onCreateProject={handleCreateProject}

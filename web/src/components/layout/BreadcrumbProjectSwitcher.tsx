@@ -29,7 +29,6 @@ export function BreadcrumbProjectSwitcher({
 }: BreadcrumbProjectSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'archived'>('all')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown on click outside
@@ -49,25 +48,23 @@ export function BreadcrumbProjectSwitcher({
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('')
-      setStatusFilter('all')
     }
   }, [isOpen])
 
-  // Filtered projects
+  // Filtered projects: Project terarsip otomatis tidak muncul di breadcrumb switcher navbar
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
+      const isArchived = p.status === 'archived' || p.is_archived === true
+      if (isArchived) return false
+
       const matchesSearch =
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (p.type && p.type.toLowerCase().includes(searchQuery.toLowerCase()))
 
-      const isArchived = p.status === 'archived'
-      if (statusFilter === 'active' && isArchived) return false
-      if (statusFilter === 'archived' && !isArchived) return false
-
       return matchesSearch
     })
-  }, [projects, searchQuery, statusFilter])
+  }, [projects, searchQuery])
 
   const getProjectIcon = (type?: string) => {
     switch (type) {
@@ -146,7 +143,7 @@ export function BreadcrumbProjectSwitcher({
                 Ganti Workspace Proyek
               </span>
               <span className="text-[10px] text-muted-foreground font-mono">
-                {projects.length} Total
+                {filteredProjects.length} Aktif
               </span>
             </div>
 
@@ -155,52 +152,12 @@ export function BreadcrumbProjectSwitcher({
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Cari proyek (nama, ID, tipe)..."
+                placeholder="Cari proyek aktif (nama, ID, tipe)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8 pl-8 pr-3 text-xs bg-muted/40 border-border/80 focus-visible:ring-1 focus-visible:ring-primary"
                 autoFocus
               />
-            </div>
-
-            {/* Status Filter Pills */}
-            <div className="flex items-center gap-1 px-0.5">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={cn(
-                  'px-2 py-0.5 text-[10px] rounded-xs font-medium transition-colors',
-                  statusFilter === 'all'
-                    ? 'bg-primary text-primary-foreground font-bold'
-                    : 'text-muted-foreground hover:bg-muted'
-                )}
-              >
-                Semua
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('active')}
-                className={cn(
-                  'px-2 py-0.5 text-[10px] rounded-xs font-medium transition-colors',
-                  statusFilter === 'active'
-                    ? 'bg-emerald-500 text-white font-bold'
-                    : 'text-muted-foreground hover:bg-muted'
-                )}
-              >
-                Aktif
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('archived')}
-                className={cn(
-                  'px-2 py-0.5 text-[10px] rounded-xs font-medium transition-colors',
-                  statusFilter === 'archived'
-                    ? 'bg-zinc-600 text-white font-bold'
-                    : 'text-muted-foreground hover:bg-muted'
-                )}
-              >
-                Arsip
-              </button>
             </div>
           </div>
 

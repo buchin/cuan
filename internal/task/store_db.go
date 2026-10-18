@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -51,6 +52,24 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 	if err != nil {
 		return fmt.Errorf("create task: %w", err)
 	}
+
+	// Synchronize task_projects relation
+	pids := t.ProjectIDs
+	if len(pids) == 0 && t.ProjectID != "" {
+		pids = []string{t.ProjectID}
+	}
+	for _, pid := range pids {
+		pid = strings.TrimSpace(pid)
+		if pid == "" {
+			continue
+		}
+		_, _ = s.db.ExecContext(ctx, `
+			INSERT INTO task_projects (task_id, project_id, created_at)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (task_id, project_id) DO NOTHING
+		`, t.ID, pid, t.CreatedAt)
+	}
+
 	return nil
 }
 
@@ -93,6 +112,24 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get task: %w", err)
 	}
+
+	// Populate linked project IDs from task_projects
+	rows, qErr := s.db.QueryContext(ctx, `SELECT project_id FROM task_projects WHERE task_id = $1 ORDER BY created_at ASC`, id)
+	if qErr == nil {
+		defer rows.Close()
+		var pids []string
+		for rows.Next() {
+			var pid string
+			if err := rows.Scan(&pid); err == nil {
+				pids = append(pids, pid)
+			}
+		}
+		t.ProjectIDs = pids
+	}
+	if len(t.ProjectIDs) == 0 && t.ProjectID != "" {
+		t.ProjectIDs = []string{t.ProjectID}
+	}
+
 	return &t, nil
 }
 
@@ -109,7 +146,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			COALESCE(test_summary, ''),
 			created_at, updated_at
 		FROM tasks
-		WHERE ($1 = '' OR project_id = $1)
+		WHERE ($1 = '' OR project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = tasks.id AND tp.project_id = $1))
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR LOWER(title) LIKE '%' || LOWER($3) || '%' OR LOWER(instructions) LIKE '%' || LOWER($3) || '%')
 		ORDER BY created_at DESC
@@ -121,6 +158,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 	defer rows.Close()
 
 	var result []*Task
+	taskMap := make(map[string]*Task)
 	for rows.Next() {
 		var t Task
 		if err := rows.Scan(
@@ -142,7 +180,58 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
+		if t.ProjectID != "" {
+			t.ProjectIDs = []string{t.ProjectID}
+		} else {
+			t.ProjectIDs = []string{}
+		}
 		result = append(result, &t)
+		taskMap[t.ID] = &t
+	}
+
+	if len(result) > 0 {
+		tpRows, tpErr := s.db.QueryContext(ctx, `SELECT task_id, project_id FROM task_projects ORDER BY created_at ASC`)
+		if tpErr == nil {
+			defer tpRows.Close()
+			pidsMap := make(map[string][]string)
+			for tpRows.Next() {
+				var tid, pid string
+				if err := tpRows.Scan(&tid, &pid); err == nil {
+					pidsMap[tid] = append(pidsMap[tid], pid)
+				}
+			}
+			for tid, pids := range pidsMap {
+				if t, ok := taskMap[tid]; ok {
+					t.ProjectIDs = pids
+				}
+			}
+		}
+	}
+
+	// Apply filter.ProjectIDs (multi-project filtering)
+	if len(filter.ProjectIDs) > 0 {
+		var multiFiltered []*Task
+		reqSet := make(map[string]bool)
+		for _, pid := range filter.ProjectIDs {
+			reqSet[pid] = true
+		}
+		for _, t := range result {
+			match := false
+			if reqSet[t.ProjectID] {
+				match = true
+			} else {
+				for _, pid := range t.ProjectIDs {
+					if reqSet[pid] {
+						match = true
+						break
+					}
+				}
+			}
+			if match {
+				multiFiltered = append(multiFiltered, t)
+			}
+		}
+		return multiFiltered, nil
 	}
 
 	return result, nil
@@ -191,6 +280,23 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 	if rows == 0 {
 		return ErrTaskNotFound
 	}
+
+	// Synchronize task_projects if ProjectIDs provided
+	if t.ProjectIDs != nil {
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM task_projects WHERE task_id = $1`, t.ID)
+		for _, pid := range t.ProjectIDs {
+			pid = strings.TrimSpace(pid)
+			if pid == "" {
+				continue
+			}
+			_, _ = s.db.ExecContext(ctx, `
+				INSERT INTO task_projects (task_id, project_id, created_at)
+				VALUES ($1, $2, $3)
+				ON CONFLICT (task_id, project_id) DO NOTHING
+			`, t.ID, pid, time.Now().UTC())
+		}
+	}
+
 	return nil
 }
 

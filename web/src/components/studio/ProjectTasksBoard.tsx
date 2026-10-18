@@ -28,7 +28,8 @@ import {
   Video,
   KeyRound,
   Send,
-  Lock
+  Lock,
+  FolderGit2
 } from 'lucide-react'
 import { ProjectTaskDTO, ExecuteTaskAgentResponse, WordPressIntegrationDTO, PublishTaskResult } from './types'
 import { DistillTaskModal } from './DistillTaskModal'
@@ -118,6 +119,7 @@ export function ProjectTasksBoard({
   const [batchFilter, setBatchFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [parentTaskFilter, setParentTaskFilter] = useState('all')
+  const [projectFilter, setProjectFilter] = useState('all')
 
   // Expanded DoD cards (map of task ID to boolean)
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
@@ -491,6 +493,17 @@ export function ProjectTasksBoard({
 
   // Filtered Tasks for UI
   const filteredTasks = tasks.filter((t) => {
+    // Project filter (supports multi-project linking)
+    if (projectFilter !== 'all') {
+      const taskProjects = t.project_ids && t.project_ids.length > 0 ? t.project_ids : [t.project_id]
+      if (!taskProjects.includes(projectFilter)) return false
+    }
+
+    if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
+    if (tagFilter !== 'all' && (!t.tags || !t.tags.includes(tagFilter))) return false
+    if (batchFilter !== 'all' && t.batch_id !== batchFilter) return false
+    if (parentTaskFilter !== 'all' && t.parent_task_id !== parentTaskFilter) return false
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       const matchTitle = t.title.toLowerCase().includes(q)
@@ -665,6 +678,25 @@ export function ProjectTasksBoard({
 
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Multi-Project Filter (S14.4) */}
+          {effectiveProjects.length > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 text-[11px]">Proyek:</span>
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="h-7 text-xs px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium max-w-[130px] truncate"
+              >
+                <option value="all">Semua Proyek</option>
+                {effectiveProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Tag Filter */}
           <div className="flex items-center gap-1">
             <span className="text-slate-400 text-[11px]">Tag:</span>
@@ -737,11 +769,12 @@ export function ProjectTasksBoard({
           )}
 
           {/* Clear Filters Button */}
-          {(tagFilter !== 'all' || batchFilter !== 'all' || priorityFilter !== 'all' || parentTaskFilter !== 'all' || searchQuery) && (
+          {(projectFilter !== 'all' || tagFilter !== 'all' || batchFilter !== 'all' || priorityFilter !== 'all' || parentTaskFilter !== 'all' || searchQuery) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
+                setProjectFilter('all')
                 setTagFilter('all')
                 setBatchFilter('all')
                 setPriorityFilter('all')
@@ -862,6 +895,29 @@ export function ProjectTasksBoard({
                             </button>
                           </div>
                         </div>
+
+                        {/* Linked Projects Badges (S14.4 Multi-Project Linking) */}
+                        {((task.project_ids && task.project_ids.length > 0) || task.project_id) && (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            {(task.project_ids && task.project_ids.length > 0
+                              ? task.project_ids
+                              : [task.project_id]
+                            ).map((pid) => {
+                              const proj = effectiveProjects.find((p) => p.id === pid)
+                              const name = proj ? proj.name : pid
+                              return (
+                                <span
+                                  key={pid}
+                                  className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded"
+                                  title={`Proyek tertaut: ${name} (${pid})`}
+                                >
+                                  <FolderGit2 className="h-2.5 w-2.5 shrink-0" />
+                                  <span className="truncate max-w-[110px]">{name}</span>
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
 
                         {/* Title (Click to open Detail & Terminal Modal) */}
                         <h3
@@ -1124,6 +1180,7 @@ export function ProjectTasksBoard({
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         projectId={selectedProjectId}
+        availableProjects={effectiveProjects}
         onTaskCreated={(newTask) => {
           setTasks((prev) => [newTask, ...prev])
           setNotification({
