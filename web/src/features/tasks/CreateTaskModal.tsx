@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Project, TaskPriority, TaskStatus } from '../../api/types'
+import { Project, TaskPriority, TaskStatus, DoDItem } from '../../api/types'
 import { X, CheckSquare, Trash2, AlertCircle } from 'lucide-react'
 
 interface CreateTaskModalProps {
@@ -13,7 +13,7 @@ interface CreateTaskModalProps {
     project_ids?: string[]
     priority: TaskPriority
     status: TaskStatus
-    dod_checklist?: string[]
+    dod_checklist?: DoDItem[]
   }) => Promise<void>
 }
 
@@ -63,7 +63,7 @@ export function CreateTaskModal({
         project_ids: selectedProjectId ? [selectedProjectId] : undefined,
         priority,
         status,
-        dod_checklist: dodItems.length > 0 ? dodItems : undefined,
+        dod_checklist: dodItems.length > 0 ? dodItems.map((text) => ({ text, completed: false })) : undefined,
       })
       onClose()
       setTitle('')

@@ -210,12 +210,18 @@ export function TaskSidePeek({
                   Definition of Done (DoD)
                 </label>
                 <div className="space-y-1.5 bg-[#d5dce8]/40 dark:bg-[#1f2335]/30 p-3 border border-[#cfd6e6] dark:border-[#24283b]">
-                  {task.dod_checklist.map((item, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs">
-                      <CheckSquare className="h-3.5 w-3.5 text-[#9ece6a] shrink-0 mt-0.5" />
-                      <span className="text-[#343b58] dark:text-[#a9b1d6]">{item}</span>
-                    </div>
-                  ))}
+                  {task.dod_checklist.map((item, idx) => {
+                    const text = typeof item === 'string' ? item : item.text
+                    const completed = typeof item === 'object' && !!item.completed
+                    return (
+                      <div key={idx} className="flex items-start gap-2 text-xs">
+                        <CheckSquare className={`h-3.5 w-3.5 ${completed ? 'text-[#9ece6a]' : 'text-[#7aa2f7]'} shrink-0 mt-0.5`} />
+                        <span className={completed ? 'line-through text-[#565f89]' : 'text-[#343b58] dark:text-[#a9b1d6]'}>
+                          {text}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

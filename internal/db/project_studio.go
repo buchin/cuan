@@ -20,7 +20,7 @@ var (
 	ErrTaskNotFound        = errors.New("project task not found")
 	ErrInvalidUUID         = errors.New("invalid uuid format")
 	ErrInvalidAuthorType   = errors.New("invalid author type: must be user, agent, or system")
-	ErrInvalidTaskStatus      = errors.New("invalid task status: must be backlog, doing, review, or done")
+	ErrInvalidTaskStatus      = errors.New("invalid task status: must be backlog, todo, doing, review, or done")
 	ErrInvalidTaskPriority    = errors.New("invalid task priority: must be low, normal, high, or urgent")
 	ErrInvalidExecutionStatus = errors.New("invalid execution status: must be idle, running, completed, or failed")
 	ErrEmptyRoomTitle      = errors.New("room title cannot be empty")
@@ -71,7 +71,7 @@ func NormalizeAuthorType(authorType string) (string, error) {
 func NormalizeTaskStatus(status string) (string, error) {
 	norm := strings.ToLower(strings.TrimSpace(status))
 	switch norm {
-	case "backlog", "doing", "review", "done", "failed", "blocked":
+	case "backlog", "todo", "doing", "review", "done", "failed", "blocked":
 		return norm, nil
 	default:
 		return "", ErrInvalidTaskStatus

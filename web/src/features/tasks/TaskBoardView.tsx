@@ -174,12 +174,22 @@ export function TaskBoardView({
                           <span className="truncate">
                             {new Date(task.created_at).toLocaleDateString()}
                           </span>
-                          {task.assignee && (
-                            <span className="flex items-center gap-1 font-mono text-[#7aa2f7]">
-                              <Bot className="h-3 w-3" />
-                              <span className="truncate max-w-[80px]">{task.assignee}</span>
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {task.dod_checklist && task.dod_checklist.length > 0 && (
+                              <span className="flex items-center gap-1 font-mono text-[10px] text-[#9ece6a]" title="Definition of Done">
+                                <CheckSquare className="h-3 w-3" />
+                                <span>
+                                  {task.dod_checklist.filter((d: any) => typeof d === 'object' && d.completed).length}/{task.dod_checklist.length}
+                                </span>
+                              </span>
+                            )}
+                            {task.assignee && (
+                              <span className="flex items-center gap-1 font-mono text-[#7aa2f7]">
+                                <Bot className="h-3 w-3" />
+                                <span className="truncate max-w-[80px]">{task.assignee}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )

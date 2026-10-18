@@ -291,7 +291,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 	if req.Status != nil {
 		st := strings.ToLower(strings.TrimSpace(*req.Status))
 		switch st {
-		case TaskStatusBacklog, TaskStatusDoing, TaskStatusReview, TaskStatusDone, TaskStatusBlocked:
+		case TaskStatusBacklog, "todo", TaskStatusDoing, TaskStatusReview, TaskStatusDone, TaskStatusBlocked:
 			if st != oldStatus {
 				statusChanged = true
 				newStatus = st

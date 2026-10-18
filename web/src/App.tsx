@@ -11,7 +11,7 @@ import { AgentsView } from './features/agents/AgentsView'
 import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
-import { Project, Task, TaskStatus, TaskPriority, ProjectType } from './api/types'
+import { Project, Task, TaskStatus, TaskPriority, ProjectType, DoDItem } from './api/types'
 import { Loader2 } from 'lucide-react'
 
 export function App() {
@@ -99,7 +99,7 @@ export function App() {
     project_ids?: string[]
     priority: TaskPriority
     status: TaskStatus
-    dod_checklist?: string[]
+    dod_checklist?: DoDItem[]
   }) => {
     await tasksApi.create(data)
     await refreshTasks()

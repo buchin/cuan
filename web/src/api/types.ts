@@ -58,6 +58,12 @@ export interface UpdateProjectRequest {
 export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
+export interface DoDItem {
+  id?: string
+  text: string
+  completed?: boolean
+}
+
 export interface Task {
   id: string
   project_id?: string
@@ -70,7 +76,7 @@ export interface Task {
   priority: TaskPriority
   assignee?: string
   assignee_type?: 'human' | 'agent'
-  dod_checklist?: string[]
+  dod_checklist?: (DoDItem | string)[]
   tags?: string[]
   runner_state?: string
   created_at: string
@@ -84,7 +90,7 @@ export interface CreateTaskRequest {
   priority?: TaskPriority
   status?: TaskStatus
   assignee?: string
-  dod_checklist?: string[]
+  dod_checklist?: (DoDItem | string)[]
   tags?: string[]
 }
 
@@ -95,7 +101,7 @@ export interface UpdateTaskRequest {
   priority?: TaskPriority
   status?: TaskStatus
   assignee?: string
-  dod_checklist?: string[]
+  dod_checklist?: (DoDItem | string)[]
   tags?: string[]
 }
 
