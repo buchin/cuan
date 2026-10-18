@@ -39,7 +39,7 @@ type AntigravityAuthSession struct {
 	Cmd       *exec.Cmd      `json:"-"`
 	Stdin     io.WriteCloser `json:"-"`
 	Done      chan struct{}  `json:"-"`
-	Err       error          `json:"-"`
+	Failure   chan struct{}  `json:"-"`
 }
 
 // ConfigHome returns the base configuration directory for the user.
@@ -225,7 +225,7 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 		cancel()
 		return nil, errors.New("cannot start Antigravity login terminal")
 	}
-	session := &AntigravityAuthSession{ID: hex.EncodeToString(nonce), Cmd: cmd, Stdin: terminal, CreatedAt: time.Now().UTC(), Done: make(chan struct{})}
+	session := &AntigravityAuthSession{ID: hex.EncodeToString(nonce), Cmd: cmd, Stdin: terminal, CreatedAt: time.Now().UTC(), Done: make(chan struct{}), Failure: make(chan struct{}, 1)}
 	urls := make(chan string, 1)
 	go func() {
 		defer terminal.Close()
@@ -236,6 +236,14 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 		for {
 			n, readErr := terminal.Read(buf)
 			tail += string(buf[:n])
+			// Classify only explicit provider rejection; never retain/log raw CLI errors.
+			lower := strings.ToLower(tail)
+			if strings.Contains(lower, "invalid_grant") || strings.Contains(lower, "invalid authorization code") {
+				select {
+				case session.Failure <- struct{}{}:
+				default:
+				}
+			}
 			if !selectedGoogle && strings.Contains(tail, "Select login method:") && strings.Contains(tail, "1. Google OAuth") {
 				selectedGoogle = true
 				_, _ = terminal.Write([]byte("\r"))
@@ -299,7 +307,7 @@ func SubmitAntigravityAuthCode(sessionID, code string) error {
 		return errors.New("login ended; start login again")
 	default:
 	}
-	if _, err := session.Stdin.Write([]byte(code + "\n")); err != nil {
+	if _, err := session.Stdin.Write([]byte(code + "\r")); err != nil {
 		return errors.New("login terminal closed; start login again")
 	}
 	deadline := time.NewTimer(20 * time.Second)
@@ -309,19 +317,33 @@ func SubmitAntigravityAuthCode(sessionID, code string) error {
 	for {
 		select {
 		case <-tick.C:
-			if IsAntigravityLoggedIn() {
+			if sessionCredentialsSaved(session) {
 				CancelAntigravityAuthSession(sessionID)
 				return nil
 			}
 		case <-session.Done:
-			if IsAntigravityLoggedIn() {
+			if sessionCredentialsSaved(session) {
 				return nil
 			}
 			return errors.New("authorization failed; restart login")
+		case <-session.Failure:
+			CancelAntigravityAuthSession(sessionID)
+			return errors.New("Google menolak kode otorisasi. Mulai ulang login untuk mendapatkan kode baru.")
 		case <-deadline.C:
-			return errors.New("credentials not saved; code invalid or authorization still pending")
+			return errors.New("CLI belum menyimpan kredensial; hasil login belum terkonfirmasi. Coba verifikasi lagi atau mulai ulang login.")
 		}
 	}
+}
+
+// An old credential file is not evidence that this authorization code succeeded.
+func sessionCredentialsSaved(session *AntigravityAuthSession) bool {
+	for _, path := range []string{AntigravityCredentialsFilePath(ConfigHome()), AntigravityLegacyCredentialsFilePath(ConfigHome())} {
+		info, err := os.Stat(path)
+		if err == nil && !info.ModTime().Before(session.CreatedAt) && hasValidCredential(path) {
+			return true
+		}
+	}
+	return false
 }
 
 func CancelAntigravityAuthSession(id string) {

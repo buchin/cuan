@@ -1,0 +1,8 @@
+{
+  "test": "real_staging_PTY_negative_code_exchange",
+  "http_status": 400,
+  "elapsed_seconds": 1.06,
+  "google_rejection_reported": true,
+  "ambiguous_timeout": false,
+  "actual_login_success_claimed": false
+}

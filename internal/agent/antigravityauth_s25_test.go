@@ -45,3 +45,30 @@ func TestS25RealOAuthURL(t *testing.T) {
 	}
 	t.Log("Official Google OAuth URL captured from real interactive agy; URL and session withheld. Account owner must consent and provide authorization code.")
 }
+
+type s25EnterWriter struct {
+	input []byte
+	done  chan struct{}
+}
+
+func (w *s25EnterWriter) Write(input []byte) (int, error) {
+	w.input = append(w.input, input...)
+	close(w.done)
+	return len(input), nil
+}
+func (w *s25EnterWriter) Close() error { return nil }
+
+func TestS25AuthorizationCodeUsesTerminalEnter(t *testing.T) {
+	id := "pty-enter-regression"
+	done := make(chan struct{})
+	writer := &s25EnterWriter{done: done}
+	session := &AntigravityAuthSession{ID: id, CreatedAt: time.Now(), Done: done, Stdin: writer}
+	authSessionsMu.Lock()
+	authSessions[id] = session
+	authSessionsMu.Unlock()
+	defer CancelAntigravityAuthSession(id)
+	_ = SubmitAntigravityAuthCode(id, "diagnostic-code")
+	if string(writer.input) != "diagnostic-code\r" {
+		t.Fatal("OAuth PTY must receive the Enter key, not a newline")
+	}
+}

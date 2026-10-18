@@ -33,3 +33,7 @@ Private staging config consists of database.json, ssh.json, a dedicated tunnel-k
 Owner workflow: open staging → log into Cuan → Team → Tambah agen → Login dengan Google → complete Google consent → paste the code into Cuan → Verifikasi login → Tambah agen. The agent then appears in Inbox from the persisted registry. A registered row is labeled Terdaftar, not automatically Online/Verified; actual chat output comes exclusively from the harness/provider. There are no seeded agents, fabricated token quotas or role cards.
 
 Registration creates no artificial welcome reply. It must save the Inbox room successfully; otherwise the new agent/connection is rolled back. CLI connection linkage survives SQL reads without changing the existing 19-migration schema.
+
+## If an earlier code timed out
+
+The previous backend used a newline instead of the CLI's terminal Enter key, leaving even a valid code waiting unsubmitted. The staging fix sends the correct Enter key and distinguishes a definite Google rejection from an unconfirmed timeout. Refresh the page, start a new Google login and use the new code inside Cuan. An old code belongs to its old login session and must not be reused. Never paste authorization codes into chat or support evidence.
