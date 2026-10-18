@@ -1,0 +1,40 @@
+================================================================================
+AUDIT PACK: S17.4 — Agents Pool & Team Directory Views
+================================================================================
+Timestamp: 2026-10-18T14:59:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 17 (Agentic Scrum Command Center: shadcn sidebar-09 & Conversational Inbox)
+Task: S17.4
+
+1. SCOPE & GOAL VERIFICATION
+- Agents Hub (web/src/features/agents/AgentsView.tsx):
+  * Antigravity Accounts / Models pool with live status dots (idle/running/offline).
+  * Dynamic token capacity meter with progress bars (used vs limit, percentage remaining).
+  * "Add Agent Account" modal for registering new Antigravity accounts or custom model runners.
+  * Contextual Sub-Panel (AgentsSubPanel) integrated into shadcn sidebar-09 layout.
+- Team Directory (web/src/features/team/TeamView.tsx):
+  * Transparent 3-Tier Agentic Scrum Hierarchy:
+    1. Product Owner (Human - Buchin): sets product vision, sprint approval, and outcome verification.
+    2. Scrum Master (AI Manager - @sm): autonomous message triage, DoD distillation, and worker delegation.
+    3. Development Team (Worker Agents - @pin, @pin2): code implementation, targeted unit tests, and handoff continuation.
+  * Role summary cards, detailed responsibility checklists, and status badges.
+  * Contextual Sub-Panel (TeamSubPanel) with fast role-based filtering (All, PO, SM, Dev Team).
+
+2. DEFINITION OF DONE (DoD) AUDIT
+- DoD 1 (Agents tab with live status & token quota): PASS. Displays Antigravity Flash, Pro, and General Runner with token meters.
+- DoD 2 (Team tab with transparent organization roles): PASS. Clean 3-tier Scrum hierarchy presented with responsibility lists.
+- DoD 3 (UI consistent with Tokyo Night & sidebar-09): PASS. Uses unified design system tokens, CSS variables, and dual-tier sub-panel integration.
+- DoD 4 (Audit pack & git commit): PASS. Audit pack published at docs/sprints/evidence/S17/s17_4_agents_team_verified.txt.
+
+3. BUILD VERIFICATION
+- Command: `npm run build` (tsc && vite build)
+- Output Bundle:
+  * dist/index.html: 0.55 kB (gzip: 0.37 kB)
+  * dist/assets/index.css: 41.65 kB
+  * dist/assets/index.js: 271.25 kB
+- Status: PASS (0 TypeScript errors, 0 runtime exceptions).
+
+4. CONCLUSION
+Task S17.4 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S17.5 (Staging Drill & Production Launch).
+================================================================================

@@ -6,9 +6,14 @@ import { ProjectsView } from './features/projects/ProjectsView'
 import { CreateProjectModal } from './features/projects/CreateProjectModal'
 import { CreateTaskModal } from './features/tasks/CreateTaskModal'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
-import { AgentsView } from './features/agents/AgentsView'
+import { AgentsView, AgentsSubPanel } from './features/agents/AgentsView'
+import { TeamView, TeamSubPanel } from './features/team/TeamView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
+import { inboxApi, InboxThreadItem } from './api/inbox'
+import { InboxSubPanel } from './features/inbox/InboxSubPanel'
+import { InboxView } from './features/inbox/InboxView'
+import { CreateThreadModal } from './features/inbox/CreateThreadModal'
 import { Project, Task, TaskStatus, TaskPriority, ProjectType, DoDItem } from './api/types'
 import { Loader2 } from 'lucide-react'
 
@@ -28,6 +33,13 @@ export function App() {
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isSidePeekOpen, setIsSidePeekOpen] = useState(false)
+
+  // Inbox State
+  const [threads, setThreads] = useState<InboxThreadItem[]>([])
+  const [activeThread, setActiveThread] = useState<InboxThreadItem | undefined>(undefined)
+  const [inboxStatusFilter, setInboxStatusFilter] = useState('all')
+  const [isCreateThreadOpen, setIsCreateThreadOpen] = useState(false)
+  const [selectedTeamRole, setSelectedTeamRole] = useState('all')
 
   // Fetch Projects and Tasks
   const refreshProjects = useCallback(async () => {
@@ -52,11 +64,26 @@ export function App() {
     }
   }, [activeProject])
 
+  const refreshThreads = useCallback(async (status?: string) => {
+    try {
+      const data = await inboxApi.list({ status: status ?? inboxStatusFilter })
+      setThreads(data)
+      if (activeThread) {
+        const updated = data.find((t) => t.id === activeThread.id)
+        if (updated) setActiveThread(updated)
+      } else if (data.length > 0) {
+        setActiveThread(data[0])
+      }
+    } catch (err) {
+      console.error('Failed to load threads:', err)
+    }
+  }, [activeThread, inboxStatusFilter])
+
   useEffect(() => {
     if (isAuthenticated) {
-      Promise.allSettled([refreshProjects(), refreshTasks()])
+      Promise.allSettled([refreshProjects(), refreshTasks(), refreshThreads()])
     }
-  }, [isAuthenticated, refreshProjects, refreshTasks])
+  }, [isAuthenticated, refreshProjects, refreshTasks, refreshThreads])
 
   // Handlers for Projects
   const handleCreateProject = async (data: {
@@ -109,6 +136,15 @@ export function App() {
     await refreshTasks()
   }
 
+  const handleCreateThread = async (data: { title: string; message: string; project_id?: string }) => {
+    const res = await inboxApi.create(data)
+    await refreshThreads()
+    if (res.thread) {
+      setActiveThread(res.thread)
+    }
+    setCurrentTab('inbox')
+  }
+
   // 1. Loading Auth State
   if (authLoading) {
     return (
@@ -141,13 +177,34 @@ export function App() {
           if (p) setCurrentTab('projects')
         }}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
+        inboxSubPanel={
+          <InboxSubPanel
+            threads={threads}
+            activeThreadId={activeThread?.id}
+            onSelectThread={(t) => setActiveThread(t)}
+            onCreateThreadClick={() => setIsCreateThreadOpen(true)}
+            statusFilter={inboxStatusFilter}
+            onStatusFilterChange={(status) => {
+              setInboxStatusFilter(status)
+              refreshThreads(status)
+            }}
+          />
+        }
+        agentsSubPanel={<AgentsSubPanel />}
+        teamSubPanel={
+          <TeamSubPanel
+            selectedRole={selectedTeamRole}
+            onSelectRole={setSelectedTeamRole}
+          />
+        }
       >
-        {/* Inbox placeholder — S17.2 */}
+        {/* Inbox View — S17.2 & S17.3 */}
         {currentTab === 'inbox' && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-            <p className="text-sm font-medium text-foreground">Inbox</p>
-            <p className="text-xs mt-1">Coming in S17.2 — Conversational Inbox Engine</p>
-          </div>
+          <InboxView
+            activeThread={activeThread}
+            onThreadUpdated={refreshThreads}
+            onCreateThreadClick={() => setIsCreateThreadOpen(true)}
+          />
         )}
 
         {currentTab === 'projects' && (
@@ -165,16 +222,18 @@ export function App() {
 
         {currentTab === 'agents' && <AgentsView />}
 
-        {/* Team placeholder — S17.4 */}
-        {currentTab === 'team' && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-            <p className="text-sm font-medium text-foreground">Team</p>
-            <p className="text-xs mt-1">Coming in S17.4 — Team Directory</p>
-          </div>
-        )}
+        {/* Team Directory — S17.4 */}
+        {currentTab === 'team' && <TeamView selectedRole={selectedTeamRole} />}
       </AppShell>
 
       {/* Modals & Drawers */}
+      <CreateThreadModal
+        isOpen={isCreateThreadOpen}
+        projects={projects}
+        onClose={() => setIsCreateThreadOpen(false)}
+        onSubmit={handleCreateThread}
+      />
+
       <CreateProjectModal
         isOpen={isCreateProjectOpen}
         onClose={() => setIsCreateProjectOpen(false)}

@@ -303,6 +303,7 @@ type ProjectStudioRepository interface {
 	CreateRoom(ctx context.Context, room *ProjectRoom) error
 	GetRoomByID(ctx context.Context, id string) (*ProjectRoom, error)
 	ListRoomsByProjectID(ctx context.Context, projectID string) ([]ProjectRoom, error)
+	ListAllRooms(ctx context.Context) ([]ProjectRoom, error)
 	UpdateRoom(ctx context.Context, room *ProjectRoom) error
 	DeleteRoom(ctx context.Context, id string) error
 
@@ -449,6 +450,40 @@ func (r *SQLProjectStudioRepository) ListRoomsByProjectID(ctx context.Context, p
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate project rooms: %w", err)
+	}
+	return list, nil
+}
+
+// ListAllRooms lists all project rooms across all projects, ordered by updated_at desc.
+func (r *SQLProjectStudioRepository) ListAllRooms(ctx context.Context) ([]ProjectRoom, error) {
+	query := `
+		SELECT id, project_id, title, topic, created_at, updated_at
+		FROM project_rooms
+		ORDER BY updated_at DESC, created_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list all project rooms: %w", err)
+	}
+	defer rows.Close()
+
+	var list []ProjectRoom
+	for rows.Next() {
+		var room ProjectRoom
+		if err := rows.Scan(
+			&room.ID,
+			&room.ProjectID,
+			&room.Title,
+			&room.Topic,
+			&room.CreatedAt,
+			&room.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan project room: %w", err)
+		}
+		list = append(list, room)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate all project rooms: %w", err)
 	}
 	return list, nil
 }
@@ -1391,6 +1426,21 @@ func (m *MemoryProjectStudioRepository) ListRoomsByProjectID(ctx context.Context
 	}
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].CreatedAt.Before(list[j].CreatedAt)
+	})
+	return list, nil
+}
+
+// ListAllRooms lists all rooms across all projects from memory, ordered by updated_at desc.
+func (m *MemoryProjectStudioRepository) ListAllRooms(ctx context.Context) ([]ProjectRoom, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var list []ProjectRoom
+	for _, room := range m.rooms {
+		list = append(list, *cloneRoom(room))
+	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].UpdatedAt.After(list[j].UpdatedAt)
 	})
 	return list, nil
 }

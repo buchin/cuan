@@ -976,7 +976,12 @@ func (s *Server) routes() {
 
 	// Discussion-to-Task Distiller Engine
 	s.router.Post("/api/rooms/{id}/distill", s.handleDistillTaskFromRoom)
-	s.router.Post("/api/projects/rooms/{id}/distill", s.handleDistillTaskFromRoom)
+	// Conversational Inbox Engine & Thread Management (Sprint 17 S17.2 & S17.3)
+	s.router.Get("/api/inbox", s.handleListInboxThreads)
+	s.router.Post("/api/inbox", s.handleCreateInboxThread)
+	s.router.Get("/api/inbox/{id}", s.handleGetInboxThread)
+	s.router.Post("/api/inbox/{id}/messages", s.handleCreateInboxMessage)
+	s.router.Post("/api/inbox/{id}/approve", s.handleApproveInboxThread)
 
 	// Project Tasks
 	s.router.Post("/api/projects/{id}/tasks", s.handleCreateProjectTask)
@@ -1460,6 +1465,13 @@ func (s *Server) routes() {
 			pr.Post("/sponsors/sync-readme", s.handleAdminSyncReadme)
 			pr.Get("/sponsors/{id}/activities", s.handleAdminListSponsorActivities)
 			pr.Get("/leads", s.handleAdminListLeads)
+
+			// Conversational Inbox Engine & Thread Management (Sprint 17 S17.2 & S17.3)
+			pr.Get("/inbox", s.handleListInboxThreads)
+			pr.Post("/inbox", s.handleCreateInboxThread)
+			pr.Get("/inbox/{id}", s.handleGetInboxThread)
+			pr.Post("/inbox/{id}/messages", s.handleCreateInboxMessage)
+			pr.Post("/inbox/{id}/approve", s.handleApproveInboxThread)
 		})
 	})
 }

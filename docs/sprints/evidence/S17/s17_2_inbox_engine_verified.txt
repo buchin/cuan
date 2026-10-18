@@ -1,0 +1,42 @@
+================================================================================
+AUDIT PACK: S17.2 — Conversational Inbox Engine & Thread Management (API & UI)
+================================================================================
+Timestamp: 2026-10-18T14:57:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 17 (Agentic Scrum Command Center: shadcn sidebar-09 & Conversational Inbox)
+Task: S17.2
+
+1. SCOPE & GOAL VERIFICATION
+- Provided unified REST API endpoints for conversational inbox:
+  * GET /api/v1/inbox (lists all threads with filter query `status=all|unread|in_progress|done`)
+  * POST /api/v1/inbox (creates new thread with title, initial message, and project association)
+  * GET /api/v1/inbox/{id} (retrieves full thread detail, message history, and linked tasks)
+  * POST /api/v1/inbox/{id}/messages (posts reply messages to a thread)
+- Sub-Panel Inbox View (web/src/features/inbox/InboxSubPanel.tsx):
+  * Displays thread list with status badges (Inbox/Amber, Running/Blue, Done/Emerald)
+  * Fast filter tabs (All, Unread, In Progress, Done)
+  * Message counter, relative timestamp, and project label
+  * Quick "New Thread" button
+- Main Viewport Chat View (web/src/features/inbox/InboxView.tsx):
+  * Clean thread header with project badge and active status
+  * Threaded message history with distinct styling (Product Owner vs Scrum Master AI Manager)
+  * Auto-scroll to newest message
+  * Modern composer with keyboard shortcuts (Enter to send, Shift+Enter for newline)
+- CreateThreadModal (web/src/features/inbox/CreateThreadModal.tsx):
+  * Natural language intake form for ideas and bug reports
+
+2. DEFINITION OF DONE (DoD) AUDIT
+- DoD 1 (Interactive thread creation & messaging): PASS. User can create new threads, view messages, and send replies seamlessly.
+- DoD 2 (Persistent database storage): PASS. Powered by existing PostgreSQL schema (`project_rooms` and `project_messages`) with UUID primary keys.
+- DoD 3 (Clean chat typography & auto-scroll): PASS. Tokyo Night design system tokens, monospaced typography, and auto-scroll ref behavior.
+- DoD 4 (Audit pack & git commit): PASS. Audit pack published at docs/sprints/evidence/S17/s17_2_inbox_engine_verified.txt.
+
+3. AUTOMATED TEST VERIFICATION
+- Command: `go test -count=1 ./internal/server/... -run "TestInboxHandlers"`
+- Status: PASS (0.009s, 100% tests passing).
+- Frontend Build: `npm run build` (tsc && vite build) -> PASS (dist/assets/index.js 255.01 kB).
+
+4. CONCLUSION
+Task S17.2 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S17.3.
+================================================================================
