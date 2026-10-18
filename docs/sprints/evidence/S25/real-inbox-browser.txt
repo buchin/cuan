@@ -1,0 +1,10 @@
+Real browser verification on S25.1 staging after owner login:
+URL: https://cuan-s25-dojo.fural.space/inbox/6d308d56-91b3-4c6c-8a4b-ec8e61751dfd
+Inbox contacts: one registered agent @pin1; no seeded fake agents.
+Visible user probe: Hitung 17 dikali 23 ... CUAN_REAL_8c3189bf673d ... Jangan gunakan tools.
+Visible actual agent response: [@pin1] Halo, ini hasil hitungan yang kamu minta ya! CUAN_REAL_8c3189bf673d = 391
+Reply UUID from API: c809659e-59f5-460d-8789-82a2988022f5
+Independent GET history: matching UUID/content, author_type agent.
+Managed service restart: credential still verifies; same reply remains in GET history and rendered Inbox.
+OAuth codes, full authorization URLs, tokens and account identity details excluded.
+Production code release remains pending S25.2–S25.4.

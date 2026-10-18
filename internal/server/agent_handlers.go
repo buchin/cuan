@@ -935,6 +935,8 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 			status["authenticated"] = err == nil
 			if err != nil {
 				status["message"] = err.Error()
+			} else {
+				status["message"] = "Koneksi provider Antigravity terverifikasi"
 			}
 		}
 		respondJSON(w, http.StatusOK, status)
