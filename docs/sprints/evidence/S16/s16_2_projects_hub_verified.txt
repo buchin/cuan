@@ -1,0 +1,47 @@
+================================================================================
+AUDIT PACK: S16.2 — Projects Hub & Contextual Workspace Switcher
+================================================================================
+Timestamp: 2026-10-18T13:15:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 16 (Clean Slate Frontend Rebuild: Linear-Class Agentic Workplace)
+Task: S16.2
+
+1. SCOPE & GOAL VERIFICATION
+- Rebuilt `web/src/features/projects/ProjectsView.tsx`:
+  * Supports Dual View Mode: Grid View and List View with 1-click toggle.
+  * Active vs Archived tabs with live count indicators.
+  * Fast project search by name and repository URL.
+  * Dynamic task counter per project (`X tasks`).
+  * Instant action to switch active project and navigate directly to Task Board.
+- Rebuilt `web/src/features/projects/CreateProjectModal.tsx`:
+  * Modal input for Project Name, Category/Type, Optional Git repo URL, and Optional Access Token.
+  * Connected directly to `POST /api/v1/projects`.
+- Rebuilt Breadcrumb Switcher in `web/src/components/layout/AppShell.tsx`:
+  * Header breadcrumb `Cuan / [Project Name ▾] / [Current Tab]`.
+  * Clickable dropdown allows switching between projects or selecting "All Projects" without full page reload.
+  * Quick link to create new project.
+
+2. BUILD VERIFICATION
+- Command: `npm run build` (tsc && vite build)
+- Output Bundle:
+  * dist/index.html: 0.55 kB (gzip: 0.37 kB)
+  * dist/assets/index.css: 39.99 kB
+  * dist/assets/index.js: 261.14 kB (gzip: 72.85 kB)
+- Result: PASS (0 errors, 2.69s).
+
+3. BACKEND API INTEGRATION
+- Targeted test suite: `go test ./internal/server/... -run "TestProject"`
+  * TestProjectsAPI_Unauthenticated: PASS
+  * TestProjectsAPI_ConnectAndListAndGet: PASS
+  * TestProjectsAPI_PrivateRepo_TokenMaskedAndEncrypted: PASS
+  * TestProjectsAPI_ErrorHandling_Informative: PASS
+  * TestProjectTasks_CRUD: PASS
+  * TestProjectTasks_QueryFiltering: PASS
+  * TestProjectTasks_SSEBroadcasting: PASS
+  * TestProjectTasks_V1AliasEndpoints: PASS
+- Result: PASS (100% tests pass).
+
+4. CONCLUSION
+Task S16.2 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S16.3.
+================================================================================

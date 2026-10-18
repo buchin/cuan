@@ -178,6 +178,7 @@ export function App() {
         {currentTab === 'projects' && (
           <ProjectsView
             projects={projects}
+            tasks={tasks}
             onSelectProject={(p) => {
               setActiveProject(p)
               setCurrentTab('tasks')

@@ -37,6 +37,7 @@ export function AppShell({
   const { resolvedTheme, toggleTheme } = useTheme()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false)
+  const [headerSwitcherOpen, setHeaderSwitcherOpen] = useState(false)
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#eaeef6] text-[#1a1b26] dark:bg-[#1a1b26] dark:text-[#a9b1d6] font-mono select-none">
@@ -219,12 +220,68 @@ export function AppShell({
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#eaeef6] dark:bg-[#1a1b26]">
         {/* Top Header Bar */}
         <header className="h-14 border-b border-[#cfd6e6] dark:border-[#24283b] px-6 flex items-center justify-between bg-[#f0f3f8] dark:bg-[#16161e]/50 shrink-0">
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2 text-xs relative">
             <span className="text-[#565f89]">Cuan</span>
             <span className="text-[#565f89]">/</span>
-            <span className="text-[#1a1b26] dark:text-[#c0caf5] font-semibold">
-              {activeProject ? activeProject.name : 'All Projects'}
-            </span>
+            <div className="relative">
+              <button
+                onClick={() => setHeaderSwitcherOpen(!headerSwitcherOpen)}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-[#1a1b26] dark:text-[#c0caf5] bg-[#d5dce8]/50 dark:bg-[#1f2335]/50 border border-transparent hover:border-[#7aa2f7] transition-all"
+              >
+                <div className={`h-2 w-2 rounded-none ${activeProject ? 'bg-[#9ece6a]' : 'bg-[#565f89]'}`} />
+                <span>{activeProject ? activeProject.name : 'All Projects'}</span>
+                <ChevronDown className="h-3 w-3 text-[#565f89]" />
+              </button>
+
+              {headerSwitcherOpen && (
+                <div className="absolute top-full left-0 mt-1 w-56 bg-[#e2e7f1] dark:bg-[#16161e] border border-[#cfd6e6] dark:border-[#24283b] shadow-xl z-50 p-1">
+                  <button
+                    onClick={() => {
+                      onSelectProject(undefined)
+                      setHeaderSwitcherOpen(false)
+                    }}
+                    className={`w-full text-left px-2 py-1.5 text-xs flex items-center justify-between hover:bg-[#7aa2f7]/10 ${
+                      !activeProject ? 'text-[#7aa2f7] font-bold' : 'text-[#565f89]'
+                    }`}
+                  >
+                    <span>All Projects Overview</span>
+                  </button>
+                  <div className="h-[1px] bg-[#cfd6e6] dark:bg-[#24283b] my-1" />
+                  <div className="max-h-48 overflow-y-auto">
+                    {projects.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          onSelectProject(p)
+                          setHeaderSwitcherOpen(false)
+                        }}
+                        className={`w-full text-left px-2 py-1.5 text-xs truncate flex items-center gap-2 hover:bg-[#7aa2f7]/10 ${
+                          activeProject?.id === p.id ? 'text-[#7aa2f7] font-bold' : 'text-[#343b58] dark:text-[#a9b1d6]'
+                        }`}
+                      >
+                        <div className="h-1.5 w-1.5 bg-[#9ece6a]" />
+                        <span className="truncate">{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {onCreateProjectClick && (
+                    <>
+                      <div className="h-[1px] bg-[#cfd6e6] dark:bg-[#24283b] my-1" />
+                      <button
+                        onClick={() => {
+                          setHeaderSwitcherOpen(false)
+                          onCreateProjectClick()
+                        }}
+                        className="w-full text-left px-2 py-1.5 text-xs text-[#7aa2f7] hover:bg-[#7aa2f7]/10 flex items-center gap-1.5 font-medium"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>New Project...</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             <span className="text-[#565f89]">/</span>
             <span className="text-[#7aa2f7] uppercase tracking-wider text-[11px] font-bold">
               {currentTab}
