@@ -1,0 +1,31 @@
+================================================================================
+AUDIT PACK: S16.4 — Unified Project Settings & Integrations Hub
+================================================================================
+Timestamp: 2026-10-18T13:17:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 16 (Clean Slate Frontend Rebuild: Linear-Class Agentic Workplace)
+Task: S16.4
+
+1. SCOPE & GOAL VERIFICATION
+- Rebuilt `web/src/features/settings/SettingsView.tsx`:
+  * Consolidated Git Repository configuration (Repo URL, default branch).
+  * Consolidated Custom Domain (BYOD) configuration (Domain name, automated TLS via Caddy).
+  * Consolidated Target Server (BYOS) configuration (Hostname, IP address).
+  * Added Environment Variables & Secrets editor (key-value pairs) per project.
+  * Added Project Danger Zone (Delete project with safety confirmations).
+  * Global Workplace overview when viewing without an active project.
+- Eliminated all separate "Servers", "Domains", "Observability" tabs and modal sprawl from global navigation.
+- Global navigation is strictly minimal: Projects, Tasks, Agents, Settings.
+
+2. BUILD VERIFICATION
+- Command: `npm run build` (tsc && vite build)
+- Output Bundle:
+  * dist/index.html: 0.55 kB (gzip: 0.37 kB)
+  * dist/assets/index.css: 40.01 kB
+  * dist/assets/index.js: 264.57 kB (gzip: 73.36 kB)
+- Result: PASS (0 errors, 2.50s).
+
+3. CONCLUSION
+Task S16.4 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S16.5.
+================================================================================
