@@ -976,6 +976,7 @@ func (s *Server) routes() {
 
 	// Discussion-to-Task Distiller Engine
 	s.router.Post("/api/rooms/{id}/distill", s.handleDistillTaskFromRoom)
+	s.router.Post("/api/projects/rooms/{id}/distill", s.handleDistillTaskFromRoom)
 	// Conversational Inbox Engine & Thread Management (Sprint 17 S17.2 & S17.3)
 	s.router.Get("/api/inbox", s.handleListInboxThreads)
 	s.router.Post("/api/inbox", s.handleCreateInboxThread)
@@ -1046,6 +1047,7 @@ func (s *Server) routes() {
 	// Agent Personas & Connection Engine Endpoints (Sprint 9 S09.2)
 	s.router.Get("/api/agents", s.handleListAgents)
 	s.router.Post("/api/agents", s.handleCreateAgent)
+	s.router.Post("/api/agents/connect-cli", s.handleConnectCLIAgent)
 	s.router.Get("/api/agents/{id}", s.handleGetAgent)
 	s.router.Put("/api/agents/{id}", s.handleUpdateAgent)
 	s.router.Delete("/api/agents/{id}", s.handleDeleteAgent)
@@ -1241,6 +1243,7 @@ func (s *Server) routes() {
 	s.router.Route("/api/v1/agents", func(ar chi.Router) {
 		ar.Get("/", s.handleListAgents)
 		ar.Post("/", s.handleCreateAgent)
+		ar.Post("/connect-cli", s.handleConnectCLIAgent)
 		ar.Get("/{id}", s.handleGetAgent)
 		ar.Put("/{id}", s.handleUpdateAgent)
 		ar.Delete("/{id}", s.handleDeleteAgent)
@@ -1395,6 +1398,7 @@ func (s *Server) routes() {
 		// Agent Personas in v1 (Sprint 9 S09.2)
 		r.Get("/agents", s.handleListAgents)
 		r.Post("/agents", s.handleCreateAgent)
+		r.Post("/agents/connect-cli", s.handleConnectCLIAgent)
 		r.Get("/agents/{id}", s.handleGetAgent)
 		r.Put("/agents/{id}", s.handleUpdateAgent)
 		r.Delete("/agents/{id}", s.handleDeleteAgent)

@@ -3,9 +3,11 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -242,6 +244,9 @@ type CreateAgentConnectionRequest struct {
 	APIKey               string `json:"api_key,omitempty"`
 	Credentials          string `json:"credentials,omitempty"`
 	CredentialsEncrypted string `json:"credentials_encrypted,omitempty"`
+	AuthType             string `json:"auth_type,omitempty"`
+	SessionToken         string `json:"session_token,omitempty"`
+	Handle               string `json:"handle,omitempty"`
 	PlanHint             string `json:"plan_hint,omitempty"`
 	Status               string `json:"status,omitempty"`
 	VerifyNow            bool   `json:"verify_now,omitempty"`
@@ -326,6 +331,16 @@ func (s *Server) handleCreateAgentConnection(w http.ResponseWriter, r *http.Requ
 	rawSecret := strings.TrimSpace(req.APIKey)
 	if rawSecret == "" {
 		rawSecret = strings.TrimSpace(req.Credentials)
+	}
+	if rawSecret == "" && (req.AuthType == "cli_login" || req.AuthType == "oauth" || provider == "antigravity" || provider == "fural" || provider == "gemini-cli" || provider == "claude-cli" || req.SessionToken != "") {
+		if req.SessionToken != "" {
+			rawSecret = req.SessionToken
+		} else {
+			rawSecret = "cuan_cli_session_" + db.GenerateUUID()
+		}
+		if req.PlanHint == "" {
+			req.PlanHint = "CLI Session (Model Fural — No API Key)"
+		}
 	}
 
 	encryptedCredentials := strings.TrimSpace(req.CredentialsEncrypted)
@@ -578,3 +593,158 @@ func (s *Server) handleVerifyAgentConnection(w http.ResponseWriter, r *http.Requ
 		"connection": conn.ToDTO(),
 	})
 }
+
+// handleConnectCLIAgent registers an agent and its CLI connection without an API Key (Model Fural).
+// Route: POST /api/v1/agents/connect-cli, POST /api/agents/connect-cli
+func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
+	if s.agentRepo == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
+		return
+	}
+
+	var req struct {
+		Name         string `json:"name"`
+		Handle       string `json:"handle"`
+		Provider     string `json:"provider"`
+		ModelID      string `json:"model_id"`
+		Role         string `json:"role"`
+		SystemPrompt string `json:"system_prompt"`
+		AuthType     string `json:"auth_type"`
+		SessionToken string `json:"session_token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request json: "+err.Error())
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		respondJSONError(w, http.StatusBadRequest, "agent name is required")
+		return
+	}
+
+	handle := strings.TrimSpace(req.Handle)
+	if handle == "" {
+		handle = "@" + strings.ToLower(strings.ReplaceAll(name, " ", "_"))
+	}
+	if !strings.HasPrefix(handle, "@") {
+		handle = "@" + handle
+	}
+
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	if provider == "" {
+		provider = "antigravity"
+	}
+
+	modelID := strings.TrimSpace(req.ModelID)
+	if modelID == "" {
+		modelID = "Gemini 3.8 Flash (High-Speed)"
+	}
+
+	role := strings.TrimSpace(req.Role)
+	if role == "" {
+		role = "Development Team (Worker)"
+	}
+
+	sessionToken := strings.TrimSpace(req.SessionToken)
+	if sessionToken == "" {
+		sessionToken = fmt.Sprintf("cuan_cli_token_%s_%s", strings.TrimPrefix(handle, "@"), db.GenerateUUID())
+	}
+
+	encryptedToken, err := agent.EncryptCredential(sessionToken)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "failed to encrypt session token: "+err.Error())
+		return
+	}
+
+	// 1. Create / Persist Agent
+	cleanHandle := strings.TrimPrefix(handle, "@")
+	cleanHandle = strings.ReplaceAll(cleanHandle, "-", "_")
+	agentID := "agent_" + cleanHandle
+	agentDisplayName := fmt.Sprintf("%s (%s)", name, handle)
+
+	agentEntity := &db.Agent{
+		ID:           agentID,
+		Name:         agentDisplayName,
+		Avatar:       "🤖",
+		Role:         role,
+		SystemPrompt: req.SystemPrompt,
+		ModelID:      modelID,
+		Provider:     provider,
+		Status:       db.AgentStatusActive,
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}
+
+	_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
+	if err := s.agentRepo.CreateAgent(r.Context(), agentEntity); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "failed to create agent: "+err.Error())
+		return
+	}
+
+	// 2. Create / Persist Connection
+	connID := "conn_" + agentID
+	_ = s.agentRepo.DeleteConnection(r.Context(), connID)
+	connEntity := &db.AgentConnection{
+		ID:                   connID,
+		UserID:               "default",
+		Provider:             provider,
+		CredentialsEncrypted: encryptedToken,
+		PlanHint:             "CLI Session (Model Fural — No API Key)",
+		Status:               db.ConnectionStatusActive,
+		CreatedAt:            time.Now().UTC(),
+		UpdatedAt:            time.Now().UTC(),
+	}
+	_ = s.agentRepo.CreateConnection(r.Context(), connEntity)
+
+	// 3. Ensure a room in projectStudioRepo for direct chat with this agent
+	var roomID string
+	if s.projectStudioRepo != nil {
+		if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+			for _, rm := range allRooms {
+				if rm.Topic == "agent:"+agentID || rm.Title == agentDisplayName {
+					roomID = rm.ID
+					break
+				}
+			}
+		}
+		if roomID == "" {
+			roomID = db.GenerateUUID()
+			now := time.Now().UTC()
+			_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+				ID:        roomID,
+				ProjectID: "default",
+				Title:     agentDisplayName,
+				Topic:     "agent:" + agentID,
+				CreatedAt: now,
+				UpdatedAt: now,
+			})
+			_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+				ID:         db.GenerateUUID(),
+				RoomID:     roomID,
+				AuthorType: "agent",
+				AuthorID:   agentID,
+				AuthorName: agentEntity.Name,
+				Content:    fmt.Sprintf("Halo Buchin! Saya %s. Sesi CLI telah terhubung tanpa API Key (%s). Saya siap menerima instruksi chat.", agentEntity.Name, provider),
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			})
+		}
+	} else {
+		roomID = db.GenerateUUID()
+	}
+
+	respondJSON(w, http.StatusCreated, map[string]interface{}{
+		"status":          "success",
+		"agent":           agentEntity.ToDTO(),
+		"connection":      connEntity.ToDTO(),
+		"handle":          handle,
+		"provider":        provider,
+		"room_id":         roomID,
+		"conversation_id": roomID,
+		"auth_model":      "fural_cli_session",
+		"message":         "Agent connected successfully via CLI login without API Key",
+	})
+}
+

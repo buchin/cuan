@@ -25,6 +25,7 @@ interface InboxViewProps {
   contactSearch?: string
   onContactSearchChange?: (q: string) => void
   onBackToContacts?: () => void
+  onMobileChatActiveChange?: (active: boolean) => void
 }
 
 export function InboxView({
@@ -37,6 +38,7 @@ export function InboxView({
   contactSearch = '',
   onContactSearchChange,
   onBackToContacts,
+  onMobileChatActiveChange,
 }: InboxViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
@@ -47,6 +49,14 @@ export function InboxView({
 
   // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
   const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
+
+  // Notify parent of mobile chat active state to auto-hide bottom nav
+  useEffect(() => {
+    const isActive = mobileView === 'chat' && !!activeContact
+    if (onMobileChatActiveChange) {
+      onMobileChatActiveChange(isActive)
+    }
+  }, [mobileView, activeContact, onMobileChatActiveChange])
 
   const messageListRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -197,7 +207,7 @@ export function InboxView({
       {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
       <div
         className={cn(
-          'flex-1 flex-col h-full bg-background overflow-hidden',
+          'flex-1 flex-col h-[100dvh] md:h-full bg-background overflow-hidden',
           mobileView === 'chat' ? 'flex' : 'hidden md:flex'
         )}
       >
@@ -252,9 +262,15 @@ export function InboxView({
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-foreground truncate">{activeContact.name}</h2>
               {activeContact.type === 'agent' ? (
-                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-primary/10 text-primary">
-                  Agent Manager
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-primary/10 text-primary">
+                    Agent Manager
+                  </span>
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span>Connected</span>
+                  </span>
+                </div>
               ) : (
                 <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center gap-1">
                   <ShoppingBag className="h-3 w-3" />
@@ -404,7 +420,7 @@ export function InboxView({
       </div>
 
       {/* ── Modern Composer (Bottom) ── */}
-      <div className="p-3 sm:p-4 border-t border-border bg-card shrink-0">
+      <div className="p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border bg-card shrink-0 z-20">
         <div className="flex items-end gap-2 max-w-4xl mx-auto">
           <textarea
             ref={textareaRef}

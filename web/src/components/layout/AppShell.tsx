@@ -26,6 +26,7 @@ interface AppShellProps {
   onSelectProject: (project?: Project) => void
   onCreateProjectClick?: () => void
   children: React.ReactNode
+  hideBottomNav?: boolean
   // Inbox sub-panel
   inboxSubPanel?: React.ReactNode
   // Projects sub-panel content (project list)
@@ -50,6 +51,7 @@ export function AppShell({
   onSelectProject,
   onCreateProjectClick,
   children,
+  hideBottomNav = false,
   inboxSubPanel,
   projectsSubPanel,
   agentsSubPanel,
@@ -78,7 +80,7 @@ export function AppShell({
   }
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-background">
+    <div className="h-screen md:h-screen h-[100dvh] w-screen flex overflow-hidden bg-background">
       {/* ── TIER 1: Primary Icon Rail (48px) — Hidden on mobile ── */}
       <nav className="hidden md:flex w-12 shrink-0 flex-col border-r border-border bg-sidebar">
         {/* Logo */}
@@ -220,10 +222,11 @@ export function AppShell({
           </div>
         </header>
 
-        {/* Content Area with pb-16 for mobile bottom navigation */}
+        {/* Content Area with pb-16 for mobile bottom navigation (when not hidden) */}
         <div
           className={cn(
-            'flex-1 overflow-hidden pb-16 md:pb-0',
+            'flex-1 overflow-hidden',
+            hideBottomNav ? 'pb-0' : 'pb-16 md:pb-0',
             currentTab === 'inbox' ? 'p-0' : 'overflow-auto p-4 md:p-6'
           )}
         >
@@ -231,24 +234,26 @@ export function AppShell({
         </div>
       </main>
 
-      {/* ── Mobile Bottom Navigation Bar (md:hidden) ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-border z-30 flex items-center justify-around px-2 shadow-lg">
-        {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => onSelectTab(id)}
-            className={cn(
-              'flex flex-col items-center justify-center flex-1 py-1 gap-1 transition-colors relative',
-              currentTab === id
-                ? 'text-primary font-bold'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Icon className="h-5 w-5" />
-            <span className="text-[10px] tracking-tight">{label}</span>
-          </button>
-        ))}
-      </nav>
+      {/* ── Mobile Bottom Navigation Bar (md:hidden) — Hidden when chat is active in mobile ── */}
+      {!hideBottomNav && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-border z-30 flex items-center justify-around px-2 shadow-lg">
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => onSelectTab(id)}
+              className={cn(
+                'flex flex-col items-center justify-center flex-1 py-1 gap-1 transition-colors relative',
+                currentTab === id
+                  ? 'text-primary font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-[10px] tracking-tight">{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   )
 }

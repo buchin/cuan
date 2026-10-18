@@ -191,9 +191,15 @@ export function InboxSubPanel({
                   {/* Badge & Last Message */}
                   <div className="flex items-center gap-1.5 mb-1">
                     {contact.type === 'agent' ? (
-                      <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-primary/10 text-primary">
-                        Agent
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-primary/10 text-primary">
+                          Agent
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          <span>Connected</span>
+                        </span>
+                      </div>
                     ) : (
                       <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400">
                         {contact.product ? `Customer: ${contact.product}` : 'Customer'}

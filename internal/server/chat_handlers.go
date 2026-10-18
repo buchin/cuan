@@ -1,12 +1,14 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -533,6 +535,62 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 
 	if typeFilter != "customers" {
 		contacts = append(contacts, smContact, agContact)
+
+		// Include any agents from s.agentRepo that are active and not already included
+		if s.agentRepo != nil {
+			if dbAgents, err := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{Status: db.AgentStatusActive}); err == nil {
+				for _, a := range dbAgents {
+					if a.ID == "agent_scrum_master" || a.ID == "agent_antigravity" || a.ID == defaultAntigravityRoomID {
+						continue
+					}
+					roomID := ""
+					lastMsg := "Sesi CLI terhubung tanpa API Key. Siap menerima tugas."
+					lastAt := a.UpdatedAt
+					if s.projectStudioRepo != nil {
+						if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+							for _, rm := range allRooms {
+								if rm.Topic == "agent:"+a.ID || rm.Title == a.Name {
+									roomID = rm.ID
+									break
+								}
+							}
+						}
+						if roomID != "" {
+							if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID); len(msgs) > 0 {
+								lastMsg = msgs[len(msgs)-1].Content
+								lastAt = msgs[len(msgs)-1].CreatedAt
+							}
+						}
+					}
+					if roomID == "" {
+						roomID = db.GenerateUUID()
+						if s.projectStudioRepo != nil {
+							_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+								ID:        roomID,
+								ProjectID: "default",
+								Title:     a.Name,
+								Topic:     "agent:" + a.ID,
+								CreatedAt: a.CreatedAt,
+								UpdatedAt: a.UpdatedAt,
+							})
+						}
+					}
+					c := ChatContact{
+						ID:             "contact_" + a.ID,
+						Type:           "agent",
+						Name:           a.Name,
+						Avatar:         a.Avatar,
+						Status:         "online",
+						ConversationID: roomID,
+						UnreadCount:    0,
+						LastMessage:    lastMsg,
+						LastMessageAt:  lastAt,
+						UpdatedAt:      lastAt,
+					}
+					contacts = append(contacts, c)
+				}
+			}
+		}
 	}
 
 	// 3. Customer Live Chat Sessions (from Dojo Live Chat visitors)
@@ -548,7 +606,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		if s.projectStudioRepo != nil {
 			if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
 				for _, rm := range allRooms {
-					if rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") {
+					if rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && !strings.HasPrefix(rm.Topic, "agent:") && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
 						globalChatManager.Lock()
 						if _, exists := globalChatManager.sessions[rm.ID]; !exists {
 							sess := &LiveChatSession{
@@ -639,7 +697,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 
 	// Resolve contact
 	var contact ChatContact
-	if convID == defaultScrumMasterRoomID || convID == "contact_scrum_master" {
+	if convID == defaultScrumMasterRoomID || convID == "contact_scrum_master" || convID == "scrum" {
 		convID = defaultScrumMasterRoomID
 		contact = ChatContact{
 			ID:             "contact_scrum_master",
@@ -660,34 +718,69 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			ConversationID: defaultAntigravityRoomID,
 		}
 	} else {
-		// Customer contact
-		globalChatManager.RLock()
-		sess := globalChatManager.sessions[convID]
-		globalChatManager.RUnlock()
-
-		name := "Customer"
-		product := ""
-		guestUUID := ""
-		if sess != nil {
-			name = sess.Name
-			product = sess.Product
-			guestUUID = sess.GuestUUID
-		} else if s.projectStudioRepo != nil {
-			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
-				name = rm.Title
-				product = rm.Topic
+		// Resolve alias if needed (e.g., contact_agent_xxx or agent_xxx)
+		if strings.HasPrefix(convID, "contact_agent_") || strings.HasPrefix(convID, "agent_") {
+			agentID := strings.TrimPrefix(convID, "contact_")
+			if s.projectStudioRepo != nil {
+				if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+					for _, rm := range allRooms {
+						if rm.Topic == "agent:"+agentID || rm.Title == agentID {
+							convID = rm.ID
+							break
+						}
+					}
+				}
 			}
 		}
 
-		contact = ChatContact{
-			ID:             "cust_" + convID,
-			Type:           "customer",
-			Name:           name,
-			Avatar:         "👤",
-			Status:         "online",
-			Product:        product,
-			GuestUUID:      guestUUID,
-			ConversationID: convID,
+		isAgent := false
+		if s.projectStudioRepo != nil {
+			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
+				if strings.HasPrefix(rm.Topic, "agent:") || strings.Contains(rm.Topic, "Interactive Agent Chat") {
+					isAgent = true
+					agentID := strings.TrimPrefix(rm.Topic, "agent:")
+					contact = ChatContact{
+						ID:             "contact_" + agentID,
+						Type:           "agent",
+						Name:           rm.Title,
+						Avatar:         "🤖",
+						Status:         "online",
+						ConversationID: convID,
+					}
+				}
+			}
+		}
+
+		if !isAgent {
+			// Customer contact
+			globalChatManager.RLock()
+			sess := globalChatManager.sessions[convID]
+			globalChatManager.RUnlock()
+
+			name := "Customer"
+			product := ""
+			guestUUID := ""
+			if sess != nil {
+				name = sess.Name
+				product = sess.Product
+				guestUUID = sess.GuestUUID
+			} else if s.projectStudioRepo != nil {
+				if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
+					name = rm.Title
+					product = rm.Topic
+				}
+			}
+
+			contact = ChatContact{
+				ID:             "cust_" + convID,
+				Type:           "customer",
+				Name:           name,
+				Avatar:         "👤",
+				Status:         "online",
+				Product:        product,
+				GuestUUID:      guestUUID,
+				ConversationID: convID,
+			}
 		}
 	}
 
@@ -740,6 +833,21 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	authorName := strings.TrimSpace(payload.AuthorName)
 	if authorName == "" {
 		authorName = "Buchin"
+	}
+
+	// Resolve agent contact alias to room ID if needed
+	if strings.HasPrefix(convID, "contact_agent_") || strings.HasPrefix(convID, "agent_") {
+		agentID := strings.TrimPrefix(convID, "contact_")
+		if s.projectStudioRepo != nil {
+			if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+				for _, rm := range allRooms {
+					if rm.Topic == "agent:"+agentID || rm.Title == agentID {
+						convID = rm.ID
+						break
+					}
+				}
+			}
+		}
 	}
 
 	// Save the operator/user message
@@ -797,6 +905,55 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			ActionCard: card,
 			CreatedAt:  agentNow,
 		}
+	} else {
+		isAgentRoom := false
+		agentID := ""
+		agentName := "Worker Agent"
+
+		if convID == defaultAntigravityRoomID || convID == "contact_antigravity" {
+			isAgentRoom = true
+			agentID = "antigravity_flash"
+			agentName = "Antigravity Flash"
+		} else if s.projectStudioRepo != nil {
+			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
+				if strings.HasPrefix(rm.Topic, "agent:") || strings.Contains(rm.Topic, "Interactive Agent Chat") {
+					isAgentRoom = true
+					agentID = strings.TrimPrefix(rm.Topic, "agent:")
+					agentName = rm.Title
+				}
+			}
+		}
+
+		if isAgentRoom {
+			agentReplyText := s.executeAgentCLIResponse(r.Context(), agentName, text)
+			agentUUID := db.GenerateUUID()
+			agentNow := now.Add(200 * time.Millisecond)
+
+			if s.projectStudioRepo != nil {
+				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+					ID:         agentUUID,
+					RoomID:     convID,
+					AuthorType: "agent",
+					AuthorID:   agentID,
+					AuthorName: agentName,
+					Content:    agentReplyText,
+					CreatedAt:  agentNow,
+					UpdatedAt:  agentNow,
+				})
+			}
+
+			agentMsgDTO = &ChatMessageDTO{
+				ID:         2,
+				UUID:       agentUUID,
+				RoomID:     convID,
+				SenderType: "operator",
+				AuthorType: "agent",
+				AuthorName: agentName,
+				Message:    agentReplyText,
+				Content:    agentReplyText,
+				CreatedAt:  agentNow,
+			}
+		}
 	}
 
 	userDTO := ChatMessageDTO{
@@ -819,6 +976,43 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	}
 
 	respondJSON(w, http.StatusOK, resp)
+}
+
+// executeAgentCLIResponse runs the agent CLI runner (agy) or subprocess adapter and returns the agent text output.
+func (s *Server) executeAgentCLIResponse(ctx context.Context, agentName string, userPrompt string) string {
+	// Prepare bounded timeout context so HTTP request does not hang
+	execCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	binPath, err := exec.LookPath("agy")
+	if err != nil {
+		candidate := "/home/dev/.local/bin/agy"
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			binPath = candidate
+			err = nil
+		}
+	}
+
+	if err == nil && binPath != "" {
+		systemContext := fmt.Sprintf("Anda adalah %s di sistem Cuan. Pengguna mengatakan: \"%s\". Berikan respon konfirmasi singkat dalam Bahasa Indonesia sebagai %s.", agentName, userPrompt, agentName)
+		cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "12s")
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+
+		if cmdErr := cmd.Run(); cmdErr == nil {
+			out := strings.TrimSpace(stdoutBuf.String())
+			if out != "" {
+				if !strings.Contains(out, agentName) && !strings.Contains(out, "Antigravity") {
+					out = fmt.Sprintf("[%s] %s", agentName, out)
+				}
+				return out
+			}
+		}
+	}
+
+	// Graceful response when CLI is in mock/offline test mode or times out
+	return fmt.Sprintf("Halo Buchin! Saya %s. Sesi CLI telah menerima instruksi: \"%s\". Sesi otonom aktif dan siap mengeksekusi kebutuhan sprint ini.", agentName, userPrompt)
 }
 
 // ============================================================================

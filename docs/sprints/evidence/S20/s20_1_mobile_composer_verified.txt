@@ -1,0 +1,26 @@
+================================================================================
+BUKTI AUDIT SPRINT 20: S20.1 — HOTFIX MOBILE CHAT COMPOSER
+================================================================================
+Timestamp:     2026-10-18T20:06:00Z
+Task ID:       qveqmzikganyzqnysvbdegfy
+Title:         Sprint 20: Interactive Agent Chat (No API Key Login) & Mobile Composer Fix
+Author:        Buchin <buchin@dropsugar.com>
+Target Files:  web/src/components/layout/AppShell.tsx
+               web/src/features/inbox/InboxView.tsx
+               web/src/App.tsx
+
+HASIL AUDIT IMPLEMENTASI & PERILAKU MOBILE:
+1. Auto-hide Mobile Bottom Navigation Bar:
+   - AppShell.tsx menerima prop `hideBottomNav?: boolean`.
+   - Ketika obrolan chat dibuka di viewport mobile (< md, 360px–414px), navigation bar bawah disembunyikan secara otomatis (`{!hideBottomNav && <nav ...>}`).
+   - Container konten secara dinamis beralih dari `pb-16` menjadi `pb-0` sehingga 100% layar HP dialokasikan untuk percakapan obrolan (mengikuti standar WhatsApp/Telegram).
+   - Saat tombol Back (<) ditekan, tampilan kembali ke daftar kontak dan Bottom Navigation Bar langsung muncul kembali (`hideBottomNav=false`).
+
+2. Dynamic Height Viewport & Composer Placement:
+   - AppShell outer container menerapkan `h-screen md:h-screen h-[100dvh] w-screen`.
+   - InboxView chat container menerapkan `h-[100dvh] md:h-full`.
+   - Bottom composer textarea dan tombol kirim menempel rapi di dasar layar dengan padding aman `pb-[max(0.75rem,env(safe-area-inset-bottom))]` dan `z-20`.
+   - Tidak ada lagi input atau tombol Send yang tertutup oleh Bottom Nav Bar.
+
+STATUS: VERIFIED (PASS)
+================================================================================

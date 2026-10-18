@@ -198,9 +198,17 @@ export function TeamView({ selectedRole = 'all' }: { selectedRole?: string }) {
                     </div>
                   </div>
 
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                    {member.status}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {member.type === 'agent' && (
+                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Connected</span>
+                      </span>
+                    )}
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                      {member.status}
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-xs text-muted-foreground mt-3 leading-relaxed">

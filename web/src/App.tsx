@@ -39,6 +39,7 @@ export function App() {
   const [contactTab, setContactTab] = useState<ContactFilterTab>('all')
   const [contactSearch, setContactSearch] = useState('')
   const [selectedTeamRole, setSelectedTeamRole] = useState('all')
+  const [isMobileChatActive, setIsMobileChatActive] = useState(false)
 
   // Fetch Projects and Tasks
   const refreshProjects = useCallback(async () => {
@@ -171,6 +172,7 @@ export function App() {
           if (p) setCurrentTab('projects')
         }}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
+        hideBottomNav={currentTab === 'inbox' && isMobileChatActive}
         inboxSubPanel={
           <InboxSubPanel
             contacts={contacts}
@@ -201,6 +203,7 @@ export function App() {
             onContactTabChange={setContactTab}
             contactSearch={contactSearch}
             onContactSearchChange={setContactSearch}
+            onMobileChatActiveChange={setIsMobileChatActive}
           />
         )}
 
@@ -217,7 +220,7 @@ export function App() {
           />
         )}
 
-        {currentTab === 'agents' && <AgentsView />}
+        {currentTab === 'agents' && <AgentsView onAddAgent={() => refreshContacts()} />}
 
         {/* Team Directory — S17.4 */}
         {currentTab === 'team' && <TeamView selectedRole={selectedTeamRole} />}
