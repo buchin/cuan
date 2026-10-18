@@ -31,11 +31,11 @@ export function AgentsView() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-[#1a1b26] dark:text-[#c0caf5] flex items-center gap-2">
-          <Bot className="h-5 w-5 text-[#7aa2f7]" />
+        <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <Bot className="h-5 w-5 text-primary" />
           <span>AI Agents Hub</span>
         </h1>
-        <p className="text-xs text-[#565f89] mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           Dedicated AI worker agents available on your server to execute project tasks.
         </p>
       </div>
@@ -44,41 +44,39 @@ export function AgentsView() {
         {agents.map((agent) => (
           <div
             key={agent.id}
-            className="border border-[#cfd6e6] dark:border-[#24283b] bg-[#e2e7f1] dark:bg-[#16161e] p-5 space-y-4"
+            className="border border-border bg-card p-5 space-y-4 rounded-lg shadow-sm"
           >
             <div className="flex items-center justify-between">
-              <div className="h-8 w-8 bg-[#7aa2f7]/10 border border-[#7aa2f7]/20 flex items-center justify-center text-[#7aa2f7]">
+              <div className="h-8 w-8 bg-primary/10 border border-primary/20 flex items-center justify-center text-primary rounded-md">
                 <Cpu className="h-4 w-4" />
               </div>
-              <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-[#9ece6a]">
-                <div className="h-2 w-2 rounded-full bg-[#9ece6a]" />
+              <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-green-600">
+                <div className="h-2 w-2 rounded-full bg-green-500" />
                 {agent.status}
               </span>
             </div>
 
             <div>
-              <h3 className="font-bold text-sm text-[#1a1b26] dark:text-[#c0caf5]">
-                {agent.name}
-              </h3>
-              <p className="text-[11px] text-[#565f89] mt-0.5">{agent.role}</p>
+              <h3 className="font-bold text-sm text-foreground">{agent.name}</h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{agent.role}</p>
             </div>
 
-            <div className="space-y-1.5 text-xs pt-2 border-t border-[#cfd6e6] dark:border-[#24283b]">
-              <div className="text-[10px] text-[#565f89] uppercase tracking-wider font-semibold">
+            <div className="space-y-1.5 text-xs pt-2 border-t border-border">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                 Engine / Model
               </div>
-              <p className="text-[11px] text-[#343b58] dark:text-[#a9b1d6]">{agent.model}</p>
+              <p className="text-[11px] text-foreground/80">{agent.model}</p>
             </div>
 
             <div className="space-y-1.5 text-xs">
-              <div className="text-[10px] text-[#565f89] uppercase tracking-wider font-semibold">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                 Skills & Capabilities
               </div>
               <div className="flex flex-wrap gap-1">
                 {agent.capabilities.map((cap) => (
                   <span
                     key={cap}
-                    className="text-[9px] px-1.5 py-0.5 bg-[#cfd6e6] dark:bg-[#24283b] text-[#565f89]"
+                    className="text-[9px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded"
                   >
                     {cap}
                   </span>
@@ -89,13 +87,13 @@ export function AgentsView() {
         ))}
       </div>
 
-      <div className="p-6 border border-[#cfd6e6] dark:border-[#24283b] bg-[#f0f3f8] dark:bg-[#1f2335]/30">
-        <h3 className="text-xs font-bold text-[#1a1b26] dark:text-[#c0caf5] mb-2 flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-[#7aa2f7]" />
+      <div className="p-6 border border-border bg-muted/30 rounded-lg">
+        <h3 className="text-xs font-bold text-foreground mb-2 flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-primary" />
           <span>How In-Task Agent Execution Works</span>
         </h3>
-        <p className="text-xs text-[#565f89] leading-relaxed">
-          In Cuan, tasks are not dead checklist items. When you click <strong>"Run Agent"</strong> on any task card or from the side-peek drawer, the task prompt and Definition of Done (DoD) criteria are dispatched to the designated AI worker. The agent allocates an isolated workspace sandbox, inspects files, runs targeted tests, and streams terminal execution logs directly to your dashboard.
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          In Cuan, tasks are not dead checklist items. When you click <strong>&#34;Run Agent&#34;</strong> on any task card or from the side-peek drawer, the task prompt and Definition of Done (DoD) criteria are dispatched to the designated AI worker. The agent allocates an isolated workspace sandbox, inspects files, runs targeted tests, and streams terminal execution logs directly to your dashboard.
         </p>
       </div>
     </div>

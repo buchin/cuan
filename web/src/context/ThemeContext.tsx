@@ -21,17 +21,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         return stored
       }
     }
-    // Default to Tokyo Night dark mode
-    return 'dark'
+    return 'light'
   })
 
-  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark')
+  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('light')
 
   useEffect(() => {
     const root = document.documentElement
 
     const applyTheme = () => {
-      let active: 'dark' | 'light' = 'dark'
+      let active: 'dark' | 'light' = 'light'
       if (theme === 'system') {
         active = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
       } else {

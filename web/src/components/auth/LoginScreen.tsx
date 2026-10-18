@@ -4,7 +4,6 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
 import { useAuth } from '../../context/AuthContext'
-import { useTheme } from '../../context/ThemeContext'
 import {
   Lock,
   User,
@@ -13,8 +12,6 @@ import {
   ShieldCheck,
   AlertCircle,
   RefreshCw,
-  Sun,
-  Moon,
   Key
 } from 'lucide-react'
 
@@ -24,7 +21,6 @@ interface LoginScreenProps {
 
 export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
   const { login, isLoading } = useAuth()
-  const { resolvedTheme, toggleTheme } = useTheme()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -75,23 +71,6 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
           <span className="hidden sm:inline-block text-[11px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-muted">
             Clean Slate UI
           </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleTheme}
-            aria-label="Toggle Theme"
-            className="h-8 w-8 p-0"
-            title={`Beralih ke tema ${resolvedTheme === 'dark' ? 'Light' : 'Tokyo Night Dark'}`}
-          >
-            {resolvedTheme === 'dark' ? (
-              <Moon className="h-4 w-4 text-primary" />
-            ) : (
-              <Sun className="h-4 w-4 text-amber-500" />
-            )}
-          </Button>
         </div>
       </header>
 
@@ -227,7 +206,7 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
       {/* Footer */}
       <footer className="w-full max-w-5xl mx-auto py-3 text-center text-xs text-muted-foreground border-t border-border/60">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Cuan Platform — Tokyo Night Theme Engine & shadcn Sidebar-07 Shell</span>
+          <span>Cuan Platform — shadcn Sidebar-09 Shell</span>
           <span className="font-mono text-[11px]">PostgreSQL Session Guard • Bcrypt Hash</span>
         </div>
       </footer>

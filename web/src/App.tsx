@@ -1,14 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from './context/AuthContext'
 import { LoginScreen } from './components/auth/LoginScreen'
-import { AppShell } from './components/layout/AppShell'
+import { AppShell, AppTab } from './components/layout/AppShell'
 import { ProjectsView } from './features/projects/ProjectsView'
 import { CreateProjectModal } from './features/projects/CreateProjectModal'
-import { TaskBoardView } from './features/tasks/TaskBoardView'
 import { CreateTaskModal } from './features/tasks/CreateTaskModal'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
 import { AgentsView } from './features/agents/AgentsView'
-import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
 import { Project, Task, TaskStatus, TaskPriority, ProjectType, DoDItem } from './api/types'
@@ -18,7 +16,7 @@ export function App() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
 
   // Navigation State
-  const [currentTab, setCurrentTab] = useState<'projects' | 'tasks' | 'agents' | 'settings'>('projects')
+  const [currentTab, setCurrentTab] = useState<AppTab>('inbox')
   const [activeProject, setActiveProject] = useState<Project | undefined>(undefined)
 
   // Data States
@@ -70,25 +68,11 @@ export function App() {
     const created = await projectsApi.create(data)
     await refreshProjects()
     setActiveProject(created)
-    setCurrentTab('tasks')
+    setCurrentTab('projects')
   }
 
   const handleArchiveProject = async (id: string, isArchived: boolean) => {
     await projectsApi.archive(id, isArchived)
-    await refreshProjects()
-  }
-
-  const handleDeleteProject = async (id: string) => {
-    await projectsApi.delete(id)
-    if (activeProject?.id === id) {
-      setActiveProject(undefined)
-    }
-    await refreshProjects()
-    setCurrentTab('projects')
-  }
-
-  const handleUpdateProject = async (id: string, updates: any) => {
-    await projectsApi.update(id, updates)
     await refreshProjects()
   }
 
@@ -103,18 +87,6 @@ export function App() {
   }) => {
     await tasksApi.create(data)
     await refreshTasks()
-  }
-
-  const handleUpdateTaskStatus = async (taskId: string, status: TaskStatus) => {
-    // Optimistic update
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status } : t))
-    )
-    try {
-      await tasksApi.updateStatus(taskId, status)
-    } catch (err) {
-      await refreshTasks()
-    }
   }
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
@@ -137,19 +109,14 @@ export function App() {
     await refreshTasks()
   }
 
-  const handleOpenTaskDetail = (task: Task) => {
-    setSelectedTask(task)
-    setIsSidePeekOpen(true)
-  }
-
   // 1. Loading Auth State
   if (authLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#eaeef6] dark:bg-[#1a1b26] text-[#7aa2f7] font-mono">
+      <div className="h-screen w-screen flex items-center justify-center bg-background text-primary font-mono">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="text-xs uppercase tracking-widest text-[#565f89]">
-            Initializing Cuan Workplace...
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+            Initializing Cuan...
           </span>
         </div>
       </div>
@@ -161,7 +128,7 @@ export function App() {
     return <LoginScreen />
   }
 
-  // 3. Authenticated: Linear-Class App Shell
+  // 3. Authenticated: Sidebar-09 App Shell
   return (
     <>
       <AppShell
@@ -171,43 +138,39 @@ export function App() {
         projects={projects}
         onSelectProject={(p) => {
           setActiveProject(p)
-          if (p) setCurrentTab('tasks')
+          if (p) setCurrentTab('projects')
         }}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
       >
+        {/* Inbox placeholder — S17.2 */}
+        {currentTab === 'inbox' && (
+          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+            <p className="text-sm font-medium text-foreground">Inbox</p>
+            <p className="text-xs mt-1">Coming in S17.2 — Conversational Inbox Engine</p>
+          </div>
+        )}
+
         {currentTab === 'projects' && (
           <ProjectsView
             projects={projects}
             tasks={tasks}
             onSelectProject={(p) => {
               setActiveProject(p)
-              setCurrentTab('tasks')
+              setCurrentTab('projects')
             }}
             onCreateProject={() => setIsCreateProjectOpen(true)}
             onArchiveProject={handleArchiveProject}
           />
         )}
 
-        {currentTab === 'tasks' && (
-          <TaskBoardView
-            tasks={tasks}
-            projects={projects}
-            activeProject={activeProject}
-            onSelectTask={handleOpenTaskDetail}
-            onCreateTask={() => setIsCreateTaskOpen(true)}
-            onUpdateTaskStatus={handleUpdateTaskStatus}
-            onRunAgent={handleRunAgent}
-          />
-        )}
-
         {currentTab === 'agents' && <AgentsView />}
 
-        {currentTab === 'settings' && (
-          <SettingsView
-            activeProject={activeProject}
-            onUpdateProject={handleUpdateProject}
-            onDeleteProject={handleDeleteProject}
-          />
+        {/* Team placeholder — S17.4 */}
+        {currentTab === 'team' && (
+          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+            <p className="text-sm font-medium text-foreground">Team</p>
+            <p className="text-xs mt-1">Coming in S17.4 — Team Directory</p>
+          </div>
         )}
       </AppShell>
 
