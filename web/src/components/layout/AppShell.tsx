@@ -15,10 +15,11 @@ import {
   Moon,
   Menu,
   X,
+  Settings,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-export type AppTab = 'inbox' | 'tasks' | 'projects' | 'team'
+export type AppTab = 'inbox' | 'tasks' | 'projects' | 'team' | 'settings'
 
 interface AppShellProps {
   currentTab: AppTab
@@ -47,6 +48,7 @@ const NAV_ITEMS: { id: AppTab; label: string; icon: React.ElementType }[] = [
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'team', label: 'Team', icon: Users },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
 export function AppShell({
@@ -89,6 +91,8 @@ export function AppShell({
         )
       case 'team':
         return teamSubPanel ?? <DefaultSubPanel title="Team" description="Unified Team: Manusia & AI Agent" />
+      case 'settings':
+        return <DefaultSubPanel title="Settings" description="Konfigurasi Proyek, Domain & Server" />
     }
   }
 

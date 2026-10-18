@@ -69,9 +69,68 @@ func AntigravityLegacyCredentialsFilePath(configHome string) string {
 	return filepath.Join(AntigravityConfigDirPath(configHome), legacyCredentialsFileName)
 }
 
-// IsAntigravityLoggedIn checks whether agy has valid file-backed OAuth credentials.
+// CandidateConfigHomes returns candidate home directories where Gemini/Antigravity credentials may reside.
+func CandidateConfigHomes() []string {
+	var candidates []string
+	seen := make(map[string]bool)
+	add := func(dir string) {
+		dir = strings.TrimSpace(dir)
+		if dir != "" && !seen[dir] {
+			seen[dir] = true
+			candidates = append(candidates, dir)
+		}
+	}
+
+	if envPath := os.Getenv("ANTIGRAVITY_TOKEN_PATH"); envPath != "" {
+		dir := filepath.Dir(filepath.Dir(filepath.Dir(envPath)))
+		add(dir)
+	}
+	if envDir := os.Getenv("ANTIGRAVITY_CONFIG_DIR"); envDir != "" {
+		dir := filepath.Dir(filepath.Dir(envDir))
+		add(dir)
+	}
+
+	add(ConfigHome())
+	if h, err := os.UserHomeDir(); err == nil {
+		add(h)
+	}
+	add(os.Getenv("HOME"))
+	add("/home/dev")
+	add("/home/ubuntu")
+	add("/root")
+
+	return candidates
+}
+
+// ResolveAntigravityTokenPath finds the first valid token file across all candidate directories.
+func ResolveAntigravityTokenPath() (string, bool) {
+	// 1. Direct environment variable check
+	if envPath := strings.TrimSpace(os.Getenv("ANTIGRAVITY_TOKEN_PATH")); envPath != "" {
+		if hasValidCredential(envPath) {
+			return envPath, true
+		}
+	}
+
+	// 2. Candidate home directories
+	for _, home := range CandidateConfigHomes() {
+		primary := AntigravityCredentialsFilePath(home)
+		if hasValidCredential(primary) {
+			return primary, true
+		}
+		legacy := AntigravityLegacyCredentialsFilePath(home)
+		if hasValidCredential(legacy) {
+			return legacy, true
+		}
+	}
+
+	// Default fallback to ConfigHome
+	return AntigravityCredentialsFilePath(ConfigHome()), false
+}
+
+// IsAntigravityLoggedIn checks whether agy has valid file-backed OAuth credentials across candidate locations.
 func IsAntigravityLoggedIn() bool {
-	return IsAntigravityLoggedInInDir(ConfigHome())
+	_, found := ResolveAntigravityTokenPath()
+	return found
 }
 
 // IsAntigravityLoggedInInDir checks credentials in a specific home directory.
@@ -118,7 +177,7 @@ func jsonHasCredentialValue(val any) bool {
 
 // GetAntigravityAuthStatus returns current authentication status for the Antigravity harness.
 func GetAntigravityAuthStatus() map[string]interface{} {
-	loggedIn := IsAntigravityLoggedIn()
+	tokenPath, loggedIn := ResolveAntigravityTokenPath()
 	msg := "Sesi Antigravity server belum terotentikasi"
 	if loggedIn {
 		msg = "Sesi Antigravity server aktif & siap digunakan"
@@ -128,7 +187,7 @@ func GetAntigravityAuthStatus() map[string]interface{} {
 		"harness":       "agy",
 		"authenticated": loggedIn,
 		"message":       msg,
-		"token_path":    AntigravityCredentialsFilePath(ConfigHome()),
+		"token_path":    tokenPath,
 	}
 }
 

@@ -1,0 +1,23 @@
+================================================================================
+VERIFIKASI AUDIT S24.3: BOOKMARKABLE CLIENT-SIDE ROUTING & DEEP LINKING
+================================================================================
+Timestamp:     2026-10-18T18:25:00Z
+Task ID:       xgrfawgkncqdksinfxwrtnwh
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Status:        LULUS VERIFIKASI 100%
+
+1. react-router-dom Adoption:
+   - Terpasang pada web/package.json (^7.18.4) dan diinisialisasi melalui <BrowserRouter> di web/src/main.tsx.
+   - Refactor navigasi tab (/inbox, /tasks, /projects, /team, /settings).
+   - Deep linking parameter (/inbox/:conversationId, /tasks/:taskId, /projects/:projectId).
+
+2. Two-Way URL Synchronization:
+   - Klik UI (tab, kartu task, kontak inbox, kartu project) secara reaktif memperbarui URL address bar.
+   - Refresh browser (F5) atau paste URL langsung membuka halaman, tab, kontak, atau modal TaskSidePeek yang sesuai.
+   - Penutupan TaskSidePeek secara otomatis mengembalikan URL ke /tasks.
+   - Halaman /settings kini memiliki antarmuka SettingsView lengkap untuk konfigurasi environment variables dan repositori.
+
+3. Go Backend SPA Fallback:
+   - Server internal/server/server.go melayani web/dist/index.html dengan status 200 OK untuk seluruh client routes (/inbox, /tasks, /projects, /team, /settings, dan deep links).
+   - Build frontend "web/ npm run build" lulus 100% dengan 0 error TypeScript.

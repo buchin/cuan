@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { AppShell, AppTab } from './components/layout/AppShell'
@@ -9,6 +10,7 @@ import { TaskSidePeek } from './features/tasks/TaskSidePeek'
 import { TaskBoardView } from './features/tasks/TaskBoardView'
 import { TasksSubPanel } from './features/tasks/TasksSubPanel'
 import { TeamView, TeamSubPanel } from './features/team/TeamView'
+import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
 import { chatApi, ChatContact } from './api/chat'
@@ -19,24 +21,47 @@ import { Loader2 } from 'lucide-react'
 
 export function App() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  // Navigation State
-  const [currentTab, setCurrentTab] = useState<AppTab>('inbox')
-  const [activeProject, setActiveProject] = useState<Project | undefined>(undefined)
+  // Parse URL pathname segments: /:tab/:id
+  const pathSegments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname])
+  const rootSegment = pathSegments[0] || ''
+  const subParam = pathSegments[1] || ''
+
+  // Current tab derived from URL route
+  const currentTab: AppTab = useMemo(() => {
+    switch (rootSegment) {
+      case 'tasks':
+        return 'tasks'
+      case 'projects':
+        return 'projects'
+      case 'team':
+        return 'team'
+      case 'settings':
+        return 'settings'
+      case 'inbox':
+      default:
+        return 'inbox'
+    }
+  }, [rootSegment])
 
   // Data States
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [contacts, setContacts] = useState<ChatContact[]>([])
 
-  // Modals & Panels
-  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
-  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+  // Active selections
+  const [activeProject, setActiveProject] = useState<Project | undefined>(undefined)
+  const [activeContact, setActiveContact] = useState<ChatContact | undefined>(undefined)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isSidePeekOpen, setIsSidePeekOpen] = useState(false)
 
-  // Chat / Messenger State (S18)
-  const [contacts, setContacts] = useState<ChatContact[]>([])
-  const [activeContact, setActiveContact] = useState<ChatContact | undefined>(undefined)
+  // Modals
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+
+  // Filters & Mobile
   const [contactTab, setContactTab] = useState<ContactFilterTab>('all')
   const [contactSearch, setContactSearch] = useState('')
   const [selectedTeamRole, setSelectedTeamRole] = useState('all')
@@ -44,6 +69,13 @@ export function App() {
   const [selectedTaskProject, setSelectedTaskProject] = useState('all')
   const [isMobileChatActive, setIsMobileChatActive] = useState(false)
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
+
+  // Default redirect from / to /inbox
+  useEffect(() => {
+    if (location.pathname === '/' || location.pathname === '') {
+      navigate('/inbox', { replace: true })
+    }
+  }, [location.pathname, navigate])
 
   // Fetch Projects and Tasks
   const refreshProjects = useCallback(async () => {
@@ -61,7 +93,6 @@ export function App() {
 
   const refreshTasks = useCallback(async () => {
     try {
-      // In Tasks tab or when no project is active, list all tasks across projects
       const projId = currentTab === 'projects' ? activeProject?.id : undefined
       const data = await tasksApi.list(projId)
       setTasks(data)
@@ -74,14 +105,6 @@ export function App() {
     try {
       const data = await chatApi.listContacts()
       setContacts(data)
-      setActiveContact((prev) => {
-        if (prev) {
-          const updated = data.find((c) => c.id === prev.id)
-          if (updated) return updated
-        }
-        const sm = data.find((c) => c.id === 'agent-sm' || c.name.toLowerCase().includes('scrum master'))
-        return sm || data[0] || undefined
-      })
     } catch (err) {
       console.error('Failed to load contacts:', err)
     }
@@ -95,6 +118,98 @@ export function App() {
     }
   }, [isAuthenticated, refreshProjects, refreshTasks, refreshContacts])
 
+  // Deep Link Synchronization: /inbox/:conversationId
+  useEffect(() => {
+    if (rootSegment === 'inbox' && contacts.length > 0) {
+      if (subParam) {
+        const matched = contacts.find(
+          (c) =>
+            c.conversation_id === subParam ||
+            c.id === subParam ||
+            c.id === 'contact_' + subParam ||
+            c.name.toLowerCase() === subParam.toLowerCase() ||
+            ('@' + c.name.toLowerCase()) === subParam.toLowerCase()
+        )
+        if (matched) {
+          setActiveContact(matched)
+        }
+      } else if (!activeContact) {
+        const sm = contacts.find((c) => c.id === 'agent-sm' || c.name.toLowerCase().includes('scrum master'))
+        setActiveContact(sm || contacts[0])
+      }
+    }
+  }, [rootSegment, subParam, contacts, activeContact])
+
+  // Deep Link Synchronization: /tasks/:taskId
+  useEffect(() => {
+    if (rootSegment === 'tasks' && tasks.length > 0) {
+      if (subParam) {
+        const matched = tasks.find((t) => t.id === subParam)
+        if (matched) {
+          setSelectedTask(matched)
+          setIsSidePeekOpen(true)
+        }
+      } else {
+        setIsSidePeekOpen(false)
+        setSelectedTask(null)
+      }
+    }
+  }, [rootSegment, subParam, tasks])
+
+  // Deep Link Synchronization: /projects/:projectId
+  useEffect(() => {
+    if (rootSegment === 'projects' && projects.length > 0) {
+      if (subParam) {
+        const matched = projects.find((p) => p.id === subParam)
+        if (matched) {
+          setActiveProject(matched)
+        }
+      }
+    }
+  }, [rootSegment, subParam, projects])
+
+  // Navigation handlers
+  const handleSelectTab = (tab: AppTab) => {
+    if (tab === 'inbox') {
+      navigate(activeContact ? `/inbox/${activeContact.conversation_id || activeContact.id}` : '/inbox')
+    } else if (tab === 'tasks') {
+      navigate(selectedTask && isSidePeekOpen ? `/tasks/${selectedTask.id}` : '/tasks')
+    } else if (tab === 'projects') {
+      navigate(activeProject ? `/projects/${activeProject.id}` : '/projects')
+    } else {
+      navigate(`/${tab}`)
+    }
+    if (tab !== 'inbox') {
+      setIsMobileChatActive(false)
+    }
+  }
+
+  const handleSelectContact = (c: ChatContact) => {
+    setActiveContact(c)
+    navigate(`/inbox/${c.conversation_id || c.id}`)
+  }
+
+  const handleSelectTask = (t: Task) => {
+    setSelectedTask(t)
+    setIsSidePeekOpen(true)
+    navigate(`/tasks/${t.id}`)
+  }
+
+  const handleCloseSidePeek = () => {
+    setIsSidePeekOpen(false)
+    setSelectedTask(null)
+    navigate('/tasks')
+  }
+
+  const handleSelectProject = (p?: Project) => {
+    setActiveProject(p)
+    if (p) {
+      navigate(`/projects/${p.id}`)
+    } else {
+      navigate('/projects')
+    }
+  }
+
   // Handlers for Projects
   const handleCreateProject = async (data: {
     name: string
@@ -104,8 +219,7 @@ export function App() {
   }) => {
     const created = await projectsApi.create(data)
     await refreshProjects()
-    setActiveProject(created)
-    setCurrentTab('projects')
+    handleSelectProject(created)
   }
 
   const handleArchiveProject = async (id: string, isArchived: boolean) => {
@@ -137,8 +251,7 @@ export function App() {
   const handleDeleteTask = async (taskId: string) => {
     await tasksApi.delete(taskId)
     await refreshTasks()
-    setIsSidePeekOpen(false)
-    setSelectedTask(null)
+    handleCloseSidePeek()
   }
 
   const handleRunAgent = async (taskId: string) => {
@@ -170,27 +283,19 @@ export function App() {
     <>
       <AppShell
         currentTab={currentTab}
-        onSelectTab={(tab) => {
-          setCurrentTab(tab)
-          if (tab !== 'inbox') {
-            setIsMobileChatActive(false)
-          }
-        }}
+        onSelectTab={handleSelectTab}
         isMobileDrawerOpen={isMobileDrawerOpen}
         onMobileDrawerOpenChange={setIsMobileDrawerOpen}
         activeProject={activeProject}
         projects={projects}
-        onSelectProject={(p) => {
-          setActiveProject(p)
-          if (p) setCurrentTab('projects')
-        }}
+        onSelectProject={handleSelectProject}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
         hideBottomNav={currentTab === 'inbox' && isMobileChatActive}
         inboxSubPanel={
           <InboxSubPanel
             contacts={contacts}
             activeContactId={activeContact?.id}
-            onSelectContact={(c) => setActiveContact(c)}
+            onSelectContact={handleSelectContact}
             selectedTab={contactTab}
             onTabChange={setContactTab}
             searchQuery={contactSearch}
@@ -221,7 +326,7 @@ export function App() {
           <InboxView
             contacts={contacts}
             activeContact={activeContact}
-            onSelectContact={(c) => setActiveContact(c)}
+            onSelectContact={handleSelectContact}
             onContactUpdated={refreshContacts}
             contactTab={contactTab}
             onContactTabChange={setContactTab}
@@ -240,10 +345,7 @@ export function App() {
               projects={projects}
               activeProject={selectedTaskProject !== 'all' ? projects.find((p) => p.id === selectedTaskProject) : undefined}
               selectedStatusFilter={selectedTaskStatus}
-              onSelectTask={(t) => {
-                setSelectedTask(t)
-                setIsSidePeekOpen(true)
-              }}
+              onSelectTask={handleSelectTask}
               onCreateTask={() => setIsCreateTaskOpen(true)}
               onUpdateTaskStatus={(taskId, status) => handleUpdateTask(taskId, { status })}
               onRunAgent={handleRunAgent}
@@ -256,10 +358,7 @@ export function App() {
           <ProjectsView
             projects={projects}
             tasks={tasks}
-            onSelectProject={(p) => {
-              setActiveProject(p)
-              setCurrentTab('projects')
-            }}
+            onSelectProject={handleSelectProject}
             onCreateProject={() => setIsCreateProjectOpen(true)}
             onArchiveProject={handleArchiveProject}
           />
@@ -271,6 +370,23 @@ export function App() {
             <TeamView
               selectedRole={selectedTeamRole}
               onAgentAdded={refreshContacts}
+            />
+          </div>
+        )}
+
+        {/* 5. Settings Configuration */}
+        {currentTab === 'settings' && (
+          <div className="h-full p-4 md:p-6 overflow-y-auto">
+            <SettingsView
+              activeProject={activeProject}
+              onUpdateProject={async (id, data) => {
+                await projectsApi.update(id, data)
+                await refreshProjects()
+              }}
+              onDeleteProject={async (id) => {
+                await projectsApi.archive(id, true)
+                await refreshProjects()
+              }}
             />
           </div>
         )}
@@ -296,10 +412,7 @@ export function App() {
         task={selectedTask}
         projects={projects}
         isOpen={isSidePeekOpen}
-        onClose={() => {
-          setIsSidePeekOpen(false)
-          setSelectedTask(null)
-        }}
+        onClose={handleCloseSidePeek}
         onUpdate={handleUpdateTask}
         onDelete={handleDeleteTask}
         onRunAgent={handleRunAgent}

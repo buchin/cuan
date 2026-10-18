@@ -717,6 +717,199 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// ResolvedConversation holds the resolved room and target agent metadata.
+type ResolvedConversation struct {
+	RoomID          string
+	TargetAgentID   string
+	TargetAgentName string
+	TargetHarness   string
+	IsAgent         bool
+}
+
+// resolveConversationContext resolves any conversation identifier (room UUID, agent ID, contact alias, handle)
+// into a valid room UUID in project_rooms and the target agent persona.
+func (s *Server) resolveConversationContext(ctx context.Context, convID string, messageText string) ResolvedConversation {
+	s.ensureDefaultAgentRooms(ctx)
+
+	result := ResolvedConversation{
+		RoomID:        strings.TrimSpace(convID),
+		TargetHarness: "agy",
+	}
+
+	trimmedID := strings.TrimSpace(convID)
+
+	// 1. Check Scrum Master shortcuts
+	if trimmedID == defaultScrumMasterRoomID ||
+		trimmedID == "contact_scrum_master" ||
+		trimmedID == "scrum" ||
+		trimmedID == "agent_scrum_master" ||
+		trimmedID == "@sm" ||
+		trimmedID == "sm" {
+		result.RoomID = defaultScrumMasterRoomID
+		result.TargetAgentID = "agent_scrum_master"
+		result.TargetAgentName = "Scrum Master"
+		result.TargetHarness = "agy"
+		result.IsAgent = true
+		return result
+	}
+
+	// 2. Check Antigravity Flash shortcuts
+	if trimmedID == defaultAntigravityRoomID ||
+		trimmedID == "contact_antigravity" ||
+		trimmedID == "antigravity" ||
+		trimmedID == "agent_antigravity" ||
+		trimmedID == "@antigravity" {
+		result.RoomID = defaultAntigravityRoomID
+		result.TargetAgentID = "antigravity_flash"
+		result.TargetAgentName = "Antigravity Flash"
+		result.TargetHarness = "agy"
+		result.IsAgent = true
+		return result
+	}
+
+	// 3. Clean candidate agent ID from contact_ or agent_ prefix
+	cleanAgentID := strings.TrimPrefix(trimmedID, "contact_")
+	cleanAgentID = strings.TrimPrefix(cleanAgentID, "agent_")
+
+	// 4. Check if convID matches an agent in agentRepo
+	if s.agentRepo != nil {
+		if ag, err := s.agentRepo.GetAgentByID(ctx, cleanAgentID); err == nil && ag != nil {
+			result.TargetAgentID = ag.ID
+			result.TargetAgentName = ag.Name
+			result.TargetHarness = ag.Harness
+			result.IsAgent = true
+		} else if ags, err := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); err == nil {
+			for _, a := range ags {
+				handleClean := strings.ToLower(strings.TrimPrefix(a.Name, "@"))
+				reqClean := strings.ToLower(strings.TrimPrefix(cleanAgentID, "@"))
+				if a.ID == cleanAgentID || a.ID == trimmedID || handleClean == reqClean {
+					result.TargetAgentID = a.ID
+					result.TargetAgentName = a.Name
+					result.TargetHarness = a.Harness
+					result.IsAgent = true
+					break
+				}
+			}
+		}
+	}
+
+	// If resolved to an agent directly, find or create room for this agent
+	if result.IsAgent {
+		if s.projectStudioRepo != nil {
+			var foundRoomID string
+			if allRooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
+				for _, rm := range allRooms {
+					if rm.Topic == "agent:"+result.TargetAgentID || rm.Title == result.TargetAgentName {
+						foundRoomID = rm.ID
+						break
+					}
+				}
+			}
+			if foundRoomID == "" {
+				foundRoomID = db.GenerateUUID()
+				now := time.Now().UTC()
+				_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+					ID:        foundRoomID,
+					ProjectID: "default",
+					Title:     result.TargetAgentName,
+					Topic:     "agent:" + result.TargetAgentID,
+					CreatedAt: now,
+					UpdatedAt: now,
+				})
+			}
+			result.RoomID = foundRoomID
+		}
+		return result
+	}
+
+	// 5. If convID is a room UUID in projectStudioRepo
+	if s.projectStudioRepo != nil {
+		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
+			result.RoomID = rm.ID
+			if strings.HasPrefix(rm.Topic, "agent:") {
+				result.IsAgent = true
+				result.TargetAgentID = strings.TrimPrefix(rm.Topic, "agent:")
+				result.TargetAgentName = rm.Title
+				if s.agentRepo != nil {
+					if ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil && ag != nil {
+						result.TargetHarness = ag.Harness
+						if ag.Name != "" {
+							result.TargetAgentName = ag.Name
+						}
+					}
+				}
+				return result
+			} else if strings.Contains(rm.Topic, "Interactive Agent Chat") || strings.HasPrefix(rm.Title, "@") {
+				result.IsAgent = true
+				result.TargetAgentName = rm.Title
+				result.TargetAgentID = "agent_" + strings.TrimPrefix(rm.Title, "@")
+				return result
+			}
+		}
+	}
+
+	// 6. Check mention in message if any
+	mention := extractMentionHandle(messageText)
+	if mention != "" {
+		if mention == "@sm" || mention == "@scrum" || strings.EqualFold(mention, "@scrum_master") {
+			result.TargetAgentID = "agent_scrum_master"
+			result.TargetAgentName = "Scrum Master"
+			result.TargetHarness = "agy"
+			result.IsAgent = true
+		} else if s.agentRepo != nil {
+			if ags, err := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); err == nil {
+				for _, a := range ags {
+					if strings.EqualFold(a.Name, mention) || strings.EqualFold("@"+strings.TrimPrefix(a.Name, "@"), mention) {
+						result.TargetAgentID = a.ID
+						result.TargetAgentName = a.Name
+						result.TargetHarness = a.Harness
+						result.IsAgent = true
+						break
+					}
+				}
+			}
+		}
+		if !result.IsAgent && strings.HasPrefix(mention, "@") {
+			result.TargetAgentName = mention
+			result.TargetAgentID = "agent_" + strings.TrimPrefix(mention, "@")
+			result.TargetHarness = "agy"
+			result.IsAgent = true
+		}
+	}
+
+	// 7. Ensure RoomID is a valid UUID so SQL insert into project_messages never fails
+	if !db.IsValidUUID(result.RoomID) {
+		if s.projectStudioRepo != nil {
+			var matchedRoomID string
+			if allRooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
+				for _, rm := range allRooms {
+					if rm.Title == trimmedID || rm.Topic == trimmedID {
+						matchedRoomID = rm.ID
+						break
+					}
+				}
+			}
+			if matchedRoomID == "" {
+				matchedRoomID = db.GenerateUUID()
+				now := time.Now().UTC()
+				_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+					ID:        matchedRoomID,
+					ProjectID: "default",
+					Title:     trimmedID,
+					Topic:     "general",
+					CreatedAt: now,
+					UpdatedAt: now,
+				})
+			}
+			result.RoomID = matchedRoomID
+		} else {
+			result.RoomID = db.GenerateUUID()
+		}
+	}
+
+	return result
+}
+
 // GET /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r *http.Request) {
 	convID := chi.URLParam(r, "id")
@@ -725,102 +918,64 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		return
 	}
 
-	s.ensureDefaultAgentRooms(r.Context())
+	resolved := s.resolveConversationContext(r.Context(), convID, "")
 
-	// Resolve contact
 	var contact ChatContact
-	if convID == defaultScrumMasterRoomID || convID == "contact_scrum_master" || convID == "scrum" {
-		convID = defaultScrumMasterRoomID
-		contact = ChatContact{
-			ID:             "contact_scrum_master",
-			Type:           "agent",
-			Name:           "Scrum Master",
-			Avatar:         "👔",
-			Status:         "online",
-			ConversationID: defaultScrumMasterRoomID,
+	if resolved.IsAgent {
+		avatar := "🤖"
+		if resolved.TargetAgentName == "Scrum Master" {
+			avatar = "👔"
+		} else if s.agentRepo != nil {
+			if ag, err := s.agentRepo.GetAgentByID(r.Context(), resolved.TargetAgentID); err == nil && ag != nil && ag.Avatar != "" {
+				avatar = ag.Avatar
+			}
 		}
-	} else if convID == defaultAntigravityRoomID || convID == "contact_antigravity" {
-		convID = defaultAntigravityRoomID
 		contact = ChatContact{
-			ID:             "contact_antigravity",
+			ID:             "contact_" + resolved.TargetAgentID,
 			Type:           "agent",
-			Name:           "Antigravity Flash",
-			Avatar:         "🤖",
+			Name:           resolved.TargetAgentName,
+			Avatar:         avatar,
 			Status:         "online",
-			ConversationID: defaultAntigravityRoomID,
+			ConversationID: resolved.RoomID,
 		}
 	} else {
-		// Resolve alias if needed (e.g., contact_agent_xxx or agent_xxx)
-		if strings.HasPrefix(convID, "contact_agent_") || strings.HasPrefix(convID, "agent_") {
-			agentID := strings.TrimPrefix(convID, "contact_")
-			if s.projectStudioRepo != nil {
-				if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
-					for _, rm := range allRooms {
-						if rm.Topic == "agent:"+agentID || rm.Title == agentID {
-							convID = rm.ID
-							break
-						}
-					}
-				}
+		// Customer contact
+		globalChatManager.RLock()
+		sess := globalChatManager.sessions[resolved.RoomID]
+		globalChatManager.RUnlock()
+
+		name := "Customer"
+		product := ""
+		guestUUID := ""
+		if sess != nil {
+			name = sess.Name
+			product = sess.Product
+			guestUUID = sess.GuestUUID
+		} else if s.projectStudioRepo != nil {
+			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); err == nil && rm != nil {
+				name = rm.Title
+				product = rm.Topic
 			}
 		}
 
-		isAgent := false
-		if s.projectStudioRepo != nil {
-			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
-				if strings.HasPrefix(rm.Topic, "agent:") || strings.Contains(rm.Topic, "Interactive Agent Chat") {
-					isAgent = true
-					agentID := strings.TrimPrefix(rm.Topic, "agent:")
-					contact = ChatContact{
-						ID:             "contact_" + agentID,
-						Type:           "agent",
-						Name:           rm.Title,
-						Avatar:         "🤖",
-						Status:         "online",
-						ConversationID: convID,
-					}
-				}
-			}
-		}
-
-		if !isAgent {
-			// Customer contact
-			globalChatManager.RLock()
-			sess := globalChatManager.sessions[convID]
-			globalChatManager.RUnlock()
-
-			name := "Customer"
-			product := ""
-			guestUUID := ""
-			if sess != nil {
-				name = sess.Name
-				product = sess.Product
-				guestUUID = sess.GuestUUID
-			} else if s.projectStudioRepo != nil {
-				if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
-					name = rm.Title
-					product = rm.Topic
-				}
-			}
-
-			contact = ChatContact{
-				ID:             "cust_" + convID,
-				Type:           "customer",
-				Name:           name,
-				Avatar:         "👤",
-				Status:         "online",
-				Product:        product,
-				GuestUUID:      guestUUID,
-				ConversationID: convID,
-			}
+		contact = ChatContact{
+			ID:             "cust_" + resolved.RoomID,
+			Type:           "customer",
+			Name:           name,
+			Avatar:         "👤",
+			Status:         "online",
+			Product:        product,
+			GuestUUID:      guestUUID,
+			ConversationID: resolved.RoomID,
 		}
 	}
 
 	product := contact.Product
-	messages := s.getFormattedMessages(r.Context(), convID, product)
+	messages := s.getFormattedMessages(r.Context(), resolved.RoomID, product)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"conversation_id": convID,
+		"room_id":         resolved.RoomID,
 		"contact":         contact,
 		"messages":        messages,
 	})
@@ -833,8 +988,6 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		respondJSONError(w, http.StatusBadRequest, "conversation id is required")
 		return
 	}
-
-	s.ensureDefaultAgentRooms(r.Context())
 
 	var payload struct {
 		Message    string `json:"message"`
@@ -857,6 +1010,8 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 
+	resolved := s.resolveConversationContext(r.Context(), convID, text)
+
 	now := time.Now().UTC()
 	msgUUID := db.GenerateUUID()
 
@@ -869,26 +1024,11 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		authorName = "Buchin"
 	}
 
-	// Resolve agent contact alias to room ID if needed
-	if strings.HasPrefix(convID, "contact_agent_") || strings.HasPrefix(convID, "agent_") {
-		agentID := strings.TrimPrefix(convID, "contact_")
-		if s.projectStudioRepo != nil {
-			if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
-				for _, rm := range allRooms {
-					if rm.Topic == "agent:"+agentID || rm.Title == agentID {
-						convID = rm.ID
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// Save the operator/user message
+	// Save the user message to the resolved room
 	if s.projectStudioRepo != nil {
 		if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 			ID:         msgUUID,
-			RoomID:     convID,
+			RoomID:     resolved.RoomID,
 			AuthorType: authorType,
 			AuthorID:   "operator_user",
 			AuthorName: authorName,
@@ -896,92 +1036,28 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		}); err != nil {
-			log.Printf("[handleInternalSendConversationMessage] failed to save user message: %v (re-ensuring default agent rooms)", err)
-			s.ensureDefaultAgentRooms(r.Context())
-			if err2 := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-				ID:         msgUUID,
-				RoomID:     convID,
-				AuthorType: authorType,
-				AuthorID:   "operator_user",
-				AuthorName: authorName,
-				Content:    text,
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			}); err2 != nil {
-				log.Printf("[handleInternalSendConversationMessage] retry save user message failed: %v", err2)
-			}
+			log.Printf("[handleInternalSendConversationMessage] failed to save user message: %v", err)
 		}
 	}
 
-	// Resolve agent mention or conversation context
 	var agentMsgDTO *ChatMessageDTO
 
-	mention := extractMentionHandle(text)
-	var targetAgentName string
-	var targetAgentID string
-	var targetHarness string
-
-	if mention != "" {
-		if s.agentRepo != nil {
-			if agents, err := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{}); err == nil {
-				for _, a := range agents {
-					if strings.EqualFold(a.Name, mention) || strings.EqualFold("@"+strings.TrimPrefix(a.Name, "@"), mention) {
-						targetAgentName = a.Name
-						targetAgentID = a.ID
-						targetHarness = a.Harness
-						break
-					}
-				}
-			}
-		}
-		if targetAgentName == "" {
-			targetAgentName = mention
-			targetAgentID = "agent_" + strings.TrimPrefix(mention, "@")
-			targetHarness = "agy"
-		}
-	}
-
-	if targetAgentName == "" {
-		if convID == defaultScrumMasterRoomID || strings.Contains(convID, "scrum") {
-			targetAgentName = "Scrum Master"
-			targetAgentID = "agent_scrum_master"
-		} else if convID == defaultAntigravityRoomID || convID == "contact_antigravity" {
-			targetAgentName = "Antigravity Flash"
-			targetAgentID = "antigravity_flash"
-			targetHarness = "agy"
-		} else if s.agentRepo != nil {
-			if ag, err := s.agentRepo.GetAgentByID(r.Context(), convID); err == nil && ag != nil {
-				targetAgentName = ag.Name
-				targetAgentID = ag.ID
-				targetHarness = ag.Harness
-			}
-		}
-		if targetAgentName == "" && s.projectStudioRepo != nil {
-			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), convID); err == nil && rm != nil {
-				if strings.HasPrefix(rm.Topic, "agent:") || strings.Contains(rm.Topic, "Interactive Agent Chat") {
-					targetAgentID = strings.TrimPrefix(rm.Topic, "agent:")
-					targetAgentName = rm.Title
-				}
-			}
-		}
-	}
-
-	if targetAgentName != "" {
+	if resolved.IsAgent {
 		role := ClassifyMessageContext(text)
 
 		// Backward-compatible triage card for Scrum Master on technical task instructions
-		if (convID == defaultScrumMasterRoomID || targetAgentName == "Scrum Master") && isTechnicalTaskInstruction(text) {
+		if (resolved.RoomID == defaultScrumMasterRoomID || resolved.TargetAgentName == "Scrum Master") && isTechnicalTaskInstruction(text) {
 			triage := generateSMTriageResponse(text)
 			agentUUID := db.GenerateUUID()
-			agentNow := now.Add(200 * time.Millisecond)
+			agentNow := now.Add(100 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
 				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
-					RoomID:     convID,
+					RoomID:     resolved.RoomID,
 					AuthorType: "agent",
-					AuthorID:   targetAgentID,
-					AuthorName: targetAgentName,
+					AuthorID:   resolved.TargetAgentID,
+					AuthorName: resolved.TargetAgentName,
 					Content:    triage.Text,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
@@ -993,35 +1069,34 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 				DoDChecklist:   triage.DoDItems,
 				WorkerAgent:    triage.WorkerAgent,
 				Recommended:    true,
-				ApproveURL:     fmt.Sprintf("/api/v1/inbox/%s/approve", convID),
+				ApproveURL:     fmt.Sprintf("/api/v1/inbox/%s/approve", resolved.RoomID),
 				ExecutionState: "ready",
 			}
 
 			agentMsgDTO = &ChatMessageDTO{
 				ID:         2,
 				UUID:       agentUUID,
-				RoomID:     convID,
+				RoomID:     resolved.RoomID,
 				SenderType: "operator",
 				AuthorType: "agent",
-				AuthorName: targetAgentName,
+				AuthorName: resolved.TargetAgentName,
 				Message:    triage.Text,
 				Content:    triage.Text,
 				ActionCard: card,
 				CreatedAt:  agentNow,
 			}
-		} else if (convID == defaultScrumMasterRoomID || targetAgentName == "Scrum Master") && role == RoleFriendly {
-			// Natural, friendly conversational response for Scrum Master
+		} else if (resolved.RoomID == defaultScrumMasterRoomID || resolved.TargetAgentName == "Scrum Master") && role == RoleFriendly {
 			convReplyText := s.generateSMConversationalResponse(r.Context(), text)
 			agentUUID := db.GenerateUUID()
-			agentNow := now.Add(200 * time.Millisecond)
+			agentNow := now.Add(100 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
 				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
-					RoomID:     convID,
+					RoomID:     resolved.RoomID,
 					AuthorType: "agent",
-					AuthorID:   targetAgentID,
-					AuthorName: targetAgentName,
+					AuthorID:   resolved.TargetAgentID,
+					AuthorName: resolved.TargetAgentName,
 					Content:    convReplyText,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
@@ -1031,10 +1106,10 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			agentMsgDTO = &ChatMessageDTO{
 				ID:         2,
 				UUID:       agentUUID,
-				RoomID:     convID,
+				RoomID:     resolved.RoomID,
 				SenderType: "operator",
 				AuthorType: "agent",
-				AuthorName: targetAgentName,
+				AuthorName: resolved.TargetAgentName,
 				Message:    convReplyText,
 				Content:    convReplyText,
 				ActionCard: nil,
@@ -1042,17 +1117,17 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			}
 		} else {
 			// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
-			agentReplyText := s.executeAgentContextualResponse(r.Context(), targetAgentName, targetHarness, text, role)
+			agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role)
 			agentUUID := db.GenerateUUID()
-			agentNow := now.Add(200 * time.Millisecond)
+			agentNow := now.Add(100 * time.Millisecond)
 
 			if s.projectStudioRepo != nil {
 				_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 					ID:         agentUUID,
-					RoomID:     convID,
+					RoomID:     resolved.RoomID,
 					AuthorType: "agent",
-					AuthorID:   targetAgentID,
-					AuthorName: targetAgentName,
+					AuthorID:   resolved.TargetAgentID,
+					AuthorName: resolved.TargetAgentName,
 					Content:    agentReplyText,
 					CreatedAt:  agentNow,
 					UpdatedAt:  agentNow,
@@ -1062,10 +1137,10 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			agentMsgDTO = &ChatMessageDTO{
 				ID:         2,
 				UUID:       agentUUID,
-				RoomID:     convID,
+				RoomID:     resolved.RoomID,
 				SenderType: "operator",
 				AuthorType: "agent",
-				AuthorName: targetAgentName,
+				AuthorName: resolved.TargetAgentName,
 				Message:    agentReplyText,
 				Content:    agentReplyText,
 				CreatedAt:  agentNow,
@@ -1076,7 +1151,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	userDTO := ChatMessageDTO{
 		ID:         1,
 		UUID:       msgUUID,
-		RoomID:     convID,
+		RoomID:     resolved.RoomID,
 		SenderType: "visitor",
 		AuthorType: authorType,
 		AuthorName: authorName,

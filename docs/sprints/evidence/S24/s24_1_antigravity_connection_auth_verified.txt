@@ -1,0 +1,28 @@
+================================================================================
+VERIFIKASI AUDIT S24.1: REAL ANTIGRAVITY CONNECTION & SERVER AUTH PIPELINE
+================================================================================
+Timestamp:     2026-10-18T18:25:00Z
+Task ID:       xgrfawgkncqdksinfxwrtnwh
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Status:        LULUS VERIFIKASI 100%
+
+1. Multi-Home Token Path Resolution:
+   - CandidateConfigHomes() memindai candidate paths di lingkungan host:
+     * ConfigHome() (~/.gemini/antigravity-cli/antigravity-oauth-token)
+     * /home/ubuntu/.gemini/antigravity-cli/antigravity-oauth-token
+     * /home/dev/.gemini/antigravity-cli/antigravity-oauth-token
+     * /root/.gemini/antigravity-cli/antigravity-oauth-token
+     * Environment variable override ANTIGRAVITY_TOKEN_PATH & ANTIGRAVITY_CONFIG_DIR
+   - Token ditemukan secara faktual di host local/VPS dan divalidasi keutuhan OAuth JSON (access_token, id_token).
+
+2. Endpoint Verification:
+   - GET /api/v1/agents/auth-status?harness=agy -> 200 OK
+     Response: {"authenticated": true, "harness": "agy", "status": "success", "token_path": "/home/dev/.gemini/antigravity-cli/antigravity-oauth-token"}
+   - POST /auth-init -> 200 OK
+   - POST /auth-code -> 200 OK (Mendukung pertukaran kode Google OAuth dan injeksi payload token JSON langsung)
+
+3. Automated Test Coverage:
+   - internal/agent/antigravityauth_test.go -> PASS
+   - internal/server/agent_handlers_test.go (TestServer_HarnessAuthEndpoints) -> PASS
+   - internal/server/verify_s24_5_production_launch_test.go -> PASS

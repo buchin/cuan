@@ -653,6 +653,35 @@ func TestServer_HarnessAuthEndpoints(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 Bad Request on empty code, got %d", w.Code)
 	}
+
+	// 4. GET /api/v1/agents/auth-status (agy default)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/agents/auth-status", nil)
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on agy auth-status, got %d", w.Code)
+	}
+
+	// 5. POST /auth-init alias
+	initBody2, _ := json.Marshal(map[string]string{"harness": "claude"})
+	req = httptest.NewRequest(http.MethodPost, "/auth-init", bytes.NewReader(initBody2))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /auth-init alias, got %d", w.Code)
+	}
+
+	// 6. POST /auth-code alias with JSON token payload
+	sampleJSON := `{"token":"mock-token-xyz-12345678","id_token":"mock-id-token"}`
+	tokenBody, _ := json.Marshal(map[string]string{"session_id": "mock_sess", "code": sampleJSON})
+	req = httptest.NewRequest(http.MethodPost, "/auth-code", bytes.NewReader(tokenBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /auth-code alias with token payload, got %d", w.Code)
+	}
 }
 
 

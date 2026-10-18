@@ -430,4 +430,28 @@ func TestChatHandlers_DynamicRoles(t *testing.T) {
 	if !strings.Contains(respGreet.AgentReply.Message, "Kabar baik") && !strings.Contains(respGreet.AgentReply.Message, "Halo Buchin") {
 		t.Errorf("expected friendly natural response, got: %s", respGreet.AgentReply.Message)
 	}
+
+	// 5. Verify chat history persistence via GET /api/v1/chat/conversations/{id}/messages
+	reqHist := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+createdAgent.ID+"/messages", nil)
+	reqHist.Header.Set("Authorization", "Bearer "+token)
+	recHist := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recHist, reqHist)
+
+	if recHist.Code != http.StatusOK {
+		t.Fatalf("expected 200 for chat history, got %d: %s", recHist.Code, recHist.Body.String())
+	}
+	var histResp struct {
+		ConversationID string           `json:"conversation_id"`
+		Messages       []ChatMessageDTO `json:"messages"`
+		Contact        ChatContact      `json:"contact"`
+	}
+	if err := json.Unmarshal(recHist.Body.Bytes(), &histResp); err != nil {
+		t.Fatalf("failed to decode history response: %v", err)
+	}
+	if len(histResp.Messages) < 4 { // 2 user messages (devMsg, greetMsg) + 2 agent replies
+		t.Fatalf("expected at least 4 messages in history for @dev, got %d", len(histResp.Messages))
+	}
+	if histResp.Contact.Name != "@dev" {
+		t.Errorf("expected contact name @dev, got %s", histResp.Contact.Name)
+	}
 }
