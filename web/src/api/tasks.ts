@@ -39,9 +39,10 @@ export const tasksApi = {
     })
   },
 
-  runAgent: async (taskId: string): Promise<{ execution_id: string; status: string }> => {
-    return apiFetch(`/api/v1/tasks/${taskId}/run`, {
+  runAgent: async (taskId: string, payload?: { agent_id?: string; prompt?: string; binary?: string }): Promise<{ session_id?: string; status: string; terminal_url?: string; pid?: number }> => {
+    return apiFetch(`/api/v1/tasks/${taskId}/run-agent`, {
       method: 'POST',
+      body: JSON.stringify(payload || {}),
     })
   },
 }

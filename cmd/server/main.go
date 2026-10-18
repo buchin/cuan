@@ -16,6 +16,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
 	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/server"
@@ -29,6 +30,12 @@ func main() {
 	healthCheck := flag.Bool("healthcheck", false, "Perform local health check against running server")
 	readyCheck := flag.Bool("readycheck", false, "Perform local readiness check against running server (/readyz)")
 	syncSponsors := flag.Bool("sync-sponsors", false, "Synchronize README.md and sponsors permanent archive directory")
+	detectAgents := flag.Bool("detect-agents", false, "Detect installed agent binaries (agy, claude, shell) on the host")
+	pairAgent := flag.Bool("pair-agent", false, "Pair an agent CLI account using a device code")
+	pairCode := flag.String("code", "", "Device pairing code (e.g. CUAN-8892)")
+	agentIDFlag := flag.String("agent-id", "worker-flash", "Agent ID to pair")
+	memberIDFlag := flag.String("member-id", "buchin", "Member ID authorizing the agent")
+	providerFlag := flag.String("provider", "antigravity", "Agent provider (antigravity, claude, shell)")
 	flag.Parse()
 
 	if *showHelp {
@@ -65,6 +72,50 @@ func main() {
 	if *readyCheck {
 		runHealthCheck("/readyz")
 		return
+	}
+
+	if *detectAgents {
+		bins := agent.DetectAgentBinaries()
+		fmt.Printf("Detected host agent executables (%d candidates):\n", len(bins))
+		for _, b := range bins {
+			status := "NOT FOUND"
+			if b.Available {
+				status = fmt.Sprintf("AVAILABLE (%s)", b.Path)
+				if b.Version != "" {
+					status += fmt.Sprintf(" - %s", b.Version)
+				}
+			}
+			fmt.Printf("  • %-10s : %s\n", b.Name, status)
+		}
+		os.Exit(0)
+	}
+
+	if *pairAgent {
+		if *pairCode == "" {
+			fmt.Fprintln(os.Stderr, "Error: --code is required for agent pairing (e.g. --code CUAN-8892)")
+			os.Exit(1)
+		}
+		sessionStore := agent.NewMemorySessionStore()
+		sess, err := sessionStore.AuthorizeDevicePairing(context.Background(), agent.AuthorizePairingRequest{
+			DeviceCode: *pairCode,
+			MemberID:   *memberIDFlag,
+			AgentID:    *agentIDFlag,
+			AgentName:  fmt.Sprintf("Agent %s (%s)", *agentIDFlag, *providerFlag),
+			Provider:   *providerFlag,
+			BinaryType: *providerFlag,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to authorize agent pairing: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Agent paired successfully!\n")
+		fmt.Printf("  Session ID:  %s\n", sess.ID)
+		fmt.Printf("  Member ID:   %s\n", sess.MemberID)
+		fmt.Printf("  Agent ID:    %s\n", sess.AgentID)
+		fmt.Printf("  Binary Type: %s\n", sess.BinaryType)
+		fmt.Printf("  Device Code: %s\n", sess.DeviceCode)
+		fmt.Printf("  Status:      %s\n", sess.Status)
+		os.Exit(0)
 	}
 
 	if *syncSponsors {

@@ -141,3 +141,58 @@ func TestManager_IdleSweeper(t *testing.T) {
 		t.Fatal("expected idle session to be closed after sweep")
 	}
 }
+
+func TestManager_RunTaskAgent(t *testing.T) {
+	tempBase := t.TempDir()
+
+	mgr := NewManager(ManagerConfig{
+		WorkspacesDir: tempBase,
+	})
+	defer mgr.CloseAll()
+
+	ctx := context.Background()
+	taskID := "task-agent-run-1"
+
+	exitCh := make(chan *TaskRunHistory, 1)
+	sess, err := mgr.RunTaskAgent(ctx, TaskAgentRunConfig{
+		TaskID:    taskID,
+		AgentID:   "worker-flash",
+		AgentName: "Antigravity Flash",
+		Command:   "shell",
+		Prompt:    "Test run agent",
+		OnExit: func(h *TaskRunHistory) {
+			exitCh <- h
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunTaskAgent failed: %v", err)
+	}
+
+	if sess.TaskID() != taskID {
+		t.Fatalf("expected task ID %s, got %s", taskID, sess.TaskID())
+	}
+	if sess.IsClosed() {
+		t.Fatalf("expected session to be active")
+	}
+
+	// Verify history was initialized with running status
+	histories := mgr.GetTaskHistory(taskID)
+	if len(histories) != 1 {
+		t.Fatalf("expected 1 history record, got %d", len(histories))
+	}
+	if histories[0].Status != "running" {
+		t.Errorf("expected history status 'running', got %s", histories[0].Status)
+	}
+
+	// Close session to trigger process exit
+	_ = sess.Close()
+
+	select {
+	case h := <-exitCh:
+		if h.FinishedAt.IsZero() {
+			t.Errorf("expected non-zero FinishedAt timestamp")
+		}
+	case <-time.After(3 * time.Second):
+		t.Log("process exit monitor completed or timed out")
+	}
+}

@@ -75,10 +75,12 @@ export interface Task {
   status: TaskStatus
   priority: TaskPriority
   assignee?: string
+  assignee_id?: string
   assignee_type?: 'human' | 'agent'
   dod_checklist?: (DoDItem | string)[]
   tags?: string[]
   runner_state?: string
+  execution_status?: 'idle' | 'running' | 'completed' | 'failed' | string
   created_at: string
   updated_at: string
 }
@@ -90,6 +92,8 @@ export interface CreateTaskRequest {
   priority?: TaskPriority
   status?: TaskStatus
   assignee?: string
+  assignee_id?: string
+  execution_status?: string
   dod_checklist?: (DoDItem | string)[]
   tags?: string[]
 }
@@ -101,6 +105,8 @@ export interface UpdateTaskRequest {
   priority?: TaskPriority
   status?: TaskStatus
   assignee?: string
+  assignee_id?: string
+  execution_status?: string
   dod_checklist?: (DoDItem | string)[]
   tags?: string[]
 }

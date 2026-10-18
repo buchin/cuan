@@ -1,11 +1,16 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 // handleTaskTerminalWebSocket handles bidirectional WebSocket PTY streaming for tasks.
@@ -111,5 +116,150 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "closed",
 		"task_id": taskID,
+	})
+}
+
+type runTaskAgentPayload struct {
+	AgentID string `json:"agent_id"`
+	Prompt  string `json:"prompt"`
+	Binary  string `json:"binary"`
+	Cols    uint16 `json:"cols"`
+	Rows    uint16 `json:"rows"`
+}
+
+// handleRunTaskAgent spawns an autonomous or interactive agent process bound to the task PTY.
+// POST /api/v1/tasks/{id}/run-agent
+func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
+	if s.terminalManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
+		return
+	}
+
+	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if taskID == "" {
+		taskID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if taskID == "" {
+		taskID = strings.TrimSpace(r.URL.Query().Get("task_id"))
+	}
+	if taskID == "" {
+		respondJSONError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
+
+	var payload runTaskAgentPayload
+	if r.Body != nil && r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+	}
+
+	agentID := strings.TrimSpace(payload.AgentID)
+	if agentID == "" {
+		agentID = "worker-flash"
+	}
+	agentName := "Antigravity Flash Worker"
+	if strings.Contains(agentID, "pro") {
+		agentName = "Antigravity Pro Architect"
+	} else if strings.Contains(agentID, "sm") {
+		agentName = "Scrum Master Agent"
+	}
+
+	taskPrompt := strings.TrimSpace(payload.Prompt)
+	workDir := ""
+
+	// 1. Check project tasks repository
+	if s.projectStudioRepo != nil {
+		if pt, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil && pt != nil {
+			if taskPrompt == "" {
+				taskPrompt = pt.Description
+				if taskPrompt == "" {
+					taskPrompt = pt.Title
+				}
+			}
+			pt.AssigneeID = &agentID
+			pt.ExecutionStatus = "running"
+			_ = s.projectStudioRepo.UpdateTask(r.Context(), pt)
+			_ = s.projectStudioRepo.UpdateTaskExecution(r.Context(), taskID, "running", pt.AgentOutput)
+		}
+	}
+
+	// 2. Check runner task service
+	if s.taskSvc != nil {
+		if tDetail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && tDetail != nil {
+			if taskPrompt == "" {
+				taskPrompt = tDetail.Instructions
+			}
+			statusDoing := task.TaskStatusDoing
+			_, _ = s.taskSvc.UpdateTask(r.Context(), "system", taskID, task.UpdateTaskRequest{
+				Status:        &statusDoing,
+				AssignedAgent: &agentID,
+			})
+		}
+	}
+
+	// 3. Spawn PTY process via Manager
+	runCfg := terminal.TaskAgentRunConfig{
+		TaskID:    taskID,
+		AgentID:   agentID,
+		AgentName: agentName,
+		Command:   payload.Binary,
+		Prompt:    taskPrompt,
+		WorkDir:   workDir,
+		Cols:      payload.Cols,
+		Rows:      payload.Rows,
+		Mode:      terminal.ModeInteractive,
+		OnExit: func(h *terminal.TaskRunHistory) {
+			if s.projectStudioRepo != nil {
+				_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s)", h.ExitCode, h.Status))
+			}
+			if s.taskSvc != nil {
+				if h.Status == "completed" {
+					statusReview := task.TaskStatusReview
+					_, _ = s.taskSvc.UpdateTask(context.Background(), "runner", taskID, task.UpdateTaskRequest{
+						Status: &statusReview,
+					})
+				}
+			}
+		},
+	}
+
+	sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to spawn agent runner: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "running",
+		"session_id":   sess.ID(),
+		"task_id":      taskID,
+		"pid":          sess.PTY().PID(),
+		"terminal_url": fmt.Sprintf("/api/v1/tasks/%s/terminal", taskID),
+		"agent_id":     agentID,
+		"agent_name":   agentName,
+	})
+}
+
+// handleGetTaskRunHistory returns execution history of an agent runner on a task.
+// GET /api/v1/tasks/{id}/run-agent/history
+func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request) {
+	if s.terminalManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
+		return
+	}
+
+	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if taskID == "" {
+		taskID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if taskID == "" {
+		respondJSONError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
+
+	history := s.terminalManager.GetTaskHistory(taskID)
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"task_id": taskID,
+		"history": history,
+		"count":   len(history),
 	})
 }

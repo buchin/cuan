@@ -235,6 +235,16 @@ func (p *PTYProcess) PID() int {
 	return 0
 }
 
+// ExitCode returns the exit code of the process once exited, or -1 if still running.
+func (p *PTYProcess) ExitCode() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cmd != nil && p.cmd.ProcessState != nil {
+		return p.cmd.ProcessState.ExitCode()
+	}
+	return -1
+}
+
 // Read reads output from the master PTY descriptor.
 func (p *PTYProcess) Read(buf []byte) (int, error) {
 	p.mu.Lock()

@@ -129,12 +129,16 @@ func TestHandler_WebSocketWatchModeAndTakeover(t *testing.T) {
 
 	// Wait for error response
 	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	_, errPayload, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("read error message: %v", err)
-	}
 	var errMsg TerminalMessage
-	_ = json.Unmarshal(errPayload, &errMsg)
+	for {
+		_, errPayload, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read error message: %v", err)
+		}
+		if err := json.Unmarshal(errPayload, &errMsg); err == nil && errMsg.Type != "" {
+			break
+		}
+	}
 	if errMsg.Type != "error" || !strings.Contains(errMsg.Message, "watch mode") {
 		t.Fatalf("expected watch mode error, got: %s (msg: %s)", errMsg.Type, errMsg.Message)
 	}
@@ -145,12 +149,16 @@ func TestHandler_WebSocketWatchModeAndTakeover(t *testing.T) {
 	}
 
 	// Status response confirming interactive
-	_, statusPayload, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("read status: %v", err)
-	}
 	var statusMsg TerminalMessage
-	_ = json.Unmarshal(statusPayload, &statusMsg)
+	for {
+		_, statusPayload, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read status: %v", err)
+		}
+		if err := json.Unmarshal(statusPayload, &statusMsg); err == nil && statusMsg.Type != "" {
+			break
+		}
+	}
 	if statusMsg.Type != "status" || statusMsg.Mode != "interactive" {
 		t.Fatalf("expected status interactive, got: %v", statusMsg)
 	}
@@ -212,14 +220,17 @@ func TestHandler_WebSocketResizeAndPingPong(t *testing.T) {
 
 	// Read Pong
 	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	_, pongPayload, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("read pong: %v", err)
-	}
-	var pongMsg TerminalMessage
-	_ = json.Unmarshal(pongPayload, &pongMsg)
-	if pongMsg.Type != "pong" {
-		t.Fatalf("expected pong, got: %s", pongMsg.Type)
+	var gotPong bool
+	for !gotPong {
+		_, pongPayload, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read pong: %v", err)
+		}
+		var pongMsg TerminalMessage
+		if err := json.Unmarshal(pongPayload, &pongMsg); err == nil && pongMsg.Type == "pong" {
+			gotPong = true
+			break
+		}
 	}
 
 	// 2. Send Resize

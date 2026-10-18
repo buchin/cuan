@@ -1,0 +1,33 @@
+================================================================================
+AUDIT EVIDENCE S22.2: PTY TASK RUNNER ENGINE WITH AGENT DISPATCHER
+================================================================================
+Timestamp:     2026-10-18T22:07:00+07:00
+Task ID:       glwranojpmdwqjkyawlbzrrb
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. PTY ENGINE & SUBPROCESS MANAGEMENT:
+   - Subprocess execution powered by creack/pty (Linux pseudoterminals).
+   - Exit code tracking added via `PTYProcess.ExitCode()` with `sync.Mutex` and `Wait()` listener.
+   - Intelligent command wrapper:
+     * Prints ANSI startup banner with Task ID, Title, and Agent Type.
+     * Executes `agy` / `claude` with task instructions.
+     * Gracefully falls back to interactive `/bin/bash` if specific agent binary is not installed.
+   - PTY Process I/O piped directly to active WebSocket connections.
+
+2. DISPATCHER & REST ENDPOINTS:
+   - POST /api/v1/tasks/{id}/run-agent:
+     * Accepts payload: `{"agent_type": "...", "prompt": "..."}`.
+     * Spawns runner session via `terminal.Manager.RunTaskAgent()`.
+     * Automatically sets task `execution_status = 'running'`.
+     * Returns 200 OK with session ID and status.
+   - GET /api/v1/tasks/{id}/run-agent/history:
+     * Returns execution history: agent type, prompt, start time, end time, exit code, and execution status.
+     * Automatically updates task `execution_status = 'completed'` on exit code 0 or `'error'` on non-zero.
+
+3. VERIFICATION CHECKS:
+   - [x] internal/terminal/manager_test.go unit tests pass 100%.
+   - [x] internal/server/terminal_handlers_test.go integration tests pass 100%.
+   - [x] Task execution status transition: idle -> running -> completed/error.
+   - [x] Exit code captured accurately from child PTY process.

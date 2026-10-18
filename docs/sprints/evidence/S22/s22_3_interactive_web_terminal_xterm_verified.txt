@@ -1,0 +1,36 @@
+================================================================================
+AUDIT EVIDENCE S22.3: INTERACTIVE WEB TERMINAL (XTERM.JS)
+================================================================================
+Timestamp:     2026-10-18T22:07:00+07:00
+Task ID:       glwranojpmdwqjkyawlbzrrb
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. FRONTEND TERMINAL INTEGRATION:
+   - Built on @xterm/xterm v6.0.0, @xterm/addon-fit v0.11.0, @xterm/addon-web-links v0.12.0.
+   - Incorporated into `TaskSidePeek.tsx` Runner tab.
+   - Dynamic viewport auto-resize via FitAddon on tab switch and browser window resize.
+   - Sends JSON resize messages: `{"type": "resize", "cols": C, "rows": R}` to backend.
+
+2. WEBSOCKET PROTOCOL & UX:
+   - Auto-connects to `ws://` or `wss://` at `/api/v1/tasks/{id}/terminal` or `/api/v1/projects/{pid}/tasks/{id}/terminal`.
+   - Bidirectional I/O: user typing via keyboard forwards directly to PTY stdin; PTY stdout/stderr streams to terminal screen.
+   - Toolbar actions:
+     * "Run Agent": Dispatches task runner and opens/focuses terminal.
+     * "Clear": Clears terminal buffer.
+     * "Reconnect": Re-establishes broken or closed WebSocket connections.
+   - Visual styling: Tokyo Night theme (#1a1b26 background, #c0caf5 foreground) matching Cuan Dark Studio palette.
+
+3. FRONTEND PRODUCTION BUILD ASSETS:
+   - Output bundle generated in `web/dist/`.
+   - Built cleanly with zero TypeScript errors via `tsc && vite build`.
+   - Asset sizes:
+     * HTML: dist/index.html (0.55 kB)
+     * CSS:  dist/assets/index-CrC3hZeK.css (47.27 kB)
+     * JS:   dist/assets/index-BEDLElnR.js (636.79 kB)
+
+4. VERIFICATION CHECKS:
+   - [x] npm --prefix web run build succeeds with code 0.
+   - [x] TaskSidePeek renders xterm container with custom theme and fit addon.
+   - [x] WebSocket auto-reconnect and cleanup on unmount.

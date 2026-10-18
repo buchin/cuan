@@ -233,6 +233,17 @@ export function TaskBoardView({
                                 <span className="truncate">{projectName}</span>
                               </span>
                             )}
+
+                            {/* S22.4 Running Indicator Badge */}
+                            {task.execution_status === 'running' && (
+                              <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                                <span className="relative flex h-1.5 w-1.5">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                </span>
+                                <span>Running</span>
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
@@ -284,10 +295,32 @@ export function TaskBoardView({
                                 </span>
                               </span>
                             )}
-                            {task.assignee && (
-                              <span className="flex items-center gap-1 font-mono text-primary">
-                                <Bot className="h-3 w-3" />
-                                <span className="truncate max-w-[80px]">{task.assignee}</span>
+                            {(task.assignee || task.assignee_id) && (
+                              <span
+                                className={cn(
+                                  'flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded',
+                                  task.execution_status === 'running'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20'
+                                    : task.execution_status === 'completed'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : task.execution_status === 'failed'
+                                    ? 'bg-destructive/10 text-destructive'
+                                    : 'bg-primary/10 text-primary'
+                                )}
+                                title={`Assigned: ${task.assignee || task.assignee_id} (${task.execution_status || 'idle'})`}
+                              >
+                                <Bot className="h-3 w-3 shrink-0" />
+                                <span className="truncate max-w-[80px]">{task.assignee || task.assignee_id}</span>
+                                {task.execution_status === 'running' ? (
+                                  <span className="relative flex h-1.5 w-1.5 ml-0.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                  </span>
+                                ) : task.execution_status === 'completed' ? (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />
+                                ) : task.execution_status === 'failed' ? (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-destructive ml-0.5" />
+                                ) : null}
                               </span>
                             )}
                           </div>

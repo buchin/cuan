@@ -86,6 +86,7 @@ type Server struct {
 	wordpressWebmaster    *wordpress.WebmasterEngine
 	projectRepo           cuanDB.ProjectRepository
 	taskProjectRepo       cuanDB.TaskProjectRepository
+	agentSessionStore     agent.SessionStore
 	router                *chi.Mux
 }
 
@@ -485,6 +486,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		wordpressWebmaster:  wpWebmaster,
 		projectRepo:         projRepo,
 		taskProjectRepo:     tpRepo,
+		agentSessionStore:   agent.NewMemorySessionStore(),
 		router:              r,
 	}
 
@@ -838,6 +840,14 @@ func (s *Server) SetTerminalHandler(h *terminal.Handler) {
 	s.terminalHandler = h
 }
 
+func (s *Server) AgentSessionStore() agent.SessionStore {
+	return s.agentSessionStore
+}
+
+func (s *Server) SetAgentSessionStore(store agent.SessionStore) {
+	s.agentSessionStore = store
+}
+
 func (s *Server) PublisherEngine() *publisher.Engine {
 	return s.publisherEngine
 }
@@ -1035,6 +1045,24 @@ func (s *Server) routes() {
 	s.router.Delete("/api/v1/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 	s.router.Get("/api/terminal/sessions", s.handleGetTerminalSessionsStatus)
 	s.router.Get("/api/v1/terminal/sessions", s.handleGetTerminalSessionsStatus)
+
+	// Autonomous PTY Agent Task Runner (Sprint 22 S22.2)
+	s.router.Post("/api/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	s.router.Post("/api/projects/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	s.router.Post("/api/v1/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	s.router.Post("/api/v1/projects/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	s.router.Get("/api/tasks/{id}/run-agent/history", s.handleGetTaskRunHistory)
+	s.router.Get("/api/v1/tasks/{id}/run-agent/history", s.handleGetTaskRunHistory)
+
+	// Agent CLI Account Onboarding & Host Detection (Sprint 22 S22.1)
+	s.router.Get("/api/agents/binaries", s.handleGetAgentBinaries)
+	s.router.Get("/api/v1/agents/binaries", s.handleGetAgentBinaries)
+	s.router.Post("/api/agents/pair", s.handlePairAgentDevice)
+	s.router.Post("/api/v1/agents/pair", s.handlePairAgentDevice)
+	s.router.Get("/api/agents/sessions", s.handleListAgentSessions)
+	s.router.Get("/api/v1/agents/sessions", s.handleListAgentSessions)
+	s.router.Delete("/api/agents/sessions/{id}", s.handleRevokeAgentSession)
+	s.router.Delete("/api/v1/agents/sessions/{id}", s.handleRevokeAgentSession)
 
 	// Batch Campaigns Engine Endpoints (Sprint 8 S08.2 & S08.3)
 	s.router.Post("/api/campaigns", s.handleCreateBatchCampaign)
@@ -1386,6 +1414,17 @@ func (s *Server) routes() {
 		r.Get("/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
 		r.Delete("/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 		r.Get("/terminal/sessions", s.handleGetTerminalSessionsStatus)
+
+		// Autonomous PTY Agent Task Runner (Sprint 22 S22.2)
+		r.Post("/tasks/{id}/run-agent", s.handleRunTaskAgent)
+		r.Post("/projects/tasks/{id}/run-agent", s.handleRunTaskAgent)
+		r.Get("/tasks/{id}/run-agent/history", s.handleGetTaskRunHistory)
+
+		// Agent CLI Account Onboarding & Host Detection (Sprint 22 S22.1)
+		r.Get("/agents/binaries", s.handleGetAgentBinaries)
+		r.Post("/agents/pair", s.handlePairAgentDevice)
+		r.Get("/agents/sessions", s.handleListAgentSessions)
+		r.Delete("/agents/sessions/{id}", s.handleRevokeAgentSession)
 
 		// Batch Campaigns in v1 (Sprint 8 S08.2 & S08.3)
 		r.Post("/campaigns", s.handleCreateBatchCampaign)

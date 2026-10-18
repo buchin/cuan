@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -20,6 +21,37 @@ var (
 )
 
 var validTaskIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
+
+// TaskRunHistory records the metadata and outcome of an agent execution on a task.
+type TaskRunHistory struct {
+	ID         string    `json:"id"`
+	TaskID     string    `json:"task_id"`
+	SessionID  string    `json:"session_id"`
+	AgentID    string    `json:"agent_id"`
+	AgentName  string    `json:"agent_name"`
+	Command    string    `json:"command"`
+	ExitCode   int       `json:"exit_code"`
+	Status     string    `json:"status"` // "running", "completed", "failed"
+	StartedAt  time.Time `json:"started_at"`
+	FinishedAt time.Time `json:"finished_at,omitempty"`
+	DurationMs int64     `json:"duration_ms"`
+}
+
+// TaskAgentRunConfig specifies parameters for launching an agent process in a task workspace.
+type TaskAgentRunConfig struct {
+	TaskID    string
+	AgentID   string
+	AgentName string
+	Command   string // "agy", "claude", "shell", or auto
+	Args      []string
+	Prompt    string
+	WorkDir   string
+	Env       []string
+	Cols      uint16
+	Rows      uint16
+	Mode      Mode
+	OnExit    func(history *TaskRunHistory)
+}
 
 // ManagerConfig defines configuration parameters for the terminal session manager.
 type ManagerConfig struct {
@@ -37,6 +69,7 @@ type Manager struct {
 	cfg       ManagerConfig
 	mu        sync.RWMutex
 	sessions  map[string]*Session // taskID -> Session
+	histories map[string][]*TaskRunHistory // taskID -> []History
 	stopChan  chan struct{}
 	stopOnce  sync.Once
 }
@@ -60,9 +93,10 @@ func NewManager(cfg ManagerConfig) *Manager {
 	}
 
 	m := &Manager{
-		cfg:      cfg,
-		sessions: make(map[string]*Session),
-		stopChan: make(chan struct{}),
+		cfg:       cfg,
+		sessions:  make(map[string]*Session),
+		histories: make(map[string][]*TaskRunHistory),
+		stopChan:  make(chan struct{}),
 	}
 
 	// Background sweeper for idle sessions
@@ -275,4 +309,197 @@ func generateSessionID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return "pty_" + hex.EncodeToString(b)
+}
+
+// RunTaskAgent spawns an autonomous or interactive agent process bound to the task's workspace in a real PTY.
+func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Session, error) {
+	taskID := strings.TrimSpace(cfg.TaskID)
+	if taskID == "" {
+		return nil, ErrInvalidTaskID
+	}
+
+	workDir := cfg.WorkDir
+	if workDir == "" {
+		resolved, err := m.ResolveTaskWorkspace(taskID)
+		if err != nil {
+			return nil, err
+		}
+		workDir = resolved
+	}
+
+	cols := cfg.Cols
+	if cols == 0 {
+		cols = m.cfg.DefaultCols
+	}
+	rows := cfg.Rows
+	if rows == 0 {
+		rows = m.cfg.DefaultRows
+	}
+
+	mode := cfg.Mode
+	if mode == "" {
+		mode = ModeInteractive
+	}
+
+	m.mu.Lock()
+	// If an active session is already running for this task, terminate it first so we can re-run
+	if existing, exists := m.sessions[taskID]; exists && !existing.IsClosed() {
+		_ = existing.Close()
+		delete(m.sessions, taskID)
+	}
+	m.mu.Unlock()
+
+	// Determine command and args
+	shellBin := FindShell(m.cfg.DefaultShell)
+	cmdName := strings.ToLower(strings.TrimSpace(cfg.Command))
+	agentID := cfg.AgentID
+	if agentID == "" {
+		agentID = "worker-flash"
+	}
+	agentName := cfg.AgentName
+	if agentName == "" {
+		agentName = "Antigravity Agent"
+	}
+
+	var ptyArgs []string
+	var commandLabel string
+
+	// Check if agy or claude or custom binary is available
+	hasAGY := false
+	var agyPath string
+	if p, err := exec.LookPath("agy"); err == nil {
+		hasAGY = true
+		agyPath = p
+	}
+	hasClaude := false
+	var claudePath string
+	if p, err := exec.LookPath("claude"); err == nil {
+		hasClaude = true
+		claudePath = p
+	}
+
+	if (cmdName == "agy" || cmdName == "antigravity" || (cmdName == "" && hasAGY)) && hasAGY {
+		commandLabel = "agy"
+		promptText := cfg.Prompt
+		if promptText == "" {
+			promptText = "Task #" + taskID
+		}
+		// Write startup script to display banner and invoke agy in workspace
+		script := fmt.Sprintf(
+			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Task \\033[1;33m#%s\\033[0m\"\n"+
+				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Agent: \\033[1;37m%s (agy)\\033[0m\"\n"+
+				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
+				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
+				"%s -p %q --dangerously-skip-permissions\n"+
+				"EXIT_CODE=$?\n"+
+				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
+				"if [ $EXIT_CODE -eq 0 ]; then\n"+
+				"  echo -e \"\\033[1;32m[Cuan Agent Runner] Task completed successfully (Exit Code: 0)\\033[0m\"\n"+
+				"else\n"+
+				"  echo -e \"\\033[1;31m[Cuan Agent Runner] Process finished with exit code: $EXIT_CODE\\033[0m\"\n"+
+				"fi\n"+
+				"exit $EXIT_CODE\n",
+			taskID, agentName, workDir, agyPath, promptText,
+		)
+		ptyArgs = []string{"-c", script}
+	} else if (cmdName == "claude" || (cmdName == "" && hasClaude)) && hasClaude {
+		commandLabel = "claude"
+		promptText := cfg.Prompt
+		if promptText == "" {
+			promptText = "Task #" + taskID
+		}
+		script := fmt.Sprintf(
+			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Task \\033[1;33m#%s\\033[0m\"\n"+
+				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Agent: \\033[1;37m%s (Claude Code)\\033[0m\"\n"+
+				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
+				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
+				"%s -p %q\n"+
+				"exit $?\n",
+			taskID, agentName, workDir, claudePath, promptText,
+		)
+		ptyArgs = []string{"-c", script}
+	} else {
+		// Interactive shell fallback with Cuan environment
+		commandLabel = "shell"
+		script := fmt.Sprintf(
+			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Interactive runner spawned for Task \\033[1;33m#%s\\033[0m\"\n"+
+				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Assigned Agent: \\033[1;37m%s\\033[0m\"\n"+
+				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
+				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
+				"exec bash -i 2>/dev/null || exec sh -i\n",
+			taskID, agentName, workDir,
+		)
+		ptyArgs = []string{"-c", script}
+	}
+
+	sessionID := generateSessionID()
+	ptyCfg := PTYConfig{
+		TaskID:      taskID,
+		WorkDir:     workDir,
+		Shell:       shellBin,
+		Args:        ptyArgs,
+		Env:         cfg.Env,
+		InitialCols: cols,
+		InitialRows: rows,
+	}
+
+	proc, err := SpawnPTY(ctx, ptyCfg)
+	if err != nil {
+		return nil, fmt.Errorf("spawn agent pty for task %s: %w", taskID, err)
+	}
+
+	sess := NewSession(sessionID, taskID, proc, mode)
+
+	history := &TaskRunHistory{
+		ID:        generateSessionID(),
+		TaskID:    taskID,
+		SessionID: sessionID,
+		AgentID:   agentID,
+		AgentName: agentName,
+		Command:   commandLabel,
+		Status:    "running",
+		StartedAt: time.Now().UTC(),
+	}
+
+	m.mu.Lock()
+	m.sessions[taskID] = sess
+	m.histories[taskID] = append(m.histories[taskID], history)
+	m.mu.Unlock()
+
+	// Monitor completion in background to record exit code and duration
+	go func() {
+		_ = proc.Wait()
+		exitCode := proc.ExitCode()
+		history.FinishedAt = time.Now().UTC()
+		history.DurationMs = history.FinishedAt.Sub(history.StartedAt).Milliseconds()
+		history.ExitCode = exitCode
+		if exitCode == 0 {
+			history.Status = "completed"
+		} else {
+			history.Status = "failed"
+		}
+
+		if cfg.OnExit != nil {
+			cfg.OnExit(history)
+		}
+	}()
+
+	return sess, nil
+}
+
+// GetTaskHistory returns all execution history records for a task.
+func (m *Manager) GetTaskHistory(taskID string) []*TaskRunHistory {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	list, exists := m.histories[taskID]
+	if !exists {
+		return []*TaskRunHistory{}
+	}
+	result := make([]*TaskRunHistory, len(list))
+	for i, h := range list {
+		clone := *h
+		result[i] = &clone
+	}
+	return result
 }

@@ -287,3 +287,168 @@ func TestServer_TaskTerminalWebSocket_Authentication(t *testing.T) {
 	conn3.Close()
 }
 
+func TestServer_RunTaskAgentEndpoint(t *testing.T) {
+	tempBase := t.TempDir()
+
+	cfg := &config.Config{
+		WorkspacesDir: tempBase,
+		AppMode:       "studio",
+	}
+
+	srv := NewServer(cfg, nil)
+	ts := httptest.NewServer(srv.Router())
+	defer ts.Close()
+
+	taskID := "task-sprint22-runner"
+
+	// 1. Trigger POST /api/v1/tasks/{id}/run-agent
+	runURL := ts.URL + "/api/v1/tasks/" + taskID + "/run-agent"
+	reqPayload := `{"agent_id":"worker-flash","binary":"shell","prompt":"Write unit test for S22"}`
+	resp, err := http.Post(runURL, "application/json", strings.NewReader(reqPayload))
+	if err != nil {
+		t.Fatalf("POST /run-agent failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for /run-agent, got %d", resp.StatusCode)
+	}
+
+	var runResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&runResp); err != nil {
+		t.Fatalf("unmarshal run-agent response: %v", err)
+	}
+
+	if runResp["status"] != "running" {
+		t.Errorf("expected status 'running', got %v", runResp["status"])
+	}
+	if runResp["session_id"] == nil || runResp["session_id"] == "" {
+		t.Errorf("expected non-empty session_id")
+	}
+	if runResp["pid"] == nil || runResp["pid"].(float64) <= 0 {
+		t.Errorf("expected valid pid > 0, got %v", runResp["pid"])
+	}
+
+	// 2. Connect to the WebSocket terminal for this task
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/tasks/" + taskID + "/terminal"
+	conn, wsResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial /terminal WebSocket failed: %v", err)
+	}
+	defer conn.Close()
+
+	if wsResp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("expected 101 Switching Protocols, got %d", wsResp.StatusCode)
+	}
+
+	// Read handshake connected message
+	_, hsPayload, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read websocket handshake failed: %v", err)
+	}
+	var hsMsg terminal.TerminalMessage
+	if err := json.Unmarshal(hsPayload, &hsMsg); err != nil || hsMsg.Type != "connected" {
+		t.Errorf("expected connected handshake, got %s", hsMsg.Type)
+	}
+
+	// 3. Check history endpoint
+	histURL := ts.URL + "/api/v1/tasks/" + taskID + "/run-agent/history"
+	histResp, err := http.Get(histURL)
+	if err != nil {
+		t.Fatalf("GET /run-agent/history failed: %v", err)
+	}
+	defer histResp.Body.Close()
+
+	if histResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for /run-agent/history, got %d", histResp.StatusCode)
+	}
+
+	var histData map[string]interface{}
+	if err := json.NewDecoder(histResp.Body).Decode(&histData); err != nil {
+		t.Fatalf("unmarshal history data: %v", err)
+	}
+	if histData["count"].(float64) < 1 {
+		t.Errorf("expected at least 1 history record, got %v", histData["count"])
+	}
+
+	// Clean up session
+	_ = srv.TerminalManager().CloseSession(taskID)
+}
+
+func TestServer_AgentCLIOnboardingAndBinariesEndpoints(t *testing.T) {
+	tempBase := t.TempDir()
+
+	cfg := &config.Config{
+		WorkspacesDir: tempBase,
+		AppMode:       "studio",
+	}
+
+	srv := NewServer(cfg, nil)
+	ts := httptest.NewServer(srv.Router())
+	defer ts.Close()
+
+	// 1. GET /api/v1/agents/binaries
+	respBins, err := http.Get(ts.URL + "/api/v1/agents/binaries")
+	if err != nil {
+		t.Fatalf("GET /agents/binaries failed: %v", err)
+	}
+	defer respBins.Body.Close()
+
+	if respBins.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for /agents/binaries, got %d", respBins.StatusCode)
+	}
+
+	var binsData map[string]interface{}
+	if err := json.NewDecoder(respBins.Body).Decode(&binsData); err != nil {
+		t.Fatalf("unmarshal binaries: %v", err)
+	}
+	if binsData["count"].(float64) < 1 {
+		t.Errorf("expected detected host binaries, got %v", binsData["count"])
+	}
+
+	// 2. POST /api/v1/agents/pair
+	pairPayload := `{"device_code":"CUAN-TEST-99","member_id":"buchin","agent_id":"worker-flash","provider":"antigravity"}`
+	respPair, err := http.Post(ts.URL+"/api/v1/agents/pair", "application/json", strings.NewReader(pairPayload))
+	if err != nil {
+		t.Fatalf("POST /agents/pair failed: %v", err)
+	}
+	defer respPair.Body.Close()
+
+	if respPair.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for /agents/pair, got %d", respPair.StatusCode)
+	}
+
+	var pairData map[string]interface{}
+	if err := json.NewDecoder(respPair.Body).Decode(&pairData); err != nil {
+		t.Fatalf("unmarshal pair data: %v", err)
+	}
+	if pairData["status"] != "paired" {
+		t.Errorf("expected status 'paired', got %v", pairData["status"])
+	}
+	sessObj := pairData["session"].(map[string]interface{})
+	sessID := sessObj["id"].(string)
+
+	// 3. GET /api/v1/agents/sessions
+	respList, err := http.Get(ts.URL + "/api/v1/agents/sessions?member_id=buchin")
+	if err != nil {
+		t.Fatalf("GET /agents/sessions failed: %v", err)
+	}
+	defer respList.Body.Close()
+
+	if respList.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for /agents/sessions, got %d", respList.StatusCode)
+	}
+
+	// 4. DELETE /api/v1/agents/sessions/{id}
+	reqDel, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/agents/sessions/"+sessID, nil)
+	respDel, err := http.DefaultClient.Do(reqDel)
+	if err != nil {
+		t.Fatalf("DELETE /agents/sessions failed: %v", err)
+	}
+	defer respDel.Body.Close()
+
+	if respDel.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for delete session, got %d", respDel.StatusCode)
+	}
+}
+
