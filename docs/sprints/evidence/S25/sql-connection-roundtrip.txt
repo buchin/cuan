@@ -1,0 +1,5 @@
+=== RUN   TestS25SQLAgentConnectionRoundTrip
+    agent_s25_sql_test.go:57: Actual PostgreSQL round trip preserved CLI connection linkage; inactive fixture cleaned up. This does not prove OAuth or a provider reply.
+--- PASS: TestS25SQLAgentConnectionRoundTrip (0.23s)
+PASS
+ok  	github.com/buchin/cuan/internal/db	0.234s

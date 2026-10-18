@@ -4,7 +4,7 @@ This implementation is available on S25.1 staging at https://cuan-s25-dojo.fural
 
 ## Usage
 
-Open Team → Add Agent → Antigravity. The dialog checks server credentials and probes the actual provider. Credentials on disk alone do not imply a verified connection. Click Login dengan Google, open the official link, complete Google consent, and paste the authorization code into the password field. Click Verifikasi login. Registration is enabled only after verification succeeds. Cancel closes the server login; abandoned sessions expire after five minutes. Invalid/expired codes require a new login. The simplified Add Agent dialog exposes Antigravity only; it does not offer unimplemented login methods.
+Open Team → Add Agent → Antigravity. The dialog checks server credentials and probes the actual provider. Credentials on disk alone do not imply a verified connection. Click Login dengan Google, open the official link, complete Google consent, and paste the authorization code into the password field. Click Verifikasi login. Registration is enabled only after verification succeeds. Cancel closes the server login; abandoned sessions expire after five minutes. The dialog explicitly expires stale sessions; restarting login cancels the old session and starts a new one. Invalid/expired codes require a new login. The simplified Add Agent dialog exposes Antigravity only; it does not offer unimplemented login methods.
 
 ## Server configuration
 
@@ -31,3 +31,5 @@ The managed sandbox uses `scripts/boot-s25-staging.sh` and `scripts/run-s25-stag
 Private staging config consists of database.json, ssh.json, a dedicated tunnel-key and pinned known_hosts. The boot script installs these with mode 0600 and removes the incoming private config directory. The SSH key is restricted on the VPS to forwarding PostgreSQL, with shell commands disabled. Rotate/revoke that dedicated key and remove the isolated DB/role after staging is retired; never remove the production DB. Preserve the custom sandbox home while login is in progress because it contains the account's CLI credential store. Do not restart/publish a new boot during a pending consent flow.
 
 Owner workflow: open staging → log into Cuan → Team → Tambah agen → Login dengan Google → complete Google consent → paste the code into Cuan → Verifikasi login → Tambah agen. The agent then appears in Inbox from the persisted registry. A registered row is labeled Terdaftar, not automatically Online/Verified; actual chat output comes exclusively from the harness/provider. There are no seeded agents, fabricated token quotas or role cards.
+
+Registration creates no artificial welcome reply. It must save the Inbox room successfully; otherwise the new agent/connection is rolled back. CLI connection linkage survives SQL reads without changing the existing 19-migration schema.

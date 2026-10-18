@@ -33,6 +33,20 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     if (activeSession.current) void agentsApi.authCancel(activeSession.current).catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (!auth?.session_id || !auth.expires_at) return
+    const session = auth.session_id
+    const timer = window.setTimeout(() => {
+      if (activeSession.current !== session) return
+      void agentsApi.authCancel(session).catch(() => {})
+      activeSession.current = ''
+      setAuth(null)
+      setCode('')
+      setFormError('Sesi login kedaluwarsa. Klik Login dengan Google untuk mulai lagi.')
+    }, Math.max(0, Date.parse(auth.expires_at) - Date.now()))
+    return () => window.clearTimeout(timer)
+  }, [auth?.session_id, auth?.expires_at])
+
   const close = () => {
     dialogActive.current = false
     if (activeSession.current) void agentsApi.authCancel(activeSession.current).catch(() => {})
@@ -62,6 +76,10 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     setBusy(true)
     setCode('')
     try {
+      if (activeSession.current) {
+        await agentsApi.authCancel(activeSession.current)
+        activeSession.current = ''
+      }
       const session = await agentsApi.authInit()
       if (!dialogActive.current) {
         if (session.session_id) void agentsApi.authCancel(session.session_id).catch(() => {})

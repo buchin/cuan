@@ -734,8 +734,8 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	if !s.requireOAuthOwner(w, r) {
 		return
 	}
-	if s.agentRepo == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
+	if s.agentRepo == nil || s.projectStudioRepo == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Agent registry or Inbox storage is unavailable")
 		return
 	}
 
@@ -806,6 +806,11 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	cleanHandle = strings.ReplaceAll(cleanHandle, "-", "_")
 	agentID := "agent_" + cleanHandle
 	connID := "conn_" + agentID
+	// The existing 19-migration schema persists the CLI connection link in model_id.
+	// The CLI itself selects its configured provider model.
+	if provider == "agy" || provider == "antigravity" {
+		modelID = connID
+	}
 	agentDisplayName := handle
 	if name != handle {
 		agentDisplayName = fmt.Sprintf("%s (%s)", name, handle)
@@ -867,24 +872,19 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		if roomID == "" {
 			roomID = db.GenerateUUID()
 			now := time.Now().UTC()
-			_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+			if err := s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
 				ID:        roomID,
 				ProjectID: "default",
 				Title:     agentDisplayName,
 				Topic:     "agent:" + agentID,
 				CreatedAt: now,
 				UpdatedAt: now,
-			})
-			_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-				ID:         db.GenerateUUID(),
-				RoomID:     roomID,
-				AuthorType: "agent",
-				AuthorID:   agentID,
-				AuthorName: agentEntity.Name,
-				Content:    fmt.Sprintf("Halo Buchin! Saya %s. Sesi CLI telah terhubung tanpa API Key (%s). Saya siap menerima instruksi chat.", agentEntity.Name, provider),
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			})
+			}); err != nil {
+				_ = s.agentRepo.DeleteConnection(r.Context(), connID)
+				_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
+				respondJSONError(w, http.StatusInternalServerError, "Agen gagal disimpan ke Inbox. Coba lagi.")
+				return
+			}
 		}
 	} else {
 		roomID = db.GenerateUUID()
@@ -994,6 +994,7 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 			"status":        "success",
 			"harness":       "agy",
 			"session_id":    session.ID,
+			"expires_at":    session.CreatedAt.Add(5 * time.Minute),
 			"auth_url":      session.AuthURL,
 			"authenticated": false,
 			"message":       "Buka link Google OAuth dan tempel kode otorisasi dari browser",

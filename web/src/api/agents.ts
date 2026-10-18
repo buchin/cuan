@@ -60,6 +60,7 @@ export interface HarnessAuth {
   message?: string
   auth_url?: string
   session_id?: string
+  expires_at?: string
 }
 
 export const agentsApi = {
