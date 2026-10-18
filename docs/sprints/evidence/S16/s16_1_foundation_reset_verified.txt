@@ -1,0 +1,52 @@
+================================================================================
+AUDIT PACK: S16.1 — Frontend Clean Slate Foundation & Project Structure Reset
+================================================================================
+Timestamp: 2026-10-18T13:13:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 16 (Clean Slate Frontend Rebuild: Linear-Class Agentic Workplace)
+Task: S16.1
+
+1. SCOPE & GOAL VERIFICATION
+- Completely removed legacy god-components in `web/src/components/studio` (34 files, ~393 KB).
+- Removed legacy marketing, legal, and sponsorship directories (`landing`, `legal`, `sponsor`).
+- Established clean, modular feature-driven architecture:
+  * `web/src/api/` (Type-safe client: `types.ts`, `client.ts`, `projects.ts`, `tasks.ts`)
+  * `web/src/components/layout/` (`AppShell.tsx`, `NavUser.tsx`)
+  * `web/src/components/auth/` (`LoginScreen.tsx`, `ChangePasswordModal.tsx`, `AuthGate.tsx`)
+  * `web/src/components/ui/` (shadcn primitives: button, input, card, badge, alert, sidebar, MarkdownViewer)
+  * `web/src/features/projects/` (`ProjectsView.tsx`, `CreateProjectModal.tsx`)
+  * `web/src/features/tasks/` (`TaskBoardView.tsx`, `CreateTaskModal.tsx`, `TaskSidePeek.tsx`)
+  * `web/src/features/agents/` (`AgentsView.tsx`)
+  * `web/src/features/settings/` (`SettingsView.tsx`)
+  * `web/src/App.tsx` (Clean 247-line modular shell)
+
+2. COMPONENT SIZE AUDIT (0 Monster Files > 30 KB)
+- web/src/components/ui/sidebar.tsx: 15 KB
+- web/src/components/ui/MarkdownViewer.tsx: 13 KB
+- web/src/features/tasks/TaskSidePeek.tsx: 12 KB
+- web/src/components/layout/AppShell.tsx: 11 KB
+- web/src/features/tasks/CreateTaskModal.tsx: 9.5 KB
+- web/src/components/auth/LoginScreen.tsx: 9.5 KB
+- web/src/components/auth/ChangePasswordModal.tsx: 8.5 KB
+- web/src/features/tasks/TaskBoardView.tsx: 8.4 KB
+- web/src/features/settings/SettingsView.tsx: 8.3 KB
+- web/src/App.tsx: 7.2 KB
+Result: PASS (100% files are modular, under 15 KB).
+
+3. PRODUCTION BUILD VERIFICATION
+- Command: `npm run build` (tsc && vite build)
+- Output Bundle:
+  * dist/index.html: 0.55 kB (gzip: 0.37 kB)
+  * dist/assets/index.css: 39.27 kB (down from 107 kB)
+  * dist/assets/index.js: 256.22 kB (down from 1,164 kB — 78% reduction!)
+- Status: PASS (0 errors).
+
+4. BACKEND INTEGRATION & ZERO REGRESSION
+- Command: `go test ./internal/auth/... ./internal/server/... -run "TestAuth"`
+- Status: PASS (100% tests pass).
+- Database retention: 19 migrations preserved, PostgreSQL tables intact.
+
+5. CONCLUSION
+Task S16.1 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S16.2.
+================================================================================
