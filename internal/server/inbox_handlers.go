@@ -173,12 +173,17 @@ func (s *Server) handleCreateInboxThread(w http.ResponseWriter, r *http.Request)
 	}
 
 	title := strings.TrimSpace(req.Title)
+	messageText := strings.TrimSpace(req.Message)
 	if title == "" {
-		respondJSONError(w, http.StatusBadRequest, "title cannot be empty")
-		return
+		if len(messageText) > 40 {
+			title = messageText[:37] + "..."
+		} else if messageText != "" {
+			title = messageText
+		} else {
+			title = "Direct Message"
+		}
 	}
 
-	messageText := strings.TrimSpace(req.Message)
 	if messageText == "" {
 		respondJSONError(w, http.StatusBadRequest, "message cannot be empty")
 		return

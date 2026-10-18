@@ -1,149 +1,215 @@
-import { InboxThreadItem } from '../../api/inbox'
-import { Plus, MessageSquare, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import { useState } from 'react'
+import { ChatContact } from '../../api/chat'
+import { Search, Bot, User } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
+export type ContactFilterTab = 'all' | 'agents' | 'customers'
+
 interface InboxSubPanelProps {
-  threads: InboxThreadItem[]
-  activeThreadId?: string
-  onSelectThread: (thread: InboxThreadItem) => void
-  onCreateThreadClick: () => void
-  statusFilter: string
-  onStatusFilterChange: (status: string) => void
+  contacts: ChatContact[]
+  activeContactId?: string
+  onSelectContact: (contact: ChatContact) => void
+  selectedTab?: ContactFilterTab
+  onTabChange?: (tab: ContactFilterTab) => void
+  searchQuery?: string
+  onSearchChange?: (q: string) => void
 }
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'unread', label: 'Unread' },
-  { id: 'in_progress', label: 'In Progress' },
-  { id: 'done', label: 'Done' },
-]
-
 export function InboxSubPanel({
-  threads,
-  activeThreadId,
-  onSelectThread,
-  onCreateThreadClick,
-  statusFilter,
-  onStatusFilterChange,
+  contacts,
+  activeContactId,
+  onSelectContact,
+  selectedTab = 'all',
+  onTabChange,
+  searchQuery = '',
+  onSearchChange,
 }: InboxSubPanelProps) {
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'done':
-        return (
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            <CheckCircle2 className="h-2.5 w-2.5" />
-            Done
-          </span>
-        )
-      case 'in_progress':
-        return (
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-            <Clock className="h-2.5 w-2.5" />
-            Running
-          </span>
-        )
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-            <AlertCircle className="h-2.5 w-2.5" />
-            Inbox
-          </span>
-        )
-    }
+  const [internalTab, setInternalTab] = useState<ContactFilterTab>(selectedTab)
+  const [internalQuery, setInternalQuery] = useState(searchQuery)
+
+  const activeTab = onTabChange ? selectedTab : internalTab
+  const handleTabClick = (tab: ContactFilterTab) => {
+    if (onTabChange) onTabChange(tab)
+    else setInternalTab(tab)
   }
 
-  const formatTime = (isoString: string) => {
+  const query = onSearchChange ? searchQuery : internalQuery
+  const handleQueryChange = (val: string) => {
+    if (onSearchChange) onSearchChange(val)
+    else setInternalQuery(val)
+  }
+
+  const agentCount = contacts.filter((c) => c.type === 'agent').length
+  const customerCount = contacts.filter((c) => c.type === 'customer').length
+
+  const filteredContacts = contacts.filter((c) => {
+    if (activeTab === 'agents' && c.type !== 'agent') return false
+    if (activeTab === 'customers' && c.type !== 'customer') return false
+    if (query.trim()) {
+      const q = query.toLowerCase()
+      const matchName = c.name.toLowerCase().includes(q)
+      const matchMsg = (c.last_message || '').toLowerCase().includes(q)
+      const matchProduct = (c.product || '').toLowerCase().includes(q)
+      return matchName || matchMsg || matchProduct
+    }
+    return true
+  })
+
+  const formatTime = (iso?: string) => {
+    if (!iso) return ''
     try {
-      const d = new Date(isoString)
+      const d = new Date(iso)
       const now = new Date()
-      const diffMs = now.getTime() - d.getTime()
-      const diffMins = Math.floor(diffMs / 60000)
-      if (diffMins < 1) return 'now'
-      if (diffMins < 60) return `${diffMins}m`
-      const diffHours = Math.floor(diffMins / 60)
-      if (diffHours < 24) return `${diffHours}h`
-      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      const isToday = d.toDateString() === now.toDateString()
+      if (isToday) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
     } catch {
       return ''
     }
   }
 
   return (
-    <div className="flex flex-col h-full bg-sidebar/50">
-      {/* Top Action: New Thread */}
-      <div className="p-3 border-b border-border">
-        <button
-          onClick={onCreateThreadClick}
-          className="flex items-center justify-center gap-2 w-full px-3 py-2 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors rounded-md"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>New Thread</span>
-        </button>
-      </div>
+    <div className="flex flex-col h-full bg-sidebar/50 text-sidebar-foreground select-none">
+      {/* Sub-panel Top: Header & Search */}
+      <div className="p-3 border-b border-border space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold tracking-tight text-foreground uppercase">
+            Direct Messenger
+          </span>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+            {contacts.length} kontak
+          </span>
+        </div>
 
-      {/* Filter Tabs */}
-      <div className="px-2 py-2 border-b border-border flex items-center gap-1 overflow-x-auto text-[11px]">
-        {FILTERS.map((f) => (
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => handleQueryChange(e.target.value)}
+            placeholder="Cari kontak atau pesan..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+
+        {/* Filter Tabs (All, Agents, Customers) */}
+        <div className="flex rounded-md bg-muted p-0.5 text-xs">
           <button
-            key={f.id}
-            onClick={() => onStatusFilterChange(f.id)}
+            onClick={() => handleTabClick('all')}
             className={cn(
-              'px-2 py-1 rounded transition-colors whitespace-nowrap',
-              statusFilter === f.id
-                ? 'bg-accent text-accent-foreground font-semibold'
+              'flex-1 py-1 rounded text-center transition-all font-medium text-[11px]',
+              activeTab === 'all'
+                ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            {f.label}
+            All
           </button>
-        ))}
+          <button
+            onClick={() => handleTabClick('agents')}
+            className={cn(
+              'flex-1 py-1 rounded text-center transition-all font-medium text-[11px] flex items-center justify-center gap-1',
+              activeTab === 'agents'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <span>Agents</span>
+            <span className="text-[9px] opacity-70">({agentCount})</span>
+          </button>
+          <button
+            onClick={() => handleTabClick('customers')}
+            className={cn(
+              'flex-1 py-1 rounded text-center transition-all font-medium text-[11px] flex items-center justify-center gap-1',
+              activeTab === 'customers'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <span>Customers</span>
+            <span className="text-[9px] opacity-70">({customerCount})</span>
+          </button>
+        </div>
       </div>
 
-      {/* Thread List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-border/50">
-        {threads.length === 0 ? (
-          <div className="p-4 text-center text-muted-foreground text-xs italic">
-            Tidak ada thread percakapan.
+      {/* Contacts List */}
+      <div className="flex-1 overflow-y-auto divide-y divide-border/40">
+        {filteredContacts.length === 0 ? (
+          <div className="p-6 text-center text-xs text-muted-foreground">
+            Tidak ada kontak yang cocok.
           </div>
         ) : (
-          threads.map((thread) => {
-            const isSelected = activeThreadId === thread.id
-            const snippet = thread.last_message?.content || thread.topic || 'Belum ada pesan'
-
+          filteredContacts.map((contact) => {
+            const isSelected = activeContactId === contact.id || activeContactId === contact.conversation_id
             return (
               <button
-                key={thread.id}
-                onClick={() => onSelectThread(thread)}
+                key={contact.id}
+                onClick={() => onSelectContact(contact)}
                 className={cn(
-                  'w-full p-3 text-left transition-colors flex flex-col gap-1.5',
-                  isSelected
-                    ? 'bg-accent/80 border-l-2 border-l-primary'
-                    : 'hover:bg-accent/40'
+                  'w-full text-left p-3 transition-colors flex items-start gap-3 hover:bg-accent/40',
+                  isSelected && 'bg-accent text-accent-foreground font-medium'
                 )}
               >
-                <div className="flex items-start justify-between gap-1 w-full">
-                  <span className="font-semibold text-xs text-foreground truncate max-w-[150px]">
-                    {thread.title}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-                    {formatTime(thread.updated_at || thread.created_at)}
-                  </span>
+                {/* Avatar with Online Dot */}
+                <div className="relative shrink-0 mt-0.5">
+                  <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold border border-border shadow-xs">
+                    {contact.avatar ? (
+                      <span>{contact.avatar}</span>
+                    ) : contact.type === 'agent' ? (
+                      <Bot className="h-4 w-4 text-primary" />
+                    ) : (
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  {/* Status Indicator */}
+                  <span
+                    className={cn(
+                      'absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background',
+                      contact.status === 'online'
+                        ? 'bg-emerald-500'
+                        : contact.status === 'idle'
+                        ? 'bg-amber-500'
+                        : 'bg-zinc-400'
+                    )}
+                  />
                 </div>
 
-                <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                  {snippet}
-                </p>
-
-                <div className="flex items-center justify-between gap-1 mt-0.5 pt-1 border-t border-border/30 text-[10px]">
-                  <span className="text-muted-foreground truncate max-w-[100px] font-mono">
-                    {thread.project_name}
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-muted-foreground flex items-center gap-0.5 font-mono">
-                      <MessageSquare className="h-2.5 w-2.5" />
-                      {thread.message_count}
+                {/* Details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span className="text-xs font-semibold text-foreground truncate">
+                      {contact.name}
                     </span>
-                    {getStatusBadge(thread.status)}
+                    <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
+                      {formatTime(contact.last_message_at || contact.updated_at)}
+                    </span>
+                  </div>
+
+                  {/* Badge & Last Message */}
+                  <div className="flex items-center gap-1.5 mb-1">
+                    {contact.type === 'agent' ? (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-primary/10 text-primary">
+                        Agent
+                      </span>
+                    ) : (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                        {contact.product ? `Customer: ${contact.product}` : 'Customer'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground truncate leading-relaxed">
+                      {contact.last_message || 'Belum ada pesan.'}
+                    </p>
+                    {contact.unread_count > 0 && (
+                      <span className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                        {contact.unread_count}
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>

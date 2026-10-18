@@ -983,6 +983,26 @@ func (s *Server) routes() {
 	s.router.Post("/api/inbox/{id}/messages", s.handleCreateInboxMessage)
 	s.router.Post("/api/inbox/{id}/approve", s.handleApproveInboxThread)
 
+	// Direct Messenger Hub & Dojo Live Chat Replacement (Sprint 18)
+	// Dojo Drop-In Widget JS
+	s.router.With(chatCORSMiddleware).Get("/chat/widget.js", s.handleChatWidgetJS)
+	s.router.With(chatCORSMiddleware).Options("/chat/widget.js", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Visitor Live Chat API (Dojo contract compatible, open CORS)
+	s.router.Route("/api/chat", func(cr chi.Router) {
+		cr.Use(chatCORSMiddleware)
+		cr.Post("/session", s.handleVisitorChatSession)
+		cr.Get("/messages", s.handleVisitorGetMessages)
+		cr.Post("/messages", s.handleVisitorSendMessage)
+		cr.Post("/sessions/{uuid}/page", s.handleVisitorPageTelemetry)
+		cr.Post("/receipts", s.handleVisitorReceipts)
+		cr.Get("/contacts", s.handleInternalListContacts)
+		cr.Get("/conversations/{id}/messages", s.handleInternalGetConversationMessages)
+		cr.Post("/conversations/{id}/messages", s.handleInternalSendConversationMessage)
+	})
+
 	// Project Tasks
 	s.router.Post("/api/projects/{id}/tasks", s.handleCreateProjectTask)
 	s.router.Get("/api/projects/{id}/tasks", s.handleListProjectTasks)
@@ -1472,6 +1492,11 @@ func (s *Server) routes() {
 			pr.Get("/inbox/{id}", s.handleGetInboxThread)
 			pr.Post("/inbox/{id}/messages", s.handleCreateInboxMessage)
 			pr.Post("/inbox/{id}/approve", s.handleApproveInboxThread)
+
+			// Direct Messenger Hub (Sprint 18)
+			pr.Get("/chat/contacts", s.handleInternalListContacts)
+			pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)
+			pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)
 		})
 	})
 }
@@ -1487,7 +1512,7 @@ func (s *Server) setupStaticRoutes() {
 		fileServer := http.FileServer(http.Dir(staticDir))
 		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 			path := filepath.Clean(r.URL.Path)
-			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || path == "/install.sh" {
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || strings.HasPrefix(path, "/chat") || path == "/install.sh" {
 				http.NotFound(w, r)
 				return
 			}

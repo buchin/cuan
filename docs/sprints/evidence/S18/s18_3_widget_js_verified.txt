@@ -1,0 +1,44 @@
+=== CUAN SPRINT 18 (S18.3) EVIDENCE: DOJO DROP-IN LIVE CHAT WIDGET JS VERIFIED ===
+Timestamp: 2026-10-18T18:28:00Z
+DoD Requirement: Standalone Vanilla JS Shadow DOM widget at web/public/chat/widget.js, served via Go handler /chat/widget.js with open CORS, Dojo API contract compatibility, localStorage guest & session persistence, page telemetry, and window.$crisp + window.$dojoChat shims.
+
+1. Script & Shadow DOM Architecture:
+- File Location: web/public/chat/widget.js (Bundled into web/dist/chat/widget.js, 19,074 bytes).
+- Shadow DOM Encapsulation:
+  * Element: #dojo-livechat-host with attachShadow({ mode: 'open' }).
+  * Zero CSS pollution: host web application styling cannot bleed in, and widget styles cannot leak out.
+  * Typography & Colors: Neutral shadcn zinc/slate design tokens (dark launcher #18181b, clean neutral bubbles #18181b visitor / #e4e4e7 operator).
+- Widget Components:
+  * Floating launcher bubble (56x56px, bottom-right 20px, hover scale animation, unread badge counter).
+  * Chat popup window (380x580px, responsive, rounded-2xl, border-zinc-200, smooth toggle animations).
+  * Auto-resizing input textarea (Enter to send, Shift+Enter newline).
+
+2. Dojo Contract & Telemetry:
+- Dynamic config discovery: data-product, data-api-base or script origin auto-detection.
+- Storage persistence:
+  * dojo_chat_guest_uuid (UUIDv4 auto-generated if absent).
+  * dojo_chat_session_uuid (stored on POST /api/chat/session).
+- Telemetry & Message Lifecycle:
+  * POST /api/chat/session on initialization.
+  * POST /api/chat/sessions/{uuid}/page on navigation/view.
+  * GET /api/chat/messages?session_uuid={uuid}&after_id={lastId} polling (3.5s interval).
+  * POST /api/chat/messages for sending visitor messages.
+
+3. Drop-in Shims:
+- window.$dojoChat:
+  * open(), close(), toggle(), setMessage(text), startTopic(topic).
+- window.$crisp (Array Push queue):
+  * Supports ["do", "chat:open"], ["do", "chat:close"], ["do", "chat:toggle"], ["do", "message:send", ["text", "..."]], ["set", "message:text", ["..."]].
+  * Replays any queue items pre-pushed before script load.
+
+4. Server Delivery Verification:
+- Handler: internal/server/chat_handlers.go handleChatWidgetJS
+- Route: GET /chat/widget.js
+- Headers:
+  * Content-Type: application/javascript; charset=utf-8
+  * Access-Control-Allow-Origin: *
+  * Access-Control-Allow-Methods: GET, OPTIONS
+  * Cache-Control: public, max-age=300
+- Test Result: 200 OK (19,074 bytes served, TestChatHandlers PASS).
+
+Status: S18.3 VERIFIED PASS

@@ -124,7 +124,7 @@ export function AppShell({
         <div className="flex flex-col items-center py-3 gap-2 border-t border-sidebar-border shrink-0">
           <button
             onClick={toggleTheme}
-            title={`Tema ${resolvedTheme === 'dark' ? 'Tokyo Night' : 'Light'}`}
+            title={`Tema ${resolvedTheme === 'dark' ? 'Dark' : 'Light'}`}
             className="w-9 h-9 flex items-center justify-center rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
           >
             {resolvedTheme === 'dark' ? (

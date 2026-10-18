@@ -10,10 +10,9 @@ import { AgentsView, AgentsSubPanel } from './features/agents/AgentsView'
 import { TeamView, TeamSubPanel } from './features/team/TeamView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
-import { inboxApi, InboxThreadItem } from './api/inbox'
-import { InboxSubPanel } from './features/inbox/InboxSubPanel'
+import { chatApi, ChatContact } from './api/chat'
+import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { InboxView } from './features/inbox/InboxView'
-import { CreateThreadModal } from './features/inbox/CreateThreadModal'
 import { Project, Task, TaskStatus, TaskPriority, ProjectType, DoDItem } from './api/types'
 import { Loader2 } from 'lucide-react'
 
@@ -34,11 +33,11 @@ export function App() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isSidePeekOpen, setIsSidePeekOpen] = useState(false)
 
-  // Inbox State
-  const [threads, setThreads] = useState<InboxThreadItem[]>([])
-  const [activeThread, setActiveThread] = useState<InboxThreadItem | undefined>(undefined)
-  const [inboxStatusFilter, setInboxStatusFilter] = useState('all')
-  const [isCreateThreadOpen, setIsCreateThreadOpen] = useState(false)
+  // Chat / Messenger State (S18)
+  const [contacts, setContacts] = useState<ChatContact[]>([])
+  const [activeContact, setActiveContact] = useState<ChatContact | undefined>(undefined)
+  const [contactTab, setContactTab] = useState<ContactFilterTab>('all')
+  const [contactSearch, setContactSearch] = useState('')
   const [selectedTeamRole, setSelectedTeamRole] = useState('all')
 
   // Fetch Projects and Tasks
@@ -64,26 +63,30 @@ export function App() {
     }
   }, [activeProject])
 
-  const refreshThreads = useCallback(async (status?: string) => {
+  const refreshContacts = useCallback(async () => {
     try {
-      const data = await inboxApi.list({ status: status ?? inboxStatusFilter })
-      setThreads(data)
-      if (activeThread) {
-        const updated = data.find((t) => t.id === activeThread.id)
-        if (updated) setActiveThread(updated)
-      } else if (data.length > 0) {
-        setActiveThread(data[0])
-      }
+      const data = await chatApi.listContacts()
+      setContacts(data)
+      setActiveContact((prev) => {
+        if (prev) {
+          const updated = data.find((c) => c.id === prev.id)
+          if (updated) return updated
+        }
+        const sm = data.find((c) => c.id === 'agent-sm' || c.name.toLowerCase().includes('scrum master'))
+        return sm || data[0] || undefined
+      })
     } catch (err) {
-      console.error('Failed to load threads:', err)
+      console.error('Failed to load contacts:', err)
     }
-  }, [activeThread, inboxStatusFilter])
+  }, [])
 
   useEffect(() => {
     if (isAuthenticated) {
-      Promise.allSettled([refreshProjects(), refreshTasks(), refreshThreads()])
+      Promise.allSettled([refreshProjects(), refreshTasks(), refreshContacts()])
+      const interval = setInterval(refreshContacts, 5000)
+      return () => clearInterval(interval)
     }
-  }, [isAuthenticated, refreshProjects, refreshTasks, refreshThreads])
+  }, [isAuthenticated, refreshProjects, refreshTasks, refreshContacts])
 
   // Handlers for Projects
   const handleCreateProject = async (data: {
@@ -136,15 +139,6 @@ export function App() {
     await refreshTasks()
   }
 
-  const handleCreateThread = async (data: { title: string; message: string; project_id?: string }) => {
-    const res = await inboxApi.create(data)
-    await refreshThreads()
-    if (res.thread) {
-      setActiveThread(res.thread)
-    }
-    setCurrentTab('inbox')
-  }
-
   // 1. Loading Auth State
   if (authLoading) {
     return (
@@ -179,15 +173,13 @@ export function App() {
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
         inboxSubPanel={
           <InboxSubPanel
-            threads={threads}
-            activeThreadId={activeThread?.id}
-            onSelectThread={(t) => setActiveThread(t)}
-            onCreateThreadClick={() => setIsCreateThreadOpen(true)}
-            statusFilter={inboxStatusFilter}
-            onStatusFilterChange={(status) => {
-              setInboxStatusFilter(status)
-              refreshThreads(status)
-            }}
+            contacts={contacts}
+            activeContactId={activeContact?.id}
+            onSelectContact={(c) => setActiveContact(c)}
+            selectedTab={contactTab}
+            onTabChange={setContactTab}
+            searchQuery={contactSearch}
+            onSearchChange={setContactSearch}
           />
         }
         agentsSubPanel={<AgentsSubPanel />}
@@ -198,12 +190,11 @@ export function App() {
           />
         }
       >
-        {/* Inbox View — S17.2 & S17.3 */}
+        {/* Messenger View — S18 Direct Messenger */}
         {currentTab === 'inbox' && (
           <InboxView
-            activeThread={activeThread}
-            onThreadUpdated={refreshThreads}
-            onCreateThreadClick={() => setIsCreateThreadOpen(true)}
+            activeContact={activeContact}
+            onContactUpdated={refreshContacts}
           />
         )}
 
@@ -227,12 +218,6 @@ export function App() {
       </AppShell>
 
       {/* Modals & Drawers */}
-      <CreateThreadModal
-        isOpen={isCreateThreadOpen}
-        projects={projects}
-        onClose={() => setIsCreateThreadOpen(false)}
-        onSubmit={handleCreateThread}
-      />
 
       <CreateProjectModal
         isOpen={isCreateProjectOpen}

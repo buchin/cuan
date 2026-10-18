@@ -31,27 +31,27 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#1a1b26] text-[#c0caf5] p-6 font-mono text-center select-none">
-          <div className="max-w-md bg-[#16161e] border border-[#f7768e]/40 p-6 shadow-2xl space-y-4">
-            <div className="h-10 w-10 mx-auto bg-[#f7768e]/10 text-[#f7768e] flex items-center justify-center font-bold text-lg">
+        <div className="h-screen w-screen flex flex-col items-center justify-center bg-background text-foreground p-6 font-mono text-center select-none">
+          <div className="max-w-md bg-card border border-destructive/40 p-6 shadow-2xl space-y-4 rounded-lg">
+            <div className="h-10 w-10 mx-auto bg-destructive/10 text-destructive flex items-center justify-center font-bold text-lg rounded-full">
               !
             </div>
-            <h2 className="text-sm font-bold text-[#f7768e]">
+            <h2 className="text-sm font-bold text-destructive">
               Aplikasi Mengalami Kendala Tampilan
             </h2>
-            <p className="text-xs text-[#a9b1d6] leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               {this.state.error?.message || 'Terjadi kesalahan runtime yang tidak terduga.'}
             </p>
             <div className="pt-2 flex justify-center gap-3">
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-[#7aa2f7] text-[#16161e] font-bold text-xs hover:bg-[#89b4fa] transition-colors"
+                className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-colors rounded"
               >
                 Muat Ulang Halaman
               </button>
               <button
                 onClick={this.handleReset}
-                className="px-4 py-2 bg-[#24283b] text-[#a9b1d6] font-semibold text-xs hover:text-white transition-colors border border-[#414868]"
+                className="px-4 py-2 bg-secondary text-secondary-foreground font-semibold text-xs hover:bg-secondary/80 transition-colors border border-border rounded"
               >
                 Reset Sesi
               </button>
