@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -897,7 +898,20 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		role := ClassifyMessageContext(text)
 
 		// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
-		agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role)
+		var profileHome string
+		if s.agentRepo != nil {
+			registered, err := s.agentRepo.GetAgentByID(r.Context(), resolved.TargetAgentID)
+			if err != nil {
+				respondJSONError(w, http.StatusConflict, "Agen tidak ditemukan")
+				return
+			}
+			profileHome, err = s.agentProfileHome(r.Context(), registered)
+			if err != nil {
+				respondJSON(w, http.StatusConflict, map[string]any{"error": err.Error(), "user_message_saved": true})
+				return
+			}
+		}
+		agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role, profileHome)
 		if agentReplyText == "" {
 			respondJSON(w, http.StatusBadGateway, map[string]any{"error": "Provider unavailable or login expired. User message saved; no agent reply was generated.", "user_message_saved": true})
 			return
@@ -1026,7 +1040,7 @@ func extractMentionHandle(msg string) string {
 
 // executeAgentContextualResponse returns only actual CLI output; an empty result means provider failure.
 // based on dynamic role (RoleScrumMaster, RoleDeveloper, RoleFriendly).
-func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole) string {
+func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole, profileHomes ...string) string {
 	// Execute the real CLI in development, staging and production.
 	if s.cfg == nil || s.cfg.Environment != "testing" {
 		binName := "agy"
@@ -1063,6 +1077,10 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "40s")
 			if binName == "agy" {
 				cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+			}
+			if len(profileHomes) > 0 && profileHomes[0] != "" {
+				cmd.Env = agent.AntigravityProfileEnvironment(profileHomes[0])
+				cmd.Dir = profileHomes[0]
 			}
 			var stdoutBuf, stderrBuf bytes.Buffer
 			cmd.Stdout = &stdoutBuf

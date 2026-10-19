@@ -174,3 +174,44 @@ func TestS26ScopedExpiryAndProfileCredentialTimestamp(t *testing.T) {
 		t.Fatal("expiry deleted credential")
 	}
 }
+
+func TestS26DedicatedProfileBinding(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	a, err := CreateProviderAccount("owner-a", "agent-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := ProviderAccountHome("owner-a", a.ID)
+	if err := BindProviderAccount("owner-a", a.ID, "agent-one", "conn_profile_first"); err == nil {
+		t.Fatal("profile bound without login")
+	}
+	os.MkdirAll(AntigravityConfigDirPath(home), 0700)
+	os.WriteFile(AntigravityCredentialsFilePath(home), []byte("fixture-only-credential-value"), 0600)
+	if err := BindProviderAccount("owner-a", a.ID, "agent-one", "conn_profile_first"); err != nil {
+		t.Fatal(err)
+	}
+	if err := BindProviderAccount("owner-a", a.ID, "agent-two", "conn_profile_second"); err == nil {
+		t.Fatal("profile shared between agents")
+	}
+	if _, err := ProviderAccountForConnection("owner-b", "agent-one", "conn_profile_first"); err == nil {
+		t.Fatal("other owner resolved binding")
+	}
+	if _, err := ProviderAccountForConnection("owner-a", "agent-two", "conn_profile_first"); err == nil {
+		t.Fatal("other agent borrowed connection")
+	}
+	saved, err := ProviderAccountForConnection("owner-a", "agent-one", "conn_profile_first")
+	if err != nil || saved.ID != a.ID {
+		t.Fatal("persisted binding lost")
+	}
+	UnbindProviderAccount("owner-a", a.ID, "wrong-agent", "conn_profile_first")
+	if _, err := ProviderAccountForConnection("owner-a", "agent-one", "conn_profile_first"); err != nil {
+		t.Fatal("wrong rollback unbound another agent")
+	}
+	UnbindProviderAccount("owner-a", a.ID, "agent-one", "conn_profile_first")
+	if _, err := ProviderAccountForConnection("owner-a", "agent-one", "conn_profile_first"); err == nil {
+		t.Fatal("failed-registration binding survived rollback")
+	}
+	if !IsAntigravityLoggedInInDir(home) {
+		t.Fatal("rollback removed login credential")
+	}
+}

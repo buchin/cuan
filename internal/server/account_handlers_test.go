@@ -3,15 +3,18 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 func TestS26AccountAPIAuthOwnerAndQuotaIsolation(t *testing.T) {
@@ -144,5 +147,154 @@ func TestS26RecreateAgentDoesNotCollideWithRetainedConnection(t *testing.T) {
 		if _, err := repo.GetConnectionByID(context.Background(), id); err != nil {
 			t.Fatal("prior connection unexpectedly removed")
 		}
+	}
+}
+
+func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s, token := setupTestChatServer(t)
+	owner, err := s.authSvc.ValidateToken(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := []*agent.ProviderAccount{}
+	for _, label := range []string{"profile-first", "profile-second"} {
+		a, err := agent.CreateProviderAccount(owner.ID, label)
+		if err != nil {
+			t.Fatal(err)
+		}
+		home, _ := agent.ProviderAccountHome(owner.ID, a.ID)
+		os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700)
+		os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte("fixture-not-real-provider-credential"), 0600)
+		os.WriteFile(filepath.Join(home, "fixture-marker"), []byte(label), 0600)
+		profiles = append(profiles, a)
+	}
+	request := func(handle, profile string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(map[string]string{"name": handle, "handle": handle, "provider": "agy", "account_id": profile})
+		r := httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(string(body)))
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		return w
+	}
+	for i, handle := range []string{"@first", "@second"} {
+		w := request(handle, profiles[i].ID)
+		if w.Code != 201 {
+			t.Fatalf("register %d %s", w.Code, w.Body.String())
+		}
+	}
+	if w := request("@borrowed", profiles[0].ID); w.Code != 409 {
+		t.Fatalf("shared connection accepted %d", w.Code)
+	}
+	if w := request("@first", profiles[0].ID); w.Code != 200 {
+		t.Fatalf("same successful registration retry failed %d %s", w.Code, w.Body.String())
+	}
+	if w := request("@first", profiles[1].ID); w.Code != 409 {
+		t.Fatal("retry crossed profile")
+	}
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\n/bin/cat \"$HOME/fixture-marker\"\nprintf '%s' \"$HOME\" > \"$HOME/task-used-profile\"\n"), 0700)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s.cfg.Environment = "staging"
+	for i, id := range []string{"agent_first", "agent_second"} {
+		a, err := s.agentRepo.GetAgentByID(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		home, err := s.agentProfileHome(context.Background(), a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, _ := agent.ProviderAccountHome(owner.ID, profiles[i].ID)
+		if home != expected {
+			t.Fatal("runtime uses wrong profile")
+		}
+		out := s.executeAgentContextualResponse(context.Background(), a.Name, "agy", "fixture prompt", RoleFriendly, home)
+		if !strings.Contains(out, []string{"profile-first", "profile-second"}[i]) {
+			t.Fatal("actual child did not use dedicated HOME")
+		}
+	}
+	s.terminalManager = terminal.NewManager(terminal.ManagerConfig{WorkspacesDir: t.TempDir()})
+	defer s.terminalManager.CloseAll()
+	for i, id := range []string{"agent_first", "agent_second"} {
+		home, _ := agent.ProviderAccountHome(owner.ID, profiles[i].ID)
+		proof := filepath.Join(home, "task-used-profile")
+		os.Remove(proof)
+		r := httptest.NewRequest("POST", "/api/v1/tasks/profile-fixture-"+id+"/run-agent", strings.NewReader(`{"agent_id":"`+id+`","prompt":"fixture"}`))
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		if w.Code != 200 {
+			t.Fatalf("task profile launch %d %s", w.Code, w.Body.String())
+		}
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			if raw, err := os.ReadFile(proof); err == nil {
+				if string(raw) != home {
+					t.Fatal("task used another HOME")
+				}
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("task did not execute in its dedicated profile")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	a, _ := s.agentRepo.GetAgentByID(context.Background(), "agent_first")
+	a.ConnectionID = "conn_profile_missing"
+	if _, err := s.agentProfileHome(context.Background(), a); err == nil {
+		t.Fatal("missing new connection fell back to legacy")
+	}
+	a2, _ := s.agentRepo.GetAgentByID(context.Background(), "agent_second")
+	a.ConnectionID = a2.ConnectionID
+	if _, err := s.agentProfileHome(context.Background(), a); err == nil {
+		t.Fatal("agent borrowed another profile")
+	}
+}
+
+type s26FailConnectionRepository struct{ db.AgentRepository }
+
+func (r *s26FailConnectionRepository) CreateConnection(context.Context, *db.AgentConnection) error {
+	return errors.New("fixture storage failure")
+}
+func TestS26FailedRegistrationPreservesLoginAndUnbinds(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s, token := setupTestChatServer(t)
+	original := s.agentRepo
+	owner, err := s.authSvc.ValidateToken(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := agent.CreateProviderAccount(owner.ID, "failed-registration-fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := agent.ProviderAccountHome(owner.ID, profile.ID)
+	os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700)
+	os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte("fixture-not-real-provider-credential"), 0600)
+	s.SetAgentRepository(&s26FailConnectionRepository{AgentRepository: original})
+	body, _ := json.Marshal(map[string]string{"name": "@save_retry", "handle": "@save_retry", "provider": "agy", "account_id": profile.ID})
+	r := httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(string(body)))
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, r)
+	if w.Code != 500 {
+		t.Fatalf("expected storage failure %d", w.Code)
+	}
+	if _, err := original.GetAgentByID(context.Background(), "agent_save_retry"); err == nil {
+		t.Fatal("failed registration left roster row")
+	}
+	saved, err := agent.GetProviderAccount(owner.ID, profile.ID)
+	if err != nil || saved.ConnectionID != "" || !saved.CredentialsPresent {
+		t.Fatal("failed registration removed login or retained binding")
+	}
+	s.SetAgentRepository(original)
+	r = httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(string(body)))
+	r.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	s.Router().ServeHTTP(w, r)
+	if w.Code != 201 {
+		t.Fatalf("retry failed %d %s", w.Code, w.Body.String())
 	}
 }

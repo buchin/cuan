@@ -59,9 +59,22 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 		total = len(agents)
 	}
 
-	dtos := make([]db.AgentDTO, len(agents))
+	type rosterAgent struct {
+		db.AgentDTO
+		ConnectionState string `json:"connection_state"`
+	}
+	dtos := make([]rosterAgent, len(agents))
 	for i, a := range agents {
-		dtos[i] = a.ToDTO()
+		state := "unknown"
+		if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
+			state = "login_required"
+			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID); err == nil {
+				if profile, err := agent.ProviderAccountForConnection(conn.UserID, a.ID, conn.ID); err == nil {
+					state = profile.State
+				}
+			}
+		}
+		dtos[i] = rosterAgent{AgentDTO: a.ToDTO(), ConnectionState: state}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -92,14 +105,12 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if input.Harness == "agy" {
+	if input.Harness == "agy" || input.Provider == "agy" || input.Provider == "antigravity" {
 		if !s.requireOAuthOwner(w, r) {
 			return
 		}
-		if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
-			respondJSONError(w, http.StatusConflict, err.Error())
-			return
-		}
+		respondJSONError(w, http.StatusConflict, "Gunakan Tambah agen untuk menghubungkan akun agen ini")
+		return
 	}
 	entity, err := input.ToEntity()
 	if err != nil {
@@ -748,6 +759,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		SystemPrompt string `json:"system_prompt"`
 		AuthType     string `json:"auth_type"`
 		SessionToken string `json:"session_token"`
+		AccountID    string `json:"account_id"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -774,9 +786,17 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		provider = "antigravity"
 	}
 
+	ownerID := "default"
+	var profile *agent.ProviderAccount
 	if provider == "agy" || provider == "antigravity" {
-		if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
-			respondJSONError(w, http.StatusConflict, err.Error())
+		ownerID = s.accountOwner(w, r)
+		if ownerID == "" {
+			return
+		}
+		var err error
+		profile, err = agent.GetProviderAccount(ownerID, req.AccountID)
+		if err != nil || profile.Legacy || !profile.CredentialsPresent {
+			respondJSONError(w, http.StatusConflict, "Selesaikan login Google untuk agen ini terlebih dahulu")
 			return
 		}
 	}
@@ -807,6 +827,9 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := "agent_" + cleanHandle
 	// A deleted persona may leave a retained connection/history. Do not reuse its ID.
 	connID := "conn_" + db.GenerateUUID()
+	if profile != nil {
+		connID = "conn_profile_" + db.GenerateUUID()
+	}
 	// The existing 19-migration schema persists the CLI connection link in model_id.
 	// The CLI itself selects its configured provider model.
 	if provider == "agy" || provider == "antigravity" {
@@ -816,9 +839,37 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	if name != handle {
 		agentDisplayName = fmt.Sprintf("%s (%s)", name, handle)
 	}
-	if _, err := s.agentRepo.GetAgentByID(r.Context(), agentID); err == nil {
+	if existing, err := s.agentRepo.GetAgentByID(r.Context(), agentID); err == nil {
+		// A client may retry after the successful response was lost. Reconcile
+		// only the same dedicated binding, never another agent or account.
+		if profile != nil && profile.AgentID == agentID && profile.ConnectionID == existing.ConnectionID {
+			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), existing.ConnectionID); err == nil && conn.UserID == ownerID {
+				rooms, err := s.projectStudioRepo.ListAllRooms(r.Context())
+				if err == nil {
+					for _, room := range rooms {
+						if room.Topic == "agent:"+agentID {
+							respondJSON(w, http.StatusOK, map[string]any{"status": "success", "agent": existing.ToDTO(), "connection": conn.ToDTO(), "conversation_id": room.ID, "room_id": room.ID, "provider": provider, "handle": handle, "message": "Agen sudah tersimpan"})
+							return
+						}
+					}
+				}
+			}
+		}
 		respondJSONError(w, http.StatusConflict, "Nama agen sudah digunakan. Pilih nama lain.")
 		return
+	}
+
+	committed := false
+	if profile != nil {
+		if err := agent.BindProviderAccount(ownerID, profile.ID, agentID, connID); err != nil {
+			respondJSONError(w, http.StatusConflict, err.Error())
+			return
+		}
+		defer func() {
+			if !committed {
+				agent.UnbindProviderAccount(ownerID, profile.ID, agentID, connID)
+			}
+		}()
 	}
 
 	agentEntity := &db.Agent{
@@ -845,7 +896,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	// 2. Create / Persist Connection
 	connEntity := &db.AgentConnection{
 		ID:                   connID,
-		UserID:               "default",
+		UserID:               ownerID,
 		Provider:             provider,
 		CredentialsEncrypted: encryptedToken,
 		PlanHint:             "Sesi Host Server (Tanpa API Key)",
@@ -854,8 +905,8 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:            time.Now().UTC(),
 	}
 	if err := s.agentRepo.CreateConnection(r.Context(), connEntity); err != nil {
-		_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
-		respondJSONError(w, http.StatusInternalServerError, "Failed to save agent connection")
+		s.rollbackAgentRegistration(agentID, connID, false)
+		respondJSONError(w, http.StatusInternalServerError, "Agen belum bisa disimpan. Silakan coba lagi.")
 		return
 	}
 
@@ -881,8 +932,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 				CreatedAt: now,
 				UpdatedAt: now,
 			}); err != nil {
-				_ = s.agentRepo.DeleteConnection(r.Context(), connID)
-				_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
+				s.rollbackAgentRegistration(agentID, connID, true)
 				respondJSONError(w, http.StatusInternalServerError, "Agen gagal disimpan ke Inbox. Coba lagi.")
 				return
 			}
@@ -891,6 +941,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		roomID = db.GenerateUUID()
 	}
 
+	committed = true
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"status":          "success",
 		"agent":           agentEntity.ToDTO(),

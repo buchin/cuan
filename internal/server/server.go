@@ -1292,6 +1292,7 @@ func (s *Server) routes() {
 		ar.Post("/auth-init", s.handleInitHarnessAuth)
 		ar.Post("/auth-code", s.handleSubmitHarnessAuthCode)
 		ar.Post("/connect-cli", s.handleConnectCLIAgent)
+		ar.Post("/{id}/connection/verify", s.handleVerifyAgentProfile)
 		ar.Get("/{id}", s.handleGetAgent)
 		ar.Put("/{id}", s.handleUpdateAgent)
 		ar.Patch("/{id}", s.handlePatchAgent)

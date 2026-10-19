@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bot, CheckCircle2, Plus, RefreshCw, Trash2, X } from 'lucide-react'
-import { ProviderAccounts } from './ProviderAccounts'
-import { accountsApi, type ProviderAccount } from '../../api/accounts'
+import { Bot, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { accountsApi } from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth } from '../../api/agents'
 
-type Step = 'name' | 'google' | 'saved'
+type Step = 'name' | 'google' | 'save'
 
 export function TeamView({ selectedRole = 'all', onAgentAdded }: {
   selectedRole?: string
@@ -20,8 +19,8 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState('')
-  const [savedMessage, setSavedMessage] = useState('')
-  const [accountRevision, setAccountRevision] = useState(0)
+  const [notice, setNotice] = useState('')
+  const [checking, setChecking] = useState('')
   const active = useRef<{ accountId: string; sessionId: string } | null>(null)
   const accountScope = useRef('')
   const epoch = useRef(0)
@@ -63,18 +62,18 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     setCode('')
     setAuth(null)
     setBusy(false)
-    setAccountRevision(n => n + 1)
     window.setTimeout(() => addButton.current?.focus(), 0)
   }
-  const begin = (account?: ProviderAccount) => {
+  const begin = () => {
     epoch.current++
     dialogActive.current = true
-    accountScope.current = account?.id || ''
+    accountScope.current = ''
     setStep('name')
     setOpen(true)
     setAuth(null)
     setCode('')
     setFormError('')
+    setNotice('')
     setBusy(false)
     let suffix = 1
     let next = '@dev'
@@ -109,6 +108,31 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
       if (dialogActive.current && epoch.current === currentEpoch) setFormError(err instanceof Error ? err.message : 'Google belum bisa dihubungkan. Silakan coba lagi.')
     } finally { if (dialogActive.current && epoch.current === currentEpoch) setBusy(false) }
   }
+  const finish = async (currentEpoch: number) => {
+    await agentsApi.connectCLI({ name: handle, handle, provider: 'agy', account_id: accountScope.current })
+    if (!dialogActive.current || epoch.current !== currentEpoch) return
+    close()
+    setNotice(`${handle} berhasil ditambahkan.`)
+    await load()
+    onAgentAdded?.()
+  }
+  const retrySave = async () => {
+    const currentEpoch = epoch.current
+    setBusy(true); setFormError('')
+    try { await finish(currentEpoch) }
+    catch (e) { if (dialogActive.current && epoch.current === currentEpoch) setFormError(e instanceof Error ? e.message : 'Agen belum bisa disimpan. Coba lagi.') }
+    finally { if (dialogActive.current && epoch.current === currentEpoch) setBusy(false) }
+  }
+  const check = async (id: string) => {
+    setChecking(id); setError(''); setNotice('')
+    try {
+      const result = await agentsApi.verifyConnection(id)
+      setAgents(current => current.map(a => a.id === id ? { ...a, connection_state: result.connection_state } : a))
+      const messages: Record<string, string> = { verified: 'Koneksi agen aktif.', quota_limited: 'Kuota agen sedang habis. Coba lagi setelah kuota pulih.', login_required: 'Agen perlu login kembali.', unavailable: 'Koneksi sedang terganggu. Coba lagi nanti.' }
+      setNotice(messages[result.connection_state] || 'Koneksi belum dapat dipastikan. Coba lagi nanti.')
+    } catch (e) { setError(e instanceof Error ? e.message : 'Koneksi belum dapat diperiksa. Coba lagi.') }
+    finally { setChecking('') }
+  }
   const verify = async () => {
     if (!active.current || !code.trim() || busy) return
     const currentEpoch = epoch.current
@@ -121,10 +145,9 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
       if (!account.credentials_present) throw new Error('Login belum selesai. Buka Google dan salin kode yang diberikan.')
       active.current = null
       setAuth(null)
-      setStep('saved')
-      setSavedMessage(account.state === 'quota_limited' ? 'Login tersimpan. Kuota akun Google ini sedang habis; coba lagi setelah kuota pulih.' : account.state === 'verified' ? 'Akun Google berhasil dihubungkan.' : 'Login tersimpan. Koneksi Google belum bisa diperiksa; Anda dapat mencoba lagi nanti.')
-      setAccountRevision(n => n + 1)
-    } catch (err) {
+      setStep('save')
+      await finish(currentEpoch)
+      } catch (err) {
       if (dialogActive.current && epoch.current === currentEpoch) setFormError(err instanceof Error ? err.message : 'Kode belum berhasil diperiksa. Coba lagi atau buat link baru.')
     } finally { if (dialogActive.current && epoch.current === currentEpoch) { setCode(''); setBusy(false) } }
   }
@@ -139,18 +162,19 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
 
   return <div className="mx-auto max-w-4xl space-y-5 pb-8">
     <div className="flex items-center justify-between gap-3">
-      <div><h1 className="text-xl font-semibold">Agen</h1><p className="mt-1 text-sm text-muted-foreground">Asisten Anda untuk chat dan tugas.</p></div>
+      <div><h1 className="text-xl font-semibold">Agen</h1><p className="mt-1 text-sm text-muted-foreground">Satu agen, satu koneksi.</p></div>
       <button ref={addButton} onClick={() => begin()} className={`${primary} shrink-0`}><Plus className="h-4 w-4" />Tambah agen</button>
     </div>
+    {notice && <p role="status" className="text-sm">{notice}</p>}
     {error && <div role="alert" className="text-sm text-destructive">{error} <button onClick={load} className="underline">Coba lagi</button></div>}
     {loading ? <p role="status" className="text-sm text-muted-foreground">Memuat agen…</p> : visibleAgents.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center">
       <Bot className="mx-auto h-8 w-8 text-muted-foreground" /><h2 className="mt-3 font-medium">Belum ada agen</h2><p className="mt-1 text-sm text-muted-foreground">Tambahkan agen pertama Anda, lalu hubungkan akun Google.</p>
       <button onClick={() => begin()} className={`${primary} mt-4`}>Tambah agen pertama</button>
-    </div> : <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">{visibleAgents.map(a => <div key={a.id} className="flex items-center gap-3 p-4">
-      <Bot className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{a.name}</p><p className="text-xs text-muted-foreground">{a.enabled === false || a.status === 'inactive' ? 'Dinonaktifkan' : 'Terdaftar'}</p></div>
+    </div> : <div role="list" aria-label="Daftar agen" className="divide-y divide-border overflow-hidden rounded-lg border border-border">{visibleAgents.map(a => <div role="listitem" aria-label={`Agen ${a.name}`} key={a.id} className="flex items-center gap-3 p-4">
+      <Bot className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{a.name}</p><p className="text-xs text-muted-foreground">{({ agy: 'Antigravity', antigravity: 'Antigravity', claude: 'Claude Code', codex: 'Codex' } as Record<string, string>)[a.harness || a.provider || ''] || a.harness || a.provider || 'Agen'} · {a.enabled === false || a.status === 'inactive' ? 'Dinonaktifkan' : ({ verified: 'Terhubung', login_required: 'Perlu login', quota_limited: 'Kuota habis', unavailable: 'Koneksi terganggu', unknown: 'Belum diperiksa' } as Record<string, string>)[a.connection_state || 'unknown'] || 'Belum diperiksa'}</p></div>
+      {(a.harness === 'agy' || a.provider === 'agy' || a.provider === 'antigravity') && <button onClick={() => void check(a.id)} disabled={!!checking} className="rounded-md border border-border px-3 py-2 text-xs disabled:opacity-50">{checking === a.id ? 'Memeriksa…' : 'Periksa'}</button>}
       <button onClick={() => void remove(a.id)} aria-label={`Hapus ${a.name}`} className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
     </div>)}</div>}
-    <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm text-muted-foreground">Akun Google</summary><div className="mt-3"><ProviderAccounts key={accountRevision} onLogin={begin} /></div></details>
     {open && <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
       <section role="dialog" aria-modal="true" aria-labelledby="add-agent-title" className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl" onKeyDown={event => {
         if (event.key === 'Escape') close()
@@ -160,16 +184,16 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
       }}>
-        <header className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 id="add-agent-title" className="font-semibold">{step === 'saved' ? 'Akun Google tersimpan' : 'Tambah agen'}</h2>{step !== 'saved' && <p className="mt-1 text-xs text-muted-foreground">{step === 'name' ? 'Langkah 1 dari 2 · Beri nama' : 'Langkah 2 dari 2 · Hubungkan Google'}</p>}</div><button onClick={close} aria-label="Tutup" className="rounded p-2 hover:bg-muted"><X className="h-4 w-4" /></button></header>
-        <form onSubmit={event => { event.preventDefault(); if (step === 'saved') close(); else if (step === 'name' || !auth?.auth_url) void connect(); else void verify() }}>
+        <header className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 id="add-agent-title" className="font-semibold">Tambah agen</h2>{step !== 'save' && <p className="mt-1 text-xs text-muted-foreground">{step === 'name' ? 'Langkah 1 dari 2 · Beri nama' : 'Langkah 2 dari 2 · Hubungkan Google'}</p>}</div><button onClick={close} aria-label="Tutup" className="rounded p-2 hover:bg-muted"><X className="h-4 w-4" /></button></header>
+        <form onSubmit={event => { event.preventDefault(); if (step === 'save') void retrySave(); else if (step === 'name' || !auth?.auth_url) void connect(); else void verify() }}>
           <div className="space-y-4 p-5">
-            {step === 'name' && <><div><label htmlFor="agent-handle" className="text-sm font-medium">Nama agen</label><input id="agent-handle" autoFocus required maxLength={49} value={handle} onChange={event => setHandle('@' + event.target.value.replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_-]/g, ''))} className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" aria-describedby="agent-name-help" /><p id="agent-name-help" className="mt-2 text-xs text-muted-foreground">Contoh: @penulis atau @developer.</p></div><p className="text-sm text-muted-foreground">Selanjutnya, masuk ke Google untuk menghubungkan akun agen ini. Akun lain tetap tersimpan.</p></>}
+            {step === 'name' && <><div><label htmlFor="agent-handle" className="text-sm font-medium">Nama agen</label><input id="agent-handle" autoFocus required maxLength={49} value={handle} onChange={event => setHandle('@' + event.target.value.replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_-]/g, ''))} className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" aria-describedby="agent-name-help" /><p id="agent-name-help" className="mt-2 text-xs text-muted-foreground">Contoh: @penulis atau @developer.</p></div><p className="text-sm text-muted-foreground">Selanjutnya, masuk ke Google untuk menghubungkan akun agen ini. Koneksi agen lain tetap tersimpan.</p></>}
             {step === 'google' && <><p className="text-sm">Hubungkan Google untuk <strong>{handle}</strong>.</p>{auth?.auth_url ? <><div className="space-y-2"><p className="text-sm font-medium">1. Masuk ke akun Google Anda</p><a href={auth.auth_url} target="_blank" rel="noopener noreferrer" className={`${secondary} w-full`}>Buka Google ↗</a><p className="text-xs text-muted-foreground">Pilih akun yang ingin digunakan. Setelah selesai, kembali ke sini.</p></div><div><label htmlFor="oauth-code" className="text-sm font-medium">2. Tempel kode dari Google</label><input id="oauth-code" type="password" autoComplete="off" value={code} onChange={event => setCode(event.target.value)} placeholder="Tempel kode di sini" className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" /><p className="mt-2 text-xs text-muted-foreground">Kode hanya dimasukkan di sini. Link berlaku 5 menit.</p></div><button type="button" disabled={busy} onClick={() => void connect()} className="text-xs text-muted-foreground underline">Buat link baru</button></> : <p className="text-sm text-muted-foreground">Buat link baru untuk melanjutkan login Google.</p>}</>}
-            {step === 'saved' && <><CheckCircle2 className="h-8 w-8 text-emerald-600" /><p role="status" className="text-sm">{savedMessage}</p><p className="text-sm text-muted-foreground">Akun sudah tersimpan. Agen belum ditambahkan.</p></>}
+            {step === 'save' && <p className="text-sm">Google sudah terhubung. Simpan <strong>{handle}</strong> untuk mulai menggunakannya.</p>}
             {formError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{formError}</p>}
-            {busy && <p role="status" className="text-sm text-muted-foreground">{step === 'name' || !auth?.auth_url ? 'Menyiapkan login Google…' : 'Memeriksa kode…'}</p>}
+            {busy && <p role="status" className="text-sm text-muted-foreground">{step === 'save' ? 'Menambahkan agen…' : step === 'name' || !auth?.auth_url ? 'Menyiapkan login Google…' : 'Memeriksa kode…'}</p>}
           </div>
-          <footer className="flex items-center justify-end gap-2 border-t border-border p-4">{step !== 'saved' && <button type="button" onClick={close} className={secondary}>Batal</button>}<button type="submit" className={primary} disabled={busy || (step === 'name' && handle.length < 2) || (step === 'google' && !!auth?.auth_url && !code.trim())}>{busy && <RefreshCw className="h-4 w-4 animate-spin" />}{step === 'saved' ? 'Kembali ke daftar agen' : step === 'name' ? 'Hubungkan Google' : auth?.auth_url ? 'Konfirmasi login' : 'Buat link baru'}</button></footer>
+          <footer className="flex items-center justify-end gap-2 border-t border-border p-4">{step !== 'save' && <button type="button" onClick={close} className={secondary}>Batal</button>}<button type="submit" className={primary} disabled={busy || (step === 'name' && handle.length < 2) || (step === 'google' && !!auth?.auth_url && !code.trim())}>{busy && <RefreshCw className="h-4 w-4 animate-spin" />}{step === 'save' ? 'Simpan agen' : step === 'name' ? 'Hubungkan Google' : auth?.auth_url ? 'Konfirmasi login' : 'Buat link baru'}</button></footer>
         </form>
       </section>
     </div>}
@@ -181,5 +205,5 @@ export function TeamSubPanel({ onAddAgentClick }: {
   onSelectRole: (role: string) => void
   onAddAgentClick?: () => void
 }) {
-  return <div className="space-y-3 p-4"><h2 className="text-sm font-medium">Agen</h2><p className="text-xs text-muted-foreground">Asisten Anda untuk chat dan tugas.</p>{onAddAgentClick && <button onClick={onAddAgentClick} className="flex items-center gap-2 text-sm text-primary"><Plus className="h-4 w-4" />Tambah agen</button>}</div>
+  return <div className="space-y-3 p-4"><h2 className="text-sm font-medium">Agen</h2><p className="text-xs text-muted-foreground">Satu agen, satu koneksi.</p>{onAddAgentClick && <button onClick={onAddAgentClick} className="flex items-center gap-2 text-sm text-primary"><Plus className="h-4 w-4" />Tambah agen</button>}</div>
 }

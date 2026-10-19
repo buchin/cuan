@@ -1,61 +1,42 @@
-# Akun provider Cuan — pratinjau S26.1
+# Agen dan koneksinya
 
-## Status
+## Model penggunaan
 
-Tersedia di staging https://cuan-s25-dojo.fural.space/team. Production tetap pada rilis S25. Fitur pemilihan akun per agen belum diaktifkan karena gate login akun kedua belum terpenuhi; Tambah agen sekarang selalu memulai profil Google terpisah dan tidak otomatis menggunakan akun lama. Jangan menganggap tersimpannya label akun sebagai bukti Google login atau provider siap.
+**Satu agen = satu koneksi.** Pengguna mengelola satu daftar agen. Jenis agen, login dan status koneksi tampil pada agen tersebut; tidak ada daftar akun Google terpisah, pemilihan akun bersama atau baris percobaan login yang dibatalkan.
 
-## Menghubungkan Google
+Pratinjau saat ini: https://cuan-s25-dojo.fural.space/team. Production masih rilis S25. Antigravity adalah jenis login yang sudah diintegrasikan pada alur baru. Command Code, Claude Code dan jenis lain memerlukan adapter login/eksekusi sendiri pada pekerjaan berikutnya; tidak ditampilkan sebagai opsi yang sudah siap.
 
-1. Buka Team → Tambah agen.
-2. Pada Langkah 1, isi nama agen seperti @penulis, lalu klik Hubungkan Google.
-3. Pada Langkah 2, klik Buka Google, pilih akun dan selesaikan login.
-4. Kembali ke Cuan, tempel kode dari Google, lalu klik Konfirmasi login. Kode hanya dimasukkan di Cuan, bukan di chat.
+## Menambahkan agen
 
-Jika link kedaluwarsa, klik Buat link baru. Batal atau Escape menutup modal dan membatalkan sesi login tersebut; akun lama tetap tersimpan. Error muncul dekat langkah terkait, dengan tindakan untuk mencoba kembali.
+1. Klik Tambah agen, lalu beri nama unik seperti @penulis.
+2. Klik Hubungkan Google. Buka Google, pilih akun yang ingin digunakan, lalu selesaikan login.
+3. Kembali ke Cuan dan tempel kode pada dialog yang sama. Klik Konfirmasi login.
+4. Setelah login tersimpan, Cuan otomatis menyimpan agen beserta satu koneksi khusus dan kembali ke daftar agen. Jika penyimpanan gagal, gunakan Simpan agen untuk mengulang penyimpanan tanpa mengirim ulang kode.
 
-Akun yang sudah tersimpan dapat dilihat pada bagian opsional Akun Google di bawah daftar agen. Login belum selesai dapat dilanjutkan dari sana menggunakan modal yang sama; Periksa koneksi memeriksa akun tanpa mengganti login. Tidak ada formulir pembuatan akun kedua yang bersaing dengan alur utama. Label akun adalah nama yang Anda berikan, bukan identitas email yang sudah diverifikasi.
+Masukkan kode hanya di Cuan. Link berlaku lima menit; Buat link baru memulai ulang sesi. Batal, Escape atau Tutup membatalkan sesi tanpa membuat baris agen. Percobaan yang belum selesai tetap privat dan tidak ditampilkan sebagai akun/agen terhubung. Credential dan riwayat agen lain tetap tersimpan.
 
-Batas pratinjau saat ini: hasil login disimpan sebagai akun. Penambahan/pemetaan agen ke akun baru belum aktif sampai gate login nyata dan tahap pemetaan terpenuhi. Layar hasil menjelaskan Akun sudah tersimpan, Agen belum ditambahkan; tidak menampilkan keberhasilan agen palsu atau tombol Tambah agen yang selalu mati. Production tetap S25.
+Daftar agen menampilkan jenis dan status faktual. Periksa memeriksa koneksi agen tersebut. Terhubung memerlukan probe nyata dan kedaluwarsa menjadi Belum diperiksa; Kuota habis atau Koneksi terganggu tidak menghapus login. Agen dapat tersimpan saat kredensial sudah ada tetapi provider sedang membatasi kuota; ini tidak berarti provider siap menjawab. Tidak ada badge Connected hanya karena agen terdaftar.
 
-## Status dan batas pratinjau
+## Kontrak koneksi
 
-Perlu login berarti kredensial belum tersedia. Belum diverifikasi berarti tidak ada bukti koneksi terkini. Terverifikasi memerlukan probe provider nyata dan menjadi kedaluwarsa setelah lima menit. Kuota dibatasi dan Provider belum tersedia mempertahankan kredensial; retry login bukan pemulihan kuota. Identitas email/Google tidak ditampilkan jika belum diketahui secara faktual. Setelah kode berhasil dipertukarkan, kegagalan provider harus dibaca terpisah dari penyimpanan kredensial.
+S26 menggunakan endpoint profil privat yang sudah ada sebagai detail internal login, tanpa UI inventaris akun. Semua endpoint login/probe memerlukan owner. Setelah kode dipertukarkan, UI mengirim `POST /api/v1/agents/connect-cli` dengan `{name, handle, provider:"agy", account_id:<opaque>}`. Request tanpa profil login ditolak 409 dan tidak meminjam akun server. Sukses menghasilkan satu Agent dan AgentConnection; SQL menyimpan tautan melalui kontrak connection_id/model_id yang sudah ada. ID koneksi baru menggunakan conn_profile_<UUID>.
 
-## API pemilik
+Metadata profil mengikat tepat satu owner, agent_id dan connection_id. Percobaan memakai profil tersebut untuk agen lain ditolak. Mengulangi request yang sudah sukses hanya mengembalikan binding/percakapan yang sama; tidak membuat koneksi/agen kedua. Kegagalan penyimpanan melepas binding baru, tanpa menghapus credential. Profil hilang, agent berbeda, owner berbeda atau jenis yang tidak sesuai gagal tertutup; tidak kembali ke akun lain.
 
-Semua endpoint memerlukan sesi owner melalui Bearer/cookie yang sudah didukung Cuan. Account ID adalah opaque; path/owner/kredensial tidak disertakan dalam DTO.
+`POST /api/v1/agents/:id/connection/verify` memeriksa koneksi milik agen dan mengembalikan `{agent_id, connection_state, message}` yang disanitasi. Roster GET agents menyertakan connection_state. Request tidak sah 401, akun/agen tidak ditemukan 404, konflik login/binding 409, gangguan storage 500. Secret/path/owner profil tidak dimasukkan ke roster atau pesan error.
 
-| Metode dan path | Kontrak |
-| --- | --- |
-| GET /api/v1/provider-accounts | `{accounts: [...]}`; hanya akun owner dan representasi akun server lama yang sudah ada. |
-| POST /api/v1/provider-accounts | `{label}` → 201 `{account}`; label wajib, maksimal 100 karakter. |
-| POST /api/v1/provider-accounts/:id/auth-init | `{account_id, session_id, auth_url, expires_at, authenticated:false, verified:false}`. Sesi baru hanya untuk profil tanpa kredensial; akun yang sudah login tidak ditimpa. |
-| POST /api/v1/provider-accounts/:id/auth-code | `{session_id, code}` → `{account, credentials_saved}` setelah hasil login disimpan dan probe dilakukan. Quota/unavailable tetap respons akun dengan kredensial tersimpan, bukan keberhasilan provider palsu. |
-| POST /api/v1/provider-accounts/:id/auth-code?cancel=true | `{session_id, code:""}` → `{status:"cancelled"}`. |
-| POST /api/v1/provider-accounts/:id/verify | `{account}` dengan status faktual dan waktu pemeriksaan. |
+## Penyimpanan dan kesinambungan
 
-401 meminta login owner; 404 menyamarkan akun/sesi yang tidak dimiliki; 400 input/kode tidak valid; 409 memulai OAuth ditolak/tidak tersedia; 500 penyimpanan/status gagal. Error provider disanitasi, bukan raw CLI output. Endpoint OAuth lama tidak boleh menerima atau membatalkan sesi akun baru.
+Profil login tetap CLI-owned di service HOME/.local/share/cuan/accounts/<opaque>/home, dengan metadata privat di direktori induknya. Nama direktori accounts adalah detail penyimpanan historis, bukan fitur akun terpisah. Root/profile 0700; metadata 0600 ditulis atomik dengan fsync/rename. Binding dan credential bertahan setelah restart dan berada di luar direktori release. Backup privat harus mencakup direktori ini; pg_dump sendiri tidak mencakup file profil. Percobaan tanpa login yang dibuat sebelum penyederhanaan tetap tidak terlihat dan tidak dihapus secara massal.
 
-## Penyimpanan dan operasi
+Agen lama @pin1 tetap menggunakan koneksi/credential yang sudah ada; tidak dipindahkan atau dihapus. Agen baru wajib memakai profil khusus. Inbox dan task PTY menyelesaikan binding agen lalu memberikan HOME/XDG/config profil tersebut hanya ke child process. Tidak ada os.Setenv HOME global. Child environment menyaring secret organisasi; profile HOME tidak dicampur dengan login agen lain. Login/probe menggunakan direktori profil, sementara task tetap memakai workspace tugas dengan env profil yang sesuai. Mengubah binary task untuk memakai jenis lain pada koneksi Antigravity ditolak.
 
-Akun baru menggunakan profil privat di service HOME/.local/share/cuan/accounts/acct_<opaque>/home, dengan metadata account.json di direktori induk. Root/profile 0700; metadata 0600 ditulis atomik melalui temporary file + fsync/rename. Kredensial tetap CLI-owned di profil; tidak masuk DB DTO, web, evidence atau git. Root di service HOME berada di luar direktori release sehingga aplikasi rollback tidak menghapus akun. Pertahankan/backup direktori privat ini dengan kontrol akses yang sama seperti kredensial lama sebelum release S26; pg_dump sendiri tidak mencakup file tersebut.
+S26.1 tidak memerlukan migration baru; 19 migration lama tetap utuh. Staging diterbitkan melalui publisher native pada port 8081. Rollback aplikasi tidak menghapus profil, credential atau DB; gunakan source/bundle sebelumnya dengan mekanisme yang sama dan pertahankan file privat. Tidak ada down migration/restore DB untuk rollback kode.
 
-Metadata menggunakan file konfigurasi privat, bukan kolom DB yang tidak terkait. S26.1 tidak membutuhkan migrasi baru; 19 migrasi lama tetap utuh. Konfigurasi HOME/XDG/token/profile diberikan hanya kepada child process, tanpa mengubah HOME global. Child environment menyaring secret organisasi dan provider lain. OAuth/probe profil baru dimulai dari direktori profil untuk menghindari konfigurasi proyek lain. Pembatalan/timeout menghentikan process tree profil. Akun server lama tidak dipindah/dihapus; override path yang sudah dikonfigurasi hanya dipertahankan untuk akun lama.
+## Bukti dan batas penerimaan
 
-Staging diterbitkan memakai fural-agent sandboxes serve ke sandbox yang sudah ada, slug cuan-s25, port 8081; directory overlay tidak berisi credential. Jangan restart staging saat owner sedang consent. Production tidak boleh dirilis sebelum login kedua nyata, isolasi eksekusi terpilih, dan gate S26 lain lulus. Jika perlu rollback pratinjau, publish source/bundle versi sebelumnya melalui mekanisme staging yang sama; biarkan file akun privat tetap ada. Tidak ada restore DB atau down migration.
+`docs/sprints/evidence/S26/one-agent-targeted.txt` membuktikan binding eksklusif/ownership, retry, penyimpanan rollback metadata, profil yang benar pada child chat dan task PTY, serta penolakan fallback. Credential pada pengujian ini adalah fixture, bukan akun nyata.
 
-## Verifikasi
+`one-agent-ui.json` dan gambar one-agent-<width>-<theme>-roster/login.png membuktikan daftar agen tanpa panel akun, tidak memuat inventaris akun lama, official isolated Google OAuth URL, cancel tanpa baris baru dan tanpa overflow pada 360/390/1280px. Pengujian auto-save/retry frontend menggunakan respons FIXTURE yang diberi label, tidak membuat credential/agen di backend. Native build lulus.
 
-Bukti ada di docs/sprints/evidence/S26/: targeted.txt, real-isolated-oauth.txt, frontend-build.txt, staging-accounts-browser.json dan continuity.json. Dua profil CLI nyata menghasilkan URL resmi/sesi berbeda, tetapi tidak ada consent/kode/provider reply kedua yang diklaim. Browser Chromium 390px membuktikan form, link, cancel, reload, akun lama tetap ada, dan tanpa overflow horizontal; bukan pengujian keyboard fisik.
-
-
-## Alur Tambah agen yang disederhanakan
-
-Mengikuti referensi Fural yang dibaca saja (coding-agents-manager.tsx forceNew dan OrganizationAgentsNewPage addMode), Tambah agen selalu membuka formulir nama unik dan login Google baru. Modal tidak memeriksa/memakai akun server lama secara otomatis. Isi nama, klik Hubungkan Google, buka Google dan tempel kode pada langkah kedua dalam modal yang sama. Kelola akun Google menjadi bagian opsional yang bisa dibuka, bukan langkah wajib berpindah panel. Pendaftaran agen dengan akun baru masih bergantung pada gate login nyata dan pemetaan akun S26 berikutnya; pratinjau tidak pernah mengarahkan agen baru diam-diam ke akun lama.
-
-Error Failed to save agent connection ditemukan setelah agen dihapus tetapi koneksi dengan ID deterministik conn_agent_dev masih tersimpan. Pendaftaran sekarang menggunakan ID koneksi unik baru; koneksi lama/history tidak dihapus. Targeted regression membuktikan buat–hapus–buat ulang tetap berhasil dengan koneksi lama dipertahankan. Ini bukti penyimpanan dengan fixture, bukan keberhasilan login/provider.
-
-
-## Bukti UI terarah
-
-Pemeriksaan aktual staging pada 360×800, 390×844 dan 1280×900 mencakup satu input nama, satu tombol utama per langkah, URL Google resmi terisolasi, tidak ada probe/login akun lama, Tab/Shift+Tab/Escape, cancel dan overflow. Bukti guided-ui.json dan gambar guided-<width>-name/google.png. Gambar error/saved bernama FIXTURE memakai respons sintetis hanya untuk memeriksa tampilan; sesi OAuth backend dibatalkan setelah pemeriksaan. Tidak ada kode, consent, kredensial atau pendaftaran agen nyata yang diklaim oleh fixture tersebut.
+Gate yang masih terbuka: consent pemilik akun kedua, pertukaran kode/identitas dan balasan provider nyata dengan profile terpisah. Tidak ada keberhasilan akun/provider kedua, release S26 production atau penyelesaian sprint yang diklaim dari fixture. S26.2–S26.5 tetap mengikuti gate yang sudah disetujui ulang dalam S26.md.

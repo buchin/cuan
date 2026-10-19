@@ -17,6 +17,8 @@ import (
 // Account metadata and CLI profiles share a private persistent configuration root.
 // Credentials stay CLI-owned; no token or filesystem path is part of the DTO.
 type ProviderAccount struct {
+	AgentID            string     `json:"agent_id,omitempty"`
+	ConnectionID       string     `json:"connection_id,omitempty"`
 	ID                 string     `json:"id"`
 	OwnerID            string     `json:"-"`
 	Label              string     `json:"label"`
@@ -280,4 +282,49 @@ func CancelLegacyAntigravityAuthSession(id string) bool {
 	}
 	CancelAntigravityAuthSession(id)
 	return true
+}
+
+// BindProviderAccount makes the private CLI profile exclusive to one agent/connection.
+func BindProviderAccount(owner, id, agentID, connectionID string) error {
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return err
+	}
+	if a.Legacy || !a.CredentialsPresent {
+		return errors.New("Selesaikan login agen terlebih dahulu")
+	}
+	if agentID == "" || !strings.HasPrefix(connectionID, "conn_profile_") {
+		return errors.New("Koneksi agen tidak valid")
+	}
+	if a.ConnectionID != "" && (a.ConnectionID != connectionID || a.AgentID != agentID) {
+		return errors.New("Koneksi ini sudah digunakan agen lain")
+	}
+	a.AgentID = agentID
+	a.ConnectionID = connectionID
+	return saveProviderAccount(a)
+}
+func UnbindProviderAccount(owner, id, agentID, connectionID string) {
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil || a.AgentID != agentID || a.ConnectionID != connectionID {
+		return
+	}
+	a.AgentID = ""
+	a.ConnectionID = ""
+	_ = saveProviderAccount(a)
+}
+func ProviderAccountForConnection(owner, agentID, connectionID string) (*ProviderAccount, error) {
+	list, err := ListProviderAccounts(owner)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range list {
+		if !a.Legacy && a.ConnectionID == connectionID && a.AgentID == agentID {
+			return a, nil
+		}
+	}
+	return nil, ErrAccountNotFound
 }

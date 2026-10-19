@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
 )
@@ -173,6 +174,15 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, http.StatusConflict, "Agen dinonaktifkan")
 		return
 	}
+	profileHome, err := s.agentProfileHome(r.Context(), registeredAgent)
+	if err != nil {
+		respondJSONError(w, http.StatusConflict, err.Error())
+		return
+	}
+	if profileHome != "" && payload.Binary != "" && payload.Binary != "agy" && payload.Binary != "antigravity" {
+		respondJSONError(w, http.StatusBadRequest, "Gunakan jenis agen sesuai koneksinya")
+		return
+	}
 	agentName := registeredAgent.Name
 	if payload.Binary == "" {
 		switch registeredAgent.Harness {
@@ -244,6 +254,9 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	if profileHome != "" {
+		runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
+	}
 	sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to spawn agent runner: %v", err))
