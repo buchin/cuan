@@ -25,7 +25,7 @@ PY
 export SSHPASS="$DOJO_TERMAPI_VPS_PASSWORD"
 release_host="$DOJO_TERMAPI_VPS_USERNAME@$DOJO_TERMAPI_VPS_PUBLIC_IP"
 sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha"
-sshpass -e rsync -a --delete --rsync-path='sudo -n rsync' "$release_dir/" "$release_host:/opt/cuan/releases/$release_sha/"
+sshpass -e rsync -e ssh -a --delete --rsync-path='sudo -n rsync' "$release_dir/" "$release_host:/opt/cuan/releases/$release_sha/"
 sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
 sshpass -e ssh "$release_host" "sudo -n python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
 unset SSHPASS
