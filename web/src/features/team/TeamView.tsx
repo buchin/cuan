@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { ProviderAccounts } from './ProviderAccounts'
+import { accountsApi } from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth } from '../../api/agents'
 
 export function TeamView({ selectedRole = 'all', onAgentAdded }: {
@@ -19,6 +20,16 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
   const [formError, setFormError] = useState('')
   const dialogActive = useRef(false)
   const activeSession = useRef('')
+  const accountScope = useRef('')
+  const dialogEpoch = useRef(0)
+  const [newAccount, setNewAccount] = useState(false)
+  const cancelSession = async () => {
+    const session = activeSession.current
+    activeSession.current = ''
+    if (!session) return
+    if (accountScope.current) await accountsApi.cancel(accountScope.current, session).catch(() => {})
+    else await agentsApi.authCancel(session).catch(() => {})
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -31,7 +42,7 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
   useEffect(() => { void load() }, [load])
   useEffect(() => () => {
     dialogActive.current = false
-    if (activeSession.current) void agentsApi.authCancel(activeSession.current).catch(() => {})
+    void cancelSession()
   }, [])
 
   useEffect(() => {
@@ -39,7 +50,7 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     const session = auth.session_id
     const timer = window.setTimeout(() => {
       if (activeSession.current !== session) return
-      void agentsApi.authCancel(session).catch(() => {})
+      void cancelSession()
       activeSession.current = ''
       setAuth(null)
       setCode('')
@@ -49,8 +60,9 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
   }, [auth?.session_id, auth?.expires_at])
 
   const close = () => {
+    dialogEpoch.current++
     dialogActive.current = false
-    if (activeSession.current) void agentsApi.authCancel(activeSession.current).catch(() => {})
+    void cancelSession()
     activeSession.current = ''
     setOpen(false)
     setCode('')
@@ -58,54 +70,65 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     setBusy(false)
   }
 
-  const begin = async () => {
+  const begin = () => {
+    dialogEpoch.current++
     dialogActive.current = true
+    accountScope.current = ''
+    setNewAccount(true)
     setOpen(true)
     setAuth(null)
     setFormError('')
     setNotice('')
-    setBusy(true)
-    try {
-      const status = await agentsApi.authStatus('agy', true)
-      if (dialogActive.current) setAuth(status)
-    } catch { if (dialogActive.current) setFormError('Status koneksi gagal diperiksa. Coba lagi.') }
-    finally { if (dialogActive.current) setBusy(false) }
+    setBusy(false)
+    let suffix = 1
+    let next = '@dev'
+    while (agents.some(a => a.name.split(' ')[0].toLowerCase() === next || a.id === 'agent_' + next.slice(1))) next = `@dev${++suffix}`
+    setHandle(next)
   }
 
-  const login = async () => {
-    setFormError('')
+  const chooseNewAccount = async () => {
+    const epoch = dialogEpoch.current
     setBusy(true)
+    setFormError('')
     setCode('')
     try {
-      if (activeSession.current) {
-        await agentsApi.authCancel(activeSession.current)
-        activeSession.current = ''
+      await cancelSession()
+      if (!dialogActive.current || dialogEpoch.current !== epoch) return
+      setNewAccount(true)
+      if (!accountScope.current) {
+        const account = await accountsApi.create(`${handle || '@dev'} · Google`)
+        if (!dialogActive.current || dialogEpoch.current !== epoch) return
+        accountScope.current = account.id
       }
-      const session = await agentsApi.authInit()
-      if (!dialogActive.current) {
-        if (session.session_id) void agentsApi.authCancel(session.session_id).catch(() => {})
+      const id = accountScope.current
+      const session = await accountsApi.login(id)
+      if (!dialogActive.current || dialogEpoch.current !== epoch) {
+        if (session.session_id) await accountsApi.cancel(id, session.session_id).catch(() => {})
         return
       }
       activeSession.current = session.session_id || ''
       setAuth(session)
-    } catch (err) { if (dialogActive.current) setFormError(err instanceof Error ? err.message : 'Login gagal. Coba lagi.') }
-    finally { if (dialogActive.current) setBusy(false) }
+    } catch (err) { if (dialogActive.current && dialogEpoch.current === epoch) setFormError(err instanceof Error ? err.message : 'Login gagal. Coba lagi.') }
+    finally { if (dialogActive.current && dialogEpoch.current === epoch) setBusy(false) }
   }
 
+
   const verifyCode = async () => {
+    const epoch = dialogEpoch.current
     if (!activeSession.current || !code.trim()) return
     setBusy(true)
     setFormError('')
     try {
-      const status = await agentsApi.authCode(activeSession.current, code.trim())
-      if (dialogActive.current) { setAuth(status); activeSession.current = '' }
-    } catch (err) { if (dialogActive.current) setFormError(err instanceof Error ? err.message : 'Kode belum berhasil diverifikasi. Mulai ulang login.') }
-    finally { if (dialogActive.current) { setCode(''); setBusy(false) } }
+      const account = accountScope.current ? await accountsApi.code(accountScope.current, activeSession.current, code.trim()) : null
+      const status = account ? { authenticated: account.state === 'verified', verified: account.state === 'verified', credentials_present: account.credentials_present, message: account.message } : await agentsApi.authCode(activeSession.current, code.trim())
+      if (dialogActive.current && dialogEpoch.current === epoch) { setAuth(status); activeSession.current = '' }
+    } catch (err) { if (dialogActive.current && dialogEpoch.current === epoch) setFormError(err instanceof Error ? err.message : 'Kode belum berhasil diverifikasi. Mulai ulang login.') }
+    finally { if (dialogActive.current && dialogEpoch.current === epoch) { setCode(''); setBusy(false) } }
   }
 
   const add = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!auth?.verified || handle.length < 2) return
+    if (newAccount || !auth?.verified || handle.length < 2) return
     setBusy(true)
     setFormError('')
     try {
@@ -135,11 +158,11 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     <div className="flex items-start justify-between gap-4">
       <div>
         <h1 className="text-xl font-semibold">Agen</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Hubungkan akun Anda untuk mengobrol dan menjalankan tugas.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Kelola agen dan akun yang terhubung.</p>
       </div>
       <button onClick={begin} className={`${buttonClass} bg-primary text-primary-foreground hover:bg-primary/90 shrink-0`}><Plus className="h-4 w-4" />Tambah agen</button>
     </div>
-    <ProviderAccounts />
+    <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm">Kelola akun Google</summary><div className="mt-3"><ProviderAccounts /></div></details>
     {notice && <p role="status" className="text-sm">{notice}</p>}
     {error && <div role="alert" className="text-sm text-destructive">{error} <button onClick={load} className="underline">Muat ulang</button></div>}
     {loading ? <p role="status" className="text-sm text-muted-foreground">Memuat agen…</p> : visibleAgents.length === 0 ?
@@ -167,12 +190,14 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
         <form onSubmit={add} className="space-y-4 p-5">
           <div>
             <label htmlFor="agent-handle" className="text-sm font-medium">Nama agen</label>
-            <input id="agent-handle" autoFocus required value={handle} onChange={event => setHandle('@' + event.target.value.replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_-]/g, ''))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="@dev" />
+            <input id="agent-handle" autoFocus required maxLength={49} value={handle} onChange={event => setHandle('@' + event.target.value.replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_-]/g, ''))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="@dev" />
           </div>
           <div className="rounded-md border border-border p-3 text-sm space-y-3">
-            <p className="font-medium">Antigravity · Akun Google</p>
-            <p role="status" className="text-muted-foreground">{busy ? 'Memproses…' : auth?.verified ? 'Koneksi provider terverifikasi.' : auth?.message || 'Hubungkan akun Anda.'}</p>
-            {!auth?.verified && <button type="button" onClick={login} disabled={busy} className={buttonClass}>{auth?.session_id ? 'Mulai ulang login' : auth?.credentials_present ? 'Verifikasi ulang koneksi' : 'Login dengan Google'}</button>}
+            <p className="font-medium">Akun Google</p>
+            <p className="text-xs text-muted-foreground">Hubungkan akun Google untuk agen ini.</p>
+            <button type="button" onClick={() => void chooseNewAccount()} disabled={busy || handle.length < 2 || !!auth?.credentials_present} className={buttonClass}>{auth?.session_id ? 'Mulai ulang login' : 'Login dengan Google'}</button>
+            <p role="status" className="text-muted-foreground">{busy ? 'Memproses…' : auth?.verified ? newAccount ? 'Login akun baru tersimpan.' : 'Akun lama terverifikasi.' : auth?.message || 'Hubungkan akun Anda.'}</p>
+
             {auth?.auth_url && !auth.verified && <div className="space-y-3">
               <a href={auth.auth_url} target="_blank" rel="noopener noreferrer" className="block text-primary underline">Buka login Google ↗</a>
               <p className="text-xs text-muted-foreground">Selesaikan login di browser, lalu tempel kode otorisasi. Sesi berlaku 5 menit.</p>
@@ -181,10 +206,11 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
               <button type="button" onClick={verifyCode} disabled={busy || !code.trim()} className={buttonClass}>Verifikasi login</button>
             </div>}
           </div>
+          {newAccount && auth?.credentials_present && <p className="text-sm">Akun baru tersimpan. Penggunaan akun baru untuk agen menunggu verifikasi tahap berikutnya.</p>}
           {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
           <div className="flex justify-end gap-2 border-t border-border pt-4">
             <button type="button" onClick={close} className={buttonClass}>Batal</button>
-            <button type="submit" disabled={busy || !auth?.verified || handle.length < 2} className={`${buttonClass} bg-primary text-primary-foreground hover:bg-primary/90`}>{busy && <RefreshCw className="h-4 w-4 animate-spin" />}Tambah agen</button>
+            <button type="submit" disabled={busy || newAccount || !auth?.verified || handle.length < 2} className={`${buttonClass} bg-primary text-primary-foreground hover:bg-primary/90`}>{busy && <RefreshCw className="h-4 w-4 animate-spin" />}Tambah agen</button>
           </div>
         </form>
       </section>

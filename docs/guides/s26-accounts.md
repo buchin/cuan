@@ -45,3 +45,10 @@ Staging diterbitkan memakai fural-agent sandboxes serve ke sandbox yang sudah ad
 ## Verifikasi
 
 Bukti ada di docs/sprints/evidence/S26/: targeted.txt, real-isolated-oauth.txt, frontend-build.txt, staging-accounts-browser.json dan continuity.json. Dua profil CLI nyata menghasilkan URL resmi/sesi berbeda, tetapi tidak ada consent/kode/provider reply kedua yang diklaim. Browser Chromium 390px membuktikan form, link, cancel, reload, akun lama tetap ada, dan tanpa overflow horizontal; bukan pengujian keyboard fisik.
+
+
+## Alur Tambah agen yang disederhanakan
+
+Mengikuti referensi Fural yang dibaca saja (coding-agents-manager.tsx forceNew dan OrganizationAgentsNewPage addMode), Tambah agen selalu membuka formulir nama unik dan login Google baru. Modal tidak memeriksa/memakai akun server lama secara otomatis. Klik Login dengan Google, buka link resmi, dan tempel kode pada modal yang sama. Kelola akun Google menjadi bagian opsional yang bisa dibuka, bukan langkah wajib berpindah panel. Pendaftaran agen dengan akun baru masih bergantung pada gate login nyata dan pemetaan akun S26 berikutnya; pratinjau tidak pernah mengarahkan agen baru diam-diam ke akun lama.
+
+Error Failed to save agent connection ditemukan setelah agen dihapus tetapi koneksi dengan ID deterministik conn_agent_dev masih tersimpan. Pendaftaran sekarang menggunakan ID koneksi unik baru; koneksi lama/history tidak dihapus. Targeted regression membuktikan buat–hapus–buat ulang tetap berhasil dengan koneksi lama dipertahankan. Ini bukti penyimpanan dengan fixture, bukan keberhasilan login/provider.

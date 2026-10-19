@@ -11,6 +11,7 @@ import (
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
+	"github.com/buchin/cuan/internal/db"
 )
 
 func TestS26AccountAPIAuthOwnerAndQuotaIsolation(t *testing.T) {
@@ -100,5 +101,48 @@ while read value; do :; done
 	w = request("GET", "/api/v1/provider-accounts", "", token)
 	if w.Code != 200 || strings.Contains(w.Body.String(), "private-marker") || strings.Contains(w.Body.String(), "legacy-fixture") {
 		t.Fatal("account DTO unsafe")
+	}
+}
+
+func TestS26RecreateAgentDoesNotCollideWithRetainedConnection(t *testing.T) {
+	s, token := setupTestChatServer(t)
+	repo := s.agentRepo
+	old := &db.AgentConnection{ID: "conn_agent_dev", UserID: "default", Provider: "mock", Status: db.ConnectionStatusActive}
+	if err := repo.CreateConnection(context.Background(), old); err != nil {
+		t.Fatal(err)
+	}
+	create := func() string {
+		r := httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(`{"name":"@dev","handle":"@dev","provider":"mock"}`))
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		if w.Code != 201 {
+			t.Fatalf("recreation failed: %d %s", w.Code, w.Body.String())
+		}
+		var response struct {
+			Connection struct {
+				ID string `json:"id"`
+			} `json:"connection"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		return response.Connection.ID
+	}
+	first := create()
+	if first == old.ID || !strings.HasPrefix(first, "conn_") {
+		t.Fatal("retained connection reused")
+	}
+	if err := repo.DeleteAgent(context.Background(), "agent_dev"); err != nil {
+		t.Fatal(err)
+	}
+	second := create()
+	if second == old.ID || second == first {
+		t.Fatal("recreated agent collided with retained connection")
+	}
+	for _, id := range []string{old.ID, first, second} {
+		if _, err := repo.GetConnectionByID(context.Background(), id); err != nil {
+			t.Fatal("prior connection unexpectedly removed")
+		}
 	}
 }

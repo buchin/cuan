@@ -805,7 +805,8 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	cleanHandle := strings.TrimPrefix(handle, "@")
 	cleanHandle = strings.ReplaceAll(cleanHandle, "-", "_")
 	agentID := "agent_" + cleanHandle
-	connID := "conn_" + agentID
+	// A deleted persona may leave a retained connection/history. Do not reuse its ID.
+	connID := "conn_" + db.GenerateUUID()
 	// The existing 19-migration schema persists the CLI connection link in model_id.
 	// The CLI itself selects its configured provider model.
 	if provider == "agy" || provider == "antigravity" {
