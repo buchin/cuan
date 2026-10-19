@@ -14,6 +14,7 @@ import {
   Menu,
 } from 'lucide-react'
 import { Task } from '../../api/types'
+import { ChatMarkdown } from './ChatMarkdown'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { cn } from '../../lib/utils'
@@ -437,7 +438,7 @@ export function InboxView({
             >
               <div
                 className={cn(
-                  'relative max-w-[85%] sm:max-w-[70%] p-3.5 shadow-xs transition-all',
+                  'relative min-w-0 max-w-[85%] sm:max-w-[70%] p-3.5 shadow-xs transition-all',
                   isOutgoing
                     ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-xs'
                     : 'bg-card text-card-foreground border border-border rounded-2xl rounded-tl-xs'
@@ -458,9 +459,11 @@ export function InboxView({
                 )}
 
                 {/* Message Body */}
-                <div className="text-xs leading-relaxed whitespace-pre-wrap break-words font-sans">
-                  {msg.content || msg.message}
-                </div>
+                {isAgentMessage ? <ChatMarkdown content={msg.content || msg.message} /> : (
+                  <div className="text-xs leading-relaxed whitespace-pre-wrap break-words font-sans">
+                    {msg.content || msg.message}
+                  </div>
+                )}
 
                 {/* 1-Click Execution Action Card for Agent Messages */}
                 {isAgentMessage && msg.action_card && (

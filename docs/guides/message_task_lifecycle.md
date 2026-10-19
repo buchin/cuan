@@ -52,6 +52,28 @@ Production Cuan memakai checkout privat di data project persisten, dipasok dari
 Git bundle release tanpa credential; pembaruan checkout memakai Git bundle baru
 atau sinkronisasi repository dengan credential project milik owner.
 
+## Format balasan agent
+
+Balasan agent di Inbox mendukung Markdown: heading, paragraf, bold/italic,
+inline code, daftar bertingkat, kutipan, checklist, tautan web dan tabel.
+Code block memiliki tombol **Copy**; jika clipboard ditolak dan fallback gagal,
+pilih teks kode lalu salin manual. Code block dan tabel lebar dapat digeser
+horizontal tanpa melebarkan halaman pada mobile. Pesan user tetap ditampilkan
+sebagai teks literal. Format diterapkan juga pada riwayat pesan yang sudah ada;
+isi pesan yang disimpan tidak diubah.
+
+Raw HTML dinonaktifkan. URL berbahaya, URL `file://` dan protocol-relative tidak
+menjadi tautan aktif. Referensi file lokal tetap berupa label teks; preview repo
+belum termasuk fitur ini. Gambar Markdown ditampilkan sebagai keterangan teks,
+bukan dimuat dari host luar. Tautan HTTP(S) dibuka di tab baru dengan perlindungan
+`noopener noreferrer`. Konten yang belum lengkap tetap dapat dirender saat
+snapshot pesan berubah. Tidak ada eksekusi kode dari code block atau syntax
+highlighting pada versi ini.
+
+Verifikasi renderer memakai fixture terisolasi di Chromium dengan komponen
+InboxView nyata: `node docs/evidence/chat-markdown/browser-check.cjs`.
+Bukti: `docs/evidence/chat-markdown/browser.json`.
+
 ## Mengubah pesan menjadi task
 
 Pilih **Buat / lihat task** di bawah pesan, isi judul dan pilih project yang benar,
