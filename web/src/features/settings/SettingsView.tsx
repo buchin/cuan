@@ -117,7 +117,7 @@ export function SettingsView({
         className="flex gap-1 overflow-x-auto border-b border-border"
       >
         {[
-          ['general', 'Umum'],
+          ['general', 'General'],
           ['agents', 'Agents'],
           ['integrations', 'Integrations'],
           ['appearance', 'Appearance'],

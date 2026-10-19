@@ -184,7 +184,7 @@ export function InboxActivity({
                     <div key={step.seq}>
                       <dt className="font-medium">Runtime session</dt>
                       <dd className="break-all font-mono">
-                        {step.text.replace('ID sesi runtime: ', '')}
+                        {step.text.replace(/^(?:Runtime session ID: |ID sesi runtime: )/, '')}
                       </dd>
                     </div>
                   ))}

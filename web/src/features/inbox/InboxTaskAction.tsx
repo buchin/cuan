@@ -198,7 +198,7 @@ export function InboxTaskAction({
           !description.trim()
         }
       >
-        {busy ? 'Membuat…' : 'Create task'}
+        {busy ? 'Creating…' : 'Create task'}
       </button>
       <p className="text-muted-foreground">
         The task will be added to the backlog. Creating it does not start an

@@ -20,7 +20,7 @@ type Contact = {
   tags: string[]
   updated_at: string
 }
-const label = (c: Contact) => c.name || c.email || 'Pengunjung anonim'
+const label = (c: Contact) => c.name || c.email || 'Anonymous visitor'
 const source = (c: Contact) => c.product.trim() || 'Live chat'
 const dateLabel = (iso: string) => {
   const d = new Date(iso)

@@ -174,7 +174,7 @@ export function ProjectsView({
             {search.trim()
               ? 'Try another name or repository URL.'
               : activeTab === 'active'
-                ? 'Use New in the header to create your first project.'
+                ? 'Select New project in the header to create your first project.'
                 : 'Archived projects will appear here.'}
           </p>
           {search.trim() ? (

@@ -252,7 +252,7 @@ export function TaskBoardView({
                   </p>
                   <p className="mt-2 text-sm">
                     {emptyScope
-                      ? 'Use New in the header to create a task.'
+                      ? 'Select New task in the header to create a task.'
                       : 'Try another search or reset the status filter.'}
                   </p>
                 </td>

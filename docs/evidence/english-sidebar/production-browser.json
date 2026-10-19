@@ -1,0 +1,807 @@
+{
+  "release": "ff99938549c00c967e3d7130eb789088b1d2e9a8",
+  "production": "https://cuan.dojo.cc",
+  "measurements": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "inbox",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "contacts",
+      "contextLabel": "New contact",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "tasks",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects",
+      "contextLabel": "New project",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/agents",
+      "contextLabel": "New agent",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "contextLabel": "New",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects/detail",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects/detail/settings",
+      "contextLabel": "New task",
+      "dialog": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "inbox/conversation",
+      "contextLabel": "New message",
+      "dialog": true,
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "English contextual actions and dialogs",
+    "English validation API400",
+    "desktop account row and top collapse",
+    "compact tablet account menu",
+    "mobile Contacts last and avatar Settings",
+    "exact SPA assets and widget"
+  ],
+  "assets": [
+    "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+    "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+    "geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+    "geist-latin-wght-normal-BgDaEnEv.woff2",
+    "geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+    "geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+    "geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+    "geist-mono-latin-wght-normal-XN7g48iV.woff2",
+    "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+    "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+    "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+    "index-BJj2A-23.js",
+    "index-BQkP6QyX.css"
+  ],
+  "errors": [],
+  "productMutations": 0,
+  "providerInvocations": 0,
+  "ready": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 22,
+    "owner_configured": true,
+    "status": "ready"
+  }
+}

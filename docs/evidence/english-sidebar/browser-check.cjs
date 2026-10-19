@@ -320,7 +320,7 @@ const writes = [],
   await page.setViewportSize({width,height:900});await page.goto(base+'/settings/appearance');await page.getByRole('button',{name:theme==='light'?'Light':'Dark',exact:true}).click()
   for(const [route,action,title] of routes){
    await page.goto(base+'/'+route);if(route==='inbox/room0')await page.getByRole('textbox',{name:"Message",exact:true}).waitFor();else await page.locator('.app-page-header').getByRole('heading',{level:1}).waitFor()
-   const button=page.getByRole('button',{name:action,exact:true});await button.waitFor();assert.equal(await button.count(),1);const b=await button.boundingBox();assert(b.x+b.width/2>width/2&&b.height>=44);assert.equal((await button.innerText()).trim(),action)
+   if(route.startsWith('settings'))await page.getByRole('link',{name:'General',exact:true}).waitFor();const button=page.getByRole('button',{name:action,exact:true});await button.waitFor();assert.equal(await button.count(),1);const b=await button.boundingBox();assert(b.x+b.width/2>width/2&&b.height>=44);assert.equal((await button.innerText()).trim(),action)
    assert.equal(await page.getByRole('navigation',{name:"Main navigation",exact:true}).getByRole('button',{name:'New project',exact:true}).count(),0)
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));if(width===390&&theme==='dark')await page.screenshot({path:out+'/page-'+route.replaceAll('/','-')+'-390.png'})
    await button.click();const dialog=page.getByRole('dialog',{name:title,exact:true});await dialog.waitFor();assert(await dialog.evaluate(e=>e.scrollWidth<=e.clientWidth))

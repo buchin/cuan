@@ -841,7 +841,7 @@ export function InboxView({
                   placeholder={
                     activeContact.type === 'agent'
                       ? 'Write a message…'
-                      : `Balas ${activeContact.name}…`
+                      : `Reply to ${activeContact.name}…`
                   }
                   className="wa-input min-w-0 flex-1 min-h-12 max-h-[140px] resize-none overflow-hidden rounded-[24px] px-4 py-3 text-base leading-6"
                 />
