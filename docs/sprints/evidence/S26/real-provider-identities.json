@@ -1,0 +1,15 @@
+{
+  "source": "Google OpenID userinfo over HTTPS with private bearer header",
+  "emails_recorded": false,
+  "fixture": false,
+  "legacy": {
+    "identity_verified": true
+  },
+  "pin2": {
+    "identity_verified": true
+  },
+  "both_identities_verified": true,
+  "distinct_google_identities": true,
+  "separate_credential_files": true,
+  "credentials_unchanged_by_identity_probe": true
+}

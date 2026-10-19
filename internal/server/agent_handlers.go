@@ -61,20 +61,31 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 	type rosterAgent struct {
 		db.AgentDTO
-		ConnectionState string `json:"connection_state"`
+		ConnectionState string     `json:"connection_state"`
+		LastCheckedAt   *time.Time `json:"last_checked_at,omitempty"`
+		VerifiedAt      *time.Time `json:"verified_at,omitempty"`
 	}
 	dtos := make([]rosterAgent, len(agents))
+	ownerID := ""
+	if s.authSvc != nil {
+		if owner, err := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); err == nil {
+			ownerID = owner.ID
+		}
+	}
 	for i, a := range agents {
-		state := "unknown"
+		status := agent.LegacyConnectionVerification(ownerID, a.ID, a.ConnectionID)
+		state := status.State
+		checkedAt, verifiedAt := status.LastCheckedAt, status.VerifiedAt
 		if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 			state = "login_required"
 			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID); err == nil {
 				if profile, err := agent.ProviderAccountForConnection(conn.UserID, a.ID, conn.ID); err == nil {
 					state = profile.State
+					checkedAt, verifiedAt = profile.LastCheckedAt, profile.VerifiedAt
 				}
 			}
 		}
-		dtos[i] = rosterAgent{AgentDTO: a.ToDTO(), ConnectionState: state}
+		dtos[i] = rosterAgent{AgentDTO: a.ToDTO(), ConnectionState: state, LastCheckedAt: checkedAt, VerifiedAt: verifiedAt}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{

@@ -69,7 +69,13 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 		respondJSONError(w, 503, "Koneksi belum dapat diperiksa. Coba lagi nanti")
 		return
 	}
-	respondJSON(w, 200, map[string]any{"agent_id": a.ID, "connection_state": profile.State, "message": profile.Message})
+	if id == "legacy" {
+		if err := agent.SaveLegacyConnectionVerification(owner, a.ID, a.ConnectionID, profile); err != nil {
+			respondJSONError(w, 503, "Koneksi sudah diperiksa, tetapi status belum tersimpan. Coba lagi.")
+			return
+		}
+	}
+	respondJSON(w, 200, map[string]any{"agent_id": a.ID, "connection_state": profile.State, "message": profile.Message, "last_checked_at": profile.LastCheckedAt, "verified_at": profile.VerifiedAt})
 }
 
 func (s *Server) rollbackAgentRegistration(agentID, connectionID string, connectionCreated bool) {

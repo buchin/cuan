@@ -298,3 +298,62 @@ func TestS26FailedRegistrationPreservesLoginAndUnbinds(t *testing.T) {
 		t.Fatalf("retry failed %d %s", w.Code, w.Body.String())
 	}
 }
+
+func TestS26LegacyPinCheckSurvivesRosterReload(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s, token := setupTestChatServer(t)
+	s.agentRepo.CreateAgent(context.Background(), &db.Agent{ID: "agent_pin1", Name: "@pin1", Harness: "agy", Provider: "agy", ConnectionID: "conn_agent_pin1", Enabled: true, Status: db.AgentStatusActive})
+	dir := t.TempDir()
+	credential := filepath.Join(dir, "legacy-fixture")
+	os.WriteFile(credential, []byte("fixture-legacy-credential-value"), 0600)
+	t.Setenv("ANTIGRAVITY_TOKEN_PATH", credential)
+	t.Setenv("PATH", dir)
+	os.WriteFile(filepath.Join(dir, "agy"), []byte("#!/bin/sh\nprintf 'CUAN_AUTH_OK\\n'\n"), 0700)
+	call := func(method, path string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, path, nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		return w
+	}
+	w := call("POST", "/api/v1/agents/agent_pin1/connection/verify")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"connection_state":"verified"`) {
+		t.Fatalf("probe %d %s", w.Code, w.Body.String())
+	}
+	for i := 0; i < 2; i++ {
+		w = call("GET", "/api/v1/agents")
+		var data struct {
+			Agents []struct {
+				ID      string     `json:"id"`
+				State   string     `json:"connection_state"`
+				Checked *time.Time `json:"last_checked_at"`
+			} `json:"agents"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &data)
+		found := false
+		for _, a := range data.Agents {
+			if a.ID == "agent_pin1" {
+				found = true
+				if a.State != "verified" || a.Checked == nil {
+					t.Fatal("roster reload forgot successful check")
+				}
+			}
+		}
+		if !found {
+			t.Fatal("agent disappeared")
+		}
+	}
+	// A later quota failure must replace the old success, retaining credentials.
+	os.WriteFile(filepath.Join(dir, "agy"), []byte("#!/bin/sh\nprintf '429 quota' >&2\nexit 1\n"), 0700)
+	w = call("POST", "/api/v1/agents/agent_pin1/connection/verify")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"connection_state":"quota_limited"`) {
+		t.Fatalf("quota probe %d %s", w.Code, w.Body.String())
+	}
+	w = call("GET", "/api/v1/agents")
+	if !strings.Contains(w.Body.String(), `"connection_state":"quota_limited"`) {
+		t.Fatal("roster kept stale success")
+	}
+	if raw, _ := os.ReadFile(credential); string(raw) != "fixture-legacy-credential-value" {
+		t.Fatal("status check changed credential")
+	}
+}
