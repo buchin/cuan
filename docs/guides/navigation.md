@@ -128,3 +128,8 @@ Header HP menyembunyikan ikon Settings saat sedang di Settings. Tombol kembali
 ke percakapan hanya muncul bila halaman dibuka dengan parameter returnTo yang
 valid dan mengarah ke Inbox di aplikasi yang sama. Navigasi Settings biasa
 menampilkan daftar agen tanpa tombol kembali yang tidak memiliki sumber.
+
+Rilis roster `0fca51f` aktif di production. Build dan fixture tindakan/lifecycle
+menu lulus. Production delapan pasangan theme/viewport memverifikasi daftar agen
+nyata, menu/Escape/fokus, tautan kembali dan aset identik, tanpa verifikasi provider
+atau penghapusan agen nyata. Bukti: `docs/evidence/agent-roster/`.

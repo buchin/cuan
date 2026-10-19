@@ -1,0 +1,20 @@
+{
+  "release": "0fca51f0825ab7604a7a55ef902435793c2351ae",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "newMigration": false,
+  "productionThemeViewportChecks": 8,
+  "productionProductWrites": 0,
+  "providerInvocations": 0,
+  "fixtureChecks": [
+    "explicit connection verify",
+    "delete confirmation cancel and accept",
+    "menu Escape/outside/focus",
+    "safe return query"
+  ],
+  "limits": [
+    "Chromium emulation only, no physical-device/Safari certification",
+    "Actual provider verification and real deletion intentionally not performed",
+    "Existing CSS/chunk warnings"
+  ]
+}
