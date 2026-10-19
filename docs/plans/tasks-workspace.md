@@ -45,3 +45,13 @@ Data and workflow invariants → launch/terminal lifecycle → frontend list/det
 and session view → integrated verification → documentation and production release.
 Fural supplies reference interaction patterns; its multi-organization model,
 multi-agent infrastructure, roadmap, and bulk operations are outside this change.
+
+## Completion evidence
+
+All seven outcomes above were implemented and verified. Release `88f79b1` is
+healthy in production with schema23 and automatic migration disabled. The full
+requirement audit, limitations, retained-data results and rollback instructions
+are recorded in `docs/evidence/tasks-workspace/release.md`. Browser and real
+HTTP/PTY fixtures do not call a live provider. Production smoke created and
+removed only its exact synthetic task; retained tables and account profiles match
+pre-migration snapshots.
