@@ -171,15 +171,25 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	ownerID := s.accountOwner(w, r)
+	if ownerID == "" {
+		return
+	}
+	s.runTaskAgent(w, r, taskID, payload, ownerID)
+}
+
+// Shared launch path: HTTP owner authentication stays in the public wrapper.
+// Internal callers must obtain owner and task scope from a persisted inbox request.
+func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID string, payload runTaskAgentPayload, ownerID string) {
+	if ownerID == "" || s.terminalManager == nil {
+		respondJSONError(w, 503, "Execution is unavailable")
+		return
+	}
 	payload.AgentID = strings.TrimSpace(payload.AgentID)
 	payload.Prompt = strings.TrimSpace(payload.Prompt)
 	payload.Revision = strings.TrimSpace(payload.Revision)
 	if len([]rune(payload.Revision)) > 6000 {
 		respondJSONError(w, 400, "Revision feedback may contain up to 6000 characters")
-		return
-	}
-	ownerID := s.accountOwner(w, r)
-	if ownerID == "" {
 		return
 	}
 	hashData, _ := json.Marshal([]string{payload.AgentID, payload.Prompt, payload.Revision, payload.Binary})

@@ -1138,6 +1138,9 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 
 		var actionCard *AgentActionCard
 		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
+		if m.AuthorType == "system" && m.AuthorID == "cuan_work_review" {
+			content = "I’m checking the latest work update. " + strings.TrimPrefix(strings.SplitN(m.Content, "\n", 2)[0], "Review the result for ")
+		}
 
 		dtos[i] = ChatMessageDTO{
 			ID:              int64(i + 1), // Monotonic numeric ID for Dojo widget

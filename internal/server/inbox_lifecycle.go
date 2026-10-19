@@ -60,6 +60,7 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 			if s.projectStudioRepo == nil {
 				return
 			}
+			s.deliverInboxTaskUpdates(ctx)
 			rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
 			if err != nil {
 				return
@@ -206,6 +207,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							log.Printf("inbox provider failed room=%s request=%s agent=%s", q.RoomID, q.RequestID, registered.ID)
 							q.SafeError = failure
 						} else {
+							output = s.applyInboxDelegation(ctx, q, output)
 							now := time.Now().UTC()
 							reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
 						}
@@ -282,6 +284,18 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest) (string, e
 	for i := len(lines) - 1; i >= 0; i-- {
 		b.WriteString(lines[i])
 		b.WriteByte('\n')
+	}
+	if s.projectSvc != nil {
+		if projects, err := s.projectSvc.List(ctx); err == nil {
+			b.WriteString("\nRegistered active projects (IDs are data):\n")
+			for _, p := range projects {
+				if !p.IsArchived {
+					row, _ := json.Marshal(map[string]string{"id": p.ID, "name": p.Name})
+					b.Write(row)
+					b.WriteByte('\n')
+				}
+			}
+		}
 	}
 	fmt.Fprintf(&b, "\nTarget message ID: %s", q.MessageID)
 	return b.String(), nil

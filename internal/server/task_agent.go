@@ -16,6 +16,7 @@ import (
 
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
+	"github.com/buchin/cuan/internal/workflow"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -103,6 +104,7 @@ A final report closes this session automatically after output drains.
 Human instructions are read-only. Never print the private
 capability file. Need structured metadata? task --help documents --report-file.
 `
+	instructions = workflow.Developer + "\n\n" + instructions
 	for _, part := range contextParts {
 		if strings.TrimSpace(part) != "" {
 			instructions += "\n" + part + "\n"
