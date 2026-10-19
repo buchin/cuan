@@ -1,9 +1,41 @@
 # Tasks workspace
 
+Open a task to enter its latest session. A task without a session shows the
+original request and an explicit **Start** action with an agent selector.
+Opening or refreshing a task never starts execution.
+
+While running, the native interactive terminal fills the workspace. Once a
+session ends, its original request and recorded result become the main view.
+Continue with the reply field; implementation results offer **Accept** and
+**Request changes**. Accept requires verification evidence and the existing
+checklist gates. Request changes focuses the reply field and launches one new
+attempt with concrete feedback.
+
+**Detail** contains session history, agent-reported checklist, evidence and a
+link to edit task metadata. Open the saved terminal from Detail when needed;
+completed-result pages do not load a terminal automatically. Back returns to the
+originating task/project list and filters. Closing metadata returns to the
+selected session.
+
+Agents may classify a final response using **--result-kind answer** for
+conversation without file changes, or **--result-kind implementation** for work
+(the default for old or unspecified reports). Answer presentation has a reply
+field and no required Accept action. Classification is scoped to the exact
+attempt/report and controls presentation; it never automatically approves Done
+or changes the implementation acceptance gates. Internally, the final report
+still reconciles through Review. Unknown/legacy results retain implementation
+review behavior.
+
+Earlier sessions show their own final report snapshot and cannot accept or
+continue a newer attempt. Missing sessions show an error rather than attaching
+another process.
+
+## Search and create
+
 Open **Tasks** to search, sort, or filter by status, project, priority, and agent.
 Filters are part of the URL and remain when a task is closed. **New task** opens a simple prompt composer. Select a Project when repository
 context is needed. The server derives the initial title and priority from the prompt; the agent can refine them. The first line usually supplies the initial title and the complete
-prompt is saved as the human instructions. Choose **No agent** to save to Backlog,
+prompt is saved as the human instructions. Choose **No agent** to save to Backlog without execution,
 or select an agent and press **Create** to open its session immediately.
 The composer remembers your Project and Agent; a verified available agent is
 selected initially. Project-specific pages use their current project.
@@ -17,8 +49,8 @@ Viewing a task never starts an agent.
    not need separate input during creation. You can refine them in task detail.
    Select a project when
    repository context is required; use **No project** for standalone work.
-2. Open the task to read its instructions, summary, checklist, and completion
-   notes. Choose **Edit** to change them. Failed saves retain the draft. A stale
+2. Open the task for its session/request/result. **Detail → Open task details**
+   exposes instructions, metadata, checklist and notes; choose **Edit** to change them. Failed saves retain the draft. A stale
    draft is rejected rather than overwriting newer work; copy the draft, discard
    it, and reopen Edit to apply the current version.
 3. Choose **Start**, select a configured agent, and confirm **Start session**
@@ -49,15 +81,14 @@ bound agent through its task tool, or by the user; an exit code alone does not f
 
 ## Sessions and terminal
 
-**Sessions** lists durable attempts, status, timestamps, exit code, and errors.
+**Detail** lists durable attempts, status, timestamps, exit code, and errors.
 Opening a session navigates to `/tasks/{taskId}/sessions/{attemptId}`. Each session
 has its own shareable/reloadable page with the terminal and that attempt's recorded
 agent reports. The session selector inside Detail changes the URL; missing sessions show an
 error rather than attaching another run. The terminal fills the session workspace. **Detail** opens a side panel for
 agent reports, timestamps and session history. Sessions hide the duplicate global header; the desktop sidebar defaults to
 icons and can be expanded without changing the normal navigation preference.
-Mobile sessions hide bottom navigation; the back arrow returns to task details. Task details returns to the task drawer
-and preserves the originating list filters. Select earlier sessions to read saved output. **Activity** shows workflow events
+Mobile sessions hide bottom navigation; the back arrow returns to the originating list. Task metadata is a secondary drawer and returns to the session when closed. Select earlier sessions to read saved output. **Activity** shows workflow events
 and comments. The terminal starts in read-only mode. **Enable input** explicitly
 enables keyboard input; reconnect returns to read-only. Reconnect attaches the
 same live process. Closing a drawer, switching tabs, or disconnecting does not

@@ -18,6 +18,7 @@ type AgentReport struct {
 	TestSummary  *string    `json:"test_summary,omitempty"`
 	Progress     string     `json:"progress,omitempty"`
 	State        string     `json:"state,omitempty"`
+	ResultKind   string     `json:"result_kind,omitempty"`
 }
 
 func (s *Service) RequireAgentReport(ctx context.Context, taskID, attemptID, author string) error {
@@ -105,6 +106,9 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 	if r.State != "progress" && (t.Summary == "" || t.CompleteNote == "") {
 		return bad("a result requires summary and completion evidence")
 	}
+	if r.ResultKind != "" && (r.State == "progress" || (r.ResultKind == "answer" && r.State != "review") || (r.ResultKind != "answer" && r.ResultKind != "implementation")) {
+		return bad("result_kind requires a final report and must be answer or implementation")
+	}
 	t.UpdatedAt = time.Now().UTC()
 	if e = s.store.UpdateTask(ctx, t); e != nil {
 		return nil, e
@@ -119,7 +123,17 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 	if r.State != "progress" {
 		message += "\n\n## Work summary\n" + t.Summary + "\n\n## Verification\n" + t.CompleteNote
 	}
-	e = s.store.CreateActivity(ctx, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_report", Author: author, NewStatus: r.State, Message: message, CreatedAt: time.Now().UTC()})
+	stamp := time.Now().UTC()
+	if r.State != "progress" {
+		kind := r.ResultKind
+		if kind == "" {
+			kind = "implementation"
+		}
+		if e = s.store.CreateActivity(ctx, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_result_kind", Author: author, NewStatus: kind, Message: "Result type reported by agent: " + kind, CreatedAt: stamp}); e != nil {
+			return nil, e
+		}
+	}
+	e = s.store.CreateActivity(ctx, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_report", Author: author, NewStatus: r.State, Message: message, CreatedAt: stamp})
 	if e != nil {
 		return nil, e
 	}

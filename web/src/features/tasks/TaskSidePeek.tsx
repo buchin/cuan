@@ -408,11 +408,11 @@ function TaskDetailView({
                 setParams(
                   (old) => {
                     const next = new URLSearchParams(old)
-                    if (full) next.delete('view')
+                    if (full) next.set('view', 'detail')
                     else next.set('view', 'full')
                     return next
                   },
-                  { replace: true },
+                  { replace: true, state: location.state },
                 )
               }
             >
@@ -483,7 +483,17 @@ function TaskDetailView({
         </h2>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>{statusLabel(detail.status)}</span>
-          {executionLabel(detail) && <span>{executionLabel(detail)}</span>}
+          {['running', 'queued'].includes(
+            detail.latest_attempt?.status || '',
+          ) && (
+            <span>
+              {['running', 'queued'].includes(
+                detail.latest_attempt?.status || '',
+              )
+                ? executionLabel(detail)
+                : ''}
+            </span>
+          )}
           <span>Updated {relativeTime(detail.updated_at)}</span>
         </div>
       </header>
@@ -782,7 +792,7 @@ function TaskDetailView({
                 </section>
                 <section>
                   <h3 className="mb-2 text-sm font-semibold">
-                    Acceptance criteria
+                    Agent checklist
                   </h3>
                   {checklist.length ? (
                     <div className="space-y-1">
@@ -823,7 +833,7 @@ function TaskDetailView({
                       ))}
                       <p className="text-xs text-muted-foreground">
                         {checklist.filter((i) => i.completed).length} of{' '}
-                        {checklist.length} verified
+                        {checklist.length} reported by agent
                       </p>
                     </div>
                   ) : (

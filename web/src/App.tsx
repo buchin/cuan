@@ -39,8 +39,10 @@ export function App() {
   const subParam = pathSegments[1] || ''
   const sessionRoute =
     rootSegment === 'tasks' &&
-    pathSegments[2] === 'sessions' &&
-    !!pathSegments[3]
+    !!subParam &&
+    !['detail', 'full'].includes(
+      new URLSearchParams(location.search).get('view') || '',
+    )
 
   // Current tab derived from URL route
   const currentTab: AppTab = useMemo(() => {
@@ -278,7 +280,7 @@ export function App() {
   const handleSelectTask = (t: Task) => {
     setTaskLaunchError('')
     setSelectedTask(t)
-    setIsSidePeekOpen(true)
+    setIsSidePeekOpen(false)
     const search = new URLSearchParams(location.search)
     search.delete('view')
     const suffix = search.toString() ? '?' + search.toString() : ''
@@ -297,6 +299,20 @@ export function App() {
     void refreshTasks()
     const search = new URLSearchParams(location.search)
     search.delete('view')
+    if (rootSegment === 'tasks' && subParam) {
+      const target = location.state?.workspaceReturnTo
+      navigate(
+        typeof target === 'string' &&
+          target.startsWith('/tasks/' + encodeURIComponent(subParam)) &&
+          !/[?&]view=/.test(target)
+          ? target
+          : '/tasks/' +
+              encodeURIComponent(subParam) +
+              (search.toString() ? '?' + search.toString() : ''),
+        { state: location.state },
+      )
+      return
+    }
     const fallback =
       '/tasks' + (search.toString() ? '?' + search.toString() : '')
     const target = location.state?.taskReturnTo
@@ -547,7 +563,7 @@ export function App() {
           <TaskSessionPage
             key={subParam}
             taskId={subParam}
-            sessionId={pathSegments[3]}
+            sessionId={pathSegments[3] || 'latest'}
           />
         )}
         {currentTab === 'tasks' && !sessionRoute && (

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Info, Square, Send } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
+import { TaskReadyPage } from './TaskReadyPage'
 import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
@@ -27,7 +28,11 @@ export function TaskSessionPage({
     ),
     [followup, setFollowup] = useState(''),
     [cancel, setCancel] = useState(false),
-    [busy, setBusy] = useState(false)
+    [busy, setBusy] = useState(false),
+    [showTerminal, setShowTerminal] = useState(false),
+    [accept, setAccept] = useState(false),
+    [acceptNote, setAcceptNote] = useState('')
+  const following = useRef(false)
   const refresh = useCallback(async () => {
     try {
       setDetail(await tasksApi.get(taskId))
@@ -53,10 +58,43 @@ export function TaskSessionPage({
     }, 4000)
     return () => clearInterval(timer)
   }, [refresh])
-  const attempt = detail?.attempts.find((a) => a.id === sessionId)
+  const attempt =
+    sessionId === 'latest'
+      ? detail?.latest_attempt || detail?.attempts[0]
+      : detail?.attempts.find((a) => a.id === sessionId)
   const suffix = location.search,
     state = location.state
-  const taskURL = `/tasks/${encodeURIComponent(taskId)}${suffix}`
+  const detailParams = new URLSearchParams(suffix)
+  detailParams.set('view', 'detail')
+  const taskURL =
+    '/tasks/' + encodeURIComponent(taskId) + '?' + detailParams.toString()
+  const backURL =
+    typeof state?.taskReturnTo === 'string' &&
+    /^\/(?:tasks|projects\/[^/?#]+)(?:\?[^#]*)?$/.test(state.taskReturnTo)
+      ? state.taskReturnTo
+      : '/tasks' + suffix
+  const detailState = {
+    ...state,
+    workspaceReturnTo: location.pathname + location.search,
+  }
+  useEffect(() => {
+    if (sessionId === 'latest' && attempt)
+      navigate(
+        '/tasks/' +
+          encodeURIComponent(taskId) +
+          '/sessions/' +
+          encodeURIComponent(attempt.id) +
+          suffix,
+        { replace: true, state },
+      )
+  }, [sessionId, attempt?.id, taskId, suffix, navigate, state])
+  useEffect(() => {
+    setShowTerminal(false)
+    setAccept(false)
+    setFollowup('')
+    following.current = false
+  }, [sessionId])
+
   const reports =
     detail?.activities.filter(
       (a) => a.attempt_id === sessionId && a.activity_type === 'agent_report',
@@ -78,6 +116,7 @@ export function TaskSessionPage({
         </Link>
       </div>
     )
+  if (!attempt && sessionId === 'latest') return <TaskReadyPage task={detail} />
   if (!attempt)
     return (
       <div className="p-4 text-sm">
@@ -92,6 +131,38 @@ export function TaskSessionPage({
       </div>
     )
   const active = ['running', 'queued'].includes(attempt.status)
+  const latest = detail.latest_attempt?.id === attempt.id
+  const final = [...reports]
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .find((r) => ['review', 'blocked'].includes(r.new_status || ''))
+  const answer =
+    final?.new_status === 'review' &&
+    attempt.status === 'succeeded' &&
+    detail.activities.some(
+      (a) =>
+        a.attempt_id === attempt.id &&
+        a.activity_type === 'agent_result_kind' &&
+        a.created_at === final.created_at &&
+        a.new_status === 'answer',
+    )
+  const result =
+    final?.message.match(
+      /## Work summary\n([\s\S]*?)(?:\n\n## Verification|$)/,
+    )?.[1] ||
+    (latest ? detail.summary : '') ||
+    ''
+  const checklist = (detail.dod_checklist || []).map((c) =>
+    typeof c === 'string' ? { text: c, completed: false } : c,
+  )
+  const canAccept =
+    latest &&
+    detail.status === 'review' &&
+    !active &&
+    !answer &&
+    attempt.status === 'succeeded' &&
+    !!result.trim() &&
+    !!detail.complete_note
+
   return (
     <section
       aria-label="Task session"
@@ -99,11 +170,11 @@ export function TaskSessionPage({
     >
       <header className="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
         <Link
-          to={taskURL}
+          to={backURL}
           state={state}
           className="icon-action shrink-0"
-          aria-label="Task details"
-          title="Task details"
+          aria-label="Back to tasks"
+          title="Back to tasks"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -112,8 +183,18 @@ export function TaskSessionPage({
             {detail.title}
           </h2>
           <p className="truncate text-xs text-muted-foreground">
-            {attemptLabel(attempt)} ·{' '}
-            <span className="hidden sm:inline">Session </span>
+            {!latest
+              ? attemptLabel(attempt)
+              : active
+                ? attemptLabel(attempt)
+                : detail.status === 'done'
+                  ? 'Accepted'
+                  : answer
+                    ? 'Answered'
+                    : detail.status === 'blocked'
+                      ? 'Needs attention'
+                      : 'Ready for review'}{' '}
+            · <span className="hidden sm:inline">Session </span>
             {attempt.attempt_number}
           </p>
         </div>
@@ -151,16 +232,98 @@ export function TaskSessionPage({
           Session needs attention · View detail
         </button>
       )}
-      <div className="min-h-0 flex-1">
-        <TaskTerminal
-          key={sessionId}
-          taskId={taskId}
-          attempt={attempt}
-          live={live}
-          onRefresh={() => void refresh()}
-          controlsTarget={terminalControls}
-        />
-      </div>
+      {active || showTerminal ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {!active && (
+            <button
+              className="action-secondary m-2 text-xs"
+              onClick={() => setShowTerminal(false)}
+            >
+              Back to result
+            </button>
+          )}
+          <div className="min-h-0 flex-1">
+            <TaskTerminal
+              key={sessionId}
+              taskId={taskId}
+              attempt={attempt}
+              live={live}
+              onRefresh={() => void refresh()}
+              controlsTarget={terminalControls}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
+            <section aria-label="Original request">
+              <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+                Your request
+              </h3>
+              <div className="max-h-40 overflow-y-auto">
+                <ChatMarkdown content={detail.description || detail.title} />
+              </div>
+            </section>
+            <section aria-label="Session result">
+              <h3 className="mb-2 text-sm font-semibold">
+                {answer ? 'Answer' : 'Result'}
+              </h3>
+              {result ? (
+                <ChatMarkdown content={result} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No result was recorded for this session. Open the terminal or
+                  Detail to check what happened.
+                </p>
+              )}
+            </section>
+            <div className="flex flex-wrap items-center gap-2">
+              {canAccept && (
+                <button
+                  className="action-primary"
+                  onClick={() => {
+                    setAcceptNote('')
+                    setAccept(true)
+                  }}
+                >
+                  Accept
+                </button>
+              )}
+              {canAccept && detail.assignee_id && (
+                <button
+                  className="action-secondary"
+                  onClick={() =>
+                    document
+                      .querySelector<HTMLTextAreaElement>(
+                        'textarea[aria-label="Follow-up instructions"]',
+                      )
+                      ?.focus()
+                  }
+                >
+                  Request changes
+                </button>
+              )}
+              {!result && (
+                <button
+                  className="action-secondary"
+                  onClick={() => setShowTerminal(true)}
+                >
+                  Open terminal
+                </button>
+              )}
+            </div>
+            {!latest && (
+              <p className="text-xs text-muted-foreground">
+                Earlier session · select the latest session in Detail to
+                continue.
+              </p>
+            )}
+            {latest && detail.status === 'done' && (
+              <p className="text-sm text-muted-foreground">Result accepted.</p>
+            )}
+          </div>
+        </div>
+      )}
       {!active &&
         detail.latest_attempt?.id === attempt.id &&
         detail.status !== 'done' &&
@@ -169,7 +332,9 @@ export function TaskSessionPage({
             className="flex shrink-0 items-end gap-2 border-t bg-background p-2"
             onSubmit={(e) => {
               e.preventDefault()
-              if (!followup.trim() || busy) return
+              if (!followup.trim() || busy || following.current) return
+              following.current = true
+              setBusy(true)
               const request = {
                 request_id: crypto.randomUUID(),
                 agent_id: detail.assignee_id!,
@@ -193,6 +358,8 @@ export function TaskSessionPage({
                   },
                 )
               } catch {
+                following.current = false
+                setBusy(false)
                 setError(
                   'Could not save the session request. Enable browser storage and try again.',
                 )
@@ -206,7 +373,11 @@ export function TaskSessionPage({
                 rows={1}
                 maxLength={24000}
                 className="field-control max-h-32 resize-y text-base md:text-sm"
-                placeholder="What should the agent do next?"
+                placeholder={
+                  answer
+                    ? 'Reply to the agent…'
+                    : 'What should change or happen next?'
+                }
                 value={followup}
                 onChange={(e) => setFollowup(e.target.value)}
               />
@@ -234,9 +405,18 @@ export function TaskSessionPage({
       >
         <div className="space-y-4">
           <h3 className="break-words text-sm font-semibold">{detail.title}</h3>
-          <Link className="text-sm underline" to={taskURL} state={state}>
+          <Link className="text-sm underline" to={taskURL} state={detailState}>
             Open task details · {taskRef(taskId)}
           </Link>
+          <button
+            className="action-secondary"
+            onClick={() => {
+              setShowDetail(false)
+              setShowTerminal(true)
+            }}
+          >
+            Open terminal
+          </button>
           <label className="block text-xs text-muted-foreground">
             Session
             <select
@@ -276,6 +456,52 @@ export function TaskSessionPage({
               {attempt.error_message}
             </p>
           )}
+          {latest && checklist.length > 0 && (
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                Agent checklist
+              </summary>
+              <p className="my-2 text-xs text-muted-foreground">
+                Reported by agent · compare with your original request before
+                accepting.
+              </p>
+              {checklist.map((item, index) => (
+                <label
+                  key={item.id || index}
+                  className="flex min-h-11 items-start gap-2 py-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={'Verify: ' + item.text}
+                    checked={item.completed}
+                    disabled={busy || active || detail.status === 'done'}
+                    onChange={async () => {
+                      setBusy(true)
+                      try {
+                        await tasksApi.update(taskId, {
+                          dod_checklist: checklist.map((c, i) =>
+                            i === index ? { ...c, completed: !c.completed } : c,
+                          ),
+                          expected_updated_at: detail.updated_at,
+                        })
+                        await refresh()
+                      } catch (e) {
+                        setError(
+                          e instanceof Error
+                            ? e.message
+                            : 'Could not save checklist.',
+                        )
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                    className="mt-1 h-4 w-4 shrink-0"
+                  />
+                  <span>{item.text}</span>
+                </label>
+              ))}
+            </details>
+          )}
           <aside aria-label="Agent report">
             <h3 className="mb-3 text-sm font-semibold">Agent report</h3>
             {!reports.length ? (
@@ -303,6 +529,80 @@ export function TaskSessionPage({
             )}
           </aside>
         </div>
+      </ActionDialog>
+      <ActionDialog
+        open={accept}
+        title="Accept result"
+        busy={busy}
+        onClose={() => setAccept(false)}
+      >
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (
+              busy ||
+              !acceptNote.trim() ||
+              checklist.some((c) => !c.completed)
+            )
+              return
+            setBusy(true)
+            try {
+              await tasksApi.update(taskId, {
+                status: 'done',
+                complete_note: acceptNote.trim(),
+                expected_updated_at: detail.updated_at,
+              })
+              setAccept(false)
+              await refresh()
+            } catch (e) {
+              setError(
+                e instanceof Error ? e.message : 'Could not accept the result.',
+              )
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <p className="text-sm text-muted-foreground">
+            Confirm the result meets your request, stays within scope, and uses
+            the correct workspace.
+          </p>
+          <p className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg border p-3 text-sm">
+            {detail.description || detail.title}
+          </p>
+          {checklist.some((c) => !c.completed) && (
+            <p className="text-sm text-destructive">
+              Verify the remaining checklist items in Detail before accepting.
+            </p>
+          )}
+          <label className="grid gap-1 text-sm">
+            Verification
+            <textarea
+              aria-label="Acceptance evidence"
+              required
+              rows={3}
+              maxLength={16000}
+              className="field-control"
+              value={acceptNote}
+              onChange={(e) => setAcceptNote(e.target.value)}
+              placeholder="How you verified this meets the request."
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <button
+            className="action-primary"
+            disabled={
+              busy || !acceptNote.trim() || checklist.some((c) => !c.completed)
+            }
+          >
+            Accept result
+          </button>
+        </form>
       </ActionDialog>
       <ActionDialog
         open={cancel}

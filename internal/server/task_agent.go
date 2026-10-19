@@ -92,6 +92,9 @@ For substantial work, publish meaningful task report --progress "..." checkpoint
 Print the user-facing answer before the final report.
 Finish with:
 "$CUAN_TASK_EXECUTABLE" task report --state review --summary "Actual result" --complete-note "Verification and limitations"
+For a greeting/question with no file changes, add --result-kind answer.
+For implementation, file changes or uncertain classification, use --result-kind implementation (the default).
+This controls presentation only; it never approves Done.
 For a greeting/question, state that it was answered directly and no files/tests
 were needed. Never claim unperformed work. For a blocker use --state blocked
 with summary and concrete evidence instead.

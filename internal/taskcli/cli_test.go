@@ -19,7 +19,7 @@ func TestTaskToolUsesOnlyPrivateCapability(t *testing.T) {
 		if r.Method == "POST" {
 			var data map[string]any
 			json.NewDecoder(r.Body).Decode(&data)
-			if data["summary"] != "Actual work" || data["state"] != "review" {
+			if data["summary"] != "Actual work" || data["state"] != "review" || data["result_kind"] != "answer" {
 				t.Error(data)
 			}
 		}
@@ -31,7 +31,7 @@ func TestTaskToolUsesOnlyPrivateCapability(t *testing.T) {
 	os.WriteFile(path, data, 0600)
 	t.Setenv("CUAN_TASK_CAPABILITY_FILE", path)
 	var out, err bytes.Buffer
-	if Run([]string{"report", "--summary", "Actual work", "--state", "review"}, &out, &err) != 0 {
+	if Run([]string{"report", "--summary", "Actual work", "--state", "review", "--result-kind", "answer"}, &out, &err) != 0 {
 		t.Fatal(err.String())
 	}
 	if bytes.Contains(out.Bytes(), []byte(token)) {

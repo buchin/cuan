@@ -178,6 +178,10 @@ func TestTaskAgentInteractiveTurnAndReportedFinish(t *testing.T) {
 			api := httptest.NewServer(s.Router())
 			defer api.Close()
 			s.taskAgentURL = api.URL
+			kind := "implementation"
+			if state == "review" {
+				kind = "answer"
+			}
 			script := `#!/bin/sh
 [ "$1" = "--dangerously-skip-permissions" ] || exit 21
 [ "$2" = "--prompt-interactive" ] || exit 22
@@ -191,7 +195,7 @@ printf 'READY_FOR_FOLLOWUP\n'
 read -r followup
 [ "$followup" = "second turn" ] || exit 23
 "$CUAN_TASK_EXECUTABLE" task get >/dev/null || exit 24
-"$CUAN_TASK_EXECUTABLE" task report --state ` + state + ` --summary 'Two interactive turns completed' --complete-note 'Verified actual PTY input and task tool' || exit 25
+"$CUAN_TASK_EXECUTABLE" task report --state ` + state + ` --result-kind ` + kind + ` --summary 'Two interactive turns completed' --complete-note 'Verified actual PTY input and task tool' || exit 25
 printf 'FINAL_OUTPUT_DRAINED\n'
 while :; do sleep 1; done
 `
