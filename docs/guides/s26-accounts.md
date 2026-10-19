@@ -61,7 +61,7 @@ Consent dan login nyata @pin2 telah selesai. real-provider-identities.json membu
 
 ## Inbox progress and safe recovery (S26.4)
 
-Send a message normally from Inbox. The browser saves a private pending request key before sending; the server atomically saves the user message and request, then returns acceptance while the agent works. A progress bubble survives refresh/reopening Inbox. Failures show the affected message reference and useful login, quota, provider or interruption guidance. Open that agent's status to diagnose its connection. No automatic account switching or login/consent is triggered.
+Send a message normally from Inbox. The browser saves a private pending request key before sending; the server atomically saves the user message and request, then returns acceptance while the agent works. A progress bubble survives refresh/reopening Inbox. Progress and failure bubbles appear directly below their user message. The Inbox header says Terdaftar and links status guidance to Team; it does not claim provider readiness. Failures show the affected message reference and useful login, quota, provider or interruption guidance. Open that agent's status to diagnose its connection. No automatic account switching or login/consent is triggered.
 
 If the connection drops, use **Segarkan riwayat** first. **Periksa pengiriman yang sama** reuses the original key, at most three attempts in the current view. It cannot launch accepted work again. Reload keeps the pending key in this browser's local storage. Do not clear browser storage or deliberately send a new message while delivery is uncertain. Pending content remains in local storage until reconciled; use a trusted browser profile. Browser storage must be available to send safely.
 

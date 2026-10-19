@@ -120,7 +120,7 @@ export function InboxView({
       } catch { setSendError('Penyimpanan browser tidak tersedia. Segarkan riwayat sebelum mengirim lagi.') }
       loadConversation(convId, true)
     }
-  }, [activeContact, loadConversation])
+  }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
 
   // Polling every 3.5 seconds
   useEffect(() => {
@@ -129,7 +129,7 @@ export function InboxView({
       loadConversation(activeContact.conversation_id || activeContact.id, false)
     }, 3500)
     return () => clearInterval(timer)
-  }, [activeContact, loadConversation])
+  }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
 
   const lastMessageKey = messages[messages.length - 1]?.uuid || messages[messages.length - 1]?.id
 
@@ -138,7 +138,7 @@ export function InboxView({
     if (messageListRef.current) {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight
     }
-  }, [lastMessageKey, activeContact?.id])
+  }, [lastMessageKey, activeContact?.id, sendError, requests.map(q => q.request_id + q.state).join(',')])
 
   const handleSendMessage = async () => {
     if (!activeContact || sending || retryCount >= 3) return
@@ -314,7 +314,7 @@ export function InboxView({
                   </span>
                   <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span>Connected</span>
+                    <span>Terdaftar</span>
                   </span>
                 </div>
               ) : (
@@ -326,7 +326,7 @@ export function InboxView({
             </div>
             <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{activeContact.type === 'agent' ? 'Online • Responsif & Siap Bantu' : 'Online • Sesi Tamu Dojo'}</span>
+              <span>{activeContact.type === 'agent' ? 'Status koneksi tersedia di Team' : 'Online • Sesi Tamu Dojo'}</span>
             </p>
           </div>
         </div>
@@ -363,22 +363,10 @@ export function InboxView({
           </div>
         )}
 
-        {requests.filter(q => q.state !== 'completed').map(q => (
-          <div key={q.request_id} role="status" className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-3 text-xs break-words">
-            <p className="font-medium">{q.state === 'running' ? 'Pesan tersimpan · agen sedang memproses' : 'Balasan belum tersedia'}</p>
-            <p className="mt-1 text-muted-foreground">{q.safe_error || 'Anda boleh menyegarkan atau membuka kembali Inbox. Permintaan yang sama tidak dijalankan ulang.'}</p>
-            <p className="mt-1 text-muted-foreground">Pesan: {q.message_id.slice(0, 8)} · {formatMessageTime(q.created_at)}</p>
-          </div>
-        ))}
-        {sendError && <div role="alert" className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-3 text-xs">
-          <p>{sendError}</p>
-          {pendingRef.current && <button className="mt-2 underline" disabled={sending || retryCount >= 3} onClick={handleSendMessage}>Periksa pengiriman yang sama ({Math.max(0, 3 - retryCount)} tersisa)</button>}
-          <button className="ml-3 underline" onClick={() => loadConversation(activeContact.conversation_id || activeContact.id)}>Segarkan riwayat</button>
-        </div>}
         {/* Welcome Pill */}
         <div className="flex justify-center my-2">
           <span className="text-[11px] font-medium px-3 py-1 rounded-full bg-card/80 border border-border text-muted-foreground shadow-2xs">
-            Percakapan dienkripsi &amp; disimpan di PostgreSQL database
+            Riwayat pesan tersimpan
           </span>
         </div>
 
@@ -487,9 +475,22 @@ export function InboxView({
                   {isOutgoing && <CheckCheck className="h-3 w-3" />}
                 </div>
               </div>
+        {requests.filter(q => q.message_id === msg.uuid && q.state !== 'completed').map(q => (
+          <div key={q.request_id} role="status" className="mt-2 max-w-[85%] sm:max-w-[70%] rounded-xl border border-border bg-card p-3 text-xs break-words">
+            <p className="font-medium">{q.state === 'running' ? 'Pesan tersimpan · agen sedang memproses' : 'Balasan belum tersedia'}</p>
+            <p className="mt-1 text-muted-foreground">{q.safe_error || 'Anda boleh menyegarkan atau membuka kembali Inbox. Permintaan yang sama tidak dijalankan ulang.'}</p>
+            <p className="mt-1 text-muted-foreground">Pesan: {q.message_id.slice(0, 8)} · {formatMessageTime(q.created_at)}</p>
+          </div>
+        ))}
             </div>
           )
         })}
+
+        {sendError && <div role="alert" className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-3 text-xs">
+          <p>{sendError}</p>
+          {pendingRef.current && <button className="mt-2 underline" disabled={sending || retryCount >= 3} onClick={handleSendMessage}>Periksa pengiriman yang sama ({Math.max(0, 3 - retryCount)} tersisa)</button>}
+          <button className="ml-3 underline" onClick={() => loadConversation(activeContact.conversation_id || activeContact.id)}>Segarkan riwayat</button>
+        </div>}
 
         {/* Typing Indicator */}
         {sending && activeContact.type === 'agent' && (
@@ -499,7 +500,7 @@ export function InboxView({
                 {activeContact.avatar ? <span>{activeContact.avatar}</span> : <Bot className="h-3.5 w-3.5 text-primary" />}
               </div>
               <span className="text-xs text-muted-foreground font-medium">
-                {activeContact.name} sedang memproses respons...
+                Mengirim pesan ke {activeContact.name}...
               </span>
               <div className="flex items-center gap-1 ml-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '0ms' }} />
