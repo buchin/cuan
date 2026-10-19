@@ -7,12 +7,14 @@ export function ActionDialog({
   title,
   onClose,
   busy = false,
+  drawer = false,
   children,
 }: {
   open: boolean
   title: string
   onClose: () => void
   busy?: boolean
+  drawer?: boolean
   children: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null),
@@ -50,7 +52,11 @@ export function ActionDialog({
         e.stopPropagation()
         if (!busy) onClose()
       }}
-      className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-5 text-card-foreground shadow-2xl backdrop:bg-black/60"
+      className={
+        drawer
+          ? 'session-detail-panel m-0 ml-auto h-dvh max-h-dvh w-full max-w-md overflow-y-auto border-l border-border bg-card p-4 text-card-foreground shadow-2xl backdrop:bg-black/60'
+          : 'm-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-5 text-card-foreground shadow-2xl backdrop:bg-black/60'
+      }
     >
       <header className="mb-4 flex items-center justify-between gap-3">
         <h2 id={id} className="text-xl font-semibold">

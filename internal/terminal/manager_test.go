@@ -202,7 +202,7 @@ func TestS25AgentOutlivesRequestAndPromptIsNotShellCode(t *testing.T) {
 	root := t.TempDir()
 	marker := filepath.Join(root, "must-not-exist")
 	bin := filepath.Join(root, "agy")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$2\"\nsleep 0.2\nprintf 'PROCESS_COMPLETED\\n'\n"
+	script := "#!/bin/sh\n[ \"$1\" = --dangerously-skip-permissions ] || exit 21\n[ \"$2\" = --prompt-interactive ] || exit 22\nprintf '%s\\n' \"$3\"\nsleep 0.2\nprintf 'PROCESS_COMPLETED\\n'\n"
 	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -228,5 +228,45 @@ func TestS25AgentOutlivesRequestAndPromptIsNotShellCode(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatal("prompt was evaluated as shell code")
+	}
+}
+
+func TestManager_ReportedFinishIgnoresStaleInputAndAttempt(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "agy"), []byte("#!/bin/sh\nwhile read -r line; do printf '%s\\n' \"$line\"; done\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	mgr := NewManager(ManagerConfig{WorkspacesDir: filepath.Join(root, "work")})
+	defer mgr.CloseAll()
+	exited := make(chan *TaskRunHistory, 1)
+	sess, err := mgr.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "reported-task", AttemptID: "attempt-current", Command: "agy", Prompt: "interactive", OnExit: func(h *TaskRunHistory) { exited <- h }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now().Add(-time.Second)
+	sub, _, err := sess.Subscribe("writer", ModeInteractive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = sess.WriteInput(sub.ID, []byte("later instruction\n")); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.FinishReportedSession("reported-task", "attempt-old", time.Now()) {
+		t.Fatal("stopped another attempt")
+	}
+	if mgr.FinishReportedSession("reported-task", "attempt-current", before) {
+		t.Fatal("stopped a later user turn")
+	}
+	if !mgr.FinishReportedSession("reported-task", "attempt-current", time.Now()) {
+		t.Fatal("matching final report did not close session")
+	}
+	select {
+	case h := <-exited:
+		if h.EndReason != "agent_report" {
+			t.Fatal(h.EndReason)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("reported process did not terminate")
 	}
 }

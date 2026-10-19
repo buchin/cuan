@@ -35,8 +35,8 @@ Viewing a task never starts an agent.
 ## Review and revisions
 
 Execution and workflow are separate. New agent sessions enter **Review** only
-after a successful exit and a structured report containing summary and verification
-evidence. A successful exit without a complete report leaves the task **Blocked**.
+after a successful exit or an intentional close after a validated final report,
+with a structured report containing summary and verification evidence. A successful exit without a complete report leaves the task **Blocked**.
 Neither an agent report nor an exit code approves Done. Failed, interrupted, and canceled attempts retain their output and leave
 work blocked for an explicit retry. Editing a status does not launch an agent.
 
@@ -52,9 +52,10 @@ bound agent through its task tool, or by the user; an exit code alone does not f
 **Sessions** lists durable attempts, status, timestamps, exit code, and errors.
 Opening a session navigates to `/tasks/{taskId}/sessions/{attemptId}`. Each session
 has its own shareable/reloadable page with the terminal and that attempt's recorded
-agent reports. The session selector changes the URL; missing sessions show an
-error rather than attaching another run. Phones switch between Terminal and
-Agent report; desktop shows both panels. Task details returns to the task drawer
+agent reports. The session selector inside Detail changes the URL; missing sessions show an
+error rather than attaching another run. The terminal fills the session workspace. **Detail** opens a side panel for
+agent reports, timestamps and session history. The mobile session hides the
+global header and bottom navigation; the back arrow returns to task details. Task details returns to the task drawer
 and preserves the originating list filters. Select earlier sessions to read saved output. **Activity** shows workflow events
 and comments. The terminal starts in read-only mode. **Enable input** explicitly
 enables keyboard input; reconnect returns to read-only. Reconnect attaches the
@@ -62,11 +63,28 @@ same live process. Closing a drawer, switching tabs, or disconnecting does not
 cancel execution. **Cancel session** requires confirmation and retains evidence;
 it does not undo files the agent already changed.
 
-Use Follow, search with Next/Previous, Copy output, and Download output. Output is
+Expand **Terminal tools** for Follow, search with Next/Previous, Copy output,
+Download output and reconnect. After **Enable input**, type directly into the
+terminal or send text through **Message the agent…**. Input and keyboard control
+attach to the same live interactive CLI, never a replacement shell. Once a
+session has ended, follow-up instructions start a new attempt with the saved
+task context. Older attempts stay read-only.
+
+Task agents run in interactive mode: Antigravity uses
+`--prompt-interactive` rather than `-p`, Claude uses its interactive positional
+prompt, and Codex uses its interactive CLI with `--full-auto`. Antigravity task
+runs auto-approve tool permissions, matching the existing task execution
+adapter; Inbox retains its separate restricted launcher. These processes run
+as the configured runtime user with access to the selected workspace.
+Task credentials remain scoped to the active task and attempt. Output is
 bounded by server retention and the terminal buffer; exports contain the currently
 loaded output. If a process is no longer live, the UI shows retained output rather
-than creating a replacement shell. The local agent runtime has a ten-minute
-execution limit. A process interrupted by server restart is never replayed
+than creating a replacement shell. Interactive task sessions have an eight-hour execution limit. Final
+`review` or `blocked` reports close the matching interactive session after a
+two-second output drain. New terminal input or a later progress checkpoint cancels an older pending
+close. Actual signal exit codes are retained for audit; an intentional report
+close is distinguished from provider failure or user cancellation. Human
+approval is still required for Done. A process interrupted by server restart is never replayed
 automatically. Task deletion requires confirmation and refuses active attempts.
 
 ## API and storage
@@ -121,14 +139,14 @@ request ID survive reload in this browser tab. Closing a nonempty composer asks
 before discarding it. A failed create keeps the same request ID. If creation
 succeeds but launch fails, the persisted task still opens; uncertain launches
 expose **Check launch request** instead of inviting a duplicate creation/run.
-Choosing an agent explicitly changes the action to **Create & start**. An existing
+The action remains **Create**, with the selected agent controlling whether a session starts. An existing
 CLI agent must be connected/configured before execution; creating a task is still
 possible with **No agent** when agent listing is unavailable.
 
 ## Bound agent reporting
 
-Create & start saves and opens the task immediately. Launch runs in the background;
-the UI navigates to its session once the durable attempt is returned. Navigating
+Create with an agent saves the task and opens its Starting session immediately;
+the UI opens the confirmed attempt once the launch returns. Navigating
 away does not cancel work or pull the user back. Failed/uncertain launches leave
 the task available, with explicit same-request recovery. The browser does not
 choose title/priority defaults; prompt-only API creation derives them on the server
@@ -157,7 +175,7 @@ The private capability file supplies a short-lived credential for just the curre
 task and active attempt. It is never an owner token and is not placed in URLs,
 prompts or command arguments. It cannot change human instructions, assignment,
 project, process state or Done. Access is revoked on process exit, expires after
-eleven minutes, and is invalid after server restart; temporary files are removed
+eight hours and five minutes, and is invalid after server restart; temporary files are removed
 on normal termination. The CLI checks private file permissions and uses only the
 loopback API. Existing historical sessions remain readable and are not rewritten.
 No database migration is required for this reporting contract; it uses existing

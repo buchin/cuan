@@ -312,3 +312,15 @@ body {
     opacity: 1;
   }
 }
+
+/* Session metadata stays secondary to the interactive workspace. */
+@keyframes session-detail-enter {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.session-detail-panel[open] {
+  animation: session-detail-enter 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-detail-panel[open] { animation: none; }
+}

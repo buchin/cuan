@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 func TestMain(m *testing.M) {
@@ -147,6 +149,141 @@ func TestTaskAgentFailureAndBlockerDoNotBecomeReview(t *testing.T) {
 			d := waitWorkspaceTask(t, s, created.ID, c.attempt)
 			if d.Status != "blocked" || d.CompleteNote == "" {
 				t.Fatal("unsuccessful work became review", d.Status)
+			}
+		})
+	}
+}
+
+// A real PTY fixture, not a provider mock response: it stays interactive, accepts
+// a second turn, uses the actual capability CLI, and waits for report finalization.
+func TestTaskAgentInteractiveTurnAndReportedFinish(t *testing.T) {
+	for _, state := range []string{"review", "blocked"} {
+		t.Run(state, func(t *testing.T) {
+			s, _, call, _ := inboxFixture(t)
+			api := httptest.NewServer(s.Router())
+			defer api.Close()
+			s.taskAgentURL = api.URL
+			script := `#!/bin/sh
+[ "$1" = "--dangerously-skip-permissions" ] || exit 21
+[ "$2" = "--prompt-interactive" ] || exit 22
+printf 'READY_FOR_FOLLOWUP\n'
+read -r followup
+[ "$followup" = "second turn" ] || exit 23
+"$CUAN_TASK_EXECUTABLE" task get >/dev/null || exit 24
+"$CUAN_TASK_EXECUTABLE" task report --state ` + state + ` --summary 'Two interactive turns completed' --complete-note 'Verified actual PTY input and task tool' || exit 25
+printf 'FINAL_OUTPUT_DRAINED\n'
+while :; do sleep 1; done
+`
+			if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			created := workspaceTask(t, call)
+			path := "/api/v1/tasks/" + created.ID + "/run-agent"
+			w := call("POST", path, `{"agent_id":"agent_lifecycle","request_id":"91000000-0000-4000-8000-000000000001"}`)
+			if w.Code != 200 {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			sess, ok := s.terminalManager.GetSession(created.ID)
+			if !ok {
+				t.Fatal("interactive session missing")
+			}
+			// A detached viewer must not own the process lifetime.
+			sub, _, err := sess.Subscribe("fixture-viewer", terminal.ModeInteractive)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sess.Unsubscribe(sub.ID)
+			if sess.IsClosed() {
+				t.Fatal("detaching stopped the agent")
+			}
+			if _, err := sess.PTY().Write([]byte("second turn\n")); err != nil {
+				t.Fatal(err)
+			}
+			result := waitWorkspaceTask(t, s, created.ID, "succeeded")
+			if result.Status != state || result.Summary != "Two interactive turns completed" {
+				t.Fatal(result.Status, result.Summary)
+			}
+			history := s.terminalManager.GetTaskHistory(created.ID)
+			if len(history) != 1 || history[0].EndReason != "agent_report" {
+				t.Fatal("missing explicit reported finish", history)
+			}
+			logs, err := s.taskSvc.GetAttemptLogs(context.Background(), result.LatestAttempt.ID, 0, 250)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var output strings.Builder
+			for _, line := range logs {
+				output.WriteString(line.Line)
+			}
+			if !strings.Contains(output.String(), "FINAL_OUTPUT_DRAINED") {
+				t.Fatal("final output not retained")
+			}
+		})
+	}
+}
+
+func TestTaskAgentInteractiveFinalizationRespectsProgressAndCancel(t *testing.T) {
+	for _, cancel := range []bool{false, true} {
+		t.Run(fmt.Sprint("cancel_", cancel), func(t *testing.T) {
+			s, _, call, _ := inboxFixture(t)
+			api := httptest.NewServer(s.Router())
+			defer api.Close()
+			s.taskAgentURL = api.URL
+			script := `#!/bin/sh
+"$CUAN_TASK_EXECUTABLE" task report --state review --summary 'Initial result' --complete-note 'Initial evidence' >/dev/null || exit 31
+"$CUAN_TASK_EXECUTABLE" task report --state progress --progress 'Following new instructions' >/dev/null || exit 32
+read -r next
+"$CUAN_TASK_EXECUTABLE" task report --state review --summary 'Final result' --complete-note 'Verified follow-up' >/dev/null || exit 33
+while :; do sleep 1; done
+`
+			if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			c := workspaceTask(t, call)
+			w := call("POST", "/api/v1/tasks/"+c.ID+"/run-agent", `{"agent_id":"agent_lifecycle","request_id":"92000000-0000-4000-8000-000000000001"}`)
+			if w.Code != 200 {
+				t.Fatal(w.Code)
+			}
+			// Wait until the later progress checkpoint is persisted.
+			deadline := time.Now().Add(time.Second)
+			for {
+				d, _ := s.taskSvc.GetTaskDetail(context.Background(), c.ID)
+				found := false
+				for _, a := range d.Activities {
+					if a.Message == "Following new instructions" {
+						found = true
+					}
+				}
+				if found {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("progress not reported")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			time.Sleep(2200 * time.Millisecond)
+			sess, ok := s.terminalManager.GetSession(c.ID)
+			if !ok || sess.IsClosed() {
+				t.Fatal("older final report interrupted a later turn")
+			}
+			if cancel {
+				w = call("POST", "/api/v1/tasks/"+c.ID+"/cancel", "")
+				if w.Code != 200 {
+					t.Fatal(w.Code)
+				}
+				d, _ := s.taskSvc.GetTaskDetail(context.Background(), c.ID)
+				if d.LatestAttempt.Status != task.AttemptStatusCanceled || d.Status != task.TaskStatusBlocked {
+					t.Fatal("cancel was overwritten")
+				}
+			} else {
+				if _, err := sess.PTY().Write([]byte("finish\n")); err != nil {
+					t.Fatal(err)
+				}
+				d := waitWorkspaceTask(t, s, c.ID, task.AttemptStatusSucceeded)
+				if d.Status != task.TaskStatusReview || d.Summary != "Final result" {
+					t.Fatal(d.Status)
+				}
 			}
 		})
 	}

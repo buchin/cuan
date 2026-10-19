@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Send,
 } from 'lucide-react'
 import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
@@ -35,7 +36,8 @@ export function TaskTerminal({
     [follow, setFollow] = useState(true),
     [input, setInput] = useState(false),
     [search, setSearch] = useState(''),
-    [match, setMatch] = useState('')
+    [match, setMatch] = useState(''),
+    [message, setMessage] = useState('')
   const following = useRef(true),
     interactive = useRef(false),
     searchIndex = useRef(-1),
@@ -322,6 +324,13 @@ export function TaskTerminal({
               {input ? 'Disable input' : 'Enable input'}
             </button>
           )}
+        </div>
+      </div>
+      <details className="shrink-0">
+        <summary className="min-h-9 cursor-pointer py-2 text-xs text-muted-foreground">
+          Terminal tools
+        </summary>
+        <div className="flex flex-wrap justify-end gap-1">
           <button
             className="icon-action"
             aria-label="Reconnect terminal"
@@ -366,65 +375,65 @@ export function TaskTerminal({
             <Download className="h-4 w-4" />
           </button>
         </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <label className="relative min-w-0 flex-1">
-          <Search
-            aria-hidden
-            className="absolute left-2 top-3.5 h-4 w-4 text-muted-foreground"
-          />
-          <input
-            className="field-control pl-8 text-sm"
-            aria-label="Search terminal output"
-            placeholder="Search output…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                find(e.shiftKey ? -1 : 1)
-              }
+        <div className="flex shrink-0 items-center gap-1">
+          <label className="relative min-w-0 flex-1">
+            <Search
+              aria-hidden
+              className="absolute left-2 top-3.5 h-4 w-4 text-muted-foreground"
+            />
+            <input
+              className="field-control pl-8 text-sm"
+              aria-label="Search terminal output"
+              placeholder="Search output…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  find(e.shiftKey ? -1 : 1)
+                }
+              }}
+            />
+          </label>
+          {search && (
+            <>
+              <span
+                role="status"
+                className="max-w-20 text-xs text-muted-foreground"
+              >
+                {match}
+              </span>
+              <button
+                className="icon-action"
+                aria-label="Previous match"
+                onClick={() => find(-1)}
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <button
+                className="icon-action"
+                aria-label="Next match"
+                onClick={() => find(1)}
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          <button
+            className="action-secondary px-2 text-xs"
+            aria-pressed={follow}
+            onClick={() => {
+              const next = !follow
+              following.current = next
+              setFollow(next)
+              if (next) term.current?.scrollToBottom()
             }}
-          />
-        </label>
-        {search && (
-          <>
-            <span
-              role="status"
-              className="max-w-20 text-xs text-muted-foreground"
-            >
-              {match}
-            </span>
-            <button
-              className="icon-action"
-              aria-label="Previous match"
-              onClick={() => find(-1)}
-            >
-              <ChevronUp className="h-4 w-4" />
-            </button>
-            <button
-              className="icon-action"
-              aria-label="Next match"
-              onClick={() => find(1)}
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
-          </>
-        )}
-        <button
-          className="action-secondary px-2 text-xs"
-          aria-pressed={follow}
-          onClick={() => {
-            const next = !follow
-            following.current = next
-            setFollow(next)
-            if (next) term.current?.scrollToBottom()
-          }}
-        >
-          <ArrowDown className="h-4 w-4" />
-          Follow
-        </button>
-      </div>
+          >
+            <ArrowDown className="h-4 w-4" />
+            Follow
+          </button>
+        </div>
+      </details>
       {error && (
         <p role="alert" className="shrink-0 text-sm text-destructive">
           {error}
@@ -436,12 +445,54 @@ export function TaskTerminal({
         </p>
       )}
       <div
-        className="min-h-[180px] min-w-0 flex-1 overflow-hidden rounded-lg border border-border bg-[#141414] p-2"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-md bg-[#141414] p-2"
         aria-label="Terminal output"
       >
-        <div ref={mount} className="h-full min-h-[164px] w-full" />
+        <div ref={mount} className="h-full w-full" />
       </div>
-      <p className="shrink-0 text-xs text-muted-foreground">
+      {liveId && input && (
+        <form
+          className="flex shrink-0 items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const ws = socket.current
+            if (
+              !message.trim() ||
+              !interactive.current ||
+              ws?.readyState !== WebSocket.OPEN
+            )
+              return
+            const clean = message.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
+            ws.send(
+              JSON.stringify({
+                type: 'stdin',
+                data: '\x1b[200~' + clean + '\x1b[201~',
+              }),
+            )
+            ws.send(JSON.stringify({ type: 'stdin', data: '\r' }))
+            setMessage('')
+          }}
+        >
+          <textarea
+            aria-label="Message agent"
+            placeholder="Message the agent…"
+            rows={1}
+            maxLength={16000}
+            className="field-control max-h-32 min-w-0 flex-1 resize-y text-base md:text-sm"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+          <button
+            className="icon-action shrink-0 bg-primary text-primary-foreground"
+            type="submit"
+            disabled={!message.trim() || connection !== 'connected'}
+            aria-label="Send message"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
+      )}
+      <p className="sr-only">
         {liveId
           ? 'Closing this view does not stop the task. Use Cancel session to stop execution.'
           : 'Saved output is bounded and redacted. This view does not start a process.'}

@@ -572,6 +572,17 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 }
 
 func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, author string, req UpdateAttemptRequest) (*TaskAttempt, error) {
+	return s.updateAttemptStatus(ctx, attemptID, author, req, false)
+}
+
+// FinishReportedAttempt is an internal runner action, never a public status
+// override. A validated final report intentionally closes an interactive PTY;
+// its actual signal exit code is retained without claiming a provider failure.
+func (s *Service) FinishReportedAttempt(ctx context.Context, attemptID string, exitCode int) (*TaskAttempt, error) {
+	return s.updateAttemptStatus(ctx, attemptID, "runner", UpdateAttemptRequest{Status: AttemptStatusSucceeded, ExitCode: &exitCode}, true)
+}
+
+func (s *Service) updateAttemptStatus(ctx context.Context, attemptID string, author string, req UpdateAttemptRequest, reportedStop bool) (*TaskAttempt, error) {
 	s.attemptMu.Lock()
 	defer s.attemptMu.Unlock()
 	att, err := s.store.GetAttempt(ctx, attemptID)
@@ -579,6 +590,29 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 		return nil, err
 	}
 
+	if reportedStop {
+		latest, e := s.store.GetLatestAttempt(ctx, att.TaskID)
+		if e != nil {
+			return nil, e
+		}
+		t, e := s.store.GetTask(ctx, att.TaskID)
+		if e != nil {
+			return nil, e
+		}
+		acts, e := s.store.ListActivities(ctx, att.TaskID)
+		if e != nil {
+			return nil, e
+		}
+		var final *TaskActivity
+		for _, a := range acts {
+			if a.AttemptID != nil && *a.AttemptID == attemptID && a.ActivityType == "agent_report" && (final == nil || a.CreatedAt.After(final.CreatedAt)) {
+				final = a
+			}
+		}
+		if latest.ID != attemptID || final == nil || (final.NewStatus != "review" && final.NewStatus != "blocked") || t.Summary == "" || t.CompleteNote == "" {
+			return nil, ErrRequestConflict
+		}
+	}
 	oldStatus := att.Status
 	if att.Status != "queued" && att.Status != "running" {
 		return att, nil
@@ -587,7 +621,7 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 
 	// CRITICAL DoD Rule:
 	// "Kegagalan attempt tidak ditampilkan sebagai sukses. Agent tidak otomatis menganggap hasil accepted hanya karena exit code nol."
-	if req.ExitCode != nil && *req.ExitCode != 0 {
+	if req.ExitCode != nil && *req.ExitCode != 0 && !reportedStop {
 		newStatus = AttemptStatusFailed
 	}
 	if newStatus == AttemptStatusFailed && req.ExitCode == nil {
@@ -629,6 +663,9 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 
 	// Audit activity log
 	msg := fmt.Sprintf("Attempt %s changed state: '%s' → '%s'", att.ID, oldStatus, newStatus)
+	if reportedStop {
+		msg += " (interactive session closed after validated agent report)"
+	}
 	if att.ExitCode != nil {
 		msg += fmt.Sprintf(" (exit code: %d)", *att.ExitCode)
 	}

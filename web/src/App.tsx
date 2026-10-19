@@ -490,7 +490,10 @@ export function App() {
                         : 'menu',
             ),
         }}
-        hideBottomNav={currentTab === 'inbox' && isMobileChatActive}
+        sessionWorkspace={sessionRoute}
+        hideBottomNav={
+          sessionRoute || (currentTab === 'inbox' && isMobileChatActive)
+        }
         inboxSubPanel={
           <InboxSubPanel
             contacts={contacts}

@@ -37,6 +37,7 @@ type Session struct {
 	defaultMode   Mode
 	createdAt     time.Time
 	lastActivity  time.Time
+	lastInput     time.Time
 	mu            sync.RWMutex
 	subscribers   map[string]*Subscriber
 	historyBuffer *ringBuffer
@@ -198,9 +199,17 @@ func (s *Session) WriteInput(subID string, data []byte) (int, error) {
 	}
 
 	s.lastActivity = time.Now().UTC()
+	s.lastInput = s.lastActivity
 	s.mu.Unlock()
 
 	return s.pty.Write(data)
+}
+
+// LastInputAt tracks user input separately from output, resize and viewers.
+func (s *Session) LastInputAt() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastInput
 }
 
 // Resize updates the terminal size.

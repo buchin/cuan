@@ -433,17 +433,26 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			}
 			if attempt != nil && s.taskSvc != nil {
 				state := task.AttemptStatusFailed
-				if h.ExitCode == 0 {
+				if h.ExitCode == 0 || h.EndReason == "agent_report" {
 					state = task.AttemptStatusSucceeded
 				}
 				note := output.failureNote()
+				if h.EndReason == "agent_report" {
+					note = ""
+				}
 				if h.ExitCode == 0 {
 					ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
 					if e != nil || !ready {
 						note = "No review-ready result was recorded. Check the agent report and saved output."
 					}
 				}
-				if _, e := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note}); e == nil {
+				var e error
+				if h.EndReason == "agent_report" {
+					_, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)
+				} else {
+					_, e = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})
+				}
+				if e == nil {
 					_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
 				}
 			}

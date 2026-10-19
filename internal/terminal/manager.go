@@ -32,6 +32,7 @@ type TaskRunHistory struct {
 	AgentName  string    `json:"agent_name"`
 	Command    string    `json:"command"`
 	ExitCode   int       `json:"exit_code"`
+	EndReason  string    `json:"end_reason,omitempty"`
 	Status     string    `json:"status"` // "running", "completed", "failed"
 	StartedAt  time.Time `json:"started_at"`
 	FinishedAt time.Time `json:"finished_at,omitempty"`
@@ -359,14 +360,17 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	switch commandLabel {
 	case "agy", "claude":
 		executable, err = exec.LookPath(commandLabel)
-		ptyArgs = []string{"-p", cfg.Prompt}
+		ptyArgs = []string{cfg.Prompt}
 		if commandLabel == "agy" {
-			ptyArgs = append(ptyArgs, "--print-timeout", "9m")
+			// Task execution is explicitly authorized by Start/Create. Keep the
+			// interactive conversation alive between turns, as in Fural.
+			// Inbox uses its own restricted launcher and does not inherit this flag.
+			ptyArgs = []string{"--dangerously-skip-permissions", "--prompt-interactive", cfg.Prompt}
 			cfg.Env = append(cfg.Env, "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
 		}
 	case "codex":
 		executable, err = exec.LookPath("codex")
-		ptyArgs = []string{"exec", cfg.Prompt}
+		ptyArgs = []string{"--full-auto", cfg.Prompt}
 	case "shell":
 		executable = FindShell(m.cfg.DefaultShell)
 		ptyArgs = []string{"-i"}
@@ -402,7 +406,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	}
 
 	// A task outlives the HTTP request that starts it, with a bounded lifetime.
-	runContext, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	runContext, cancel := context.WithTimeout(context.Background(), 8*time.Hour)
 	proc, err := SpawnPTY(runContext, ptyCfg)
 	if err != nil {
 		cancel()
@@ -441,7 +445,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		history.FinishedAt = time.Now().UTC()
 		history.DurationMs = history.FinishedAt.Sub(history.StartedAt).Milliseconds()
 		history.ExitCode = exitCode
-		if exitCode == 0 {
+		if exitCode == 0 || history.EndReason == "agent_report" {
 			history.Status = "completed"
 		} else {
 			history.Status = "failed"
@@ -455,6 +459,28 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	}()
 
 	return sess, nil
+}
+
+// FinishReportedSession closes only the exact active attempt that submitted a
+// validated final report. The actual signal exit code remains in history.
+func (m *Manager) FinishReportedSession(taskID, attemptID string, acceptedAt time.Time) bool {
+	m.mu.Lock()
+	runs := m.histories[taskID]
+	sess := m.sessions[taskID]
+	if len(runs) == 0 || sess == nil {
+		m.mu.Unlock()
+		return false
+	}
+	h := runs[len(runs)-1]
+	if h.AttemptID != attemptID || h.SessionID != sess.ID() || h.Status != "running" || sess.IsClosed() || sess.LastInputAt().After(acceptedAt) {
+		m.mu.Unlock()
+		return false
+	}
+	h.EndReason = "agent_report"
+	delete(m.sessions, taskID)
+	m.mu.Unlock()
+	_ = sess.Close()
+	return true
 }
 
 // GetTaskHistory returns all execution history records for a task.

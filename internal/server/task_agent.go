@@ -61,14 +61,14 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		cleanup()
 		return nil, "", "", none, e
 	}
-	s.taskAgentGrants.Store(digest, taskAgentGrant{taskID, attemptID, agentID, time.Now().Add(11 * time.Minute)})
+	s.taskAgentGrants.Store(digest, taskAgentGrant{taskID, attemptID, agentID, time.Now().Add(8*time.Hour + 5*time.Minute)})
 	prompt := "\n\n" + `Task reporting tool (mandatory):
 The self-contained command is "$CUAN_TASK_EXECUTABLE" task. Run it through your terminal tool. Use task --help for flags.
 1. Run "$CUAN_TASK_EXECUTABLE" task get. Refine the task title/priority, define appropriate acceptance criteria, and publish a short plan using task report --summary "..." --progress "...".
 2. Send meaningful progress checkpoints using task report --progress "...". Preserve the original human instructions.
 3. Before finishing, send task report --state review --summary "What changed" --complete-note "Actual verification, results, limitations". For a blocker use --state blocked with summary and concrete blocker evidence.
 Use --report-file for JSON reports including dod_checklist [{"text":"...","completed":false}], commit_sha, and test_summary. Only mark criteria completed after verifying them. Do not invent evidence. This tool can update only this task during this active attempt; it cannot edit human instructions or approve Done.
-A successful process without a complete review report leaves the task Blocked. Review is published only after the process ends. Do not print or copy the private capability file.
+A successful process without a complete review report leaves the task Blocked. A final review/blocked report ends this session automatically after a short output drain. Stay interactive for questions and follow-up messages until the work has a final result. Do not print or copy the private capability file.
 `
 	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable}, prompt, token, cleanup, nil
 }
@@ -126,4 +126,24 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": "Result is reconciled after process exit"})
+	if report.State == "review" || report.State == "blocked" {
+		// Return the tool response before closing its parent PTY. Never stop a later
+		// attempt or convert an independently failed process into successful work.
+		acceptedAt := time.Now()
+		time.AfterFunc(2*time.Second, func() {
+			latest, err := s.taskSvc.GetTaskDetail(context.Background(), g.TaskID)
+			if err != nil {
+				return
+			}
+			for _, a := range latest.Activities {
+				if a.AttemptID != nil && *a.AttemptID == g.AttemptID && a.ActivityType == "agent_report" && a.CreatedAt.After(acceptedAt) {
+					return
+				}
+			}
+			if s.terminalManager != nil {
+				s.terminalManager.FinishReportedSession(g.TaskID, g.AttemptID, acceptedAt)
+			}
+		})
+	}
+
 }

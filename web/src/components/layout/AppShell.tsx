@@ -20,6 +20,7 @@ interface AppShellProps {
   children: React.ReactNode
   newAction?: { label: string; onClick: () => void }
   hideBottomNav?: boolean
+  sessionWorkspace?: boolean
   inboxSubPanel?: React.ReactNode
   inboxUnread?: number
   pageTitle?: string
@@ -38,6 +39,7 @@ export function AppShell({
   children,
   newAction,
   hideBottomNav = false,
+  sessionWorkspace = false,
   inboxSubPanel,
   inboxUnread = 0,
   pageTitle,
@@ -156,7 +158,7 @@ export function AppShell({
           className={cn(
             'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
             'app-page-header h-14 md:h-16',
-            hideBottomNav && 'hidden md:flex',
+            (hideBottomNav || sessionWorkspace) && 'hidden md:flex',
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
@@ -222,7 +224,7 @@ export function AppShell({
         <div
           className={cn(
             'min-h-0 min-w-0 flex-1',
-            currentTab === 'inbox'
+            currentTab === 'inbox' || sessionWorkspace
               ? 'overflow-hidden'
               : 'overflow-auto p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TerminalSquare, FileText } from 'lucide-react'
+import { ArrowLeft, Info, Square, Send } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
 import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { attemptLabel, taskRef } from './task-ui'
-import { cn } from '../../lib/utils'
 
 export function TaskSessionPage({
   taskId,
@@ -22,7 +21,8 @@ export function TaskSessionPage({
     [live, setLive] = useState<LiveTaskSession | null>(null),
     [error, setError] = useState(''),
     [runtimeError, setRuntimeError] = useState(''),
-    [tab, setTab] = useState<'terminal' | 'report'>('terminal'),
+    [showDetail, setShowDetail] = useState(false),
+    [followup, setFollowup] = useState(''),
     [cancel, setCancel] = useState(false),
     [busy, setBusy] = useState(false)
   const refresh = useCallback(async () => {
@@ -92,145 +92,211 @@ export function TaskSessionPage({
   return (
     <section
       aria-label="Task session"
-      className="flex h-full min-h-[680px] flex-col gap-3"
+      className="flex h-full min-h-0 flex-col bg-background"
     >
-      <header className="shrink-0 space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Link
-            to={taskURL}
-            state={state}
-            className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {taskRef(taskId)} · Task details
-          </Link>
-          <div className="flex min-w-0 items-center gap-2">
-            <label>
-              <span className="sr-only">Session</span>
-              <select
-                aria-label="Select session"
-                className="field-control max-w-[220px] text-sm"
-                value={sessionId}
-                onChange={(e) =>
-                  navigate(
-                    `/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(e.target.value)}${suffix}`,
-                    { state },
-                  )
-                }
-              >
-                {detail.attempts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    Session {a.attempt_number} · {attemptLabel(a)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {active && (
-              <button
-                className="action-secondary text-destructive"
-                onClick={() => setCancel(true)}
-              >
-                Cancel session
-              </button>
-            )}
-          </div>
-        </div>
-        <h2 className="break-words text-base font-semibold sm:text-lg">
-          {detail.title}
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          {attemptLabel(attempt)}
-          {attempt.exit_code !== undefined &&
-            ` · Exit ${attempt.exit_code}`} ·{' '}
-          {new Date(attempt.started_at || attempt.created_at).toLocaleString(
-            'en-US',
-          )}
-        </p>
-        {attempt.error_message && (
-          <p className="break-words text-sm text-destructive">
-            {attempt.error_message}
+      <header className="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
+        <Link
+          to={taskURL}
+          state={state}
+          className="icon-action shrink-0"
+          aria-label="Task details"
+          title="Task details"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-sm font-semibold" title={detail.title}>
+            {detail.title}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {attemptLabel(attempt)} · Session {attempt.attempt_number}
           </p>
+        </div>
+        <button
+          className="icon-action shrink-0"
+          aria-label="Detail"
+          title="Detail"
+          onClick={() => setShowDetail(true)}
+        >
+          <Info className="h-4 w-4" />
+        </button>
+        {active && (
+          <button
+            className="icon-action shrink-0 text-destructive"
+            aria-label="Cancel session"
+            title="Cancel session"
+            onClick={() => setCancel(true)}
+          >
+            <Square className="h-4 w-4" />
+          </button>
         )}
       </header>
       {(error || runtimeError) && (
-        <p role="alert" className="shrink-0 text-sm text-destructive">
+        <p role="alert" className="shrink-0 px-3 text-xs text-destructive">
           {error || runtimeError}
         </p>
       )}
-      <nav
-        aria-label="Session panels"
-        className="flex shrink-0 gap-1 border-b lg:hidden"
-      >
-        {(
-          [
-            { id: 'terminal', label: 'Terminal', icon: TerminalSquare },
-            { id: 'report', label: 'Agent report', icon: FileText },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.id}
-            className={cn(
-              'inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm',
-              tab === item.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground',
-            )}
-            aria-pressed={tab === item.id}
-            onClick={() => setTab(item.id)}
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </button>
-        ))}
-      </nav>
-      <div className="flex min-h-0 flex-1 gap-4">
-        <div
-          className={cn(
-            'min-h-0 min-w-0 flex-1',
-            tab === 'terminal' ? 'block' : 'hidden lg:block',
-          )}
+      {attempt.error_message && (
+        <button
+          className="shrink-0 truncate px-3 py-1 text-left text-xs text-destructive"
+          onClick={() => setShowDetail(true)}
+          title={attempt.error_message}
         >
-          <TaskTerminal
-            key={sessionId}
-            taskId={taskId}
-            attempt={attempt}
-            live={live}
-            onRefresh={() => void refresh()}
-          />
-        </div>
-        <aside
-          aria-label="Agent report"
-          className={cn(
-            'min-h-0 min-w-0 overflow-y-auto lg:w-80 lg:shrink-0 lg:border-l lg:pl-4',
-            tab === 'report' ? 'block w-full' : 'hidden lg:block',
-          )}
-        >
-          <h3 className="mb-3 text-sm font-semibold">Agent report</h3>
-          {reports.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {active
-                ? 'Waiting for the agent’s first checkpoint.'
-                : 'No structured report was recorded. Check the saved output.'}
-            </p>
-          ) : (
-            <ol className="space-y-4">
-              {reports.map((report) => (
-                <li key={report.id} className="min-w-0 rounded-lg border p-3">
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    {report.new_status === 'review'
-                      ? 'Result ready'
-                      : report.new_status === 'blocked'
-                        ? 'Blocker'
-                        : 'Progress'}{' '}
-                    · {new Date(report.created_at).toLocaleTimeString('en-US')}
-                  </p>
-                  <ChatMarkdown content={report.message} />
-                </li>
-              ))}
-            </ol>
-          )}
-        </aside>
+          Session needs attention · View detail
+        </button>
+      )}
+      <div className="min-h-0 flex-1 px-2 pb-2">
+        <TaskTerminal
+          key={sessionId}
+          taskId={taskId}
+          attempt={attempt}
+          live={live}
+          onRefresh={() => void refresh()}
+        />
       </div>
+      {!active &&
+        detail.latest_attempt?.id === attempt.id &&
+        detail.status !== 'done' &&
+        detail.assignee_id && (
+          <form
+            className="flex shrink-0 items-end gap-2 border-t bg-background p-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!followup.trim() || busy) return
+              const request = {
+                request_id: crypto.randomUUID(),
+                agent_id: detail.assignee_id!,
+                revision: followup.trim(),
+              }
+              try {
+                localStorage.setItem(
+                  'cuan-task-launch:' + taskId,
+                  JSON.stringify(request),
+                )
+                navigate(
+                  '/tasks/' +
+                    encodeURIComponent(taskId) +
+                    '/sessions/start' +
+                    suffix,
+                  {
+                    state: {
+                      taskReturnTo: state?.taskReturnTo,
+                      startRequestId: request.request_id,
+                    },
+                  },
+                )
+              } catch {
+                setError(
+                  'Could not save the session request. Enable browser storage and try again.',
+                )
+              }
+            }}
+          >
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Follow-up instructions</span>
+              <textarea
+                aria-label="Follow-up instructions"
+                rows={1}
+                maxLength={24000}
+                className="field-control max-h-32 resize-y text-base md:text-sm"
+                placeholder="What should the agent do next?"
+                value={followup}
+                onChange={(e) => setFollowup(e.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              className="icon-action bg-primary text-primary-foreground"
+              disabled={!followup.trim() || busy}
+              aria-label="Start follow-up session"
+              title="Start follow-up session"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+            <span className="sr-only">
+              Starts a new session with this task’s context and retained
+              history.
+            </span>
+          </form>
+        )}
+      <ActionDialog
+        open={showDetail}
+        title="Detail"
+        drawer
+        onClose={() => setShowDetail(false)}
+      >
+        <div className="space-y-4">
+          <h3 className="break-words text-sm font-semibold">{detail.title}</h3>
+          <Link className="text-sm underline" to={taskURL} state={state}>
+            Open task details · {taskRef(taskId)}
+          </Link>
+          <label className="block text-xs text-muted-foreground">
+            Session
+            <select
+              aria-label="Select session"
+              className="field-control mt-1 text-sm"
+              value={sessionId}
+              onChange={(e) => {
+                setShowDetail(false)
+                navigate(
+                  '/tasks/' +
+                    encodeURIComponent(taskId) +
+                    '/sessions/' +
+                    encodeURIComponent(e.target.value) +
+                    suffix,
+                  { state },
+                )
+              }}
+            >
+              {detail.attempts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  Session {a.attempt_number} · {attemptLabel(a)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-xs text-muted-foreground">
+            {attemptLabel(attempt)}
+            {attempt.exit_code !== undefined &&
+              ' · Exit ' + attempt.exit_code}{' '}
+            ·{' '}
+            {new Date(attempt.started_at || attempt.created_at).toLocaleString(
+              'en-US',
+            )}
+          </p>
+          {attempt.error_message && (
+            <p className="break-words text-sm text-destructive">
+              {attempt.error_message}
+            </p>
+          )}
+          <aside aria-label="Agent report">
+            <h3 className="mb-3 text-sm font-semibold">Agent report</h3>
+            {!reports.length ? (
+              <p className="text-sm text-muted-foreground">
+                {active
+                  ? 'Waiting for the agent’s first checkpoint.'
+                  : 'No structured report was recorded. Check the saved output.'}
+              </p>
+            ) : (
+              <ol className="space-y-3">
+                {reports.map((r) => (
+                  <li key={r.id} className="rounded-lg border p-3">
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      {r.new_status === 'review'
+                        ? 'Result ready'
+                        : r.new_status === 'blocked'
+                          ? 'Blocker'
+                          : 'Progress'}{' '}
+                      · {new Date(r.created_at).toLocaleTimeString('en-US')}
+                    </p>
+                    <ChatMarkdown content={r.message} />
+                  </li>
+                ))}
+              </ol>
+            )}
+          </aside>
+        </div>
+      </ActionDialog>
       <ActionDialog
         open={cancel}
         title="Cancel session?"
