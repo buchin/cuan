@@ -1,0 +1,34 @@
+{
+  "release": "0cccfdac85c93a0a5f918a9ace30e4f89077236d",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "migration": false,
+  "fixtureViewportThemeChecks": 8,
+  "productionViewportThemeChecks": 8,
+  "draftRegressionPassed": true,
+  "providerInvocations": 0,
+  "productWrites": 0,
+  "retention": {
+    "retainedTablesVerified": 35,
+    "authSessionsExcluded": true,
+    "profileFilesVerified": 493,
+    "differentTables": [],
+    "changedProfileFiles": 0,
+    "schema": 22,
+    "autoMigrate": false,
+    "release": "0cccfdac85c93a0a5f918a9ace30e4f89077236d",
+    "readiness": {
+      "database": "connected",
+      "migrations": "applied",
+      "migrations_count": 22,
+      "owner_configured": true,
+      "status": "ready"
+    },
+    "remainingSmokeContacts": "0"
+  },
+  "rollback": "sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22",
+  "limitations": [
+    "Chromium emulation, not physical device/Safari certification",
+    "Unread badges reflect API-provided counts only"
+  ]
+}
