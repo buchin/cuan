@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ArrowUp, X, AlertCircle, Folder, Bot } from 'lucide-react'
+import { X, AlertCircle } from 'lucide-react'
 import type { Project, CreateTaskRequest } from '../../api/types'
 import { agentsApi, type Agent } from '../../api/agents'
 import { trapDialogFocus } from '../../lib/dialog'
@@ -122,32 +122,23 @@ export function CreateTaskModal({
         e.preventDefault()
         close()
       }}
-      className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-2xl overflow-y-auto rounded-2xl border bg-card p-4 text-card-foreground shadow-2xl backdrop:bg-black/50 sm:p-6"
+      className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-xl overflow-y-auto rounded-2xl border bg-card p-4 text-card-foreground shadow-2xl backdrop:bg-black/50 sm:p-6"
     >
-      <div className="mb-2 flex justify-end">
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <h2 id="create-task-heading" className="text-lg font-semibold">
+          New task
+        </h2>
         <button
           type="button"
           aria-label="Close task form"
-          className="icon-action -mr-1 -mt-1"
+          className="icon-action -mr-1"
           onClick={close}
           disabled={loading}
         >
           <X className="h-5 w-5" />
         </button>
-      </div>
-      <header className="mb-5 space-y-2 text-center">
-        <h2
-          id="create-task-heading"
-          className="text-xl font-medium tracking-tight sm:text-2xl"
-        >
-          What should we work on?
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Describe the work. Let your agent handle the details.
-        </p>
       </header>
-      <label className="mb-5 flex items-center justify-center gap-2">
-        <Folder aria-hidden className="h-4 w-4 text-muted-foreground" />
+      <label className="mb-4 flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Project</span>
         <select
           aria-label="Project"
@@ -190,7 +181,7 @@ export function CreateTaskModal({
             return
           }
           if (draft.agent && !eligible.some((a) => a.id === draft.agent)) {
-            setError('Choose an available agent or Not now.')
+            setError('Choose an available agent or No agent.')
             return
           }
           submitting.current = true
@@ -230,8 +221,8 @@ export function CreateTaskModal({
           <textarea
             ref={input}
             aria-label="Task instructions"
-            aria-describedby="new-task-help"
-            placeholder="Describe the work…"
+            aria-describedby={agentsError ? 'new-task-help' : undefined}
+            placeholder="Describe your task…"
             className="block min-h-32 w-full resize-y border-0 bg-transparent p-4 text-base leading-relaxed outline-none focus:ring-0 sm:text-[15px]"
             rows={4}
             required
@@ -252,7 +243,6 @@ export function CreateTaskModal({
           />
           <div className="flex items-center justify-between gap-2 px-3 pb-3">
             <label className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-              <Bot aria-hidden className="h-4 w-4 shrink-0" />
               <span className="sr-only">Agent</span>
               <select
                 aria-label="Agent"
@@ -261,7 +251,7 @@ export function CreateTaskModal({
                 onChange={(e) => change({ agent: e.target.value })}
                 disabled={loading}
               >
-                <option value="">Not now</option>
+                <option value="">No agent</option>
                 {draft.agent && !eligible.some((a) => a.id === draft.agent) && (
                   <option value={draft.agent}>Agent unavailable</option>
                 )}
@@ -278,7 +268,6 @@ export function CreateTaskModal({
               className="action-primary shrink-0"
               disabled={loading || !draft.prompt.trim()}
             >
-              <ArrowUp className="h-4 w-4" />
               {loading
                 ? 'Creating…'
                 : draft.agent
@@ -287,16 +276,15 @@ export function CreateTaskModal({
             </button>
           </div>
         </div>
-        <p
-          id="new-task-help"
-          className="mt-3 text-center text-xs text-muted-foreground"
-        >
-          {agentsError
-            ? 'Could not load agents. You can save the task and choose an agent later.'
-            : draft.agent
-              ? 'Creates the task and starts the selected agent.'
-              : 'Choose an agent to start immediately, or Not now to save to Backlog.'}
-        </p>
+        {agentsError && (
+          <p
+            id="new-task-help"
+            role="status"
+            className="mt-3 text-xs text-muted-foreground"
+          >
+            Agents unavailable. You can still save this task.
+          </p>
+        )}
       </form>
     </dialog>
   )

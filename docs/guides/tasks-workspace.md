@@ -3,7 +3,7 @@
 Open **Tasks** to search, sort, or filter by status, project, priority, and agent.
 Filters are part of the URL and remain when a task is closed. **New task** opens a simple prompt composer. Select a Project when repository
 context is needed. The first line supplies the initial title and the complete
-prompt is saved as the human instructions. Choose **Not now** to save to Backlog,
+prompt is saved as the human instructions. Choose **No agent** to save to Backlog,
 or select an agent and confirm **Create & start** to create and launch one session.
 Viewing a task never starts an agent.
 
@@ -110,4 +110,4 @@ succeeds but launch fails, the persisted task still opens; uncertain launches
 expose **Check launch request** instead of inviting a duplicate creation/run.
 Choosing an agent explicitly changes the action to **Create & start**. An existing
 CLI agent must be connected/configured before execution; creating a task is still
-possible with **Not now** when agent listing is unavailable.
+possible with **No agent** when agent listing is unavailable.
