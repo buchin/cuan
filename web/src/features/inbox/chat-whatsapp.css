@@ -1,0 +1,61 @@
+/* Chat-only palette; the rest of Cuan keeps its Muse theme. */
+.wa-chat {
+  --wa-bg: #efeae2;
+  --wa-header: #f0f2f5;
+  --wa-incoming: #ffffff;
+  --wa-outgoing: #d9fdd3;
+  --wa-text: #111b21;
+  --wa-meta: #667781;
+  --wa-outgoing-meta: #52635b;
+  --wa-send: #008069;
+  --wa-send-text: #ffffff;
+  --wa-pattern: rgb(86 103 99 / .045);
+  background: var(--wa-bg);
+  color: var(--wa-text);
+}
+.dark .wa-chat {
+  --wa-bg: #0b141a;
+  --wa-header: #202c33;
+  --wa-incoming: #202c33;
+  --wa-outgoing: #005c4b;
+  --wa-text: #e9edef;
+  --wa-meta: #aebac1;
+  --wa-outgoing-meta: #b5d6ce;
+  --wa-send: #00a884;
+  --wa-send-text: #0b141a;
+  --wa-pattern: rgb(158 178 172 / .04);
+}
+.wa-chat-header { background: var(--wa-header); color: var(--wa-text); }
+.wa-conversation { background-color: var(--wa-bg); background-image: radial-gradient(var(--wa-pattern) 1px, transparent 1px); background-size: 20px 20px; }
+.wa-message-bubble { max-width: calc(100% - 44px); width: fit-content; padding: 6px 9px 7px; border-radius: 8px; box-shadow: 0 1px 1px rgb(0 0 0 / .12); color: var(--wa-text); }
+.wa-incoming { background: var(--wa-incoming); border-top-left-radius: 0; }
+.wa-outgoing { background: var(--wa-outgoing); border-top-right-radius: 0; }
+.wa-message-bubble::before { content: ''; position: absolute; top: 0; width: 7px; height: 10px; }
+.wa-incoming::before { left: -6px; background: var(--wa-incoming); clip-path: polygon(0 0,100% 0,100% 100%); }
+.wa-outgoing::before { right: -6px; background: var(--wa-outgoing); clip-path: polygon(0 0,100% 0,0 100%); }
+.wa-plain-text { line-height: 1.4; overflow-wrap: anywhere; }
+.wa-plain-text::after { content: ''; display: table; clear: both; }
+.wa-message-meta { display: inline-flex; float: right; align-items: center; gap: 3px; margin: 5px 0 0 12px; white-space: nowrap; color: var(--wa-meta); font-size: 12px; line-height: 16px; }
+.wa-outgoing .wa-message-meta { color: var(--wa-outgoing-meta); }
+.wa-markdown-footer { min-height: 18px; }
+.wa-markdown-footer::after { content: ''; display: table; clear: both; }
+.wa-markdown-footer .wa-message-meta { margin-top: 2px; }
+.wa-day-label { background: var(--wa-header); color: var(--wa-meta); box-shadow: 0 1px 1px rgb(0 0 0 / .08); }
+.wa-composer { background: var(--wa-bg); padding: 6px 8px max(6px, env(safe-area-inset-bottom)); }
+.wa-input { background: var(--wa-incoming); color: var(--wa-text); border: 0; box-shadow: 0 1px 1px rgb(0 0 0 / .08); }
+.wa-input::placeholder { color: var(--wa-meta); }
+.wa-input:focus-visible { outline: 2px solid var(--wa-send); outline-offset: 1px; }
+.wa-send { background: var(--wa-send); color: var(--wa-send-text); }
+.wa-send:hover { filter: brightness(.95); }
+.wa-task-action { position: absolute; top: 0; color: var(--wa-meta); }
+.wa-outgoing > .wa-task-action { right: calc(100% + 2px); }
+.wa-incoming > .wa-task-action { left: calc(100% + 2px); }
+.wa-task-action .message-action-trigger { padding-inline: 0; }
+.wa-chat .chat-markdown { font-size: 16px; line-height: 1.45; }
+.wa-chat .chat-markdown blockquote { border-left-color: var(--wa-send); background: rgb(128 128 128 / .08); padding: .4em .65em; border-radius: 4px; }
+@media (min-width: 1200px) { .wa-message-bubble { max-width: min(75%, 72ch); } }
+/* Reserve the end of a final paragraph so its timestamp can share that line.
+   Lists, code and tables keep a separate compact footer. */
+.wa-message-bubble > .chat-markdown > p:last-child::after { content: ''; display: inline-block; width: 64px; height: 1px; }
+.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer { position: absolute; right: 9px; bottom: 7px; min-height: 0; }
+.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer .wa-message-meta { float: none; margin: 0; }

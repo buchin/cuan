@@ -6,8 +6,8 @@
    berdampingan. Di HP/tablet, pilih percakapan dari daftar lalu gunakan Back
    untuk kembali. Pencarian dan filter daftar tetap tersedia.
 2. Ketik pesan. Pesan dan balasan memakai teks 16 px; tombol kirim 48 px.
-   Untuk membuat task, gunakan **⋯ Task** di bawah pesan. Pada desktop tindakan
-   ini tampil saat hover/fokus keyboard; task yang sudah tertaut tetap terlihat.
+   Untuk membuat task, gunakan tombol **⋯** di sisi bubble pesan. Task yang
+   sudah tertaut tetap dapat dibuka dari pesan tersebut.
 3. Buka **Tasks** untuk backlog global, atau **Projects → nama project** untuk
    board yang hanya memuat task project tersebut. Detail task dapat ditutup
    dengan Escape dan kembali ke project asal.
@@ -133,3 +133,20 @@ Rilis roster `0fca51f` aktif di production. Build dan fixture tindakan/lifecycle
 menu lulus. Production delapan pasangan theme/viewport memverifikasi daftar agen
 nyata, menu/Escape/fokus, tautan kembali dan aset identik, tanpa verifikasi provider
 atau penghapusan agen nyata. Bukti: `docs/evidence/agent-roster/`.
+
+## Gaya chat WhatsApp
+
+Inbox memakai bubble ringkas dengan waktu 24 jam di ujung pesan, pemisah hari,
+serta composer membulat. Tema terang memakai bubble keluar hijau muda dan
+masuk putih; tema gelap memakai hijau tua dan abu gelap. Palet ini hanya berlaku
+pada chat dan mengikuti pilihan Settings → Tampilan.
+
+Centang tunggal berarti **Pesan tersimpan**, bukan sudah dibaca penerima.
+Tombol **⋯** di sisi bubble membuka form pembuatan task. Detail respons tetap
+dapat dibuka di bawah balasan untuk menelusuri proses dan informasi teknis.
+Markdown, salin kode, pesan panjang, safe-area dan Back tetap tersedia.
+Perubahan visual ini tidak menambahkan panggilan, lampiran atau reply kutipan.
+
+Verifikasi build dan delapan kombinasi viewport 360/390/820/1440 px dengan
+tema terang/gelap: `docs/evidence/whatsapp-chat/`. Pengujian menggunakan Chromium;
+belum merupakan sertifikasi perangkat fisik atau Safari.

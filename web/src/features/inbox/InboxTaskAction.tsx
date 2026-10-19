@@ -10,11 +10,13 @@ export function InboxTaskAction({
   messageId,
   content,
   linkedTask,
+  compact = false,
 }: {
   conversationId: string
   messageId: string
   content: string
   linkedTask?: Task
+  compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
@@ -45,7 +47,15 @@ export function InboxTaskAction({
   }
   const existing = linkedTask || created
   return (
-    <div className={open ? 'mt-2 w-full max-w-md text-sm' : 'mt-1 text-sm'}>
+    <div
+      className={
+        compact && !open && !existing
+          ? 'wa-task-action text-sm'
+          : open
+            ? 'mt-2 w-full max-w-md text-sm'
+            : 'mt-1 text-sm'
+      }
+    >
       {!open && existing && (
         <Link
           className="inline-flex min-h-11 items-center text-sm text-muted-foreground underline"
@@ -62,7 +72,7 @@ export function InboxTaskAction({
           onClick={prepare}
         >
           <MoreHorizontal className="h-4 w-4" />
-          <span>Task</span>
+          {!compact && <span>Task</span>}
         </button>
       )}
       {open && (

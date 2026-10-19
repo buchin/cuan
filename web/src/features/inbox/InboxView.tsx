@@ -16,6 +16,7 @@ import {
   Send,
   Bot,
   User,
+  Check,
   CheckCheck,
   Play,
   CheckSquare,
@@ -25,6 +26,7 @@ import {
   ChevronLeft,
 } from 'lucide-react'
 import { Task } from '../../api/types'
+import './chat-whatsapp.css'
 import { ChatMarkdown } from './ChatMarkdown'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
@@ -346,7 +348,11 @@ export function InboxView({
     if (!iso) return ''
     try {
       const d = new Date(iso)
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      return d.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
     } catch {
       return ''
     }
@@ -394,7 +400,7 @@ export function InboxView({
       {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
       <div
         className={cn(
-          'flex-1 min-h-0 min-w-0 flex-col h-full bg-background overflow-hidden',
+          'wa-chat flex-1 min-h-0 min-w-0 flex-col h-full overflow-hidden',
           mobileView === 'chat' ? 'flex' : 'hidden min-[1200px]:flex',
         )}
       >
@@ -414,7 +420,7 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header ── */}
-            <div className="h-16 px-3 sm:px-6 border-b border-border bg-card text-card-foreground flex items-center justify-between shrink-0 shadow-xs">
+            <div className="wa-chat-header h-14 sm:h-16 px-2 sm:px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button
@@ -439,7 +445,7 @@ export function InboxView({
                 </div>
 
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-semibold">
+                  <h2 className="truncate text-base font-semibold leading-tight">
                     {activeContact.name}
                   </h2>
                   <ContactStatus
@@ -487,15 +493,8 @@ export function InboxView({
                   el.scrollHeight - el.scrollTop - el.clientHeight < 80
                 if (followTail.current) setHasNewMessages(false)
               }}
-              className="inbox-message-list min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 bg-muted/20"
+              className="inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
             >
-              {/* Welcome Pill */}
-              <div className="flex justify-center my-2">
-                <span className="text-[11px] font-medium px-3 py-1 rounded-full bg-card/80 border border-border text-muted-foreground shadow-2xs">
-                  Riwayat pesan tersimpan
-                </span>
-              </div>
-
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
                   <Bot className="h-8 w-8 text-muted-foreground/60" />
@@ -519,43 +518,75 @@ export function InboxView({
                   msg.author_type === 'agent' && activeContact.type === 'agent'
 
                 const isOutgoing = isUser || isOperatorReply
+                const date = new Date(msg.created_at)
+                const showDate =
+                  Number.isFinite(date.getTime()) &&
+                  (!index ||
+                    date.toDateString() !==
+                      new Date(messages[index - 1].created_at).toDateString())
+                const today = new Date(),
+                  yesterday = new Date()
+                yesterday.setDate(today.getDate() - 1)
+                const dayLabel =
+                  date.toDateString() === today.toDateString()
+                    ? 'Hari ini'
+                    : date.toDateString() === yesterday.toDateString()
+                      ? 'Kemarin'
+                      : date.toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })
+                const metadata = (
+                  <span className="wa-message-meta">
+                    <time dateTime={msg.created_at}>
+                      {formatMessageTime(msg.created_at)}
+                    </time>
+                    {isOutgoing && (
+                      <Check
+                        className="h-3.5 w-3.5"
+                        role="img"
+                        aria-label="Pesan tersimpan"
+                      />
+                    )}
+                  </span>
+                )
 
                 return (
                   <div
                     key={msg.uuid || msg.id || index}
                     className={cn(
-                      'group flex flex-col',
+                      'wa-message-row group relative flex flex-col',
                       isOutgoing ? 'items-end' : 'items-start',
                     )}
                   >
+                    {showDate && (
+                      <time
+                        dateTime={msg.created_at}
+                        className="wa-day-label mb-3 mt-1 self-center rounded-md px-3 py-1 text-xs"
+                      >
+                        {dayLabel}
+                      </time>
+                    )}
                     <div
                       className={cn(
-                        'relative min-w-0 max-w-[92%] min-[1200px]:max-w-[min(75%,72ch)] p-3.5 shadow-xs transition-all',
-                        isOutgoing
-                          ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-xs'
-                          : 'bg-card text-card-foreground border border-border rounded-2xl rounded-tl-xs',
+                        'wa-message-bubble relative min-w-0',
+                        isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
-                      {/* Author info for incoming messages */}
-                      {!isOutgoing && (
-                        <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-border/40">
-                          <span className="text-xs font-bold text-primary">
-                            {msg.author_name || activeContact.name}
-                          </span>
-                          {msg.product && (
-                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                              {msg.product}
-                            </span>
-                          )}
-                        </div>
+                      {msg.product && (
+                        <p className="mb-1 text-xs font-medium opacity-80">
+                          {msg.product}
+                        </p>
                       )}
 
                       {/* Message Body */}
                       {isAgentMessage ? (
                         <ChatMarkdown content={msg.content || msg.message} />
                       ) : (
-                        <div className="text-base leading-relaxed whitespace-pre-wrap break-words font-sans">
-                          {msg.content || msg.message}
+                        <div className="wa-plain-text text-base whitespace-pre-wrap break-words font-sans">
+                          <span>{msg.content || msg.message}</span>
+                          {metadata}
                         </div>
                       )}
 
@@ -627,18 +658,22 @@ export function InboxView({
                         </div>
                       )}
 
-                      {/* Bubble Footer: Timestamp & Read Status */}
-                      <div
-                        className={cn(
-                          'flex items-center justify-end gap-1 mt-2 text-xs',
-                          isOutgoing
-                            ? 'text-primary-foreground/80'
-                            : 'text-muted-foreground',
-                        )}
-                      >
-                        <span>{formatMessageTime(msg.created_at)}</span>
-                        {isOutgoing && <CheckCheck className="h-3 w-3" />}
-                      </div>
+                      {msg.uuid && (
+                        <InboxTaskAction
+                          compact
+                          linkedTask={linkedTasks.find(
+                            (task) => task.source_message_id === msg.uuid,
+                          )}
+                          conversationId={
+                            activeContact.conversation_id || activeContact.id
+                          }
+                          messageId={msg.uuid}
+                          content={msg.content || msg.message}
+                        />
+                      )}
+                      {isAgentMessage && (
+                        <div className="wa-markdown-footer">{metadata}</div>
+                      )}
                     </div>
                     {requests
                       .filter((q) => q.message_id === msg.uuid)
@@ -654,18 +689,6 @@ export function InboxView({
                           }}
                         />
                       ))}
-                    {msg.uuid && (
-                      <InboxTaskAction
-                        linkedTask={linkedTasks.find(
-                          (task) => task.source_message_id === msg.uuid,
-                        )}
-                        conversationId={
-                          activeContact.conversation_id || activeContact.id
-                        }
-                        messageId={msg.uuid}
-                        content={msg.content || msg.message}
-                      />
-                    )}
                   </div>
                 )
               })}
@@ -758,10 +781,7 @@ export function InboxView({
               </p>
             )}
             {/* ── Modern Composer (Bottom) ── */}
-            <div
-              data-inbox-composer
-              className="p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border bg-card shrink-0 z-20"
-            >
+            <div data-inbox-composer className="wa-composer shrink-0 z-20">
               <div className="flex items-end gap-2 max-w-4xl mx-auto">
                 <textarea
                   ref={textareaRef}
@@ -778,18 +798,18 @@ export function InboxView({
                       ? 'Tulis pesan…'
                       : `Balas ${activeContact.name}…`
                   }
-                  className="min-w-0 flex-1 min-h-[42px] max-h-[140px] resize-none overflow-hidden rounded-xl bg-background border border-input text-foreground px-3.5 py-2.5 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+                  className="wa-input min-w-0 flex-1 min-h-12 max-h-[140px] resize-none overflow-hidden rounded-[24px] px-4 py-3 text-base leading-6"
                 />
 
                 <button
                   type="button"
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || sending}
-                  className="h-12 w-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-xs cursor-pointer shrink-0"
+                  className="wa-send h-12 w-12 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0"
                   title="Kirim Pesan (Enter)"
                   aria-label="Kirim pesan"
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-5 w-5" />
                 </button>
               </div>
             </div>
