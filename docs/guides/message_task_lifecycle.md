@@ -310,3 +310,23 @@ kontrak toolERROR, executor Cuan, dan satu request aplikasi production. Tidak ad
 probe otomatis pada pembukaan halaman. Bukti ada di
 `docs/evidence/runtime-response-trace/production-browser.json` dan
 `production-cleanup.json`. Raw trace CLI tetap privat, tidak masuk repo/UI.
+
+## Nginx worker file limits
+
+Saat verifikasi rilis header, ingress sempat mengembalikan500 sementara backend
+Cuan tetap200. Error Nginx menunjukkan `accept4() failed (24: Too many open files)`:
+worker mencapai batas1024 descriptor, lebih rendah dari worker_connections4096.
+Konfigurasi utama `/etc/nginx/nginx.conf` kini memiliki
+`worker_rlimit_nofile 16384;`. Konfigurasi divalidasi dengan `nginx -t`, kemudian
+`systemctl reload nginx` secara graceful; proses Cuan tidak direstart.
+Batas worker baru16384 diverifikasi lewat `/proc/PID/limits`, lalu smoke88
+kombinasi halaman/viewport/tema lulus.
+
+Backup konfigurasi sebelum perubahan disimpan privat bersama backup rilis
+`/opt/cuan/backups/header-hierarchy-release/nginx.conf.before`. Untuk memulihkan
+konfigurasi ingress bila perubahan ini menimbulkan masalah, bandingkan konfigurasi
+aktif dengan backup, pulihkan konfigurasi yang sesuai, jalankan `nginx -t`, lalu
+reload secara graceful. Mengembalikan batas1024 dapat memunculkan kembali
+kehabisan descriptor saat beban tinggi. Rollback aplikasi via activator tidak
+mengubah konfigurasi ingress ini. Periksa batas worker setelah provisioning
+atau penggantian konfigurasi Nginx.

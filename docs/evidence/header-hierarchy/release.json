@@ -1,0 +1,41 @@
+{
+  "release": "cb7ad7e3142bb34804dc969c6b50395de69e59f9",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "migration": false,
+  "fixtureChecks": 88,
+  "productionChecks": 88,
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "retention": {
+    "retainedTablesVerified": 35,
+    "authSessionsExcluded": true,
+    "profileFilesVerified": 493,
+    "differentTables": [],
+    "changedProfileFiles": 0,
+    "schema": 22,
+    "autoMigrate": false,
+    "release": "cb7ad7e3142bb34804dc969c6b50395de69e59f9",
+    "readiness": {
+      "database": "connected",
+      "migrations": "applied",
+      "migrations_count": 22,
+      "owner_configured": true,
+      "status": "ready"
+    },
+    "remainingSmokeContacts": "0"
+  },
+  "ingressIncident": {
+    "symptom": "nginx500, backend200",
+    "reason": "nginx worker RLIMIT_NOFILE1024 reached while worker_connections configured4096",
+    "change": "worker_rlimit_nofile16384; validated nginx config and graceful reload",
+    "cuanRestarted": false,
+    "configBackup": "private release backup",
+    "newWorkerLimitsVerified": 16384
+  },
+  "appRollback": "sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22",
+  "limits": [
+    "Chromium emulation, not physical Safari/device certification",
+    "Contextual New action redesign is a follow-up discussion, not part of this release"
+  ]
+}
