@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { useTheme } from '../../context/ThemeContext'
@@ -24,6 +25,8 @@ interface AppShellProps {
   hideBottomNav?: boolean
   inboxSubPanel?: React.ReactNode
   inboxUnread?: number
+  pageTitle?: string
+  breadcrumbs?: { label: string; to: string }[]
 }
 const NAV_ITEMS = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
@@ -40,6 +43,8 @@ export function AppShell({
   hideBottomNav = false,
   inboxSubPanel,
   inboxUnread = 0,
+  pageTitle,
+  breadcrumbs = [],
 }: AppShellProps) {
   const shell = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
@@ -187,22 +192,31 @@ export function AppShell({
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            {currentTab === 'inbox' ? (
-              <>
-                <CuanMark className="h-6 w-6 md:hidden" />
-                <h1 className="truncate text-xl font-semibold tracking-tight">
-                  Inbox
-                </h1>
-              </>
-            ) : (
-              <>
-                <CuanMark className="h-6 w-6 md:hidden" />
-                <span className="truncate text-xl font-semibold tracking-tight md:hidden">{label}</span>
-                <span className="hidden truncate text-sm font-medium md:block">
-                  cuan <span className="mx-1 text-muted-foreground">/</span> {label}
-                </span>
-              </>
+            <CuanMark className="h-6 w-6 md:hidden" />
+            {breadcrumbs.length > 0 && (
+              <nav
+                aria-label="Hierarki halaman"
+                className="hidden min-w-0 items-center gap-2 text-sm text-muted-foreground md:flex"
+              >
+                {breadcrumbs.map((crumb) => (
+                  <span
+                    key={crumb.to}
+                    className="flex min-w-0 items-center gap-2"
+                  >
+                    <Link
+                      className="inline-flex min-h-11 max-w-40 items-center hover:text-foreground focus-visible:underline"
+                      to={crumb.to}
+                    >
+                      <span className="truncate">{crumb.label}</span>
+                    </Link>
+                    <span aria-hidden="true">/</span>
+                  </span>
+                ))}
+              </nav>
             )}
+            <h1 className="page-title min-w-0 truncate text-xl font-semibold tracking-tight">
+              {pageTitle || label}
+            </h1>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {currentTab === 'inbox' && (

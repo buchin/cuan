@@ -8,7 +8,6 @@ export function IntegrationsView() {
   if (!pathname.endsWith('/live-chat'))
     return (
       <section className="rounded-lg border bg-card p-5">
-        <h2 className="text-lg font-semibold">Integrations</h2>
         <p className="my-3 text-sm text-muted-foreground">
           Hubungkan website Anda dengan Cuan.
         </p>
@@ -29,14 +28,13 @@ export function IntegrationsView() {
         ← Integrations
       </Link>
       <header>
-        <h2 className="text-xl font-semibold">Live Chat</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Hubungkan live chat ke website. Pengunjung yang membuka chat otomatis
           masuk ke Contacts.
         </p>
       </header>
       <section className="min-w-0 space-y-3 rounded-lg border bg-card p-5">
-        <h3 className="text-base font-semibold">1. Pasang widget</h3>
+        <h2 className="text-base font-semibold">1. Pasang widget</h2>
         <p className="text-sm text-muted-foreground">
           Salin kode sebelum penutup body website. Ganti website-anda dengan
           label produk atau website Anda.
@@ -66,9 +64,9 @@ export function IntegrationsView() {
         )}
       </section>
       <section className="min-w-0 space-y-3 rounded-lg border bg-card p-5">
-        <h3 className="text-base font-semibold">
+        <h2 className="text-base font-semibold">
           2. Identitas pelanggan (opsional)
-        </h3>
+        </h2>
         <p className="text-sm text-muted-foreground">
           Tambahkan atribut data-email dan data-name dari pengguna yang login,
           atau panggil kode berikut setelah widget dimuat:
@@ -83,7 +81,7 @@ export function IntegrationsView() {
         </p>
       </section>
       <section className="space-y-3 rounded-lg border bg-card p-5">
-        <h3 className="text-base font-semibold">3. Periksa pemasangan</h3>
+        <h2 className="text-base font-semibold">3. Periksa pemasangan</h2>
         <ol className="list-decimal space-y-2 pl-5 text-sm">
           <li>Buka website dan tekan tombol Live Chat.</li>
           <li>Kirim pesan percobaan dari widget.</li>

@@ -199,7 +199,7 @@ pesan, menyimpan referensi percakapan/pesan, dan tidak membuat execution attempt
 
 ## Daftar Inbox yang ringkas
 
-Header mobile Inbox cukup menampilkan judul, Settings dan akun. Pencarian
+Header mobile Inbox menampilkan logo kepeng, judul, Settings dan akun. Pencarian
 dan filter Semua/Agen/Pelanggan berada tepat di bawahnya tanpa heading/count
 berulang. Baris percakapan memakai nama 16 px, cuplikan 14 px dan waktu 12 px,
 dengan target sentuh minimal 44 px. Latar gelap mengikuti charcoal chat.
@@ -236,8 +236,8 @@ yang bisa digeser saat layar sempit; Agents/Integrations/Tampilan tetap di lokas
 yang sama.
 
 Header mobile Inbox, Contacts, Tasks, Projects dan Settings kini memakai pola
-yang sama: logo kepeng24px, nama halaman20px dan tinggi56px. Breadcrumb cuan /
-halaman hanya tampil di tablet/desktop, dengan identitas logo pada sidebar.
+yang sama: logo kepeng24px, nama halaman20px dan tinggi56px. Pada tablet/desktop,
+logo berada di sidebar dan header menampilkan judul20px dengan tinggi64px.
 
 ## Pola daftar dan filter
 
@@ -248,3 +248,22 @@ menghapus filter project; board project tetap mempertahankan project asal.
 Projects menyediakan **Clear search** saat pencarian aktif dan menyimpan pilihan
 Grid/List di browser. Settings → Agents memiliki **Cari agen** menurut nama atau
 jenis CLI, dengan reset bila tidak ada hasil; pencarian tidak memeriksa provider.
+
+## Hierarki header yang konsisten
+
+Semua halaman utama (Inbox, Contacts, Tasks, Projects, Settings) memakai satu
+judul H1 di header aplikasi. Judul tidak diulang di area isi; area isi langsung
+menampilkan ringkasan, pencarian atau tindakan. Tidak ada breadcrumb `cuan /`
+pada halaman utama di ukuran layar mana pun.
+
+Detail project memakai `Projects / nama project`; pengaturannya memakai
+`Projects / nama project / Settings`. Subhalaman pengaturan memakai
+`Settings / Agents`, `Settings / Integrations`, `Settings / Tampilan`, atau
+`Settings / Integrations / Live Chat`. Tautan induk pada tablet/desktop dapat
+dipakai untuk kembali. Mobile menampilkan logo dan judul detail saja agar tetap
+ringkas; tombol kembali pada isi detail project tetap tersedia.
+
+Label project mengikuti project terdaftar pada URL, bukan pilihan project lama.
+Halaman yang belum selesai memuat atau tidak ditemukan menggunakan judul
+Project tanpa mengklaim project lain. Chat mobile tetap memakai header
+percakapan sendiri saat percakapan dibuka.

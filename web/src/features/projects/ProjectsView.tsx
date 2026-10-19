@@ -92,7 +92,6 @@ export function ProjectsView({
       )}
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="page-title">Projects</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {activeProjects.length} active · {archivedProjects.length} archived
           </p>

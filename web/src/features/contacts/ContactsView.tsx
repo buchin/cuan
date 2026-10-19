@@ -158,12 +158,10 @@ export function ContactsView() {
   }
   return (
     <section className="page-content" aria-label="Contacts">
-      {selectedId && <h1 className="sr-only min-[1200px]:hidden">Contacts</h1>}
       <header
         className={`mb-5 items-start justify-between gap-3 ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
         <div>
-          <h1 className="page-title">Contacts</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Pelanggan dan riwayat percakapan dalam satu tempat.
           </p>

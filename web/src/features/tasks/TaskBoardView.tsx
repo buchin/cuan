@@ -97,7 +97,6 @@ export function TaskBoardView({
     <section className="h-full flex flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="page-title">{activeProject?.name || 'Tasks'}</h1>
           <p className="text-xs text-muted-foreground">{rows.length} tasks</p>
         </div>
         <button

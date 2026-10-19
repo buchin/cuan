@@ -31,14 +31,13 @@ export function SettingsView({
       <section className="page-content max-w-3xl space-y-6">
         <Link
           to={`/projects/${encodeURIComponent(activeProject.id)}`}
-          className="action-secondary"
+          className="action-secondary md:hidden"
         >
           ← Kembali ke project
         </Link>
         <header>
-          <h1 className="page-title">Settings: {activeProject.name}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Pengaturan ini hanya berlaku untuk project ini.
+            Pengaturan khusus project {activeProject.name}.
           </p>
         </header>
         {error && (
@@ -106,7 +105,6 @@ export function SettingsView({
   return (
     <section className="page-content space-y-5">
       <header>
-        <h1 className="page-title">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Kelola aplikasi dan koneksi agen Anda.
         </p>
@@ -139,6 +137,7 @@ export function SettingsView({
             </Link>
           )}
           <TeamView
+            showHeading={false}
             focusAgentId={query.get('agent') || undefined}
             onAgentAdded={onAgentAdded}
           />

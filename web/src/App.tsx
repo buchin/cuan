@@ -345,6 +345,48 @@ export function App() {
     )
   }
 
+  const headerProject =
+    currentTab === 'projects' && subParam
+      ? projects.find((p) => p.id === subParam)
+      : undefined
+  const projectDetail = currentTab === 'projects' && !!subParam
+  const projectSettings = projectDetail && pathSegments[2] === 'settings'
+  const settingTitles: Record<string, string> = {
+    agents: 'Agents',
+    integrations: 'Integrations',
+    appearance: 'Tampilan',
+  }
+  const settingsDetail = currentTab === 'settings' && !!settingTitles[subParam]
+  const headerTitle = projectDetail
+    ? projectSettings
+      ? 'Settings'
+      : headerProject?.name || 'Project'
+    : settingsDetail
+      ? pathSegments[2] === 'live-chat'
+        ? 'Live Chat'
+        : settingTitles[subParam]
+      : undefined
+  const headerBreadcrumbs = projectDetail
+    ? [
+        { label: 'Projects', to: '/projects' },
+        ...(projectSettings && headerProject
+          ? [
+              {
+                label: headerProject.name,
+                to: `/projects/${encodeURIComponent(headerProject.id)}`,
+              },
+            ]
+          : []),
+      ]
+    : settingsDetail
+      ? [
+          { label: 'Settings', to: '/settings' },
+          ...(pathSegments[2] === 'live-chat'
+            ? [{ label: 'Integrations', to: '/settings/integrations' }]
+            : []),
+        ]
+      : []
+
   // 2. Unauthenticated: Auth Gatekeeper
   if (!isAuthenticated) {
     return <LoginScreen />
@@ -355,7 +397,12 @@ export function App() {
     <>
       <AppShell
         currentTab={currentTab}
-        inboxUnread={contacts.reduce((sum, contact) => sum + Math.max(0, contact.unread_count || 0), 0)}
+        pageTitle={headerTitle}
+        breadcrumbs={headerBreadcrumbs}
+        inboxUnread={contacts.reduce(
+          (sum, contact) => sum + Math.max(0, contact.unread_count || 0),
+          0,
+        )}
         onSelectTab={handleSelectTab}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
         hideBottomNav={currentTab === 'inbox' && isMobileChatActive}
@@ -465,7 +512,7 @@ export function App() {
               <section className="flex h-full min-h-0 flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <button
-                    className="action-secondary"
+                    className="action-secondary md:hidden"
                     onClick={() => {
                       setActiveProject(undefined)
                       navigate('/projects')

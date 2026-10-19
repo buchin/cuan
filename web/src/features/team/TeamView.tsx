@@ -76,9 +76,11 @@ type Step = 'name' | 'google' | 'save'
 
 export function TeamView({
   selectedRole = 'all',
+  showHeading = true,
   onAgentAdded,
   focusAgentId,
 }: {
+  showHeading?: boolean
   focusAgentId?: string
   selectedRole?: string
   onAgentAdded?: () => void
@@ -375,7 +377,7 @@ export function TeamView({
     <div className="mx-auto max-w-4xl space-y-5 pb-8">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Agen</h2>
+          {showHeading && <h2 className="text-lg font-semibold">Agen</h2>}
           <p className="mt-1 text-sm text-muted-foreground">
             Satu agen, satu koneksi.
           </p>
