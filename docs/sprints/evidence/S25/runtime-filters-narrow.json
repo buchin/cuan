@@ -1,0 +1,88 @@
+{
+  "url": "https://cuan-s25-dojo.fural.space/tasks",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "filters": [
+    {
+      "label": "All",
+      "rows": [
+        "#11F342\t\nS25 verification blocked\nagy\n\tBlocked",
+        "#5D49A6\t\nS25 verification todo\n@pin1\n\tDone",
+        "#36ECCE\t\nhelo wrld\nagy\n\tTodo"
+      ]
+    },
+    {
+      "label": "Todo",
+      "rows": [
+        "#36ECCE\t\nhelo wrld\nagy\n\tTodo"
+      ]
+    },
+    {
+      "label": "Doing",
+      "rows": [
+        "No tasks match these filters."
+      ]
+    },
+    {
+      "label": "Review",
+      "rows": [
+        "No tasks match these filters."
+      ]
+    },
+    {
+      "label": "Done",
+      "rows": [
+        "#5D49A6\t\nS25 verification todo\n@pin1\n\tDone"
+      ]
+    },
+    {
+      "label": "Blocked",
+      "rows": [
+        "#11F342\t\nS25 verification blocked\nagy\n\tBlocked"
+      ]
+    }
+  ],
+  "nonempty": [
+    {
+      "status": "doing",
+      "rows": [
+        "#5D49A6\t\nS25 verification todo\n@pin1\n\tDoing"
+      ]
+    },
+    {
+      "status": "review",
+      "rows": [
+        "#5D49A6\t\nS25 verification todo\n@pin1\n\tReview"
+      ]
+    }
+  ],
+  "layout": {
+    "width": 390,
+    "documentWidth": 390,
+    "columns": [
+      {
+        "text": "Code",
+        "display": "table-cell"
+      },
+      {
+        "text": "Title",
+        "display": "table-cell"
+      },
+      {
+        "text": "Status",
+        "display": "table-cell"
+      },
+      {
+        "text": "Assignee",
+        "display": "none"
+      },
+      {
+        "text": "Updated",
+        "display": "none"
+      }
+    ],
+    "tableWidth": 324
+  }
+}
