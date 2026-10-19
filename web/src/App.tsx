@@ -509,7 +509,7 @@ export function App() {
 
         {/* 5. Settings Configuration */}
         {currentTab === 'settings' && (
-          <div className="h-full">
+          <div className="min-h-full">
             <SettingsView
               projects={projects}
               onAgentAdded={refreshContacts}
