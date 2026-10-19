@@ -106,14 +106,14 @@ atau batalkan queued/running/cancelling dan pertahankan schema additive; jangan
 jalankan down migration untuk rollback aplikasi biasa. Gunakan release native
 repo dengan lock, checksum, atomic activation, health/readiness dan rollback.
 Production https://cuan.dojo.cc telah memakai schema 21 dan release
-`10956efa85d9c014c75d6ed7a2d06aa193c05d88` sejak 2026-10-19.
+`ccc45c88c0b948a1c1263818a6c9a42f1687dc76` sejak 2026-10-19.
 Backup privat sebelum migrasi dan uji rollback/aktivasi kembali lulus.
 Rollback aplikasi tetap mempertahankan schema 21; gunakan:
 
 ```sh
 sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 21
 # Aktivasi kembali release terverifikasi:
-sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --release 10956efa85d9c014c75d6ed7a2d06aa193c05d88 --schema-count 21
+sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --release ccc45c88c0b948a1c1263818a6c9a42f1687dc76 --schema-count 21
 ```
 
 Pastikan antrean/attempt tidak aktif sebelum rollback. Jangan gunakan instruksi
@@ -151,3 +151,14 @@ respons provider nyata, pengujian perangkat fisik atau bukti provider production
 Smoke production terpisah lulus untuk login owner, API, UI Inbox, viewport
 360/390/1280, serta kecocokan aset publik; tidak memanggil provider.
 Spesifikasi dan bukti final: docs/plans/message-task-adoption.md.
+
+## Verifikasi akses project production
+
+Pada 2026-10-19, satu request nyata ke @pin2 berhasil membaca
+`internal/server/inbox_project.go` pada checkout release `ccc45c8`. Balasan
+mengidentifikasi `inboxProjectContext`, `truncateProjectText`, `budget := 32000`,
+dan pemilihan project mengikuti `room.ProjectID` pada room non-agent, sesuai kode.
+Tidak membuat task dan tidak mengubah kode repo. Ini bukti provider nyata yang
+terpisah dari pengujian fixture sebelumnya. Request test diberi label verifikasi
+dan tetap tersimpan di Inbox; pesan pengguna sebelumnya tidak dikirim ulang.
+Bukti: `docs/evidence/chat-project/provider-read.json` dan `release.json`.

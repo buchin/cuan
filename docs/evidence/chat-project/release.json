@@ -1,0 +1,37 @@
+{
+  "verified_at": "2026-10-19T06:10:05.634517+00:00",
+  "production": "https://cuan.dojo.cc",
+  "release": "ccc45c88c0b948a1c1263818a6c9a42f1687dc76",
+  "previous": "10956efa85d9c014c75d6ed7a2d06aa193c05d88",
+  "schema": 21,
+  "new_migration": false,
+  "backup_before_changes": {
+    "pg_dump_validated": true,
+    "private_profile_files_backed_up": 369,
+    "active_inbox_and_task_attempts": 0
+  },
+  "project": {
+    "id": "default",
+    "name": "cuan",
+    "workspace": "persistent project data directory",
+    "checkout": "ccc45c88c0b948a1c1263818a6c9a42f1687dc76",
+    "source": "complete Git bundle from approved repository branch",
+    "github_credential_transferred": false,
+    "profile_home_changed": false
+  },
+  "native_activation": "healthy; checksum manifest, lock, atomic activation, exact HTML and schema21 readiness",
+  "actual_provider_requests": 1,
+  "actual_source_read_verified": true,
+  "verification": [
+    "targeted Go project selection/snapshot/workspace tests",
+    "FIFO, cancellation, task-capture and profile-isolation regression tests",
+    "Go server build",
+    "TypeScript/Vite production build",
+    "production source-reading request completed"
+  ],
+  "limitations": [
+    "GitHub issue/PR API not queried; checkout is a local snapshot",
+    "native read/plan restrictions depend on CLI harness, not cross-owner filesystem isolation",
+    "existing CSS minifier and bundle-size warnings remain"
+  ]
+}
