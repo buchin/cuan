@@ -23,6 +23,7 @@ interface AppShellProps {
   onCreateProjectClick?: () => void
   hideBottomNav?: boolean
   inboxSubPanel?: React.ReactNode
+  inboxUnread?: number
 }
 const NAV_ITEMS = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
@@ -38,6 +39,7 @@ export function AppShell({
   onCreateProjectClick,
   hideBottomNav = false,
   inboxSubPanel,
+  inboxUnread = 0,
 }: AppShellProps) {
   const shell = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
@@ -179,18 +181,25 @@ export function AppShell({
       <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header
           className={cn(
-            'flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
+            'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
+            currentTab === 'inbox' ? 'inbox-page-header h-14 md:h-16' : 'h-16',
             hideBottomNav && 'hidden md:flex',
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium">
-              <span className="inline-flex items-center gap-2 align-middle">
-                <CuanMark className="h-6 w-6 md:hidden" />
-                <span>cuan</span>
-              </span>{' '}
-              <span className="mx-1 text-muted-foreground">/</span> {label}
-            </span>
+            {currentTab === 'inbox' ? (
+              <h1 className="truncate text-xl font-semibold tracking-tight">
+                Inbox
+              </h1>
+            ) : (
+              <span className="truncate text-sm font-medium">
+                <span className="inline-flex items-center gap-2 align-middle">
+                  <CuanMark className="h-6 w-6 md:hidden" />
+                  <span>cuan</span>
+                </span>{' '}
+                <span className="mx-1 text-muted-foreground">/</span> {label}
+              </span>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {currentTab === 'inbox' && (
@@ -248,7 +257,17 @@ export function AppShell({
                   : 'text-muted-foreground',
               )}
             >
-              <Icon className="h-5 w-5" />
+              <span className="relative">
+                <Icon className="h-5 w-5" />
+                {id === 'inbox' && inboxUnread > 0 && (
+                  <span
+                    aria-label={`${inboxUnread} pesan belum dibaca`}
+                    className="absolute -right-3 -top-2 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground"
+                  >
+                    {inboxUnread > 99 ? '99+' : inboxUnread}
+                  </span>
+                )}
+              </span>
               {text}
             </button>
           ))}

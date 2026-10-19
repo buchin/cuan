@@ -355,6 +355,7 @@ export function App() {
     <>
       <AppShell
         currentTab={currentTab}
+        inboxUnread={contacts.reduce((sum, contact) => sum + Math.max(0, contact.unread_count || 0), 0)}
         onSelectTab={handleSelectTab}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
         hideBottomNav={currentTab === 'inbox' && isMobileChatActive}

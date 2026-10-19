@@ -196,3 +196,21 @@ dengan `project_id`, `title`, dan `description` opsional untuk kompatibilitas.
 Deskripsi yang dikirim wajib nonkosong dan maksimal 6000 karakter. Sumber pesan
 harus berada dalam percakapan tersebut. Task memakai kunci idempoten dari ID
 pesan, menyimpan referensi percakapan/pesan, dan tidak membuat execution attempt.
+
+## Daftar Inbox yang ringkas
+
+Header mobile Inbox cukup menampilkan judul, Settings dan akun. Pencarian
+dan filter Semua/Agen/Pelanggan berada tepat di bawahnya tanpa heading/count
+berulang. Baris percakapan memakai nama 16 px, cuplikan 14 px dan waktu 12 px,
+dengan target sentuh minimal 44 px. Latar gelap mengikuti charcoal chat.
+
+Status rutin seperti Belum diperiksa/Terhubung tidak ditampilkan pada daftar;
+status lengkap tetap ada pada header chat dan Settings → Agents. Peringatan
+Perlu login, Kuota terbatas, Koneksi terganggu dan Dinonaktifkan tetap muncul.
+Tidak ada pemeriksaan koneksi/provider otomatis karena perubahan tampilan ini.
+
+Cuplikan menghilangkan awalan `[@nama]`, pemformatan Markdown dan metadata
+draft task. Isi pesan asli tidak diubah. Badge unread memakai hitungan yang
+diterima dari API, tanpa mengarang status baca; navigasi bawah menampilkan
+total hanya bila nilainya lebih dari nol. Filter, pencarian, retry, Back, dan
+navigasi desktop yang dapat diciutkan tetap tersedia.
