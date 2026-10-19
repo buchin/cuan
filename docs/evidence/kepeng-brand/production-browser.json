@@ -1,0 +1,138 @@
+{
+  "release": "252c36d7a2c0a5990faff23ce28b75eb7aff5d99",
+  "production": "https://cuan.dojo.cc",
+  "apiMocked": false,
+  "measurements": [
+    {
+      "width": 40,
+      "theme": "light",
+      "height": 40,
+      "color": "oklch(0.2095 0.0019 286.23)"
+    },
+    {
+      "width": 40,
+      "theme": "dark",
+      "height": 40,
+      "color": "oklch(1 0 0)"
+    },
+    {
+      "width": 40,
+      "theme": "light",
+      "height": 40,
+      "color": "oklch(0.2095 0.0019 286.23)"
+    },
+    {
+      "width": 40,
+      "theme": "dark",
+      "height": 40,
+      "color": "oklch(1 0 0)"
+    },
+    {
+      "width": 24,
+      "theme": "light",
+      "height": 24,
+      "color": "oklch(0.2095 0.0019 286.23)"
+    },
+    {
+      "width": 24,
+      "theme": "dark",
+      "height": 24,
+      "color": "oklch(1 0 0)"
+    },
+    {
+      "width": 24,
+      "theme": "light",
+      "height": 24,
+      "color": "oklch(0.2095 0.0019 286.23)"
+    },
+    {
+      "width": 24,
+      "theme": "dark",
+      "height": 24,
+      "color": "oklch(1 0 0)"
+    }
+  ],
+  "checks": [
+    "login light/dark branding",
+    "sidebar/tablet/mobile theme-aware kepeng",
+    "24px mobile and40px sidebar mark",
+    "adaptive SVG favicon and static exports exact bytes",
+    "no overflow"
+  ],
+  "assets": [
+    {
+      "file": "favicon.svg",
+      "sha256": "f0a5f2b9c326d4c2cd38a88dac8df438bc376cb4b13a737fff19015223fc7875"
+    },
+    {
+      "file": "brand/cuan-light.svg",
+      "sha256": "3f87eb099f951aa417f094e3d0a77c9ce242bddb691ad468a5cd4a36939b9920"
+    },
+    {
+      "file": "brand/cuan-dark.svg",
+      "sha256": "7bb24b9ff3c58928114e8cf4be4c24581c6f4958f85d3fb359bd6589895e37de"
+    },
+    {
+      "file": "assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+      "sha256": "2317fa4bb293c9c0b110e18315d529235c47a0ddd3338cea3d8c7955e927899e"
+    },
+    {
+      "file": "assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+      "sha256": "6894439694946a589d157ece003086960a6a4013d74a813dab7602efdb3d8c09"
+    },
+    {
+      "file": "assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+      "sha256": "824f485b5d26e2f2da3c2b236132ece1bc8e4e43373452950bb0e40548b4313f"
+    },
+    {
+      "file": "assets/geist-latin-wght-normal-BgDaEnEv.woff2",
+      "sha256": "19f9c92546aa300c312235e3125af1b81394d8db9a4bc4a425cd5b641d2d54e1"
+    },
+    {
+      "file": "assets/geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+      "sha256": "cd8800999070b729e1cc0bf7a48da6c3ac096a044251171b9a7574b56d96d4b4"
+    },
+    {
+      "file": "assets/geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+      "sha256": "4866787fc952dbdbd591d6923d67bc21c2d894b93f34ab69d0cdf25d47bfb2df"
+    },
+    {
+      "file": "assets/geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+      "sha256": "1a189eb997c3e2ece68373e387afaec9e8617424186c4b1ab3cff7c54ba6223b"
+    },
+    {
+      "file": "assets/geist-mono-latin-wght-normal-XN7g48iV.woff2",
+      "sha256": "684ad5b531f81d43c1e8c7038262d5db7cdc1f68006e04d6c7769efa8d33c8cc"
+    },
+    {
+      "file": "assets/geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+      "sha256": "5bb66d8319ba1602bb2eb67dce8d79c2b4687be8ce183a0574433e949b3c60ad"
+    },
+    {
+      "file": "assets/geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+      "sha256": "d39b60889a94a527a7f73c7988a2d6efb6c081614aef683b0b386c02d74c2175"
+    },
+    {
+      "file": "assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+      "sha256": "8fa40e5d248247735eb97a0bd593b8852440430600d6ba01364c31fe0abc1fe1"
+    },
+    {
+      "file": "assets/index-BOA3Zl_j.css",
+      "sha256": "85595fb20ecdc2bc605a83a082e0391e045fa02793173e57224fc18cedd3d462"
+    },
+    {
+      "file": "assets/index-UXT4m3xV.js",
+      "sha256": "0e9db8f74d6bb05ff16f9587d46a68cbb92e819ce8844a3af7cf2bbb155f3dd8"
+    }
+  ],
+  "errors": [],
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "readiness": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 22,
+    "owner_configured": true,
+    "status": "ready"
+  }
+}

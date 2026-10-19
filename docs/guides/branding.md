@@ -18,3 +18,8 @@ terlihat. Bentuk dipertahankan sama pada light dan dark; hanya warnanya berbalik
 SVG menjaga ketajaman di ukuran kecil. Bukti visual16/24/32/64/128px, login,
 sidebar dan HP tersedia pada `docs/evidence/kepeng-brand/`. Pengujian viewport
 Chromium tidak menggantikan pemeriksaan semua perangkat/browser fisik.
+
+Rilis `252c36d` aktif di https://cuan.dojo.cc. Production memverifikasi delapan
+pasangan theme/viewport, login light/dark, favicon serta export SVG identik
+dengan build. Schema22 tetap dan data/profil lama utuh. Bukti:
+`docs/evidence/kepeng-brand/production-browser.json`.
