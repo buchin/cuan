@@ -1,0 +1,21 @@
+{
+  "release": "032c72311abd51097b46e767b34896eac2d32631",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "newMigration": false,
+  "incidentRequest": "54d6f90e-5e40-4138-ba51-0d56042fdc4e",
+  "diagnosis": "Historical text stdout empty, exit0; exact upstream cause indeterminate because old structured status/stderr not retained.",
+  "remediation": "Explicit JSON success+response validation, safe failure classification, event timestamps, exit code/duration and copyable request details.",
+  "liveDiagnostics": 2,
+  "boundProfileDiagnosticSucceeded": true,
+  "actualCuanExecutorDiagnosticSucceeded": true,
+  "userMessageReplayed": false,
+  "productionUIViewportChecks": 4,
+  "productionUISmokeProviderCalls": 0,
+  "productionUISmokeProductWrites": 0,
+  "limits": [
+    "Historical missing process metadata cannot be reconstructed",
+    "No guarantee against future upstream empty responses/quota/timeouts; no automatic retry",
+    "Chromium emulation only; existing build warnings"
+  ]
+}

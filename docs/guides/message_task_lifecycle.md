@@ -232,3 +232,8 @@ dan `node docs/evidence/inbox-response-trace/browser-check.cjs` setelah build.
 Live test `TestLiveInboxAgyDiagnostic` memerlukan opt-in profil khusus dan dapat
 menggunakan kuota provider; tidak dijalankan dalam test biasa. Bukti diagnostik
 aman dan incident receipt ada di `docs/evidence/inbox-response-trace/`.
+
+Rilis `032c723` aktif di production, schema22 tanpa migration baru. Pemeriksaan
+production pada empat lebar layar lulus untuk detail request gagal asli, salin
+metadata dan reload. Record asli tetap identik; tidak ada replay/pesan baru selama
+smoke UI. Aset cocok build dan tabel/profil cocok backup sesudah diagnostik.
