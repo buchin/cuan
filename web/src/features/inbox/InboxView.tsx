@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ChatContact, ChatMessage, chatApi, AgentActionCard } from '../../api/chat'
+import { ChatContact, ChatMessage, InboxRequest, chatApi, AgentActionCard } from '../../api/chat'
 import {
   Send,
   Bot,
@@ -43,6 +43,12 @@ export function InboxView({
   onMobileChatActiveChange,
   onOpenMobileDrawer,
 }: InboxViewProps) {
+  const [requests, setRequests] = useState<InboxRequest[]>([])
+  const [sendError, setSendError] = useState('')
+  const [retryCount, setRetryCount] = useState(0)
+  const pendingRef = useRef<{ convId: string; text: string; id: string } | null>(null)
+  const activeConvRef = useRef('')
+  activeConvRef.current = activeContact?.conversation_id || activeContact?.id || ''
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -72,9 +78,19 @@ export function InboxView({
     if (showSpinner) setLoading(true)
     try {
       const data = await chatApi.getConversation(convId)
+      if (activeConvRef.current !== convId) return
       setMessages(data.messages || [])
+      setRequests(data.requests || [])
+      const pending = pendingRef.current
+      if (pending?.convId === convId && data.requests?.some(q => q.request_id === pending.id)) {
+        localStorage.removeItem('cuan_inbox_pending:' + convId)
+        pendingRef.current = null
+        setSendError('')
+        setInputMessage('')
+        setRetryCount(0)
+      }
     } catch (err) {
-      console.error('Failed to load conversation:', err)
+      setSendError('Riwayat belum dapat dimuat. Segarkan lagi untuk memeriksa status pesan.')
     } finally {
       if (showSpinner) setLoading(false)
     }
@@ -92,7 +108,17 @@ export function InboxView({
   // Load conversation when activeContact changes
   useEffect(() => {
     if (activeContact) {
-      loadConversation(activeContact.conversation_id || activeContact.id, true)
+      const convId = activeContact.conversation_id || activeContact.id
+      setMessages([])
+      setRequests([])
+      setSendError('')
+      setRetryCount(0)
+      pendingRef.current = null
+      try {
+        const saved = localStorage.getItem('cuan_inbox_pending:' + convId)
+        if (saved) { pendingRef.current = JSON.parse(saved); setSendError('Pengiriman sebelumnya belum terkonfirmasi. Segarkan atau periksa lagi dengan ID yang sama.') }
+      } catch { setSendError('Penyimpanan browser tidak tersedia. Segarkan riwayat sebelum mengirim lagi.') }
+      loadConversation(convId, true)
     }
   }, [activeContact, loadConversation])
 
@@ -115,32 +141,30 @@ export function InboxView({
   }, [lastMessageKey, activeContact?.id])
 
   const handleSendMessage = async () => {
-    const text = inputMessage.trim()
-    if (!text || !activeContact || sending) return
-
+    if (!activeContact || sending || retryCount >= 3) return
+    const convId = activeContact.conversation_id || activeContact.id
+    const pending = pendingRef.current
+    const text = pending?.convId === convId ? pending.text : inputMessage.trim()
+    if (!text) return
+    const request = pending?.convId === convId ? pending : { convId, text, id: crypto.randomUUID() }
+    // Save before the first network byte; reload/retry reuses the same key.
+    try { localStorage.setItem('cuan_inbox_pending:' + convId, JSON.stringify(request)) }
+    catch { setSendError('Browser tidak dapat menyimpan ID pesan. Aktifkan penyimpanan browser lalu coba lagi.'); return }
+    pendingRef.current = request
     setSending(true)
+    setRetryCount(n => n + 1)
     try {
-      const convId = activeContact.conversation_id || activeContact.id
-      const res = await chatApi.sendMessage(convId, text)
-
-      setInputMessage('')
-      if (textareaRef.current) {
-        textareaRef.current.style.height = '42px'
-        textareaRef.current.style.overflowY = 'hidden'
+      await chatApi.sendMessage(convId, text, 'Buchin', request.id)
+      if (activeConvRef.current === convId) {
+        setInputMessage('')
+        setSendError('')
+        setRetryCount(0)
+        await loadConversation(convId)
       }
-
-      // Append user message immediately
-      setMessages((prev) => [...prev, res.message])
-      if (res.agent_reply) {
-        setMessages((prev) => [...prev, res.agent_reply!])
-      }
-
-      if (onContactUpdated) onContactUpdated()
-    } catch (err) {
-      console.error('Failed to send message:', err)
-    } finally {
-      setSending(false)
-    }
+      onContactUpdated?.()
+    } catch {
+      if (activeConvRef.current === convId) setSendError('Pengiriman belum terkonfirmasi. Pesan mungkin sudah diterima. Segarkan atau periksa lagi dengan ID yang sama; tidak membuat eksekusi ganda.')
+    } finally { setSending(false) }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -339,6 +363,18 @@ export function InboxView({
           </div>
         )}
 
+        {requests.filter(q => q.state !== 'completed').map(q => (
+          <div key={q.request_id} role="status" className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-3 text-xs break-words">
+            <p className="font-medium">{q.state === 'running' ? 'Pesan tersimpan · agen sedang memproses' : 'Balasan belum tersedia'}</p>
+            <p className="mt-1 text-muted-foreground">{q.safe_error || 'Anda boleh menyegarkan atau membuka kembali Inbox. Permintaan yang sama tidak dijalankan ulang.'}</p>
+            <p className="mt-1 text-muted-foreground">Pesan: {q.message_id.slice(0, 8)} · {formatMessageTime(q.created_at)}</p>
+          </div>
+        ))}
+        {sendError && <div role="alert" className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-3 text-xs">
+          <p>{sendError}</p>
+          {pendingRef.current && <button className="mt-2 underline" disabled={sending || retryCount >= 3} onClick={handleSendMessage}>Periksa pengiriman yang sama ({Math.max(0, 3 - retryCount)} tersisa)</button>}
+          <button className="ml-3 underline" onClick={() => loadConversation(activeContact.conversation_id || activeContact.id)}>Segarkan riwayat</button>
+        </div>}
         {/* Welcome Pill */}
         <div className="flex justify-center my-2">
           <span className="text-[11px] font-medium px-3 py-1 rounded-full bg-card/80 border border-border text-muted-foreground shadow-2xs">

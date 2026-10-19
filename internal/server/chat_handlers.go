@@ -3,7 +3,9 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -90,6 +93,8 @@ type ChatSessionManager struct {
 	sessions       map[string]*LiveChatSession
 	sessionByGuest map[string]*LiveChatSession
 }
+
+var inboxRoomResolutionMu sync.Mutex
 
 var globalChatManager = &ChatSessionManager{
 	sessions:       make(map[string]*LiveChatSession),
@@ -454,6 +459,8 @@ func (s *Server) handleVisitorReceipts(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/chat/contacts
 func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Request) {
+	inboxRoomResolutionMu.Lock()
+	defer inboxRoomResolutionMu.Unlock()
 	s.ensureDefaultAgentRooms(r.Context())
 
 	typeFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
@@ -623,6 +630,9 @@ type ResolvedConversation struct {
 // resolveConversationContext resolves any conversation identifier (room UUID, agent ID, contact alias, handle)
 // into a valid room UUID in project_rooms and the target agent persona.
 func (s *Server) resolveConversationContext(ctx context.Context, convID string, messageText string) ResolvedConversation {
+	inboxRoomResolutionMu.Lock()
+	defer inboxRoomResolutionMu.Unlock()
+
 	s.ensureDefaultAgentRooms(ctx)
 
 	result := ResolvedConversation{
@@ -822,9 +832,19 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	}
 
 	product := contact.Product
+	var requests []db.InboxRequest
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		var err error
+		requests, err = store.ListInboxRequests(r.Context(), resolved.RoomID)
+		if err != nil {
+			respondJSONError(w, 503, "Status Inbox belum dapat dibaca. Coba segarkan lagi.")
+			return
+		}
+	}
 	messages := s.getFormattedMessages(r.Context(), resolved.RoomID, product)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"requests":        requests,
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,
 		"contact":         contact,
@@ -834,139 +854,149 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 
 // POST /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r *http.Request) {
-	convID := chi.URLParam(r, "id")
-	if convID == "" {
-		respondJSONError(w, http.StatusBadRequest, "conversation id is required")
-		return
-	}
-
 	var payload struct {
-		Message    string `json:"message"`
-		Content    string `json:"content"`
 		AuthorType string `json:"author_type"`
 		AuthorName string `json:"author_name"`
+		Message    string `json:"message"`
+		Content    string `json:"content"`
+		RequestID  string `json:"request_id"`
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+	if json.NewDecoder(r.Body).Decode(&payload) != nil {
+		respondJSONError(w, 400, "Permintaan tidak valid")
 		return
 	}
-
 	text := strings.TrimSpace(payload.Message)
 	if text == "" {
 		text = strings.TrimSpace(payload.Content)
 	}
 	if text == "" {
-		respondJSONError(w, http.StatusBadRequest, "message cannot be empty")
+		respondJSONError(w, 400, "Pesan tidak boleh kosong")
 		return
 	}
-
-	resolved := s.resolveConversationContext(r.Context(), convID, text)
-
+	legacy := payload.RequestID == ""
+	if legacy {
+		payload.RequestID = db.GenerateUUID()
+	}
+	if !db.IsValidUUID(payload.RequestID) {
+		respondJSONError(w, 400, "request_id harus UUID")
+		return
+	}
+	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
+	if !ok {
+		respondJSONError(w, 503, "Penyimpanan Inbox belum siap")
+		return
+	}
+	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
 	now := time.Now().UTC()
-	msgUUID := db.GenerateUUID()
-
-	authorType := strings.TrimSpace(payload.AuthorType)
-	if authorType == "" {
-		authorType = "user"
-	}
-	authorName := strings.TrimSpace(payload.AuthorName)
-	if authorName == "" {
-		authorName = "Buchin"
-	}
-
-	// Save the user message to the resolved room
-	if s.projectStudioRepo != nil {
-		if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-			ID:         msgUUID,
-			RoomID:     resolved.RoomID,
-			AuthorType: authorType,
-			AuthorID:   "operator_user",
-			AuthorName: authorName,
-			Content:    text,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}); err != nil {
-			respondJSONError(w, http.StatusInternalServerError, "Failed to save user message")
-			return
+	q := db.InboxRequest{RoomID: resolved.RoomID, RequestID: payload.RequestID, PayloadHash: fmt.Sprintf("%x", sha256.Sum256([]byte(text))), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "running", CreatedAt: now, Deadline: now.Add(60 * time.Second)}
+	user := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", AuthorID: "operator_user", AuthorName: "Buchin", Content: text, CreatedAt: now, UpdatedAt: now}
+	if !resolved.IsAgent {
+		if kind, e := db.NormalizeAuthorType(payload.AuthorType); e == nil {
+			user.AuthorType = kind
+		}
+		if name := strings.TrimSpace(payload.AuthorName); name != "" {
+			user.AuthorName = name
 		}
 	}
-
-	var agentMsgDTO *ChatMessageDTO
-
-	if resolved.IsAgent {
-		role := ClassifyMessageContext(text)
-
-		// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
-		var profileHome string
-		if s.agentRepo != nil {
-			registered, err := s.agentRepo.GetAgentByID(r.Context(), resolved.TargetAgentID)
-			if err != nil {
-				respondJSONError(w, http.StatusConflict, "Agen tidak ditemukan")
-				return
+	q, fresh, err := store.AcceptInboxRequest(r.Context(), q, user)
+	if errors.Is(err, db.ErrInboxRequestConflict) {
+		respondJSONError(w, 409, "ID permintaan sudah digunakan untuk pesan berbeda")
+		return
+	}
+	if err != nil {
+		respondJSONError(w, 503, "Pesan belum diterima. Penyimpanan Inbox belum siap; coba lagi dengan ID yang sama.")
+		return
+	}
+	ownerID := ""
+	if s.authSvc != nil {
+		if owner, e := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); e == nil {
+			ownerID = owner.ID
+		}
+	}
+	if fresh {
+		work := func(q db.InboxRequest) {
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+			defer cancel()
+			q.State = "completed"
+			var reply *db.ProjectMessage
+			if resolved.IsAgent {
+				home := ""
+				if s.agentRepo != nil {
+					registered, e := s.agentRepo.GetAgentByID(ctx, resolved.TargetAgentID)
+					if e != nil || registered == nil {
+						q.SafeError = "Agen tidak tersedia. Pesan tersimpan; periksa daftar agen."
+					} else {
+						status := agent.LegacyConnectionVerification(ownerID, registered.ID, registered.ConnectionID).State
+						if strings.HasPrefix(registered.ConnectionID, "conn_profile_") {
+							if conn, ce := s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID); ce == nil {
+								if profile, pe := agent.ProviderAccountForConnection(ownerID, registered.ID, conn.ID); pe == nil {
+									status = profile.State
+								}
+							}
+						}
+						if status == "quota_limited" {
+							q.SafeError = "Kuota provider agen ini sedang terbatas. Pesan tersimpan; tunggu kuota pulih. Tidak ada permintaan provider baru atau pengalihan akun."
+						}
+						home, e = s.agentProfileHome(ctx, registered)
+						if e != nil {
+							q.SafeError = "Koneksi agen belum siap. Pesan tersimpan; periksa login agen ini."
+						}
+					}
+				}
+				if q.SafeError == "" {
+					output, failure := s.executeAgentInboxResponse(ctx, resolved.TargetAgentName, resolved.TargetHarness, text, ClassifyMessageContext(text), home)
+					if output == "" {
+						q.SafeError = failure
+					} else {
+						reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: resolved.TargetAgentID, AuthorName: resolved.TargetAgentName, Content: output, ReplyToID: &q.MessageID, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+					}
+				}
+				if q.SafeError != "" {
+					q.State = "failed"
+				}
 			}
-			profileHome, err = s.agentProfileHome(r.Context(), registered)
-			if err != nil {
-				respondJSON(w, http.StatusConflict, map[string]any{"error": err.Error(), "user_message_saved": true})
-				return
-			}
+			// Terminal state and reply are committed together. Failure leaves a durable
+			// running record that expires to interrupted, never an automatic replay.
+			saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer saveCancel()
+			_ = store.FinishInboxRequest(saveCtx, q, reply)
 		}
-		agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role, profileHome)
-		if agentReplyText == "" {
-			respondJSON(w, http.StatusBadGateway, map[string]any{"error": "Provider unavailable or login expired. User message saved; no agent reply was generated.", "user_message_saved": true})
-			return
-		}
-		agentUUID := db.GenerateUUID()
-		agentNow := now.Add(100 * time.Millisecond)
-
-		if s.projectStudioRepo != nil {
-			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-				ID:         agentUUID,
-				RoomID:     resolved.RoomID,
-				AuthorType: "agent",
-				AuthorID:   resolved.TargetAgentID,
-				AuthorName: resolved.TargetAgentName,
-				Content:    agentReplyText,
-				CreatedAt:  agentNow,
-				UpdatedAt:  agentNow,
-			}); err != nil {
-				respondJSONError(w, http.StatusInternalServerError, "Provider replied but saving the reply failed")
-				return
-			}
-		}
-
-		agentMsgDTO = &ChatMessageDTO{
-			ID:         2,
-			UUID:       agentUUID,
-			RoomID:     resolved.RoomID,
-			SenderType: "operator",
-			AuthorType: "agent",
-			AuthorName: resolved.TargetAgentName,
-			Message:    agentReplyText,
-			Content:    agentReplyText,
-			CreatedAt:  agentNow,
+		if legacy {
+			work(q)
+		} else {
+			go work(q)
 		}
 	}
-	userDTO := ChatMessageDTO{
-		ID:         1,
-		UUID:       msgUUID,
-		RoomID:     resolved.RoomID,
-		SenderType: "visitor",
-		AuthorType: authorType,
-		AuthorName: authorName,
-		Message:    text,
-		Content:    text,
-		CreatedAt:  now,
+	requests, err := store.ListInboxRequests(r.Context(), q.RoomID)
+	if err != nil {
+		respondJSONError(w, 503, "Pesan telah diterima. Segarkan riwayat untuk memeriksa hasil; jangan buat ID baru.")
+		return
 	}
-
-	resp := map[string]interface{}{
-		"message": userDTO,
+	for _, item := range requests {
+		if item.RequestID == q.RequestID {
+			q = item
+		}
 	}
-	if agentMsgDTO != nil {
-		resp["agent_reply"] = agentMsgDTO
+	messages := s.getFormattedMessages(r.Context(), q.RoomID, "")
+	response := map[string]any{"request": q}
+	for _, m := range messages {
+		if m.UUID == q.MessageID {
+			response["message"] = m
+		}
+		if m.UUID == q.ReplyID {
+			response["agent_reply"] = m
+		}
 	}
-
-	respondJSON(w, http.StatusOK, resp)
+	status := http.StatusOK
+	if q.State == "running" {
+		status = http.StatusAccepted
+	}
+	if legacy && q.State == "failed" {
+		response["error"] = q.SafeError
+		response["user_message_saved"] = true
+		status = http.StatusBadGateway
+	}
+	respondJSON(w, status, response)
 }
 
 // ChatContextRole defines the dynamic contextual persona an agent adopts in chat.
@@ -1041,6 +1071,11 @@ func extractMentionHandle(msg string) string {
 // executeAgentContextualResponse returns only actual CLI output; an empty result means provider failure.
 // based on dynamic role (RoleScrumMaster, RoleDeveloper, RoleFriendly).
 func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole, profileHomes ...string) string {
+	out, _ := s.executeAgentInboxResponse(ctx, agentName, harness, userPrompt, role, profileHomes...)
+	return out
+}
+
+func (s *Server) executeAgentInboxResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole, profileHomes ...string) (string, string) {
 	// Execute the real CLI in development, staging and production.
 	if s.cfg == nil || s.cfg.Environment != "testing" {
 		binName := "agy"
@@ -1075,31 +1110,49 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 
 			systemContext += " Jawab hanya dalam percakapan; jangan gunakan tools atau menjalankan perintah."
 			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "40s")
-			if binName == "agy" {
-				cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
-			}
+			home, _ := os.UserHomeDir()
 			if len(profileHomes) > 0 && profileHomes[0] != "" {
-				cmd.Env = agent.AntigravityProfileEnvironment(profileHomes[0])
-				cmd.Dir = profileHomes[0]
+				home = profileHomes[0]
 			}
+			cmd.Env = agent.AntigravityProfileEnvironment(home)
+			cmd.Dir = home
+
 			var stdoutBuf, stderrBuf bytes.Buffer
 			cmd.Stdout = &stdoutBuf
 			cmd.Stderr = &stderrBuf
 
-			if cmdErr := cmd.Run(); cmdErr == nil {
+			cmdErr := cmd.Run()
+			if cmdErr != nil {
+				return "", safeInboxProviderFailure(execCtx.Err(), stdoutBuf.String()+"\n"+stderrBuf.String())
+			}
+			if cmdErr == nil {
 				out := strings.TrimSpace(stdoutBuf.String())
 				if out != "" {
 					if !strings.Contains(out, agentName) && !strings.Contains(out, "Antigravity") {
 						out = fmt.Sprintf("[%s] %s", agentName, out)
 					}
-					return out
+					return out, ""
 				}
 			}
 		}
 	}
 
 	// Provider failure is reported by the caller; never fabricate a reply.
-	return ""
+	return "", "Provider tidak tersedia. Pesan tersimpan; periksa instalasi CLI dan koneksi agen ini."
+}
+
+func safeInboxProviderFailure(ctxErr error, raw string) string {
+	lower := strings.ToLower(raw)
+	if ctxErr != nil {
+		return "Batas waktu provider tercapai. Pesan tersimpan; hasil provider belum pasti. Segarkan riwayat. Permintaan tidak dijalankan ulang otomatis."
+	}
+	if strings.Contains(lower, "quota") || strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") {
+		return "Kuota provider sedang terbatas. Pesan tersimpan; tunggu kuota pulih. Tidak ada pengalihan akun otomatis."
+	}
+	if strings.Contains(lower, "unauthorized") || strings.Contains(lower, "login") || strings.Contains(lower, "401") || strings.Contains(lower, "invalid_grant") {
+		return "Login provider perlu diperiksa. Pesan tersimpan; buka status agen ini. Permintaan tidak dijalankan ulang otomatis."
+	}
+	return "Provider gagal memberikan balasan. Pesan tersimpan; periksa status agen ini lalu segarkan riwayat. Permintaan tidak dijalankan ulang otomatis."
 }
 
 // ============================================================================

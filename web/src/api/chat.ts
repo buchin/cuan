@@ -45,7 +45,17 @@ export interface ChatMessage {
   created_at: string
 }
 
+export interface InboxRequest {
+ request_id: string
+ message_id: string
+ reply_id: string
+ state: 'running' | 'completed' | 'failed' | 'interrupted'
+ safe_error?: string
+ created_at: string
+}
+
 export interface ConversationDetail {
+ requests?: InboxRequest[]
   conversation_id: string
   contact: ChatContact
   messages: ChatMessage[]
@@ -85,13 +95,15 @@ export const chatApi = {
   sendMessage: async (
     conversationId: string,
     message: string,
-    authorName = 'Buchin'
+    authorName = 'Buchin',
+    requestId?: string
   ): Promise<{ message: ChatMessage; agent_reply?: ChatMessage }> => {
     return apiFetch<{ message: ChatMessage; agent_reply?: ChatMessage }>(
       `/api/v1/chat/conversations/${conversationId}/messages`,
       {
         method: 'POST',
         body: JSON.stringify({
+          request_id: requestId,
           message,
           content: message,
           author_type: 'user',

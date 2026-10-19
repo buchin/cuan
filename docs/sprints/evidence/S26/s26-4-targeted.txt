@@ -1,0 +1,65 @@
+=== RUN   TestS26DedicatedAgentRegistrationAndRuntimeIsolation
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000001] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 56.094397ms
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000002] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 945B in 730.091µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000003] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 946B in 560.925µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000004] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 409 50B in 119.77µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000005] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 200 874B in 66.2µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000006] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 409 56B in 71.758µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000007] "POST http://example.com/api/v1/chat/conversations/agent_first/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1065B in 4.775131ms
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000008] "POST http://example.com/api/v1/chat/conversations/agent_second/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1070B in 3.954364ms
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000009] "POST http://example.com/api/v1/tasks/profile-fixture-agent_first/run-agent HTTP/1.1" from 192.0.2.1:1234 - 200 223B in 1.61119ms
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000010] "POST http://example.com/api/v1/tasks/profile-fixture-agent_second/run-agent HTTP/1.1" from 192.0.2.1:1234 - 200 227B in 2.208771ms
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000011] "POST http://example.com/api/v1/agents/agent_first/connection/verify HTTP/1.1" from 192.0.2.1:1234 - 404 41B in 28.793µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000012] "POST http://example.com/api/v1/agents/agent_first/connection/verify HTTP/1.1" from 192.0.2.1:1234 - 409 80B in 165.49µs
+--- PASS: TestS26DedicatedAgentRegistrationAndRuntimeIsolation (0.17s)
+=== RUN   TestChatHandlers_CompleteFlow
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000013] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 63.392674ms
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000014] "GET http://example.com/api/v1/chat/contacts HTTP/1.1" from 192.0.2.1:1234 - 200 26B in 47.111µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000015] "POST http://example.com/api/chat/session HTTP/1.1" from 192.0.2.1:1234 - 200 688B in 67.863µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000016] "POST http://example.com/api/chat/sessions/74c51570-056f-45d2-ae24-59a9e075b4dd/page HTTP/1.1" from 192.0.2.1:1234 - 200 12B in 16.565µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000017] "GET http://example.com/api/v1/chat/contacts?type=customers HTTP/1.1" from 192.0.2.1:1234 - 200 442B in 37.226µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000018] "POST http://example.com/api/v1/chat/conversations/74c51570-056f-45d2-ae24-59a9e075b4dd/messages HTTP/1.1" from 192.0.2.1:1234 - 200 805B in 39.049µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000019] "GET http://example.com/api/chat/messages?session_uuid=74c51570-056f-45d2-ae24-59a9e075b4dd&after_id=1 HTTP/1.1" from 192.0.2.1:1234 - 200 530B in 13.961µs
+2026/10/19 10:03:57 [p1-mv/HzajbopE6x-000020] "GET http://example.com/chat/widget.js HTTP/1.1" from 192.0.2.1:1234 - 200 19085B in 126.34µs
+--- PASS: TestChatHandlers_CompleteFlow (0.13s)
+=== RUN   TestS264TimeoutAfterAcceptanceSafeRetry
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000021] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 71.179808ms
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000022] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 951B in 685.815µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000023] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 372B in 41.993µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000024] "POST http://127.0.0.1:44707/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 127.0.0.1:35330 - 202 688B in 1.438018ms
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000025] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 688B in 68.384µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000026] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 688B in 19.47µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000027] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 688B in 20.571µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000028] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 18.938µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000029] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 43.336µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000030] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 1.097946ms
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000031] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 37.056µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000032] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 126.381µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000033] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 139.53µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000034] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 87.793µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000035] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 99.39µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000036] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 91.348µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000037] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 89.275µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000038] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 71.969µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000039] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 83.005µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000040] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1393B in 81.052µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000041] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 63.343399ms
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000042] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1393B in 56.956µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000043] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 409 62B in 25.668µs
+    inbox_request_test.go:120: FIXTURE: HTTP timeout after committed acceptance; three concurrent-lifetime retries, refresh and handler restart preserve one user, one reply, one CLI execution and original correlation
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000044] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 668B in 35.173µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000045] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2039B in 24.157µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000046] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2158B in 106.561µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000047] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 787B in 39.259µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000048] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 668B in 259.401µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000049] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2804B in 41.102µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000050] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2933B in 50.737µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000051] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 797B in 28.443µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000052] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 668B in 40.231µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000053] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 3579B in 27.732µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000054] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 3736B in 69.565µs
+2026/10/19 10:03:58 [p1-mv/HzajbopE6x-000055] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 825B in 33.501µs
+    inbox_request_test.go:162: FIXTURE: quota, expired login, unknown provider error and deadline map to safe durable failure text; no failed request replay
+--- PASS: TestS264TimeoutAfterAcceptanceSafeRetry (0.53s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.847s
