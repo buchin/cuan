@@ -50,7 +50,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 	agents, err := s.agentRepo.ListAgents(r.Context(), filter)
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "failed to list agents: "+err.Error())
+		respondJSONError(w, http.StatusInternalServerError, "Daftar agen belum tersedia. Coba lagi nanti")
 		return
 	}
 
@@ -78,8 +78,9 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 		checkedAt, verifiedAt := status.LastCheckedAt, status.VerifiedAt
 		if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 			state = "login_required"
-			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID); err == nil {
-				if profile, err := agent.ProviderAccountForConnection(conn.UserID, a.ID, conn.ID); err == nil {
+			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID); err == nil && conn.UserID == ownerID {
+				_, bindingErr := s.agentProfileHome(r.Context(), &a)
+				if profile, err := agent.ProviderAccountForConnection(ownerID, a.ID, conn.ID); err == nil && bindingErr == nil {
 					state = profile.State
 					checkedAt, verifiedAt = profile.LastCheckedAt, profile.VerifiedAt
 				}

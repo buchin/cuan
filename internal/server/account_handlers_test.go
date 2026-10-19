@@ -274,6 +274,13 @@ func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
 		if _, err := s.agentProfileHome(context.Background(), a); err == nil {
 			t.Fatal("wrong owner/type connection accepted")
 		}
+		r := httptest.NewRequest("POST", "/api/v1/agents/agent_first/connection/verify", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		if w.Code != 404 && w.Code != 409 {
+			t.Fatalf("mismatched verification must fail before probe: %d", w.Code)
+		}
 	}
 	s.agentRepo = originalRepo
 	a.Harness = "claude"

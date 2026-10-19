@@ -68,6 +68,11 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 			respondJSONError(w, 409, "Agen perlu dihubungkan ulang")
 			return
 		}
+		// Verification must obey the same provider/binding checks as execution.
+		if _, err := s.agentProfileHome(r.Context(), a); err != nil {
+			respondJSONError(w, 409, "Jenis atau login koneksi agen tidak sesuai. Koneksi tidak diperiksa")
+			return
+		}
 		id = profile.ID
 	}
 	profile, err := agent.VerifyProviderAccount(r.Context(), owner, id)

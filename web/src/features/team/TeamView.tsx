@@ -21,6 +21,15 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
   const [formError, setFormError] = useState('')
   const [notice, setNotice] = useState('')
   const [checking, setChecking] = useState('')
+  const [now, setNow] = useState(Date.now())
+  // Expire visible success even when this roster stays open or resumes from sleep.
+  useEffect(() => {
+    const update = () => setNow(Date.now())
+    const timer = window.setInterval(update, 1000)
+    window.addEventListener('focus', update)
+    document.addEventListener('visibilitychange', update)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', update); document.removeEventListener('visibilitychange', update) }
+  }, [])
   const active = useRef<{ accountId: string; sessionId: string } | null>(null)
   const accountScope = useRef('')
   const epoch = useRef(0)
@@ -128,7 +137,7 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     try {
       const result = await agentsApi.verifyConnection(id)
       setAgents(current => current.map(a => a.id === id ? { ...a, connection_state: result.connection_state, last_checked_at: result.last_checked_at, verified_at: result.verified_at } : a))
-      const messages: Record<string, string> = { verified: 'Koneksi agen aktif.', quota_limited: 'Kuota agen sedang habis. Coba lagi setelah kuota pulih.', login_required: 'Agen perlu login kembali.', unavailable: 'Koneksi sedang terganggu. Coba lagi nanti.' }
+      const messages: Record<string, string> = { verified: 'Provider berhasil merespons. Hasil berlaku lima menit.', quota_limited: 'Kuota agen sedang habis. Coba lagi setelah kuota pulih.', login_required: 'Agen perlu login kembali.', unavailable: 'Koneksi sedang terganggu. Coba lagi nanti.' }
       setNotice(messages[result.connection_state] || 'Koneksi belum dapat dipastikan. Coba lagi nanti.')
     } catch (e) { setError(e instanceof Error ? e.message : 'Koneksi belum dapat diperiksa. Coba lagi.') }
     finally { setChecking('') }
@@ -170,11 +179,15 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
     {loading ? <p role="status" className="text-sm text-muted-foreground">Memuat agen…</p> : visibleAgents.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center">
       <Bot className="mx-auto h-8 w-8 text-muted-foreground" /><h2 className="mt-3 font-medium">Belum ada agen</h2><p className="mt-1 text-sm text-muted-foreground">Tambahkan agen pertama Anda, lalu hubungkan akun Google.</p>
       <button onClick={() => begin()} className={`${primary} mt-4`}>Tambah agen pertama</button>
-    </div> : <div role="list" aria-label="Daftar agen" className="divide-y divide-border overflow-hidden rounded-lg border border-border">{visibleAgents.map(a => <div role="listitem" aria-label={`Agen ${a.name}`} key={a.id} className="flex items-center gap-3 p-4">
-      <Bot className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{a.name}</p><p className="text-xs text-muted-foreground">{({ agy: 'Antigravity', antigravity: 'Antigravity', claude: 'Claude Code', codex: 'Codex' } as Record<string, string>)[a.harness || a.provider || ''] || a.harness || a.provider || 'Agen'} · <span aria-live="polite" className={a.connection_state === 'verified' ? 'font-medium text-emerald-600 dark:text-emerald-400' : ''}>{a.enabled === false || a.status === 'inactive' ? 'Dinonaktifkan' : ({ verified: 'Terhubung', login_required: 'Perlu login', quota_limited: 'Kuota habis', unavailable: 'Koneksi terganggu', unknown: 'Belum diperiksa' } as Record<string, string>)[a.connection_state || 'unknown'] || 'Belum diperiksa'}</span></p>{a.last_checked_at && <p className="mt-1 text-[11px] text-muted-foreground">Diperiksa {new Date(a.last_checked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}</div>
+    </div> : <div role="list" aria-label="Daftar agen" className="divide-y divide-border overflow-hidden rounded-lg border border-border">{visibleAgents.map(agent => {
+      const expiry = agent.verified_at ? Date.parse(agent.verified_at) + 5 * 60_000 : NaN
+      const a = { ...agent, connection_state: agent.connection_state === 'verified' && (!Number.isFinite(expiry) || expiry <= now) ? 'unknown' : agent.connection_state }
+      const details: Record<string, string> = { verified: 'Provider berhasil merespons.', unknown: 'Belum ada hasil yang masih berlaku. Periksa koneksi tanpa login ulang.', login_required: 'Login diperlukan; riwayat tetap tersimpan.', quota_limited: 'Provider membatasi kuota. Tunggu kuota pulih; login ulang tidak diperlukan.', unavailable: 'Provider belum dapat dijangkau. Coba periksa lagi nanti.' }
+      return <div role="listitem" aria-label={`Agen ${a.name}`} key={a.id} className="flex items-center gap-3 p-4">
+      <Bot className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{a.name}</p><p className="text-xs text-muted-foreground">{({ agy: 'Antigravity', antigravity: 'Antigravity', claude: 'Claude Code', codex: 'Codex' } as Record<string, string>)[a.harness || a.provider || ''] || a.harness || a.provider || 'Agen'} · <span aria-live="polite" className={a.connection_state === 'verified' ? 'font-medium text-emerald-600 dark:text-emerald-400' : ''}>{a.enabled === false || a.status === 'inactive' ? 'Dinonaktifkan' : ({ verified: 'Terhubung', login_required: 'Perlu login', quota_limited: 'Kuota habis', unavailable: 'Koneksi terganggu', unknown: 'Belum diperiksa' } as Record<string, string>)[a.connection_state || 'unknown'] || 'Belum diperiksa'}</span></p><p className="mt-1 text-xs text-muted-foreground">{details[a.connection_state || 'unknown'] || details.unknown}</p>{a.last_checked_at && <p className="mt-1 text-[11px] text-muted-foreground">Diperiksa <time dateTime={a.last_checked_at}>{new Date(a.last_checked_at).toLocaleString()}</time></p>}{a.verified_at && Number.isFinite(expiry) && <p className="text-[11px] text-muted-foreground">Berhasil <time dateTime={a.verified_at}>{new Date(a.verified_at).toLocaleString()}</time> · {a.connection_state === 'verified' ? 'Berlaku sampai' : 'Berlaku hingga'} <time dateTime={new Date(expiry).toISOString()}>{new Date(expiry).toLocaleString()}</time>{a.connection_state !== 'verified' && ' (kedaluwarsa)'}</p>}</div>
       {(a.harness === 'agy' || a.provider === 'agy' || a.provider === 'antigravity') && <button onClick={() => void check(a.id)} disabled={!!checking} aria-label={`Periksa ulang koneksi ${a.name}`} title={`Periksa ulang koneksi ${a.name}`} className="rounded-md border border-border px-3 py-2 text-xs disabled:opacity-50">{checking === a.id ? 'Memeriksa…' : a.connection_state === 'verified' ? <RefreshCw className="h-4 w-4" /> : 'Periksa'}</button>}
       <button onClick={() => void remove(a.id)} aria-label={`Hapus ${a.name}`} className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-    </div>)}</div>}
+    </div>})}</div>}
     {open && <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
       <section role="dialog" aria-modal="true" aria-labelledby="add-agent-title" className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl" onKeyDown={event => {
         if (event.key === 'Escape') close()

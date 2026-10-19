@@ -6,6 +6,18 @@ SM menerima S26.1 di ed97cfa. s26-2-before.json dan s26-2-after.json membuktikan
 
 s26-2-targeted.txt membuktikan dua jalur HTTP Inbox dan dua PTY OS memakai HOME masing-masing melalui CLI/credential fixture. s26-2-task-history.json hanya membuktikan peluncuran dan exit 0 CLI AGY nyata di staging, bukan isi jawaban atau observasi HOME child nyata. Bukti identitas Google dan nonce nyata tetap terpisah. Resolver menolak provider koneksi/profil yang berbeda dari jenis agen; hardening S26.2 diuji di source dan perlu masuk validasi staging pada gate release berikutnya. Production belum diperbarui. Detail DoD ada di docs/sprints/S26.md.
 
+## Membaca status per agen
+
+Status adalah hasil pemeriksaan provider, bukan keberadaan baris agen atau login tersimpan. Setiap baris menampilkan jenis provider, hasil, tanggal/jam diperiksa, tanggal/jam berhasil dan batas berlaku bila ada. Keberhasilan berlaku lima menit, lalu menjadi Belum diperiksa, termasuk saat halaman dibiarkan terbuka atau kembali dari latar belakang. Klik Periksa untuk hasil baru; tidak perlu mengulang consent.
+
+- Terhubung: provider benar-benar merespons pada pemeriksaan terakhir yang masih berlaku; tidak menjamin request berikutnya pasti berhasil.
+- Belum diperiksa: belum ada keberhasilan yang masih berlaku. Credential dan riwayat tidak dihapus saat hasil kedaluwarsa.
+- Perlu login: login belum tersedia atau binding koneksi tidak valid. Hubungi pengelola bila koneksi tidak sesuai; jangan meminjam koneksi agen lain.
+- Kuota habis: hasil faktual terakhir menunjukkan batas provider. Tunggu kuota pulih; login ulang atau rotasi akun bukan solusi. Hasil ini dipertahankan hingga pemeriksaan baru.
+- Koneksi terganggu: pemeriksaan terakhir gagal menjangkau provider. Coba Periksa nanti. Pesan aman tidak memuat output CLI, path privat atau secret.
+
+Pemeriksaan koneksi khusus juga menolak mismatch jenis provider/profil sebelum menjalankan probe. Label kompatibilitas provider lain tidak berarti adapter tersedia. Tidak ada panel akun terpisah.
+
 ## Model penggunaan
 
 **Satu agen = satu koneksi.** Pengguna mengelola satu daftar agen. Jenis agen, login dan status koneksi tampil pada agen tersebut; tidak ada daftar akun Google terpisah, pemilihan akun bersama atau baris percobaan login yang dibatalkan.
