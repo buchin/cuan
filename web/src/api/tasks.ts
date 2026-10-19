@@ -1,58 +1,120 @@
 import { apiFetch } from './client'
-import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatus } from './types'
+import type {
+  Task,
+  TaskDetail,
+  TaskActivity,
+  TaskAttempt,
+  CreateTaskRequest,
+  UpdateTaskRequest,
+  TaskStatus,
+} from './types'
 
-function normalize(raw: Task & { instructions?: string; assigned_agent?: string }): Task {
-  const attempt = raw.latest_attempt?.status
-  const execution = attempt === 'succeeded' ? 'completed' : attempt === 'queued' ? 'running' : attempt
-  return { ...raw, execution_status: execution || raw.execution_status, description: raw.description ?? raw.instructions ?? '', assignee_id: raw.assignee_id || raw.assigned_agent || raw.assignee || '' }
+function normalize(
+  raw: Task & { instructions?: string; assigned_agent?: string },
+): Task {
+  const state = raw.latest_attempt?.status
+  return {
+    ...raw,
+    execution_status:
+      state === 'succeeded' ? 'completed' : state || raw.execution_status,
+    description: raw.description ?? raw.instructions ?? raw.body ?? '',
+    assignee_id: raw.assignee_id ?? raw.assigned_agent ?? raw.assignee ?? '',
+    dod_checklist: (raw.dod_checklist || []).map((item) =>
+      typeof item === 'string' ? { text: item, completed: false } : item,
+    ),
+  }
 }
-
+const path = (id: string) => `/api/v1/tasks/${encodeURIComponent(id)}`
+export interface TaskLog {
+  id: number
+  stream: string
+  line: string
+  logged_at: string
+}
+export interface LiveTaskSession {
+  session_id: string
+  attempt_id: string
+  agent_id: string
+  started_at: string
+}
+export interface RunTaskResult {
+  status: string
+  session_id?: string
+  replayed?: boolean
+  attempt?: TaskAttempt
+}
+export interface RunTaskRequest {
+  request_id: string
+  agent_id: string
+  revision?: string
+}
 export const tasksApi = {
   list: async (projectId?: string): Promise<Task[]> => {
-    const url = projectId ? `/api/v1/tasks?project_id=${projectId}` : '/api/v1/tasks'
-    const res = await apiFetch<{ tasks: Task[] }>(url)
+    const res = await apiFetch<{ tasks: Task[] }>(
+      `/api/v1/tasks${projectId ? '?project_id=' + encodeURIComponent(projectId) : ''}`,
+    )
     return (res.tasks || []).map(normalize)
   },
-
-  get: async (id: string): Promise<Task> => {
-    return normalize(await apiFetch<Task>(`/api/v1/tasks/${id}`))
-  },
-
-  create: async (data: CreateTaskRequest): Promise<Task> => {
-    const created = await apiFetch<Task>('/api/v1/tasks', {
-      method: 'POST',
-      body: JSON.stringify({ ...data, instructions: data.description, assigned_agent: data.assignee_id || data.assignee }),
-    })
-    if (data.status && data.status !== 'backlog') {
-      return normalize(await apiFetch<Task>(`/api/v1/tasks/${created.id}`, { method: 'PUT', body: JSON.stringify({ status: data.status }) }))
+  get: async (id: string): Promise<TaskDetail> => {
+    const raw = await apiFetch<TaskDetail & { task?: Task }>(path(id))
+    return {
+      ...normalize(raw.task || raw),
+      attempts: raw.attempts || [],
+      activities: raw.activities || [],
     }
-    return normalize(created)
   },
-
-  update: async (id: string, data: UpdateTaskRequest): Promise<Task> => {
-    return normalize(await apiFetch<Task>(`/api/v1/tasks/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ ...data, instructions: data.description, assigned_agent: data.assignee_id ?? data.assignee }),
-    }))
-  },
-
-  updateStatus: async (id: string, status: TaskStatus): Promise<Task> => {
-    return apiFetch<Task>(`/api/v1/tasks/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    })
-  },
-
+  create: async (data: CreateTaskRequest): Promise<Task> =>
+    normalize(
+      await apiFetch<Task>('/api/v1/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...data,
+          instructions: data.description || '',
+          assigned_agent: data.assignee_id ?? data.assignee ?? '',
+        }),
+      }),
+    ),
+  update: async (id: string, data: UpdateTaskRequest): Promise<Task> =>
+    normalize(
+      await apiFetch<Task>(path(id), {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...data,
+          instructions: data.description,
+          assigned_agent: data.assignee_id ?? data.assignee,
+        }),
+      }),
+    ),
+  updateStatus: async (id: string, status: TaskStatus): Promise<Task> =>
+    tasksApi.update(id, { status }),
   delete: async (id: string): Promise<void> => {
-    await apiFetch(`/api/v1/tasks/${id}`, {
-      method: 'DELETE',
-    })
+    await apiFetch(path(id), { method: 'DELETE' })
   },
-
-  runAgent: async (taskId: string, payload?: { agent_id?: string; prompt?: string; binary?: string }): Promise<{ session_id?: string; status: string; terminal_url?: string; pid?: number }> => {
-    return apiFetch(`/api/v1/tasks/${taskId}/run-agent`, {
+  runAgent: (id: string, payload: RunTaskRequest): Promise<RunTaskResult> =>
+    apiFetch(path(id) + '/run-agent', {
       method: 'POST',
-      body: JSON.stringify(payload || {}),
-    })
-  },
+      body: JSON.stringify(payload),
+    }),
+  cancel: (id: string): Promise<TaskAttempt> =>
+    apiFetch(path(id) + '/cancel', { method: 'POST' }),
+  runtime: (
+    id: string,
+  ): Promise<{
+    history: { session_id: string; attempt_id?: string; status: string }[]
+    live_session: LiveTaskSession | null
+  }> => apiFetch(path(id) + '/run-agent/history'),
+  logs: (
+    id: string,
+    attemptId: string,
+    after = 0,
+  ): Promise<{ logs: TaskLog[] }> =>
+    apiFetch(
+      path(id) +
+        `/attempts/${encodeURIComponent(attemptId)}/logs?after_id=${after}&limit=250`,
+    ),
+  comment: (id: string, message: string): Promise<TaskActivity> =>
+    apiFetch(path(id) + '/comments', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
 }

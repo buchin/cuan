@@ -26,6 +26,7 @@ var validTaskIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
 type TaskRunHistory struct {
 	ID         string    `json:"id"`
 	TaskID     string    `json:"task_id"`
+	AttemptID  string    `json:"attempt_id,omitempty"`
 	SessionID  string    `json:"session_id"`
 	AgentID    string    `json:"agent_id"`
 	AgentName  string    `json:"agent_name"`
@@ -39,6 +40,7 @@ type TaskRunHistory struct {
 
 // TaskAgentRunConfig specifies parameters for launching an agent process in a task workspace.
 type TaskAgentRunConfig struct {
+	AttemptID string
 	TaskID    string
 	AgentID   string
 	AgentName string
@@ -277,7 +279,9 @@ func (m *Manager) CleanIdleSessions(maxIdle time.Duration) int {
 
 	m.mu.RLock()
 	for taskID, s := range m.sessions {
-		if s.IsClosed() || (s.SubscriberCount() == 0 && s.LastActivity().Before(threshold)) {
+		runs := m.histories[taskID]
+		activeAgent := len(runs) > 0 && runs[len(runs)-1].Status == "running"
+		if s.IsClosed() || (!activeAgent && s.SubscriberCount() == 0 && s.LastActivity().Before(threshold)) {
 			toClose = append(toClose, taskID)
 		}
 	}
@@ -410,6 +414,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 
 	history := &TaskRunHistory{
 		ID:        generateSessionID(),
+		AttemptID: cfg.AttemptID,
 		TaskID:    taskID,
 		SessionID: sessionID,
 		AgentID:   agentID,

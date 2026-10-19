@@ -64,8 +64,37 @@ export interface DoDItem {
   completed?: boolean
 }
 
+export interface TaskAttempt {
+  id: string
+  task_id: string
+  runner_id: string
+  agent_name: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'interrupted'
+  attempt_number: number
+  exit_code?: number
+  error_message?: string
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  lease_expires_at?: string
+}
+export interface TaskActivity {
+  id: string
+  task_id: string
+  attempt_id?: string
+  activity_type: string
+  author: string
+  message: string
+  old_status?: string
+  new_status?: string
+  created_at: string
+}
+export interface TaskDetail extends Task {
+  attempts: TaskAttempt[]
+  activities: TaskActivity[]
+}
 export interface Task {
-  latest_attempt?: { id: string; status: string; attempt_number?: number; error_message?: string }
+  latest_attempt?: TaskAttempt
   source_room_id?: string
   source_message_id?: string
   id: string
@@ -73,6 +102,15 @@ export interface Task {
   project_ids?: string[]
   title: string
   description?: string
+  summary?: string
+  complete_note?: string
+  project_name?: string
+  project_names?: string[]
+  branch_name?: string
+  pr_url?: string
+  commit_sha?: string
+  diff_summary?: string
+  test_summary?: string
   body?: string
   prompt?: string
   status: TaskStatus
@@ -89,6 +127,7 @@ export interface Task {
 }
 
 export interface CreateTaskRequest {
+  request_id?: string
   title: string
   description?: string
   project_ids?: string[]
@@ -102,6 +141,9 @@ export interface CreateTaskRequest {
 }
 
 export interface UpdateTaskRequest {
+  expected_updated_at?: string
+  summary?: string
+  complete_note?: string
   title?: string
   description?: string
   project_ids?: string[]

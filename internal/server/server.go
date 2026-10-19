@@ -328,6 +328,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	})
 	termHandler := terminal.NewHandler(terminal.HandlerConfig{
 		Manager:     termMgr,
+		AttachOnly:  true,
 		AuthService: svc,
 	})
 
@@ -836,6 +837,7 @@ func (s *Server) SetTerminalManager(m *terminal.Manager) {
 	if m != nil {
 		s.terminalHandler = terminal.NewHandler(terminal.HandlerConfig{
 			Manager:     m,
+			AttachOnly:  true,
 			AuthService: s.authSvc,
 		})
 	}
@@ -1957,6 +1959,10 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	created, err := s.taskSvc.CreateTask(r.Context(), author, req)
 	if err != nil {
+		if errors.Is(err, task.ErrRequestConflict) {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
 			respondJSONError(w, http.StatusBadRequest, err.Error())
 			return
@@ -2010,6 +2016,10 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := s.taskSvc.UpdateTask(r.Context(), id, author, req)
 	if err != nil {
+		if errors.Is(err, task.ErrTaskActive) || errors.Is(err, task.ErrRequestConflict) {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
 		if errors.Is(err, task.ErrTaskNotFound) {
 			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
@@ -2033,6 +2043,10 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	err := s.taskSvc.DeleteTask(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, task.ErrTaskActive) {
+			respondJSONError(w, 409, "Cancel the active session before deleting this task")
+			return
+		}
 		if errors.Is(err, task.ErrTaskNotFound) {
 			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return

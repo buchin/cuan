@@ -38,6 +38,7 @@ func (m *MemoryStore) CreateTask(ctx context.Context, t *Task) error {
 		return ErrTaskDuplicate
 	}
 	cp := *t
+	cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 	if cp.CreatedAt.IsZero() {
 		cp.CreatedAt = time.Now().UTC()
 	}
@@ -65,6 +66,7 @@ func (m *MemoryStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		return nil, ErrTaskNotFound
 	}
 	cp := *t
+	cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 	if pids, ok := m.taskProjects[cp.ID]; ok && len(pids) > 0 {
 		cp.ProjectIDs = append([]string{}, pids...)
 	} else if cp.ProjectID != "" {
@@ -137,6 +139,7 @@ func (m *MemoryStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task
 			}
 		}
 		cp := *t
+		cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 		cp.ProjectIDs = append([]string{}, pids...)
 		result = append(result, &cp)
 	}
@@ -158,6 +161,7 @@ func (m *MemoryStore) UpdateTask(ctx context.Context, t *Task) error {
 	}
 
 	cp := *t
+	cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 	cp.CreatedAt = existing.CreatedAt
 	cp.UpdatedAt = time.Now().UTC()
 
@@ -180,6 +184,11 @@ func (m *MemoryStore) DeleteTask(ctx context.Context, id string) error {
 		return ErrTaskNotFound
 	}
 
+	for _, a := range m.attempts {
+		if a.TaskID == id && (a.Status == AttemptStatusRunning || a.Status == AttemptStatusQueued) {
+			return ErrTaskActive
+		}
+	}
 	delete(m.tasks, id)
 	delete(m.taskProjects, id)
 
@@ -409,6 +418,7 @@ func (m *MemoryStore) Snapshot() *TaskSnapshot {
 	snap := &TaskSnapshot{}
 	for _, t := range m.tasks {
 		cp := *t
+		cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 		snap.Tasks = append(snap.Tasks, &cp)
 	}
 	for _, a := range m.attempts {
@@ -436,6 +446,7 @@ func (m *MemoryStore) Restore(snap *TaskSnapshot) {
 
 	for _, t := range snap.Tasks {
 		cp := *t
+		cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 		m.tasks[cp.ID] = &cp
 	}
 	for _, a := range snap.Attempts {

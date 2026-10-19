@@ -1,0 +1,139 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "readFirst": true,
+      "wrappedTitle": true,
+      "noOverflow": true,
+      "focusTrap": true
+    }
+  ],
+  "workflows": [
+    "URL filters/sort/reload and return context",
+    "read-first responsive detail and focus trap",
+    "expanded task view",
+    "failed-save draft and unsaved-close protection",
+    "independent human/work/result fields",
+    "unknown launch recovery same ID after reload",
+    "one session and explicit input mode",
+    "attach-only reconnect",
+    "terminal follow/search/copy/download",
+    "saved output pagination",
+    "cancel and retained output",
+    "revision with concrete feedback",
+    "review approval evidence",
+    "durable comments",
+    "confirmed deletion",
+    "idempotent create and checklist persistence"
+  ],
+  "writes": [
+    {
+      "method": "PUT",
+      "path": "/api/v1/tasks/task_one"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/tasks/task_one"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/task_one/run-agent"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/task_one/run-agent"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/task_one/cancel"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/task_two/run-agent"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/tasks/task_two"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/task_two/comments"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tasks/task_two"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks"
+    }
+  ],
+  "launchRequests": 3,
+  "terminalConnections": 2,
+  "errors": [],
+  "unknown": [],
+  "providerInvocations": 0
+}

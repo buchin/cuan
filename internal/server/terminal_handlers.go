@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,7 +28,7 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := s.terminalHandler.ValidateRequestAuth(r); err != nil {
-		respondJSONError(w, 401, "Masuk ke Cuan untuk membuka terminal")
+		respondJSONError(w, 401, "Sign in to Cuan to open the terminal")
 		return
 	}
 	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
@@ -131,11 +132,13 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 }
 
 type runTaskAgentPayload struct {
-	AgentID string `json:"agent_id"`
-	Prompt  string `json:"prompt"`
-	Binary  string `json:"binary"`
-	Cols    uint16 `json:"cols"`
-	Rows    uint16 `json:"rows"`
+	RequestID string `json:"request_id"`
+	Revision  string `json:"revision"`
+	AgentID   string `json:"agent_id"`
+	Prompt    string `json:"prompt"`
+	Binary    string `json:"binary"`
+	Cols      uint16 `json:"cols"`
+	Rows      uint16 `json:"rows"`
 }
 
 // handleRunTaskAgent spawns an autonomous or interactive agent process bound to the task PTY.
@@ -162,8 +165,51 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload runTaskAgentPayload
-	if r.Body != nil && r.ContentLength > 0 {
-		_ = json.NewDecoder(r.Body).Decode(&payload)
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 40000)).Decode(&payload); err != nil {
+			respondJSONError(w, 400, "Invalid execution request")
+			return
+		}
+	}
+	payload.AgentID = strings.TrimSpace(payload.AgentID)
+	payload.Prompt = strings.TrimSpace(payload.Prompt)
+	payload.Revision = strings.TrimSpace(payload.Revision)
+	if len([]rune(payload.Revision)) > 6000 {
+		respondJSONError(w, 400, "Revision feedback may contain up to 6000 characters")
+		return
+	}
+	ownerID := s.accountOwner(w, r)
+	if ownerID == "" {
+		return
+	}
+	hashData, _ := json.Marshal([]string{payload.AgentID, payload.Prompt, payload.Revision, payload.Binary})
+	requestHash := fmt.Sprintf("%x", sha256.Sum256(hashData))
+	if s.taskSvc != nil && payload.RequestID != "" {
+		previous, err := s.taskSvc.FindRequestAttempt(r.Context(), taskID, payload.RequestID, requestHash)
+		if err != nil {
+			code := 503
+			if errors.Is(err, task.ErrInvalidTaskInput) {
+				code = 400
+			}
+			if errors.Is(err, task.ErrRequestConflict) {
+				code = 409
+			}
+			respondJSONError(w, code, err.Error())
+			return
+		}
+		if previous != nil {
+			result := map[string]any{"status": previous.Status, "attempt": previous, "task_id": taskID, "replayed": true}
+			for _, h := range s.terminalManager.GetTaskHistory(taskID) {
+				if h.AttemptID == previous.ID && h.Status == "running" {
+					if live, ok := s.terminalManager.GetSession(taskID); ok && live.ID() == h.SessionID {
+						result["session_id"] = live.ID()
+						result["terminal_url"] = fmt.Sprintf("/api/v1/tasks/%s/terminal", taskID)
+					}
+				}
+			}
+			respondJSON(w, 200, result)
+			return
+		}
 	}
 
 	if _, busy := s.taskLaunches.LoadOrStore(taskID, true); busy {
@@ -193,30 +239,28 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, http.StatusConflict, "Agent is disabled")
 		return
 	}
-	ownerID := s.accountOwner(w, r)
-	if ownerID == "" {
-		return
-	}
 	profileHome, err := s.ownedAgentProfileHome(r.Context(), ownerID, registeredAgent)
 	if err != nil {
 		respondJSONError(w, http.StatusConflict, err.Error())
 		return
 	}
-	if profileHome != "" && payload.Binary != "" && payload.Binary != "agy" && payload.Binary != "antigravity" {
-		respondJSONError(w, http.StatusBadRequest, "Use the agent type that matches its connection")
+	expectedBinary := "agy"
+	switch registeredAgent.Harness {
+	case "claude":
+		expectedBinary = "claude"
+	case "codex":
+		expectedBinary = "codex"
+	case "", "agy", "antigravity":
+	default:
+		respondJSONError(w, 409, "This agent type cannot run tasks")
 		return
 	}
-	agentName := registeredAgent.Name
-	if payload.Binary == "" {
-		switch registeredAgent.Harness {
-		case "claude":
-			payload.Binary = "claude"
-		case "codex":
-			payload.Binary = "codex"
-		default:
-			payload.Binary = "agy"
-		}
+	if payload.Binary != "" && payload.Binary != expectedBinary && !(expectedBinary == "agy" && payload.Binary == "antigravity") {
+		respondJSONError(w, 400, "Use the agent type that matches its connection")
+		return
 	}
+	payload.Binary = expectedBinary
+	agentName := registeredAgent.Name
 
 	taskPrompt := strings.TrimSpace(payload.Prompt)
 	workDir := ""
@@ -245,11 +289,23 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	if s.taskSvc != nil {
 		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
 			taskFound = true
+			if detail.Status == task.TaskStatusReview && payload.Revision == "" {
+				respondJSONError(w, 400, "Describe the changes needed before starting a revision")
+				return
+			}
+			if detail.Status == task.TaskStatusDone {
+				respondJSONError(w, 409, "Reopen the completed task before starting a new session")
+				return
+			}
 			sourceRoom = detail.SourceRoomID
 			if detail.ProjectID != "" && s.projectSvc != nil {
 				project, e := s.projectSvc.Get(r.Context(), detail.ProjectID)
 				if e != nil || project == nil {
 					respondJSONError(w, 409, "Task project is unavailable")
+					return
+				}
+				if project.IsArchived {
+					respondJSONError(w, 409, "Restore the archived project before starting a task")
 					return
 				}
 				if project.RepoURL != "" {
@@ -264,24 +320,49 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 
 			if taskPrompt == "" {
 				taskPrompt = detail.Instructions
+				if taskPrompt == "" {
+					taskPrompt = detail.Title
+				}
 			}
-			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: agentID})
+			var criteria strings.Builder
+			for _, item := range detail.DoDChecklist {
+				fmt.Fprintf(&criteria, "- %s\n", item.Text)
+			}
+			taskPrompt = fmt.Sprintf("Work on task %s: %s. Follow the human instructions and project conventions. Preserve the human task. Report actual changes, targeted verification, and any blockers. A zero exit code does not approve the work. Do not claim unperformed actions.\n\nHuman instructions:\n%s\n\nAcceptance criteria:\n%s\n\nPrevious work summary:\n%s\n\nPrevious completion notes:\n%s\n\nRevision feedback:\n%s", taskID, detail.Title, taskPrompt, criteria.String(), detail.Summary, detail.CompleteNote, payload.Revision)
+			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash})
 			if errors.Is(err, task.ErrTaskActive) {
 				respondJSONError(w, 409, "This task already has an active attempt. Check the session before retrying.")
 				return
 			}
 			if err != nil {
+				if errors.Is(err, task.ErrInvalidTaskInput) {
+					respondJSONError(w, 400, err.Error())
+					return
+				}
 				respondJSONError(w, 503, "Could not save the attempt. Execution has not started.")
 				return
 			}
+			if payload.Revision != "" {
+				if _, e := s.taskSvc.AddComment(r.Context(), taskID, "owner", "Revision requested:\n"+payload.Revision); e != nil {
+					_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Revision feedback could not be saved. Execution did not start."})
+					respondJSONError(w, 503, "Could not save revision feedback. Execution did not start.")
+					return
+				}
+			}
 			doing := task.TaskStatusDoing
-			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID}); err != nil {
+			resetCriteria := append([]task.DoDItem{}, detail.DoDChecklist...)
+			for i := range resetCriteria {
+				resetCriteria[i].Completed = false
+			}
+			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID, DoDChecklist: &resetCriteria}); err != nil {
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
 				respondJSONError(w, 503, "Task status could not be saved")
 				return
 			}
 			_, err = s.taskSvc.UpdateAttemptStatus(r.Context(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 			if err != nil {
+				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save attempt state before launch."})
+				_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)
 				respondJSONError(w, 503, "Could not save attempt status. The process has not started.")
 				return
 			}
@@ -325,7 +406,7 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if s.projectStudioRepo != nil {
-				_ = s.projectStudioRepo.UpdateTaskExecution(ctx, taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s). Perlu review hasil dan bukti.", h.ExitCode, h.Status))
+				_ = s.projectStudioRepo.UpdateTaskExecution(ctx, taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s). Review the result and verification evidence.", h.ExitCode, h.Status))
 			}
 			if attempt != nil && s.taskSvc != nil {
 				state := task.AttemptStatusFailed
@@ -339,6 +420,9 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	if attempt != nil {
+		runCfg.AttemptID = attempt.ID
+	}
 	if profileHome != "" {
 		runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
 	}
@@ -392,9 +476,18 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 	}
 
 	history := s.terminalManager.GetTaskHistory(taskID)
+	var live map[string]any
+	if session, ok := s.terminalManager.GetSession(taskID); ok {
+		for _, h := range history {
+			if h.SessionID == session.ID() && h.Status == "running" {
+				live = map[string]any{"session_id": session.ID(), "attempt_id": h.AttemptID, "agent_id": h.AgentID, "started_at": h.StartedAt}
+			}
+		}
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"task_id": taskID,
-		"history": history,
-		"count":   len(history),
+		"task_id":      taskID,
+		"history":      history,
+		"live_session": live,
+		"count":        len(history),
 	})
 }

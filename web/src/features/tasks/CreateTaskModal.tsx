@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Project, TaskPriority, TaskStatus, DoDItem } from '../../api/types'
+import { Project, TaskPriority, CreateTaskRequest } from '../../api/types'
 import { X, AlertCircle } from 'lucide-react'
 import { trapDialogFocus } from '../../lib/dialog'
 
@@ -8,14 +8,7 @@ interface CreateTaskModalProps {
   projects: Project[]
   activeProjectId?: string
   onClose: () => void
-  onSubmit: (data: {
-    title: string
-    description?: string
-    project_ids?: string[]
-    priority: TaskPriority
-    status: TaskStatus
-    dod_checklist?: DoDItem[]
-  }) => Promise<void>
+  onSubmit: (data: CreateTaskRequest) => Promise<void>
 }
 
 export function CreateTaskModal({
@@ -27,10 +20,11 @@ export function CreateTaskModal({
 }: CreateTaskModalProps) {
   const defaultProject =
     projects.find((p) => p.id === activeProjectId && !p.is_archived)?.id ||
-    projects.find((p) => !p.is_archived)?.id ||
     ''
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [criteria,setCriteria]=useState('')
+  const [requestId,setRequestId]=useState(()=>crypto.randomUUID())
   const [priority, setPriority] = useState<TaskPriority>('normal')
   const [selectedProjectId, setSelectedProjectId] = useState(defaultProject)
   const [loading, setLoading] = useState(false)
@@ -39,12 +33,14 @@ export function CreateTaskModal({
   const titleRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (!isOpen) return
+    setRequestId(crypto.randomUUID())
+    setCriteria('')
     setTitle('')
     setDescription('')
     setError(null)
     setPriority('normal')
     setSelectedProjectId(defaultProject)
-  }, [isOpen, defaultProject])
+  }, [isOpen])
   useEffect(() => {
     if (!isOpen) return
     const previous = document.activeElement as HTMLElement | null
@@ -108,7 +104,9 @@ export function CreateTaskModal({
               description: description.trim() || undefined,
               project_ids: selectedProjectId ? [selectedProjectId] : undefined,
               priority,
-              status: 'todo',
+              status: 'backlog',
+              request_id:requestId,
+              dod_checklist:criteria.split('\n').map(text=>text.trim()).filter(Boolean).map(text=>({text,completed:false})),
             })
             onClose()
           } catch (err) {
@@ -160,6 +158,7 @@ export function CreateTaskModal({
             }}
           />
         </div>
+        <label className="grid gap-1 text-sm font-medium">Acceptance criteria (optional)<textarea aria-label="Acceptance criteria" className="field-control font-normal" rows={3} value={criteria} onChange={e=>setCriteria(e.target.value)} disabled={loading}/><span className="text-xs font-normal text-muted-foreground">One criterion per line. The new task starts in Backlog; creating it does not run an agent.</span></label>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="min-w-0">
             <label

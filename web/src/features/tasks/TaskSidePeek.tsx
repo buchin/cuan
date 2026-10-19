@@ -1,895 +1,1250 @@
-import { useState, useEffect, useRef } from 'react'
-import { Task, TaskStatus, TaskPriority, Project } from '../../api/types'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   X,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
   Play,
-  Bot,
-  CheckSquare,
-  Terminal as TerminalIcon,
-  Save,
+  Pencil,
+  Copy,
   Trash2,
   RefreshCw,
-  Sparkles,
+  ExternalLink,
 } from 'lucide-react'
-import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
-import { WebLinksAddon } from '@xterm/addon-web-links'
-import '@xterm/xterm/css/xterm.css'
-import { agentsApi } from '../../api/agents'
-import { tasksApi } from '../../api/tasks'
-import { apiFetch, getAuthToken } from '../../api/client'
+import type {
+  Task,
+  TaskDetail,
+  TaskStatus,
+  UpdateTaskRequest,
+} from '../../api/types'
+import { agentsApi, type Agent } from '../../api/agents'
+import { ApiError } from '../../api/client'
+import {
+  tasksApi,
+  type LiveTaskSession,
+  type RunTaskRequest,
+} from '../../api/tasks'
+import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { trapDialogFocus } from '../../lib/dialog'
-import { TaskDiscussion } from './TaskDiscussion'
-
-interface TaskSidePeekProps {
+import { cn } from '../../lib/utils'
+import { TaskSessions } from './TaskSessions'
+import {
+  TASK_STATUSES,
+  activeAttempt,
+  statusLabel,
+  taskRef,
+  executionLabel,
+  relativeTime,
+} from './task-ui'
+import './task-workspace.css'
+interface Props {
   task: Task | null
-  projects: Project[]
+  projects: import('../../api/types').Project[]
   isOpen: boolean
   onClose: () => void
-  onUpdate: (taskId: string, updates: Partial<Task>) => Promise<void>
-  onDelete: (taskId: string) => Promise<void>
-  onRunAgent: (taskId: string) => Promise<void>
+  onUpdate: (id: string, updates: UpdateTaskRequest) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+  onRunAgent: (id: string) => Promise<void>
 }
-
-interface AgentRunnerOption {
-  id: string
-  name: string
-  role?: string
-  harness?: string
-  binary: string
+interface Draft {
+  title: string
+  description: string
+  summary: string
+  complete_note: string
+  criteria: string
+  priority: Task['priority']
+  assignee: string
+  project: string
+  version: string
 }
-
-export function TaskSidePeek(props: TaskSidePeekProps) {
+const drafts = new Map<string, Draft>()
+function makeDraft(t: Task): Draft {
+  return {
+    title: t.title,
+    description: t.description || t.body || t.prompt || '',
+    summary: t.summary || '',
+    complete_note: t.complete_note || '',
+    criteria: (t.dod_checklist || [])
+      .map((i) => (typeof i === 'string' ? i : i.text))
+      .join('\n'),
+    priority: t.priority || 'normal',
+    assignee: t.assignee_id || t.assignee || '',
+    project: t.project_id || t.project_ids?.[0] || '',
+    version: t.updated_at,
+  }
+}
+function pendingKey(id: string) {
+  return `cuan-task-launch:${id}`
+}
+function readPending(id: string): RunTaskRequest | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(pendingKey(id)) || 'null')
+    return p &&
+      typeof p.request_id === 'string' &&
+      typeof p.agent_id === 'string'
+      ? p
+      : null
+  } catch {
+    return null
+  }
+}
+export function TaskSidePeek(props: Props) {
   if (!props.isOpen || !props.task) return null
-  return (
-    <TaskSidePeekContent key={props.task.id} {...props} task={props.task} />
-  )
+  return <TaskDetailView key={props.task.id} {...props} task={props.task} />
 }
-
-function TaskSidePeekContent({
-  task,
+function TaskDetailView({
+  task: initial,
   projects,
   onClose,
   onUpdate,
   onDelete,
   onRunAgent,
-}: TaskSidePeekProps & { task: Task }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+}: Props & { task: Task }) {
+  const dialog = useRef<HTMLDialogElement>(null),
+    [params, setParams] = useSearchParams(),
+    full = params.get('view') === 'full'
+  const [detail, setDetail] = useState<TaskDetail>({
+      ...initial,
+      attempts: [],
+      activities: [],
+    }),
+    [loaded, setLoaded] = useState(false),
+    [loadError, setLoadError] = useState(''),
+    [error, setError] = useState(''),
+    [notice, setNotice] = useState(''),
+    [agents, setAgents] = useState<Agent[]>([]),
+    [live, setLive] = useState<LiveTaskSession | null>(null),
+    [runtimeError, setRuntimeError] = useState('')
+  const [tab, setTab] = useState<'overview' | 'sessions' | 'activity'>(
+      'overview',
+    ),
+    [editing, setEditing] = useState(drafts.has(initial.id)),
+    [draft, setDraft] = useState<Draft>(
+      () => drafts.get(initial.id) || makeDraft(initial),
+    ),
+    [busy, setBusy] = useState(false),
+    [menu, setMenu] = useState(false),
+    [modal, setModal] = useState<
+      'run' | 'approve' | 'delete' | 'cancel' | null
+    >(null),
+    [agentId, setAgentId] = useState(
+      initial.assignee_id || initial.assignee || '',
+    ),
+    [feedback, setFeedback] = useState(''),
+    [approvalNote, setApprovalNote] = useState(''),
+    [comment, setComment] = useState(''),
+    [pending, setPending] = useState<RunTaskRequest | null>(() =>
+      readPending(initial.id),
+    ),
+    [preferredSession, setPreferredSession] = useState('')
+  const busyRef = useRef(false),
+    mounted = useRef(true)
+  const running = activeAttempt(detail.latest_attempt),
+    checklist = (detail.dod_checklist || []).map((i) =>
+      typeof i === 'string' ? { text: i, completed: false } : i,
+    )
+  const dirty =
+    editing && JSON.stringify(draft) !== JSON.stringify(makeDraft(detail))
+  const selectedProject = projects.find(
+    (p) => p.id === detail.project_id || detail.project_ids?.includes(p.id),
+  )
+  const reload = useCallback(async () => {
+    try {
+      const next = await tasksApi.get(initial.id)
+      if (!mounted.current) return
+      setDetail(next)
+      setLoaded(true)
+      setLoadError('')
+    } catch (e) {
+      if (mounted.current)
+        setLoadError(
+          e instanceof Error ? e.message : 'Could not load this task.',
+        )
+    }
+    try {
+      const state = await tasksApi.runtime(initial.id)
+      if (mounted.current) {
+        setLive(state.live_session || null)
+        setRuntimeError('')
+      }
+    } catch {
+      if (mounted.current) {
+        setLive(null)
+        setRuntimeError(
+          'Live session status is unavailable. Saved attempts remain available.',
+        )
+      }
+    }
+  }, [initial.id])
+  useEffect(() => {
+    mounted.current = true
+    void reload()
+    let active = true
+    agentsApi
+      .list()
+      .then((list) => {
+        if (active) setAgents(list)
+      })
+      .catch(() => {})
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && !busyRef.current)
+        void reload()
+    }, 4000)
+    return () => {
+      mounted.current = false
+      active = false
+      clearInterval(timer)
+    }
+  }, [reload])
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
-    const dialog = dialogRef.current
-    dialog?.showModal()
+    dialog.current?.showModal()
     return () => {
-      dialog?.close()
+      dialog.current?.close()
       if (previous?.isConnected) previous.focus()
     }
   }, [])
-  const linkedProject = projects.find(
-    (p) => p.id === task.project_id || task.project_ids?.includes(p.id),
-  )
-  const [activeTab, setActiveTab] = useState<
-    'details' | 'runner' | 'discussion'
-  >('details')
-  const [title, setTitle] = useState(task.title)
-  const [description, setDescription] = useState(
-    task.description || task.body || task.prompt || '',
-  )
-  const [status, setStatus] = useState<TaskStatus>(task.status)
-  const [priority, setPriority] = useState<TaskPriority>(
-    task.priority || 'normal',
-  )
-  const [assignee, setAssignee] = useState<string>(
-    task.assignee || task.assignee_id || '',
-  )
-  const [saving, setSaving] = useState(false)
-  const [agentRunning, setAgentRunning] = useState(
-    task.execution_status === 'running',
-  )
-  const [executionStatus, setExecutionStatus] = useState<string>(
-    task.execution_status || 'idle',
-  )
-  const [availableAgents, setAvailableAgents] = useState<AgentRunnerOption[]>(
-    [],
-  )
-
-  const [savedOutput, setSavedOutput] = useState('')
-  const [error, setError] = useState('')
-  const [terminalRevision, setTerminalRevision] = useState(0)
-  const nextStatus: TaskStatus | undefined =
-    status === 'backlog'
-      ? 'todo'
-      : status === 'todo'
-        ? 'doing'
-        : status === 'doing'
-          ? 'review'
-          : status === 'review'
-            ? 'done'
-            : undefined
-  const advance = async () => {
-    if (!nextStatus) return
-    setSaving(true)
+  useEffect(() => {
+    if (editing) drafts.set(initial.id, draft)
+  }, [editing, draft, initial.id])
+  useEffect(() => {
+    if (!dirty) return
+    const before = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', before)
+    return () => window.removeEventListener('beforeunload', before)
+  }, [dirty])
+  const close = () => {
+    if (busy) return
+    if (dirty && !window.confirm('Discard unsaved task changes?')) return
+    drafts.delete(initial.id)
+    onClose()
+  }
+  const working = async (action: () => Promise<void>) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
     setError('')
+    setNotice('')
     try {
-      await onUpdate(task.id, { status: nextStatus })
-      setStatus(nextStatus)
-    } catch {
-      setError('Status was not saved. Please retry.')
-    } finally {
-      setSaving(false)
-    }
-  }
-  useEffect(() => {
-    if (activeTab !== 'runner') return
-    const update = async () => {
-      try {
-        const detail = await apiFetch<{
-          status: TaskStatus
-          latest_attempt?: {
-            id: string
-            status: string
-            error_message?: string
-          }
-        }>(`/api/v1/tasks/${task.id}`)
-        if (detail.latest_attempt) {
-          const state = detail.latest_attempt.status
-          setExecutionStatus(state === 'succeeded' ? 'completed' : state)
-          setAgentRunning(state === 'running' || state === 'queued')
-          setStatus(detail.status)
-          if (detail.latest_attempt.error_message)
-            setError(detail.latest_attempt.error_message)
-          const retained = await apiFetch<{ logs: { line: string }[] }>(
-            `/api/v1/tasks/${task.id}/attempts/${detail.latest_attempt.id}/logs?limit=1000`,
-          )
-          setSavedOutput(retained.logs.map((line) => line.line).join('\n'))
-          return
-        }
-        const result = await apiFetch<{ history: { status: string }[] }>(
-          `/api/v1/tasks/${task.id}/run-agent/history`,
-        )
-        const latest = result.history?.at(-1)
-        if (latest) {
-          setExecutionStatus(latest.status)
-          setAgentRunning(latest.status === 'running')
-        }
-      } catch {
-        /* Keep last known state while reconnecting. */
-      }
-    }
-    void update()
-    const timer = setInterval(update, 3000)
-    return () => clearInterval(timer)
-  }, [task.id, activeTab, terminalRevision])
-
-  // Terminal state & refs
-  const terminalContainerRef = useRef<HTMLDivElement>(null)
-  const xtermRef = useRef<Terminal | null>(null)
-  const fitAddonRef = useRef<FitAddon | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const [wsStatus, setWsStatus] = useState<
-    'connecting' | 'connected' | 'disconnected'
-  >('disconnected')
-
-  // Load custom agents from DB
-  useEffect(() => {
-    agentsApi
-      .list()
-      .then((dbAgents) => {
-        if (dbAgents && dbAgents.length > 0) {
-          const extra = dbAgents
-            .filter((agent) => agent.enabled !== false)
-            .map((a) => {
-              const harness = a.harness || a.provider || 'agy'
-              const binary =
-                harness === 'claude'
-                  ? 'claude'
-                  : harness === 'codex'
-                    ? 'codex'
-                    : harness === 'custom'
-                      ? 'shell'
-                      : 'agy'
-              return {
-                id: a.id,
-                name: `${a.name} (${harness})`,
-                harness: harness,
-                role: `Harness: ${harness}`,
-                binary,
-              }
-            })
-          const map = new Map<string, any>()
-          for (const ag of extra) {
-            map.set(ag.id, ag)
-          }
-          setAvailableAgents(Array.from(map.values()))
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  // Update local state when task prop changes
-  useEffect(() => {
-    setTitle(task.title)
-    setDescription(task.description || task.body || task.prompt || '')
-    setStatus(task.status)
-    setPriority(task.priority || 'normal')
-    setAssignee(task.assignee || task.assignee_id || '')
-    setExecutionStatus(task.execution_status || 'idle')
-    setAgentRunning(task.execution_status === 'running')
-  }, [task])
-
-  // Initialize xterm.js when switching to runner tab
-  useEffect(() => {
-    if (activeTab !== 'runner') return
-
-    let isDisposed = false
-    let resizeObserver: ResizeObserver | null = null
-
-    // Give DOM time to render terminalContainerRef
-    const timer = setTimeout(() => {
-      if (!terminalContainerRef.current || isDisposed) return
-
-      // Clean up previous instance
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
-      }
-      if (xtermRef.current) {
-        xtermRef.current.dispose()
-        xtermRef.current = null
-      }
-      terminalContainerRef.current.innerHTML = ''
-
-      const term = new Terminal({
-        cursorBlink: false,
-        disableStdin: true,
-        fontSize: 12,
-        fontFamily:
-          'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-        lineHeight: 1.25,
-        theme: {
-          background: '#09090b', // zinc-950
-          foreground: '#f4f4f5', // zinc-100
-          cursor: '#10b981', // emerald-500
-          cursorAccent: '#09090b',
-          selectionBackground: '#27272a',
-          black: '#09090b',
-          red: '#ef4444',
-          green: '#10b981',
-          yellow: '#f59e0b',
-          blue: '#3b82f6',
-          magenta: '#a855f7',
-          cyan: '#06b6d4',
-          white: '#f4f4f5',
-          brightBlack: '#71717a',
-          brightRed: '#f87171',
-          brightGreen: '#34d399',
-          brightYellow: '#fbbf24',
-          brightBlue: '#60a5fa',
-          brightMagenta: '#c084fc',
-          brightCyan: '#22d3ee',
-          brightWhite: '#ffffff',
-        },
-        convertEol: true,
-      })
-
-      const fitAddon = new FitAddon()
-      const webLinksAddon = new WebLinksAddon()
-      term.loadAddon(fitAddon)
-      term.loadAddon(webLinksAddon)
-
-      term.open(terminalContainerRef.current)
-      try {
-        fitAddon.fit()
-      } catch (err) {
-        console.warn('fit error', err)
-      }
-
-      xtermRef.current = term
-      fitAddonRef.current = fitAddon
-
-      // Initial welcome banner in xterm
-      term.writeln(
-        '\x1b[1;36m┌──────────────────────────────────────────────────────────┐\x1b[0m',
-      )
-      term.writeln(
-        `\x1b[1;36m│\x1b[0m \x1b[1;32mCuan Self-Hosted Agent CLI Runner & Web Terminal\x1b[0m         \x1b[1;36m│\x1b[0m`,
-      )
-      term.writeln(
-        `\x1b[1;36m│\x1b[0m Task: \x1b[1;33m#${task.id.slice(0, 16)}\x1b[0m                           \x1b[1;36m│\x1b[0m`,
-      )
-      term.writeln(
-        '\x1b[1;36m└──────────────────────────────────────────────────────────┘\x1b[0m',
-      )
-      term.writeln(
-        '\x1b[90mConnecting to live bidirectional WebSocket PTY...\x1b[0m\r\n',
-      )
-
-      // Connect WebSocket
-      setWsStatus('connecting')
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const token = getAuthToken()
-      const wsUrl = `${protocol}//${window.location.host}/api/v1/tasks/${task.id}/terminal?mode=watch`
-
-      const ws = new WebSocket(
-        wsUrl,
-        token ? ['cuan-terminal', `token.${token}`] : ['cuan-terminal'],
-      )
-      ws.binaryType = 'arraybuffer'
-      wsRef.current = ws
-
-      ws.onopen = () => {
-        if (isDisposed) return
-        setWsStatus('connected')
-        term.writeln(
-          '\x1b[1;32m[Connected]\x1b[0m Terminal stream online (PTY mode).\r\n',
-        )
-        ws.send(
-          JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }),
-        )
-      }
-
-      ws.onmessage = (evt) => {
-        if (isDisposed) return
-        if (evt.data instanceof ArrayBuffer) {
-          term.write(new Uint8Array(evt.data))
-        } else if (typeof evt.data === 'string') {
-          try {
-            const parsed = JSON.parse(evt.data)
-            if (parsed.type === 'connected') {
-              setWsStatus('connected')
-            } else if (parsed.type === 'error') {
-              term.write(
-                `\r\n\x1b[1;31m[Runner Error]\x1b[0m ${parsed.message}\r\n`,
-              )
-            }
-          } catch {
-            term.write(evt.data)
-          }
-        }
-      }
-
-      ws.onerror = () => {
-        if (isDisposed) return
-        setWsStatus('disconnected')
-        term.writeln(
-          '\r\n\x1b[1;31m[WebSocket Connection Error]\x1b[0m Failed to communicate with PTY runner.\r\n',
-        )
-      }
-
-      ws.onclose = () => {
-        if (isDisposed) return
-        setWsStatus('disconnected')
-        term.writeln(
-          '\r\n\x1b[90m[Disconnected] Session closed or idle timeout.\x1b[0m\r\n',
-        )
-      }
-
-      term.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(data)
-        }
-      })
-
-      // Setup container resize observer
-      resizeObserver = new ResizeObserver(() => {
-        if (!fitAddonRef.current || !xtermRef.current) return
-        try {
-          fitAddonRef.current.fit()
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(
-              JSON.stringify({
-                type: 'resize',
-                cols: xtermRef.current.cols,
-                rows: xtermRef.current.rows,
-              }),
-            )
-          }
-        } catch {
-          // ignore layout fits
-        }
-      })
-      resizeObserver.observe(terminalContainerRef.current)
-    }, 50)
-
-    return () => {
-      isDisposed = true
-      clearTimeout(timer)
-      if (resizeObserver) resizeObserver.disconnect()
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
-      }
-      if (xtermRef.current) {
-        xtermRef.current.dispose()
-        xtermRef.current = null
-      }
-    }
-  }, [activeTab, task.id, terminalRevision])
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await onUpdate(task.id, {
-        title,
-        description,
-        status,
-        priority,
-        assignee,
-        assignee_id: assignee,
-      })
-      onClose()
-    } catch (err) {
-      setError('Task could not be saved. Please retry.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleTriggerAgent = async () => {
-    if (!availableAgents.some((agent) => agent.id === assignee)) return
-    setAgentRunning(true)
-    setExecutionStatus('running')
-    setActiveTab('runner')
-
-    const targetAgent = availableAgents.find((a) => a.id === assignee)
-    const runnerBin =
-      targetAgent?.binary ||
-      (targetAgent?.harness === 'claude'
-        ? 'claude'
-        : targetAgent?.harness === 'codex'
-          ? 'codex'
-          : 'agy')
-
-    if (xtermRef.current) {
-      xtermRef.current.writeln(
-        `\r\n\x1b[1;33m[Trigger]\x1b[0m Spawning Agent runner (${targetAgent?.name || assignee})...\r\n`,
-      )
-    }
-
-    try {
-      await tasksApi.runAgent(task.id, {
-        agent_id: assignee,
-        prompt: description || title,
-        binary: runnerBin,
-      })
-      setTerminalRevision((value) => value + 1)
-      await onRunAgent(task.id)
-    } catch (err: any) {
-      if (xtermRef.current) {
-        xtermRef.current.writeln(
-          `\r\n\x1b[1;31m[Error]\x1b[0m ${err.message || 'Runner trigger failed'}\r\n`,
-        )
-      }
-      setExecutionStatus('failed')
-      setAgentRunning(false)
-    }
-  }
-
-  const handleCancelRun = async () => {
-    setError('')
-    try {
-      await apiFetch(`/api/v1/tasks/${task.id}/cancel`, { method: 'POST' })
-      setExecutionStatus('canceled')
-      setAgentRunning(false)
-      setStatus('blocked')
-    } catch (e: any) {
+      await action()
+    } catch (e) {
       setError(
-        e.message ||
-          'Cancellation is not confirmed. Check the session before retrying.',
+        e instanceof Error
+          ? e.message
+          : 'The action could not be completed. Try again.',
+      )
+    } finally {
+      busyRef.current = false
+      if (mounted.current) setBusy(false)
+    }
+  }
+  const update = async (patch: UpdateTaskRequest) => {
+    await onUpdate(initial.id, patch)
+    await reload()
+  }
+  const startEdit = () => {
+    setDraft(drafts.get(initial.id) || makeDraft(detail))
+    setEditing(true)
+    setMenu(false)
+    setError('')
+  }
+  const save = () =>
+    void working(async () => {
+      const text = draft.title.trim()
+      if (!text || text.length > 200)
+        throw new Error('Enter a task title of up to 200 characters.')
+      const items = draft.criteria
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((text) => ({
+          text,
+          completed: checklist.find((i) => i.text === text)?.completed || false,
+        }))
+      await update({
+        title: text,
+        description: draft.description,
+        summary: draft.summary,
+        complete_note: draft.complete_note,
+        priority: draft.priority,
+        assignee_id: draft.assignee,
+        project_ids: draft.project ? [draft.project] : [],
+        dod_checklist: items,
+        expected_updated_at: draft.version,
+      })
+      drafts.delete(initial.id)
+      setEditing(false)
+      setNotice('Task changes saved.')
+    })
+  const changeStatus = (status: TaskStatus) =>
+    void working(async () => {
+      await update({ status, expected_updated_at: detail.updated_at })
+      setNotice(`Moved to ${statusLabel(status)}.`)
+    })
+  const launch = async (payload: RunTaskRequest) => {
+    // Persist the request before sending. Unknown outcomes are checked with the
+    // same ID, including after reload or a fast process exit.
+    try {
+      localStorage.setItem(pendingKey(initial.id), JSON.stringify(payload))
+    } catch {
+      throw new Error(
+        'Browser storage is unavailable. Enable it before starting a session so an uncertain request can be recovered safely.',
       )
     }
-  }
-
-  const handleClearTerminal = () => {
-    if (xtermRef.current) {
-      xtermRef.current.clear()
+    setPending(payload)
+    setModal(null)
+    try {
+      const result = await tasksApi.runAgent(initial.id, payload)
+      localStorage.removeItem(pendingKey(initial.id))
+      setPending(null)
+      if (result.attempt) setPreferredSession(result.attempt.id)
+      setTab('sessions')
+      await reload()
+      await onRunAgent(initial.id)
+      setNotice(
+        result.replayed
+          ? 'Showing the recorded result of the same launch request.'
+          : 'Session request accepted.',
+      )
+    } catch (e) {
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+        localStorage.removeItem(pendingKey(initial.id))
+        setPending(null)
+        await reload()
+      } else await reload()
+      throw e
     }
   }
-
+  const openRun = () => {
+    setAgentId(detail.assignee_id || detail.assignee || '')
+    setFeedback('')
+    setModal('run')
+    setError('')
+    setMenu(false)
+  }
+  const runLabel = running
+    ? 'Open session'
+    : detail.status === 'review'
+      ? 'Request changes'
+      : detail.attempts.length
+        ? 'Retry'
+        : 'Start'
+  const taskAction = () => {
+    if (running) {
+      setPreferredSession(detail.latest_attempt?.id || '')
+      setTab('sessions')
+    } else openRun()
+  }
+  const authorName = (id: string) => agents.find((a) => a.id === id)?.name || id
+  const field = (key: keyof Draft, value: string) =>
+    setDraft((d) => ({ ...d, [key]: value }))
+  const emptyProse = (text: string | undefined, empty: string) => (
+    <div className="task-prose min-w-0">
+      {text ? (
+        <ChatMarkdown content={text} />
+      ) : (
+        <p className="text-sm text-muted-foreground">{empty}</p>
+      )}
+    </div>
+  )
   return (
     <dialog
-      ref={dialogRef}
+      ref={dialog}
       aria-modal="true"
       aria-label="Task detail"
-      onKeyDown={trapDialogFocus}
-      onCancel={(event) => {
-        event.preventDefault()
-        onClose()
+      onKeyDown={(e) => {
+        trapDialogFocus(e)
+        if (e.key === 'Escape') setMenu(false)
       }}
-      className="fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-none max-w-none p-0 backdrop:bg-black/40 z-40 w-full sm:w-[560px] md:w-[620px] bg-card text-card-foreground border-l border-border shadow-2xl task-detail flex flex-col font-sans"
+      onCancel={(e) => {
+        e.preventDefault()
+        close()
+      }}
+      className={cn(
+        'task-workspace fixed inset-y-0 left-auto right-0 m-0 flex h-dvh max-h-none max-w-none flex-col border-l bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/40',
+        full ? 'w-full' : 'w-full sm:w-[min(760px,94vw)]',
+      )}
     >
-      {/* Header */}
-      <div className="h-14 border-b border-border px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
-            Task
-          </span>
-          <span className="text-xs font-mono text-primary font-bold">
-            #{task.id.slice(0, 8)}
-          </span>
-
-          {/* Visual Execution Status Indicator */}
-          {executionStatus === 'running' || agentRunning ? (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-xs font-bold">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span>Running</span>
-            </span>
-          ) : executionStatus === 'completed' ? (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-              <span>Process finished · review required</span>
-            </span>
-          ) : ['failed', 'interrupted', 'canceled'].includes(
-              executionStatus,
-            ) ? (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-destructive/10 text-destructive text-xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-destructive"></span>
-              <span>
-                {executionStatus === 'canceled'
-                  ? 'Cancelled'
-                  : executionStatus === 'interrupted'
-                    ? 'Interrupted'
-                    : 'Error'}
-              </span>
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60"></span>
-              <span>Idle</span>
-            </span>
-          )}
-
-          {agentRunning && (
-            <button className="text-xs underline" onClick={handleCancelRun}>
-              Cancel run
+      <header className="shrink-0 border-b px-4 pb-3 pt-2 sm:px-6">
+        <div className="flex min-h-11 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            <span className="shrink-0 font-mono">{taskRef(detail.id)}</span>
+            {selectedProject && (
+              <span className="truncate">· {selectedProject.name}</span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              className="icon-action hidden sm:inline-flex"
+              aria-label={full ? 'Collapse task view' : 'Expand task view'}
+              onClick={() =>
+                setParams(
+                  (old) => {
+                    const next = new URLSearchParams(old)
+                    if (full) next.delete('view')
+                    else next.set('view', 'full')
+                    return next
+                  },
+                  { replace: true },
+                )
+              }
+            >
+              {full ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </button>
+            <div className="relative">
+              <button
+                className="icon-action"
+                aria-label="Task actions"
+                aria-expanded={menu}
+                onClick={() => setMenu((v) => !v)}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {menu && (
+                <div className="absolute right-0 top-full z-20 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
+                  <button
+                    className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm"
+                    onClick={async () => {
+                      setMenu(false)
+                      try {
+                        await navigator.clipboard.writeText(location.href)
+                        setNotice('Task link copied.')
+                      } catch {
+                        setError(
+                          'Could not copy the task link. Copy it from your address bar.',
+                        )
+                      }
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copy link
+                  </button>
+                  <button
+                    className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm text-destructive disabled:opacity-50"
+                    disabled={running || busy}
+                    onClick={() => {
+                      setMenu(false)
+                      setError('')
+                      setModal('delete')
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete task
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              autoFocus
+              className="icon-action"
+              aria-label="Close task details"
+              onClick={close}
+              disabled={busy}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        <h2 className="break-words text-lg font-semibold leading-snug sm:text-xl">
+          {detail.title}
+        </h2>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>{statusLabel(detail.status)}</span>
+          {executionLabel(detail) && <span>{executionLabel(detail)}</span>}
+          <span>Updated {relativeTime(detail.updated_at)}</span>
+        </div>
+      </header>
+      <nav
+        aria-label="Task sections"
+        className="flex shrink-0 gap-1 border-b px-3 sm:px-5"
+      >
+        {(
+          [
+            { id: 'overview', label: 'Overview' },
+            {
+              id: 'sessions',
+              label: `Sessions${detail.attempts.length ? ' (' + detail.attempts.length + ')' : ''}`,
+            },
+            { id: 'activity', label: 'Activity' },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.id}
+            aria-pressed={tab === item.id}
+            disabled={editing}
+            onClick={() => setTab(item.id)}
+            className={cn(
+              'min-h-11 border-b-2 px-3 text-sm',
+              tab === item.id
+                ? 'border-primary font-medium text-primary'
+                : 'border-transparent text-muted-foreground',
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      {(error || loadError) && (
+        <div
+          role="alert"
+          className="shrink-0 border-b px-4 py-2 text-sm text-destructive"
+        >
+          {error || loadError}
+          {loadError && (
+            <button
+              className="ml-2 min-h-8 underline"
+              onClick={() => void reload()}
+            >
+              Reload task
             </button>
           )}
-          {linkedProject && (
-            <span className="text-xs px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 truncate max-w-[120px] rounded">
-              {linkedProject.name}
-            </span>
-          )}
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleTriggerAgent}
-            disabled={
-              agentRunning ||
-              !availableAgents.some((agent) => agent.id === assignee)
-            }
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600 transition-colors disabled:opacity-50 rounded"
-            title="Execute task with AI Agent CLI in real PTY"
-          >
-            {agentRunning ? (
-              <RefreshCw className="h-3 w-3 animate-spin" />
-            ) : (
-              <Play className="h-3 w-3 fill-current" />
-            )}
-            <span>{agentRunning ? 'Running...' : 'Run Agent'}</span>
-          </button>
-          <button
-            autoFocus
-            aria-label="Close task details"
-            onClick={onClose}
-            className="icon-action text-muted-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-border text-sm px-6 bg-muted/40 shrink-0">
-        <button
-          onClick={() => setActiveTab('details')}
-          className={`py-2.5 px-3 font-semibold border-b-2 transition-colors ${
-            activeTab === 'details'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+      )}
+      {notice && (
+        <p
+          role="status"
+          className="shrink-0 border-b px-4 py-2 text-xs text-muted-foreground"
         >
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab('runner')}
-          className={`py-2.5 px-3 font-semibold border-b-2 flex items-center gap-1.5 transition-colors ${
-            activeTab === 'runner'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <TerminalIcon className="h-3.5 w-3.5" />
-          <span>Agent Terminal</span>
-          {agentRunning && (
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('discussion')}
-          aria-pressed={activeTab === 'discussion'}
-          className={`px-3 py-2.5 font-semibold border-b-2 ${activeTab === 'discussion' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
-        >
-          Discussion
-        </button>
-      </div>
-      {error && (
-        <p role="alert" className="px-6 py-2 text-xs text-destructive">
-          {error}
+          {notice}
         </p>
       )}
-
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        {activeTab === 'discussion' ? (
-          <TaskDiscussion taskId={task.id} />
-        ) : activeTab === 'details' ? (
-          <>
-            <div>
-              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 text-base bg-background border border-input text-foreground font-semibold focus:outline-none focus:ring-1 focus:ring-ring rounded"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                  Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className="w-full px-3 py-1.5 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
-                >
-                  {[
-                    status,
-                    nextStatus,
-                    status === 'blocked'
-                      ? 'todo'
-                      : status !== 'done'
-                        ? 'blocked'
-                        : undefined,
-                  ]
-                    .filter(
-                      (value, index, list): value is TaskStatus =>
-                        !!value && list.indexOf(value) === index,
-                    )
-                    .map((value) => (
-                      <option key={value} value={value}>
-                        {value === 'backlog'
-                          ? 'Backlog'
-                          : value.charAt(0).toUpperCase() + value.slice(1)}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                  Priority
-                </label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                  className="w-full px-3 py-1.5 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
-                >
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-            </div>
-
-            {/* S22.4: Agent Assignment Selector */}
-            <div>
-              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1 flex items-center justify-between">
-                <span>Assigned Agent (Worker Account)</span>
-                {assignee && (
-                  <span className="text-xs text-primary lowercase flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" />
-                    <span>No raw API key required</span>
-                  </span>
-                )}
-              </label>
-              <div className="relative">
-                <select
-                  value={assignee}
-                  onChange={(e) => setAssignee(e.target.value)}
-                  className="w-full px-3 py-2 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
-                >
-                  <option value="">Unassigned</option>
-                  {availableAgents.map((ag) => (
-                    <option key={ag.id} value={ag.id}>
-                      {ag.name} — {ag.role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Prompt / Task Description
-              </label>
-              <textarea
-                rows={8}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe instructions for the human or AI Agent..."
-                className="w-full px-3 py-2 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
-              />
-            </div>
-
-            {task.dod_checklist && task.dod_checklist.length > 0 && (
-              <div>
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                  Definition of Done (DoD)
-                </label>
-                <div className="space-y-1.5 bg-muted/40 p-3 border border-border rounded">
-                  {task.dod_checklist.map((item, idx) => {
-                    const text = typeof item === 'string' ? item : item.text
-                    const completed =
-                      typeof item === 'object' && !!item.completed
-                    return (
-                      <div key={idx} className="flex items-start gap-2 text-xs">
-                        <CheckSquare
-                          className={`h-3.5 w-3.5 ${
-                            completed ? 'text-emerald-500' : 'text-primary'
-                          } shrink-0 mt-0.5`}
-                        />
-                        <span
-                          className={
-                            completed
-                              ? 'line-through text-muted-foreground'
-                              : 'text-foreground'
-                          }
-                        >
-                          {text}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          /* S22.3: Live Interactive Web Terminal (xterm.js) */
-          <div className="flex flex-col h-full space-y-3">
-            {/* Terminal Toolbar */}
-            <div className="flex items-center justify-between text-xs pb-1 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-primary" />
-                <span className="font-bold text-foreground">
-                  {assignee
-                    ? availableAgents.find((a) => a.id === assignee)?.name ||
-                      assignee
-                    : 'Agent CLI Terminal'}
-                </span>
-                <span className="text-xs px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground">
-                  PTY output
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* WebSocket status indicator */}
-                <div className="flex items-center gap-1.5 text-sm">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      wsStatus === 'connected'
-                        ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-                        : wsStatus === 'connecting'
-                          ? 'bg-yellow-500 animate-pulse'
-                          : 'bg-muted-foreground/50'
-                    }`}
+      {pending && (
+        <div className="shrink-0 border-b bg-muted/40 px-4 py-3 text-sm">
+          <p>
+            A launch request is not confirmed. Check this same request before
+            starting another session.
+          </p>
+          <button
+            className="action-secondary mt-2"
+            disabled={busy}
+            onClick={() => void working(() => launch(pending))}
+          >
+            Check launch request
+          </button>
+        </div>
+      )}
+      <main
+        className={cn(
+          'min-h-0 min-w-0 flex-1 p-4 sm:p-6',
+          tab === 'sessions' ? 'overflow-hidden' : 'overflow-y-auto',
+        )}
+      >
+        {!loaded && (
+          <p role="status" className="mb-3 text-sm text-muted-foreground">
+            Loading task details…
+          </p>
+        )}
+        {tab === 'overview' && (
+          <div className="space-y-6">
+            {editing ? (
+              <form
+                id="task-edit-form"
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  save()
+                }}
+              >
+                <label className="grid gap-1 text-sm font-medium">
+                  Title
+                  <textarea
+                    aria-label="Task title"
+                    className="field-control resize-y"
+                    rows={2}
+                    maxLength={200}
+                    required
+                    value={draft.title}
+                    onChange={(e) => field('title', e.target.value)}
+                    disabled={busy}
                   />
-                  <span className="text-muted-foreground capitalize">
-                    {wsStatus}
-                  </span>
+                </label>
+                <label className="grid gap-1 text-sm font-medium">
+                  Human instructions
+                  <textarea
+                    aria-label="Human instructions"
+                    className="field-control min-h-40 resize-y font-normal"
+                    rows={6}
+                    maxLength={24000}
+                    value={draft.description}
+                    onChange={(e) => field('description', e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Markdown is supported. Instructions are kept separate from
+                  work summaries and results.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1 text-sm">
+                    Priority
+                    <select
+                      className="field-control"
+                      value={draft.priority}
+                      onChange={(e) => field('priority', e.target.value)}
+                      disabled={busy}
+                    >
+                      {['urgent', 'high', 'normal', 'low'].map((p) => (
+                        <option key={p} value={p}>
+                          {p[0].toUpperCase() + p.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    Assignee
+                    <select
+                      className="field-control"
+                      value={draft.assignee}
+                      onChange={(e) => field('assignee', e.target.value)}
+                      disabled={busy}
+                    >
+                      <option value="">Unassigned</option>
+                      {draft.assignee &&
+                        !agents.some((a) => a.id === draft.assignee) && (
+                          <option value={draft.assignee}>
+                            {draft.assignee} (unavailable)
+                          </option>
+                        )}
+                      {agents.map((a) => (
+                        <option
+                          key={a.id}
+                          value={a.id}
+                          disabled={a.enabled === false}
+                        >
+                          {a.name}
+                          {a.enabled === false ? ' (disabled)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm sm:col-span-2">
+                    Project
+                    <select
+                      className="field-control"
+                      value={draft.project}
+                      onChange={(e) => field('project', e.target.value)}
+                      disabled={busy}
+                    >
+                      <option value="">No project</option>
+                      {projects
+                        .filter((p) => !p.is_archived || p.id === draft.project)
+                        .map((p) => (
+                          <option
+                            key={p.id}
+                            value={p.id}
+                            disabled={p.is_archived}
+                          >
+                            {p.name}
+                            {p.is_archived ? ' (archived)' : ''}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
                 </div>
-
-                <button
-                  onClick={handleClearTerminal}
-                  className="px-2 py-0.5 bg-muted hover:bg-muted/80 text-sm rounded text-muted-foreground hover:text-foreground transition-colors"
-                  title="Clear Terminal Display"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-
-            {savedOutput && (
-              <details className="rounded border border-border p-2 text-xs">
-                <summary className="cursor-pointer">
-                  Saved attempt output
-                </summary>
-                <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-words">
-                  {savedOutput}
-                </pre>
-              </details>
-            )}
-            {wsStatus === 'disconnected' && (
-              <button
-                className="self-start text-xs underline"
-                onClick={() => setTerminalRevision((value) => value + 1)}
-              >
-                Reconnect terminal
-              </button>
-            )}
-            {/* xterm.js Mount Container */}
-            <div className="relative flex-1 bg-zinc-950 border border-border rounded overflow-hidden shadow-inner p-2 min-h-[380px]">
-              <div
-                ref={terminalContainerRef}
-                className="w-full h-full"
-                style={{ height: '380px' }}
-              />
-            </div>
-
-            {/* Terminal Bottom Controls */}
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <button
-                onClick={handleTriggerAgent}
-                disabled={
-                  agentRunning ||
-                  !availableAgents.some((agent) => agent.id === assignee)
-                }
-                className="flex-1 py-2 bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 rounded shadow-xs"
-              >
-                {agentRunning ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Play className="h-3.5 w-3.5 fill-current" />
+                <label className="grid gap-1 text-sm font-medium">
+                  Acceptance criteria
+                  <textarea
+                    aria-label="Acceptance criteria"
+                    className="field-control font-normal"
+                    rows={4}
+                    value={draft.criteria}
+                    onChange={(e) => field('criteria', e.target.value)}
+                    disabled={busy}
+                  />
+                  <span className="text-xs font-normal text-muted-foreground">
+                    One criterion per line, up to50. Changing its text clears
+                    its verification.
+                  </span>
+                </label>
+                <label className="grid gap-1 text-sm font-medium">
+                  Work summary
+                  <textarea
+                    aria-label="Work summary"
+                    className="field-control font-normal"
+                    rows={4}
+                    maxLength={12000}
+                    value={draft.summary}
+                    onChange={(e) => field('summary', e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-medium">
+                  Completion notes & verification
+                  <textarea
+                    aria-label="Completion notes"
+                    className="field-control font-normal"
+                    rows={4}
+                    maxLength={16000}
+                    value={draft.complete_note}
+                    onChange={(e) => field('complete_note', e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+              </form>
+            ) : (
+              <>
+                <section className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 text-sm">
+                  <label className="grid gap-1 text-xs text-muted-foreground">
+                    Status
+                    <select
+                      aria-label="Task status"
+                      className="field-control text-sm"
+                      disabled={busy || running || !loaded}
+                      value={detail.status}
+                      onChange={(e) =>
+                        changeStatus(e.target.value as TaskStatus)
+                      }
+                    >
+                      {TASK_STATUSES.filter(
+                        (s) =>
+                          s.id === detail.status ||
+                          ['backlog', 'todo', 'blocked'].includes(s.id) ||
+                          (s.id === 'review' && detail.attempts.length === 0),
+                      ).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Priority</p>
+                    <p className="mt-2 capitalize">{detail.priority}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Assignee</p>
+                    <p className="mt-1 break-words">
+                      {authorName(
+                        detail.assignee_id || detail.assignee || '',
+                      ) || 'Unassigned'}
+                    </p>
+                  </div>
+                  {detail.branch_name && (
+                    <p className="col-span-2 break-all text-xs">
+                      Branch: {detail.branch_name}
+                    </p>
+                  )}
+                  {detail.pr_url && /^https?:\/\//i.test(detail.pr_url) && (
+                    <a
+                      href={detail.pr_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="col-span-2 inline-flex min-h-11 items-center gap-2 text-primary underline"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Open pull request
+                    </a>
+                  )}
+                </section>
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold">
+                    Human instructions
+                  </h3>
+                  {emptyProse(
+                    detail.description,
+                    'No instructions yet. Edit this task to describe the work.',
+                  )}
+                </section>
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold">
+                    Acceptance criteria
+                  </h3>
+                  {checklist.length ? (
+                    <div className="space-y-1">
+                      {checklist.map((item, index) => (
+                        <label
+                          key={item.id || index}
+                          className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md py-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            aria-label={`Verify: ${item.text}`}
+                            checked={!!item.completed}
+                            disabled={busy || detail.status === 'done'}
+                            onChange={() =>
+                              void working(async () => {
+                                const next = checklist.map((c, i) =>
+                                  i === index
+                                    ? { ...c, completed: !c.completed }
+                                    : c,
+                                )
+                                await update({
+                                  dod_checklist: next,
+                                  expected_updated_at: detail.updated_at,
+                                })
+                              })
+                            }
+                            className="mt-1 h-4 w-4 shrink-0"
+                          />
+                          <span
+                            className={cn(
+                              'min-w-0 break-words',
+                              item.completed && 'text-muted-foreground',
+                            )}
+                          >
+                            {item.text}
+                          </span>
+                        </label>
+                      ))}
+                      <p className="text-xs text-muted-foreground">
+                        {checklist.filter((i) => i.completed).length} of{' '}
+                        {checklist.length} verified
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No acceptance criteria defined yet.
+                    </p>
+                  )}
+                </section>
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold">Work summary</h3>
+                  {emptyProse(detail.summary, 'No work summary recorded yet.')}
+                </section>
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold">
+                    Completion notes & verification
+                  </h3>
+                  {emptyProse(
+                    detail.complete_note,
+                    'No completion notes recorded yet. Review the session output and record what changed and how it was verified before approval.',
+                  )}
+                </section>
+                {(detail.diff_summary || detail.test_summary) && (
+                  <details className="rounded-lg border p-3 text-sm">
+                    <summary className="cursor-pointer">
+                      Additional execution evidence
+                    </summary>
+                    {emptyProse(detail.diff_summary, '')}
+                    {emptyProse(detail.test_summary, '')}
+                  </details>
                 )}
-                <span>
-                  {agentRunning
-                    ? 'Agent Runner is Active...'
-                    : 'Run Agent on Task (PTY)'}
-                </span>
-              </button>
+                {detail.source_room_id && (
+                  <a
+                    href={`/inbox/${encodeURIComponent(detail.source_room_id)}`}
+                    className="action-secondary text-sm"
+                  >
+                    Open source conversation
+                  </a>
+                )}
+              </>
+            )}
+          </div>
+        )}
+        {tab === 'sessions' && (
+          <div className="flex h-full min-h-0 flex-col gap-2">
+            {runtimeError && (
+              <p role="status" className="text-xs text-muted-foreground">
+                {runtimeError}
+              </p>
+            )}
+            <div className="min-h-0 flex-1">
+              <TaskSessions
+                taskId={initial.id}
+                attempts={detail.attempts}
+                agents={agents}
+                live={live}
+                preferred={preferredSession}
+                onRefresh={() => void reload()}
+                onCancel={() => {
+                  setError('')
+                  setModal('cancel')
+                }}
+                busy={busy}
+              />
             </div>
           </div>
         )}
-      </div>
-
-      {/* Footer */}
-      {activeTab === 'details' && (
-        <div className="h-14 border-t border-border px-6 flex items-center justify-between shrink-0">
-          <button
-            onClick={() => onDelete(task.id)}
-            className="flex items-center gap-1.5 text-xs text-destructive hover:underline"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>Delete</span>
-          </button>
-
-          {nextStatus && (
-            <button
-              onClick={advance}
-              disabled={saving}
-              className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50"
+        {tab === 'activity' && (
+          <div className="space-y-5">
+            <section aria-label="Task timeline" className="space-y-3">
+              {detail.activities.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No activity recorded yet.
+                </p>
+              ) : (
+                [...detail.activities]
+                  .sort(
+                    (a, b) =>
+                      Date.parse(b.created_at) - Date.parse(a.created_at),
+                  )
+                  .map((item) => (
+                    <article key={item.id} className="rounded-lg border p-3">
+                      <header className="mb-2 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {authorName(item.author)} ·{' '}
+                          {item.activity_type === 'comment'
+                            ? 'Comment'
+                            : item.activity_type.replace(/_/g, ' ')}
+                        </span>
+                        <time
+                          title={new Date(item.created_at).toLocaleString(
+                            'en-US',
+                          )}
+                        >
+                          {relativeTime(item.created_at)}
+                        </time>
+                      </header>
+                      <div className="task-prose">
+                        <ChatMarkdown content={item.message} />
+                      </div>
+                      {item.attempt_id && (
+                        <button
+                          className="mt-2 min-h-9 text-xs text-primary underline"
+                          onClick={() => {
+                            setPreferredSession(item.attempt_id || '')
+                            setTab('sessions')
+                          }}
+                        >
+                          Open session
+                        </button>
+                      )}
+                    </article>
+                  ))
+              )}
+            </section>
+            <form
+              className="space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void working(async () => {
+                  await tasksApi.comment(initial.id, comment.trim())
+                  setComment('')
+                  await reload()
+                })
+              }}
             >
-              Move to {nextStatus}
+              <label htmlFor="task-comment" className="text-sm font-medium">
+                Add a comment
+              </label>
+              <textarea
+                id="task-comment"
+                className="field-control"
+                rows={3}
+                maxLength={6000}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                disabled={busy}
+              />
+              <button
+                className="action-primary"
+                disabled={busy || !comment.trim()}
+              >
+                {busy ? 'Saving…' : 'Send comment'}
+              </button>
+            </form>
+          </div>
+        )}
+      </main>
+      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-card px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-6">
+        {editing ? (
+          <>
+            <button
+              className="action-secondary"
+              disabled={busy}
+              onClick={() => {
+                if (dirty && !window.confirm('Discard unsaved task changes?'))
+                  return
+                drafts.delete(initial.id)
+                setEditing(false)
+              }}
+            >
+              Cancel edit
             </button>
+            <button
+              className="action-primary"
+              type="submit"
+              form="task-edit-form"
+              disabled={busy || !loaded}
+            >
+              {busy ? 'Saving…' : 'Save changes'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="action-secondary"
+              disabled={busy || running || !loaded}
+              onClick={startEdit}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
+            <div className="flex flex-wrap gap-2">
+              {detail.status === 'done' ? (
+                <button
+                  className="action-secondary"
+                  disabled={busy}
+                  onClick={() => changeStatus('todo')}
+                >
+                  Reopen task
+                </button>
+              ) : (
+                <>
+                  {detail.status === 'review' && !running && (
+                    <button
+                      className="action-secondary"
+                      disabled={busy || !loaded}
+                      onClick={() => {
+                        setApprovalNote(detail.complete_note || '')
+                        setError('')
+                        setModal('approve')
+                      }}
+                    >
+                      Approve result
+                    </button>
+                  )}
+                  <button
+                    className="action-primary"
+                    disabled={busy || !loaded || !!pending}
+                    onClick={taskAction}
+                  >
+                    {busy ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      !running && <Play className="h-4 w-4" />
+                    )}
+                    {runLabel}
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </footer>
+      <ActionDialog
+        open={modal === 'run'}
+        title={
+          detail.status === 'review'
+            ? 'Request changes'
+            : detail.attempts.length
+              ? 'Retry task'
+              : 'Start task'
+        }
+        onClose={() => setModal(null)}
+        busy={busy}
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!agentId) return
+            void working(() =>
+              launch({
+                request_id: crypto.randomUUID(),
+                agent_id: agentId,
+                revision: feedback.trim(),
+              }),
+            )
+          }}
+        >
+          <p className="text-sm text-muted-foreground">
+            Start a new session using the saved instructions and the selected
+            agent. Earlier sessions and output are retained.
+          </p>
+          <label className="grid gap-1 text-sm">
+            Agent
+            <select
+              aria-label="Execution agent"
+              className="field-control"
+              required
+              value={agentId}
+              onChange={(e) => setAgentId(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">Choose an agent</option>
+              {agents
+                .filter((a) => a.enabled !== false && a.status !== 'inactive')
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          {agents.every(
+            (a) => a.enabled === false || a.status === 'inactive',
+          ) && (
+            <p className="text-sm">
+              Add an agent in Settings → Agents before starting.
+            </p>
+          )}
+          <label className="grid gap-1 text-sm">
+            {detail.status === 'review'
+              ? 'Required changes'
+              : 'Additional instructions (optional)'}
+            <textarea
+              aria-label="Revision feedback"
+              className="field-control"
+              rows={4}
+              maxLength={6000}
+              required={detail.status === 'review'}
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder={
+                detail.status === 'review'
+                  ? 'Describe the gap, expected fix, and how to verify it.'
+                  : 'Add context for this session without replacing the human instructions.'
+              }
+            />
+          </label>
+          <button
+            className="action-primary w-full"
+            disabled={
+              busy ||
+              !agentId ||
+              (detail.status === 'review' && !feedback.trim())
+            }
+          >
+            Start session
+          </button>
+        </form>
+      </ActionDialog>
+      <ActionDialog
+        open={modal === 'approve'}
+        title="Approve task result"
+        onClose={() => setModal(null)}
+        busy={busy}
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void working(async () => {
+              await update({
+                status: 'done',
+                complete_note: approvalNote.trim(),
+                expected_updated_at: detail.updated_at,
+              })
+              setModal(null)
+              setNotice('Task result approved.')
+            })
+          }}
+        >
+          <p className="text-sm text-muted-foreground">
+            A finished process is not an approved result. Review the output,
+            verify every acceptance criterion, and record the evidence.
+          </p>
+          {checklist.some((i) => !i.completed) && (
+            <p className="text-sm text-destructive">
+              Verify all acceptance criteria in Overview before approving.
+            </p>
+          )}
+          <label className="grid gap-1 text-sm">
+            Completion notes & verification
+            <textarea
+              className="field-control"
+              aria-label="Approval evidence"
+              rows={6}
+              maxLength={16000}
+              required
+              value={approvalNote}
+              onChange={(e) => setApprovalNote(e.target.value)}
+              placeholder="What changed, how it was verified, and any limitations."
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
           )}
           <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors disabled:opacity-50 rounded"
+            className="action-primary w-full"
+            disabled={
+              busy ||
+              !approvalNote.trim() ||
+              checklist.some((i) => !i.completed)
+            }
           >
-            <Save className="h-3.5 w-3.5" />
-            <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+            Approve and mark Done
+          </button>
+        </form>
+      </ActionDialog>
+      <ActionDialog
+        open={modal === 'delete'}
+        title="Delete task?"
+        onClose={() => setModal(null)}
+        busy={busy}
+      >
+        <p className="mb-4 break-words text-sm">
+          Delete {taskRef(detail.id)} {detail.title}? Its comments, attempts,
+          and saved output will also be removed. This cannot be undone.
+        </p>
+        {error && (
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button
+            className="action-secondary"
+            disabled={busy}
+            onClick={() => setModal(null)}
+          >
+            Keep task
+          </button>
+          <button
+            className="action-primary bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={busy || running}
+            onClick={() =>
+              void working(async () => {
+                await onDelete(initial.id)
+                drafts.delete(initial.id)
+              })
+            }
+          >
+            Delete task
           </button>
         </div>
-      )}
+      </ActionDialog>
+      <ActionDialog
+        open={modal === 'cancel'}
+        title="Cancel session?"
+        onClose={() => setModal(null)}
+        busy={busy}
+      >
+        <p className="mb-4 text-sm">
+          Stop the active agent process? Existing output is retained. Changes
+          already made by the agent are not rolled back.
+        </p>
+        {error && (
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button
+            className="action-secondary"
+            disabled={busy}
+            onClick={() => setModal(null)}
+          >
+            Keep running
+          </button>
+          <button
+            className="action-primary"
+            disabled={busy}
+            onClick={() =>
+              void working(async () => {
+                await tasksApi.cancel(initial.id)
+                setModal(null)
+                await reload()
+                await onRunAgent(initial.id)
+              })
+            }
+          >
+            Cancel session
+          </button>
+        </div>
+      </ActionDialog>
     </dialog>
   )
 }

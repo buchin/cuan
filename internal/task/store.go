@@ -7,6 +7,7 @@ import (
 
 var (
 	ErrAttemptFinal     = errors.New("Attempt has already ended")
+	ErrRequestConflict  = errors.New("The task or request has changed. Reload the saved task before trying again")
 	ErrTaskActive       = errors.New("Task already has an active execution")
 	ErrTaskDuplicate    = errors.New("Task already exists")
 	ErrTaskNotFound     = errors.New("Task not found")

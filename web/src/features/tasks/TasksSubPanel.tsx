@@ -25,6 +25,7 @@ export function TasksSubPanel({
 
   const STATUSES: { id: string; label: string; dotClass: string }[] = [
     { id: 'all', label: 'All Tasks', dotClass: 'bg-primary' },
+    { id: 'backlog', label: 'Backlog', dotClass: 'bg-muted-foreground' },
     { id: 'todo', label: 'Todo', dotClass: 'bg-blue-500' },
     { id: 'doing', label: 'Doing', dotClass: 'bg-yellow-500' },
     { id: 'review', label: 'Review', dotClass: 'bg-purple-500' },
@@ -44,7 +45,7 @@ export function TasksSubPanel({
     if (statusId === 'all') return pool.length
     return pool.filter(
       (t) =>
-        (t.status === 'backlog' ? 'todo' : t.status || 'todo') === statusId,
+        (t.status || 'backlog') === statusId,
     ).length
   }
 

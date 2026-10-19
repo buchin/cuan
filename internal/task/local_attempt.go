@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 // ReconcileLocalTask updates the board only while this remains the newest
@@ -39,7 +40,7 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	if status == AttemptStatusSucceeded {
 		board = TaskStatusReview
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1`, taskID, board); e != nil {
+	if _, e = tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status='doing'`, taskID, board); e != nil {
 		return e
 	}
 	return tx.Commit()
@@ -60,6 +61,10 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 	if !ok {
 		return ErrTaskNotFound
 	}
+	if t.Status != TaskStatusDoing {
+		return nil
+	}
+	t.UpdatedAt = time.Now().UTC()
 	t.Status = TaskStatusBlocked
 	if latest.Status == AttemptStatusSucceeded {
 		t.Status = TaskStatusReview

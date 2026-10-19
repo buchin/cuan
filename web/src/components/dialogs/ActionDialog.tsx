@@ -41,9 +41,13 @@ export function ActionDialog({
     <dialog
       ref={ref}
       aria-labelledby={id}
-      onKeyDown={trapDialogFocus}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        trapDialogFocus(e)
+      }}
       onCancel={(e) => {
         e.preventDefault()
+        e.stopPropagation()
         if (!busy) onClose()
       }}
       className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-5 text-card-foreground shadow-2xl backdrop:bg-black/60"

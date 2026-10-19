@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -17,22 +18,29 @@ func NewDBStore(db *sql.DB) *DBStore {
 }
 
 func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	now := time.Now().UTC()
 	if t.CreatedAt.IsZero() {
 		t.CreatedAt = now
 	}
+	t.CreatedAt = t.CreatedAt.Truncate(time.Microsecond)
 	t.UpdatedAt = t.CreatedAt
 
 	query := `
 		INSERT INTO tasks (
 			id, project_id, title, instructions, status, priority, assigned_agent,
 			branch_name, pr_url, pr_number, commit_sha, diff_summary, test_summary,
-			created_at, updated_at,source_room_id,source_message_id
+			created_at, updated_at,source_room_id,source_message_id,summary,complete_note,dod_checklist,creation_hash
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,NULLIF($16,'')::uuid,NULLIF($17,'')::uuid
+			$1, NULLIF($2,''), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,NULLIF($16,'')::uuid,NULLIF($17,'')::uuid,$18,$19,$20::jsonb,$21
 		)
 	`
-	_, err := s.db.ExecContext(ctx, query,
+	_, err = tx.ExecContext(ctx, query,
 		t.ID,
 		t.ProjectID,
 		t.Title,
@@ -47,7 +55,7 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 		t.DiffSummary,
 		t.TestSummary,
 		t.CreatedAt,
-		t.UpdatedAt, t.SourceRoomID, t.SourceMessageID,
+		t.UpdatedAt, t.SourceRoomID, t.SourceMessageID, t.Summary, t.CompleteNote, checklistJSON(t.DoDChecklist), t.CreationHash,
 	)
 	if err != nil {
 		return fmt.Errorf("create task: %w", err)
@@ -63,20 +71,23 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 		if pid == "" {
 			continue
 		}
-		_, _ = s.db.ExecContext(ctx, `
+		_, err = tx.ExecContext(ctx, `
 			INSERT INTO task_projects (task_id, project_id, created_at)
 			VALUES ($1, $2, $3)
 			ON CONFLICT (task_id, project_id) DO NOTHING
 		`, t.ID, pid, t.CreatedAt)
+		if err != nil {
+			return err
+		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 	query := `
 		SELECT 
-			id, project_id, title, instructions, status, priority,
+			id, COALESCE(project_id,''), title, instructions, status, priority,
 			COALESCE(assigned_agent, 'agy'),
 			COALESCE(branch_name, ''),
 			COALESCE(pr_url, ''),
@@ -84,11 +95,12 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 			COALESCE(commit_sha, ''),
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
-			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,'')
+			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash
 		FROM tasks
 		WHERE id = $1
 	`
 	var t Task
+	var checklist []byte
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&t.ID,
 		&t.ProjectID,
@@ -104,13 +116,17 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		&t.DiffSummary,
 		&t.TestSummary,
 		&t.CreatedAt,
-		&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID,
+		&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID, &t.Summary, &t.CompleteNote, &checklist, &t.CreationHash,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrTaskNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get task: %w", err)
+	}
+
+	if err := json.Unmarshal(checklist, &t.DoDChecklist); err != nil {
+		return nil, fmt.Errorf("read acceptance criteria: %w", err)
 	}
 
 	// Populate linked project IDs from task_projects
@@ -136,7 +152,7 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, error) {
 	query := `
 		SELECT 
-			id, project_id, title, instructions, status, priority,
+			id, COALESCE(project_id,''), title, instructions, status, priority,
 			COALESCE(assigned_agent, 'agy'),
 			COALESCE(branch_name, ''),
 			COALESCE(pr_url, ''),
@@ -144,7 +160,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			COALESCE(commit_sha, ''),
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
-			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,'')
+			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash
 		FROM tasks
 		WHERE ($1 = '' OR project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = tasks.id AND tp.project_id = $1))
 		  AND ($2 = '' OR status = $2)
@@ -162,6 +178,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 	taskMap := make(map[string]*Task)
 	for rows.Next() {
 		var t Task
+		var checklist []byte
 		if err := rows.Scan(
 			&t.ID,
 			&t.ProjectID,
@@ -177,9 +194,12 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			&t.DiffSummary,
 			&t.TestSummary,
 			&t.CreatedAt,
-			&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID,
+			&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID, &t.Summary, &t.CompleteNote, &checklist, &t.CreationHash,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
+		}
+		if err := json.Unmarshal(checklist, &t.DoDChecklist); err != nil {
+			return nil, fmt.Errorf("read acceptance criteria: %w", err)
 		}
 		if t.ProjectID != "" {
 			t.ProjectIDs = []string{t.ProjectID}
@@ -239,7 +259,13 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 }
 
 func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
-	t.UpdatedAt = time.Now().UTC()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	t.UpdatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	query := `
 		UPDATE tasks SET
 			title = $2,
@@ -253,10 +279,10 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 			commit_sha = $10,
 			diff_summary = $11,
 			test_summary = $12,
-			updated_at = $13
+			updated_at = $13,summary=$14,complete_note=$15,dod_checklist=$16::jsonb,project_id=NULLIF($17,'')
 		WHERE id = $1
 	`
-	res, err := s.db.ExecContext(ctx, query,
+	res, err := tx.ExecContext(ctx, query,
 		t.ID,
 		t.Title,
 		t.Instructions,
@@ -269,7 +295,7 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 		t.CommitSHA,
 		t.DiffSummary,
 		t.TestSummary,
-		t.UpdatedAt,
+		t.UpdatedAt, t.Summary, t.CompleteNote, checklistJSON(t.DoDChecklist), t.ProjectID,
 	)
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
@@ -284,37 +310,57 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 
 	// Synchronize task_projects if ProjectIDs provided
 	if t.ProjectIDs != nil {
-		_, _ = s.db.ExecContext(ctx, `DELETE FROM task_projects WHERE task_id = $1`, t.ID)
+		_, err = tx.ExecContext(ctx, `DELETE FROM task_projects WHERE task_id = $1`, t.ID)
+		if err != nil {
+			return err
+		}
 		for _, pid := range t.ProjectIDs {
 			pid = strings.TrimSpace(pid)
 			if pid == "" {
 				continue
 			}
-			_, _ = s.db.ExecContext(ctx, `
+			_, err = tx.ExecContext(ctx, `
 				INSERT INTO task_projects (task_id, project_id, created_at)
 				VALUES ($1, $2, $3)
 				ON CONFLICT (task_id, project_id) DO NOTHING
 			`, t.ID, pid, time.Now().UTC())
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (s *DBStore) DeleteTask(ctx context.Context, id string) error {
-	query := "DELETE FROM tasks WHERE id = $1"
-	res, err := s.db.ExecContext(ctx, query, id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "task:"+id); err != nil {
+		return err
+	}
+	var active bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM task_attempts WHERE task_id=$1 AND status IN ('queued','running'))`, id).Scan(&active); err != nil {
+		return err
+	}
+	if active {
+		return ErrTaskActive
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM tasks WHERE id=$1`, id)
 	if err != nil {
 		return fmt.Errorf("delete task: %w", err)
 	}
-	rows, err := res.RowsAffected()
+	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("delete task rows affected: %w", err)
+		return err
 	}
-	if rows == 0 {
+	if n == 0 {
 		return ErrTaskNotFound
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
@@ -352,9 +398,9 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 		INSERT INTO task_attempts (
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, cancel_requested, canceled_at, interrupted_at, attempt_number,
-			started_at, finished_at, error_message, created_at
+			started_at, finished_at, error_message, created_at,request_hash
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,$17
 		)
 	`
 	_, err := execer.ExecContext(ctx, query,
@@ -373,7 +419,7 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 		a.StartedAt,
 		a.FinishedAt,
 		a.ErrorMessage,
-		a.CreatedAt,
+		a.CreatedAt, a.RequestHash,
 	)
 	if err != nil {
 		return fmt.Errorf("create attempt: %w", err)
@@ -390,7 +436,7 @@ func (s *DBStore) GetAttempt(ctx context.Context, id string) (*TaskAttempt, erro
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
 			COALESCE(attempt_number, 1), started_at, finished_at,
-			COALESCE(error_message, ''), created_at
+			COALESCE(error_message, ''), created_at,request_hash
 		FROM task_attempts
 		WHERE id = $1
 	`
@@ -411,7 +457,7 @@ func (s *DBStore) GetAttempt(ctx context.Context, id string) (*TaskAttempt, erro
 		&a.StartedAt,
 		&a.FinishedAt,
 		&a.ErrorMessage,
-		&a.CreatedAt,
+		&a.CreatedAt, &a.RequestHash,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrAttemptNotFound
@@ -428,7 +474,7 @@ func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAtt
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
 			COALESCE(attempt_number, 1), started_at, finished_at,
-			COALESCE(error_message, ''), created_at
+			COALESCE(error_message, ''), created_at,request_hash
 		FROM task_attempts
 		WHERE task_id = $1
 		ORDER BY created_at DESC
@@ -451,7 +497,7 @@ func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAtt
 		&a.StartedAt,
 		&a.FinishedAt,
 		&a.ErrorMessage,
-		&a.CreatedAt,
+		&a.CreatedAt, &a.RequestHash,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -468,7 +514,7 @@ func (s *DBStore) ListAttempts(ctx context.Context, taskID string) ([]*TaskAttem
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
 			COALESCE(attempt_number, 1), started_at, finished_at,
-			COALESCE(error_message, ''), created_at
+			COALESCE(error_message, ''), created_at,request_hash
 		FROM task_attempts
 		WHERE task_id = $1
 		ORDER BY created_at DESC
@@ -498,7 +544,7 @@ func (s *DBStore) ListAttempts(ctx context.Context, taskID string) ([]*TaskAttem
 			&a.StartedAt,
 			&a.FinishedAt,
 			&a.ErrorMessage,
-			&a.CreatedAt,
+			&a.CreatedAt, &a.RequestHash,
 		); err != nil {
 			return nil, fmt.Errorf("scan attempt: %w", err)
 		}
@@ -691,4 +737,12 @@ func (s *DBStore) GetLogs(ctx context.Context, attemptID string, afterID int64, 
 	}
 
 	return result, nil
+}
+
+func checklistJSON(items []DoDItem) string {
+	if items == nil {
+		return "[]"
+	}
+	data, _ := json.Marshal(items)
+	return string(data)
 }

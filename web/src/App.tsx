@@ -21,10 +21,8 @@ import { InboxView } from './features/inbox/InboxView'
 import {
   Project,
   Task,
-  TaskStatus,
-  TaskPriority,
+  CreateTaskRequest,
   ProjectType,
-  DoDItem,
 } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { ContactsView } from './features/contacts/ContactsView'
@@ -67,6 +65,8 @@ export function App() {
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectsError, setProjectsError] = useState('')
   const [tasks, setTasks] = useState<Task[]>([])
+  const [tasksLoading,setTasksLoading]=useState(true)
+  const [tasksError,setTasksError]=useState('')
   const [contacts, setContacts] = useState<ChatContact[]>([])
   const [directoryAgents, setDirectoryAgents] = useState<Agent[]>([])
   const [contactsLoading, setContactsLoading] = useState(true)
@@ -148,11 +148,9 @@ export function App() {
   const refreshTasks = useCallback(async () => {
     try {
       const data = await tasksApi.list()
-      setTasks(data)
-    } catch (err) {
-      console.error('Failed to load tasks:', err)
-    }
-  }, [currentTab, activeProject?.id])
+      setTasks(data);setTasksError('')
+    } catch {setTasksError('Could not load tasks. Check your connection and try again.')}finally{setTasksLoading(false)}
+  }, [])
 
   const refreshContacts = useCallback(async () => {
     const [list, agents] = await Promise.allSettled([
@@ -271,24 +269,17 @@ export function App() {
   const handleSelectTask = (t: Task) => {
     setSelectedTask(t)
     setIsSidePeekOpen(true)
-    navigate(`/tasks/${t.id}`, {
-      state: {
-        taskReturnTo: location.pathname.startsWith('/projects/')
-          ? location.pathname
-          : '/tasks',
-      },
-    })
+    const search = new URLSearchParams(location.search);search.delete('view')
+    const suffix=search.toString()?'?'+search.toString():''
+    const returnTo=location.pathname.startsWith('/projects/')?location.pathname+suffix:typeof location.state?.taskReturnTo==='string'?location.state.taskReturnTo:'/tasks'+suffix
+    navigate(`/tasks/${encodeURIComponent(t.id)}${suffix}`,{state:{taskReturnTo:returnTo}})
   }
-
   const handleCloseSidePeek = () => {
-    setIsSidePeekOpen(false)
-    setSelectedTask(null)
-    const target = location.state?.taskReturnTo
-    navigate(
-      typeof target === 'string' && /^\/projects\/[^/?#]+$/.test(target)
-        ? target
-        : '/tasks',
-    )
+    setIsSidePeekOpen(false);setSelectedTask(null);void refreshTasks()
+    const search=new URLSearchParams(location.search);search.delete('view')
+    const fallback='/tasks'+(search.toString()?'?'+search.toString():'')
+    const target=location.state?.taskReturnTo
+    navigate(typeof target==='string'&&/^\/(?:tasks|projects\/[^/?#]+)(?:\?[^#]*)?$/.test(target)?target:fallback)
   }
 
   const handleSelectProject = (p?: Project) => {
@@ -318,16 +309,10 @@ export function App() {
   }
 
   // Handlers for Tasks
-  const handleCreateTask = async (data: {
-    title: string
-    description?: string
-    project_ids?: string[]
-    priority: TaskPriority
-    status: TaskStatus
-    dod_checklist?: DoDItem[]
-  }) => {
-    await tasksApi.create(data)
+  const handleCreateTask = async (data: CreateTaskRequest) => {
+    const created=await tasksApi.create(data)
     await refreshTasks()
+    handleSelectTask(created)
   }
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
@@ -344,13 +329,10 @@ export function App() {
     handleCloseSidePeek()
   }
 
-  const handleRunAgent = async (taskId: string) => {
-    const task = tasks.find((item) => item.id === taskId)
-    if (task) handleSelectTask(task)
+  const handleRunAgent = async (_taskId: string) => {
     await refreshTasks()
   }
 
-  // 1. Loading Auth State
   if (authLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background text-primary font-mono">
@@ -507,6 +489,9 @@ export function App() {
             )}
             <TaskBoardView
               tasks={tasks}
+              loading={tasksLoading}
+              error={tasksError}
+              onRetry={()=>void refreshTasks()}
               projects={projects}
 
               selectedStatusFilter={selectedTaskStatus}
@@ -577,6 +562,9 @@ export function App() {
                 <div className="min-h-0 flex-1">
                   <TaskBoardView
                     tasks={tasks}
+                    loading={tasksLoading}
+                    error={tasksError}
+                    onRetry={()=>void refreshTasks()}
                     projects={projects}
                     activeProject={activeProject}
                     onSelectTask={handleSelectTask}

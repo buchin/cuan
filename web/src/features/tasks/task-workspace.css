@@ -1,0 +1,33 @@
+.task-workspace {
+  z-index: 40;
+}
+.task-workspace .task-prose .chat-markdown {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.task-workspace .task-prose .chat-markdown h1 {
+  font-size: 18px;
+}
+.task-workspace .task-prose .chat-markdown h2 {
+  font-size: 17px;
+}
+.task-workspace .task-prose .chat-markdown h3,
+.task-workspace .task-prose .chat-markdown h4,
+.task-workspace .task-prose .chat-markdown h5,
+.task-workspace .task-prose .chat-markdown h6 {
+  font-size: 16px;
+}
+.task-workspace .task-prose .chat-markdown p {
+  margin: 0.5em 0;
+}
+.task-workspace .task-prose .chat-markdown > :first-child {
+  margin-top: 0;
+}
+.task-workspace .task-prose .chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 767px) {
+  .task-workspace .task-prose .chat-markdown {
+    font-size: 16px;
+  }
+}

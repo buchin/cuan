@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -36,6 +38,7 @@ type TerminalMessage struct {
 
 // HandlerConfig provides dependencies for the terminal WebSocket handler.
 type HandlerConfig struct {
+	AttachOnly   bool
 	Manager      *Manager
 	AuthService  *auth.Service
 	TaskVerifier func(r *http.Request, taskID string) error
@@ -44,6 +47,7 @@ type HandlerConfig struct {
 
 // Handler implements the HTTP-to-WebSocket terminal gateway.
 type Handler struct {
+	attachOnly   bool
 	mgr          *Manager
 	authSvc      *auth.Service
 	taskVerifier func(r *http.Request, taskID string) error
@@ -55,13 +59,18 @@ func NewHandler(cfg HandlerConfig) *Handler {
 	checkOrigin := cfg.CheckOrigin
 	if checkOrigin == nil {
 		checkOrigin = func(r *http.Request) bool {
-			// Permissive check for developer convenience and reverse-proxy setups
-			return true
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true
+			}
+			u, err := url.Parse(origin)
+			return err == nil && (u.Scheme == "http" || u.Scheme == "https") && strings.EqualFold(u.Host, r.Host)
 		}
 	}
 
 	return &Handler{
 		mgr:          cfg.Manager,
+		attachOnly:   cfg.AttachOnly,
 		authSvc:      cfg.AuthService,
 		taskVerifier: cfg.TaskVerifier,
 		upgrader: websocket.Upgrader{
@@ -161,7 +170,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 5. Retrieve or spawn terminal session
-	session, err := h.mgr.GetOrCreateSession(r.Context(), taskID, clientMode, cols, rows)
+	var session *Session
+	var err error
+	if h.attachOnly || q.Get("attach") == "1" {
+		var found bool
+		session, found = h.mgr.GetSession(taskID)
+		if !found {
+			http.Error(w, "No live session. Start a task explicitly or open saved output.", http.StatusNotFound)
+			return
+		}
+		if expected := q.Get("session_id"); expected != "" && expected != session.ID() {
+			http.Error(w, "The selected session is no longer live.", http.StatusConflict)
+			return
+		}
+	} else {
+		session, err = h.mgr.GetOrCreateSession(r.Context(), taskID, clientMode, cols, rows)
+	}
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to initialize pty session: %v", err), http.StatusInternalServerError)
 		return
@@ -183,12 +207,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
+	var writeMu sync.Mutex
+	writeMessage := func(kind int, data []byte) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+		return conn.WriteMessage(kind, data)
+	}
+	writeJSON := func(value any) error {
+		data, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		return writeMessage(websocket.TextMessage, data)
+	}
 
 	// 7. Register subscriber
 	subID := generateSubscriberID()
 	sub, history, err := session.Subscribe(subID, clientMode)
 	if err != nil {
-		_ = conn.WriteJSON(TerminalMessage{
+		_ = writeJSON(TerminalMessage{
 			Type:    "error",
 			Message: "session terminated",
 		})
@@ -198,7 +236,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Send handshake connected message
 	curCols, curRows := session.PTY().GetSize()
-	_ = conn.WriteJSON(TerminalMessage{
+	_ = writeJSON(TerminalMessage{
 		Type:    "connected",
 		Session: session.ID(),
 		TaskID:  taskID,
@@ -209,7 +247,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial scrollback history if available
 	if len(history) > 0 {
-		_ = conn.WriteMessage(websocket.BinaryMessage, history)
+		_ = writeMessage(websocket.BinaryMessage, history)
 	}
 
 	// Setup ping/pong heartbeat
@@ -220,29 +258,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	done := make(chan struct{})
+	stop := make(chan struct{})
+	var stopOnce sync.Once
+	stopPump := func() { stopOnce.Do(func() { close(stop) }) }
+	defer stopPump()
 
 	// Background pump: session output -> WebSocket client
 	go func() {
 		defer close(done)
+		defer conn.Close()
 		pingTicker := time.NewTicker(defaultPingInterval)
 		defer pingTicker.Stop()
 
 		for {
 			select {
+			case <-stop:
+				return
 			case chunk, ok := <-sub.SendChan:
 				if !ok {
 					// Session or subscriber closed
-					_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "session closed"))
+					_ = writeMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "session closed"))
 					return
 				}
-				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
-				if err := conn.WriteMessage(websocket.BinaryMessage, chunk); err != nil {
+
+				if err := writeMessage(websocket.BinaryMessage, chunk); err != nil {
 					return
 				}
 
 			case <-pingTicker.C:
-				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+
+				if err := writeMessage(websocket.PingMessage, nil); err != nil {
 					return
 				}
 
@@ -264,7 +309,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if messageType == websocket.BinaryMessage {
 			// Direct raw input bytes (interactive take-over)
 			if _, err := session.WriteInput(subID, payload); err != nil {
-				_ = conn.WriteJSON(TerminalMessage{
+				_ = writeJSON(TerminalMessage{
 					Type:    "error",
 					Message: err.Error(),
 				})
@@ -284,7 +329,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				case "stdin", "input":
 					if msg.Data != "" {
 						if _, err := session.WriteInput(subID, []byte(msg.Data)); err != nil {
-							_ = conn.WriteJSON(TerminalMessage{
+							_ = writeJSON(TerminalMessage{
 								Type:    "error",
 								Message: err.Error(),
 							})
@@ -296,23 +341,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						newMode = ModeWatch
 					}
 					_ = session.SetSubscriberMode(subID, newMode)
-					_ = conn.WriteJSON(TerminalMessage{
+					_ = writeJSON(TerminalMessage{
 						Type: "status",
 						Mode: string(newMode),
 					})
 				case "takeover":
 					_ = session.SetSubscriberMode(subID, ModeInteractive)
-					_ = conn.WriteJSON(TerminalMessage{
+					_ = writeJSON(TerminalMessage{
 						Type: "status",
 						Mode: string(ModeInteractive),
 					})
 				case "ping":
-					_ = conn.WriteJSON(TerminalMessage{Type: "pong"})
+					_ = writeJSON(TerminalMessage{Type: "pong"})
 				}
 			} else {
 				// Not a JSON control message -> treat as direct raw text stdin input (e.g. from xterm.js)
 				if _, err := session.WriteInput(subID, payload); err != nil {
-					_ = conn.WriteJSON(TerminalMessage{
+					_ = writeJSON(TerminalMessage{
 						Type:    "error",
 						Message: err.Error(),
 					})
@@ -321,6 +366,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	stopPump()
 	<-done
 }
 
