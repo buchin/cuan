@@ -98,7 +98,6 @@ export function App() {
   const [contactSearch, setContactSearch] = useState('')
   const [selectedTaskStatus, setSelectedTaskStatus] = useState('all')
   const [isMobileChatActive, setIsMobileChatActive] = useState(false)
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
 
   // Default redirect from / to /inbox
   useEffect(() => {
@@ -357,8 +356,6 @@ export function App() {
       <AppShell
         currentTab={currentTab}
         onSelectTab={handleSelectTab}
-        isMobileDrawerOpen={isMobileDrawerOpen}
-        onMobileDrawerOpenChange={setIsMobileDrawerOpen}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
         hideBottomNav={currentTab === 'inbox' && isMobileChatActive}
         inboxSubPanel={

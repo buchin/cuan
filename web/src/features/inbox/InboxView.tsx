@@ -47,7 +47,6 @@ interface InboxViewProps {
   onContactSearchChange?: (q: string) => void
   onBackToContacts?: () => void
   onMobileChatActiveChange?: (active: boolean) => void
-  onOpenMobileDrawer?: () => void
 }
 
 export function InboxView({

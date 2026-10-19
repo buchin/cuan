@@ -48,9 +48,9 @@ melaporkan kegagalan; arsip tidak diberi label Delete.
 - 768–1199 px: navigasi 64 px, tanpa panel kedua permanen. Inbox memakai satu
   tampilan daftar/chat agar area kerja tetap luas.
 - <768 px: navigasi bawah Inbox/Contacts/Tasks/Projects, header untuk Settings/menu akun,
-  serta drawer navigasi. Dalam chat, Back mengembalikan daftar dan navigasi bawah.
-- Drawer tertutup tidak ada di urutan Tab. Drawer/task detail membatasi fokus,
-  Escape menutup, dan fokus dikembalikan jika elemen asal masih tersedia.
+  tanpa hamburger/drawer duplikat. Dalam chat, Back mengembalikan daftar dan navigasi bawah.
+- HP memakai empat tab bawah serta Settings/menu akun di header. Drawer navigasi
+  dihapus. Task detail tetap membatasi fokus, mendukung Escape dan pengembalian fokus.
 - Safe-area HP dan perubahan visible viewport dipertahankan untuk composer.
 
 ## Contacts CRM
@@ -99,3 +99,10 @@ Rilis `40938ea` aktif di production, schema tetap22 tanpa migration baru. Pemeri
 production16 pasangan halaman/viewport lulus, termasuk tombol terbawah yang tidak
 tertutup navigasi HP, deep link/reload integrasi, salin kode dan persistensi tema.
 Bukti: `docs/evidence/integrations-navigation/production-browser.json`.
+
+## Navigasi HP tanpa drawer
+
+Di bawah768px, gunakan Inbox/Contacts/Tasks/Projects pada menu bawah. Header
+menyediakan Settings dan menu akun. Saat chat terbuka, Back mengembalikan daftar
+dan menu bawah. Tidak ada hamburger, drawer atau item Tab tersembunyi. Sidebar
+64px tablet dan sidebar desktop yang dapat dilipat tetap tersedia.

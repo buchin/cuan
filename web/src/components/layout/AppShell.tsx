@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavUser } from './NavUser'
-import { NavigationDrawer } from './NavigationDrawer'
 import { useTheme } from '../../context/ThemeContext'
 import {
   Inbox,
@@ -11,7 +10,6 @@ import {
   PanelLeft,
   Sun,
   Moon,
-  Menu,
   Settings,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -24,8 +22,6 @@ interface AppShellProps {
   onCreateProjectClick?: () => void
   hideBottomNav?: boolean
   inboxSubPanel?: React.ReactNode
-  isMobileDrawerOpen?: boolean
-  onMobileDrawerOpenChange?: (open: boolean) => void
 }
 const NAV_ITEMS = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
@@ -41,11 +37,8 @@ export function AppShell({
   onCreateProjectClick,
   hideBottomNav = false,
   inboxSubPanel,
-  isMobileDrawerOpen,
-  onMobileDrawerOpenChange,
 }: AppShellProps) {
   const shell = useRef<HTMLDivElement>(null)
-  const [internalOpen, setInternalOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem('cuan-nav-collapsed') === 'true'
@@ -54,11 +47,6 @@ export function AppShell({
     }
   })
   const [listOpen, setListOpen] = useState(true)
-  const open = isMobileDrawerOpen ?? internalOpen
-  const setOpen = (value: boolean) => {
-    setInternalOpen(value)
-    onMobileDrawerOpenChange?.(value)
-  }
   const { resolvedTheme, toggleTheme } = useTheme()
   useEffect(() => {
     const viewport = window.visualViewport
@@ -88,14 +76,8 @@ export function AppShell({
       : NAV_ITEMS.find((n) => n.id === currentTab)?.label
   const navigate = (id: AppTab) => {
     onSelectTab(id)
-    setOpen(false)
   }
-  const navButton = (
-    id: AppTab,
-    text: string,
-    Icon: typeof Inbox,
-    drawer = false,
-  ) => (
+  const navButton = (id: AppTab, text: string, Icon: typeof Inbox) => (
     <button
       key={id}
       title={text}
@@ -109,7 +91,7 @@ export function AppShell({
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />
-      <span className={drawer ? '' : 'nav-label'}>{text}</span>
+      <span className="nav-label">{text}</span>
     </button>
   )
   const themeButton = (
@@ -201,13 +183,6 @@ export function AppShell({
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            <button
-              onClick={() => setOpen(true)}
-              aria-label="Open Navigation Drawer"
-              className="icon-action md:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
             <span className="truncate text-sm font-medium">
               Cuan <span className="mx-1 text-muted-foreground">/</span> {label}
             </span>
@@ -249,14 +224,6 @@ export function AppShell({
           {children}
         </div>
       </main>
-      {open && (
-        <NavigationDrawer onClose={() => setOpen(false)}>
-          <nav aria-label="Navigasi seluler" className="space-y-1">
-            {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon, true))}
-            {navButton('settings', 'Settings', Settings, true)}
-          </nav>
-        </NavigationDrawer>
-      )}
       {!hideBottomNav && (
         <nav
           aria-label="Navigasi bawah"
