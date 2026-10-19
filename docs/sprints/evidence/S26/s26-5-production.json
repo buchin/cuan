@@ -1,6 +1,6 @@
 {
   "actualProduction": true,
-  "release": "2cd41831838befda6812c64c5d90a48ba0f0cec8",
+  "release": "f8341b49fd6da3fa223e19d8184a7f3d51ff378c",
   "ready": {
     "database": "connected",
     "migrations": "applied",
