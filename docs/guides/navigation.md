@@ -94,3 +94,8 @@ hanya muncul pada empty state dan menuju halaman pengaturan tersebut.
 Header HP tidak memiliki toggle tema duplikat. Gunakan **Settings → Tampilan**
 (`/settings/appearance`) untuk Light, Dark atau Ikuti sistem. Pilihan disimpan di
 browser dan berlaku setelah reload. Shortcut tema desktop tetap tersedia.
+
+Rilis `40938ea` aktif di production, schema tetap22 tanpa migration baru. Pemeriksaan
+production16 pasangan halaman/viewport lulus, termasuk tombol terbawah yang tidak
+tertutup navigasi HP, deep link/reload integrasi, salin kode dan persistensi tema.
+Bukti: `docs/evidence/integrations-navigation/production-browser.json`.
