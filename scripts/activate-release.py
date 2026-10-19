@@ -41,7 +41,10 @@ def healthy():
 
 
 def restart_and_check():
-    subprocess.run(['systemctl', 'restart', SERVICE], check=True)
+    try:
+        subprocess.run(['systemctl', 'restart', SERVICE], check=True)
+    except subprocess.CalledProcessError:
+        return False
     for _ in range(20):
         if healthy():
             return True

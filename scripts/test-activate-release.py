@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import tempfile
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -34,6 +35,9 @@ class Gates(unittest.TestCase):
                     responses = [Response(b'{}'), Response(json.dumps(dict(migrations_count=schema, status=status, database=database)).encode()), Response(served)]
                     with patch.object(a.urllib.request, 'urlopen', side_effect=responses):
                         self.assertEqual(a.healthy(), expected)
+    def test_failed_systemd_restart_enters_rollback_path(self):
+        with patch.object(a.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['systemctl'])):
+            self.assertFalse(a.restart_and_check())
     def test_switch_is_atomic_and_retains_previous_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

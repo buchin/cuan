@@ -1,0 +1,3 @@
+{"release": "fb83e133a6ed7babc1ff603568b1e03897139035", "previous": "2cd41831838befda6812c64c5d90a48ba0f0cec8", "health": "healthy", "migrations": 20}
+{"release": "2cd41831838befda6812c64c5d90a48ba0f0cec8", "previous": "fb83e133a6ed7babc1ff603568b1e03897139035", "health": "healthy", "migrations": 20}
+{"actualProductionRollbackReactivation": true, "release": "2cd41831838befda6812c64c5d90a48ba0f0cec8", "previous": "fb83e133a6ed7babc1ff603568b1e03897139035", "schema": 20, "all248PrivateFilesUnchanged": true, "restoreOrDownMigration": false}

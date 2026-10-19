@@ -1,0 +1,22 @@
+{
+  "actualProduction": true,
+  "release": "2cd41831838befda6812c64c5d90a48ba0f0cec8",
+  "ready": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 20,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "exactServedAssets": {
+    "/assets/index-D24cbRK4.js": "67658b1c41c002f1b66f22569388df613f4452c9bc1f883c2471ebf4eb66b5f1",
+    "/assets/index-B4xGb_Ee.css": "79e5ca763a937737540b0c46371eb855d2377dd884dbe41199bea228a946c9af"
+  },
+  "agents": [],
+  "productionRosterEmptyBeforeAndAfter": true,
+  "existing34TableContentsUnchanged": "s26-5-production-data.txt",
+  "noNewProviderRequest": true,
+  "noConsent": true,
+  "stagingCredentialsCopied": false,
+  "limits": "Production retains its existing roster/credentials; staging second-account login and real nonce evidence remain isolated staging evidence. No new production provider success claimed."
+}
