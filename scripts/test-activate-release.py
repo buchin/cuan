@@ -18,18 +18,18 @@ class Response:
     def read(self): return self.body
 
 class Gates(unittest.TestCase):
-    def test_schema20_and_exact_html_required_for_old_and_new_code(self):
+    def test_schema21_and_exact_html_required_for_old_and_new_code(self):
         with tempfile.TemporaryDirectory() as directory:
             a.BASE = Path(directory)
             html = a.BASE / 'current/web/dist/index.html'
             html.parent.mkdir(parents=True)
             html.write_bytes(b'candidate')
             for schema, status, database, served, expected in [
-                (20, 'ready', 'connected', b'candidate', True),
+                (21, 'ready', 'connected', b'candidate', True),
                 (19, 'ready', 'connected', b'candidate', False),
-                (20, 'not_ready', 'connected', b'candidate', False),
-                (20, 'ready', 'disconnected', b'candidate', False),
-                (20, 'ready', 'connected', b'stale', False),
+                (21, 'not_ready', 'connected', b'candidate', False),
+                (21, 'ready', 'disconnected', b'candidate', False),
+                (21, 'ready', 'connected', b'stale', False),
             ]:
                 with self.subTest(schema=schema, status=status, served=served):
                     responses = [Response(b'{}'), Response(json.dumps(dict(migrations_count=schema, status=status, database=database)).encode()), Response(served)]
