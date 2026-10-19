@@ -1,0 +1,6 @@
+{"release": "legacy-before-s25", "previous": "ac25b73f0a0c3767078934e70d8697ce6dd36d91", "health": "healthy", "migrations": 19}
+{"app":"cuan","status":"healthy","timestamp":"2026-10-19T00:27:54Z","version":"0.1.0"}
+{"database":"connected","migrations":"applied","migrations_count":19,"owner_configured":true,"status":"ready"}
+{"release": "ac25b73f0a0c3767078934e70d8697ce6dd36d91", "previous": "legacy-before-s25", "health": "healthy", "migrations": 19}
+{"app":"cuan","status":"healthy","timestamp":"2026-10-19T00:27:57Z","version":"0.1.0"}
+{"database":"connected","migrations":"applied","migrations_count":19,"owner_configured":true,"status":"ready"}

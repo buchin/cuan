@@ -35,3 +35,7 @@ A controlled rollback drill may switch to the retained prior version and immedia
 ## Same-owner OAuth continuity
 
 The owner completed consent in staging. For this release, the same account's CLI credential can be migrated privately to the production service user through a one-time forced SSH command (`scripts/import-oauth.py`), with no token in arguments, logs, artifacts or repository. Preserve the old production file privately, then revoke/delete the one-time key immediately and prove a real provider response on the VPS. This mechanism is not for copying another user's account. The app can also perform a fresh Google login directly in production.
+
+The retained private systemd EnvironmentFile takes precedence over Environment directives. Activation therefore writes non-secret `/opt/cuan/release.env` and loads it after `.env` to select the active static payload and disable migrations. Health gates compare the actual `/tasks` HTML with the selected release index, so a healthy API serving stale frontend fails activation.
+
+Fural's ship process may not inherit injected AgentSession secrets. If it fails with an unset DOJO_TERMAPI variable before uploading, run the same checked-in `scripts/fural-deploy.sh` directly from the authorized AgentSession environment. Do not copy credentials into the repository or shared runtime. Upload uses SCP with the injected service-host credential; native VPS rsync performs the final synchronization.
