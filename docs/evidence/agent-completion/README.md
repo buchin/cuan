@@ -24,4 +24,4 @@ Authenticated production smoke passed eight viewport/theme checks, current/earli
 
 Isolated production-host PTY fixture passed Done/Review/Blocked reporting, two interactive turns, final output drain and progress/cancel guards. It used memory stores and a fake provider, without production database access. This proves runner/report handling; real provider adherence to reporting instructions was not tested.
 
-Retention verification:35 existing tables unchanged (login sessions excluded),697 account-profile files unchanged. Persistent project checkout fast-forwarded cleanly to the deployed code. See `production.json` and production screenshots.
+Retention verification:35 existing tables unchanged (login sessions excluded),697 account-profile files unchanged. Persistent project checkout fast-forwarded cleanly to the deployed code. See `production-browser.json` and production screenshots.
