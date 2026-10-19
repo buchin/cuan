@@ -1,0 +1,474 @@
+{
+  "mode": "staging",
+  "limits": "Chromium mobile CSS viewport + focused viewport resize; no physical Android/iOS keyboard/browser chrome or OS safe-area rendering. Before uses retained build with real production API; after uses candidate build with same API; production uses served assets. Draft never submitted.",
+  "results": [
+    {
+      "w": 360,
+      "h": 800,
+      "keyboardEmulated": false,
+      "viewport": {
+        "width": 360,
+        "height": 800,
+        "visualHeight": 800
+      },
+      "documentWidth": 360,
+      "composer": {
+        "top": 729,
+        "bottom": 800,
+        "left": 0,
+        "right": 360,
+        "height": 71
+      },
+      "input": {
+        "top": 742,
+        "bottom": 788,
+        "left": 12,
+        "right": 300,
+        "height": 46
+      },
+      "send": {
+        "top": 748,
+        "bottom": 788,
+        "left": 308,
+        "right": 348,
+        "height": 40
+      },
+      "scroll": {
+        "client": 673,
+        "total": 693,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 360,
+      "h": 800,
+      "keyboardEmulated": true,
+      "viewport": {
+        "width": 360,
+        "height": 500,
+        "visualHeight": 500
+      },
+      "documentWidth": 360,
+      "composer": {
+        "top": 429,
+        "bottom": 500,
+        "left": 0,
+        "right": 360,
+        "height": 71
+      },
+      "input": {
+        "top": 442,
+        "bottom": 488,
+        "left": 12,
+        "right": 300,
+        "height": 46
+      },
+      "send": {
+        "top": 448,
+        "bottom": 488,
+        "left": 308,
+        "right": 348,
+        "height": 40
+      },
+      "scroll": {
+        "client": 373,
+        "total": 677,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 390,
+      "h": 844,
+      "keyboardEmulated": false,
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "visualHeight": 844
+      },
+      "documentWidth": 390,
+      "composer": {
+        "top": 773,
+        "bottom": 844,
+        "left": 0,
+        "right": 390,
+        "height": 71
+      },
+      "input": {
+        "top": 786,
+        "bottom": 832,
+        "left": 12,
+        "right": 330,
+        "height": 46
+      },
+      "send": {
+        "top": 792,
+        "bottom": 832,
+        "left": 338,
+        "right": 378,
+        "height": 40
+      },
+      "scroll": {
+        "client": 717,
+        "total": 717,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 390,
+      "h": 844,
+      "keyboardEmulated": true,
+      "viewport": {
+        "width": 390,
+        "height": 544,
+        "visualHeight": 544
+      },
+      "documentWidth": 390,
+      "composer": {
+        "top": 473,
+        "bottom": 544,
+        "left": 0,
+        "right": 390,
+        "height": 71
+      },
+      "input": {
+        "top": 486,
+        "bottom": 532,
+        "left": 12,
+        "right": 330,
+        "height": 46
+      },
+      "send": {
+        "top": 492,
+        "bottom": 532,
+        "left": 338,
+        "right": 378,
+        "height": 40
+      },
+      "scroll": {
+        "client": 417,
+        "total": 693,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 412,
+      "h": 915,
+      "keyboardEmulated": false,
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "visualHeight": 915
+      },
+      "documentWidth": 412,
+      "composer": {
+        "top": 844,
+        "bottom": 915,
+        "left": 0,
+        "right": 412,
+        "height": 71
+      },
+      "input": {
+        "top": 857,
+        "bottom": 903,
+        "left": 12,
+        "right": 352,
+        "height": 46
+      },
+      "send": {
+        "top": 863,
+        "bottom": 903,
+        "left": 360,
+        "right": 400,
+        "height": 40
+      },
+      "scroll": {
+        "client": 788,
+        "total": 788,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 412,
+      "h": 915,
+      "keyboardEmulated": true,
+      "viewport": {
+        "width": 412,
+        "height": 615,
+        "visualHeight": 615
+      },
+      "documentWidth": 412,
+      "composer": {
+        "top": 544,
+        "bottom": 615,
+        "left": 0,
+        "right": 412,
+        "height": 71
+      },
+      "input": {
+        "top": 557,
+        "bottom": 603,
+        "left": 12,
+        "right": 352,
+        "height": 46
+      },
+      "send": {
+        "top": 563,
+        "bottom": 603,
+        "left": 360,
+        "right": 400,
+        "height": 40
+      },
+      "scroll": {
+        "client": 488,
+        "total": 673,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 800,
+      "h": 360,
+      "keyboardEmulated": false,
+      "viewport": {
+        "width": 800,
+        "height": 360,
+        "visualHeight": 360
+      },
+      "documentWidth": 800,
+      "composer": {
+        "top": 285,
+        "bottom": 360,
+        "left": 288,
+        "right": 800,
+        "height": 75
+      },
+      "input": {
+        "top": 302,
+        "bottom": 344,
+        "left": 304,
+        "right": 736,
+        "height": 42
+      },
+      "send": {
+        "top": 304,
+        "bottom": 344,
+        "left": 744,
+        "right": 784,
+        "height": 40
+      },
+      "scroll": {
+        "client": 181,
+        "total": 629,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 800,
+      "h": 360,
+      "keyboardEmulated": true,
+      "viewport": {
+        "width": 800,
+        "height": 210,
+        "visualHeight": 210
+      },
+      "documentWidth": 800,
+      "composer": {
+        "top": 135,
+        "bottom": 210,
+        "left": 288,
+        "right": 800,
+        "height": 75
+      },
+      "input": {
+        "top": 152,
+        "bottom": 194,
+        "left": 304,
+        "right": 736,
+        "height": 42
+      },
+      "send": {
+        "top": 154,
+        "bottom": 194,
+        "left": 744,
+        "right": 784,
+        "height": 40
+      },
+      "scroll": {
+        "client": 31,
+        "total": 629,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "keyboardEmulated": false,
+      "viewport": {
+        "width": 844,
+        "height": 390,
+        "visualHeight": 390
+      },
+      "documentWidth": 844,
+      "composer": {
+        "top": 315,
+        "bottom": 390,
+        "left": 288,
+        "right": 844,
+        "height": 75
+      },
+      "input": {
+        "top": 332,
+        "bottom": 374,
+        "left": 304,
+        "right": 780,
+        "height": 42
+      },
+      "send": {
+        "top": 334,
+        "bottom": 374,
+        "left": 788,
+        "right": 828,
+        "height": 40
+      },
+      "scroll": {
+        "client": 211,
+        "total": 590,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "keyboardEmulated": true,
+      "viewport": {
+        "width": 844,
+        "height": 210,
+        "visualHeight": 210
+      },
+      "documentWidth": 844,
+      "composer": {
+        "top": 135,
+        "bottom": 210,
+        "left": 288,
+        "right": 844,
+        "height": 75
+      },
+      "input": {
+        "top": 152,
+        "bottom": 194,
+        "left": 304,
+        "right": 780,
+        "height": 42
+      },
+      "send": {
+        "top": 154,
+        "bottom": 194,
+        "left": 788,
+        "right": 828,
+        "height": 40
+      },
+      "scroll": {
+        "client": 31,
+        "total": 590,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 915,
+      "h": 412,
+      "keyboardEmulated": false,
+      "viewport": {
+        "width": 915,
+        "height": 412,
+        "visualHeight": 412
+      },
+      "documentWidth": 915,
+      "composer": {
+        "top": 337,
+        "bottom": 412,
+        "left": 288,
+        "right": 915,
+        "height": 75
+      },
+      "input": {
+        "top": 354,
+        "bottom": 396,
+        "left": 304,
+        "right": 851,
+        "height": 42
+      },
+      "send": {
+        "top": 356,
+        "bottom": 396,
+        "left": 859,
+        "right": 899,
+        "height": 40
+      },
+      "scroll": {
+        "client": 233,
+        "total": 590,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    },
+    {
+      "w": 915,
+      "h": 412,
+      "keyboardEmulated": true,
+      "viewport": {
+        "width": 915,
+        "height": 210,
+        "visualHeight": 210
+      },
+      "documentWidth": 915,
+      "composer": {
+        "top": 135,
+        "bottom": 210,
+        "left": 288,
+        "right": 915,
+        "height": 75
+      },
+      "input": {
+        "top": 152,
+        "bottom": 194,
+        "left": 304,
+        "right": 851,
+        "height": 42
+      },
+      "send": {
+        "top": 154,
+        "bottom": 194,
+        "left": 859,
+        "right": 899,
+        "height": 40
+      },
+      "scroll": {
+        "client": 31,
+        "total": 590,
+        "top": 0
+      },
+      "hit": true,
+      "scrollAfterPoll": 0
+    }
+  ]
+}

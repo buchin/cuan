@@ -78,3 +78,22 @@ body {
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
 }
+
+/* One mobile viewport owner; nested Inbox panels only consume available space. */
+.app-shell { height: 100dvh; }
+@media (max-width: 767px) {
+  .app-shell {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--visible-top, 0px);
+    height: var(--visible-height, 100dvh);
+  }
+}
+
+@media (max-height: 500px) {
+  .app-shell .inbox-message-list { padding-block: 0.5rem; }
+}
+
+.app-shell [data-inbox-composer] textarea {
+  max-height: min(140px, 25dvh);
+}

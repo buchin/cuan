@@ -53,6 +53,10 @@ export function InboxView({
   // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
   const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
 
+  useEffect(() => {
+    if (activeContact) setMobileView('chat')
+  }, [activeContact?.id])
+
   // Notify parent of mobile chat active state to auto-hide bottom nav
   useEffect(() => {
     const isActive = mobileView === 'chat' && !!activeContact
@@ -101,12 +105,14 @@ export function InboxView({
     return () => clearInterval(timer)
   }, [activeContact, loadConversation])
 
-  // Scroll to bottom on message update
+  const lastMessageKey = messages[messages.length - 1]?.uuid || messages[messages.length - 1]?.id
+
+  // Only scroll for a new message, not identical polling results.
   useEffect(() => {
     if (messageListRef.current) {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight
     }
-  }, [messages])
+  }, [lastMessageKey, activeContact?.id])
 
   const handleSendMessage = async () => {
     const text = inputMessage.trim()
@@ -188,7 +194,7 @@ export function InboxView({
   }
 
   return (
-    <div className="h-full w-full flex overflow-hidden">
+    <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
       {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
       <div
         className={cn(
@@ -210,7 +216,7 @@ export function InboxView({
       {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
       <div
         className={cn(
-          'flex-1 flex-col h-[100dvh] md:h-full bg-background overflow-hidden',
+          'flex-1 min-h-0 min-w-0 flex-col h-full bg-background overflow-hidden',
           mobileView === 'chat' ? 'flex' : 'hidden md:flex'
         )}
       >
@@ -315,7 +321,7 @@ export function InboxView({
       {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
       <div
         ref={messageListRef}
-        className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-muted/20"
+        className="inbox-message-list min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 bg-muted/20"
       >
         {/* Connection Status & Guidance Banner */}
         {activeContact.type === 'agent' && (
@@ -470,7 +476,7 @@ export function InboxView({
       </div>
 
       {/* ── Modern Composer (Bottom) ── */}
-      <div className="p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border bg-card shrink-0 z-20">
+      <div data-inbox-composer className="p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border bg-card shrink-0 z-20">
         <div className="flex items-end gap-2 max-w-4xl mx-auto">
           <textarea
             ref={textareaRef}
@@ -486,7 +492,7 @@ export function InboxView({
                 ? 'Tulis pesan untuk agen... (Enter untuk kirim)'
                 : `Balas pesan untuk ${activeContact.name}... (Enter untuk kirim)`
             }
-            className="flex-1 min-h-[42px] max-h-[140px] resize-none overflow-hidden rounded-xl bg-background border border-input text-foreground px-3.5 py-2.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+            className="min-w-0 flex-1 min-h-[42px] max-h-[140px] resize-none overflow-hidden rounded-xl bg-background border border-input text-foreground px-3.5 py-2.5 text-base md:text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
           />
 
           <button

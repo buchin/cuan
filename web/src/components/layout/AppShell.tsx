@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NavUser } from './NavUser'
 import { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
@@ -66,6 +66,25 @@ export function AppShell({
   isMobileDrawerOpen,
   onMobileDrawerOpenChange,
 }: AppShellProps) {
+  const shellRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    const update = () => {
+      const shell = shellRef.current
+      if (!shell) return
+      // Pin the mobile shell to the visible area when the keyboard resizes/pans it.
+      shell.style.setProperty('--visible-height', `${viewport.height}px`)
+      shell.style.setProperty('--visible-top', `${viewport.offsetTop}px`)
+    }
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [])
   const [subPanelOpen, setSubPanelOpen] = useState(true)
   const [internalDrawerOpen, setInternalDrawerOpen] = useState(false)
   const isDrawerOpen = isMobileDrawerOpen !== undefined ? isMobileDrawerOpen : internalDrawerOpen
@@ -97,7 +116,7 @@ export function AppShell({
   }
 
   return (
-    <div className="h-screen md:h-screen h-[100dvh] w-screen flex overflow-hidden bg-background">
+    <div ref={shellRef} className="app-shell w-full flex overflow-hidden bg-background">
       {/* ── TIER 1: Primary Icon Rail (48px) — Hidden on mobile ── */}
       <nav className="hidden md:flex w-12 shrink-0 flex-col border-r border-border bg-sidebar">
         {/* Logo */}
@@ -194,7 +213,7 @@ export function AppShell({
       </div>
 
       {/* ── TIER 3: Main Viewport ── */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
+      <main className="min-h-0 min-w-0 flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Bar Header */}
         <header
           className={cn(
@@ -256,7 +275,7 @@ export function AppShell({
         {/* Content Area with pb-16 for mobile bottom navigation (when not hidden) */}
         <div
           className={cn(
-            'flex-1 overflow-hidden',
+            'min-h-0 min-w-0 flex-1 overflow-hidden',
             hideBottomNav ? 'pb-0' : 'pb-16 md:pb-0',
             currentTab === 'inbox' ? 'p-0' : 'overflow-auto p-4 md:p-6'
           )}
