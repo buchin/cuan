@@ -182,7 +182,7 @@ export function AppShell({
         <header
           className={cn(
             'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
-            currentTab === 'inbox' ? 'inbox-page-header h-14 md:h-16' : 'h-16',
+            'app-page-header h-14 md:h-16',
             hideBottomNav && 'hidden md:flex',
           )}
         >
@@ -195,13 +195,13 @@ export function AppShell({
                 </h1>
               </>
             ) : (
-              <span className="truncate text-sm font-medium">
-                <span className="inline-flex items-center gap-2 align-middle">
-                  <CuanMark className="h-6 w-6 md:hidden" />
-                  <span>cuan</span>
-                </span>{' '}
-                <span className="mx-1 text-muted-foreground">/</span> {label}
-              </span>
+              <>
+                <CuanMark className="h-6 w-6 md:hidden" />
+                <span className="truncate text-xl font-semibold tracking-tight md:hidden">{label}</span>
+                <span className="hidden truncate text-sm font-medium md:block">
+                  cuan <span className="mx-1 text-muted-foreground">/</span> {label}
+                </span>
+              </>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">

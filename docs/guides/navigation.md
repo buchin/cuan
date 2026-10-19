@@ -234,3 +234,7 @@ menampilkan Clear search, bukan mengklaim semua project belum ada. Mode List
 dapat dibuka melalui keyboard. Bagian Settings memakai navigasi satu baris
 yang bisa digeser saat layar sempit; Agents/Integrations/Tampilan tetap di lokasi
 yang sama.
+
+Header mobile Inbox, Contacts, Tasks, Projects dan Settings kini memakai pola
+yang sama: logo kepeng24px, nama halaman20px dan tinggi56px. Breadcrumb cuan /
+halaman hanya tampil di tablet/desktop, dengan identitas logo pada sidebar.
