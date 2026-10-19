@@ -25,8 +25,32 @@ request aktif melewati deadline menjadi interrupted, tanpa replay otomatis.
 
 Batas: 20 request aktif/menunggu per room, empat worker per proses; body pesan maksimal 64 KiB; proses chat
 maksimal 3 menit dan lease 4 menit. Output CLI maksimal 1 MiB. Jenis CLI: agy,
-Claude, Codex, dengan argumen masing-masing. Chat diarahkan untuk jawaban dan
-klarifikasi; eksekusi pekerjaan dimulai melalui task eksplisit.
+Claude, Codex, dengan argumen masing-masing. Chat dapat membaca konteks project untuk analisis dan rekomendasi sprint;
+implementasi yang perlu dilacak dimulai melalui task eksplisit.
+
+### Akses project dalam chat
+
+Sebut nama project, misalnya **cek repo cuan sarankan sprint**. Jika hanya ada
+satu project aktif, chat memakai project itu. Room project terikat pada project
+room tersebut. Dalam DM dengan beberapa project, sebut satu nama project; jika
+ambigu agent meminta klarifikasi. Tidak perlu membuat task untuk membaca repo
+atau menyusun rekomendasi.
+
+Agent menerima snapshot maksimal 24 KiB berisi backlog (40 task terbaru), commit
+lokal, daftar file terlacak, README dan cuplikan dokumen. Workspace berasal dari
+project terdaftar, bukan path bebas dalam pesan. HOME login agent tetap terpisah
+dari direktori kerja repo. Agy memakai mode plan+sandbox, Codex sandbox read-only,
+Claude hanya tools Read/Glob/Grep dalam mode plan. Kemampuan pembatasan native
+mengikuti harness masing-masing; ini bukan sandbox filesystem lintas owner.
+Snapshot tidak membaca environment files atau symlink keluar repo.
+
+Hubungkan/sinkronkan repo melalui **Projects**. Jika workspace kosong/tidak ada,
+agent masih dapat membahas backlog dan harus menjelaskan bahwa inspeksi kode
+belum tersedia. Tidak ada fetch GitHub otomatis dalam setiap turn; commit adalah
+snapshot checkout lokal. Issue/PR remote tidak dianggap sudah diperiksa.
+Production Cuan memakai checkout privat di data project persisten, dipasok dari
+Git bundle release tanpa credential; pembaruan checkout memakai Git bundle baru
+atau sinkronisasi repository dengan credential project milik owner.
 
 ## Mengubah pesan menjadi task
 

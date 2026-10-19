@@ -1045,7 +1045,7 @@ func (s *Server) executeAgentInboxResponse(ctx context.Context, agentName string
 	if len(profileHomes) > 0 && profileHomes[0] != "" {
 		home = profileHomes[0]
 	}
-	return s.executeInboxCLI(ctx, agentName, harness, userPrompt, home, nil)
+	return s.executeInboxCLI(ctx, agentName, harness, userPrompt, home, "", nil)
 }
 
 func safeInboxProviderFailure(ctxErr error, raw string) string {

@@ -44,25 +44,25 @@ func (b *boundedInboxOutput) Write(p []byte) (int, error) {
 }
 func (b *boundedInboxOutput) String() string { b.mu.Lock(); defer b.mu.Unlock(); return string(b.data) }
 
-func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home string, step func(string, string)) (string, string) {
+func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string)) (string, string) {
 	if s.cfg != nil && s.cfg.Environment == "testing" {
 		return "", "Provider tidak tersedia. Pesan tersimpan; periksa instalasi CLI dan koneksi agen ini."
 	}
 	if home == "" {
 		home, _ = os.UserHomeDir()
 	}
-	system := fmt.Sprintf("Anda adalah %s, rekan kerja di Cuan. Jawab sesuai kebutuhan pesan: sapaan singkat, pertanyaan substantif dengan jawaban yang berguna, atau minta klarifikasi bila ambigu. Gunakan bahasa pengguna. Jangan memaksa semua pesan menjadi sapaan. Jangan mengklaim aksi, perubahan file, task, atau deployment yang belum dilakukan. Percakapan ini tidak memberi akses tool; bila diminta melakukan pekerjaan, jelaskan kebutuhan dan tawarkan membuat task melalui tombol Buat task. Jangan gunakan tools atau menjalankan perintah. Jangan tampilkan reasoning privat, token, credential atau diagnostik runtime.\n\n%s", name, prompt)
+	system := fmt.Sprintf("Anda adalah %s, rekan kerja di Cuan. Jawab sesuai kebutuhan pesan: sapaan singkat, pertanyaan substantif dengan jawaban yang berguna, atau minta klarifikasi bila ambigu. Gunakan bahasa pengguna. Jangan memaksa semua pesan menjadi sapaan. Jangan mengklaim aksi, perubahan file, task, atau deployment yang belum dilakukan. Anda memiliki konteks project dan boleh menggunakan tools baca untuk analisis repo, backlog, dan rekomendasi sprint tanpa membuat task. Gunakan hanya workspace project yang diberikan; jangan membaca credential, profil login atau project lain. Jangan mengubah file, commit, menjalankan tes/build, atau deployment saat analisis chat. Untuk implementasi yang perlu dilacak, tawarkan task. Jika snapshot menyebut repo belum terhubung atau project ambigu, jelaskan kondisi tersebut dan minta project yang benar; jangan mengaku tidak punya tools secara umum. Jangan tampilkan reasoning privat, token, credential atau diagnostik runtime.\n\n%s", name, prompt)
 	binary := "agy"
 	var args []string
 	switch harness {
 	case "claude":
 		binary = "claude"
-		args = []string{"-p", "--tools", "", "--output-format", "text", system}
+		args = []string{"-p", "--permission-mode", "plan", "--allowedTools", "Read,Glob,Grep", "--tools", "Read,Glob,Grep", "--output-format", "text", system}
 	case "codex":
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "170s"}
+		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox"}
 	default:
 		return "", "Jenis CLI agen belum didukung untuk percakapan. Gunakan agen agy, Claude, atau Codex yang terdaftar."
 	}
@@ -79,6 +79,9 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = home
+	if workspace != "" {
+		cmd.Dir = workspace
+	}
 	cmd.Env = agent.AntigravityProfileEnvironment(home)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	cmd.Cancel = func() error {

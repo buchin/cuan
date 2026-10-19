@@ -184,7 +184,10 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 					if err != nil {
 						q.SafeError = "Konteks percakapan belum dapat dibaca. Pesan tersimpan."
 					} else {
-						output, failure := s.executeInboxCLI(ctx, registered.Name, registered.Harness, prompt, home, step)
+						workspace, projectContext := s.inboxProjectContext(ctx, q)
+						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + prompt
+						step("context", "Konteks project diperiksa untuk analisis.")
+						output, failure := s.executeInboxCLI(ctx, registered.Name, registered.Harness, prompt, home, workspace, step)
 						if output == "" {
 							q.SafeError = failure
 						} else {
