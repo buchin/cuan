@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Project, Task } from '../../api/types'
 import {
   FolderGit2,
@@ -27,7 +27,20 @@ export function ProjectsView({
   onArchiveProject,
 }: ProjectsViewProps) {
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    try {
+      return localStorage.getItem('cuan-project-view') === 'list'
+        ? 'list'
+        : 'grid'
+    } catch {
+      return 'grid'
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('cuan-project-view', viewMode)
+    } catch {}
+  }, [viewMode])
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -118,6 +131,16 @@ export function ProjectsView({
         </div>
       </div>
 
+      {search.trim() && displayedProjects.length > 0 && (
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="text-muted-foreground">
+            {displayedProjects.length} projects
+          </span>
+          <button className="action-secondary" onClick={() => setSearch('')}>
+            Clear search
+          </button>
+        </div>
+      )}
       {/* Tabs */}
       <div className="flex items-center gap-4 border-b border-border text-sm">
         <button

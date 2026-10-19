@@ -82,6 +82,17 @@ export function TaskBoardView({
       }),
     [projectTasks, status, query, agents],
   )
+  const filtersActive =
+    status !== 'all' || !!query.trim() || (!activeProject && project !== 'all')
+  const emptyScope = activeProject
+    ? projectTasks.length === 0
+    : tasks.length === 0
+  const clearFilters = () => {
+    setQuery('')
+    setLocalStatus('all')
+    onStatusFilterChange?.('all')
+    if (!activeProject) setProject('all')
+  }
   return (
     <section className="h-full flex flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -155,6 +166,16 @@ export function TaskBoardView({
           )
         })}
       </nav>
+      {filtersActive && (
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <p className="text-muted-foreground">
+            {rows.length} dari {projectTasks.length} task
+          </p>
+          <button className="action-secondary" onClick={clearFilters}>
+            Clear filters
+          </button>
+        </div>
+      )}
       <div className="overflow-auto flex-1 rounded-lg border border-border">
         <table className="w-full table-fixed text-left text-sm sm:table-auto">
           <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
@@ -235,34 +256,23 @@ export function TaskBoardView({
                   className="p-10 text-center text-muted-foreground"
                 >
                   <p className="font-medium">
-                    {projectTasks.length === 0
+                    {emptyScope
                       ? 'No tasks yet'
                       : 'No tasks match these filters.'}
                   </p>
                   <p className="mt-2 text-sm">
-                    {projectTasks.length === 0
+                    {emptyScope
                       ? 'Create a task to organize the next piece of work.'
                       : 'Try another search or reset the status filter.'}
                   </p>
-                  {projectTasks.length === 0 ? (
+                  {emptyScope ? (
                     <button
                       className="action-primary mt-4"
                       onClick={onCreateTask}
                     >
                       Create first task
                     </button>
-                  ) : (
-                    <button
-                      className="action-secondary mt-4"
-                      onClick={() => {
-                        setQuery('')
-                        setLocalStatus('all')
-                        onStatusFilterChange?.('all')
-                      }}
-                    >
-                      Clear filters
-                    </button>
-                  )}
+                  ) : null}
                 </td>
               </tr>
             )}

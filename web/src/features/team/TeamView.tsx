@@ -83,6 +83,7 @@ export function TeamView({
   selectedRole?: string
   onAgentAdded?: () => void
 }) {
+  const [search, setSearch] = useState('')
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -359,6 +360,12 @@ export function TeamView({
   }, [focusAgentId, loading])
   const visibleAgents =
     selectedRole === 'human' || selectedRole === 'product_owner' ? [] : agents
+  const filteredAgents = visibleAgents.filter((a) =>
+    [a.name, a.harness]
+      .join(' ')
+      .toLowerCase()
+      .includes(search.trim().toLowerCase()),
+  )
   const secondary =
     'inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm hover:bg-muted disabled:opacity-50'
   const primary =
@@ -382,6 +389,22 @@ export function TeamView({
           Tambah agen
         </button>
       </div>
+      {visibleAgents.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="field-control min-w-0 flex-1"
+            aria-label="Cari agen"
+            placeholder="Cari nama atau jenis agen"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search.trim() && (
+            <button className="action-secondary" onClick={() => setSearch('')}>
+              Hapus pencarian
+            </button>
+          )}
+        </div>
+      )}
       {notice && (
         <p role="status" className="text-sm">
           {notice}
@@ -408,6 +431,16 @@ export function TeamView({
           </p>
           <button onClick={() => begin()} className={`${primary} mt-4`}>
             Tambah agen pertama
+          </button>
+        </div>
+      ) : filteredAgents.length === 0 ? (
+        <div className="rounded-lg border p-5 text-center">
+          <p>Tidak ada agen yang cocok.</p>
+          <button
+            className="action-secondary mt-3"
+            onClick={() => setSearch('')}
+          >
+            Tampilkan semua agen
           </button>
         </div>
       ) : (

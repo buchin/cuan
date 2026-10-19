@@ -105,3 +105,31 @@ transfer kredensial. Bukti: `docs/evidence/contacts-crm/production-browser.json`
 Rilis sebelum Contacts `48c2d68b3adc1c6dcc95fd2058b1668706fed946` dapat diaktifkan
 secara eksplisit dengan `--release SHA --schema-count 22`; jangan turunkan schema.
 Pengujian menggunakan emulasi viewport Chromium, belum sertifikasi Safari/perangkat fisik.
+
+## Daftar dan detail kontak
+
+Daftar memakai avatar/inisial, nama/email dan maksimal dua tag; `+N` menunjukkan
+tag lainnya. Sumber website dan tanggal **Diperbarui** adalah metadata, bukan
+klaim bahwa pelanggan sedang online. Cari nama/email/tag atau gunakan filter
+tag dan sumber. **Hapus filter** mengembalikan seluruh daftar.
+
+Di bawah1200px, memilih kontak membuka detail tersendiri dengan tombol
+**Kembali ke daftar kontak**. Desktop menampilkan daftar dan detail berdampingan.
+URL `/contacts?contact=ID` dapat dibuka/reload langsung dan Back browser dapat
+kembali ke daftar. Kontak tidak ditemukan ditampilkan secara eksplisit.
+**Buka percakapan** adalah aksi utama. Nama/email tetap berasal dari widget;
+pengubahan identitas manual belum tersedia.
+
+## Mengelola tag
+
+Klik chip untuk menghapus, atau isi **Tambah tag** lalu Enter/Tambah. Pilihan
+tag yang sudah dipakai kontak lain tersedia di bawah input dan mengikuti
+pencarian input. Tag dibatasi20 per kontak,40 karakter per tag; duplikasi
+diabaikan tanpa membedakan huruf besar/kecil.
+
+Perubahan belum dikirim sampai **Simpan tag** ditekan. Input yang masih diketik
+juga disertakan saat menyimpan. Semua tag boleh dihapus. Kesalahan simpan
+mempertahankan draft agar bisa dicoba lagi. **Batalkan perubahan** memulihkan
+tag tersimpan. Draft per kontak bertahan saat Back/beralih kontak dalam halaman
+yang sama; reload atau meninggalkan halaman menghapus edit yang belum disimpan.
+Tidak ada broadcast, penggabungan kontak, atau perubahan identitas otomatis baru.

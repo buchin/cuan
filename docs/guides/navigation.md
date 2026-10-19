@@ -238,3 +238,13 @@ yang sama.
 Header mobile Inbox, Contacts, Tasks, Projects dan Settings kini memakai pola
 yang sama: logo kepeng24px, nama halaman20px dan tinggi56px. Breadcrumb cuan /
 halaman hanya tampil di tablet/desktop, dengan identitas logo pada sidebar.
+
+## Pola daftar dan filter
+
+Contacts memakai daftar padat, detail responsif dan editor chip tag; panduan
+terbaru ada di [Contacts CRM](contacts-crm.md). Tasks menampilkan **Clear filters**
+saat pencarian/status/project membatasi hasil. Reset pada daftar global juga
+menghapus filter project; board project tetap mempertahankan project asal.
+Projects menyediakan **Clear search** saat pencarian aktif dan menyimpan pilihan
+Grid/List di browser. Settings → Agents memiliki **Cari agen** menurut nama atau
+jenis CLI, dengan reset bila tidak ada hasil; pencarian tidak memeriksa provider.
