@@ -1035,7 +1035,10 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 	}
 
 	if req.Code == "" && req.SessionID != "" && r.URL.Query().Get("cancel") == "true" {
-		agent.CancelAntigravityAuthSession(req.SessionID)
+		if !agent.CancelLegacyAntigravityAuthSession(req.SessionID) {
+			respondJSONError(w, http.StatusNotFound, "Sesi login tidak tersedia")
+			return
+		}
 		respondJSON(w, http.StatusOK, map[string]any{"status": "cancelled", "authenticated": false})
 		return
 	}

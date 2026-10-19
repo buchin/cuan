@@ -1276,6 +1276,14 @@ func (s *Server) routes() {
 		cr.Post("/{id}/execute", s.handleExecuteBatchCampaign)
 	})
 
+	s.router.Route("/api/v1/provider-accounts", func(ar chi.Router) {
+		ar.Get("/", s.handleListProviderAccounts)
+		ar.Post("/", s.handleCreateProviderAccount)
+		ar.Post("/{accountID}/auth-init", s.handleProviderAccountAuthInit)
+		ar.Post("/{accountID}/auth-code", s.handleProviderAccountAuthCode)
+		ar.Post("/{accountID}/verify", s.handleVerifyProviderAccount)
+	})
+
 	// Agent Personas route group in /api/v1 (Sprint 9 S09.2)
 	s.router.Route("/api/v1/agents", func(ar chi.Router) {
 		ar.Get("/", s.handleListAgents)

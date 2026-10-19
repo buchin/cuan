@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { ProviderAccounts } from './ProviderAccounts'
 import { agentsApi, type Agent, type HarnessAuth } from '../../api/agents'
 
 export function TeamView({ selectedRole = 'all', onAgentAdded }: {
@@ -138,6 +139,7 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
       </div>
       <button onClick={begin} className={`${buttonClass} bg-primary text-primary-foreground hover:bg-primary/90 shrink-0`}><Plus className="h-4 w-4" />Tambah agen</button>
     </div>
+    <ProviderAccounts />
     {notice && <p role="status" className="text-sm">{notice}</p>}
     {error && <div role="alert" className="text-sm text-destructive">{error} <button onClick={load} className="underline">Muat ulang</button></div>}
     {loading ? <p role="status" className="text-sm text-muted-foreground">Memuat agen…</p> : visibleAgents.length === 0 ?

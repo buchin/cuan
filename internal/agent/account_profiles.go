@@ -1,0 +1,283 @@
+package agent
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+)
+
+// Account metadata and CLI profiles share a private persistent configuration root.
+// Credentials stay CLI-owned; no token or filesystem path is part of the DTO.
+type ProviderAccount struct {
+	ID                 string     `json:"id"`
+	OwnerID            string     `json:"-"`
+	Label              string     `json:"label"`
+	Provider           string     `json:"provider"`
+	Legacy             bool       `json:"legacy"`
+	CredentialsPresent bool       `json:"credentials_present"`
+	State              string     `json:"state"`
+	Message            string     `json:"message,omitempty"`
+	LastCheckedAt      *time.Time `json:"last_checked_at,omitempty"`
+	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+}
+
+type storedProviderAccount struct {
+	ProviderAccount
+	Owner string `json:"owner"`
+}
+
+var accountProfileMu sync.Mutex
+var accountIDPattern = regexp.MustCompile(`^acct_[a-f0-9]{32}$`)
+var ErrAccountNotFound = errors.New("account not found")
+
+func accountRoot() string { return filepath.Join(ConfigHome(), ".local", "share", "cuan", "accounts") }
+func accountDirectory(id string) (string, error) {
+	if !accountIDPattern.MatchString(id) {
+		return "", ErrAccountNotFound
+	}
+	return filepath.Join(accountRoot(), id), nil
+}
+
+func CreateProviderAccount(owner, label string) (*ProviderAccount, error) {
+	label = strings.TrimSpace(label)
+	if owner == "" || label == "" || len(label) > 100 || strings.ContainsAny(label, "\r\n") {
+		return nil, errors.New("Nama akun wajib diisi, maksimal 100 karakter")
+	}
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return nil, err
+	}
+	a := &ProviderAccount{ID: "acct_" + hex.EncodeToString(nonce[:]), OwnerID: owner, Label: label, Provider: "agy", State: "login_required", CreatedAt: time.Now().UTC()}
+	dir, _ := accountDirectory(a.ID)
+	if err := os.MkdirAll(filepath.Join(dir, "home"), 0700); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(accountRoot(), 0700); err != nil {
+		return nil, err
+	}
+	if err := saveProviderAccount(a); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+func saveProviderAccount(a *ProviderAccount) error {
+	dir, err := accountDirectory(a.ID)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(storedProviderAccount{ProviderAccount: *a, Owner: a.OwnerID})
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, ".metadata-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if err = f.Chmod(0600); err == nil {
+		_, err = f.Write(data)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(dir, "account.json"))
+}
+
+func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
+	if id == "legacy" {
+		if owner == "" {
+			return nil, ErrAccountNotFound
+		}
+		return &ProviderAccount{ID: "legacy", OwnerID: owner, Label: "Akun server lama", Provider: "agy", Legacy: true, CredentialsPresent: IsAntigravityLoggedIn(), State: "unknown"}, nil
+	}
+	dir, err := accountDirectory(id)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "account.json"))
+	if err != nil {
+		return nil, ErrAccountNotFound
+	}
+	var stored storedProviderAccount
+	if json.Unmarshal(data, &stored) != nil || stored.Owner != owner || owner == "" || stored.ID != id {
+		return nil, ErrAccountNotFound
+	}
+	a := stored.ProviderAccount
+	a.OwnerID = stored.Owner
+	a.CredentialsPresent = IsAntigravityLoggedInInDir(filepath.Join(dir, "home"))
+	if !a.CredentialsPresent {
+		a.State = "login_required"
+		a.Message = "Login Google diperlukan untuk akun ini"
+		a.VerifiedAt = nil
+	} else if a.State == "verified" && (a.VerifiedAt == nil || time.Since(*a.VerifiedAt) > 5*time.Minute) {
+		a.State = "unknown"
+		a.Message = "Verifikasi sebelumnya sudah kedaluwarsa; periksa kembali koneksi"
+	}
+	return &a, nil
+}
+
+func ListProviderAccounts(owner string) ([]*ProviderAccount, error) {
+	result := []*ProviderAccount{}
+	if IsAntigravityLoggedIn() {
+		a, _ := GetProviderAccount(owner, "legacy")
+		if a != nil {
+			result = append(result, a)
+		}
+	}
+	entries, err := os.ReadDir(accountRoot())
+	if os.IsNotExist(err) {
+		return result, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if a, err := GetProviderAccount(owner, entry.Name()); err == nil {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
+func ProviderAccountHome(owner, id string) (string, error) {
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return "", err
+	}
+	if a.Legacy {
+		return "", nil
+	}
+	dir, _ := accountDirectory(id)
+	return filepath.Join(dir, "home"), nil
+}
+
+// A filtered child environment avoids inherited provider credentials, config paths,
+// cloud secrets, keyrings and fallback to another user's account. Never os.Setenv HOME.
+func AntigravityProfileEnvironment(home string) []string {
+	env := []string{}
+	for _, key := range []string{"PATH", "LANG", "LC_ALL", "SSL_CERT_FILE", "SSL_CERT_DIR", "LD_LIBRARY_PATH", "TMPDIR"} {
+		if value, ok := os.LookupEnv(key); ok {
+			env = append(env, key+"="+value)
+		}
+	}
+	legacy := home == ""
+	if legacy {
+		home = ConfigHome()
+	}
+	env = append(env, "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, ".config"), "XDG_DATA_HOME="+filepath.Join(home, ".local", "share"), "XDG_CACHE_HOME="+filepath.Join(home, ".cache"), "GEMINI_CLI_HOME="+home, "ANTIGRAVITY_CONFIG_DIR="+AntigravityConfigDirPath(home), "ANTIGRAVITY_TOKEN_PATH="+AntigravityCredentialsFilePath(home), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0", "TERM=xterm-256color", "CI=", "DBUS_SESSION_BUS_ADDRESS=", "GNOME_KEYRING_CONTROL=")
+	if legacy {
+		// Retain explicitly configured paths only for the pre-existing service account.
+		for _, key := range []string{"ANTIGRAVITY_TOKEN_PATH", "ANTIGRAVITY_CONFIG_DIR", "GEMINI_CLI_HOME"} {
+			if value := os.Getenv(key); value != "" {
+				env = append(env, key+"="+value)
+			}
+		}
+	}
+	return env
+}
+
+func StartProviderAccountAuth(ctx context.Context, owner, id string) (*AntigravityAuthSession, error) {
+	home, err := ProviderAccountHome(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	// Existing credentials are never overwritten by a fresh login request.
+	if id == "legacy" || IsAntigravityLoggedInInDir(home) {
+		return nil, errors.New("Akun sudah menyimpan kredensial. Tambahkan akun baru untuk login lain.")
+	}
+	return startAntigravityAuthSession(ctx, home, owner, id)
+}
+
+func SubmitProviderAccountAuth(owner, id, session, code string) error {
+	if _, err := GetProviderAccount(owner, id); err != nil {
+		return err
+	}
+	return submitAntigravityAuthCode(session, code, owner, id)
+}
+func CancelProviderAccountAuth(owner, id, sessionID string) error {
+	authSessionsMu.Lock()
+	s := authSessions[sessionID]
+	ok := s != nil && s.OwnerID == owner && s.AccountID == id
+	authSessionsMu.Unlock()
+	if !ok {
+		return errors.New("Sesi login tidak tersedia")
+	}
+	CancelAntigravityAuthSession(sessionID)
+	return nil
+}
+
+func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAccount, error) {
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	home, err := ProviderAccountHome(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	probeErr := VerifyAntigravityProfile(ctx, home)
+	now := time.Now().UTC()
+	a.LastCheckedAt = &now
+	a.CredentialsPresent = IsAntigravityLoggedInInDir(home)
+	if a.Legacy {
+		a.CredentialsPresent = IsAntigravityLoggedIn()
+	}
+	a.State = "verified"
+	a.Message = "Koneksi provider terverifikasi"
+	a.VerifiedAt = &now
+	if probeErr != nil {
+		a.VerifiedAt = nil
+		a.State = "unavailable"
+		a.Message = probeErr.Error()
+		if !a.CredentialsPresent {
+			a.State = "login_required"
+		} else if strings.Contains(a.Message, "Kuota") {
+			a.State = "quota_limited"
+		}
+	}
+	if !a.Legacy {
+		accountProfileMu.Lock()
+		err = saveProviderAccount(a)
+		accountProfileMu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return a, nil
+}
+
+// Legacy API aliases cannot cancel an account-scoped OAuth session.
+func CancelLegacyAntigravityAuthSession(id string) bool {
+	authSessionsMu.Lock()
+	s := authSessions[id]
+	scoped := s != nil && (s.OwnerID != "" || s.AccountID != "")
+	authSessionsMu.Unlock()
+	if scoped {
+		return false
+	}
+	CancelAntigravityAuthSession(id)
+	return true
+}
