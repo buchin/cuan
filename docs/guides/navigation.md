@@ -138,7 +138,7 @@ atau penghapusan agen nyata. Bukti: `docs/evidence/agent-roster/`.
 
 Inbox memakai bubble ringkas dengan waktu 24 jam di ujung pesan, pemisah hari,
 serta composer membulat. Tema terang memakai bubble keluar hijau muda dan
-masuk putih; tema gelap memakai hijau tua dan abu gelap. Palet ini hanya berlaku
+masuk putih; tema gelap memakai hijau tua dan charcoal netral tanpa nuansa biru. Palet ini hanya berlaku
 pada chat dan mengikuti pilihan Settings → Tampilan.
 
 Centang tunggal berarti **Pesan tersimpan**, bukan sudah dibaca penerima.

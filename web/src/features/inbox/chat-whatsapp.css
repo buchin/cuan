@@ -14,16 +14,16 @@
   color: var(--wa-text);
 }
 .dark .wa-chat {
-  --wa-bg: #0b141a;
-  --wa-header: #202c33;
-  --wa-incoming: #202c33;
+  --wa-bg: #121212;
+  --wa-header: #262626;
+  --wa-incoming: #262626;
   --wa-outgoing: #005c4b;
-  --wa-text: #e9edef;
-  --wa-meta: #aebac1;
+  --wa-text: #ededed;
+  --wa-meta: #b5b5b5;
   --wa-outgoing-meta: #b5d6ce;
   --wa-send: #00a884;
-  --wa-send-text: #0b141a;
-  --wa-pattern: rgb(158 178 172 / .04);
+  --wa-send-text: #121212;
+  --wa-pattern: rgb(180 180 180 / .04);
 }
 .wa-chat-header { background: var(--wa-header); color: var(--wa-text); }
 .wa-conversation { background-color: var(--wa-bg); background-image: radial-gradient(var(--wa-pattern) 1px, transparent 1px); background-size: 20px 20px; }
