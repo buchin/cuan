@@ -39,12 +39,20 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	board := TaskStatusBlocked
 	if status == AttemptStatusSucceeded {
 		var ready bool
-		e = tx.QueryRowContext(ctx, `SELECT NOT EXISTS(SELECT 1 FROM task_activities WHERE attempt_id=$2 AND activity_type='agent_contract') OR (btrim(summary)<>'' AND btrim(complete_note)<>'' AND COALESCE((SELECT new_status='review' FROM task_activities WHERE attempt_id=$2 AND activity_type='agent_report' ORDER BY created_at DESC,id DESC LIMIT 1),false)) FROM tasks WHERE id=$1`, taskID, attemptID).Scan(&ready)
+		e = tx.QueryRowContext(ctx, `SELECT NOT EXISTS(SELECT 1 FROM task_activities WHERE attempt_id=$2 AND activity_type='agent_contract') OR (btrim(summary)<>'' AND btrim(complete_note)<>'' AND COALESCE((SELECT new_status IN ('review','done') FROM task_activities WHERE attempt_id=$2 AND activity_type='agent_report' ORDER BY created_at DESC,id DESC LIMIT 1),false)) FROM tasks WHERE id=$1`, taskID, attemptID).Scan(&ready)
 		if e != nil {
 			return e
 		}
 		if ready {
 			board = TaskStatusReview
+			var final string
+			e = tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT new_status FROM task_activities WHERE attempt_id=$1 AND activity_type='agent_report' ORDER BY created_at DESC,id DESC LIMIT 1),'')`, attemptID).Scan(&final)
+			if e != nil {
+				return e
+			}
+			if final == "done" {
+				board = TaskStatusDone
+			}
 		}
 	}
 	if _, e = tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status='doing'`, taskID, board); e != nil {
@@ -87,8 +95,11 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 				last = a
 			}
 		}
-		if !required || (last != nil && last.NewStatus == "review" && t.Summary != "" && t.CompleteNote != "") {
+		if !required || (last != nil && (last.NewStatus == "review" || last.NewStatus == "done") && t.Summary != "" && t.CompleteNote != "") {
 			t.Status = TaskStatusReview
+			if last != nil && last.NewStatus == "done" {
+				t.Status = TaskStatusDone
+			}
 		}
 	}
 	return nil

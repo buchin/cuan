@@ -21,10 +21,7 @@ Agents may classify a final response using **--result-kind answer** for
 conversation without file changes, or **--result-kind implementation** for work
 (the default for old or unspecified reports). Answer presentation has a reply
 field and no required Accept action. Classification is scoped to the exact
-attempt/report and controls presentation; it never automatically approves Done
-or changes the implementation acceptance gates. Internally, the final report
-still reconciles through Review. Unknown/legacy results retain implementation
-review behavior.
+attempt/report. An explicit `--state done` completes verified implementation without human approval after the attempt finishes successfully. Answers requesting Done are kept in Review. Reports explicitly requesting Review retain that status.
 
 Earlier sessions show their own final report snapshot and cannot accept or
 continue a newer attempt. Missing sessions show an error rather than attaching
@@ -69,7 +66,7 @@ Viewing a task never starts an agent.
 Execution and workflow are separate. New agent sessions enter **Review** only
 after a successful exit or an intentional close after a validated final report,
 with a structured report containing summary and verification evidence. A successful exit without a complete report leaves the task **Blocked**.
-Neither an agent report nor an exit code approves Done. Failed, interrupted, and canceled attempts retain their output and leave
+An explicit Done report requires summary, verification evidence and all declared checklist criteria completed; an exit code alone never completes a task. Failed, interrupted, and canceled attempts retain their output and leave
 work blocked for an explicit retry. Editing a status does not launch an agent.
 
 Inspect the result, check every acceptance criterion, and enter verification
@@ -114,11 +111,10 @@ Task credentials remain scoped to the active task and attempt. Output is
 bounded by server retention and the terminal buffer; exports contain the currently
 loaded output. If a process is no longer live, the UI shows retained output rather
 than creating a replacement shell. Interactive task sessions have an eight-hour execution limit. Final
-`review` or `blocked` reports close the matching interactive session after a
+`done`, `review` or `blocked` reports close the matching interactive session after a
 two-second output drain. New terminal input or a later progress checkpoint cancels an older pending
 close. Actual signal exit codes are retained for audit; an intentional report
-close is distinguished from provider failure or user cancellation. Human
-approval is still required for Done. A process interrupted by server restart is never replayed
+close is distinguished from provider failure or user cancellation. Agent-reported Done does not require human approval. A process interrupted by server restart is never replayed
 automatically. Task deletion requires confirmation and refuses active attempts.
 
 ## API and storage
@@ -193,14 +189,14 @@ required. Inside a bound session:
 "$CUAN_TASK_EXECUTABLE" task --help
 "$CUAN_TASK_EXECUTABLE" task get
 "$CUAN_TASK_EXECUTABLE" task report --summary "Plan and current progress" --progress "Inspecting the project"
-"$CUAN_TASK_EXECUTABLE" task report --state review --summary "Actual changes" --complete-note "Actual verification, outcomes and limitations"
+"$CUAN_TASK_EXECUTABLE" task report --state done --summary "Actual changes" --complete-note "Actual verification, outcomes and limitations"
 ```
 
 Use `--state blocked` with a summary and concrete blocker instead of claiming a
 review-ready result. `--report-file path.json` accepts a structured report with
 optional title, priority, summary, complete_note, progress, state, dod_checklist,
 commit_sha and test_summary. The agent defines/refines criteria and records actual
-verification; the human still approves Done. Final result snapshots remain in the
+verification. Use Done for completed implementation, Review for questions or work needing review. Final result snapshots remain in the
 attempt's activity history even when a later session replaces the task's current
 summary. Previous notes are included in the next session's context, then cleared
 for the new attempt so earlier evidence cannot qualify new work.
@@ -208,7 +204,7 @@ for the new attempt so earlier evidence cannot qualify new work.
 The private capability file supplies a short-lived credential for just the current
 task and active attempt. It is never an owner token and is not placed in URLs,
 prompts or command arguments. It cannot change human instructions, assignment,
-project, process state or Done. Access is revoked on process exit, expires after
+project or process state. Access is revoked on process exit, expires after
 eight hours and five minutes, and is invalid after server restart; temporary files are removed
 on normal termination. The CLI checks private file permissions and uses only the
 loopback API. Existing historical sessions remain readable and are not rewritten.

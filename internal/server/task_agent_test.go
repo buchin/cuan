@@ -172,7 +172,7 @@ func TestTaskAgentFailureAndBlockerDoNotBecomeReview(t *testing.T) {
 // A real PTY fixture, not a provider mock response: it stays interactive, accepts
 // a second turn, uses the actual capability CLI, and waits for report finalization.
 func TestTaskAgentInteractiveTurnAndReportedFinish(t *testing.T) {
-	for _, state := range []string{"review", "blocked"} {
+	for _, state := range []string{"review", "blocked", "done"} {
 		t.Run(state, func(t *testing.T) {
 			s, _, call, _ := inboxFixture(t)
 			api := httptest.NewServer(s.Router())
@@ -195,6 +195,8 @@ printf 'READY_FOR_FOLLOWUP\n'
 read -r followup
 [ "$followup" = "second turn" ] || exit 23
 "$CUAN_TASK_EXECUTABLE" task get >/dev/null || exit 24
+printf '%s' '{"state":"progress","dod_checklist":[{"text":"Verify the result","completed":true}]}' > fixture-report.json
+"$CUAN_TASK_EXECUTABLE" task report --report-file fixture-report.json >/dev/null || exit 30
 "$CUAN_TASK_EXECUTABLE" task report --state ` + state + ` --result-kind ` + kind + ` --summary 'Two interactive turns completed' --complete-note 'Verified actual PTY input and task tool' || exit 25
 printf 'FINAL_OUTPUT_DRAINED\n'
 while :; do sleep 1; done

@@ -187,6 +187,36 @@ export function App() {
     }
   }, [isAuthenticated, refreshProjects, refreshTasks, refreshContacts])
 
+  // Task/session completion must become visible without reopening the list.
+  useEffect(() => {
+    if (
+      !isAuthenticated ||
+      sessionRoute ||
+      !['tasks', 'projects'].includes(currentTab)
+    )
+      return
+    let refreshing = false
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible' || refreshing) return
+      refreshing = true
+      try {
+        await refreshTasks()
+      } finally {
+        refreshing = false
+      }
+    }
+    if (!tasksLoading) void refresh()
+    const timer = setInterval(() => void refresh(), 5000)
+    const resume = () => void refresh()
+    window.addEventListener('focus', resume)
+    document.addEventListener('visibilitychange', resume)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', resume)
+      document.removeEventListener('visibilitychange', resume)
+    }
+  }, [isAuthenticated, currentTab, sessionRoute, refreshTasks])
+
   // Read the visible conversation directly from the URL. Back/forward and
   // responsive list mode cannot race against an effect restoring old selection.
   const wide = useMediaQuery('(min-width: 1200px)')

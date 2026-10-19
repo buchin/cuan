@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// AgentReport deliberately cannot change human instructions, assignments or Done.
+// AgentReport deliberately cannot change human instructions, assignments.
 type AgentReport struct {
 	Title        *string    `json:"title,omitempty"`
 	Priority     *string    `json:"priority,omitempty"`
@@ -99,12 +99,23 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 		r.State = "progress"
 	}
 	switch r.State {
-	case "progress", "review", "blocked":
+	case "progress", "review", "blocked", "done":
 	default:
-		return bad("state must be progress, review or blocked")
+		return bad("state must be progress, review, blocked or done")
 	}
 	if r.State != "progress" && (t.Summary == "" || t.CompleteNote == "") {
 		return bad("a result requires summary and completion evidence")
+	}
+	// Answers remain reviewable; implementation completion is an explicit agent decision.
+	if r.State == "done" && r.ResultKind == "answer" {
+		r.State = "review"
+	}
+	if r.State == "done" {
+		for _, item := range t.DoDChecklist {
+			if !item.Completed {
+				return bad("complete all declared acceptance criteria before done")
+			}
+		}
 	}
 	if r.ResultKind != "" && (r.State == "progress" || (r.ResultKind == "answer" && r.State != "review") || (r.ResultKind != "answer" && r.ResultKind != "implementation")) {
 		return bad("result_kind requires a final report and must be answer or implementation")
@@ -164,5 +175,5 @@ func (s *Service) AgentReviewReady(ctx context.Context, taskID, attemptID string
 	if !required {
 		return true, nil
 	}
-	return last != nil && last.NewStatus == "review" && strings.TrimSpace(t.Summary) != "" && strings.TrimSpace(t.CompleteNote) != "", nil
+	return last != nil && (last.NewStatus == "review" || last.NewStatus == "done") && strings.TrimSpace(t.Summary) != "" && strings.TrimSpace(t.CompleteNote) != "", nil
 }

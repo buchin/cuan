@@ -2129,6 +2129,10 @@ func (s *Server) handleUpdateAttempt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := s.taskSvc.AttemptForTask(r.Context(), chi.URLParam(r, "id"), attemptId); err != nil {
+		respondJSONError(w, http.StatusNotFound, "Attempt not found for this task")
+		return
+	}
 	author := "owner"
 	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
 		author = owner.Email
@@ -2148,6 +2152,12 @@ func (s *Server) handleUpdateAttempt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if att.Status != task.AttemptStatusRunning && att.Status != task.AttemptStatusQueued {
+		if err := s.taskSvc.ReconcileLocalTask(r.Context(), att.TaskID, att.ID); err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "Execution status saved; task status could not be refreshed. Retry the same update.")
+			return
+		}
+	}
 	respondJSON(w, http.StatusOK, att)
 }
 

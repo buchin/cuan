@@ -609,7 +609,7 @@ func (s *Service) updateAttemptStatus(ctx context.Context, attemptID string, aut
 				final = a
 			}
 		}
-		if latest.ID != attemptID || final == nil || (final.NewStatus != "review" && final.NewStatus != "blocked") || t.Summary == "" || t.CompleteNote == "" {
+		if latest.ID != attemptID || final == nil || (final.NewStatus != "review" && final.NewStatus != "blocked" && final.NewStatus != "done") || t.Summary == "" || t.CompleteNote == "" {
 			return nil, ErrRequestConflict
 		}
 	}
@@ -825,6 +825,34 @@ func (s *Service) GetAttemptLogs(ctx context.Context, attemptID string, afterID 
 	return s.store.GetLogs(ctx, attemptID, afterID, limit)
 }
 
+// RenewLocalAttemptLease keeps a known live local PTY valid without extending
+// leases for a crashed process, another attempt or an already-final result.
+func (s *Service) RenewLocalAttemptLease(ctx context.Context, attemptID string) error {
+	s.attemptMu.Lock()
+	defer s.attemptMu.Unlock()
+	a, err := s.store.GetAttempt(ctx, attemptID)
+	if err != nil {
+		return err
+	}
+	if a.RunnerID != "local_terminal" || a.Status != AttemptStatusRunning {
+		return nil
+	}
+	latest, err := s.store.GetLatestAttempt(ctx, a.TaskID)
+	if err != nil {
+		return err
+	}
+	if latest.ID != a.ID {
+		return nil
+	}
+	now := time.Now().UTC()
+	if a.LeaseExpiresAt != nil && a.LeaseExpiresAt.After(now.Add(10*time.Minute)) {
+		return nil
+	}
+	lease := now.Add(11 * time.Minute)
+	a.LeaseExpiresAt = &lease
+	return s.store.UpdateAttempt(ctx, a)
+}
+
 // RecoverLocalAttempts exposes an unknown result after the local runner lease
 // expires. It never launches the previous attempt again.
 func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
@@ -834,7 +862,15 @@ func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
 	}
 	for _, t := range tasks {
 		a, err := s.store.GetLatestAttempt(ctx, t.ID)
-		if err != nil || a == nil || a.RunnerID != "local_terminal" || (a.Status != "running" && a.Status != "queued") {
+		if err != nil || a == nil || a.RunnerID != "local_terminal" {
+			continue
+		}
+		if a.Status != "running" && a.Status != "queued" {
+			if t.Status == TaskStatusDoing {
+				if err = s.ReconcileLocalTask(ctx, t.ID, a.ID); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		if a.LeaseExpiresAt != nil && time.Now().Before(*a.LeaseExpiresAt) {

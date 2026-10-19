@@ -39,6 +39,20 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 		defer tick.Stop()
 		scan := func() {
 			if s.taskSvc != nil {
+				if s.terminalManager != nil {
+					for _, session := range s.terminalManager.ActiveSessions() {
+						history := s.terminalManager.GetTaskHistory(session.TaskID())
+						if len(history) == 0 {
+							continue
+						}
+						latest := history[len(history)-1]
+						if latest.SessionID == session.ID() && latest.AttemptID != "" && latest.Status == "running" {
+							if err := s.taskSvc.RenewLocalAttemptLease(ctx, latest.AttemptID); err != nil {
+								log.Print("local attempt heartbeat unavailable")
+							}
+						}
+					}
+				}
 				if err := s.taskSvc.RecoverLocalAttempts(ctx); err != nil {
 					log.Print("local attempt recovery unavailable")
 				}

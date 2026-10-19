@@ -383,6 +383,9 @@ export function InboxView({
     }
   }
 
+  const visibleMessageIds = new Set(
+    messages.map((message) => message.uuid).filter(Boolean),
+  )
   return (
     <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
       {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
@@ -720,19 +723,45 @@ export function InboxView({
                       )}
                     </div>
                     {requests
-                      .filter((q) => q.message_id === msg.uuid)
-                      .map((q) => (
-                        <InboxActivity
-                          key={q.request_id}
-                          request={q}
-                          onCancel={async () => {
-                            const id =
-                              activeContact.conversation_id || activeContact.id
-                            await cancelInboxRequest(id, q.request_id)
-                            await loadConversation(id)
-                          }}
-                        />
-                      ))}
+                      .filter(
+                        (q) =>
+                          q.reply_id === msg.uuid ||
+                          (q.message_id === msg.uuid &&
+                            !visibleMessageIds.has(q.reply_id)),
+                      )
+                      .map((q) => {
+                        const placeholder =
+                          (q.agent_id || activeContact.type === 'agent') &&
+                          q.reply_id !== msg.uuid
+                        const activity = (
+                          <InboxActivity
+                            request={q}
+                            bubble={!!placeholder}
+                            onCancel={async () => {
+                              const id =
+                                activeContact.conversation_id ||
+                                activeContact.id
+                              await cancelInboxRequest(id, q.request_id)
+                              await loadConversation(id)
+                            }}
+                          />
+                        )
+                        return placeholder ? (
+                          <div
+                            key={q.request_id}
+                            aria-label="Agent response progress"
+                            className="mt-3 flex w-full self-stretch flex-col items-start"
+                          >
+                            <div className="wa-message-bubble wa-incoming relative min-w-0">
+                              {activity}
+                            </div>
+                          </div>
+                        ) : (
+                          <div key={q.request_id} className="max-w-full">
+                            {activity}
+                          </div>
+                        )
+                      })}
                   </div>
                 )
               })}

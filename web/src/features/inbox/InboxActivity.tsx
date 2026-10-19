@@ -12,9 +12,11 @@ import { InboxRequest } from '../../api/chat'
 export function InboxActivity({
   request: q,
   onCancel,
+  bubble = false,
 }: {
   request: InboxRequest
   onCancel: () => Promise<void>
+  bubble?: boolean
 }) {
   const [now, setNow] = useState(Date.now())
   const [error, setError] = useState('')
@@ -58,25 +60,62 @@ export function InboxActivity({
           : CircleAlert
   return (
     <div
-      className="mt-2 max-w-full min-w-0 text-xs break-words"
+      className={
+        bubble
+          ? 'max-w-full min-w-0 text-xs break-words'
+          : 'mt-2 max-w-full min-w-0 text-xs break-words'
+      }
       aria-label="Response status"
     >
+      {bubble && (
+        <div className="flex items-center gap-2 px-2 pt-2 text-sm">
+          <Icon
+            aria-hidden
+            className={
+              'h-4 w-4 shrink-0 ' +
+              (active && q.state !== 'queued'
+                ? 'animate-spin'
+                : q.state === 'failed'
+                  ? 'text-destructive'
+                  : '')
+            }
+          />
+          <span role="status" className="font-medium">
+            {q.state === 'running'
+              ? 'Working…'
+              : q.state === 'failed'
+                ? 'Could not reply'
+                : label}
+          </span>
+          {seconds !== null && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {seconds} s
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <details className="group/response min-w-0 flex-1">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-            <Icon
-              className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
-              aria-hidden="true"
-            />
-            <span className="font-medium" role="status">
-              {label}
-            </span>
-            {seconds !== null && (
+            {!bubble && (
+              <Icon
+                className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
+                aria-hidden="true"
+              />
+            )}
+            {!bubble && (
+              <span className="font-medium" role="status">
+                {label}
+              </span>
+            )}
+            {!bubble && seconds !== null && (
               <span className="tabular-nums">
                 {seconds} s{!active && ' recorded'}
               </span>
             )}
-            <span className="ml-auto text-xs">Details</span>
+            <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
+              Detail
+            </span>
             <ChevronDown
               className="h-4 w-4 shrink-0 transition-transform group-open/response:rotate-180"
               aria-hidden="true"
@@ -184,7 +223,10 @@ export function InboxActivity({
                     <div key={step.seq}>
                       <dt className="font-medium">Runtime session</dt>
                       <dd className="break-all font-mono">
-                        {step.text.replace(/^(?:Runtime session ID: |ID sesi runtime: )/, '')}
+                        {step.text.replace(
+                          /^(?:Runtime session ID: |ID sesi runtime: )/,
+                          '',
+                        )}
                       </dd>
                     </div>
                   ))}

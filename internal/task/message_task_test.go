@@ -88,3 +88,50 @@ func TestMessageTaskDelayedExitDoesNotOverwriteNewAttempt(t *testing.T) {
 		t.Fatal("terminal attempt revived", e)
 	}
 }
+
+func TestLocalLeaseHeartbeatAndRecovery(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{Title: "Heartbeat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = svc.UpdateAttemptStatus(ctx, a.ID, "runner", UpdateAttemptRequest{Status: AttemptStatusRunning}); err != nil {
+		t.Fatal(err)
+	}
+	a, _ = store.GetAttempt(ctx, a.ID)
+	past := time.Now().Add(-time.Minute)
+	a.LeaseExpiresAt = &past
+	if err = store.UpdateAttempt(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.RenewLocalAttemptLease(ctx, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.RecoverLocalAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	live, _ := store.GetAttempt(ctx, a.ID)
+	if live.Status != AttemptStatusRunning || !live.LeaseExpiresAt.After(time.Now()) {
+		t.Fatal("live lease not renewed")
+	}
+	live.LeaseExpiresAt = &past
+	if err = store.UpdateAttempt(ctx, live); err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.RecoverLocalAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.RenewLocalAttemptLease(ctx, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	dead, _ := store.GetAttempt(ctx, a.ID)
+	if dead.Status != AttemptStatusInterrupted {
+		t.Fatal("dead attempt revived")
+	}
+}

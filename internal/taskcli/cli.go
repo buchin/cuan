@@ -23,7 +23,7 @@ type Capability struct {
 
 func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		fmt.Fprintln(out, "Usage: cuan-server task get | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked] [--result-kind answer|implementation] [--report-file FILE]\nUses CUAN_TASK_CAPABILITY_FILE; reports affect only the current task/session. Human instructions and Done cannot be changed. Review requires summary and verification evidence; workflow changes after process exit.")
+		fmt.Fprintln(out, "Usage: cuan-server task get | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE]\nUses CUAN_TASK_CAPABILITY_FILE; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:
 {"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true}],"commit_sha":"optional commit","test_summary":"Actual checks"}
 Omit metadata/checklists when unnecessary. Use --summary and --complete-note directly for a simple result.`)
@@ -41,7 +41,7 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 	summary := fs.String("summary", "", "Work plan or result summary")
 	note := fs.String("complete-note", "", "Actual verification evidence or blocker")
 	progress := fs.String("progress", "", "Progress checkpoint")
-	state := fs.String("state", "", "progress, review or blocked")
+	state := fs.String("state", "", "progress, review, blocked or done")
 	kind := fs.String("result-kind", "", "answer for conversation without file changes; implementation otherwise")
 	file := fs.String("report-file", "", "Structured JSON report file (never human instructions)")
 	if e := fs.Parse(args[1:]); e != nil {

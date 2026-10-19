@@ -134,7 +134,7 @@ export function TaskSessionPage({
   const latest = detail.latest_attempt?.id === attempt.id
   const final = [...reports]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .find((r) => ['review', 'blocked'].includes(r.new_status || ''))
+    .find((r) => ['review', 'blocked', 'done'].includes(r.new_status || ''))
   const answer =
     final?.new_status === 'review' &&
     attempt.status === 'succeeded' &&
@@ -188,7 +188,7 @@ export function TaskSessionPage({
               : active
                 ? attemptLabel(attempt)
                 : detail.status === 'done'
-                  ? 'Accepted'
+                  ? 'Completed'
                   : answer
                     ? 'Answered'
                     : detail.status === 'blocked'
@@ -319,7 +319,7 @@ export function TaskSessionPage({
               </p>
             )}
             {latest && detail.status === 'done' && (
-              <p className="text-sm text-muted-foreground">Result accepted.</p>
+              <p className="text-sm text-muted-foreground">Task completed.</p>
             )}
           </div>
         </div>
@@ -515,7 +515,7 @@ export function TaskSessionPage({
                 {reports.map((r) => (
                   <li key={r.id} className="rounded-lg border p-3">
                     <p className="mb-2 text-xs text-muted-foreground">
-                      {r.new_status === 'review'
+                      {r.new_status === 'done' ? 'Completed' : r.new_status === 'review'
                         ? 'Result ready'
                         : r.new_status === 'blocked'
                           ? 'Blocker'

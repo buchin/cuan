@@ -90,16 +90,17 @@ Run task get only when additional task context is needed. Metadata and checklist
 are optional; keep simple requests simple. Use task --help for supported flags.
 For substantial work, publish meaningful task report --progress "..." checkpoints.
 Print the user-facing answer before the final report.
-Finish with:
-"$CUAN_TASK_EXECUTABLE" task report --state review --summary "Actual result" --complete-note "Verification and limitations"
-For a greeting/question with no file changes, add --result-kind answer.
+For completed implementation, finish with:
+"$CUAN_TASK_EXECUTABLE" task report --state done --summary "Actual result" --complete-note "Verification and limitations"
+For a greeting/question with no file changes, use --state review --result-kind answer.
+Use --state review when implementation still needs review.
 For implementation, file changes or uncertain classification, use --result-kind implementation (the default).
-This controls presentation only; it never approves Done.
+Done requires actual completed work, verification evidence and all declared criteria completed.
 For a greeting/question, state that it was answered directly and no files/tests
 were needed. Never claim unperformed work. For a blocker use --state blocked
 with summary and concrete evidence instead.
 A final report closes this session automatically after output drains.
-Human instructions and Done approval are read-only. Never print the private
+Human instructions are read-only. Never print the private
 capability file. Need structured metadata? task --help documents --report-file.
 `
 	for _, part := range contextParts {
@@ -170,7 +171,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": "Result is reconciled after process exit"})
-	if report.State == "review" || report.State == "blocked" {
+	if report.State == "review" || report.State == "blocked" || report.State == "done" {
 		// Return the tool response before closing its parent PTY. Never stop a later
 		// attempt or convert an independently failed process into successful work.
 		acceptedAt := time.Now()

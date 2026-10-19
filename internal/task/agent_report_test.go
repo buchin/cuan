@@ -65,3 +65,56 @@ func TestAgentReportResultKindDoesNotApproveWork(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentExplicitCompletion(t *testing.T) {
+	for _, state := range []string{"done", "review"} {
+		for _, kind := range []string{"implementation", "answer"} {
+			t.Run(state+"_"+kind, func(t *testing.T) {
+				ctx := context.Background()
+				svc := NewService(NewMemoryStore(), nil)
+				created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{Title: "Work", Instructions: "Implement request"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "fixture"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				doing := TaskStatusDoing
+				if _, err = svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Status: &doing}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = svc.UpdateAttemptStatus(ctx, a.ID, "runner", UpdateAttemptRequest{Status: AttemptStatusRunning}); err != nil {
+					t.Fatal(err)
+				}
+				if err = svc.RequireAgentReport(ctx, created.ID, a.ID, "fixture"); err != nil {
+					t.Fatal(err)
+				}
+				summary, note := "Implemented request", "Targeted checks passed"
+				if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done"}); err == nil {
+					t.Fatal("missing evidence accepted")
+				}
+				if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: state, ResultKind: kind, Summary: &summary, CompleteNote: &note}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = svc.FinishReportedAttempt(ctx, a.ID, 143); err != nil {
+					t.Fatal(err)
+				}
+				if err = svc.ReconcileLocalTask(ctx, created.ID, a.ID); err != nil {
+					t.Fatal(err)
+				}
+				d, err := svc.GetTaskDetail(ctx, created.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := TaskStatusReview
+				if state == "done" && kind == "implementation" {
+					want = TaskStatusDone
+				}
+				if d.Status != want {
+					t.Fatalf("got %s want %s", d.Status, want)
+				}
+			})
+		}
+	}
+}

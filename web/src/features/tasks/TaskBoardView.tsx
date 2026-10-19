@@ -268,17 +268,36 @@ export function TaskBoardView({
           t.status === 'done'
         }
         onClick={(e) => e.stopPropagation()}
-        onChange={(e) =>
-          void saveRow(t, { status: e.target.value as TaskStatus })
-        }
+        onChange={(e) => {
+          if (e.target.value === 'done') onSelectTask(t)
+          else void saveRow(t, { status: e.target.value as TaskStatus })
+        }}
       >
-        {TASK_STATUSES.filter(
-          (item) =>
-            item.id === taskStatus(t.status) ||
-            ['backlog', 'todo', 'blocked'].includes(item.id),
-        ).map((item) => (
-          <option key={item.id} value={item.id}>
+        {TASK_STATUSES.map((item) => (
+          <option
+            key={item.id}
+            value={item.id}
+            disabled={
+              item.id !== taskStatus(t.status) &&
+              (['doing', 'review'].includes(item.id) ||
+                (item.id === 'done' &&
+                  !(
+                    t.status === 'review' &&
+                    t.latest_attempt?.status === 'succeeded' &&
+                    t.summary &&
+                    t.complete_note
+                  )))
+            }
+          >
             {item.label}
+            {item.id !== taskStatus(t.status) &&
+              (item.id === 'doing'
+                ? ' · automatic'
+                : item.id === 'review'
+                  ? ' · after result'
+                  : item.id === 'done'
+                    ? ' · completed work'
+                    : '')}
           </option>
         ))}
       </select>
