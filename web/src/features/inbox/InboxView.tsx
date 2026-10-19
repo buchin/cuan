@@ -641,11 +641,7 @@ export function InboxView({
                       </div>
                     </div>
                     {requests
-                      .filter(
-                        (q) =>
-                          q.message_id === msg.uuid &&
-                          (q.state !== 'completed' || q.steps?.length),
-                      )
+                      .filter((q) => q.message_id === msg.uuid)
                       .map((q) => (
                         <InboxActivity
                           key={q.request_id}

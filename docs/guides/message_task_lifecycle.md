@@ -202,8 +202,8 @@ Bukti: `docs/evidence/chat-markdown/production-browser.json` dan `release.json`.
 
 Buka **Detail respons** di bawah pesan untuk melihat ID permintaan dan pesan,
 agen, status tersimpan, waktu diterima/mulai, dan timeline bertimestamp. Permintaan
-baru juga mencatat exit code CLI, durasi proses dan hasil validasi respons. Tombol
-**Salin detail respons** menyalin metadata aman ini untuk pelacakan; prompt,
+baru juga mencatat exit code CLI, durasi proses dan hasil validasi respons. Di dalam **Detail teknis**, tombol
+**Salin detail teknis** menyalin metadata aman ini untuk pelacakan; prompt,
 reasoning privat, stderr mentah dan kredensial tidak disertakan. Jika clipboard
 ditolak, ID tetap bisa dipilih manual. Log operator menghubungkan kegagalan ke
 room/request/agent; kategori penolakan, panjang output dan exit/durasi dicatat
@@ -237,3 +237,22 @@ Rilis `032c723` aktif di production, schema22 tanpa migration baru. Pemeriksaan
 production pada empat lebar layar lulus untuk detail request gagal asli, salin
 metadata dan reload. Record asli tetap identik; tidak ada replay/pesan baru selama
 smoke UI. Aset cocok build dan tabel/profil cocok backup sesudah diagnostik.
+
+## Tiga lapis tampilan respons
+
+Chat menampilkan baris status44px yang dapat dibuka: Menunggu, Memproses,
+Selesai, Gagal, Terputus atau Dibatalkan. Durasi hanya ditampilkan jika waktu
+mulai dan event proses selesai benar-benar tersedia; tidak menganggap waktu
+sekarang sebagai durasi permintaan lama. Detail awal selalu tertutup.
+
+**Detail respons** membuka hasil/kegagalan yang aman dan timeline bertimestamp.
+**Detail teknis** di dalamnya membuka ID, status tersimpan, hasil proses CLI
+(exit/durasi) dan tombol salin. Informasi panjang tidak tampil di chat sebelum
+pengguna membuka detail. Error pembatalan tetap terlihat langsung agar pengguna
+tidak mengira penghentian sudah terkonfirmasi.
+
+Semua request yang tersimpan, termasuk completed lama tanpa steps, dapat dibuka;
+timeline kosong dan metadata lama yang tidak tersedia dinyatakan eksplisit.
+Belum ada trace tool terperinci dari runtime AGY: tampilan hanya menggunakan event
+aplikasi yang direkam, tidak mengarang tool call atau reasoning. Tidak ada tombol
+retry, replay otomatis, pergantian provider atau perubahan izin eksekusi.
