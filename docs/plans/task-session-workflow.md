@@ -30,3 +30,8 @@ Local targeted tests and fixture browser workflows passed. Dedicated PostgreSQL
 round trip verified actual report activity persistence and Review reconciliation.
 Production release evidence is recorded after activation in
 `docs/evidence/task-workflow/release.md`.
+
+All acceptance items are implemented and verified. Production release e294b09 is
+healthy; exact synthetic smoke data was cleaned and retained tables/profiles
+verified. The complete audit and limitations are in
+`docs/evidence/task-workflow/release.md`.
