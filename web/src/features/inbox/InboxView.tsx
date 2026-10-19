@@ -631,7 +631,7 @@ export function InboxView({
                       {isAgentMessage ? (
                         <ChatMarkdown content={msg.content || msg.message} />
                       ) : (
-                        <div className="wa-plain-text text-base whitespace-pre-wrap break-words font-sans">
+                        <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
                           <span>{msg.content || msg.message}</span>
                           {metadata}
                         </div>

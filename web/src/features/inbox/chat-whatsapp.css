@@ -33,7 +33,7 @@
 .wa-message-bubble::before { content: ''; position: absolute; top: 0; width: 7px; height: 10px; }
 .wa-incoming::before { left: -6px; background: var(--wa-incoming); clip-path: polygon(0 0,100% 0,100% 100%); }
 .wa-outgoing::before { right: -6px; background: var(--wa-outgoing); clip-path: polygon(0 0,100% 0,0 100%); }
-.wa-plain-text { line-height: 1.4; overflow-wrap: anywhere; }
+.wa-chat .wa-plain-text { font-size: 16px; line-height: 1.55; overflow-wrap: anywhere; }
 .wa-plain-text::after { content: ''; display: table; clear: both; }
 .wa-message-meta { display: inline-flex; float: right; align-items: center; gap: 3px; margin: 5px 0 0 12px; white-space: nowrap; color: var(--wa-meta); font-size: 12px; line-height: 16px; }
 .wa-outgoing .wa-message-meta { color: var(--wa-outgoing-meta); }
@@ -47,7 +47,23 @@
 .wa-input:focus-visible { outline: 2px solid var(--wa-send); outline-offset: 1px; }
 .wa-send { background: var(--wa-send); color: var(--wa-send-text); }
 .wa-send:hover { filter: brightness(.95); }
-.wa-chat .chat-markdown { font-size: 16px; line-height: 1.45; }
+.wa-chat .chat-markdown { font-size: 16px; line-height: 1.55; }
+.wa-chat .chat-markdown h1 { font-size: 18px; }
+.wa-chat .chat-markdown h2 { font-size: 17px; }
+.wa-chat .chat-markdown h3, .wa-chat .chat-markdown h4,
+.wa-chat .chat-markdown h5, .wa-chat .chat-markdown h6 { font-size: 16px; }
+.wa-chat .chat-markdown h1, .wa-chat .chat-markdown h2,
+.wa-chat .chat-markdown h3, .wa-chat .chat-markdown h4,
+.wa-chat .chat-markdown h5, .wa-chat .chat-markdown h6 { margin: .75em 0 .3em; }
+.wa-chat .chat-markdown p, .wa-chat .chat-markdown ul,
+.wa-chat .chat-markdown ol { margin: .5em 0; }
+.wa-chat .chat-markdown li, .wa-chat .chat-markdown li > p,
+.wa-chat .chat-markdown li > ul, .wa-chat .chat-markdown li > ol { margin: .15em 0; }
+.wa-chat .chat-markdown > :first-child { margin-top: 0; }
+.wa-chat .chat-markdown > :last-child { margin-bottom: 0; }
+@media (min-width: 768px) {
+  .wa-chat .chat-markdown, .wa-chat .wa-plain-text { font-size: 15px; }
+}
 .wa-chat .chat-markdown blockquote { border-left-color: var(--wa-send); background: rgb(128 128 128 / .08); padding: .4em .65em; border-radius: 4px; }
 @media (min-width: 1200px) { .wa-message-bubble { max-width: min(75%, 72ch); } }
 /* Reserve the end of a final paragraph so its timestamp can share that line.

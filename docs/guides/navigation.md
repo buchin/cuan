@@ -295,3 +295,10 @@ lulus, termasuk dialog dan aset build identik. Kontak manual nyata diuji tersimp
 setelah reload dan retry idempoten; record sintetis sudah dibersihkan. Seluruh35
 tabel yang dipertahankan (selain sesi login) dan493 file profil sama dengan backup.
 Schema tetap22, tanpa migration baru. Bukti: `docs/evidence/context-new/`.
+
+## Tipografi percakapan
+
+Isi bubble memakai15px pada tablet/desktop (≥768px),16px pada HP, dengan
+line-height1,55. Heading balasan dibatasi16–18px dan jarak paragraf/list dipadatkan.
+Composer tetap16px. Ukuran waktu/status tidak diubah; kode dan tabel tetap bisa
+digeser mendatar di dalam bubble.

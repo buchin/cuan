@@ -1,0 +1,137 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "font": "16px",
+      "line": "24.8px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "font": "16px",
+      "line": "24.8px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "font": "16px",
+      "line": "24.8px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "font": "16px",
+      "line": "24.8px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "font": "15px",
+      "line": "23.25px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "font": "15px",
+      "line": "23.25px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "font": "15px",
+      "line": "23.25px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "font": "15px",
+      "line": "23.25px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "font": "15px",
+      "line": "23.25px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "font": "15px",
+      "line": "23.25px",
+      "headingSizes": [
+        18,
+        17,
+        16
+      ],
+      "noPageOverflow": true,
+      "composer16": true
+    }
+  ],
+  "fixture": true,
+  "productWrites": 0,
+  "providerInvocations": 0
+}
