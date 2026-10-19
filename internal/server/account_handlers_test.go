@@ -150,6 +150,15 @@ func TestS26RecreateAgentDoesNotCollideWithRetainedConnection(t *testing.T) {
 	}
 }
 
+type s26ConnectionOverride struct {
+	db.AgentRepository
+	connection *db.AgentConnection
+}
+
+func (r *s26ConnectionOverride) GetConnectionByID(context.Context, string) (*db.AgentConnection, error) {
+	return r.connection.Clone(), nil
+}
+
 func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	s, token := setupTestChatServer(t)
@@ -213,6 +222,15 @@ func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
 		if !strings.Contains(out, []string{"profile-first", "profile-second"}[i]) {
 			t.Fatal("actual child did not use dedicated HOME")
 		}
+
+		// Exercise the actual Inbox HTTP route as well as the child helper.
+		r := httptest.NewRequest("POST", "/api/v1/chat/conversations/"+id+"/messages", strings.NewReader(`{"message":"implement fixture routing check"}`))
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		if w.Code != 200 || !strings.Contains(w.Body.String(), []string{"profile-first", "profile-second"}[i]) {
+			t.Fatalf("Inbox profile routing failed: %d %s", w.Code, w.Body.String())
+		}
 	}
 	s.terminalManager = terminal.NewManager(terminal.ManagerConfig{WorkspacesDir: t.TempDir()})
 	defer s.terminalManager.CloseAll()
@@ -242,6 +260,52 @@ func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
 		}
 	}
 	a, _ := s.agentRepo.GetAgentByID(context.Background(), "agent_first")
+
+	original := a.Clone()
+	conn, _ := s.agentRepo.GetConnectionByID(context.Background(), a.ConnectionID)
+	originalRepo := s.agentRepo
+	for _, mutate := range []func(*db.AgentConnection){
+		func(c *db.AgentConnection) { c.UserID = "wrong-owner" },
+		func(c *db.AgentConnection) { c.Provider = "claude" },
+	} {
+		bad := conn.Clone()
+		mutate(bad)
+		s.agentRepo = &s26ConnectionOverride{AgentRepository: originalRepo, connection: bad}
+		if _, err := s.agentProfileHome(context.Background(), a); err == nil {
+			t.Fatal("wrong owner/type connection accepted")
+		}
+	}
+	s.agentRepo = originalRepo
+	a.Harness = "claude"
+	if _, err := s.agentProfileHome(context.Background(), a); err == nil {
+		t.Fatal("wrong harness accepted")
+	}
+	a = original.Clone()
+
+	profileHome, _ := agent.ProviderAccountHome(owner.ID, profiles[0].ID)
+	metadataPath := filepath.Join(filepath.Dir(profileHome), "account.json")
+	metadata, _ := os.ReadFile(metadataPath)
+	var stored map[string]any
+	json.Unmarshal(metadata, &stored)
+	stored["provider"] = "claude"
+	invalidMetadata, _ := json.Marshal(stored)
+	os.WriteFile(metadataPath, invalidMetadata, 0600)
+	if _, err := s.agentProfileHome(context.Background(), a); err == nil {
+		t.Fatal("wrong profile provider accepted")
+	}
+	os.WriteFile(metadataPath, metadata, 0600)
+	// Even with valid global credentials, missing dedicated credentials must fail.
+	t.Setenv("ANTIGRAVITY_TOKEN_PATH", agent.AntigravityCredentialsFilePath(t.TempDir()))
+	os.MkdirAll(filepath.Dir(os.Getenv("ANTIGRAVITY_TOKEN_PATH")), 0700)
+	os.WriteFile(os.Getenv("ANTIGRAVITY_TOKEN_PATH"), []byte("global-fixture-must-not-be-used"), 0600)
+	home, _ := agent.ProviderAccountHome(owner.ID, profiles[0].ID)
+	credential := agent.AntigravityCredentialsFilePath(home)
+	raw, _ := os.ReadFile(credential)
+	os.Remove(credential)
+	if _, err := s.agentProfileHome(context.Background(), a); err == nil {
+		t.Fatal("missing dedicated credential fell back to global")
+	}
+	os.WriteFile(credential, raw, 0600)
 	a.ConnectionID = "conn_profile_missing"
 	if _, err := s.agentProfileHome(context.Background(), a); err == nil {
 		t.Fatal("missing new connection fell back to legacy")

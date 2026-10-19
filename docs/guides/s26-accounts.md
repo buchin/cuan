@@ -1,5 +1,11 @@
 # Agen dan koneksinya
 
+## Verifikasi isolasi S26.2
+
+SM menerima S26.1 di ed97cfa. s26-2-before.json dan s26-2-after.json membuktikan mapping serta balasan pin1/pin2 bertahan setelah restart independen. Pin2 menjadi Belum diperiksa setelah lima menit tanpa menghapus login. Pin1 quota_limited tidak perlu login ulang.
+
+s26-2-targeted.txt membuktikan dua jalur HTTP Inbox dan dua PTY OS memakai HOME masing-masing melalui CLI/credential fixture. s26-2-task-history.json hanya membuktikan peluncuran dan exit 0 CLI AGY nyata di staging, bukan isi jawaban atau observasi HOME child nyata. Bukti identitas Google dan nonce nyata tetap terpisah. Resolver menolak provider koneksi/profil yang berbeda dari jenis agen; hardening S26.2 diuji di source dan perlu masuk validasi staging pada gate release berikutnya. Production belum diperbarui. Detail DoD ada di docs/sprints/S26.md.
+
 ## Model penggunaan
 
 **Satu agen = satu koneksi.** Pengguna mengelola satu daftar agen. Jenis agen, login dan status koneksi tampil pada agen tersebut; tidak ada daftar akun Google terpisah, pemilihan akun bersama atau baris percobaan login yang dibatalkan.

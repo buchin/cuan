@@ -25,9 +25,15 @@ func (s *Server) agentProfileHome(ctx context.Context, a *db.Agent) (string, err
 	if err != nil {
 		return "", errors.New("Koneksi agen tidak ditemukan. Hubungkan ulang agen ini")
 	}
+	if conn.Provider != "agy" && conn.Provider != "antigravity" {
+		return "", errors.New("Jenis koneksi tidak sesuai dengan agen")
+	}
 	profile, err := agent.ProviderAccountForConnection(conn.UserID, a.ID, conn.ID)
 	if err != nil || !profile.CredentialsPresent {
 		return "", errors.New("Agen perlu login ulang")
+	}
+	if profile.Provider != "agy" && profile.Provider != "antigravity" {
+		return "", errors.New("Jenis profil tidak sesuai dengan agen")
 	}
 	return agent.ProviderAccountHome(conn.UserID, profile.ID)
 }
