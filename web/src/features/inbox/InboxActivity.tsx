@@ -44,7 +44,10 @@ export function InboxActivity({
     cancelled: 'Dibatalkan',
   }[q.state]
   const processSteps =
-    q.steps?.filter((step) => step.kind !== 'provider_result') || []
+    q.steps?.filter(
+      (step) =>
+        step.kind !== 'provider_result' && step.kind !== 'runtime_session',
+    ) || []
   const Icon =
     q.state === 'queued'
       ? Clock3
@@ -107,6 +110,24 @@ export function InboxActivity({
               >
                 {processSteps.map((step) => (
                   <li key={step.seq} className="space-y-1">
+                    {step.kind.startsWith('runtime_tool_') && (
+                      <span
+                        className={`text-xs font-medium ${step.kind === 'runtime_tool_failed' ? 'text-destructive' : 'text-muted-foreground'}`}
+                      >
+                        Tool
+                        {step.kind === 'runtime_tool_failed' ? ' gagal' : ''}
+                      </span>
+                    )}
+                    {step.kind.startsWith('runtime_provider_') && (
+                      <span
+                        className={`text-xs font-medium ${step.kind === 'runtime_provider_failed' ? 'text-destructive' : 'text-muted-foreground'}`}
+                      >
+                        Provider
+                        {step.kind === 'runtime_provider_failed'
+                          ? ' gagal'
+                          : ''}
+                      </span>
+                    )}
                     <p>{step.text}</p>
                     {Number.isFinite(Date.parse(step.at)) && (
                       <time
@@ -157,6 +178,16 @@ export function InboxActivity({
                     <dd>{new Date(q.started_at).toLocaleString()}</dd>
                   </div>
                 )}
+                {q.steps
+                  ?.filter((step) => step.kind === 'runtime_session')
+                  .map((step) => (
+                    <div key={step.seq}>
+                      <dt className="font-medium">Sesi runtime</dt>
+                      <dd className="break-all font-mono">
+                        {step.text.replace('ID sesi runtime: ', '')}
+                      </dd>
+                    </div>
+                  ))}
                 {finished && (
                   <div>
                     <dt className="font-medium">Hasil proses CLI</dt>

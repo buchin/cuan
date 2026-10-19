@@ -64,7 +64,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--output-format", "json"}
+		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--output-format", "stream-json"}
 	default:
 		return "", "Jenis CLI agen belum didukung untuk percakapan. Gunakan agen agy, Claude, atau Codex yang terdaftar."
 	}
@@ -102,7 +102,13 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	if step != nil {
 		stdout.first = func() { step("output", "Menerima hasil proses provider.") }
 	}
-	cmd.Stdout = stdout
+	var runtime *inboxRuntimeStream
+	if binary == "agy" {
+		runtime = &inboxRuntimeStream{step: step}
+		cmd.Stdout = runtime
+	} else {
+		cmd.Stdout = stdout
+	}
 	cmd.Stderr = stderr
 	started := time.Now()
 	if err := cmd.Start(); err != nil {
@@ -118,24 +124,51 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	if step != nil {
 		step("provider_result", fmt.Sprintf("Proses provider selesai: exit %d, durasi %.1f dtk.", cmd.ProcessState.ExitCode(), time.Since(started).Seconds()))
 	}
+	if runtime != nil {
+		raw, failure, reason := runtime.finish()
+
+		if failure == "" {
+			var reply string
+			reply, failure, reason = decodeInboxAgyResult(raw, stderr.String())
+			if failure == "" && runErr != nil {
+				failure = safeInboxProviderFailure(ctx.Err(), stderr.String())
+				reason = "runtime_process_failure"
+			}
+			if failure == "" {
+				if step != nil {
+					step("result_validation", "Balasan provider tervalidasi.")
+				}
+				return reply, ""
+			}
+			if reason == "empty_response" && runtime.toolFailures > 0 {
+				failure = "Agen tidak menghasilkan balasan setelah aktivitas tool gagal. Pesan tersimpan; buka detail respons. Permintaan tidak dijalankan ulang otomatis."
+			}
+		}
+		lowerDiagnostic := strings.ToLower(stderr.String())
+		if reason == "runtime_missing_result" && (strings.Contains(lowerDiagnostic, "quota") || strings.Contains(lowerDiagnostic, "429") || strings.Contains(lowerDiagnostic, "resource_exhausted") || strings.Contains(lowerDiagnostic, "unauthorized") || strings.Contains(lowerDiagnostic, "401") || strings.Contains(lowerDiagnostic, "invalid_grant")) {
+			failure = safeInboxProviderFailure(nil, stderr.String())
+			reason = "provider_failure"
+		}
+		if ctx.Err() != nil {
+			failure = safeInboxProviderFailure(ctx.Err(), "")
+			reason = "runtime_interrupted"
+		}
+		labels := map[string]string{"runtime_missing_result": "Runtime berhenti tanpa hasil akhir.", "runtime_invalid": "Event runtime tidak dapat divalidasi.", "runtime_overflow": "Batas ukuran aktivitas runtime tercapai.", "runtime_process_failure": "Proses runtime gagal.", "runtime_interrupted": "Proses terputus atau melewati batas waktu.", "provider_failure": "Provider melaporkan kegagalan.", "provider_timeout": "Provider melewati batas waktu.", "empty_response": "Provider tidak menghasilkan teks balasan.", "invalid_result": "Hasil akhir runtime tidak valid.", "empty_output": "Runtime tidak mengembalikan hasil akhir."}
+		if step != nil {
+			step("result_validation", labels[reason])
+		}
+		log.Printf("inbox runtime result rejected reason=%s bytes=%d events=%d tool_failures=%d", reason, runtime.bytes, runtime.events, runtime.toolFailures)
+		return "", failure
+	}
 	if runErr != nil {
 		return "", safeInboxProviderFailure(ctx.Err(), stdout.String()+"\n"+stderr.String())
 	}
+
 	if stdout.overflow {
 		return "", "Balasan melewati batas ukuran. Pesan tersimpan; pecah permintaan menjadi bagian lebih kecil."
 	}
 	output := strings.TrimSpace(stdout.String())
-	if binary == "agy" {
-		reply, failure, reason := decodeInboxAgyResult(output, stderr.String())
-		if failure != "" {
-			log.Printf("inbox provider output rejected harness=agy reason=%s stdout_bytes=%d stderr_bytes=%d", reason, len(stdout.String()), len(stderr.String()))
-		}
-		if step != nil {
-			labels := map[string]string{"success": "Balasan provider tervalidasi.", "empty_output": "CLI tidak mengembalikan hasil terstruktur.", "invalid_result": "Format hasil CLI tidak valid.", "provider_timeout": "Provider melewati batas waktu.", "provider_failure": "Provider melaporkan kegagalan.", "empty_response": "Provider tidak menghasilkan teks balasan."}
-			step("result_validation", labels[reason])
-		}
-		return reply, failure
-	}
+
 	if output == "" {
 		return "", safeInboxProviderFailure(nil, stderr.String())
 	}

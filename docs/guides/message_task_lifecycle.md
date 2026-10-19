@@ -261,3 +261,37 @@ Rilis tampilan bertingkat `a882d23` aktif di production. Fixture semua state dan
 production empat lebar layar memverifikasi status44px, detail proses dan teknis
 yang tertutup awal, salin metadata, serta request asli tidak berubah/replay.
 Schema tetap22; bukti `docs/evidence/layered-response-trace/`.
+
+## Trace runtime AGY langsung
+
+AGY memakai `--output-format stream-json` (NDJSON), sesuai kontrak CLI terpasang
+yang diverifikasi melalui baca README dan satu baca file fixture yang tidak ada.
+Event `init` menyediakan ID percakapan; `step_update` menyediakan step_index,
+step_type, state dan duration_seconds; event `result` memuat hasil akhir.
+
+Cuan memproses event per baris selama proses berjalan dan menyimpan event aman
+pada request yang sama. Tool ACTIVE menjadi dimulai, DONE menjadi selesai
+(bukan klaim sukses semantik), ERROR menjadi gagal. Tahap agent_response dicatat
+mulai/selesai/gagal tanpa text_delta. Tool gagal tidak otomatis menggagalkan
+seluruh request jika provider tetap memberi jawaban akhir valid. Provider error,
+respons akhir kosong dan proses tanpa event result dibedakan.
+
+Label tool memakai daftar nama yang dikenal; tool lain mendapat label umum.
+Parameter, path, output mentah, error mentah, isi file, token usage dan reasoning
+**tidak** dipersistensikan ke trace. ID sesi runtime yang berupa UUID hanya muncul
+di Detail teknis dan metadata salinan. Event yang tidak dikenal diabaikan tanpa
+mengarang status. Timestamp timeline adalah waktu event diterima/disimpan Cuan,
+bukan rekonstruksi waktu upstream.
+
+Batas:1MiB/baris,16MiB total stream,10000 event,64 detail runtime ditambah satu
+penanda batas. Detail berlebih diringkas tetapi hasil akhir tetap diperiksa.
+Duplikat step/state diabaikan; event rusak, hasil akhir ganda/diikuti event lain,
+stream terpotong dan batas ukuran tidak dipublikasikan sebagai jawaban sukses.
+Hasil akhir wajib SUCCESS dan respons teks tidak kosong; protokol Claude/Codex
+belum diubah. Tidak ada retry, upgrade CLI, pergantian model/akun atau replay.
+
+Verifikasi mencakup parsing chunk/UTF8/CRLF, redaksi data privat, toolERROR dengan
+hasil akhirSUCCESS, bounded stream/detail, FIFO/cancel/recovery dan fungsi executor
+Cuan dengan tool baca nyata. Bukti kontrak tersanitasi dan live diagnostic ada di
+`docs/evidence/runtime-response-trace/`. Uji live memerlukan opt-in dan menggunakan
+kuota provider; tidak dijalankan otomatis dalam test biasa.

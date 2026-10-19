@@ -1,0 +1,1 @@
+ok  	github.com/buchin/cuan/internal/server	1.631s

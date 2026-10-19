@@ -37,7 +37,7 @@ func TestDecodeInboxAgyResult(t *testing.T) {
 }
 func TestInboxCLIExitZeroFailureAndTrace(t *testing.T) {
 	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '%s' '{\"status\":\"ERROR\",\"message\":\"RESOURCE_EXHAUSTED private-token\"}'\n"), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '%s' '{\"event\":\"result\",\"result\":{\"status\":\"ERROR\",\"message\":\"RESOURCE_EXHAUSTED private-token\"}}'\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
@@ -72,12 +72,15 @@ func TestLiveInboxAgyDiagnostic(t *testing.T) {
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	steps := map[string]string{}
 	var mu sync.Mutex
-	out, failure := s.executeInboxCLI(ctx, "pin2", "agy", "Balas tepat CUAN_DIAGNOSTIC_OK. Ini pemeriksaan integrasi. Jangan gunakan tools atau mengubah file.", home, "/opt/cuan/data/projects/default", func(kind, text string) { mu.Lock(); steps[kind] = text; mu.Unlock() })
+	out, failure := s.executeInboxCLI(ctx, "pin2", "agy", "Gunakan tool baca README.md di workspace project ini, lalu balas tepat CUAN_DIAGNOSTIC_OK. Jangan mengubah file atau membaca file lain.", home, "/opt/cuan/data/projects/default", func(kind, text string) { mu.Lock(); steps[kind] = text; mu.Unlock() })
 	if failure != "" || strings.TrimSpace(out) != "CUAN_DIAGNOSTIC_OK" {
 		t.Fatalf("live diagnostic not verified; safe failure=%s", failure)
 	}
 	if !strings.Contains(steps["provider_result"], "exit 0") || steps["result_validation"] != "Balasan provider tervalidasi." {
 		t.Fatal("live trace missing")
 	}
-	t.Log("Actual Cuan executeInboxCLI + bound profile + project CWD: structured reply validated, exit0/duration trace; no user-message replay or database writes")
+	if steps["runtime_tool_started"] == "" || steps["runtime_tool_finished"] == "" {
+		t.Fatal("actual tool trace missing")
+	}
+	t.Log("Actual Cuan executeInboxCLI + bound profile + project CWD: structured reply validated, actual read tool start/finish and exit0/duration trace; no user-message replay or database writes")
 }
