@@ -517,7 +517,7 @@ export function InboxView({
                       onClick={onNewMessage}
                     >
                       <Plus className="h-4 w-4" />
-                      <span>New</span>
+                      <span>New message</span>
                     </button>
                   )}
                   <div className="w-11">

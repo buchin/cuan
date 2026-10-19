@@ -228,7 +228,7 @@ export function AppShell({
                 onClick={newAction.onClick}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                <span>New</span>
+                <span>{newAction.label}</span>
               </button>
             )}
             <div className="w-11 md:hidden">

@@ -270,7 +270,9 @@ percakapan sendiri saat percakapan dibuka.
 
 ## Satu tombol New
 
-Kanan atas desktop, tablet dan HP menyediakan **+ New** sesuai halaman:
+Kanan atas desktop, tablet dan HP menampilkan label lengkap sesuai halaman:
+**+ New message**, **+ New contact**, **+ New task**, **+ New project** atau
+**+ New agent**.
 Inbox membuka pemilih penerima, Contacts membuka form kontak, Tasks membuka form
 task, Projects membuka form project, dan Settings → Agents membuka onboarding
 agent. Pada detail project, New task memakai project halaman tersebut. Settings
