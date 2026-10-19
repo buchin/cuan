@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoginScreen } from './components/auth/LoginScreen'
@@ -12,11 +12,11 @@ import { NewMessageDialog } from './features/inbox/NewMessageDialog'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
 import { TaskBoardView } from './features/tasks/TaskBoardView'
 import { TaskSessionPage } from './features/tasks/TaskSessionPage'
+import { TaskStartingPage } from './features/tasks/TaskStartingPage'
 import { agentsApi, type Agent } from './api/agents'
 import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
-import { ApiError } from './api/client'
 import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { InboxView } from './features/inbox/InboxView'
@@ -41,9 +41,6 @@ export function App() {
     rootSegment === 'tasks' &&
     pathSegments[2] === 'sessions' &&
     !!pathSegments[3]
-  const currentPath = useRef(location.pathname)
-  currentPath.current = location.pathname
-  const [launchingTask, setLaunchingTask] = useState('')
 
   // Current tab derived from URL route
   const currentTab: AppTab = useMemo(() => {
@@ -343,58 +340,36 @@ export function App() {
     startAgentId?: string,
   ) => {
     const created = await tasksApi.create(data)
-    const payload = startAgentId
-      ? { request_id: crypto.randomUUID(), agent_id: startAgentId }
-      : null
-    const key = 'cuan-task-launch:' + created.id
-    let canLaunch = !!payload
-    if (payload)
-      try {
-        localStorage.setItem(key, JSON.stringify(payload))
-      } catch {
-        canLaunch = false
-      }
-    if (canLaunch) setLaunchingTask(created.id)
-    handleSelectTask(created)
     void refreshTasks()
-    if (!payload) return
-    if (!canLaunch) {
+    if (!startAgentId) {
+      handleSelectTask(created)
+      return
+    }
+    const payload = { request_id: crypto.randomUUID(), agent_id: startAgentId }
+    try {
+      localStorage.setItem(
+        'cuan-task-launch:' + created.id,
+        JSON.stringify(payload),
+      )
+    } catch {
+      handleSelectTask(created)
       setTaskLaunchError(
-        'Task saved. Browser storage is unavailable; start a session when storage is available.',
+        'Task saved. Browser storage is unavailable; enable it before starting a session.',
       )
       return
     }
-    const suffix = location.search
+    const next = new URLSearchParams(location.search)
+    next.delete('view')
+    const suffix = next.toString() ? '?' + next.toString() : ''
     const returnTo = location.pathname.startsWith('/projects/')
       ? location.pathname + suffix
       : '/tasks' + suffix
-    void (async () => {
-      try {
-        const result = await tasksApi.runAgent(created.id, payload)
-        localStorage.removeItem(key)
-        if (result.attempt && currentPath.current === `/tasks/${created.id}`)
-          navigate(
-            `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(result.attempt.id)}${suffix}`,
-            { state: { taskReturnTo: returnTo } },
-          )
-      } catch (e) {
-        if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
-          localStorage.removeItem(key)
-          if (currentPath.current === `/tasks/${created.id}`)
-            setTaskLaunchError(
-              'Task saved. Could not start the agent: ' + e.message,
-            )
-        } else if (currentPath.current === `/tasks/${created.id}`)
-          setTaskLaunchError(
-            'The launch response was not confirmed. Use Check launch request to recover the same session.',
-          )
-      } finally {
-        setLaunchingTask((previous) =>
-          previous === created.id ? '' : previous,
-        )
-        void refreshTasks()
-      }
-    })()
+    setIsSidePeekOpen(false)
+    setSelectedTask(null)
+    navigate(
+      `/tasks/${encodeURIComponent(created.id)}/sessions/start${suffix}`,
+      { state: { taskReturnTo: returnTo, startRequestId: payload.request_id } },
+    )
   }
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
@@ -562,7 +537,10 @@ export function App() {
         {currentTab === 'contacts' && (
           <ContactsView refreshKey={contactRevision} />
         )}
-        {sessionRoute && (
+        {sessionRoute && pathSegments[3] === 'start' && (
+          <TaskStartingPage key={subParam} taskId={subParam} />
+        )}
+        {sessionRoute && pathSegments[3] !== 'start' && (
           <TaskSessionPage
             key={subParam}
             taskId={subParam}
@@ -749,7 +727,6 @@ export function App() {
       />
 
       <TaskSidePeek
-        launching={launchingTask === selectedTask?.id}
         initialError={taskLaunchError}
         task={selectedTask}
         projects={projects}

@@ -29,7 +29,11 @@ function readDraft(key: string, project: string): Draft {
     )
       return d
   } catch {}
-  return { prompt: '', project, agent: '', requestId: crypto.randomUUID() }
+  let agent = ''
+  try {
+    agent = localStorage.getItem('cuan-new-task-agent') || ''
+  } catch {}
+  return { prompt: '', project, agent, requestId: crypto.randomUUID() }
 }
 
 export function CreateTaskModal({
@@ -46,7 +50,8 @@ export function CreateTaskModal({
     [loading, setLoading] = useState(false),
     [error, setError] = useState(''),
     [agents, setAgents] = useState<Agent[]>([]),
-    [agentsError, setAgentsError] = useState(false)
+    [agentsError, setAgentsError] = useState(false),
+    [agentsLoading, setAgentsLoading] = useState(true)
   const dialog = useRef<HTMLDialogElement>(null),
     input = useRef<HTMLTextAreaElement>(null),
     submitting = useRef(false),
@@ -56,8 +61,19 @@ export function CreateTaskModal({
     mounted.current = true
     setLoading(false)
     submitting.current = false
-    setDraft(readDraft(key, activeProjectId || ''))
+    let preferredProject = activeProjectId || ''
+    try {
+      if (!preferredProject) {
+        const p = localStorage.getItem('cuan-new-task-project')
+        if (
+          projects.some((project) => project.id === p && !project.is_archived)
+        )
+          preferredProject = p || ''
+      }
+    } catch {}
+    setDraft(readDraft(key, preferredProject))
     setError('')
+    setAgentsLoading(true)
     let alive = true
     agentsApi
       .list()
@@ -65,12 +81,44 @@ export function CreateTaskModal({
         if (alive) {
           setAgents(list)
           setAgentsError(false)
+          setAgentsLoading(false)
+          let preference: string | null = null
+          try {
+            preference = localStorage.getItem('cuan-new-task-agent')
+          } catch {}
+          setDraft((d) => {
+            if (
+              d.agent &&
+              list.some(
+                (a) =>
+                  a.id === d.agent &&
+                  a.enabled !== false &&
+                  a.status !== 'inactive',
+              )
+            )
+              return d
+            if (preference === '') return { ...d, agent: '' }
+            const available = list.filter(
+              (a) => a.enabled !== false && a.status !== 'inactive',
+            )
+            const selected =
+              available.find((a) => a.id === preference) ||
+              available.find((a) => a.connection_state === 'verified') ||
+              available[0]
+            const next = { ...d, agent: selected?.id || '' }
+            try {
+              sessionStorage.setItem(key, JSON.stringify(next))
+            } catch {}
+            return next
+          })
         }
       })
       .catch(() => {
         if (alive) {
           setAgents([])
           setAgentsError(true)
+          setAgentsLoading(false)
+          setDraft((d) => ({ ...d, agent: '' }))
         }
       })
     const previous = document.activeElement as HTMLElement | null
@@ -87,6 +135,10 @@ export function CreateTaskModal({
     setDraft((d) => {
       const next = { ...d, ...patch }
       try {
+        if (patch.agent !== undefined)
+          localStorage.setItem('cuan-new-task-agent', patch.agent)
+        if (patch.project !== undefined)
+          localStorage.setItem('cuan-new-task-project', patch.project)
         sessionStorage.setItem(key, JSON.stringify(next))
       } catch {}
       return next
@@ -239,7 +291,7 @@ export function CreateTaskModal({
                 className="min-h-11 min-w-0 max-w-[150px] rounded-md border border-input bg-card px-2 text-xs sm:max-w-[240px]"
                 value={draft.agent}
                 onChange={(e) => change({ agent: e.target.value })}
-                disabled={loading}
+                disabled={loading || agentsLoading}
               >
                 <option value="">No agent</option>
                 {draft.agent && !eligible.some((a) => a.id === draft.agent) && (
@@ -256,13 +308,9 @@ export function CreateTaskModal({
               type="submit"
               aria-label="Create task"
               className="action-primary shrink-0"
-              disabled={loading || !draft.prompt.trim()}
+              disabled={loading || agentsLoading || !draft.prompt.trim()}
             >
-              {loading
-                ? 'Creating…'
-                : draft.agent
-                  ? 'Create & start'
-                  : 'Create'}
+              {loading ? 'Creating…' : 'Create'}
             </button>
           </div>
         </div>

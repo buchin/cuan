@@ -4,7 +4,11 @@ Open **Tasks** to search, sort, or filter by status, project, priority, and agen
 Filters are part of the URL and remain when a task is closed. **New task** opens a simple prompt composer. Select a Project when repository
 context is needed. The server derives the initial title and priority from the prompt; the agent can refine them. The first line usually supplies the initial title and the complete
 prompt is saved as the human instructions. Choose **No agent** to save to Backlog,
-or select an agent and confirm **Create & start** to create and launch one session.
+or select an agent and press **Create** to open its session immediately.
+The composer remembers your Project and Agent; a verified available agent is
+selected initially. Project-specific pages use their current project.
+While the server starts execution, the session page shows **Starting session…**,
+then opens the confirmed attempt. Task details is not an intermediate step.
 Viewing a task never starts an agent.
 
 ## Prepare and run
@@ -18,13 +22,15 @@ Viewing a task never starts an agent.
    draft is rejected rather than overwriting newer work; copy the draft, discard
    it, and reopen Edit to apply the current version.
 3. Choose **Start**, select a configured agent, and confirm **Start session**
-   for a saved task. The new-task composer can also explicitly create and start
-   with a selected agent.
+   for a saved task. New tasks with an agent go directly from **Create** to the session.
    Configure and verify agents in **Settings → Agents** first. The saved title,
    instructions, criteria, existing notes, and additional feedback form the run
    context. Human instructions remain a separate field.
 4. If the launch response is lost, choose **Check launch request**. It recovers
    the same request, including after a reload; it does not start another run.
+   On the initial session page this action is **Check session**. Reloading a
+   pending start never replays it automatically. You can leave the page while
+   starting; completion will not pull you back.
 
 ## Review and revisions
 
