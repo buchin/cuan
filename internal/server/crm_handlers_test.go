@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -86,5 +88,23 @@ func TestCRMContactIdentityAndTags(t *testing.T) {
 	}
 	if call("POST", "/api/chat/messages", `{"session_uuid":"`+defaultScrumMasterRoomID+`","text":"bad"}`, false).Code != 404 {
 		t.Fatal("visitor can write internal room")
+	}
+}
+
+func TestWidgetUsesActiveReleaseAssets(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "chat"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("// active release fixture")
+	if err := os.WriteFile(filepath.Join(root, "chat", "widget.js"), want, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CUAN_STATIC_DIR", root)
+	s, _ := setupTestChatServer(t)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, httptest.NewRequest("GET", "/chat/widget.js", nil))
+	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), want) {
+		t.Fatal("widget did not follow configured release", w.Code)
 	}
 }

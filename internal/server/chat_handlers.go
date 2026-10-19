@@ -1083,13 +1083,16 @@ func (s *Server) handleChatWidgetJS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 
-	// Try reading from web/public/chat/widget.js
+	// Production widget must come from the same atomic release as the SPA.
 	candidatePaths := []string{
 		filepath.Join("web", "public", "chat", "widget.js"),
 		filepath.Join("..", "..", "web", "public", "chat", "widget.js"),
-		"/opt/cuan/web/dist/chat/widget.js",
+		filepath.Join("web", "dist", "chat", "widget.js"),
 	}
 
+	if root := strings.TrimSpace(os.Getenv("CUAN_STATIC_DIR")); root != "" {
+		candidatePaths = append([]string{filepath.Join(root, "chat", "widget.js")}, candidatePaths...)
+	}
 	for _, p := range candidatePaths {
 		if data, err := os.ReadFile(p); err == nil && len(data) > 0 {
 			_, _ = w.Write(data)
