@@ -198,3 +198,18 @@ directories for deliverables. Conversational requests do not imply creating an
 app, repository or tests. The reporting CLI --help includes the optional JSON
 schema example; agents must report actual tool errors rather than inspect the
 server executable to infer a contract.
+
+## Reading and reviewing the task list
+
+The list shows workflow status; finished-process labels stay in session details.
+Search, filters and sort retain their URL state. Desktop uses a compact table;
+tablet and phone use task rows without horizontal scrolling. Empty project
+labels are omitted. If an agent-refined title differs from the original request,
+a Request preview keeps the human intent visible beneath the title.
+
+Before approving, compare the delivered result with the original request shown
+in the approval dialog: check scope, the correct output workspace, and actual
+verification. Passing tests or agent-created criteria alone do not establish
+that the user’s request was satisfied. Session guidance asks the agent to make
+the same comparison before reporting and to avoid expanding a title or checklist
+into unrequested deliverables.

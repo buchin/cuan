@@ -438,7 +438,9 @@ function TaskDetailView({
                     onClick={async () => {
                       setMenu(false)
                       try {
-                        await navigator.clipboard.writeText(window.location.href)
+                        await navigator.clipboard.writeText(
+                          window.location.href,
+                        )
                         setNotice('Task link copied.')
                       } catch {
                         setError(
@@ -1152,9 +1154,18 @@ function TaskDetailView({
           }}
         >
           <p className="text-sm text-muted-foreground">
-            A finished process is not an approved result. Review the output,
-            verify every acceptance criterion, and record the evidence.
+            Check that the result answers the original request, stays within
+            scope, and uses the correct project workspace. Passing tests alone
+            does not establish acceptance.
           </p>
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Original request
+            </p>
+            <p className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-sm">
+              {detail.description || detail.title}
+            </p>
+          </div>
           {checklist.some((i) => !i.completed) && (
             <p className="text-sm text-destructive">
               Verify all acceptance criteria in Overview before approving.
@@ -1170,7 +1181,7 @@ function TaskDetailView({
               required
               value={approvalNote}
               onChange={(e) => setApprovalNote(e.target.value)}
-              placeholder="What changed, how it was verified, and any limitations."
+              placeholder="How the result meets the original request, where outputs belong, checks performed, and limitations."
             />
           </label>
           {error && (
