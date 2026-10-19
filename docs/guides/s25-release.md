@@ -10,7 +10,7 @@ Select a registered agent before Run. Each click starts one actual PTY process, 
 
 ## Configuration
 
-Keep `/opt/cuan/.env` private and retained. Production service user is ubuntu. The release drop-in adds `/home/ubuntu/.local/bin` to PATH, fixes static files to the active release, and sets `CUAN_AUTO_MIGRATE=false`. Install the official CLI with `python3 scripts/install-antigravity.py`; SHA-512 is checked. The supported native release requires Go, npm, rsync, sshpass and the existing `DOJO_TERMAPI_VPS_*` environment settings. Secrets never belong in the repository or command output.
+Keep `/opt/cuan/.env` private and retained. Production service user is ubuntu. The release drop-in adds `/home/ubuntu/.local/bin` to PATH, fixes static files to the active release, and sets `CUAN_AUTO_MIGRATE=false`. Install the official CLI with `python3 scripts/install-antigravity.py`; SHA-512 is checked. The supported native release requires Go, npm, sshpass and the existing `DOJO_TERMAPI_VPS_*` environment settings. Secrets never belong in the repository or command output.
 
 Staging runs on port 8081 at https://cuan-s25-dojo.fural.space with an isolated database clone and separate DB role. Production remains https://cuan.dojo.cc on internal port 8080. Exactly 19 existing migrations are retained. No migration or destructive database operation is part of this release.
 
@@ -19,7 +19,7 @@ Staging runs on port 8081 at https://cuan-s25-dojo.fural.space with an isolated 
 1. Finish targeted tests and `npm run build --prefix web`. Verify the actual provider/Inbox and task/PTY evidence under `docs/sprints/evidence/S25/`.
 2. Commit and push the tested feature, merge into main with the configured human author, and require a clean working tree.
 3. Run `fural-agent repos ship RPcd484fc4229ae192d17a0f01 --mode script --script scripts/fural-deploy.sh`. The same native mechanism is available as `scripts/fural-deploy.sh --help`.
-4. The script builds a static server and frontend; uploads only a versioned payload by rsync; verifies its SHA-256 manifest; takes an exclusive host release lock and private `pg_dump` backup; retains the previous release; atomically switches `/opt/cuan/current`; and restarts systemd. It polls health/readiness and requires migration count 19. A failed gate restores the previous pointer and restarts automatically.
+4. The script builds a static server and frontend; uploads only a versioned payload by SCP and synchronizes it with native VPS rsync; verifies its SHA-256 manifest; takes an exclusive host release lock and private `pg_dump` backup; retains the previous release; atomically switches `/opt/cuan/current`; and restarts systemd. It polls health/readiness and requires migration count 19. A failed gate restores the previous pointer and restarts automatically.
 5. Verify public `/healthz` and `/readyz`, active frontend bundle and `/tasks/:id` SPA routing, authenticated OAuth/provider probe, real agent registration and a real Inbox reply retrievable after refresh/restart. A Git push alone is not deployment.
 
 The first native atomic release snapshots the previous installation into `releases/legacy-before-s25`. Shared data/sponsors remain under `/opt/cuan/`; each release links to them. Release directories never include .env or account tokens. A pre-release database dump is stored privately under `/opt/cuan/backups/<SHA>.dump` and is not downloadable from the web application.
