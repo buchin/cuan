@@ -106,3 +106,8 @@ Di bawah768px, gunakan Inbox/Contacts/Tasks/Projects pada menu bawah. Header
 menyediakan Settings dan menu akun. Saat chat terbuka, Back mengembalikan daftar
 dan menu bawah. Tidak ada hamburger, drawer atau item Tab tersembunyi. Sidebar
 64px tablet dan sidebar desktop yang dapat dilipat tetap tersedia.
+
+Rilis `4d62cfb` aktif di production. Build dan fixture48 pasangan halaman/viewport
+serta production48 pasangan halaman/viewport lulus. Semua tab bawah, Settings, akun,
+Back chat, resize dan sidebar desktop/tablet terverifikasi tanpa product write
+atau pemanggilan provider. Schema22 tidak berubah; bukti `docs/evidence/mobile-navigation/`.
