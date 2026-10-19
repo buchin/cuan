@@ -36,7 +36,7 @@ func TestInboxRuntimeStreamObservedEventsAndRedaction(t *testing.T) {
 		t.Fatal("runtime result", failure, decodedFailure, s.toolFailures)
 	}
 	joined := strings.Join(trace, "\n")
-	if strings.Contains(joined, "private") || !strings.Contains(joined, "runtime_tool_failed:Tool #2 · Baca file gagal (0.2 dtk).") || !strings.Contains(joined, "runtime_tool_finished:Tool #3 · Tool aktivitas berakhir.") {
+	if strings.Contains(joined, "private") || !strings.Contains(joined, "runtime_tool_failed:Tool #2 · Read file failed (0.2 s).") || !strings.Contains(joined, "runtime_tool_finished:Tool #3 · Tool activity ended.") {
 		t.Fatal("unsafe or inaccurate trace", trace)
 	}
 	if strings.Count(joined, "runtime_tool_failed:") != 1 {
@@ -91,7 +91,7 @@ func TestInboxRuntimeDeniedActionsAreSafeAndNotSuccessEvidence(t *testing.T) {
 		t.Fatal(failure)
 	}
 	reply, failure, reason := decodeInboxAgyResult(raw, "private-stderr")
-	if reply != "" || reason != "tool_permission_denied" || !strings.Contains(failure, "izin tool ditolak") {
+	if reply != "" || reason != "tool_permission_denied" || !strings.Contains(failure, "tool permission was denied") {
 		t.Fatal(reply, failure, reason)
 	}
 	joined := strings.Join(trace, "\n")

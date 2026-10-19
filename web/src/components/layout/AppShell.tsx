@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
-import { useTheme } from '../../context/ThemeContext'
 import {
   Inbox,
   Users,
@@ -10,8 +9,6 @@ import {
   FolderGit2,
   Plus,
   PanelLeft,
-  Sun,
-  Moon,
   Settings,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -30,9 +27,9 @@ interface AppShellProps {
 }
 const NAV_ITEMS = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
-  { id: 'contacts', label: 'Contacts', icon: Users },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
+  { id: 'contacts', label: 'Contacts', icon: Users },
 ] as const
 
 export function AppShell({
@@ -55,7 +52,6 @@ export function AppShell({
     }
   })
   const [listOpen, setListOpen] = useState(true)
-  const { resolvedTheme, toggleTheme } = useTheme()
   useEffect(() => {
     const viewport = window.visualViewport
     const update = () => {
@@ -102,20 +98,6 @@ export function AppShell({
       <span className="nav-label">{text}</span>
     </button>
   )
-  const themeButton = (
-    <button
-      title={`Tema ${resolvedTheme === 'dark' ? 'Dark' : 'Light'}`}
-      aria-label="Ganti tema"
-      onClick={toggleTheme}
-      className="icon-action"
-    >
-      {resolvedTheme === 'dark' ? (
-        <Moon className="h-5 w-5" />
-      ) : (
-        <Sun className="h-5 w-5" />
-      )}
-    </button>
-  )
   return (
     <div
       ref={shell}
@@ -125,49 +107,46 @@ export function AppShell({
       )}
     >
       <nav
-        aria-label="Navigasi utama"
+        aria-label="Main navigation"
         className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"
       >
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-2.5">
-          <CuanMark className="h-10 w-10" />
+        <div className="sidebar-brand flex h-16 shrink-0 items-center gap-2 border-b border-border px-2.5">
+          <CuanMark className="h-9 w-9" />
           <span className="nav-label text-lg font-semibold tracking-tight">
             cuan
           </span>
+          <button
+            className="sidebar-collapse icon-action hidden min-[1200px]:inline-flex"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() =>
+              setCollapsed((value) => {
+                const next = !value
+                try {
+                  localStorage.setItem('cuan-nav-collapsed', String(next))
+                } catch {}
+                return next
+              })
+            }
+          >
+            <PanelLeft className="h-4 w-4" />
+          </button>
         </div>
         <div className="flex-1 space-y-1 p-2.5">
           {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon))}
         </div>
         <div className="space-y-2 border-t border-border p-2.5">
           {navButton('settings', 'Settings', Settings)}
-          <div className="flex flex-wrap items-center justify-center gap-1">
-            {themeButton}
-            <button
-              className="icon-action hidden min-[1200px]:inline-flex"
-              title={collapsed ? 'Perluas navigasi' : 'Ciutkan navigasi'}
-              aria-label={collapsed ? 'Perluas navigasi' : 'Ciutkan navigasi'}
-              onClick={() =>
-                setCollapsed((value) => {
-                  const next = !value
-                  try {
-                    localStorage.setItem('cuan-nav-collapsed', String(next))
-                  } catch {}
-                  return next
-                })
-              }
-            >
-              <PanelLeft className="h-5 w-5" />
-            </button>
-            <NavUser isCollapsed />
-          </div>
+          <NavUser sidebar collapsed={collapsed} />
         </div>
       </nav>
       {currentTab === 'inbox' && listOpen && (
         <section
-          aria-label="Daftar percakapan"
+          aria-label="Conversations"
           className="conversation-sidebar hidden h-full w-[280px] shrink-0 flex-col border-r border-border min-[1200px]:flex"
         >
           <div className="flex h-16 shrink-0 items-center border-b border-border px-4 text-base font-semibold">
-            Percakapan
+            Conversations
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">{inboxSubPanel}</div>
         </section>
@@ -184,7 +163,7 @@ export function AppShell({
             <CuanMark className="h-6 w-6 md:hidden" />
             {breadcrumbs.length > 0 && (
               <nav
-                aria-label="Hierarki halaman"
+                aria-label="Breadcrumbs"
                 className="hidden min-w-0 items-center gap-2 text-sm text-muted-foreground md:flex"
               >
                 {breadcrumbs.map((crumb) => (
@@ -212,7 +191,7 @@ export function AppShell({
               <button
                 className="icon-action hidden min-[1200px]:inline-flex"
                 aria-label={
-                  listOpen ? 'Sembunyikan percakapan' : 'Tampilkan percakapan'
+                  listOpen ? 'Hide conversations' : 'Show conversations'
                 }
                 onClick={() => setListOpen((v) => !v)}
               >
@@ -254,7 +233,7 @@ export function AppShell({
       </main>
       {!hideBottomNav && (
         <nav
-          aria-label="Navigasi bawah"
+          aria-label="Bottom navigation"
           className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
         >
           {NAV_ITEMS.map(({ id, label: text, icon: Icon }) => (
@@ -273,7 +252,7 @@ export function AppShell({
                 <Icon className="h-5 w-5" />
                 {id === 'inbox' && inboxUnread > 0 && (
                   <span
-                    aria-label={`${inboxUnread} pesan belum dibaca`}
+                    aria-label={`${inboxUnread} unread messages`}
                     className="absolute -right-3 -top-2 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground"
                   >
                     {inboxUnread > 99 ? '99+' : inboxUnread}

@@ -347,7 +347,7 @@
   // Widget Markup
   const container = document.createElement('div');
   container.innerHTML = `
-    <button type="button" class="dojo-launcher" id="launcher" title="Buka Live Chat" aria-label="Buka Live Chat" aria-expanded="false" aria-controls="window">
+    <button type="button" class="dojo-launcher" id="launcher" title="Open live chat" aria-label="Open live chat" aria-expanded="false" aria-controls="window">
       <svg id="icon-chat" viewBox="0 0 24 24">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
       </svg>
@@ -365,11 +365,11 @@
           <div class="dojo-header-info">
             <span class="dojo-header-title">Live Chat Support</span>
             <span class="dojo-header-status">
-              Kirim pesan ke tim
+              Message our team
             </span>
           </div>
         </div>
-        <button class="dojo-close-btn" id="close-btn" title="Tutup">
+        <button class="dojo-close-btn" id="close-btn" title="Close">
           <svg viewBox="0 0 24 24">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -379,14 +379,14 @@
 
       <div class="dojo-messages" id="messages-stream">
         <div class="dojo-msg operator">
-          <div class="dojo-msg-bubble">Halo! Ada yang bisa kami bantu seputar ${escapeHTML(defaultProduct)}?</div>
-          <span class="dojo-msg-meta">Baru saja</span>
+          <div class="dojo-msg-bubble">Hi! How can we help you with ${escapeHTML(defaultProduct)}?</div>
+          <span class="dojo-msg-meta">Just now</span>
         </div>
       </div>
 
       <div class="dojo-composer">
-        <textarea class="dojo-textarea" id="input-textarea" aria-label="Pesan" placeholder="Ketik pesan..." rows="1"></textarea>
-        <button class="dojo-send-btn" id="send-btn" title="Kirim Pesan">
+        <textarea class="dojo-textarea" id="input-textarea" aria-label="Message" placeholder="Write a message…" rows="1"></textarea>
+        <button class="dojo-send-btn" id="send-btn" title="Send message">
           <svg viewBox="0 0 24 24">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -414,10 +414,10 @@
   }
 
   function formatTime(iso) {
-    if (!iso) return 'Baru saja';
+    if (!iso) return 'Just now';
     try {
       const d = new Date(iso);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       return '';
     }
@@ -511,8 +511,8 @@
     const welcomeDiv = document.createElement('div');
     welcomeDiv.className = 'dojo-msg operator';
     welcomeDiv.innerHTML = `
-      <div class="dojo-msg-bubble">Halo! Ada yang bisa kami bantu seputar ${escapeHTML(defaultProduct)}?</div>
-      <span class="dojo-msg-meta">Bantuan Langsung</span>
+      <div class="dojo-msg-bubble">Hi! How can we help you with ${escapeHTML(defaultProduct)}?</div>
+      <span class="dojo-msg-meta">Live support</span>
     `;
     messagesStreamEl.appendChild(welcomeDiv);
 
@@ -557,7 +557,7 @@
     if (!sessionUUID) {
       await initSession();
     }
-    if (!sessionUUID) { showError('Live chat belum tersambung. Coba kirim lagi.'); return; }
+    if (!sessionUUID) { showError('Live chat is not connected. Try sending again.'); return; }
 
     isSending = true;
     sendBtnEl.disabled = true;
@@ -581,7 +581,7 @@
         await fetchMessages();
       }
     } catch (err) {
-      showError('Pesan belum terkirim. Teks tetap tersimpan; coba lagi.');
+      showError('Message not sent. Your text is saved. Try again.');
     } finally {
       isSending = false;
       sendBtnEl.disabled = false;

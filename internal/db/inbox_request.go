@@ -50,7 +50,7 @@ type InboxRequestRepository interface {
 	ListInboxRequests(context.Context, string) ([]InboxRequest, error)
 }
 
-const interruptedInbox = "Proses terputus atau melewati batas waktu. Pesan tersimpan; hasil provider belum dapat dipastikan. Segarkan untuk memeriksa riwayat. Permintaan ini tidak dijalankan ulang."
+const interruptedInbox = "The process was interrupted or timed out. Your message is saved, but the provider's result is unknown. Refresh history to check. This request was not rerun."
 
 func (r *SQLProjectStudioRepository) AcceptInboxRequest(ctx context.Context, q InboxRequest, m *ProjectMessage) (InboxRequest, bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -306,7 +306,7 @@ func (r *MemoryProjectStudioRepository) CancelInboxRequest(ctx context.Context, 
 	} else {
 		q.State = "cancelled"
 	}
-	q.SafeError = "Dibatalkan. Pesan tersimpan; efek provider yang sudah terjadi tidak dapat ditarik kembali."
+	q.SafeError = "Cancelled. Your message is saved. Provider actions that already occurred cannot be undone."
 	r.requests[key] = q
 	return true, nil
 }

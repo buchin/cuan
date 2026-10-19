@@ -55,7 +55,7 @@ export function ActionDialog({
         <button
           type="button"
           className="icon-action"
-          aria-label={`Tutup ${title}`}
+          aria-label={`Close ${title}`}
           disabled={busy}
           onClick={onClose}
         >

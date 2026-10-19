@@ -15,15 +15,15 @@ import (
 func TestDecodeInboxAgyResult(t *testing.T) {
 	cases := []struct{ name, raw, stderr, want, reason, contains string }{
 		{"success", `{"status":"SUCCESS","response":" **Useful answer** ","usage":{"private":"never expose"}}`, "", "**Useful answer**", "success", ""},
-		{"empty stdout", "", "429 RESOURCE_EXHAUSTED private-token", "", "empty_output", "Kuota"},
-		{"exit zero error", `{"status":"ERROR","response":"partial private text","error":{"message":"429 RESOURCE_EXHAUSTED private-token"}}`, "", "", "provider_failure", "Kuota"},
-		{"auth", `{"status":"ERROR","message":"invalid_grant private-token"}`, "", "", "provider_failure", "Login"},
-		{"timeout", `{"status":"TIMEOUT","response":"partial private-token"}`, "", "", "provider_timeout", "Batas waktu"},
-		{"denied empty", `{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command"}]}`, "private-stderr", "", "tool_permission_denied", "izin tool ditolak"},
+		{"empty stdout", "", "429 RESOURCE_EXHAUSTED private-token", "", "empty_output", "quota"},
+		{"exit zero error", `{"status":"ERROR","response":"partial private text","error":{"message":"429 RESOURCE_EXHAUSTED private-token"}}`, "", "", "provider_failure", "quota"},
+		{"auth", `{"status":"ERROR","message":"invalid_grant private-token"}`, "", "", "provider_failure", "sign-in"},
+		{"timeout", `{"status":"TIMEOUT","response":"partial private-token"}`, "", "", "provider_timeout", "timed out"},
+		{"denied empty", `{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command"}]}`, "private-stderr", "", "tool_permission_denied", "tool permission was denied"},
 		{"denied with explanation", `{"status":"SUCCESS","response":"Tool ditolak, berikut analisis dari README.","denied_actions":[{"action":"private-command"}]}`, "", "Tool ditolak, berikut analisis dari README.", "success", ""},
-		{"empty response", `{"status":"SUCCESS","response":" "}`, "", "", "empty_response", "belum menghasilkan"},
-		{"missing status", `{"response":"private-token"}`, "", "", "provider_failure", "gagal"},
-		{"malformed", "private-token", "", "", "invalid_result", "belum dapat dibaca"},
+		{"empty response", `{"status":"SUCCESS","response":" "}`, "", "", "empty_response", "returned no reply"},
+		{"missing status", `{"response":"private-token"}`, "", "", "provider_failure", "could not reply"},
+		{"malformed", "private-token", "", "", "invalid_result", "Could not read"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -47,10 +47,10 @@ func TestInboxCLIExitZeroFailureAndTrace(t *testing.T) {
 	steps := map[string]string{}
 	var mu sync.Mutex
 	out, failure := s.executeInboxCLI(context.Background(), "fixture", "agy", "diagnostic", home, workspace, func(kind, text string) { mu.Lock(); steps[kind] = text; mu.Unlock() })
-	if out != "" || !strings.Contains(failure, "Kuota") {
+	if out != "" || !strings.Contains(failure, "quota") {
 		t.Fatal("exit0 failure accepted", out, failure)
 	}
-	if !strings.Contains(steps["provider_result"], "exit 0") || steps["result_validation"] != "Provider melaporkan kegagalan." {
+	if !strings.Contains(steps["provider_result"], "exit 0") || steps["result_validation"] != "The provider reported a failure." {
 		t.Fatal("missing safe trace", steps)
 	}
 	for _, value := range steps {
@@ -78,7 +78,7 @@ func TestLiveInboxAgyDiagnostic(t *testing.T) {
 	if failure != "" || strings.TrimSpace(out) != "CUAN_DIAGNOSTIC_OK" {
 		t.Fatalf("live diagnostic not verified; safe failure=%s", failure)
 	}
-	if !strings.Contains(steps["provider_result"], "exit 0") || steps["result_validation"] != "Balasan provider tervalidasi." {
+	if !strings.Contains(steps["provider_result"], "exit 0") || steps["result_validation"] != "Provider reply validated." {
 		t.Fatal("live trace missing")
 	}
 	if steps["runtime_tool_started"] == "" || steps["runtime_tool_finished"] == "" {
@@ -92,7 +92,7 @@ func TestInboxCLIDeniedToolExplainedWithoutReplay(t *testing.T) {
 	script := `#!/bin/sh
 case "$*" in *--disable-slash-commands*) ;; *) exit 9;; esac
 case "$*" in *--dangerously-skip-permissions*) exit 8;; esac
-case "$2" in *"Jangan gunakan run_command"*) ;; *) exit 7;; esac
+case "$2" in *"Do not use run_command"*) ;; *) exit 7;; esac
 printf x >> "$HOME/invocations"
 printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"run_command"}}' '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command","display_name":"private-path"}]}}'
 echo private-stderr >&2
@@ -104,7 +104,7 @@ echo private-stderr >&2
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	var trace []string
 	out, failure := s.executeInboxCLI(context.Background(), "fixture", "agy", "Analyze README", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) })
-	if out != "" || !strings.Contains(failure, "izin tool ditolak") {
+	if out != "" || !strings.Contains(failure, "tool permission was denied") {
 		t.Fatal(out, failure)
 	}
 	calls, err := os.ReadFile(filepath.Join(home, "invocations"))
@@ -112,7 +112,7 @@ echo private-stderr >&2
 		t.Fatal("request replayed or not executed", err)
 	}
 	joined := strings.Join(trace, "\n")
-	if !strings.Contains(joined, "runtime_permission_denied") || !strings.Contains(joined, "Izin tool ditolak; runtime berhenti") || strings.Contains(joined+failure, "private") || strings.Contains(joined, "Perintah terminal selesai") {
+	if !strings.Contains(joined, "runtime_permission_denied") || !strings.Contains(joined, "Tool permission denied. The runtime stopped") || strings.Contains(joined+failure, "private") || strings.Contains(joined, "Terminal command finished") {
 		t.Fatal("incorrect or unsafe rejection", joined, failure)
 	}
 }

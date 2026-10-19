@@ -1,6 +1,13 @@
 import { CuanMark } from '../brand/CuanMark'
 import { useState, FormEvent } from 'react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card'
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
@@ -13,7 +20,7 @@ import {
   ShieldCheck,
   AlertCircle,
   RefreshCw,
-  Key
+  Key,
 } from 'lucide-react'
 
 interface LoginScreenProps {
@@ -33,11 +40,11 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
     setError(null)
 
     if (!identifier.trim()) {
-      setError('Masukkan username atau email pemilik.')
+      setError("Enter the owner's username or email.")
       return
     }
     if (!password) {
-      setError('Masukkan kata sandi.')
+      setError('Enter your password.')
       return
     }
 
@@ -46,7 +53,7 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
       await login(identifier, password)
       // Login successful! AuthContext updates state, which triggers AuthGate/App to render the authenticated shell.
     } catch (err: any) {
-      setError(err.message || 'Username atau kata sandi tidak cocok. Silakan coba lagi.')
+      setError(err.message || 'Incorrect username or password. Try again.')
     } finally {
       setSubmitting(false)
     }
@@ -64,7 +71,9 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
       <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
         <div className="flex items-center gap-2.5">
           <CuanMark className="h-9 w-9" />
-          <span className="font-bold text-lg tracking-tight text-foreground">cuan</span>
+          <span className="font-bold text-lg tracking-tight text-foreground">
+            cuan
+          </span>
         </div>
       </header>
 
@@ -76,10 +85,10 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
               <Lock className="h-7 w-7" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Masuk ke Cuan
+              Sign in to Cuan
             </h1>
             <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Digital Project Studio & Universal App Deployer. Akses dilindungi oleh otentikasi sesi terenkripsi.
+              Manage your projects, conversations, and agents in one workspace.
             </p>
           </div>
 
@@ -87,14 +96,14 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
             <CardHeader className="space-y-1 pb-4 border-b border-border">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold">
-                  Autentikasi Pemilik
+                  Owner sign-in
                 </CardTitle>
                 <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5">
                   Single-Owner
                 </span>
               </div>
               <CardDescription className="text-xs text-muted-foreground">
-                Gunakan kredensial admin default atau akun pemilik terkonfigurasi.
+                Sign in with your configured owner account.
               </CardDescription>
             </CardHeader>
 
@@ -103,19 +112,21 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
                 {error && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Autentikasi Gagal</AlertTitle>
-                    <AlertDescription className="text-xs">{error}</AlertDescription>
+                    <AlertTitle>Sign-in failed</AlertTitle>
+                    <AlertDescription className="text-xs">
+                      {error}
+                    </AlertDescription>
                   </Alert>
                 )}
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                    <span>Username atau Email</span>
+                    <span>Username or email</span>
                   </label>
                   <div className="relative">
                     <Input
                       type="text"
-                      placeholder="admin atau owner@cuan.local"
+                      placeholder="admin or owner@example.com"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       disabled={submitting || isLoading}
@@ -130,16 +141,16 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-foreground">
-                      Kata Sandi
+                      Password
                     </label>
                     <button
                       type="button"
                       onClick={handleFillDefaultAdmin}
                       className="text-[11px] text-primary hover:underline flex items-center gap-1 font-mono"
-                      title="Isi kredensial admin default: admin / whosyourdaddy"
+                      title="Fill in the default admin credentials"
                     >
                       <Key className="h-3 w-3" />
-                      Gunakan Default Admin
+                      Use default admin
                     </button>
                   </div>
                   <div className="relative">
@@ -158,7 +169,11 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -167,11 +182,17 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
                 <div className="p-3 bg-muted/50 border border-border text-xs text-muted-foreground space-y-1.5">
                   <div className="flex items-center gap-1.5 font-medium text-foreground text-[11px]">
                     <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                    Kredensial Bawaan Migrasi 000019
+                    Default setup credentials
                   </div>
                   <p className="text-[11px]">
-                    Username: <code className="text-primary font-mono font-bold">admin</code> | Sandi:{' '}
-                    <code className="text-primary font-mono font-bold">whosyourdaddy</code>
+                    Username:{' '}
+                    <code className="text-primary font-mono font-bold">
+                      admin
+                    </code>{' '}
+                    | Password:{' '}
+                    <code className="text-primary font-mono font-bold">
+                      whosyourdaddy
+                    </code>
                   </p>
                 </div>
               </CardContent>
@@ -185,10 +206,10 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
                   {submitting ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Memverifikasi Sesi...
+                      Signing in…
                     </>
                   ) : (
-                    'Masuk ke Dashboard'
+                    'Sign in'
                   )}
                 </Button>
               </CardFooter>
@@ -201,7 +222,9 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
       <footer className="w-full max-w-5xl mx-auto py-3 text-center text-xs text-muted-foreground border-t border-border/60">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Cuan</span>
-          <span className="font-mono text-[11px]">PostgreSQL Session Guard • Bcrypt Hash</span>
+          <span className="font-mono text-[11px]">
+            PostgreSQL Session Guard • Bcrypt Hash
+          </span>
         </div>
       </footer>
     </div>

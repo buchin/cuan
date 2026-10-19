@@ -294,7 +294,7 @@ func (m *MemoryStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAt
 					Author:       "system",
 					OldStatus:    task.AttemptStatusRunning,
 					NewStatus:    task.AttemptStatusInterrupted,
-					Message:      fmt.Sprintf("Attempt %s terputus (lease expired). Task dalam status '%s' dan dapat di-retry secara eksplisit.", a.ID, t.Status),
+					Message:      fmt.Sprintf("Attempt %s interrupted (lease expired). Task is in status '%s' and can be retried explicitly.", a.ID, t.Status),
 					CreatedAt:    now,
 				}
 				_ = m.taskStore.CreateActivity(ctx, act)

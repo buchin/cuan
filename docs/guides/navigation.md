@@ -1,308 +1,135 @@
-# Navigasi dan tampilan responsif Cuan
-
-## Mulai bekerja
-
-1. Buka **Inbox** dan pilih percakapan. Di desktop lebar, daftar dan chat tampil
-   berdampingan. Di HP/tablet, pilih percakapan dari daftar lalu gunakan Back
-   untuk kembali. Pencarian dan filter daftar tetap tersedia.
-2. Ketik pesan. Pesan dan balasan memakai teks 16 px; tombol kirim 48 px.
-   Untuk membuat task, minta agent di chat, misalnya **“Bikinin task dari
-   pembahasan tadi”**. Periksa draft, pilih project, lalu tekan **Buat task**.
-3. Buka **Tasks** untuk backlog global, atau **Projects → nama project** untuk
-   board yang hanya memuat task project tersebut. Detail task dapat ditutup
-   dengan Escape dan kembali ke project asal.
-
-## Settings dan agent
-
-Pengelolaan agent dipindahkan ke **Settings → Agents** (`/settings/agents`).
-Tautan lama `/team` diarahkan ke lokasi baru. Proses tambah/login/periksa agent
-memakai koneksi yang sama; perpindahan menu tidak menjalankan login atau provider.
-Dari header chat, tombol **⋯** berlabel **Kelola koneksi agen** membuka agent yang
-sesuai. **Kembali ke percakapan** mengembalikan Anda ke chat asal.
-
-Status **Terhubung** hanya tampil bila pemeriksaan berhasil, memiliki timestamp
-valid dan belum melewati masa berlaku lima menit. Status lain membedakan perlu
-login, kuota terbatas, koneksi terganggu, belum diperiksa dan dinonaktifkan.
-Pemeriksaan tidak dijalankan otomatis untuk membuat indikator menjadi hijau.
-Detail waktu pemeriksaan dapat dibuka di pengaturan agent.
-
-**Settings → Tampilan** menyimpan pilihan light/dark/sistem pada browser.
-Navigasi desktop dapat diciutkan; pilihan tersebut juga tersimpan.
-
-## Pengaturan project
-
-Buka **Settings → Umum → nama project**, atau **Projects → nama project →
-Project settings**. URL `/projects/:id/settings` dapat dibuka langsung/reload.
-Detail repository ditampilkan dari data tersimpan. Form edit URL/branch,
-domain/server/env disembunyikan karena API edit tersebut belum tersedia; tidak
-ada tombol Save yang mengklaim menyimpan konfigurasi yang tidak didukung.
-
-**Arsipkan project** mempertahankan data dan repository. Buka **Projects →
-Archived → Unarchive** untuk memulihkan. Kedua tindakan meminta konfirmasi dan
-melaporkan kegagalan; arsip tidak diberi label Delete.
-
-## Perangkat dan keyboard
-
-- ≥1200 px: navigasi berlabel 200 px, bisa diciutkan menjadi 64 px. Panel daftar
-  percakapan 280 px hanya pada Inbox dan bisa disembunyikan.
-- 768–1199 px: navigasi 64 px, tanpa panel kedua permanen. Inbox memakai satu
-  tampilan daftar/chat agar area kerja tetap luas.
-- <768 px: navigasi bawah Inbox/Contacts/Tasks/Projects, header untuk Settings/menu akun,
-  tanpa hamburger/drawer duplikat. Dalam chat, Back mengembalikan daftar dan navigasi bawah.
-- HP memakai empat tab bawah serta Settings/menu akun di header. Drawer navigasi
-  dihapus. Task detail tetap membatasi fokus, mendukung Escape dan pengembalian fokus.
-- Safe-area HP dan perubahan visible viewport dipertahankan untuk composer.
-
-## Contacts CRM
-
-Contacts tersedia sebagai direktori CRM pengunjung live chat, terpisah dari
-Settings → Agents. Mendukung email identifier widget, tag, pencarian/filter dan
-Buka percakapan. Lihat [panduan Contacts](contacts-crm.md). Broadcast belum tersedia.
-
-## Verifikasi
-
-`node docs/evidence/ui-refresh/browser-check.cjs` memakai build production nyata
-serta API fixture terisolasi. Pemeriksaan mencakup 35 pasangan halaman/viewport,
-legacy redirect, status agent, project-scoped tasks, archive/restore, modal/drawer,
-Back/reload, preferensi tema/navigasi, dan error/retry. Tidak memanggil provider.
-Bukti ada pada `docs/evidence/ui-refresh/`; audit awal pada
-`docs/evidence/ui-ux-audit/`. Viewport Chromium bukan pengujian perangkat fisik.
-
-## Rilis UI sebelumnya
-
-Release `48c2d68` aktif di https://cuan.dojo.cc sejak 2026-10-19. Schema tetap 21,
-auto-migrate nonaktif. Backup privat tervalidasi sebelum native atomic activation.
-Chromium production memverifikasi 35 pasangan route/viewport, status koneksi,
-Settings → Agents dan kembali ke chat, direct URL project settings/reload,
-Back chat, drawer keyboard, modal task, preferensi navigasi/tema, serta semua aset
-publik identik dengan build. Tidak mengubah project, mengirim pesan baru atau
-menjalankan provider saat smoke test. Checkpoint dan screenshot tersimpan di
-`docs/evidence/ui-refresh/production-browser.json` dan `release.json`.
-
-Untuk rollback aplikasi, pertahankan schema21 dan gunakan activator native dari
-panduan lifecycle. Release sebelumnya `9708a0d` tetap dipertahankan.
-
-Rilis Contacts berikutnya menggunakan schema22. Panduan terbaru: [Contacts CRM](contacts-crm.md).
-
-## Integrations dan tema HP
-
-Setup widget berada di **Settings → Integrations → Live Chat**
-(`/settings/integrations/live-chat`), dengan daftar integrasi pada
-`/settings/integrations`. Contacts fokus pada data pelanggan; tombol pemasangan
-hanya muncul pada empty state dan menuju halaman pengaturan tersebut.
-
-Header HP tidak memiliki toggle tema duplikat. Gunakan **Settings → Tampilan**
-(`/settings/appearance`) untuk Light, Dark atau Ikuti sistem. Pilihan disimpan di
-browser dan berlaku setelah reload. Shortcut tema desktop tetap tersedia.
-
-Rilis `40938ea` aktif di production, schema tetap22 tanpa migration baru. Pemeriksaan
-production16 pasangan halaman/viewport lulus, termasuk tombol terbawah yang tidak
-tertutup navigasi HP, deep link/reload integrasi, salin kode dan persistensi tema.
-Bukti: `docs/evidence/integrations-navigation/production-browser.json`.
-
-## Navigasi HP tanpa drawer
-
-Di bawah768px, gunakan Inbox/Contacts/Tasks/Projects pada menu bawah. Header
-menyediakan Settings dan menu akun. Saat chat terbuka, Back mengembalikan daftar
-dan menu bawah. Tidak ada hamburger, drawer atau item Tab tersembunyi. Sidebar
-64px tablet dan sidebar desktop yang dapat dilipat tetap tersedia.
-
-Rilis `4d62cfb` aktif di production. Build dan fixture48 pasangan halaman/viewport
-serta production48 pasangan halaman/viewport lulus. Semua tab bawah, Settings, akun,
-Back chat, resize dan sidebar desktop/tablet terverifikasi tanpa product write
-atau pemanggilan provider. Schema22 tidak berubah; bukti `docs/evidence/mobile-navigation/`.
-
-## Daftar agen yang ringkas
-
-Settings → Agents menampilkan nama, status singkat, tombol **Periksa koneksi**
-dan menu **⋮**. Status yang belum pernah diperiksa dibedakan dari hasil yang
-kedaluwarsa. Halaman ini tidak otomatis menjalankan provider atau login ulang.
-Detail pemeriksaan hanya tampil bila ada waktu pemeriksaan/hasil tersimpan;
-penjelasan status dan waktu berada di dalam detail tersebut.
-
-Menu tindakan menyediakan **Hapus** dengan konfirmasi. Batal tidak mengirim
-permintaan hapus; error ditampilkan agar dapat dicoba kembali. Menu dapat ditutup
-dengan Escape, klik di luar, atau memindahkan fokus keluar.
-
-Header HP menyembunyikan ikon Settings saat sedang di Settings. Tombol kembali
-ke percakapan hanya muncul bila halaman dibuka dengan parameter returnTo yang
-valid dan mengarah ke Inbox di aplikasi yang sama. Navigasi Settings biasa
-menampilkan daftar agen tanpa tombol kembali yang tidak memiliki sumber.
-
-Rilis roster `0fca51f` aktif di production. Build dan fixture tindakan/lifecycle
-menu lulus. Production delapan pasangan theme/viewport memverifikasi daftar agen
-nyata, menu/Escape/fokus, tautan kembali dan aset identik, tanpa verifikasi provider
-atau penghapusan agen nyata. Bukti: `docs/evidence/agent-roster/`.
-
-## Gaya chat WhatsApp
-
-Inbox memakai bubble ringkas dengan waktu 24 jam di ujung pesan, pemisah hari,
-serta composer membulat. Tema terang memakai bubble keluar hijau muda dan
-masuk putih; tema gelap memakai hijau tua dan charcoal netral tanpa nuansa biru. Palet ini hanya berlaku
-pada chat dan mengikuti pilihan Settings → Tampilan.
-
-Centang tunggal berarti **Pesan tersimpan**, bukan sudah dibaca penerima.
-Tombol Task per bubble sudah dihapus; gunakan permintaan draft melalui chat. Detail respons tetap
-dapat dibuka di bawah balasan untuk menelusuri proses dan informasi teknis.
-Markdown, salin kode, pesan panjang, safe-area dan Back tetap tersedia.
-Perubahan visual ini tidak menambahkan panggilan, lampiran atau reply kutipan.
-
-Verifikasi build dan delapan kombinasi viewport 360/390/820/1440 px dengan
-tema terang/gelap: `docs/evidence/whatsapp-chat/`. Pengujian menggunakan Chromium;
-belum merupakan sertifikasi perangkat fisik atau Safari.
-
-## Analisis chat dan izin tool
-
-Analisis repo melalui chat diarahkan memakai tool baca file/direktori/pencarian.
-Chat tidak menyediakan persetujuan terminal interaktif. Ekspansi slash command
-AGY dinonaktifkan agar isi pesan tidak mengaktifkan skill/command secara implisit.
-Ini arahan penggunaan, bukan pengganti sandbox/permission enforcement runtime.
-
-Jika AGY mengembalikan `denied_actions`, Detail menampilkan **Izin tool ditolak**.
-Label **aktivitas berakhir** hanya menandai akhir aktivitas tool, bukan bukti
-perintah berhasil. Hasil kosong setelah penolakan tetap berstatus gagal dengan
-penjelasan; tidak dibuat balasan agent palsu dan pesan tidak dijalankan ulang.
-Balasan akhir nonkosong yang menjelaskan batasan tetap dapat ditampilkan.
-Untuk eksekusi yang perlu ditindaklanjuti, buat task.
-
-## Membuat task melalui percakapan
-
-1. Bahas tujuan, scope, batasan dan kriteria selesai dengan agent.
-2. Kirim **“Bikinin task dari pembahasan tadi”**. Agent memakai riwayat chat
-   yang tersedia (maksimal 20 pesan, dengan batas ukuran konteks). Jika pembahasan
-   sudah panjang, sertakan ulang batasan penting pada pesan permintaan.
-3. Kartu **Draft task** menampilkan judul, deskripsi dan project. Semua bisa
-   diedit. Project yang diarsipkan tidak dapat dipilih; bila project ambigu,
-   pilih sendiri. Belum ada task yang tersimpan pada tahap ini.
-4. Tekan **Buat task**. Task masuk backlog dan kartu berubah menjadi tautan
-   **Buka task**. Eksekusi agent dimulai terpisah dari halaman task.
-
-Jika penyimpanan gagal, edit tetap tersedia dan klik ulang tidak membuat task
-ganda dari pesan sumber yang sama. Reload sebelum konfirmasi memuat ulang draft
-asli agent (edit lokal belum disimpan); reload setelah konfirmasi menampilkan
-task tersimpan. Task lama yang tertaut ke pesan tetap dapat dibuka. Draft revisi
-dalam balasan baru adalah calon task baru; gunakan kartu asli untuk menghindari
-duplikasi pekerjaan yang sama.
-
-Agent mengirim satu blok akhir `cuan-task` berisi JSON title/description/project_id;
-server memvalidasi batas 200/6000 karakter dan hanya mengenalinya pada balasan
-agent. Metadata dipisahkan dari teks saat snapshot/SSE sehingga kartu dapat pulih
-setelah reload tanpa migration. Draft tidak menjalankan tool tulis atau membuat
-task otomatis. Format yang tidak valid tetap ditampilkan sebagai teks; minta
-agent menyusun ulang draft.
-
-Endpoint konfirmasi existing: `POST /api/v1/chat/conversations/:id/messages/:messageID/task`
-dengan `project_id`, `title`, dan `description` opsional untuk kompatibilitas.
-Deskripsi yang dikirim wajib nonkosong dan maksimal 6000 karakter. Sumber pesan
-harus berada dalam percakapan tersebut. Task memakai kunci idempoten dari ID
-pesan, menyimpan referensi percakapan/pesan, dan tidak membuat execution attempt.
-
-## Daftar Inbox yang ringkas
-
-Header mobile Inbox menampilkan logo kepeng, judul, Settings dan akun. Pencarian
-dan filter Semua/Agen/Pelanggan berada tepat di bawahnya tanpa heading/count
-berulang. Baris percakapan memakai nama 16 px, cuplikan 14 px dan waktu 12 px,
-dengan target sentuh minimal 44 px. Latar gelap mengikuti charcoal chat.
-
-Status rutin seperti Belum diperiksa/Terhubung tidak ditampilkan pada daftar;
-status lengkap tetap ada pada header chat dan Settings → Agents. Peringatan
-Perlu login, Kuota terbatas, Koneksi terganggu dan Dinonaktifkan tetap muncul.
-Tidak ada pemeriksaan koneksi/provider otomatis karena perubahan tampilan ini.
-
-Cuplikan menghilangkan awalan `[@nama]`, pemformatan Markdown dan metadata
-draft task. Isi pesan asli tidak diubah. Badge unread memakai hitungan yang
-diterima dari API, tanpa mengarang status baca; navigasi bawah menampilkan
-total hanya bila nilainya lebih dari nol. Filter, pencarian, retry, Back, dan
-navigasi desktop yang dapat diciutkan tetap tersedia.
-
-## Penyempurnaan halaman lain
-
-Logo kepeng24px kembali di kiri Inbox mobile dengan tinggi header tetap56px.
-Contacts memakai jarak tepi dan ukuran judul yang sama dengan halaman lain;
-pada kondisi kosong, gunakan Hubungkan live chat tanpa pencarian/filter kosong.
-
-Tasks pada HP mengutamakan judul dan status. Kode/assignee berada di bawah judul,
-judul panjang dibatasi tiga baris dan dapat dibaca lengkap dengan membuka detail.
-Empty state mengarahkan ke New atau menyediakan Clear filters sesuai kondisi.
-Form New task memiliki label terlihat, target sentuh44px, fokus keyboard yang
-tetap di dialog, Escape untuk menutup dan fokus kembali ke pemicu. Jika simpan
-gagal, nilai form tetap tersedia. Saat menyimpan, form tidak dapat ditutup agar
-status hasil tidak rancu. Project arsip tidak ditawarkan sebagai pilihan baru.
-
-Projects menyediakan New project melalui tombol New di kanan atas. Pencarian yang tidak cocok
-menampilkan Clear search, bukan mengklaim semua project belum ada. Mode List
-dapat dibuka melalui keyboard. Bagian Settings memakai navigasi satu baris
-yang bisa digeser saat layar sempit; Agents/Integrations/Tampilan tetap di lokasi
-yang sama.
-
-Header mobile Inbox, Contacts, Tasks, Projects dan Settings kini memakai pola
-yang sama: logo kepeng24px, nama halaman20px dan tinggi56px. Pada tablet/desktop,
-logo berada di sidebar dan header menampilkan judul20px dengan tinggi64px.
-
-## Pola daftar dan filter
-
-Contacts memakai daftar padat, detail responsif dan editor chip tag; panduan
-terbaru ada di [Contacts CRM](contacts-crm.md). Tasks menampilkan **Clear filters**
-saat pencarian/status/project membatasi hasil. Reset pada daftar global juga
-menghapus filter project; board project tetap mempertahankan project asal.
-Projects menyediakan **Clear search** saat pencarian aktif dan menyimpan pilihan
-Grid/List di browser. Settings → Agents memiliki **Cari agen** menurut nama atau
-jenis CLI, dengan reset bila tidak ada hasil; pencarian tidak memeriksa provider.
-
-## Hierarki header yang konsisten
-
-Semua halaman utama (Inbox, Contacts, Tasks, Projects, Settings) memakai satu
-judul H1 di header aplikasi. Judul tidak diulang di area isi; area isi langsung
-menampilkan ringkasan, pencarian atau tindakan. Tidak ada breadcrumb `cuan /`
-pada halaman utama di ukuran layar mana pun.
-
-Detail project memakai `Projects / nama project`; pengaturannya memakai
-`Projects / nama project / Settings`. Subhalaman pengaturan memakai
-`Settings / Agents`, `Settings / Integrations`, `Settings / Tampilan`, atau
-`Settings / Integrations / Live Chat`. Tautan induk pada tablet/desktop dapat
-dipakai untuk kembali. Mobile menampilkan logo dan judul detail saja agar tetap
-ringkas; tombol kembali pada isi detail project tetap tersedia.
-
-Label project mengikuti project terdaftar pada URL, bukan pilihan project lama.
-Halaman yang belum selesai memuat atau tidak ditemukan menggunakan judul
-Project tanpa mengklaim project lain. Chat mobile tetap memakai header
-percakapan sendiri saat percakapan dibuka.
-
-## Satu tombol New
-
-Kanan atas desktop, tablet dan HP menampilkan label lengkap sesuai halaman:
-**+ New message**, **+ New contact**, **+ New task**, **+ New project** atau
-**+ New agent**.
-Inbox membuka pemilih penerima, Contacts membuka form kontak, Tasks membuka form
-task, Projects membuka form project, dan Settings → Agents membuka onboarding
-agent. Pada detail project, New task memakai project halaman tersebut. Settings
-lain menyediakan pilihan jenis data. Tombol pembuatan duplikat pada isi halaman
-dan shortcut New project di sidebar dihapus.
-
-Desktop mempertahankan Settings dan akun di bagian bawah sidebar. Di HP, avatar
-di sebelah New membuka menu akun termasuk Settings. Header chat HP memakai pola
-New dan avatar yang sama. Escape menutup dialog/menu dan mengembalikan fokus.
-Memilih penerima hanya membuka chat; tidak mengirim pesan. Draft terpisah untuk
-setiap percakapan selama halaman tetap terbuka; reload menghapus draft lokal.
-
-Verifikasi fixture: `node docs/evidence/context-new/browser-check.cjs`,64 kombinasi
-route/viewport/tema, keyboard dan retry kontak tanpa duplikasi. Tidak menjalankan
-provider. Chromium viewport belum menggantikan pengujian perangkat fisik.
-
-Rilis `8e0c697` aktif di production. Label lengkap New tampil sesuai konteks pada
-mobile/tablet/desktop. Fixture64 dan production48 kombinasi route/viewport/tema
-lulus, termasuk dialog dan aset build identik. Kontak manual nyata diuji tersimpan
-setelah reload dan retry idempoten; record sintetis sudah dibersihkan. Seluruh35
-tabel yang dipertahankan (selain sesi login) dan493 file profil sama dengan backup.
-Schema tetap22, tanpa migration baru. Bukti: `docs/evidence/context-new/`.
-
-## Tipografi percakapan
-
-Isi bubble memakai15px pada tablet/desktop (≥768px),16px pada HP, dengan
-line-height1,55. Heading balasan dibatasi16–18px dan jarak paragraf/list dipadatkan.
-Composer tetap16px. Ukuran waktu/status tidak diubah; kode dan tabel tetap bisa
-digeser mendatar di dalam bubble.
-
-Rilis tipografi `3a904db` aktif di production; build dan10 kombinasi fixture
-serta10 kombinasi production lulus. Tidak ada migration atau pengiriman pesan
-pada smoke test. Bukti: `docs/evidence/chat-typography/`.
+# Navigation and responsive UI
+
+Cuan currently uses English for its interface, validation messages, and new system
+activity. Localization is planned for later. User content, saved conversations,
+project names, and tags retain their original language. Agents respond in the
+user's language.
+
+## Find your work
+
+The main navigation is **Inbox → Tasks → Projects → Contacts**. On desktop it
+appears in the sidebar; on phones the same four destinations appear in the bottom
+navigation. Settings is separate from these work areas.
+
+- **Inbox:** conversations with agents and live chat customers. Search or filter
+  by All, Agents, or Customers. Choose a conversation to open it.
+- **Tasks:** the global backlog, with project and status filters. Open a task to
+  view its description, discussion, execution attempts, and saved output.
+- **Projects:** connected repositories and project boards. Opening a project
+  limits its board to that project. Project settings shows its saved repository
+  details and archive action.
+- **Contacts:** CRM records, tags, and customer conversation links. See the
+  [Contacts guide](contacts-crm.md).
+
+## Create something
+
+Use the button at the top right. Its visible label follows the current page:
+
+| Page | Action |
+| --- | --- |
+| Inbox, including a phone conversation | New message |
+| Contacts | New contact |
+| Tasks or a project board/settings | New task |
+| Projects list | New project |
+| Settings → Agents | New agent |
+| Other Settings pages | New, followed by a choice of item |
+
+There is one primary creation action per page. There is no duplicate New project
+shortcut at the bottom of the sidebar. New task on a project page selects that
+project. Archived projects are excluded from new-task choices.
+
+New message chooses an existing recipient; opening a conversation does not send
+anything. Draft text is kept separately for each conversation while the page
+remains open. Reloading clears unsent local drafts. A pending sent request uses
+its existing durable request ID; checking it does not start a duplicate run.
+
+Dialogs have visible field labels, keyboard focus containment, Escape to close,
+and focus restoration. A failed save retains the form for retry. Closing is
+blocked while a save is in progress so its result stays clear.
+
+## Sidebar and account
+
+On wide desktops, the sidebar shows labels and the account row displays an
+avatar, username, and more icon. **Settings** sits directly above it. Open the
+account row for **Profile & password** and **Sign out**.
+
+The collapse control is beside the logo at the top. In collapsed mode, hovering
+or focusing the logo area reveals Expand sidebar; it remains keyboard accessible.
+Your expanded/collapsed preference is saved in this browser. Tablets use a compact
+icon sidebar; the account menu remains available from the avatar.
+
+Phones have no duplicate sidebar drawer. The avatar beside the creation button
+opens the account menu, including Settings. In a phone conversation, Back returns
+to the conversation list and restores the bottom navigation.
+
+## Settings
+
+- **Agents:** add an agent, connect its account, inspect connection status, and
+  manage it. The legacy `/team` URL redirects to `/settings/agents`.
+- **Integrations → Live Chat:** installation code, optional visitor identity,
+  and verification steps. Setup is separate from the Contacts directory.
+- **Appearance:** Light, Dark, or System. Your selection is saved in this browser.
+  There is no duplicate theme shortcut in the sidebar footer or phone navbar.
+- **General:** workspace and project settings links.
+
+A green Connected status requires a successful check with a valid timestamp less
+than five minutes old. Not checked, Sign-in required, Quota limited, Connection
+error, and Disabled are distinct states. Browsing the UI does not verify a
+provider or sign an agent in automatically. A provider quota limit does not
+require another sign-in.
+
+Use Manage agent connection in the chat header to open that agent's settings.
+Back to conversation appears when there is a valid return link.
+
+Project settings reflects stored configuration. Editing repository connections
+is not offered on that page. Archiving preserves repository and project data;
+restore from Projects → Archived. Both operations require confirmation.
+
+## Responsive sizes and typography
+
+- **1200px and above:** 200px sidebar, collapsible to 64px. Inbox has an optional
+  280px conversation list beside the chat.
+- **768–1199px:** 64px sidebar. Inbox uses a single list/conversation view.
+- **Below 768px:** four bottom tabs; no hamburger drawer. The header contains a
+  24px kepeng logo, a 20px title, a contextual creation button, and an avatar.
+- App headers are 56px on phones and 64px on larger screens. Main pages use one
+  H1 and no redundant breadcrumb. Project/settings details provide parent links.
+- Chat body text is 16px on phones and 15px on larger screens, with line height
+  1.55. Reply headings are 16–18px; paragraphs and lists use compact spacing.
+  The composer stays 16px. Message timestamps are 12px.
+- Primary touch controls are at least 44px. Safe areas and visible viewport
+  changes are respected by the phone composer.
+
+Chat uses incoming white/charcoal and outgoing green bubbles. A single check
+means Message saved, not read by the recipient. Markdown, code copy, horizontal
+code/table scrolling, and response details are supported.
+
+## Tasks from chat and response details
+
+Ask an agent to prepare a task from the discussion. It produces an editable
+Draft task; review the title, description, and project, then select Create task.
+The task enters the backlog. Creation does not start agent execution. Task drafts
+use bounded conversation history, so repeat important older constraints when
+needed. Retrying confirmation for the same source message does not create another
+task. Unsaved draft edits do not survive reload.
+
+Details shows recorded runtime events, saved request/message IDs, and safe errors.
+It does not reveal private reasoning or credentials. Opening Details, refreshing,
+or checking a pending request does not rerun a failed user message automatically.
+Chat analysis can use read-only project tools. Implementation belongs in a task.
+
+## Verification and release evidence
+
+Current English/sidebar checks: `docs/evidence/english-sidebar/`. The fixture
+browser check serves the production build with isolated API responses. It covers
+80 route/viewport/theme combinations, creation dialogs, focus/Escape, desktop
+collapse, tablet account access, phone navigation order, recipient draft
+isolation, and idempotent contact retry. The widget check covers initialization,
+identity, retry, and responsive controls. Production results are recorded
+separately. Chromium viewport emulation is not physical-device or Safari testing.
+
+Earlier UI evidence is retained in `ui-refresh`, `integrations-navigation`,
+`mobile-navigation`, `agent-roster`, `whatsapp-chat`, `crm-patterns`,
+`header-hierarchy`, `context-new`, and `chat-typography` under `docs/evidence/`.
+For production health, backup, and rollback procedures, see
+[Messages and tasks operations](message_task_lifecycle.md).

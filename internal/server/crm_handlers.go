@@ -129,14 +129,14 @@ func normalizeCRMEmail(value string) (string, error) {
 	}
 	addr, err := mail.ParseAddress(value)
 	if err != nil || addr.Address != value || len(value) > 254 {
-		return "", errors.New("email tidak valid")
+		return "", errors.New("Invalid email")
 	}
 	return strings.ToLower(value), nil
 }
 func (s *Server) handleCRMList(w http.ResponseWriter, r *http.Request) {
 	contacts, err := s.crmList(r.Context())
 	if err != nil {
-		respondJSONError(w, 503, "Kontak belum dapat dimuat")
+		respondJSONError(w, 503, "Could not load contacts")
 		return
 	}
 	respondJSON(w, 200, map[string]any{"contacts": contacts})
@@ -146,7 +146,7 @@ func (s *Server) handleCRMUpdate(w http.ResponseWriter, r *http.Request) {
 		Tags []string `json:"tags"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&p) != nil || len(p.Tags) > 20 {
-		respondJSONError(w, 400, "Maksimal 20 tag")
+		respondJSONError(w, 400, "Up to 20 tags are allowed")
 		return
 	}
 	tags := []string{}
@@ -154,7 +154,7 @@ func (s *Server) handleCRMUpdate(w http.ResponseWriter, r *http.Request) {
 	for _, tag := range p.Tags {
 		tag = strings.TrimSpace(tag)
 		if len(tag) == 0 || utf8.RuneCountInString(tag) > 40 {
-			respondJSONError(w, 400, "Panjang tag harus 1–40 karakter")
+			respondJSONError(w, 400, "Tags must contain 1–40 characters")
 			return
 		}
 		if !seen[strings.ToLower(tag)] {
@@ -167,12 +167,12 @@ func (s *Server) handleCRMUpdate(w http.ResponseWriter, r *http.Request) {
 		encoded, _ := json.Marshal(tags)
 		res, err := s.db.ExecContext(r.Context(), `UPDATE crm_contacts SET tags=$1,updated_at=NOW() WHERE id::text=$2`, string(encoded), id)
 		if err != nil {
-			respondJSONError(w, 503, "Tag belum tersimpan")
+			respondJSONError(w, 503, "Tags could not be saved")
 			return
 		}
 		n, _ := res.RowsAffected()
 		if n == 0 {
-			respondJSONError(w, 404, "Kontak tidak ditemukan")
+			respondJSONError(w, 404, "Contact not found")
 			return
 		}
 	} else {
@@ -189,7 +189,7 @@ func (s *Server) handleCRMUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 		s.crm.Unlock()
 		if !found {
-			respondJSONError(w, 404, "Kontak tidak ditemukan")
+			respondJSONError(w, 404, "Contact not found")
 			return
 		}
 	}

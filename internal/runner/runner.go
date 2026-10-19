@@ -305,7 +305,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		if commitErr == nil && commitSHA != "" {
 			compReq.CommitSHA = commitSHA
 			compReq.BranchName = ws.BranchName
-			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Commit berhasil dibuat: %s oleh %s <%s>", commitSHA, r.cfg.GitAuthorName, r.cfg.GitAuthorEmail))
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Commit created: %s by %s <%s>", commitSHA, r.cfg.GitAuthorName, r.cfg.GitAuthorEmail))
 		}
 
 		// 2. Diff summary
@@ -324,7 +324,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			if pushErr != nil {
 				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan git push: %v", pushErr))
 			} else {
-				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Task branch '%s' berhasil dipush ke remote GitHub.", ws.BranchName))
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Task branch '%s' pushed to GitHub.", ws.BranchName))
 
 				// Create or Update Pull Request (no duplicate PR on revision)
 				prRes, prErr := r.gitClient.CreateOrUpdatePullRequest(ctx, git.PullRequestRequest{
@@ -344,7 +344,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				if prErr == nil && prRes != nil {
 					compReq.PRURL = prRes.HTMLURL
 					compReq.PRNumber = prRes.Number
-					actionWord := "dibuat"
+					actionWord := "created"
 					if prRes.IsUpdated {
 						actionWord = "diperbarui (siklus revisi)"
 					}

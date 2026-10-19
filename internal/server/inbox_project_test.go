@@ -83,7 +83,7 @@ func TestInboxProjectScopeSnapshotAndWorkspace(t *testing.T) {
 	q.RoomID = room
 	q.MessageID = db.GenerateUUID()
 	dir, snapshot = s.inboxProjectContext(ctx, q)
-	if dir != "" || !strings.Contains(snapshot, "ambigu") {
+	if dir != "" || !strings.Contains(snapshot, "ambiguous") {
 		t.Fatal("ambiguous project selected", dir, snapshot)
 	}
 }

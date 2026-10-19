@@ -233,22 +233,22 @@ func (s *Server) handleCreateInboxThread(w http.ResponseWriter, r *http.Request)
 
 	// 2. Autonomous Scrum Master Triage & DoD formulation (S17.3)
 	workerAgent := "antigravity-flash"
-	smResponseText := fmt.Sprintf(`Halo! Saya Scrum Master untuk sprint ini. Saya telah menganalisis kebutuhan Anda:
+	smResponseText := fmt.Sprintf(`Here is a proposed plan for your request:
 
-### 📋 Problem Statement & Scope
+### Problem statement & scope
 %s
 
-### 🎯 Definition of Done (DoD)
-- [ ] Analisis detail kebutuhan teknis & rancang spesifikasi
-- [ ] Implementasi perubahan kode secara modular & rapi
-- [ ] Jalankan targeted unit test & zero-regression audit
-- [ ] Verifikasi production ready & commit dengan author yang sesuai
+### Definition of done
+- [ ] Analyze the technical requirements and write specifications
+- [ ] Implement modular, maintainable code changes
+- [ ] Run targeted unit tests and check for regressions
+- [ ] Verify production readiness and commit with the configured author
 
-### 🤖 Rekomendasi Worker Agent
-- **Worker:** %s (Antigravity Pool — Kuota token optimal)
-- **Status:** Idle & siap menerima task
+### Recommended worker agent
+- **Worker:** %s
+- **Status:** Check the agent connection and quota before starting
 
-Klik tombol **"Setujui & Jalankan Sprint"** untuk langsung mendaftarkan task dan memulai eksekusi otomatis.`,
+Select **Approve and start task** to register the task and begin execution.`,
 		messageText, workerAgent)
 
 	smMsg := &db.ProjectMessage{
@@ -460,23 +460,23 @@ func (s *Server) handleApproveInboxThread(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if s.projectStudioRepo == nil {
-		respondJSONError(w, 503, "Penyimpanan belum tersedia")
+		respondJSONError(w, 503, "Storage is unavailable")
 		return
 	}
 	roomID := strings.TrimSpace(chi.URLParam(r, "id"))
 	room, e := s.projectStudioRepo.GetRoomByID(r.Context(), roomID)
 	if e != nil || room == nil {
-		respondJSONError(w, 404, "Percakapan tidak ditemukan")
+		respondJSONError(w, 404, "Conversation not found")
 		return
 	}
 	var req ApproveInboxThreadRequest
 	if r.Body != nil && json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req) != nil {
-		respondJSONError(w, 400, "Permintaan task tidak valid")
+		respondJSONError(w, 400, "Invalid task request")
 		return
 	}
 	messages, e := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID)
 	if e != nil {
-		respondJSONError(w, 503, "Pesan belum dapat dibaca")
+		respondJSONError(w, 503, "Could not read the message")
 		return
 	}
 	var source *db.ProjectMessage
@@ -486,7 +486,7 @@ func (s *Server) handleApproveInboxThread(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if source == nil {
-		respondJSONError(w, 400, "Pilih pesan sumber sebelum membuat task")
+		respondJSONError(w, 400, "Select a source message before creating a task")
 		return
 	}
 	if req.ProjectID == "" {

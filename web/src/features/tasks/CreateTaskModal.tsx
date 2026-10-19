@@ -74,7 +74,7 @@ export function CreateTaskModal({
         </h2>
         <button
           type="button"
-          aria-label="Tutup form task"
+          aria-label="Close task form"
           className="icon-action"
           disabled={loading}
           onClick={onClose}
@@ -97,7 +97,7 @@ export function CreateTaskModal({
           e.preventDefault()
           if (loading) return
           if (!title.trim()) {
-            setError('Judul task tidak boleh kosong')
+            setError('Enter a task title')
             return
           }
           setLoading(true)
@@ -112,7 +112,9 @@ export function CreateTaskModal({
             })
             onClose()
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Gagal membuat task')
+            setError(
+              err instanceof Error ? err.message : 'Could not create task',
+            )
           } finally {
             setLoading(false)
           }
@@ -120,7 +122,7 @@ export function CreateTaskModal({
       >
         <div>
           <label htmlFor="create-task-title" className="text-sm font-medium">
-            Judul task
+            Task title
           </label>
           <input
             id="create-task-title"
@@ -128,7 +130,7 @@ export function CreateTaskModal({
             className="field-control mt-1"
             required
             maxLength={200}
-            placeholder="Apa yang ingin dikerjakan?"
+            placeholder="What needs to be done?"
             value={title}
             disabled={loading}
             onChange={(e) => setTitle(e.target.value)}
@@ -139,13 +141,14 @@ export function CreateTaskModal({
             htmlFor="create-task-description"
             className="text-sm font-medium"
           >
-            Deskripsi <span className="text-muted-foreground">(opsional)</span>
+            Description{' '}
+            <span className="text-muted-foreground">(optional)</span>
           </label>
           <textarea
             id="create-task-description"
             rows={4}
             className="field-control mt-1 resize-y"
-            placeholder="Tujuan, scope, dan kriteria selesai"
+            placeholder="Goal, scope, and acceptance criteria"
             value={description}
             disabled={loading}
             onChange={(e) => setDescription(e.target.value)}
@@ -172,7 +175,7 @@ export function CreateTaskModal({
               disabled={loading}
               onChange={(e) => setSelectedProjectId(e.target.value)}
             >
-              <option value="">Global / Tanpa project</option>
+              <option value="">Global / No project</option>
               {projects
                 .filter((p) => !p.is_archived)
                 .map((p) => (
@@ -187,7 +190,7 @@ export function CreateTaskModal({
               htmlFor="create-task-priority"
               className="text-sm font-medium"
             >
-              Prioritas
+              Priority
             </label>
             <select
               id="create-task-priority"
@@ -210,14 +213,14 @@ export function CreateTaskModal({
             disabled={loading}
             onClick={onClose}
           >
-            Batal
+            Cancel
           </button>
           <button
             type="submit"
             className="action-primary"
             disabled={loading || !title.trim()}
           >
-            {loading ? 'Menyimpan…' : 'Buat task'}
+            {loading ? 'Saving…' : 'Create task'}
           </button>
         </div>
       </form>

@@ -4,10 +4,14 @@
 
 ## Status
 
-**Sprint 14: Running (S14.1 — Auth Layer, Session Management & Multi-Project Schema Migration (000019))**.
-Sprints 1–13 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, Creator Blueprints, Modular Workspace OS with AI Script Onboarding, Automated Environment Provisioner & 1-Click Script Deployer, and Turnkey WordPress Cloud & Agentic Webmaster Engine). Sprint 14 develops Cuan into **Multi-Project Workspace & Multi-Agent Collaboration Engine** (Universal Session & Cookie-Header Auth Layer, Multi-Project Task Assignment Schema 000019, Cross-Project Kanban Matrix, Subagent Orchestrator & Delegated Dispatcher, and Project Archival & Lifecycle Management).
+Cuan provides a self-hosted, single-owner workspace for projects, tasks, agent
+conversations, and live chat contacts. The interface and new system messages use
+English; localization is planned for later. User content retains its language.
 
-Single Source of Truth (SSOT): [docs/sprints/S14.md](docs/sprints/S14.md) | [docs/sprints/S13.md](docs/sprints/S13.md) | [docs/product-vision.md](docs/product-vision.md).
+Start with the [English workspace guide](docs/guides/navigation.md) and
+[Contacts & live chat](docs/guides/contacts-crm.md). Historical sprint plans and
+release evidence remain under `docs/sprints/` and `docs/evidence/` and may use
+Indonesian. They describe earlier releases rather than current product behavior.
 
 ### Documentation & Guides
 
@@ -194,7 +198,7 @@ Automated, verified PostgreSQL dumps with SHA256 integrity checksums, gzip strea
 ```
 
 ### 4. Rollback & Disaster Recovery Playbook
-> **Core Principle**: *Rollback image saja tidak dianggap rollback database.*
+> **Core Principle**: *Rolling back an application image does not roll back its database.*
 If an update encounters a failing migration or degraded state, `rollback.sh` reverts the application version AND restores the database from the pre-update backup snapshot:
 ```bash
 # Execute safe rollback:
@@ -291,7 +295,7 @@ All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S
 
 ### v1.0 Founding Backers
 
-_Belum ada sponsor terdaftar pada batch ini. Jadilah Founding Backer pertama di [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_
+_No sponsors are registered for this batch yet. Become the first founding backer at [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_
 
 <!-- SPONSORS:END -->
 

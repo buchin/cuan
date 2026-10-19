@@ -37,11 +37,11 @@ export function SettingsView({
           to={`/projects/${encodeURIComponent(activeProject.id)}`}
           className="action-secondary md:hidden"
         >
-          ← Kembali ke project
+          ← Back to project
         </Link>
         <header>
           <p className="mt-2 text-sm text-muted-foreground">
-            Pengaturan khusus project {activeProject.name}.
+            Settings for project {activeProject.name}.
           </p>
         </header>
         {error && (
@@ -60,47 +60,46 @@ export function SettingsView({
             <div>
               <dt className="font-medium">Repository URL</dt>
               <dd className="mt-1 break-all text-muted-foreground">
-                {activeProject.repo_url || 'Belum terhubung'}
+                {activeProject.repo_url || 'Not connected'}
               </dd>
             </div>
             <div>
               <dt className="font-medium">Default branch</dt>
               <dd className="mt-1 text-muted-foreground">
-                {activeProject.default_branch || 'Belum tersedia'}
+                {activeProject.default_branch || 'Not available'}
               </dd>
             </div>
           </dl>
           <p className="text-sm text-muted-foreground">
-            Detail ini mengikuti konfigurasi project tersimpan. Pengubahan
-            koneksi repository belum tersedia di halaman ini.
+            These details reflect the saved project configuration. Editing
+            repository connections is not available here yet.
           </p>
         </section>
         {onDeleteProject && !activeProject.is_archived && (
           <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">Arsipkan project</h2>
+            <h2 className="text-lg font-semibold">Archive project</h2>
             <p className="my-3 text-sm text-muted-foreground">
-              Project dipindahkan ke daftar arsip dan dapat dipulihkan dari
-              Projects. Repository dan data tetap disimpan.
+              Move this project to the archive. You can restore it from
+              Projects. Your repository and data are preserved.
             </p>
             <button
               disabled={busy}
               className="action-secondary"
               onClick={async () => {
-                if (!confirm(`Arsipkan project "${activeProject.name}"?`))
-                  return
+                if (!confirm(`Archive project "${activeProject.name}"?`)) return
                 setBusy(true)
                 setError('')
                 try {
                   await onDeleteProject(activeProject.id)
-                  setNotice('Project telah diarsipkan.')
+                  setNotice('Project archived.')
                 } catch {
-                  setError('Project belum berhasil diarsipkan. Coba lagi.')
+                  setError('Could not archive the project. Try again.')
                 } finally {
                   setBusy(false)
                 }
               }}
             >
-              Arsipkan project
+              Archive project
             </button>
           </section>
         )}
@@ -110,18 +109,18 @@ export function SettingsView({
     <section className="page-content space-y-5">
       <header>
         <p className="mt-1 text-sm text-muted-foreground">
-          Kelola aplikasi dan koneksi agen Anda.
+          Manage your workspace and agent connections.
         </p>
       </header>
       <nav
-        aria-label="Bagian pengaturan"
+        aria-label="Settings sections"
         className="flex gap-1 overflow-x-auto border-b border-border"
       >
         {[
           ['general', 'Umum'],
           ['agents', 'Agents'],
           ['integrations', 'Integrations'],
-          ['appearance', 'Tampilan'],
+          ['appearance', 'Appearance'],
         ].map(([id, label]) => (
           <Link
             key={id}
@@ -137,7 +136,7 @@ export function SettingsView({
         <>
           {safeReturn && (
             <Link to={safeReturn} className="action-secondary">
-              ← Kembali ke percakapan
+              ← Back to conversation
             </Link>
           )}
           <TeamView
@@ -153,9 +152,9 @@ export function SettingsView({
         <IntegrationsView />
       ) : section === 'appearance' ? (
         <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold">Tema aplikasi</h2>
+          <h2 className="text-lg font-semibold">Appearance</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Muse mengikuti pilihan Anda. Perubahan tersimpan di browser ini.
+            Cuan follows your preference. Your choice is saved in this browser.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             {(['light', 'dark', 'system'] as const).map((id) => (
@@ -166,7 +165,7 @@ export function SettingsView({
                 onClick={() => setTheme(id)}
                 className={`action-secondary ${theme === id ? 'bg-accent font-semibold ring-2 ring-ring' : ''}`}
               >
-                {{ light: 'Light', dark: 'Dark', system: 'Ikuti sistem' }[id]}
+                {{ light: 'Light', dark: 'Dark', system: 'System' }[id]}
               </button>
             ))}
           </div>
@@ -176,16 +175,16 @@ export function SettingsView({
           <section className="rounded-lg border border-border bg-card p-5">
             <h2 className="text-lg font-semibold">Agents</h2>
             <p className="my-3 text-sm text-muted-foreground">
-              Tambahkan agen atau periksa koneksi akun yang sudah terhubung.
+              Add agents or check existing account connections.
             </p>
             <Link to="/settings/agents" className="action-primary">
-              Kelola agen
+              Manage agents
             </Link>
           </section>
           <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">Pengaturan project</h2>
+            <h2 className="text-lg font-semibold">Project settings</h2>
             <p className="my-3 text-sm text-muted-foreground">
-              Pilih project untuk mengubah konfigurasi repository.
+              Select a project to view its repository configuration.
             </p>
             <ul className="space-y-2">
               {projects
@@ -203,7 +202,7 @@ export function SettingsView({
             </ul>
             {!projects.some((p) => !p.is_archived) && (
               <Link to="/projects" className="action-secondary">
-                Buka Projects
+                Open Projects
               </Link>
             )}
           </section>

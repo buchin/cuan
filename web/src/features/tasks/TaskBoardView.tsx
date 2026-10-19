@@ -159,7 +159,7 @@ export function TaskBoardView({
       {filtersActive && (
         <div className="flex items-center justify-between gap-3 text-sm">
           <p className="text-muted-foreground">
-            {rows.length} dari {projectTasks.length} task
+            {rows.length} of {projectTasks.length} task
           </p>
           <button className="action-secondary" onClick={clearFilters}>
             Clear filters
@@ -233,7 +233,7 @@ export function TaskBoardView({
                     >
                       {Number.isNaN(updated.getTime())
                         ? '—'
-                        : updated.toLocaleString()}
+                        : updated.toLocaleString('en-US')}
                     </time>
                   </td>
                 </tr>

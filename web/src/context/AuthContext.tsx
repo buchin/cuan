@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react'
 
 export interface OwnerInfo {
   id: string
@@ -14,7 +20,10 @@ interface AuthContextType {
   setupRequired: boolean | null
   login: (identifier: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<void>
   refreshUser: () => Promise<void>
   getAuthHeaders: () => HeadersInit
 }
@@ -59,7 +68,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const meRes = await fetch('/api/v1/auth/me', {
           headers: {
             'Content-Type': 'application/json',
-            ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+            ...(currentToken
+              ? { Authorization: `Bearer ${currentToken}` }
+              : {}),
           },
         })
 
@@ -107,15 +118,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data.error || 'Username/email atau password salah')
+        throw new Error(data.error || 'Incorrect username, email, or password')
       }
 
       const receivedToken = data.token
-      const receivedUser: OwnerInfo = data.user || data.owner || {
-        id: 'owner_admin',
-        username: identifier,
-        email: identifier,
-      }
+      const receivedUser: OwnerInfo = data.user ||
+        data.owner || {
+          id: 'owner_admin',
+          username: identifier,
+          email: identifier,
+        }
 
       localStorage.setItem(TOKEN_KEY, receivedToken)
       setToken(receivedToken)
@@ -134,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentToken}`,
+            Authorization: `Bearer ${currentToken}`,
           },
         })
       }
@@ -147,13 +159,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const changePassword = async (currentPassword: string, newPassword: string) => {
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+  ) => {
     const currentToken = localStorage.getItem(TOKEN_KEY) || token
     const res = await fetch('/api/v1/auth/password', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+        ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
       },
       body: JSON.stringify({
         current_password: currentPassword.trim(),
@@ -163,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json()
     if (!res.ok) {
-      throw new Error(data.error || 'Gagal mengubah password')
+      throw new Error(data.error || 'Could not change password')
     }
   }
 

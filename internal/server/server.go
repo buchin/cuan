@@ -1985,7 +1985,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get task: %v", err))
@@ -2011,7 +2011,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	updated, err := s.taskSvc.UpdateTask(r.Context(), id, author, req)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
@@ -2034,7 +2034,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	err := s.taskSvc.DeleteTask(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete task: %v", err))
@@ -2042,7 +2042,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Task berhasil dihapus",
+		"message": "Task deleted",
 		"id":      id,
 	})
 }
@@ -2063,7 +2063,7 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 	act, err := s.taskSvc.AddComment(r.Context(), id, author, req.Message)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
@@ -2093,7 +2093,7 @@ func (s *Server) handleCreateAttempt(w http.ResponseWriter, r *http.Request) {
 	att, err := s.taskSvc.CreateAttempt(r.Context(), id, author, req)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create attempt: %v", err))
@@ -2119,7 +2119,7 @@ func (s *Server) handleUpdateAttempt(w http.ResponseWriter, r *http.Request) {
 	att, err := s.taskSvc.UpdateAttemptStatus(r.Context(), attemptId, author, req)
 	if err != nil {
 		if errors.Is(err, task.ErrAttemptNotFound) {
-			respondJSONError(w, http.StatusNotFound, "attempt tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Attempt not found")
 			return
 		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
@@ -2182,7 +2182,7 @@ func (s *Server) handleArchiveProject(w http.ResponseWriter, r *http.Request) {
 	res, err := s.projectSvc.Archive(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to archive project: %v", err))
@@ -2206,7 +2206,7 @@ func (s *Server) handleUnarchiveProject(w http.ResponseWriter, r *http.Request) 
 	res, err := s.projectSvc.Unarchive(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to unarchive project: %v", err))
@@ -2234,22 +2234,22 @@ func (s *Server) handleConnectProject(w http.ResponseWriter, r *http.Request) {
 	res, err := s.projectSvc.Connect(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, git.ErrInvalidRepoURL) {
-			respondJSONError(w, http.StatusBadRequest, "URL repository GitHub tidak valid. Gunakan format 'https://github.com/owner/repo' atau 'owner/repo'.")
+			respondJSONError(w, http.StatusBadRequest, "Invalid GitHub repository URL. Use 'https://github.com/owner/repo' or 'owner/repo'.")
 			return
 		}
 		if errors.Is(err, git.ErrRepoNotFound) {
-			respondJSONError(w, http.StatusNotFound, "Repository tidak ditemukan di GitHub. Pastikan nama owner/repo sudah benar dan jika repo bersifat private, sertakan Personal Access Token (PAT).")
+			respondJSONError(w, http.StatusNotFound, "Repository not found on GitHub. Check the owner/repo name and provide a Personal Access Token (PAT) for private repositories.")
 			return
 		}
 		if errors.Is(err, git.ErrAccessDenied) {
-			respondJSONError(w, http.StatusForbidden, "Akses ke repository GitHub ditolak (401/403). Periksa kevalidan Personal Access Token (PAT) dan izin scope 'repo'.")
+			respondJSONError(w, http.StatusForbidden, "GitHub repository access denied (401/403). Check your Personal Access Token (PAT) and its 'repo' scope.")
 			return
 		}
 		if errors.Is(err, project.ErrProjectAlreadyExists) {
-			respondJSONError(w, http.StatusConflict, "Repository GitHub ini sudah pernah dihubungkan sebagai proyek di Cuan.")
+			respondJSONError(w, http.StatusConflict, "This GitHub repository is already connected to a Cuan project.")
 			return
 		}
-		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("gagal menghubungkan repository: %v", err))
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Could not connect repository: %v", err))
 		return
 	}
 
@@ -2261,7 +2261,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	p, err := s.projectSvc.Get(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get project: %v", err))
@@ -2275,11 +2275,11 @@ func (s *Server) handleSyncProject(w http.ResponseWriter, r *http.Request) {
 	res, err := s.projectSvc.Sync(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error":   fmt.Sprintf("sinkronisasi gagal: %v", err),
+			"error":   fmt.Sprintf("Sync failed: %v", err),
 			"project": res,
 		})
 		return
@@ -2292,14 +2292,14 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	err := s.projectSvc.Delete(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete project: %v", err))
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Proyek berhasil dihapus dari Cuan. Repository GitHub remote tetap aman dan tidak disentuh.",
+		"message": "Project removed from Cuan. The remote GitHub repository is preserved.",
 		"id":      id,
 	})
 }
@@ -2309,7 +2309,7 @@ func (s *Server) handleGetProjectBranches(w http.ResponseWriter, r *http.Request
 	branches, defaultBranch, err := s.projectSvc.GetBranches(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get branches: %v", err))
@@ -2345,7 +2345,7 @@ func (s *Server) handleUpdateProjectModules(w http.ResponseWriter, r *http.Reque
 	res, err := s.projectSvc.UpdateModules(r.Context(), id, mods)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update project modules: %v", err))
@@ -2513,7 +2513,7 @@ func (s *Server) handleGetRunner(w http.ResponseWriter, r *http.Request) {
 	rInfo, err := s.runnerSvc.GetRunner(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, runner.ErrRunnerNotFound) {
-			respondJSONError(w, http.StatusNotFound, "runner tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Runner not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get runner: %v", err))
@@ -2526,7 +2526,7 @@ func (s *Server) handleGetRunner(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetAttemptLogs(w http.ResponseWriter, r *http.Request) {
 	attemptID := chi.URLParam(r, "attemptId")
 	if _, err := s.taskSvc.AttemptForTask(r.Context(), chi.URLParam(r, "id"), attemptID); err != nil {
-		respondJSONError(w, 404, "Attempt tidak ditemukan pada task ini")
+		respondJSONError(w, 404, "Attempt not found for this task")
 		return
 	}
 	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
@@ -2560,11 +2560,11 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 	att, err := s.taskSvc.CancelTask(r.Context(), taskID, author)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		if errors.Is(err, task.ErrAttemptNotFound) {
-			respondJSONError(w, http.StatusNotFound, "tidak ada attempt yang dapat dibatalkan")
+			respondJSONError(w, http.StatusNotFound, "No attempt is available to cancel")
 			return
 		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
@@ -2596,7 +2596,7 @@ func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 	att, err := s.taskSvc.RetryTask(r.Context(), taskID, author, req.RunnerID, req.AgentName)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())

@@ -35,13 +35,13 @@ export function InboxActivity({
       ? Math.floor(duration / 1000)
       : null
   const label = {
-    queued: 'Menunggu',
-    running: 'Memproses',
-    cancelling: 'Menghentikan…',
-    completed: 'Selesai',
-    failed: 'Gagal',
-    interrupted: 'Terputus',
-    cancelled: 'Dibatalkan',
+    queued: 'Queued',
+    running: 'Running',
+    cancelling: 'Cancelling…',
+    completed: 'Completed',
+    failed: 'Failed',
+    interrupted: 'Interrupted',
+    cancelled: 'Cancelled',
   }[q.state]
   const processSteps =
     q.steps?.filter(
@@ -59,7 +59,7 @@ export function InboxActivity({
   return (
     <div
       className="mt-2 max-w-full min-w-0 text-xs break-words"
-      aria-label="Status respons"
+      aria-label="Response status"
     >
       <div className="flex items-start gap-2">
         <details className="group/response min-w-0 flex-1">
@@ -73,10 +73,10 @@ export function InboxActivity({
             </span>
             {seconds !== null && (
               <span className="tabular-nums">
-                {seconds} dtk{!active && ' tercatat'}
+                {seconds} s{!active && ' recorded'}
               </span>
             )}
-            <span className="ml-auto text-xs">Detail</span>
+            <span className="ml-auto text-xs">Details</span>
             <ChevronDown
               className="h-4 w-4 shrink-0 transition-transform group-open/response:rotate-180"
               aria-hidden="true"
@@ -86,26 +86,26 @@ export function InboxActivity({
             <p className="font-medium">
               {q.state === 'completed'
                 ? q.agent_id
-                  ? 'Balasan tersimpan.'
-                  : 'Pesan terkirim.'
+                  ? 'Reply saved.'
+                  : 'Message sent.'
                 : q.state === 'queued'
-                  ? 'Pesan tersimpan dan menunggu giliran.'
+                  ? 'Message saved and queued.'
                   : q.state === 'running'
-                    ? 'Agen sedang menyiapkan balasan.'
+                    ? 'The agent is preparing a reply.'
                     : q.state === 'interrupted'
-                      ? 'Proses terputus. Hasil provider belum dapat dipastikan.'
+                      ? "The process was interrupted. The provider's result is unknown."
                       : q.state === 'cancelled'
-                        ? 'Permintaan dibatalkan. Pesan tetap tersimpan.'
+                        ? 'Request cancelled. Your message is still saved.'
                         : q.state === 'cancelling'
-                          ? 'Menunggu konfirmasi penghentian proses.'
-                          : 'Agen belum dapat menjawab. Pesan tetap tersimpan.'}
+                          ? 'Waiting for cancellation to be confirmed.'
+                          : 'The agent could not reply. Your message is still saved.'}
             </p>
             {q.safe_error && (
               <p className="text-muted-foreground">{q.safe_error}</p>
             )}
             {processSteps.length ? (
               <ol
-                aria-label="Timeline respons"
+                aria-label="Response timeline"
                 className="space-y-3 border-l border-border pl-3"
               >
                 {processSteps.map((step) => (
@@ -115,7 +115,7 @@ export function InboxActivity({
                         className={`text-xs font-medium ${step.kind === 'runtime_tool_failed' ? 'text-destructive' : 'text-muted-foreground'}`}
                       >
                         Tool
-                        {step.kind === 'runtime_tool_failed' ? ' gagal' : ''}
+                        {step.kind === 'runtime_tool_failed' ? ' failed' : ''}
                       </span>
                     )}
                     {step.kind.startsWith('runtime_provider_') && (
@@ -124,7 +124,7 @@ export function InboxActivity({
                       >
                         Provider
                         {step.kind === 'runtime_provider_failed'
-                          ? ' gagal'
+                          ? ' failed'
                           : ''}
                       </span>
                     )}
@@ -134,7 +134,7 @@ export function InboxActivity({
                         dateTime={step.at}
                         className="block text-xs tabular-nums text-muted-foreground"
                       >
-                        {new Date(step.at).toLocaleTimeString()}
+                        {new Date(step.at).toLocaleTimeString('en-US')}
                       </time>
                     )}
                   </li>
@@ -142,47 +142,47 @@ export function InboxActivity({
               </ol>
             ) : (
               <p className="text-muted-foreground">
-                Belum ada aktivitas yang direkam.
+                No activity has been recorded yet.
               </p>
             )}
             <details className="border-t border-border pt-1 text-muted-foreground">
               <summary className="min-h-11 cursor-pointer py-3">
-                Detail teknis
+                Technical details
               </summary>
               <dl className="space-y-3 text-xs">
                 <div>
-                  <dt className="font-medium">ID permintaan</dt>
+                  <dt className="font-medium">Request ID</dt>
                   <dd className="break-all font-mono">{q.request_id}</dd>
                 </div>
                 <div>
-                  <dt className="font-medium">ID pesan</dt>
+                  <dt className="font-medium">Message ID</dt>
                   <dd className="break-all font-mono">{q.message_id}</dd>
                 </div>
                 <div>
-                  <dt className="font-medium">Status tersimpan</dt>
+                  <dt className="font-medium">Saved state</dt>
                   <dd>{q.state}</dd>
                 </div>
                 {q.agent_id && (
                   <div>
-                    <dt className="font-medium">Agen</dt>
+                    <dt className="font-medium">Agent</dt>
                     <dd className="break-all">{q.agent_id}</dd>
                   </div>
                 )}
                 <div>
-                  <dt className="font-medium">Diterima</dt>
-                  <dd>{new Date(q.created_at).toLocaleString()}</dd>
+                  <dt className="font-medium">Received</dt>
+                  <dd>{new Date(q.created_at).toLocaleString('en-US')}</dd>
                 </div>
                 {q.started_at && (
                   <div>
-                    <dt className="font-medium">Mulai diproses</dt>
-                    <dd>{new Date(q.started_at).toLocaleString()}</dd>
+                    <dt className="font-medium">Started</dt>
+                    <dd>{new Date(q.started_at).toLocaleString('en-US')}</dd>
                   </div>
                 )}
                 {q.steps
                   ?.filter((step) => step.kind === 'runtime_session')
                   .map((step) => (
                     <div key={step.seq}>
-                      <dt className="font-medium">Sesi runtime</dt>
+                      <dt className="font-medium">Runtime session</dt>
                       <dd className="break-all font-mono">
                         {step.text.replace('ID sesi runtime: ', '')}
                       </dd>
@@ -190,14 +190,14 @@ export function InboxActivity({
                   ))}
                 {finished && (
                   <div>
-                    <dt className="font-medium">Hasil proses CLI</dt>
+                    <dt className="font-medium">CLI result</dt>
                     <dd>{finished.text}</dd>
                   </div>
                 )}
               </dl>
               {!finished && !active && (
                 <p className="mt-3 text-xs">
-                  Metadata proses provider belum tersedia untuk permintaan ini.
+                  Provider process metadata is unavailable for this request.
                 </p>
               )}
               <button
@@ -221,15 +221,15 @@ export function InboxActivity({
                         2,
                       ),
                     )
-                    setCopyStatus('Detail tersalin.')
+                    setCopyStatus('Details copied.')
                   } catch {
                     setCopyStatus(
-                      'Belum dapat menyalin. Pilih ID permintaan di atas untuk menyalin manual.',
+                      'Could not copy. Select the request ID above to copy it manually.',
                     )
                   }
                 }}
               >
-                Salin detail teknis
+                Copy technical details
               </button>
               {copyStatus && (
                 <p role="status" className="text-xs">
@@ -237,9 +237,9 @@ export function InboxActivity({
                 </p>
               )}
               <p className="text-xs">
-                Membuka detail atau refresh tidak menjalankan ulang permintaan.
-                Detail hanya memuat kejadian yang direkam; tidak menyertakan
-                reasoning privat atau kredensial.
+                Opening details or refreshing does not rerun the request.
+                Details contain recorded events only, without private reasoning
+                or credentials.
               </p>
             </details>
           </div>
@@ -256,7 +256,7 @@ export function InboxActivity({
                 await onCancel()
               } catch {
                 setError(
-                  'Pembatalan belum terkonfirmasi. Periksa status sebelum mencoba lagi.',
+                  'Cancellation is not confirmed. Check the status before trying again.',
                 )
               } finally {
                 setCancelling(false)
@@ -264,7 +264,7 @@ export function InboxActivity({
             }}
           >
             <Square className="h-3 w-3" />
-            Batalkan
+            Cancel
           </button>
         )}
       </div>

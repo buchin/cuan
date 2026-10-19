@@ -26,7 +26,7 @@ const dateLabel = (iso: string) => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
     ? '—'
-    : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+    : d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
 }
 
 export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
@@ -79,7 +79,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
       const data = await apiFetch<{ contacts: Contact[] }>('/api/v1/contacts')
       setContacts(data.contacts)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Kontak gagal dimuat')
+      setError(e instanceof Error ? e.message : 'Could not load contacts')
     } finally {
       setLoading(false)
     }
@@ -106,12 +106,12 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
     const text = value.trim()
     if (!text) return base
     if (Array.from(text).length > 40) {
-      setSaveError('Tag maksimal 40 karakter.')
+      setSaveError('Tags can contain up to 40 characters.')
       return null
     }
     if (base.some((t) => t.toLowerCase() === text.toLowerCase())) return base
     if (base.length >= 20) {
-      setSaveError('Maksimal 20 tag per kontak.')
+      setSaveError('Each contact can have up to 20 tags.')
       return null
     }
     return [...base, text]
@@ -147,7 +147,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
       if (selectedIdRef.current === id) setSaved(true)
     } catch (e) {
       if (selectedIdRef.current === id)
-        setSaveError(e instanceof Error ? e.message : 'Tag gagal disimpan')
+        setSaveError(e instanceof Error ? e.message : 'Could not save tags')
     } finally {
       setSaving(false)
     }
@@ -164,12 +164,12 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
       >
         <div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pelanggan dan riwayat percakapan dalam satu tempat.
+            Customers and conversation history in one place.
           </p>
         </div>
         <button
           className="icon-action"
-          aria-label="Muat ulang kontak"
+          aria-label="Reload contacts"
           onClick={() => void load()}
           disabled={loading || saving}
         >
@@ -183,39 +183,39 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
           <label className="flex min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
-              aria-label="Cari kontak"
+              aria-label="Search contacts"
               className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-              placeholder="Cari nama, email, atau tag"
+              placeholder="Search by name, email, or tag"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <select
-              aria-label="Filter tag"
+              aria-label="Filter by tag"
               className="field-control sm:w-auto sm:max-w-xs"
               value={tag}
               onChange={(e) => setTag(e.target.value)}
             >
-              <option value="">Semua tag</option>
+              <option value="">All tags</option>
               {tags.map((t) => (
                 <option key={t}>{t}</option>
               ))}
             </select>
             <select
-              aria-label="Filter sumber"
+              aria-label="Filter by source"
               className="field-control sm:w-auto sm:max-w-xs"
               value={product}
               onChange={(e) => setProduct(e.target.value)}
             >
-              <option value="">Semua sumber</option>
+              <option value="">All sources</option>
               {sources.map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </select>
             {filteredActive && (
               <button className="action-secondary col-span-2" onClick={clear}>
-                Hapus filter
+                Clear filters
               </button>
             )}
           </div>
@@ -223,50 +223,50 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
       )}
       {loading ? (
         <p role="status" className="py-6 text-sm text-muted-foreground">
-          Memuat kontak…
+          Loading contacts…
         </p>
       ) : error ? (
         <div role="alert" className="rounded-lg border p-5">
           <p>{error}</p>
           <button className="action-secondary mt-3" onClick={() => void load()}>
-            Coba lagi
+            Try again
           </button>
         </div>
       ) : contacts.length === 0 && !selectedId ? (
         <div className="rounded-lg border border-dashed p-6 text-center">
           <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">Belum ada kontak</h2>
+          <h2 className="text-lg font-semibold">No contacts yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            Pengunjung live chat otomatis masuk di sini. Pasang widget melalui
+            Live chat visitors appear here automatically. Set up your widget in
             Settings → Integrations.
           </p>
           <Link
             to="/settings/integrations/live-chat"
             className="action-primary mt-4"
           >
-            Hubungkan live chat
+            Connect live chat
           </Link>
         </div>
       ) : (
         <div className="grid gap-5 min-[1200px]:grid-cols-[minmax(0,1fr)_360px]">
           <div
             className={`min-w-0 ${selectedId ? 'hidden min-[1200px]:block' : ''}`}
-            aria-label="Daftar kontak"
+            aria-label="Contact list"
           >
             <p className="mb-2 text-sm text-muted-foreground">
               {filteredActive
-                ? `${filtered.length} dari ${contacts.length}`
+                ? `${filtered.length} of ${contacts.length}`
                 : contacts.length}{' '}
-              kontak
+              contacts
             </p>
             {filtered.length === 0 ? (
               <div className="rounded-lg border p-5 text-center">
-                <p className="font-medium">Tidak ada kontak yang cocok.</p>
+                <p className="font-medium">No matching contacts.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Coba kata lain atau hapus filter.
+                  Try another search or clear your filters.
                 </p>
                 <button className="action-secondary mt-3" onClick={clear}>
-                  Hapus semua filter
+                  Clear all filters
                 </button>
               </div>
             ) : (
@@ -294,10 +294,10 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                         {label(c)}
                       </span>
                       <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-                        {c.email || 'Email belum tersedia'}
+                        {c.email || 'No email provided'}
                       </span>
                       <span className="mt-1 block truncate text-xs text-muted-foreground">
-                        {source(c)} · Diperbarui {dateLabel(c.updated_at)}
+                        {source(c)} · Updated {dateLabel(c.updated_at)}
                       </span>
                       {c.tags.length > 0 && (
                         <span className="mt-2 flex min-w-0 flex-wrap gap-1">
@@ -326,7 +326,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
             <aside
               ref={detailRef}
               tabIndex={-1}
-              aria-label="Detail kontak"
+              aria-label="Contact details"
               className="min-w-0 self-start rounded-lg border bg-card p-4 outline-none sm:p-5"
             >
               <button
@@ -335,7 +335,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                 onClick={() => select('')}
               >
                 <ChevronLeft className="h-4 w-4" />
-                Kembali ke daftar kontak
+                Back to contacts
               </button>
               {selected ? (
                 <>
@@ -343,21 +343,21 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                     {label(selected)}
                   </h2>
                   <p className="mt-1 break-all text-sm text-muted-foreground">
-                    {selected.email || 'Email belum tersedia'}
+                    {selected.email || 'No email provided'}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {source(selected)} · Diperbarui{' '}
+                    {source(selected)} · Updated{' '}
                     {dateLabel(selected.updated_at)}
                   </p>
                   {selected.email && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Email belum terverifikasi.
+                      Email is unverified.
                     </p>
                   )}
                   {selected.is_manual ? (
                     <p className="my-5 rounded-lg border p-3 text-sm text-muted-foreground">
-                      Kontak manual belum terhubung ke kanal percakapan.
-                      Menyimpan kontak tidak mengirim pesan atau email.
+                      This manual contact has no connected messaging channel.
+                      Saving a contact does not send a message or email.
                     </p>
                   ) : (
                     <Link
@@ -365,11 +365,11 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                       to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
                     >
                       <MessageSquare className="h-4 w-4" />
-                      Buka percakapan
+                      Open conversation
                     </Link>
                   )}
                   <form
-                    aria-label="Kelola tag"
+                    aria-label="Manage tags"
                     className="space-y-3 border-t pt-4"
                     onSubmit={(e) => {
                       e.preventDefault()
@@ -378,12 +378,12 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                   >
                     <h3 className="text-base font-semibold">Tag</h3>
                     <div
-                      aria-label="Tag kontak"
+                      aria-label="Contact tags"
                       className="flex flex-wrap gap-2"
                     >
                       {draft.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          Belum ada tag.
+                          No tags yet.
                         </p>
                       ) : (
                         draft.map((t) => (
@@ -391,7 +391,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                             type="button"
                             key={t}
                             disabled={saving}
-                            aria-label={`Hapus tag ${t}`}
+                            aria-label={`Remove tag ${t}`}
                             className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-3 text-sm hover:bg-accent"
                             onClick={() => {
                               setDrafts((old) => ({
@@ -412,13 +412,13 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                       className="block text-sm font-medium"
                       htmlFor="contact-add-tag"
                     >
-                      Tambah tag
+                      Add tag
                     </label>
                     <div className="flex gap-2">
                       <input
                         id="contact-add-tag"
                         className="field-control flex-1"
-                        placeholder="Misalnya: Pelanggan baru"
+                        placeholder="For example: New customer"
                         value={tagInput}
                         disabled={saving}
                         onChange={(e) => {
@@ -439,13 +439,13 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                         disabled={saving || !tagInput.trim()}
                         onClick={() => add(tagInput)}
                       >
-                        Tambah
+                        Add
                       </button>
                     </div>
                     {suggestions.length > 0 && (
-                      <div aria-label="Tag yang tersedia" className="space-y-1">
+                      <div aria-label="Available tags" className="space-y-1">
                         <p className="text-xs text-muted-foreground">
-                          Gunakan tag yang sudah ada
+                          Use an existing tag
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {suggestions.map((t) => (
@@ -463,8 +463,8 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {draft.length}/20 tag · maksimal 40 karakter per tag.
-                      Enter untuk menambahkan.
+                      {draft.length}/20 tags · up to 40 characters each. Press
+                      Enter to add.
                     </p>
                     {saveError && (
                       <p role="alert" className="text-sm text-destructive">
@@ -473,7 +473,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                     )}
                     {dirty && !saving && (
                       <p className="text-sm text-muted-foreground">
-                        Perubahan belum disimpan.
+                        You have unsaved changes.
                       </p>
                     )}
                     <div className="flex flex-wrap gap-2">
@@ -482,7 +482,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                         className="action-primary"
                         disabled={saving || !dirty}
                       >
-                        {saving ? 'Menyimpan…' : 'Simpan tag'}
+                        {saving ? 'Saving…' : 'Save tags'}
                       </button>
                       {dirty && (
                         <button
@@ -499,30 +499,28 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                             setSaved(false)
                           }}
                         >
-                          Batalkan perubahan
+                          Discard changes
                         </button>
                       )}
                     </div>
                     {saved && (
                       <p role="status" className="text-sm">
-                        Tag tersimpan.
+                        Tags saved.
                       </p>
                     )}
                   </form>
                 </>
               ) : (
                 <>
-                  <h2 className="text-lg font-semibold">
-                    Kontak tidak ditemukan
-                  </h2>
+                  <h2 className="text-lg font-semibold">Contact not found</h2>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Kontak ini mungkin tidak lagi tersedia.
+                    This contact may no longer be available.
                   </p>
                   <button
                     className="action-secondary mt-3"
                     onClick={() => select('')}
                   >
-                    Buka daftar kontak
+                    View contacts
                   </button>
                 </>
               )}
@@ -530,7 +528,9 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
           ) : (
             <aside className="hidden min-[1200px]:block self-start rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               <Users className="mx-auto mb-3 h-8 w-8" />
-              <p>Pilih kontak untuk melihat detail, tag, dan percakapannya.</p>
+              <p>
+                Select a contact to view their details, tags, and conversation.
+              </p>
             </aside>
           )}
         </div>

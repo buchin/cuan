@@ -46,7 +46,7 @@ export function ProjectsView({
       !onArchiveProject ||
       busy ||
       !confirm(
-        `${project.is_archived ? 'Pulihkan' : 'Arsipkan'} project "${project.name}"?`,
+        `${project.is_archived ? 'Restore' : 'Archive'} project "${project.name}"?`,
       )
     )
       return
@@ -56,7 +56,7 @@ export function ProjectsView({
       await onArchiveProject(project.id, !project.is_archived)
     } catch {
       setError(
-        'Perubahan belum tersimpan. Coba lagi; data project tetap tersedia.',
+        'Could not save changes. Try again; your project data is still available.',
       )
     } finally {
       setBusy('')

@@ -19,21 +19,21 @@ func (s *Server) agentProfileHome(ctx context.Context, a *db.Agent) (string, err
 		return "", nil
 	}
 	if a.Harness != "agy" && a.Harness != "antigravity" {
-		return "", errors.New("Jenis agen tidak sesuai dengan koneksinya")
+		return "", errors.New("Agent type does not match its connection")
 	}
 	conn, err := s.agentRepo.GetConnectionByID(ctx, a.ConnectionID)
 	if err != nil {
-		return "", errors.New("Koneksi agen tidak ditemukan. Hubungkan ulang agen ini")
+		return "", errors.New("Agent connection not found. Reconnect this agent")
 	}
 	if conn.Provider != "agy" && conn.Provider != "antigravity" {
-		return "", errors.New("Jenis koneksi tidak sesuai dengan agen")
+		return "", errors.New("Connection type does not match the agent")
 	}
 	profile, err := agent.ProviderAccountForConnection(conn.UserID, a.ID, conn.ID)
 	if err != nil || !profile.CredentialsPresent {
-		return "", errors.New("Agen perlu login ulang")
+		return "", errors.New("The agent needs to sign in again")
 	}
 	if profile.Provider != "agy" && profile.Provider != "antigravity" {
-		return "", errors.New("Jenis profil tidak sesuai dengan agen")
+		return "", errors.New("Profile type does not match the agent")
 	}
 	return agent.ProviderAccountHome(conn.UserID, profile.ID)
 }
@@ -44,45 +44,45 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if s.agentRepo == nil {
-		respondJSONError(w, 503, "Daftar agen tidak tersedia")
+		respondJSONError(w, 503, "Agent list is unavailable")
 		return
 	}
 	a, err := s.agentRepo.GetAgentByID(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		respondJSONError(w, 404, "Agen tidak ditemukan")
+		respondJSONError(w, 404, "Agent not found")
 		return
 	}
 	if a.Harness != "agy" && a.Provider != "agy" && a.Provider != "antigravity" {
-		respondJSONError(w, 409, "Pemeriksaan jenis agen ini belum tersedia")
+		respondJSONError(w, 409, "Connection checks are not available for this agent type")
 		return
 	}
 	id := "legacy"
 	if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 		conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
 		if err != nil || conn.UserID != owner {
-			respondJSONError(w, 404, "Koneksi agen tidak ditemukan")
+			respondJSONError(w, 404, "Agent connection not found")
 			return
 		}
 		profile, err := agent.ProviderAccountForConnection(owner, a.ID, conn.ID)
 		if err != nil {
-			respondJSONError(w, 409, "Agen perlu dihubungkan ulang")
+			respondJSONError(w, 409, "The agent needs to be reconnected")
 			return
 		}
 		// Verification must obey the same provider/binding checks as execution.
 		if _, err := s.agentProfileHome(r.Context(), a); err != nil {
-			respondJSONError(w, 409, "Jenis atau login koneksi agen tidak sesuai. Koneksi tidak diperiksa")
+			respondJSONError(w, 409, "Agent connection type or sign-in does not match. Connection was not checked")
 			return
 		}
 		id = profile.ID
 	}
 	profile, err := agent.VerifyProviderAccount(r.Context(), owner, id)
 	if err != nil {
-		respondJSONError(w, 503, "Koneksi belum dapat diperiksa. Coba lagi nanti")
+		respondJSONError(w, 503, "Could not check the connection. Try again later")
 		return
 	}
 	if id == "legacy" {
 		if err := agent.SaveLegacyConnectionVerification(owner, a.ID, a.ConnectionID, profile); err != nil {
-			respondJSONError(w, 503, "Koneksi sudah diperiksa, tetapi status belum tersimpan. Coba lagi.")
+			respondJSONError(w, 503, "Connection checked, but its status could not be saved. Try again.")
 			return
 		}
 	}
@@ -104,7 +104,7 @@ func (s *Server) ownedAgentProfileHome(ctx context.Context, owner string, a *db.
 	if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 		conn, e := s.agentRepo.GetConnectionByID(ctx, a.ConnectionID)
 		if e != nil || conn == nil || conn.UserID != owner {
-			return "", errors.New("Koneksi bukan milik pemilik sesi")
+			return "", errors.New("Connection does not belong to the session owner")
 		}
 	}
 	return s.agentProfileHome(ctx, a)

@@ -46,7 +46,7 @@ function AgentActions({
       <button
         ref={trigger}
         className="icon-action"
-        aria-label={`Tindakan ${name}`}
+        aria-label={`Actions ${name}`}
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
         disabled={disabled}
@@ -60,11 +60,11 @@ function AgentActions({
             onClick={() => {
               setExpanded(false)
               trigger.current?.focus()
-              if (window.confirm(`Hapus agen ${name}?`)) onRemove()
+              if (window.confirm(`Delete agent ${name}?`)) onRemove()
             }}
           >
             <Trash2 className="h-4 w-4" />
-            Hapus {name}
+            Delete {name}
           </button>
         </div>
       )}
@@ -139,7 +139,7 @@ export function TeamView({
     try {
       setAgents(await agentsApi.list())
     } catch {
-      setError('Daftar agen belum bisa dibuka. Silakan coba lagi.')
+      setError('Could not load agents. Try again.')
     } finally {
       setLoading(false)
     }
@@ -164,7 +164,7 @@ export function TeamView({
         void cancelSession()
         setAuth(null)
         setCode('')
-        setFormError('Waktu login habis. Buat link baru untuk melanjutkan.')
+        setFormError('Sign-in timed out. Create a new link to continue.')
       },
       Math.max(0, Date.parse(auth.expires_at) - Date.now()),
     )
@@ -242,7 +242,7 @@ export function TeamView({
         return
       }
       if (!session.auth_url || !session.session_id)
-        throw new Error('Link Google belum tersedia. Silakan coba lagi.')
+        throw new Error('The Google sign-in link is unavailable. Try again.')
       active.current = { accountId, sessionId: session.session_id }
       setAuth(session)
       setStep('google')
@@ -251,7 +251,7 @@ export function TeamView({
         setFormError(
           err instanceof Error
             ? err.message
-            : 'Google belum bisa dihubungkan. Silakan coba lagi.',
+            : 'Could not connect to Google. Try again.',
         )
     } finally {
       if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
@@ -266,7 +266,7 @@ export function TeamView({
     })
     if (!dialogActive.current || epoch.current !== currentEpoch) return
     close()
-    setNotice(`${handle} berhasil ditambahkan.`)
+    setNotice(`${handle} was added.`)
     await load()
     onAgentAdded?.()
   }
@@ -281,7 +281,7 @@ export function TeamView({
         setFormError(
           e instanceof Error
             ? e.message
-            : 'Agen belum bisa disimpan. Coba lagi.',
+            : 'Could not save the agent. Try again.',
         )
     } finally {
       if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
@@ -306,21 +306,22 @@ export function TeamView({
         ),
       )
       const messages: Record<string, string> = {
-        verified: 'Provider berhasil merespons. Hasil berlaku lima menit.',
+        verified:
+          'The provider responded successfully. This result is valid for five minutes.',
         quota_limited:
-          'Kuota agen sedang habis. Coba lagi setelah kuota pulih.',
-        login_required: 'Agen perlu login kembali.',
-        unavailable: 'Koneksi sedang terganggu. Coba lagi nanti.',
+          'The agent has reached its quota. Try again when it resets.',
+        login_required: 'The agent needs to sign in again.',
+        unavailable: 'Connection interrupted. Try again later.',
       }
       setNotice(
         messages[result.connection_state] ||
-          'Koneksi belum dapat dipastikan. Coba lagi nanti.',
+          'Could not confirm the connection. Try again later.',
       )
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
-          : 'Koneksi belum dapat diperiksa. Coba lagi.',
+          : 'Could not check the connection. Try again.',
       )
     } finally {
       setChecking('')
@@ -341,7 +342,7 @@ export function TeamView({
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       if (!account.credentials_present)
         throw new Error(
-          'Login belum selesai. Buka Google dan salin kode yang diberikan.',
+          'Sign-in is incomplete. Open Google and copy the code provided.',
         )
       active.current = null
       setAuth(null)
@@ -352,7 +353,7 @@ export function TeamView({
         setFormError(
           err instanceof Error
             ? err.message
-            : 'Kode belum berhasil diperiksa. Coba lagi atau buat link baru.',
+            : 'Could not verify the code. Try again or create a new link.',
         )
     } finally {
       if (dialogActive.current && epoch.current === currentEpoch) {
@@ -370,7 +371,7 @@ export function TeamView({
       setAgents((current) => current.filter((a) => a.id !== id))
       onAgentAdded?.()
     } catch {
-      setError('Agen belum bisa dihapus. Silakan coba lagi.')
+      setError('Could not delete the agent. Try again.')
     } finally {
       setRemoving('')
     }
@@ -398,9 +399,9 @@ export function TeamView({
     <div className="mx-auto max-w-4xl space-y-5 pb-8">
       <div className="flex items-center justify-between gap-3">
         <div>
-          {showHeading && <h2 className="text-lg font-semibold">Agen</h2>}
+          {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
           <p className="mt-1 text-sm text-muted-foreground">
-            Satu agen, satu koneksi.
+            One agent, one connection.
           </p>
         </div>
         {showCreateAction && (
@@ -410,7 +411,7 @@ export function TeamView({
             className={`${primary} shrink-0`}
           >
             <Plus className="h-4 w-4" />
-            Tambah agen
+            Add agent
           </button>
         )}
       </div>
@@ -418,14 +419,14 @@ export function TeamView({
         <div className="flex flex-wrap items-center gap-2">
           <input
             className="field-control min-w-0 flex-1"
-            aria-label="Cari agen"
-            placeholder="Cari nama atau jenis agen"
+            aria-label="Search agents"
+            placeholder="Search by name or agent type"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           {search.trim() && (
             <button className="action-secondary" onClick={() => setSearch('')}>
-              Hapus pencarian
+              Clear search
             </button>
           )}
         </div>
@@ -439,41 +440,41 @@ export function TeamView({
         <div role="alert" className="text-sm text-destructive">
           {error}{' '}
           <button onClick={load} className="underline">
-            Coba lagi
+            Try again
           </button>
         </div>
       )}
       {loading ? (
         <p role="status" className="text-sm text-muted-foreground">
-          Memuat agen…
+          Loading agents…
         </p>
       ) : visibleAgents.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
           <Bot className="mx-auto h-8 w-8 text-muted-foreground" />
-          <h2 className="mt-3 font-medium">Belum ada agen</h2>
+          <h2 className="mt-3 font-medium">No agents yet</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Tambahkan agen pertama Anda, lalu hubungkan akun Google.
+            Add your first agent, then connect a Google account.
           </p>
           {showCreateAction && (
             <button onClick={() => begin()} className={`${primary} mt-4`}>
-              Tambah agen pertama
+              Add your first agent
             </button>
           )}
         </div>
       ) : filteredAgents.length === 0 ? (
         <div className="rounded-lg border p-5 text-center">
-          <p>Tidak ada agen yang cocok.</p>
+          <p>No matching agents.</p>
           <button
             className="action-secondary mt-3"
             onClick={() => setSearch('')}
           >
-            Tampilkan semua agen
+            Show all agents
           </button>
         </div>
       ) : (
         <div
           role="list"
-          aria-label="Daftar agen"
+          aria-label="Agent list"
           className="divide-y divide-border rounded-lg border border-border"
         >
           {visibleAgents.map((agent) => {
@@ -483,19 +484,18 @@ export function TeamView({
             const state = connectionStatus(agent, now)
             const a = { ...agent, connection_state: state.state }
             const details: Record<string, string> = {
-              verified: 'Provider berhasil merespons.',
+              verified: 'The provider responded successfully.',
               unknown:
-                'Belum ada hasil yang masih berlaku. Periksa koneksi tanpa login ulang.',
-              login_required: 'Login diperlukan; riwayat tetap tersimpan.',
+                'No current result. Check the connection without signing in again.',
+              login_required: 'Sign-in required. Your history is saved.',
               quota_limited:
-                'Provider membatasi kuota. Tunggu kuota pulih; login ulang tidak diperlukan.',
-              unavailable:
-                'Provider belum dapat dijangkau. Coba periksa lagi nanti.',
+                'Provider quota reached. Wait for it to reset; you do not need to sign in again.',
+              unavailable: 'The provider is unreachable. Check again later.',
             }
             return (
               <div
                 role="listitem"
-                aria-label={`Agen ${a.name}`}
+                aria-label={`Agent ${a.name}`}
                 key={a.id}
                 id={`settings-agent-${a.id}`}
                 className="p-4"
@@ -512,8 +512,8 @@ export function TeamView({
                       >
                         {state.state === 'unknown'
                           ? a.last_checked_at || a.verified_at
-                            ? 'Status koneksi perlu diperiksa ulang'
-                            : 'Status koneksi belum diperiksa'
+                            ? 'Connection status needs to be checked again'
+                            : 'Connection status has not been checked'
                           : state.label}
                       </p>
                     </div>
@@ -531,44 +531,42 @@ export function TeamView({
                     <button
                       onClick={() => void check(a.id)}
                       disabled={!!checking || !!removing}
-                      aria-label={`Periksa koneksi ${a.name}`}
+                      aria-label={`Check connection ${a.name}`}
                       className="action-secondary col-span-2 justify-self-start sm:col-span-1 sm:col-start-2 sm:row-start-1"
                     >
                       <RefreshCw
                         className={`h-4 w-4 ${checking === a.id ? 'animate-spin' : ''}`}
                       />
-                      {checking === a.id ? 'Memeriksa…' : 'Periksa koneksi'}
+                      {checking === a.id ? 'Checking…' : 'Check connection'}
                     </button>
                   )}
                 </div>
                 {(a.last_checked_at || a.verified_at) && (
                   <details className="mt-2 text-xs text-muted-foreground">
                     <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
-                      Detail pemeriksaan
+                      Connection details
                     </summary>
                     <div className="space-y-2 pb-2">
                       <p className="text-sm">
                         {state.state === 'disabled'
-                          ? 'Agen ini tidak aktif.'
+                          ? 'This agent is disabled.'
                           : details[a.connection_state || 'unknown'] ||
                             details.unknown}
                       </p>
                       {a.last_checked_at && (
                         <p>
-                          Diperiksa:{' '}
+                          Checked:{' '}
                           <time dateTime={a.last_checked_at}>
-                            {new Date(a.last_checked_at).toLocaleString()}
+                            {new Date(a.last_checked_at).toLocaleString('en-US')}
                           </time>
                         </p>
                       )}
                       {a.verified_at && Number.isFinite(expiry) && (
                         <p>
-                          {state.verified
-                            ? 'Berlaku sampai'
-                            : 'Hasil pemeriksaan kedaluwarsa pada'}
+                          {state.verified ? 'Valid until' : 'Result expired at'}
                           :{' '}
                           <time dateTime={new Date(expiry).toISOString()}>
-                            {new Date(expiry).toLocaleString()}
+                            {new Date(expiry).toLocaleString('en-US')}
                           </time>
                         </p>
                       )}
@@ -609,19 +607,19 @@ export function TeamView({
             <header className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 id="add-agent-title" className="font-semibold">
-                  Tambah agen
+                  Add agent
                 </h2>
                 {step !== 'save' && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {step === 'name'
-                      ? 'Langkah 1 dari 2 · Beri nama'
-                      : 'Langkah 2 dari 2 · Hubungkan Google'}
+                      ? 'Step 1 of 2 · Choose a name'
+                      : 'Step 2 of 2 · Connect Google'}
                   </p>
                 )}
               </div>
               <button
                 onClick={close}
-                aria-label="Tutup"
+                aria-label="Close"
                 className="icon-action rounded p-2 hover:bg-muted"
               >
                 <X className="h-4 w-4" />
@@ -643,7 +641,7 @@ export function TeamView({
                         htmlFor="agent-handle"
                         className="text-sm font-medium"
                       >
-                        Nama agen
+                        Agent name
                       </label>
                       <input
                         id="agent-handle"
@@ -667,25 +665,25 @@ export function TeamView({
                         id="agent-name-help"
                         className="mt-2 text-xs text-muted-foreground"
                       >
-                        Contoh: @penulis atau @developer.
+                        For example: @writer or @developer.
                       </p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Selanjutnya, masuk ke Google untuk menghubungkan akun agen
-                      ini. Koneksi agen lain tetap tersimpan.
+                      Next, sign in to Google to connect this agent. Other agent
+                      connections are preserved.
                     </p>
                   </>
                 )}
                 {step === 'google' && (
                   <>
                     <p className="text-sm">
-                      Hubungkan Google untuk <strong>{handle}</strong>.
+                      Connect Google for <strong>{handle}</strong>.
                     </p>
                     {auth?.auth_url ? (
                       <>
                         <div className="space-y-2">
                           <p className="text-sm font-medium">
-                            1. Masuk ke akun Google Anda
+                            1. Sign in to your Google account
                           </p>
                           <a
                             href={auth.auth_url}
@@ -693,11 +691,11 @@ export function TeamView({
                             rel="noopener noreferrer"
                             className={`${secondary} w-full`}
                           >
-                            Buka Google ↗
+                            Open Google ↗
                           </a>
                           <p className="text-xs text-muted-foreground">
-                            Pilih akun yang ingin digunakan. Setelah selesai,
-                            kembali ke sini.
+                            Choose the account you want to use, then return
+                            here.
                           </p>
                         </div>
                         <div>
@@ -705,7 +703,7 @@ export function TeamView({
                             htmlFor="oauth-code"
                             className="text-sm font-medium"
                           >
-                            2. Tempel kode dari Google
+                            2. Paste the code from Google
                           </label>
                           <input
                             id="oauth-code"
@@ -713,11 +711,12 @@ export function TeamView({
                             autoComplete="off"
                             value={code}
                             onChange={(event) => setCode(event.target.value)}
-                            placeholder="Tempel kode di sini"
+                            placeholder="Paste your code here"
                             className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                           />
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Kode hanya dimasukkan di sini. Link berlaku 5 menit.
+                            Paste the code here only. The link expires in five
+                            minutes.
                           </p>
                         </div>
                         <button
@@ -726,20 +725,20 @@ export function TeamView({
                           onClick={() => void connect()}
                           className="text-xs text-muted-foreground underline"
                         >
-                          Buat link baru
+                          Create a new link
                         </button>
                       </>
                     ) : (
                       <p className="text-sm text-muted-foreground">
-                        Buat link baru untuk melanjutkan login Google.
+                        Create a new link to continue signing in to Google.
                       </p>
                     )}
                   </>
                 )}
                 {step === 'save' && (
                   <p className="text-sm">
-                    Google sudah terhubung. Simpan <strong>{handle}</strong>{' '}
-                    untuk mulai menggunakannya.
+                    Google is connected. Save <strong>{handle}</strong> to start
+                    using it.
                   </p>
                 )}
                 {formError && (
@@ -753,17 +752,17 @@ export function TeamView({
                 {busy && (
                   <p role="status" className="text-sm text-muted-foreground">
                     {step === 'save'
-                      ? 'Menambahkan agen…'
+                      ? 'Adding agent…'
                       : step === 'name' || !auth?.auth_url
-                        ? 'Menyiapkan login Google…'
-                        : 'Memeriksa kode…'}
+                        ? 'Preparing Google sign-in…'
+                        : 'Checking code…'}
                   </p>
                 )}
               </div>
               <footer className="flex items-center justify-end gap-2 border-t border-border p-4">
                 {step !== 'save' && (
                   <button type="button" onClick={close} className={secondary}>
-                    Batal
+                    Cancel
                   </button>
                 )}
                 <button
@@ -777,12 +776,12 @@ export function TeamView({
                 >
                   {busy && <RefreshCw className="h-4 w-4 animate-spin" />}
                   {step === 'save'
-                    ? 'Simpan agen'
+                    ? 'Save agent'
                     : step === 'name'
-                      ? 'Hubungkan Google'
+                      ? 'Connect Google'
                       : auth?.auth_url
-                        ? 'Konfirmasi login'
-                        : 'Buat link baru'}
+                        ? 'Confirm sign-in'
+                        : 'Create a new link'}
                 </button>
               </footer>
             </form>
@@ -802,15 +801,17 @@ export function TeamSubPanel({
 }) {
   return (
     <div className="space-y-3 p-4">
-      <h2 className="text-sm font-medium">Agen</h2>
-      <p className="text-xs text-muted-foreground">Satu agen, satu koneksi.</p>
+      <h2 className="text-sm font-medium">Agent</h2>
+      <p className="text-xs text-muted-foreground">
+        One agent, one connection.
+      </p>
       {onAddAgentClick && (
         <button
           onClick={onAddAgentClick}
           className="flex items-center gap-2 text-sm text-primary"
         >
           <Plus className="h-4 w-4" />
-          Tambah agen
+          Add agent
         </button>
       )}
     </div>

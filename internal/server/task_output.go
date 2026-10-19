@@ -45,7 +45,7 @@ func (r *taskOutputRecorder) append(chunk []byte) {
 	for _, c := range chunk {
 		if c == '\n' {
 			if r.skipping {
-				lines = append(lines, "[Baris output terlalu panjang; tidak disimpan]")
+				lines = append(lines, "[Output line too long; not saved]")
 			} else {
 				lines = append(lines, string(r.pending))
 			}
@@ -97,7 +97,7 @@ func (r *taskOutputRecorder) failureNote() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.failed {
-		return "Sebagian output gagal disimpan; periksa hasil kerja sebelum menerima task."
+		return "Some output could not be saved. Review the work before accepting this task."
 	}
 	return ""
 }

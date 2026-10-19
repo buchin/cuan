@@ -55,7 +55,7 @@ export function InboxTaskAction({
         setReady(true)
       })
       .catch(() => {
-        if (live) setError('Project atau task belum dapat dimuat. Coba lagi.')
+        if (live) setError('Could not load projects or tasks. Try again.')
       })
       .finally(() => {
         if (live) setLoading(false)
@@ -70,17 +70,17 @@ export function InboxTaskAction({
     return (
       <div
         className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground"
-        aria-label="Task dari percakapan"
+        aria-label="Task from conversation"
       >
-        <p className="font-medium">Task tersimpan · {existing.status}</p>
+        <p className="font-medium">Task saved · {existing.status}</p>
         <Link
           className="inline-flex min-h-11 items-center underline"
           to={`/tasks/${existing.id}`}
         >
-          Buka task: {existing.title}
+          Open task: {existing.title}
         </Link>
         <p className="text-muted-foreground">
-          Eksekusi dikelola dari halaman task.
+          Manage execution from the task page.
         </p>
       </div>
     )
@@ -109,7 +109,7 @@ export function InboxTaskAction({
         } catch (e: any) {
           setError(
             e.message ||
-              'Task belum dapat disimpan. Coba lagi; task tidak akan dibuat ganda.',
+              'Could not save the task. Try again; this will not create a duplicate.',
           )
         } finally {
           setBusy(false)
@@ -119,12 +119,12 @@ export function InboxTaskAction({
       <div>
         <p className="font-medium">Draft task</p>
         <p className="mt-1 text-muted-foreground">
-          Periksa dan edit sebelum membuat task. Belum tersimpan atau
-          dijalankan.
+          Review and edit before creating the task. It has not been saved or
+          started.
         </p>
       </div>
       <label className="block">
-        Judul task
+        Task title
         <input
           className="field-control mt-1"
           maxLength={200}
@@ -135,9 +135,9 @@ export function InboxTaskAction({
         />
       </label>
       <label className="block">
-        Deskripsi
+        Description
         <textarea
-          aria-label="Deskripsi"
+          aria-label="Description"
           className="field-control mt-1 min-h-36 resize-y"
           maxLength={6000}
           required
@@ -156,7 +156,7 @@ export function InboxTaskAction({
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
         >
-          <option value="">Pilih project</option>
+          <option value="">Select a project</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -164,10 +164,10 @@ export function InboxTaskAction({
           ))}
         </select>
       </label>
-      {loading && <p role="status">Memuat project dan status task…</p>}
+      {loading && <p role="status">Loading projects and task status…</p>}
       {!loading && projects.length === 0 && !error && (
         <p>
-          Tambahkan project melalui{' '}
+          Add a project from{' '}
           <Link className="underline" to="/projects">
             Projects
           </Link>
@@ -183,7 +183,7 @@ export function InboxTaskAction({
             disabled={busy || loading}
             onClick={() => setRetry((n) => n + 1)}
           >
-            Coba lagi
+            Try again
           </button>
         </div>
       )}
@@ -198,10 +198,11 @@ export function InboxTaskAction({
           !description.trim()
         }
       >
-        {busy ? 'Membuat…' : 'Buat task'}
+        {busy ? 'Membuat…' : 'Create task'}
       </button>
       <p className="text-muted-foreground">
-        Task masuk backlog. Membuat task tidak memulai eksekusi agent.
+        The task will be added to the backlog. Creating it does not start an
+        agent.
       </p>
     </form>
   )

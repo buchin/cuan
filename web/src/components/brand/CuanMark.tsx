@@ -7,7 +7,7 @@ export function CuanMark({ className }: { className?: string }) {
       viewBox="0 0 64 64"
       fill="currentColor"
       role="img"
-      aria-label="Logo Cuan — uang kepeng"
+      aria-label="Cuan logo — kepeng coin"
       className={cn('shrink-0 text-foreground', className)}
     >
       <circle

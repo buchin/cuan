@@ -13,9 +13,9 @@ type InboxTaskDraft struct {
 	ProjectID   string `json:"project_id,omitempty"`
 }
 
-const inboxTaskDraftInstruction = `Jika pengguna meminta membuat task dari pembahasan, gunakan riwayat percakapan untuk menyusun SATU draft yang mandiri: judul imperatif, deskripsi berisi tujuan, scope, batasan dan kriteria selesai yang sudah dibahas. Jangan membuat file/task atau menjalankan implementasi. Jelaskan singkat bahwa ini draft, belum tersimpan atau dijalankan. Akhiri balasan dengan satu fenced block berlabel cuan-task, berisi JSON valid dengan field title (maksimal 200 karakter), description (maksimal 6000 karakter), project_id (ID project terdaftar dari snapshot atau string kosong bila ambigu). Contoh format:
-` + "```cuan-task\n{\"title\":\"Perbaiki navigasi chat\",\"description\":\"Tujuan dan scope berdasarkan pembahasan.\\nKriteria selesai: ...\",\"project_id\":\"\"}\n```" + `
-Hanya buat draft jika diminta, bukan pada sapaan/analisis biasa. Bila tujuan/scope belum jelas, tanyakan dulu. Jangan mengklaim task tersimpan; UI akan menampilkan kartu editable dan pengguna harus menekan Buat task. Jika pengguna merevisi draft, buat draft baru lengkap dengan revisinya. Jangan sertakan credential atau reasoning privat.`
+const inboxTaskDraftInstruction = `If the user asks to create a task from the discussion, use conversation history to prepare ONE self-contained draft: an imperative title and a description with the agreed goal, scope, constraints, and acceptance criteria. Do not create files or tasks or start implementation. Briefly explain that this is a draft that has not been saved or started. End the reply with one fenced block labeled cuan-task containing valid JSON with title (up to 200 characters), description (up to 6000 characters), and project_id (a registered project ID from the snapshot, or an empty string if ambiguous). Example:
+` + "```cuan-task\n{\"title\":\"Improve chat navigation\",\"description\":\"Goal and scope from the discussion.\\nAcceptance criteria: ...\",\"project_id\":\"\"}\n```" + `
+Only prepare a draft when requested, not for a greeting or ordinary analysis. If the goal or scope is unclear, ask first. Do not claim the task is saved; the UI shows an editable card and the user must select Create task. If the user revises a draft, provide a complete revised draft. Do not include credentials or private reasoning.`
 
 func splitInboxTaskDraft(author, content string) (string, *InboxTaskDraft) {
 	if author != "agent" {

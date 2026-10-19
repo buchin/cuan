@@ -26,14 +26,14 @@ func (s *Server) handleCRMCreate(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&req) != nil || !db.IsValidUUID(req.RequestID) {
-		respondJSONError(w, 400, "Permintaan kontak tidak valid")
+		respondJSONError(w, 400, "Invalid contact request")
 		return
 	}
 	req.RequestID = strings.ToLower(req.RequestID)
 	req.Name = strings.TrimSpace(req.Name)
 	email, err := normalizeCRMEmail(req.Email)
 	if err != nil || req.Name == "" || utf8.RuneCountInString(req.Name) > 120 || strings.ContainsAny(req.Name, "\r\n\x00") {
-		respondJSONError(w, 400, "Isi nama maksimal 120 karakter dan email yang valid bila diisi")
+		respondJSONError(w, 400, "Enter a name of up to 120 characters and a valid email if provided")
 		return
 	}
 	now := time.Now().UTC()
@@ -57,11 +57,11 @@ func (s *Server) handleCRMCreate(w http.ResponseWriter, r *http.Request) {
 		s.crm.Unlock()
 	}
 	if err != nil {
-		respondJSONError(w, 503, "Kontak belum dapat disimpan. Coba lagi dari form yang sama")
+		respondJSONError(w, 503, "Could not save the contact. Try again from the same form")
 		return
 	}
 	if c.Name != req.Name || c.Email != email {
-		respondJSONError(w, 409, "Permintaan ini sudah dipakai. Muat ulang Contacts untuk melihat kontak tersimpan")
+		respondJSONError(w, 409, "This request has already been used. Reload Contacts to view the saved contact")
 		return
 	}
 	status := http.StatusOK

@@ -55,7 +55,7 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	if !found {
-		respondJSONError(w, 404, "Task tidak ditemukan; terminal tidak dibuat.")
+		respondJSONError(w, 404, "Task not found. No terminal was created.")
 		return
 	}
 
@@ -167,17 +167,17 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, busy := s.taskLaunches.LoadOrStore(taskID, true); busy {
-		respondJSONError(w, 409, "Task sedang memulai sesi. Buka sesi yang ada.")
+		respondJSONError(w, 409, "A session is starting for this task. Open the existing session.")
 		return
 	}
 	defer s.taskLaunches.Delete(taskID)
 	if history := s.terminalManager.GetTaskHistory(taskID); len(history) > 0 && history[len(history)-1].Status == "running" {
-		respondJSONError(w, 409, "Task sudah memiliki sesi aktif. Buka terminal task.")
+		respondJSONError(w, 409, "This task already has an active session. Open its terminal.")
 		return
 	}
 	agentID := strings.TrimSpace(payload.AgentID)
 	if agentID == "" {
-		respondJSONError(w, http.StatusBadRequest, "Pilih agen terdaftar terlebih dahulu")
+		respondJSONError(w, http.StatusBadRequest, "Select a registered agent first")
 		return
 	}
 	if s.agentRepo == nil {
@@ -186,11 +186,11 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	registeredAgent, err := s.agentRepo.GetAgentByID(r.Context(), agentID)
 	if err != nil || registeredAgent == nil {
-		respondJSONError(w, http.StatusNotFound, "Agen tidak terdaftar")
+		respondJSONError(w, http.StatusNotFound, "Agent is not registered")
 		return
 	}
 	if !registeredAgent.Enabled {
-		respondJSONError(w, http.StatusConflict, "Agen dinonaktifkan")
+		respondJSONError(w, http.StatusConflict, "Agent is disabled")
 		return
 	}
 	ownerID := s.accountOwner(w, r)
@@ -203,7 +203,7 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if profileHome != "" && payload.Binary != "" && payload.Binary != "agy" && payload.Binary != "antigravity" {
-		respondJSONError(w, http.StatusBadRequest, "Gunakan jenis agen sesuai koneksinya")
+		respondJSONError(w, http.StatusBadRequest, "Use the agent type that matches its connection")
 		return
 	}
 	agentName := registeredAgent.Name
@@ -249,13 +249,13 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			if detail.ProjectID != "" && s.projectSvc != nil {
 				project, e := s.projectSvc.Get(r.Context(), detail.ProjectID)
 				if e != nil || project == nil {
-					respondJSONError(w, 409, "Project task tidak tersedia")
+					respondJSONError(w, 409, "Task project is unavailable")
 					return
 				}
 				if project.RepoURL != "" {
 					info, e := os.Stat(project.LocalPath)
 					if project.LocalPath == "" || e != nil || !info.IsDir() {
-						respondJSONError(w, 409, "Repository project belum siap. Sinkronkan repository sebelum menjalankan task.")
+						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 						return
 					}
 					workDir = project.LocalPath
@@ -267,29 +267,29 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			}
 			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: agentID})
 			if errors.Is(err, task.ErrTaskActive) {
-				respondJSONError(w, 409, "Task sudah memiliki attempt aktif; periksa sesi sebelum mengulang.")
+				respondJSONError(w, 409, "This task already has an active attempt. Check the session before retrying.")
 				return
 			}
 			if err != nil {
-				respondJSONError(w, 503, "Attempt belum dapat disimpan; eksekusi belum dimulai.")
+				respondJSONError(w, 503, "Could not save the attempt. Execution has not started.")
 				return
 			}
 			doing := task.TaskStatusDoing
 			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID}); err != nil {
-				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Status task gagal disimpan sebelum peluncuran."})
-				respondJSONError(w, 503, "Status task belum tersimpan")
+				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
+				respondJSONError(w, 503, "Task status could not be saved")
 				return
 			}
 			_, err = s.taskSvc.UpdateAttemptStatus(r.Context(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 			if err != nil {
-				respondJSONError(w, 503, "Status attempt belum tersimpan; proses belum dimulai.")
+				respondJSONError(w, 503, "Could not save attempt status. The process has not started.")
 				return
 			}
 		}
 	}
 
 	if !taskFound {
-		respondJSONError(w, 404, "Task tidak ditemukan")
+		respondJSONError(w, 404, "Task not found")
 		return
 	}
 
@@ -345,14 +345,14 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
 	if err != nil {
 		if attempt != nil {
-			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "CLI tidak dapat dimulai. Periksa instalasi dan koneksi agen."})
+			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not start the CLI. Check its installation and the agent connection."})
 			status := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
 		}
 		if s.projectStudioRepo != nil {
-			_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, "failed", "CLI tidak dapat dimulai.")
+			_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, "failed", "Could not start the CLI.")
 		}
-		respondJSONError(w, http.StatusInternalServerError, "CLI tidak dapat dimulai. Periksa instalasi dan koneksi agen.")
+		respondJSONError(w, http.StatusInternalServerError, "Could not start the CLI. Check its installation and the agent connection.")
 		return
 	}
 

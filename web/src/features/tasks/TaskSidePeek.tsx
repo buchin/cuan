@@ -572,7 +572,7 @@ function TaskSidePeekContent({
           </button>
           <button
             autoFocus
-            aria-label="Tutup detail task"
+            aria-label="Close task details"
             onClick={onClose}
             className="icon-action text-muted-foreground"
           >
@@ -706,7 +706,7 @@ function TaskSidePeekContent({
                   onChange={(e) => setAssignee(e.target.value)}
                   className="w-full px-3 py-2 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
                 >
-                  <option value="">Belum Ditugaskan (Unassigned)</option>
+                  <option value="">Unassigned</option>
                   {availableAgents.map((ag) => (
                     <option key={ag.id} value={ag.id}>
                       {ag.name} — {ag.role}

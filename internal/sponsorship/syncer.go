@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	ErrEmptyReadmeContent = errors.New("konten README tidak boleh kosong")
+	ErrEmptyReadmeContent = errors.New("README content cannot be empty")
 )
 
 // SyncerConfig contains configuration for the README and archive syncer runner.
@@ -36,15 +36,15 @@ type SyncerConfig struct {
 
 // SyncResult captures the output and status of a synchronization cycle.
 type SyncResult struct {
-	Success        bool     `json:"success"`
-	BatchSlug      string   `json:"batch_slug"`
-	SponsorsCount  int      `json:"sponsors_count"`
-	ReadmeUpdated  bool     `json:"readme_updated"`
-	ArchiveUpdated bool     `json:"archive_updated"`
-	GitCommitted   bool     `json:"git_committed"`
-	CommitHash     string   `json:"commit_hash,omitempty"`
-	FilesModified  []string `json:"files_modified"`
-	Message        string   `json:"message"`
+	Success        bool      `json:"success"`
+	BatchSlug      string    `json:"batch_slug"`
+	SponsorsCount  int       `json:"sponsors_count"`
+	ReadmeUpdated  bool      `json:"readme_updated"`
+	ArchiveUpdated bool      `json:"archive_updated"`
+	GitCommitted   bool      `json:"git_committed"`
+	CommitHash     string    `json:"commit_hash,omitempty"`
+	FilesModified  []string  `json:"files_modified"`
+	Message        string    `json:"message"`
 	SyncedAt       time.Time `json:"synced_at"`
 }
 
@@ -196,13 +196,13 @@ func RenderSponsorsMarkdown(sponsors []*Sponsor, batchName string) string {
 
 	if len(sponsors) == 0 {
 		sb.WriteString(fmt.Sprintf("### %s\n\n", batchName))
-		sb.WriteString("_Belum ada sponsor terdaftar pada batch ini. Jadilah Founding Backer pertama di [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_\n")
+		sb.WriteString("_No sponsors are registered for this batch yet. Become the first founding backer at [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_\n")
 		return sb.String()
 	}
 
 	sb.WriteString(fmt.Sprintf("### %s\n\n", batchName))
-	sb.WriteString("Terima kasih kepada para founding backer yang mendukung kemandirian dan kelangsungan proyek open-source Cuan:\n\n")
-	sb.WriteString("| Peringkat | Brand & Tautan | Slogan | Kontribusi | Tier |\n")
+	sb.WriteString("Thank you to the founding backers supporting the independence and sustainability of the Cuan open-source project:\n\n")
+	sb.WriteString("| Rank | Brand & link | Slogan | Contribution | Tier |\n")
 	sb.WriteString("| :---: | :--- | :--- | :--- | :--- |\n")
 
 	for i, sp := range sponsors {
@@ -216,7 +216,7 @@ func RenderSponsorsMarkdown(sponsors []*Sponsor, batchName string) string {
 		sb.WriteString(fmt.Sprintf("| %s | %s | %s | `%s` | %s |\n", rankDisplay, brandLink, slogan, amount, tier))
 	}
 
-	sb.WriteString("\n> Ingin brand Anda diabadikan di README repositori GitHub dan direktori publik `/sponsors`? Dukung pengembangan Cuan melalui [Founding Sponsorship](https://cuan.dropsugar.com/sponsor) (Pay-What-You-Want mulai Rp 10.000).\n")
+	sb.WriteString("\n> Want your brand listed in the GitHub README and public directory `/sponsors`? Support Cuan development through [Founding Sponsorship](https://cuan.dropsugar.com/sponsor) (Pay-What-You-Want from IDR 10,000).\n")
 
 	return sb.String()
 }
@@ -269,14 +269,14 @@ func UpdateReadmeContent(existingContent string, renderedMarkdown string) (strin
 // RenderArchiveReadme generates the master index document for the /sponsors directory.
 func RenderArchiveReadme(batches []*Batch, allSponsors []*Sponsor) string {
 	var sb strings.Builder
-	sb.WriteString("# Direktori Abadi Backers & Sponsors Cuan\n\n")
-	sb.WriteString("> Selamat datang di direktori arsip abadi Cuan. Seluruh kontributor, donatur, dan sponsor pendukung open-source Cuan dicatat dan diabadikan secara permanen dalam riwayat version control repositori ini.\n\n")
+	sb.WriteString("# Cuan Backers & Sponsors Archive\n\n")
+	sb.WriteString("> Welcome to the Cuan archive. Contributors, donors, and sponsors supporting open-source Cuan are recorded in this repository’s version history.\n\n")
 
-	sb.WriteString("## Integritas & Jaminan Anti-Judol\n\n")
-	sb.WriteString("Setiap sponsor yang terdaftar dalam direktori ini telah melalui proses kurasi dan moderasi manual oleh Owner Cuan. Cuan menerapkan kebijakan toleransi nol (*zero-tolerance*) terhadap situs judi online, pornografi, penipuan, dan materi berbahaya. Brand yang melanggar akan ditolak dan diblacklist secara permanen.\n\n")
+	sb.WriteString("## Integrity & moderation\n\n")
+	sb.WriteString("Each listed sponsor has been reviewed by the Cuan owner. Cuan has a zero-tolerance policy for online gambling, pornography, fraud, and harmful material. Violating brands are rejected and permanently blocked.\n\n")
 
-	sb.WriteString("## Rilis Batch Sponsorship\n\n")
-	sb.WriteString("| Batch | Nama Program | Status | Tautan Arsip | Total Sponsor | Total Kontribusi |\n")
+	sb.WriteString("## Sponsorship batches\n\n")
+	sb.WriteString("| Batch | Program | Status | Archive | Sponsors | Contributions |\n")
 	sb.WriteString("| :---: | :--- | :---: | :---: | :---: | :---: |\n")
 
 	batchMap := make(map[string][]*Sponsor)
@@ -285,7 +285,7 @@ func RenderArchiveReadme(batches []*Batch, allSponsors []*Sponsor) string {
 	}
 
 	if len(batches) == 0 {
-		sb.WriteString("| `v1.0` | v1.0 Founding Backers | 🟢 Aktif | [v1.0.md](v1.0.md) | 0 | Rp 0 |\n")
+		sb.WriteString("| `v1.0` | v1.0 Founding Backers | 🟢 Active | [v1.0.md](v1.0.md) | 0 | Rp 0 |\n")
 	} else {
 		for _, b := range batches {
 			sps := batchMap[b.ID]
@@ -295,16 +295,16 @@ func RenderArchiveReadme(batches []*Batch, allSponsors []*Sponsor) string {
 			}
 			count := len(sps)
 			docLink := fmt.Sprintf("[%s.md](%s.md)", b.BatchSlug, b.BatchSlug)
-			statusBadge := "🟢 Aktif"
+			statusBadge := "🟢 Active"
 			if b.Status == "closed" {
-				statusBadge = "🔒 Ditutup"
+				statusBadge = "🔒 Closed"
 			}
 			sb.WriteString(fmt.Sprintf("| `%s` | %s | %s | %s | %d | %s |\n", b.BatchSlug, b.Name, statusBadge, docLink, count, FormatIDR(sum)))
 		}
 	}
 
-	sb.WriteString("\n## Cara Menjadi Founding Backer\n\n")
-	sb.WriteString("Anda dapat mendukung pengembangan Cuan melalui program Pay-What-You-Want (min Rp 10.000) di [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor).\n")
+	sb.WriteString("\n## Become a founding backer\n\n")
+	sb.WriteString("Support Cuan through Pay-What-You-Want sponsorship (minimum IDR 10,000) at [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor).\n")
 
 	return sb.String()
 }
@@ -333,18 +333,18 @@ func RenderBatchArchiveMarkdown(batch *Batch, sponsors []*Sponsor, lastSynced ..
 		syncedAt = lastSynced[0].UTC()
 	}
 
-	sb.WriteString(fmt.Sprintf("# Arsip Backers: %s\n\n", batchTitle))
+	sb.WriteString(fmt.Sprintf("# Backers archive: %s\n\n", batchTitle))
 	sb.WriteString(fmt.Sprintf("- **Batch Slug:** `%s`\n", batchSlug))
-	sb.WriteString(fmt.Sprintf("- **Status:** Terverifikasi & Aktif\n"))
-	sb.WriteString(fmt.Sprintf("- **Total Sponsor Terdaftar:** %d Brand\n", len(sponsors)))
-	sb.WriteString(fmt.Sprintf("- **Total Dana Terhimpun:** %s\n", FormatIDR(totalAmount)))
-	sb.WriteString(fmt.Sprintf("- **Terakhir Disinkronisasi:** %s\n\n", syncedAt.Format(time.RFC3339)))
+	sb.WriteString(fmt.Sprintf("- **Status:** Verified & active\n"))
+	sb.WriteString(fmt.Sprintf("- **Registered sponsors:** %d Brand\n", len(sponsors)))
+	sb.WriteString(fmt.Sprintf("- **Total contributions:** %s\n", FormatIDR(totalAmount)))
+	sb.WriteString(fmt.Sprintf("- **Last synced:** %s\n\n", syncedAt.Format(time.RFC3339)))
 
-	sb.WriteString("## Daftar Lengkap Founding Backers\n\n")
+	sb.WriteString("## Founding backers\n\n")
 	if len(sponsors) == 0 {
-		sb.WriteString("_Belum ada sponsor yang disetujui pada batch ini._\n")
+		sb.WriteString("_No approved sponsors in this batch yet._\n")
 	} else {
-		sb.WriteString("| Peringkat | Brand | Website | Slogan | Kontribusi | Tanggal Terverifikasi | Tier |\n")
+		sb.WriteString("| Rank | Brand | Website | Slogan | Contribution | Verified on | Tier |\n")
 		sb.WriteString("| :---: | :--- | :--- | :--- | :---: | :---: | :--- |\n")
 
 		for i, sp := range sponsors {
@@ -472,7 +472,7 @@ func (s *Syncer) Sync(ctx context.Context, batchSlug string) (*SyncResult, error
 	syncedTimestamp := time.Now().UTC()
 	if existingBytes, err := os.ReadFile(batchDocPath); err == nil {
 		existingStr := string(existingBytes)
-		const tsPrefix = "- **Terakhir Disinkronisasi:** "
+		const tsPrefix = "- **Last synced:** "
 		if idx := strings.Index(existingStr, tsPrefix); idx != -1 {
 			lineEnd := strings.Index(existingStr[idx:], "\n")
 			if lineEnd != -1 {
@@ -509,7 +509,7 @@ func (s *Syncer) Sync(ctx context.Context, batchSlug string) (*SyncResult, error
 	}
 
 	result.Success = true
-	result.Message = fmt.Sprintf("Sinkronisasi berhasil: %d sponsor terdaftar, %d file diperbarui", result.SponsorsCount, len(result.FilesModified))
+	result.Message = fmt.Sprintf("Sync complete: %d sponsors listed, %d files updated", result.SponsorsCount, len(result.FilesModified))
 	return result, nil
 }
 

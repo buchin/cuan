@@ -13,7 +13,7 @@ import (
 
 func (s *Server) accountOwner(w http.ResponseWriter, r *http.Request) string {
 	if s.authSvc == nil {
-		respondJSONError(w, 503, "Otentikasi pemilik tidak tersedia")
+		respondJSONError(w, 503, "Owner authentication is unavailable")
 		return ""
 	}
 	owner, err := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r))
@@ -31,7 +31,7 @@ func (s *Server) handleListProviderAccounts(w http.ResponseWriter, r *http.Reque
 	}
 	accounts, err := agent.ListProviderAccounts(owner)
 	if err != nil {
-		respondJSONError(w, 500, "Daftar akun gagal dimuat")
+		respondJSONError(w, 500, "Could not load accounts")
 		return
 	}
 	respondJSON(w, 200, map[string]any{"accounts": accounts})
@@ -45,12 +45,12 @@ func (s *Server) handleCreateProviderAccount(w http.ResponseWriter, r *http.Requ
 		Label string `json:"label"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil {
-		respondJSONError(w, 400, "Nama akun tidak valid")
+		respondJSONError(w, 400, "Invalid account name")
 		return
 	}
 	a, err := agent.CreateProviderAccount(owner, req.Label)
 	if err != nil {
-		respondJSONError(w, 400, "Akun tidak dapat dibuat. Isi nama akun maksimal 100 karakter.")
+		respondJSONError(w, 400, "Could not create the account. Enter a name of up to 100 characters.")
 		return
 	}
 	respondJSON(w, 201, map[string]any{"account": a})
@@ -62,7 +62,7 @@ func (s *Server) handleProviderAccountAuthInit(w http.ResponseWriter, r *http.Re
 	}
 	id := chi.URLParam(r, "accountID")
 	if _, err := agent.GetProviderAccount(owner, id); err != nil {
-		respondJSONError(w, 404, "Akun tidak ditemukan")
+		respondJSONError(w, 404, "Account not found")
 		return
 	}
 	session, err := agent.StartProviderAccountAuth(r.Context(), owner, id)
@@ -83,19 +83,19 @@ func (s *Server) handleProviderAccountAuthCode(w http.ResponseWriter, r *http.Re
 		Code      string `json:"code"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req) != nil {
-		respondJSONError(w, 400, "Permintaan kode tidak valid")
+		respondJSONError(w, 400, "Invalid authorization code request")
 		return
 	}
 	if r.URL.Query().Get("cancel") == "true" {
 		if err := agent.CancelProviderAccountAuth(owner, id, req.SessionID); err != nil {
-			respondJSONError(w, 404, "Sesi login tidak tersedia")
+			respondJSONError(w, 404, "Sign-in session is unavailable")
 			return
 		}
 		respondJSON(w, 200, map[string]any{"status": "cancelled"})
 		return
 	}
 	if strings.TrimSpace(req.Code) == "" {
-		respondJSONError(w, 400, "Kode otorisasi wajib diisi")
+		respondJSONError(w, 400, "Enter an authorization code")
 		return
 	}
 	if err := agent.SubmitProviderAccountAuth(owner, id, req.SessionID, req.Code); err != nil {
@@ -104,7 +104,7 @@ func (s *Server) handleProviderAccountAuthCode(w http.ResponseWriter, r *http.Re
 	}
 	a, err := agent.VerifyProviderAccount(r.Context(), owner, id)
 	if err != nil {
-		respondJSONError(w, 500, "Login diproses, tetapi status akun belum dapat disimpan. Muat ulang daftar akun.")
+		respondJSONError(w, 500, "Sign-in processed, but account status could not be saved. Reload the account list.")
 		return
 	}
 	// Successful exchange and provider availability are distinct; quota never discards login.
@@ -117,7 +117,7 @@ func (s *Server) handleVerifyProviderAccount(w http.ResponseWriter, r *http.Requ
 	}
 	a, err := agent.VerifyProviderAccount(r.Context(), owner, chi.URLParam(r, "accountID"))
 	if err != nil {
-		respondJSONError(w, 404, "Akun tidak tersedia untuk verifikasi")
+		respondJSONError(w, 404, "Account is unavailable for verification")
 		return
 	}
 	respondJSON(w, 200, map[string]any{"account": a})

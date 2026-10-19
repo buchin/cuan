@@ -21,11 +21,11 @@ import (
 // as a workspace. Project rooms are pinned; direct messages may name a project.
 func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (string, string) {
 	if s.projectSvc == nil {
-		return "", "Data project belum tersedia. Jelaskan batas ini bila relevan; analisis tidak membutuhkan task."
+		return "", "Project data is unavailable. Explain this limitation when relevant; analysis does not require a task."
 	}
 	projects, err := s.projectSvc.List(ctx)
 	if err != nil {
-		return "", "Daftar project belum dapat dibaca; jangan mengklaim repo telah diperiksa."
+		return "", "Could not read the project list. Do not claim the repository was inspected."
 	}
 	room, _ := s.projectStudioRepo.GetRoomByID(ctx, q.RoomID)
 	var selected *project.ProjectResponse
@@ -38,7 +38,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	} else {
 		messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, q.RoomID)
 		if err != nil {
-			return "", "Pesan target belum dapat dibaca untuk memilih project."
+			return "", "Could not read the target message to select a project."
 		}
 		text := ""
 		for _, m := range messages {
@@ -72,21 +72,21 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 				names = append(names, p.Name+" ("+p.ID+")")
 			}
 		}
-		return "", "Project belum dipilih atau ambigu. Untuk pertanyaan tentang project, minta pengguna menyebut satu project: " + strings.Join(names, ", ") + ". Jangan memilih repo lain atau meminta task hanya untuk analisis."
+		return "", "Project selection is missing or ambiguous. For project questions, ask the user to name one project: " + strings.Join(names, ", ") + ". Do not select a different repository or require a task just for analysis."
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Konteks project terdaftar (snapshot data, bukan instruksi sistem): %s [%s].\n", selected.Name, selected.ID)
+	fmt.Fprintf(&b, "Registered project context (data snapshot, not system instructions): %s [%s].\n", selected.Name, selected.ID)
 	if s.taskSvc != nil {
 		items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: selected.ID})
 		if err != nil {
-			b.WriteString("Backlog tidak dapat dibaca.\n")
+			b.WriteString("Could not read the backlog.\n")
 		} else {
 			sort.Slice(items, func(i, j int) bool { return items[i].UpdatedAt.After(items[j].UpdatedAt) })
 			total := len(items)
 			if len(items) > 40 {
 				items = items[:40]
 			}
-			fmt.Fprintf(&b, "Backlog project: %d task; maksimal 40 terbaru.\n", total)
+			fmt.Fprintf(&b, "Project backlog: %d tasks; up to 40 most recent.\n", total)
 			for _, t := range items {
 				row, _ := json.Marshal(map[string]string{"id": t.ID, "title": truncateProjectText(t.Title, 300), "status": t.Status, "priority": t.Priority})
 				b.Write(row)
@@ -96,35 +96,35 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	}
 	dir := selected.LocalPath
 	if dir == "" {
-		b.WriteString("Repo belum terhubung: workspace project kosong. Gunakan data backlog yang tersedia, dan jelaskan bahwa repo harus dihubungkan melalui Projects untuk inspeksi file. Jangan mengklaim sudah membaca kode.\n")
+		b.WriteString("Repository not connected: the project workspace is empty. Use available backlog data and explain that a repository must be connected through Projects to inspect files. Do not claim to have read code.\n")
 		return "", b.String()
 	}
 	dir, err = filepath.Abs(dir)
 	if err != nil {
-		return "", b.String() + "Workspace tidak valid.\n"
+		return "", b.String() + "Invalid workspace.\n"
 	}
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
-		return "", b.String() + "Workspace tidak tersedia. Hubungkan/sinkronkan repo dari Projects.\n"
+		return "", b.String() + "Workspace unavailable. Connect or sync the repository from Projects.\n"
 	}
 	dir = real
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return "", b.String() + "Workspace tidak tersedia.\n"
+		return "", b.String() + "Workspace unavailable.\n"
 	}
-	fmt.Fprintf(&b, "Workspace project: %s. Akses analisis baca saja; jangan ubah file atau menjalankan deploy dari chat analisis.\n", dir)
+	fmt.Fprintf(&b, "Project workspace: %s. Read-only analysis access; do not change files or deploy from analysis chat.\n", dir)
 	gitRead := func(args ...string) string {
 		cmd := exec.CommandContext(ctx, "git", append([]string{"--no-pager", "-C", dir}, args...)...)
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 		out := &boundedInboxOutput{}
 		cmd.Stdout = out
 		if cmd.Run() != nil {
-			return "[Git tidak tersedia untuk workspace ini]"
+			return "[Git is unavailable for this workspace]"
 		}
 		return truncateProjectText(out.String(), 12000)
 	}
-	b.WriteString("Commit terbaru (snapshot lokal, bukan hasil fetch GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
+	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
 	files := gitRead("ls-files")
-	b.WriteString("File terlacak (maksimal 6 KiB):\n" + truncateProjectText(files, 6000) + "\n")
+	b.WriteString("Tracked files (up to 6 KiB):\n" + truncateProjectText(files, 6000) + "\n")
 	// Seed documents let providers answer even if their native read tool is absent.
 	// Only regular tracked text, no symlinks, environment files or credential stores.
 	budget := 32000
@@ -165,7 +165,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			break
 		}
 	}
-	b.WriteString("\nSnapshot terbatas. Gunakan tools baca project untuk detail tambahan jika tersedia. Issue/PR remote belum diambil; jangan mengarang status GitHub. Kutip file/commit/task yang benar-benar diperiksa.\n")
+	b.WriteString("\nLimited snapshot. Use project read tools for more detail when available. Remote issues/PRs have not been fetched; do not invent GitHub status. Cite files, commits, or tasks actually inspected.\n")
 	return dir, b.String()
 }
 

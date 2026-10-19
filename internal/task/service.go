@@ -43,14 +43,14 @@ func (s *Service) SeedSprint1Tasks(ctx context.Context) error {
 		status       string
 		priority     string
 	}{
-		{"T1", "Tetapkan fondasi monorepo dan kelayakan adapter agent", "Spike adapter agy, monorepo Go + React Vite TS, Apache-2.0", TaskStatusDone, PriorityHigh},
-		{"T2", "Sediakan instalasi persisten dan akses owner", "Mode single-owner, bcrypt, proteksi takeover 403, PostgreSQL persistent", TaskStatusDone, PriorityHigh},
-		{"T3", "Hubungkan repository GitHub existing", "Akses GitHub via PAT aman AES-256-GCM, validasi 404/401, non-destructive delete", TaskStatusDone, PriorityHigh},
-		{"T4", "Bangun task board dan histori pekerjaan", "Task CRUD, pemisahan status task vs attempt, activity history, UI Kanban & detail", TaskStatusDoing, PriorityNormal},
-		{"T5", "Jalankan task melalui runner dan satu agent", "Runner terautentikasi, lease/heartbeat, cancel/timeout, monitoring CPU/RAM", TaskStatusBacklog, PriorityHigh},
-		{"T6", "Hasilkan perubahan Git dan PR yang dapat direview", "Workspace per task, targeted validation, commit/push, PR di repo Cuan", TaskStatusBacklog, PriorityHigh},
-		{"T7", "Buktikan staging, update, backup, dan pemulihan", "Deploy berversi, staging terpisah, backup/restore, health check, rollback drill", TaskStatusBacklog, PriorityNormal},
-		{"T8", "Demo dogfooding dan siapkan release OSS", "Develop Cuan using Cuan, demo dogfooding, OSS readiness checklist", TaskStatusBacklog, PriorityNormal},
+		{"T1", "Establish the monorepo foundation and agent adapter feasibility", "Prototype the agy adapter and Go + React Vite TypeScript monorepo under Apache-2.0", TaskStatusDone, PriorityHigh},
+		{"T2", "Provide persistent installation and owner access", "Single-owner mode, bcrypt, takeover protection (403), and persistent PostgreSQL", TaskStatusDone, PriorityHigh},
+		{"T3", "Connect an existing GitHub repository", "GitHub access with AES-256-GCM-protected PATs, 404/401 validation, and non-destructive deletion", TaskStatusDone, PriorityHigh},
+		{"T4", "Build the task board and work history", "Task CRUD, separate task/attempt states, activity history, Kanban UI, and details", TaskStatusDoing, PriorityNormal},
+		{"T5", "Execute tasks through a runner and one agent", "Authenticated runner, lease/heartbeat, cancellation/timeout, and CPU/RAM monitoring", TaskStatusBacklog, PriorityHigh},
+		{"T6", "Produce Git changes and a pull request for review", "Per-task workspace, targeted validation, commit/push, and a PR in the Cuan repository", TaskStatusBacklog, PriorityHigh},
+		{"T7", "Verify staging, updates, backup, and recovery", "Versioned deployment, isolated staging, backup/restore, health checks, and rollback drill", TaskStatusBacklog, PriorityNormal},
+		{"T8", "Demonstrate dogfooding and prepare the OSS release", "Develop Cuan using Cuan, demo dogfooding, OSS readiness checklist", TaskStatusBacklog, PriorityNormal},
 	}
 
 	for _, seed := range seeds {
@@ -71,7 +71,7 @@ func (s *Service) SeedSprint1Tasks(ctx context.Context) error {
 			ActivityType: ActivityTypeCreated,
 			Author:       "system",
 			NewStatus:    t.Status,
-			Message:      fmt.Sprintf("Task S1 '%s' diinisialisasi dalam status '%s'.", t.ID, t.Status),
+			Message:      fmt.Sprintf("Sprint 1 task '%s' initialized with status '%s'.", t.ID, t.Status),
 			CreatedAt:    t.CreatedAt,
 		}
 		_ = s.store.CreateActivity(ctx, act)
@@ -109,7 +109,7 @@ func (s *Service) CreateTaskFromMessage(ctx context.Context, author, source stri
 func (s *Service) createTaskWithID(ctx context.Context, author string, req CreateTaskRequest, id string) (*Task, error) {
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
-		return nil, fmt.Errorf("%w: judul task wajib diisi", ErrInvalidTaskInput)
+		return nil, fmt.Errorf("%w: task title is required", ErrInvalidTaskInput)
 	}
 
 	priority := strings.ToLower(strings.TrimSpace(req.Priority))
@@ -119,7 +119,7 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 	switch priority {
 	case PriorityLow, PriorityNormal, PriorityHigh, PriorityUrgent:
 	default:
-		return nil, fmt.Errorf("%w: priority tidak valid ('%s')", ErrInvalidTaskInput, priority)
+		return nil, fmt.Errorf("%w: invalid priority ('%s')", ErrInvalidTaskInput, priority)
 	}
 
 	assignedAgent := strings.TrimSpace(req.AssignedAgent)
@@ -161,7 +161,7 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		ActivityType: ActivityTypeCreated,
 		Author:       author,
 		NewStatus:    t.Status,
-		Message:      fmt.Sprintf("Task dibuat dengan prioritas '%s' dan agent '%s'.", t.Priority, t.AssignedAgent),
+		Message:      fmt.Sprintf("Task created with priority '%s' and agent '%s'.", t.Priority, t.AssignedAgent),
 		CreatedAt:    t.CreatedAt,
 	}
 	_ = s.store.CreateActivity(ctx, act)
@@ -274,7 +274,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 	if req.Title != nil {
 		title := strings.TrimSpace(*req.Title)
 		if title == "" {
-			return nil, fmt.Errorf("%w: judul task tidak boleh kosong", ErrInvalidTaskInput)
+			return nil, fmt.Errorf("%w: task title cannot be empty", ErrInvalidTaskInput)
 		}
 		t.Title = title
 	}
@@ -296,7 +296,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 		case PriorityLow, PriorityNormal, PriorityHigh, PriorityUrgent:
 			t.Priority = p
 		default:
-			return nil, fmt.Errorf("%w: priority tidak valid ('%s')", ErrInvalidTaskInput, p)
+			return nil, fmt.Errorf("%w: invalid priority ('%s')", ErrInvalidTaskInput, p)
 		}
 	}
 
@@ -317,7 +317,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 				t.Status = st
 			}
 		default:
-			return nil, fmt.Errorf("%w: status task '%s' tidak valid", ErrInvalidTaskInput, st)
+			return nil, fmt.Errorf("%w: invalid task status '%s'", ErrInvalidTaskInput, st)
 		}
 	}
 
@@ -408,7 +408,7 @@ func (s *Service) DeleteTask(ctx context.Context, id string) error {
 func (s *Service) AddComment(ctx context.Context, taskID string, author string, message string) (*TaskActivity, error) {
 	msg := strings.TrimSpace(message)
 	if msg == "" {
-		return nil, fmt.Errorf("%w: pesan komentar tidak boleh kosong", ErrInvalidTaskInput)
+		return nil, fmt.Errorf("%w: comment cannot be empty", ErrInvalidTaskInput)
 	}
 
 	// Verify task exists
@@ -515,7 +515,7 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 	case AttemptStatusQueued, AttemptStatusRunning, AttemptStatusSucceeded, AttemptStatusFailed, AttemptStatusCanceled, AttemptStatusInterrupted:
 		att.Status = newStatus
 	default:
-		return nil, fmt.Errorf("%w: status attempt '%s' tidak valid", ErrInvalidTaskInput, newStatus)
+		return nil, fmt.Errorf("%w: invalid attempt status '%s'", ErrInvalidTaskInput, newStatus)
 	}
 
 	now := time.Now().UTC()
@@ -547,7 +547,7 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 		msg += fmt.Sprintf(" (exit code: %d)", *att.ExitCode)
 	}
 	if att.ErrorMessage != "" {
-		msg += fmt.Sprintf(" [Pesan: %s]", att.ErrorMessage)
+		msg += fmt.Sprintf(" [Message: %s]", att.ErrorMessage)
 	}
 
 	act := &TaskActivity{
@@ -580,11 +580,11 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 		return nil, err
 	}
 	if latest == nil {
-		return nil, fmt.Errorf("%w: tidak ada attempt yang dapat dibatalkan", ErrAttemptNotFound)
+		return nil, fmt.Errorf("%w: no attempt is available to cancel", ErrAttemptNotFound)
 	}
 
 	if latest.Status != AttemptStatusRunning && latest.Status != AttemptStatusQueued {
-		return nil, fmt.Errorf("%w: attempt berstatus '%s' tidak dapat dibatalkan", ErrInvalidTaskInput, latest.Status)
+		return nil, fmt.Errorf("%w: cannot cancel an attempt with status '%s'", ErrInvalidTaskInput, latest.Status)
 	}
 
 	now := time.Now().UTC()
@@ -594,7 +594,7 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 	latest.FinishedAt = &now
 	exitCanceled := 130 // SIGINT exit code standard
 	latest.ExitCode = &exitCanceled
-	latest.ErrorMessage = fmt.Sprintf("Dibatalkan oleh %s", author)
+	latest.ErrorMessage = fmt.Sprintf("Cancelled by %s", author)
 
 	if err := s.store.UpdateAttempt(ctx, latest); err != nil {
 		return nil, fmt.Errorf("update cancel attempt: %w", err)
@@ -614,7 +614,7 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 		Author:       author,
 		OldStatus:    t.Status,
 		NewStatus:    TaskStatusBlocked,
-		Message:      fmt.Sprintf("Pembatalan attempt %s diminta oleh %s. Seluruh process tree agent dihentikan.", latest.ID, author),
+		Message:      fmt.Sprintf("Cancellation of attempt %s requested by %s. The agent's entire process tree was stopped.", latest.ID, author),
 		CreatedAt:    now,
 	}
 	_ = s.store.CreateActivity(ctx, act)
@@ -637,7 +637,7 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, author string, r
 	nextAttemptNum := 1
 	if latest != nil {
 		if latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued {
-			return nil, fmt.Errorf("%w: task sedang berjalan atau sudah dalam antrean", ErrInvalidTaskInput)
+			return nil, fmt.Errorf("%w: task is running or already queued", ErrInvalidTaskInput)
 		}
 		if latest.AttemptNumber > 0 {
 			nextAttemptNum = latest.AttemptNumber + 1
@@ -716,7 +716,7 @@ func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
 		if a.LeaseExpiresAt != nil && time.Now().Before(*a.LeaseExpiresAt) {
 			continue
 		}
-		if _, err = s.UpdateAttemptStatus(ctx, a.ID, "recovery", UpdateAttemptRequest{Status: AttemptStatusInterrupted, ErrorMessage: "Sesi lokal terputus atau lease habis. Hasil belum pasti; tidak dijalankan ulang otomatis."}); err != nil {
+		if _, err = s.UpdateAttemptStatus(ctx, a.ID, "recovery", UpdateAttemptRequest{Status: AttemptStatusInterrupted, ErrorMessage: "The local session was interrupted or its lease expired. The result is unknown. It will not be rerun automatically."}); err != nil {
 			return err
 		}
 		if err = s.ReconcileLocalTask(ctx, t.ID, a.ID); err != nil {

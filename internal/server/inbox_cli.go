@@ -48,12 +48,12 @@ func (b *boundedInboxOutput) String() string { b.mu.Lock(); defer b.mu.Unlock();
 
 func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string)) (string, string) {
 	if s.cfg != nil && s.cfg.Environment == "testing" {
-		return "", "Provider tidak tersedia. Pesan tersimpan; periksa instalasi CLI dan koneksi agen ini."
+		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
 	if home == "" {
 		home, _ = os.UserHomeDir()
 	}
-	system := fmt.Sprintf("Anda adalah %s, rekan kerja di Cuan. Jawab sesuai kebutuhan pesan: sapaan singkat, pertanyaan substantif dengan jawaban yang berguna, atau minta klarifikasi bila ambigu. Gunakan bahasa pengguna. Jangan memaksa semua pesan menjadi sapaan. Jangan mengklaim aksi, perubahan file, task, atau deployment yang belum dilakukan. Anda memiliki konteks project dan boleh menggunakan tools baca untuk analisis repo, backlog, dan rekomendasi sprint tanpa membuat task. Untuk analisis gunakan view_file, list_dir, grep_search, find_by_name, view_file_outline atau view_code_item. Jangan gunakan run_command atau terminal karena chat tidak menyediakan konfirmasi interaktif. Jika akses tool ditolak, jelaskan batasan dan jawab berdasarkan informasi yang sudah tersedia; jangan mengklaim perintah berhasil. Gunakan hanya workspace project yang diberikan; jangan membaca credential, profil login atau project lain. Jangan mengubah file, commit, menjalankan tes/build, atau deployment saat analisis chat. Untuk implementasi yang perlu dilacak, tawarkan task. Jika snapshot menyebut repo belum terhubung atau project ambigu, jelaskan kondisi tersebut dan minta project yang benar; jangan mengaku tidak punya tools secara umum. Jangan tampilkan reasoning privat, token, credential atau diagnostik runtime.\n\n%s", name, prompt)
+	system := fmt.Sprintf("You are %s, a colleague in Cuan. Respond to the message appropriately: a brief greeting, a useful substantive answer, or a clarification when ambiguous. Use the user's language. Do not turn every message into a greeting. Do not claim actions, file changes, tasks, or deployments that have not happened. You have project context and may use read-only tools to analyze repositories, backlogs, and sprint recommendations without creating a task. For analysis use view_file, list_dir, grep_search, find_by_name, view_file_outline, or view_code_item. Do not use run_command or the terminal because chat does not offer interactive approvals. If a tool is denied, explain the limitation and answer from available information; do not claim the command succeeded. Use only the provided project workspace; do not read credentials, sign-in profiles, or other projects. Do not change files, commit, run tests/builds, or deploy during chat analysis. Offer a task for implementation that needs tracking. If the snapshot says the repository is not connected or the project is ambiguous, explain and ask for the correct project; do not claim tools are generally unavailable. Do not expose private reasoning, tokens, credentials, or runtime diagnostics.\n\n%s", name, prompt)
 	system = inboxTaskDraftInstruction + "\n\n" + system
 	binary := "agy"
 	var args []string
@@ -67,7 +67,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	case "", "agy", "antigravity":
 		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 	default:
-		return "", "Jenis CLI agen belum didukung untuk percakapan. Gunakan agen agy, Claude, atau Codex yang terdaftar."
+		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, or Codex agent."
 	}
 	path, err := exec.LookPath(binary)
 	if err != nil && binary == "agy" {
@@ -78,7 +78,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 		}
 	}
 	if err != nil {
-		return "", "Provider tidak tersedia. Pesan tersimpan; periksa instalasi CLI dan koneksi agen ini."
+		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = home
@@ -101,7 +101,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	stdout := &boundedInboxOutput{}
 	stderr := &boundedInboxOutput{}
 	if step != nil {
-		stdout.first = func() { step("output", "Menerima hasil proses provider.") }
+		stdout.first = func() { step("output", "Receiving the provider's output.") }
 	}
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
@@ -114,16 +114,16 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	started := time.Now()
 	if err := cmd.Start(); err != nil {
 		if step != nil {
-			step("provider_result", "Proses provider tidak dapat dimulai.")
+			step("provider_result", "Could not start the provider process.")
 		}
 		return "", safeInboxProviderFailure(ctx.Err(), "")
 	}
 	if step != nil {
-		step("provider", "Proses agen berjalan; menunggu respons provider.")
+		step("provider", "Agent process is running. Waiting for the provider's response.")
 	}
 	runErr := cmd.Wait()
 	if step != nil {
-		step("provider_result", fmt.Sprintf("Proses provider selesai: exit %d, durasi %.1f dtk.", cmd.ProcessState.ExitCode(), time.Since(started).Seconds()))
+		step("provider_result", fmt.Sprintf("Provider process finished: exit %d, duration %.1f s.", cmd.ProcessState.ExitCode(), time.Since(started).Seconds()))
 	}
 	if runtime != nil {
 		raw, failure, reason := runtime.finish()
@@ -137,12 +137,12 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 			}
 			if failure == "" {
 				if step != nil {
-					step("result_validation", "Balasan provider tervalidasi.")
+					step("result_validation", "Provider reply validated.")
 				}
 				return reply, ""
 			}
 			if reason == "empty_response" && runtime.toolFailures > 0 {
-				failure = "Agen tidak menghasilkan balasan setelah aktivitas tool gagal. Pesan tersimpan; buka detail respons. Permintaan tidak dijalankan ulang otomatis."
+				failure = "The agent returned no reply after a tool failed. Your message is saved. Open Details. The request will not be rerun automatically."
 			}
 		}
 		lowerDiagnostic := strings.ToLower(stderr.String())
@@ -154,7 +154,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 			failure = safeInboxProviderFailure(ctx.Err(), "")
 			reason = "runtime_interrupted"
 		}
-		labels := map[string]string{"runtime_missing_result": "Runtime berhenti tanpa hasil akhir.", "runtime_invalid": "Event runtime tidak dapat divalidasi.", "runtime_overflow": "Batas ukuran aktivitas runtime tercapai.", "runtime_process_failure": "Proses runtime gagal.", "runtime_interrupted": "Proses terputus atau melewati batas waktu.", "provider_failure": "Provider melaporkan kegagalan.", "provider_timeout": "Provider melewati batas waktu.", "tool_permission_denied": "Izin tool ditolak; runtime berhenti tanpa teks balasan.", "empty_response": "Provider tidak menghasilkan teks balasan.", "invalid_result": "Hasil akhir runtime tidak valid.", "empty_output": "Runtime tidak mengembalikan hasil akhir."}
+		labels := map[string]string{"runtime_missing_result": "The runtime stopped without a final result.", "runtime_invalid": "Could not validate runtime events.", "runtime_overflow": "Runtime activity size limit reached.", "runtime_process_failure": "Runtime process failed.", "runtime_interrupted": "The process was interrupted or timed out.", "provider_failure": "The provider reported a failure.", "provider_timeout": "The provider timed out.", "tool_permission_denied": "Tool permission denied. The runtime stopped without a reply.", "empty_response": "The provider returned no reply text.", "invalid_result": "Invalid runtime final result.", "empty_output": "The runtime returned no final result."}
 		if step != nil {
 			step("result_validation", labels[reason])
 		}
@@ -166,7 +166,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	}
 
 	if stdout.overflow {
-		return "", "Balasan melewati batas ukuran. Pesan tersimpan; pecah permintaan menjadi bagian lebih kecil."
+		return "", "Reply exceeded the size limit. Your message is saved. Split your request into smaller parts."
 	}
 	output := strings.TrimSpace(stdout.String())
 
@@ -192,7 +192,7 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 		return "", safeInboxProviderFailure(nil, stderr), "empty_output"
 	}
 	if json.Unmarshal([]byte(raw), &result) != nil {
-		return "", "Hasil agen belum dapat dibaca. Pesan tersimpan; coba periksa koneksi agen. Pesan tidak dikirim ulang otomatis.", "invalid_result"
+		return "", "Could not read the agent's result. Your message is saved. Check the agent connection. This message will not be resent automatically.", "invalid_result"
 	}
 	if strings.ToUpper(strings.TrimSpace(result.Status)) != "SUCCESS" {
 		diagnostic := result.Status + "\n" + string(result.Error) + "\n" + result.Message + "\n" + stderr
@@ -204,12 +204,12 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 	reply := strings.TrimSpace(result.Response)
 	if reply == "" {
 		if len(result.DeniedActions) > 0 {
-			return "", "Agen berhenti karena izin tool ditolak. Chat tidak menyediakan konfirmasi terminal; gunakan pertanyaan yang dapat dianalisis dengan tool baca atau buat task untuk eksekusi. Pesan tersimpan; permintaan tidak dijalankan ulang otomatis.", "tool_permission_denied"
+			return "", "The agent stopped because tool permission was denied. Chat does not offer terminal approvals. Ask a question that can use read-only tools, or create a task for execution. Your message is saved. The request will not be rerun automatically.", "tool_permission_denied"
 		}
 		if strings.TrimSpace(stderr) != "" {
 			return "", safeInboxProviderFailure(nil, stderr), "empty_response"
 		}
-		return "", "Agen belum menghasilkan balasan. Pesan tersimpan; Anda dapat mencoba lagi dengan pesan baru. Pesan ini tidak dikirim ulang otomatis.", "empty_response"
+		return "", "The agent returned no reply. Your message is saved. You can try again with a new message. This message will not be resent automatically.", "empty_response"
 	}
 	return reply, "", "success"
 }

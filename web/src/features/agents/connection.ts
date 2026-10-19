@@ -9,7 +9,7 @@ export function agentForContact(contact: ChatContact, agents: Agent[]) {
 
 export function connectionStatus(agent?: Agent, now = Date.now()) {
   if (agent && (agent.enabled === false || agent.status === 'inactive'))
-    return { state: 'disabled', label: 'Dinonaktifkan', verified: false }
+    return { state: 'disabled', label: 'Disabled', verified: false }
   let state = agent?.connection_state || 'unknown'
   const verified = Date.parse(agent?.verified_at || '')
   if (
@@ -20,11 +20,11 @@ export function connectionStatus(agent?: Agent, now = Date.now()) {
   )
     state = 'unknown'
   const labels: Record<string, string> = {
-    verified: 'Terhubung',
-    login_required: 'Perlu login',
-    quota_limited: 'Kuota terbatas',
-    unavailable: 'Koneksi terganggu',
-    unknown: 'Belum diperiksa',
+    verified: 'Connected',
+    login_required: 'Sign-in required',
+    quota_limited: 'Quota limited',
+    unavailable: 'Connection error',
+    unknown: 'Not checked',
   }
   return {
     state,

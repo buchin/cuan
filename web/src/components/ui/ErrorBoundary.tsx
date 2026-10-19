@@ -37,23 +37,23 @@ export class ErrorBoundary extends Component<Props, State> {
               !
             </div>
             <h2 className="text-sm font-bold text-destructive">
-              Aplikasi Mengalami Kendala Tampilan
+              Something went wrong
             </h2>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              {this.state.error?.message || 'Terjadi kesalahan runtime yang tidak terduga.'}
+              {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
             <div className="pt-2 flex justify-center gap-3">
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-colors rounded"
               >
-                Muat Ulang Halaman
+                Reload page
               </button>
               <button
                 onClick={this.handleReset}
                 className="px-4 py-2 bg-secondary text-secondary-foreground font-semibold text-xs hover:bg-secondary/80 transition-colors border border-border rounded"
               >
-                Reset Sesi
+                Reset session
               </button>
             </div>
           </div>

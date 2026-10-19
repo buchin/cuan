@@ -185,9 +185,9 @@ func jsonHasCredentialValue(val any) bool {
 // GetAntigravityAuthStatus returns current authentication status for the Antigravity harness.
 func GetAntigravityAuthStatus() map[string]interface{} {
 	_, loggedIn := ResolveAntigravityTokenPath()
-	msg := "Sesi Antigravity server belum terotentikasi"
+	msg := "Antigravity server session is not signed in"
 	if loggedIn {
-		msg = "Kredensial server tersedia; koneksi provider belum diverifikasi"
+		msg = "Server credentials are available. Provider connection has not been verified"
 	}
 	return map[string]interface{}{
 		"status":              "success",
@@ -356,9 +356,9 @@ func submitAntigravityAuthCode(sessionID, code, ownerID, accountID string) error
 			return errors.New("authorization failed; restart login")
 		case <-session.Failure:
 			CancelAntigravityAuthSession(sessionID)
-			return errors.New("Google menolak kode otorisasi. Mulai ulang login untuk mendapatkan kode baru.")
+			return errors.New("Google rejected the authorization code. Restart sign-in to get a new code.")
 		case <-deadline.C:
-			return errors.New("CLI belum menyimpan kredensial; hasil login belum terkonfirmasi. Coba verifikasi lagi atau mulai ulang login.")
+			return errors.New("The CLI has not saved credentials. Sign-in is not confirmed. Verify again or restart sign-in.")
 		}
 	}
 }
@@ -431,9 +431,9 @@ func VerifyAntigravityProfile(ctx context.Context, home string) error {
 func antigravityProbeError(output string) error {
 	lower := strings.ToLower(output)
 	if strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "quota") {
-		return errors.New("Kuota provider Antigravity sedang dibatasi. Kredensial tetap tersimpan; tunggu kuota pulih lalu coba verifikasi lagi. Login Google ulang tidak menambah kuota.")
+		return errors.New("Antigravity provider quota is limited. Credentials are saved. Wait for the quota to reset and verify again. Signing in to Google again does not increase quota.")
 	}
-	return errors.New("Koneksi provider Antigravity belum dapat diverifikasi. Kredensial tetap tersimpan; coba verifikasi lagi. Jangan ulangi login hanya karena gangguan provider.")
+	return errors.New("Could not verify the Antigravity provider connection. Credentials are saved. Verify again. A provider outage does not require signing in again.")
 }
 
 func validGoogleAuthURL(raw string) bool {

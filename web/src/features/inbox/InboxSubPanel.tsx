@@ -6,7 +6,7 @@ import { Search, Bot, User } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export function conversationPreview(message?: string) {
-  if (!message?.trim()) return 'Belum ada pesan.'
+  if (!message?.trim()) return 'No messages yet.'
   return (
     message
       .replace(/^\s*\[@[^\]\r\n]{1,100}\]\s*/, '')
@@ -22,7 +22,7 @@ export function conversationPreview(message?: string) {
       .replace(/~~([^~]+)~~/g, '$1')
       .replace(/(^|\n)\s{0,3}(?:#{1,6} |[>]|[-*] )/g, ' ')
       .replace(/\s+/g, ' ')
-      .trim() || 'Belum ada pesan.'
+      .trim() || 'No messages yet.'
   )
 }
 
@@ -96,13 +96,13 @@ export function InboxSubPanel({
     const yesterday = new Date()
     yesterday.setDate(today.getDate() - 1)
     if (date.toDateString() === today.toDateString())
-      return date.toLocaleTimeString('id-ID', {
+      return date.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
       })
-    if (date.toDateString() === yesterday.toDateString()) return 'Kemarin'
-    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
   }
 
   return (
@@ -115,8 +115,8 @@ export function InboxSubPanel({
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            aria-label="Cari percakapan"
-            placeholder="Cari percakapan…"
+            aria-label="Search conversations"
+            placeholder="Search conversations…"
             className="w-full min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search border border-transparent text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
@@ -133,7 +133,7 @@ export function InboxSubPanel({
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            Semua
+            All
           </button>
           <button
             aria-pressed={activeTab === 'agents'}
@@ -145,7 +145,7 @@ export function InboxSubPanel({
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            <span>Agen</span>
+            <span>Agents</span>
             <span className="sr-only">({agentCount})</span>
           </button>
           <button
@@ -158,7 +158,7 @@ export function InboxSubPanel({
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            <span>Pelanggan</span>
+            <span>Customers</span>
             <span className="sr-only">({customerCount})</span>
           </button>
         </div>
@@ -168,18 +168,18 @@ export function InboxSubPanel({
       <div className="flex-1 overflow-y-auto divide-y divide-border/20">
         {loading ? (
           <p role="status" className="p-4 text-sm">
-            Memuat percakapan…
+            Loading conversations…
           </p>
         ) : error ? (
           <div role="alert" className="p-4 text-sm">
             <p>{error}</p>
             <button className="action-secondary mt-3" onClick={onRetry}>
-              Coba lagi
+              Try again
             </button>
           </div>
         ) : filteredContacts.length === 0 ? (
           <div className="p-6 text-center text-xs text-muted-foreground">
-            Belum ada percakapan yang cocok.
+            No matching conversations.
           </div>
         ) : (
           filteredContacts.map((contact) => {
@@ -239,7 +239,7 @@ export function InboxSubPanel({
                     </p>
                     {contact.unread_count > 0 && (
                       <span
-                        aria-label={`${contact.unread_count} pesan belum dibaca`}
+                        aria-label={`${contact.unread_count} unread messages`}
                         className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center"
                       >
                         {contact.unread_count}

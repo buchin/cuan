@@ -177,14 +177,14 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 
 	email, err := normalizeCRMEmail(payload.Email)
 	if err != nil || strings.HasPrefix(guestUUID, "manual_") || len(guestUUID) > 128 || len(payload.Product) > 100 || len(payload.Name) > 200 {
-		respondJSONError(w, 400, "Identitas pengunjung tidak valid")
+		respondJSONError(w, 400, "Invalid visitor identity")
 		return
 	}
 	product := strings.TrimSpace(payload.Product)
 	name := strings.TrimSpace(payload.Name)
 	contact, err := s.crmUpsert(r.Context(), guestUUID, product, name, email)
 	if err != nil {
-		respondJSONError(w, 503, "Sesi belum dapat disimpan")
+		respondJSONError(w, 503, "Could not save the session")
 		return
 	}
 	sessionUUID := contact.SessionUUID
@@ -224,7 +224,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 				CreatedAt: now,
 				UpdatedAt: now,
 			}); err != nil {
-				respondJSONError(w, 503, "Percakapan belum dapat disimpan")
+				respondJSONError(w, 503, "Could not save the conversation")
 				return
 			}
 		}
@@ -241,7 +241,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 				CreatedAt:  now,
 				UpdatedAt:  now,
 			}); err != nil {
-				respondJSONError(w, 503, "Pesan belum tersimpan")
+				respondJSONError(w, 503, "Message could not be saved")
 				return
 			}
 		}
@@ -274,7 +274,7 @@ func (s *Server) handleVisitorGetMessages(w http.ResponseWriter, r *http.Request
 	}
 
 	if _, err := s.crmSession(r.Context(), sessionUUID); err != nil {
-		respondJSONError(w, 404, "Sesi tidak ditemukan")
+		respondJSONError(w, 404, "Session not found")
 		return
 	}
 	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
@@ -340,7 +340,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 
 	sess, err := s.crmSession(r.Context(), sessionUUID)
 	if err != nil {
-		respondJSONError(w, 404, "Sesi tidak ditemukan; buka ulang live chat")
+		respondJSONError(w, 404, "Session not found. Reopen live chat")
 		return
 	}
 	authorName := "Customer"
@@ -364,7 +364,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 				CreatedAt: now,
 				UpdatedAt: now,
 			}); err != nil {
-				respondJSONError(w, 503, "Percakapan belum dapat disimpan")
+				respondJSONError(w, 503, "Could not save the conversation")
 				return
 			}
 		}
@@ -379,7 +379,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		}); err != nil {
-			respondJSONError(w, 503, "Pesan belum tersimpan")
+			respondJSONError(w, 503, "Message could not be saved")
 			return
 		}
 	}
@@ -488,7 +488,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						continue
 					}
 					roomID := ""
-					lastMsg := "Belum ada percakapan."
+					lastMsg := "No conversations yet."
 					lastAt := a.UpdatedAt
 					if s.projectStudioRepo != nil {
 						if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
@@ -542,7 +542,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		sessionList := []*LiveChatSession{}
 		saved, err := s.crmList(r.Context())
 		if err != nil {
-			respondJSONError(w, 503, "Percakapan pelanggan belum dapat dimuat")
+			respondJSONError(w, 503, "Could not load customer conversations")
 			return
 		}
 		for _, c := range saved {
@@ -575,7 +575,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		})
 
 		for _, sess := range sessionList {
-			lastMsg := "Sesi percakapan baru dimulai."
+			lastMsg := "A new conversation session has started."
 			lastAt := sess.UpdatedAt
 			unread := 0
 
@@ -850,19 +850,19 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		var err error
 		requests, err = store.ListInboxRequests(r.Context(), resolved.RoomID)
 		if err != nil {
-			respondJSONError(w, 503, "Status Inbox belum dapat dibaca. Coba segarkan lagi.")
+			respondJSONError(w, 503, "Could not read Inbox status. Refresh again.")
 			return
 		}
 	}
 	messages, err := s.getFormattedMessagesResult(r.Context(), resolved.RoomID, product)
 	if err != nil {
-		respondJSONError(w, 503, "Riwayat Inbox belum dapat dibaca. Coba lagi.")
+		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
 		return
 	}
 
 	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID)
 	if err != nil {
-		respondJSONError(w, 503, "Task percakapan belum dapat dibaca")
+		respondJSONError(w, 503, "Could not read conversation tasks")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -889,7 +889,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		RequestID  string `json:"request_id"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload) != nil {
-		respondJSONError(w, 400, "Permintaan tidak valid")
+		respondJSONError(w, 400, "Invalid request")
 		return
 	}
 	text := strings.TrimSpace(payload.Message)
@@ -897,7 +897,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		text = strings.TrimSpace(payload.Content)
 	}
 	if text == "" {
-		respondJSONError(w, 400, "Pesan tidak boleh kosong")
+		respondJSONError(w, 400, "Message cannot be empty")
 		return
 	}
 	legacy := payload.RequestID == ""
@@ -905,18 +905,18 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		payload.RequestID = db.GenerateUUID()
 	}
 	if !db.IsValidUUID(payload.RequestID) {
-		respondJSONError(w, 400, "request_id harus UUID")
+		respondJSONError(w, 400, "request_id must be a UUID")
 		return
 	}
 	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
 	if !ok {
-		respondJSONError(w, 503, "Penyimpanan Inbox belum siap")
+		respondJSONError(w, 503, "Inbox storage is not ready")
 		return
 	}
 	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
 	now := time.Now().UTC()
 	q := db.InboxRequest{RoomID: resolved.RoomID, RequestID: payload.RequestID, PayloadHash: fmt.Sprintf("%x", sha256.Sum256([]byte(text))), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: ownerID, AgentID: resolved.TargetAgentID, State: "queued", CreatedAt: now, Deadline: now.Add(24 * time.Hour)}
-	user := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", AuthorID: "operator_user", AuthorName: "Buchin", Content: text, CreatedAt: now, UpdatedAt: now}
+	user := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", AuthorID: "operator_user", AuthorName: "Owner", Content: text, CreatedAt: now, UpdatedAt: now}
 	if !resolved.IsAgent {
 		if kind, e := db.NormalizeAuthorType(payload.AuthorType); e == nil {
 			user.AuthorType = kind
@@ -927,15 +927,15 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	}
 	q, fresh, err := store.AcceptInboxRequest(r.Context(), q, user)
 	if errors.Is(err, db.ErrInboxQueueFull) {
-		respondJSONError(w, 429, "Antrean penuh (20 pesan). Tunggu atau batalkan pesan yang belum diproses.")
+		respondJSONError(w, 429, "Queue full (20 messages). Wait or cancel a queued message.")
 		return
 	}
 	if errors.Is(err, db.ErrInboxRequestConflict) {
-		respondJSONError(w, 409, "ID permintaan sudah digunakan untuk pesan berbeda")
+		respondJSONError(w, 409, "Request ID has already been used for a different message")
 		return
 	}
 	if err != nil {
-		respondJSONError(w, 503, "Pesan belum diterima. Penyimpanan Inbox belum siap; coba lagi dengan ID yang sama.")
+		respondJSONError(w, 503, "Message not accepted. Inbox storage is not ready. Try again using the same ID.")
 		return
 	}
 	if fresh {
@@ -948,7 +948,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	}
 	requests, err := store.ListInboxRequests(r.Context(), q.RoomID)
 	if err != nil {
-		respondJSONError(w, 503, "Pesan telah diterima. Segarkan riwayat untuk memeriksa hasil; jangan buat ID baru.")
+		respondJSONError(w, 503, "Message accepted. Refresh history to check the result. Do not create a new ID.")
 		return
 	}
 	for _, item := range requests {
@@ -1065,15 +1065,15 @@ func (s *Server) executeAgentInboxResponse(ctx context.Context, agentName string
 func safeInboxProviderFailure(ctxErr error, raw string) string {
 	lower := strings.ToLower(raw)
 	if ctxErr != nil {
-		return "Batas waktu provider tercapai. Pesan tersimpan; hasil provider belum pasti. Segarkan riwayat. Permintaan tidak dijalankan ulang otomatis."
+		return "Provider timed out. Your message is saved, but the result is unknown. Refresh history. The request will not be rerun automatically."
 	}
 	if strings.Contains(lower, "quota") || strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") {
-		return "Kuota provider sedang terbatas. Pesan tersimpan; tunggu kuota pulih. Tidak ada pengalihan akun otomatis."
+		return "Provider quota is limited. Your message is saved. Wait for the quota to reset; accounts will not be switched automatically."
 	}
 	if strings.Contains(lower, "unauthorized") || strings.Contains(lower, "login") || strings.Contains(lower, "401") || strings.Contains(lower, "invalid_grant") {
-		return "Login provider perlu diperiksa. Pesan tersimpan; buka status agen ini. Permintaan tidak dijalankan ulang otomatis."
+		return "Check the provider's sign-in status. Your message is saved. Open the agent's status. The request will not be rerun automatically."
 	}
-	return "Provider gagal memberikan balasan. Pesan tersimpan; periksa status agen ini lalu segarkan riwayat. Permintaan tidak dijalankan ulang otomatis."
+	return "The provider could not reply. Your message is saved. Check the agent's status and refresh history. The request will not be rerun automatically."
 }
 
 // ============================================================================
@@ -1208,36 +1208,36 @@ func generateSMTriageResponse(userMessage string) SMTriageResult {
 
 	if strings.Contains(lowerPrompt, "bug") || strings.Contains(lowerPrompt, "error") || strings.Contains(lowerPrompt, "perbaiki") || strings.Contains(lowerPrompt, "fix") {
 		dodList = []db.DoDItem{
-			{Text: "Investigasi root cause & isolasi bug pada modul terkait", Completed: false},
-			{Text: "Implementasikan perbaikan bug & patch di repositori", Completed: false},
-			{Text: "Targeted automated test PASS & zero regression verifikasi", Completed: false},
+			{Text: "Investigate the root cause and isolate the affected module", Completed: false},
+			{Text: "Implement the bug fix in the repository", Completed: false},
+			{Text: "Targeted automated tests pass with no regressions", Completed: false},
 		}
 	} else if strings.Contains(lowerPrompt, "deploy") || strings.Contains(lowerPrompt, "vps") || strings.Contains(lowerPrompt, "rilis") || strings.Contains(lowerPrompt, "release") {
 		dodList = []db.DoDItem{
-			{Text: "Build frontend bundle & kompilasi binary produksi", Completed: false},
-			{Text: "Sinkronisasi ke /opt/cuan di VPS target & restart service", Completed: false},
-			{Text: "Public smoke test HTTP 200 OK & verifikasi live pass", Completed: false},
+			{Text: "Build the frontend bundle and production binary", Completed: false},
+			{Text: "Sync the release to the target server and restart the service", Completed: false},
+			{Text: "Public smoke test returns HTTP 200 and live verification passes", Completed: false},
 		}
 	} else {
 		dodList = []db.DoDItem{
-			{Text: "Rancang spesifikasi teknis & breakdown task di repositori", Completed: false},
-			{Text: "Implementasikan solusi fitur sesuai standar arsitektur", Completed: false},
+			{Text: "Write technical specifications and break down the repository tasks", Completed: false},
+			{Text: "Implement the feature using the project architecture", Completed: false},
 			{Text: "Targeted automated unit test PASS & audit evidence", Completed: false},
 		}
 	}
 
-	respText := fmt.Sprintf(`Halo Buchin! Saya telah menganalisis kebutuhan Anda:
+	respText := fmt.Sprintf(`Here is a proposed plan for your request:
 
 **Problem Statement:**
 %s
 
-**Rencana Eksekusi & Definition of Done (DoD):**
+**Execution plan & definition of done:**
 1. %s
 2. %s
 3. %s
 
-**Rekomendasi Worker Agent:** %s (Limit kuota mencukupi).
-Silakan klik tombol **Mulai Kerjakan** di bawah untuk memulai eksekusi sprint.`, title, dodList[0].Text, dodList[1].Text, dodList[2].Text, worker)
+**Recommended worker agent:** %s (check quota before starting).
+Select **Approve and start task** below to begin execution.`, title, dodList[0].Text, dodList[1].Text, dodList[2].Text, worker)
 
 	return SMTriageResult{
 		ProblemTitle: title,

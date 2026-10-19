@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	ErrRunnerNotFound = errors.New("runner tidak ditemukan")
-	ErrAlreadyBusy    = errors.New("runner sudah menjalankan task aktif")
+	ErrRunnerNotFound = errors.New("Runner not found")
+	ErrAlreadyBusy    = errors.New("Runner already has an active task")
 )
 
 type Store interface {

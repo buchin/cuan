@@ -6,12 +6,12 @@ import (
 )
 
 var (
-	ErrAttemptFinal     = errors.New("attempt sudah terminal")
-	ErrTaskActive       = errors.New("task sudah memiliki eksekusi aktif")
-	ErrTaskDuplicate    = errors.New("task sudah ada")
-	ErrTaskNotFound     = errors.New("task tidak ditemukan")
-	ErrAttemptNotFound  = errors.New("attempt tidak ditemukan")
-	ErrInvalidTaskInput = errors.New("input task tidak valid")
+	ErrAttemptFinal     = errors.New("Attempt has already ended")
+	ErrTaskActive       = errors.New("Task already has an active execution")
+	ErrTaskDuplicate    = errors.New("Task already exists")
+	ErrTaskNotFound     = errors.New("Task not found")
+	ErrAttemptNotFound  = errors.New("Attempt not found")
+	ErrInvalidTaskInput = errors.New("Invalid task input")
 )
 
 type Store interface {

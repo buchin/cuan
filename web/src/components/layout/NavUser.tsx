@@ -1,20 +1,25 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ChangePasswordModal } from '../auth/ChangePasswordModal'
-import { LogOut, KeyRound, ChevronsUpDown, Settings } from 'lucide-react'
+import { LogOut, KeyRound, MoreHorizontal, Settings } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 interface NavUserProps {
   isCollapsed?: boolean
+  sidebar?: boolean
+  collapsed?: boolean
   dropdownPosition?: 'side' | 'bottom-right' | 'bottom-left'
   onSettings?: () => void
 }
 
 export function NavUser({
   isCollapsed = false,
+  sidebar = false,
+  collapsed = false,
   dropdownPosition,
   onSettings,
 }: NavUserProps) {
+  const compact = isCollapsed || (sidebar && collapsed)
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -70,33 +75,31 @@ export function NavUser({
         <button
           type="button"
           ref={triggerRef}
-          aria-label="Menu akun"
+          aria-label="Account menu"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
             'flex min-h-11 w-full items-center gap-2 p-2 text-left hover:bg-accent hover:text-accent-foreground transition-colors rounded-md',
-            isCollapsed && 'justify-center p-2',
+            compact && 'justify-center p-2',
+            sidebar && 'sidebar-account',
           )}
-          title={isCollapsed ? username : undefined}
+          title={compact ? username : undefined}
         >
           {/* Avatar */}
           <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full">
             {initials}
           </div>
 
-          {!isCollapsed && (
-            <div className="grid flex-1 text-left leading-tight truncate">
-              <span className="truncate font-semibold text-xs text-foreground">
+          {!compact && (
+            <div className="account-label grid min-w-0 flex-1 text-left leading-tight truncate">
+              <span className="truncate font-semibold text-sm text-foreground">
                 {username}
-              </span>
-              <span className="truncate text-[10px] text-muted-foreground">
-                {email}
               </span>
             </div>
           )}
 
-          {!isCollapsed && (
-            <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {!compact && (
+            <MoreHorizontal className="account-label h-4 w-4 text-muted-foreground shrink-0" />
           )}
         </button>
 
@@ -105,14 +108,14 @@ export function NavUser({
           <div
             data-account-popover
             role="region"
-            aria-label="Menu akun"
+            aria-label="Account menu"
             className={cn(
               'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1 rounded-lg',
               dropdownPosition === 'bottom-right'
                 ? 'right-0 top-full mt-1.5'
                 : dropdownPosition === 'bottom-left'
                   ? 'left-0 top-full mt-1.5'
-                  : isCollapsed
+                  : compact
                     ? 'left-full bottom-0 ml-2'
                     : 'bottom-full left-0 mb-1 w-full',
             )}
@@ -155,7 +158,7 @@ export function NavUser({
               className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
             >
               <KeyRound className="h-4 w-4 text-primary shrink-0" />
-              <span>Profil & Ganti Password</span>
+              <span>Profile & password</span>
             </button>
 
             <div className="h-px bg-border my-1" />
@@ -166,7 +169,7 @@ export function NavUser({
               className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors text-left rounded-md"
             >
               <LogOut className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">Keluar (Logout)</span>
+              <span className="font-semibold">Sign out</span>
             </button>
           </div>
         )}

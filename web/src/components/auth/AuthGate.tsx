@@ -17,7 +17,7 @@ export function AuthGate({ children, onNavigate }: AuthGateProps) {
         <div className="flex flex-col items-center gap-3">
           <RefreshCw className="h-8 w-8 text-primary animate-spin" />
           <p className="text-xs font-mono font-medium text-muted-foreground tracking-wider uppercase">
-            Memeriksa Sesi Cuan...
+            Checking your session…
           </p>
         </div>
       </div>

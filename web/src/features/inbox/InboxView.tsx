@@ -147,7 +147,7 @@ export function InboxView({
         if (activeConvRef.current !== convId || version !== loadVersion.current)
           return
         setSendError(
-          'Riwayat belum dapat dimuat. Segarkan lagi untuk memeriksa status pesan.',
+          'Could not load history. Refresh to check your message status.',
         )
       } finally {
         if (showSpinner) setLoading(false)
@@ -183,12 +183,12 @@ export function InboxView({
         if (saved) {
           pendingRef.current = JSON.parse(saved)
           setSendError(
-            'Pengiriman sebelumnya belum terkonfirmasi. Segarkan atau periksa lagi dengan ID yang sama.',
+            'Your previous message is not confirmed. Refresh or check again using the same ID.',
           )
         }
       } catch {
         setSendError(
-          'Penyimpanan browser tidak tersedia. Segarkan riwayat sebelum mengirim lagi.',
+          'Browser storage is unavailable. Refresh history before sending again.',
         )
       }
       loadConversation(convId, true)
@@ -298,7 +298,7 @@ export function InboxView({
       )
     } catch {
       setSendError(
-        'Browser tidak dapat menyimpan ID pesan. Aktifkan penyimpanan browser lalu coba lagi.',
+        'Could not save the message ID. Enable browser storage and try again.',
       )
       return
     }
@@ -307,7 +307,7 @@ export function InboxView({
     setSending(true)
     setRetryCount((n) => n + 1)
     try {
-      await chatApi.sendMessage(convId, text, 'Buchin', request.id)
+      await chatApi.sendMessage(convId, text, 'You', request.id)
       if (unsentDrafts.current[convId]?.trim() === request.text)
         delete unsentDrafts.current[convId]
       if (activeConvRef.current === convId) {
@@ -322,7 +322,7 @@ export function InboxView({
     } catch {
       if (activeConvRef.current === convId)
         setSendError(
-          'Pengiriman belum terkonfirmasi. Pesan mungkin sudah diterima. Segarkan atau periksa lagi dengan ID yang sama; tidak membuat eksekusi ganda.',
+          'Delivery is not confirmed. Your message may have been received. Refresh or check again using the same ID to avoid a duplicate run.',
         )
     } finally {
       setSending(false)
@@ -359,7 +359,7 @@ export function InboxView({
     if (!iso) return ''
     try {
       const d = new Date(iso)
-      return d.toLocaleTimeString([], {
+      return d.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
@@ -424,8 +424,8 @@ export function InboxView({
               Direct Messenger Hub
             </h3>
             <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-              Pilih percakapan untuk menghubungi agen dan pelanggan. Kelola agen
-              melalui Settings → Agents.
+              Select a conversation to contact agents and customers. Manage
+              agents in Settings → Agents.
             </p>
           </div>
         ) : (
@@ -437,7 +437,7 @@ export function InboxView({
                 <button
                   type="button"
                   onClick={handleBackToContacts}
-                  title="Kembali ke percakapan"
+                  title="Back to conversations"
                   className="min-[1200px]:hidden inline-flex h-11 w-11 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors shrink-0"
                 >
                   <ChevronLeft className="h-5 w-5" />
@@ -459,7 +459,7 @@ export function InboxView({
                   {activeContact.type === 'agent' && (
                     <Link
                       className="flex min-h-11 min-w-0 flex-col justify-center md:hidden"
-                      aria-label="Kelola koneksi agen"
+                      aria-label="Manage agent connection"
                       to={`/settings/agents?agent=${encodeURIComponent(agentForContact(activeContact, agents)?.id || '')}&returnTo=${encodeURIComponent('/inbox/' + (activeContact.conversation_id || activeContact.id))}`}
                     >
                       <span className="truncate text-base font-semibold">
@@ -488,8 +488,8 @@ export function InboxView({
                 {activeContact.type === 'agent' && (
                   <Link
                     className="icon-action hidden md:inline-flex"
-                    aria-label="Kelola koneksi agen"
-                    title="Kelola koneksi agen"
+                    aria-label="Manage agent connection"
+                    title="Manage agent connection"
                     to={`/settings/agents?agent=${encodeURIComponent(agentForContact(activeContact, agents)?.id || '')}&returnTo=${encodeURIComponent('/inbox/' + (activeContact.conversation_id || activeContact.id))}`}
                   >
                     <Settings className="h-5 w-5" />
@@ -502,7 +502,7 @@ export function InboxView({
                       false,
                     )
                   }
-                  title="Segarkan Pesan"
+                  title="Refresh messages"
                   className="icon-action text-muted-foreground"
                 >
                   <RefreshCw
@@ -545,11 +545,9 @@ export function InboxView({
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
                   <Bot className="h-8 w-8 text-muted-foreground/60" />
-                  <p className="text-xs">
-                    Belum ada riwayat pesan dengan kontak ini.
-                  </p>
+                  <p className="text-xs">No messages with this contact yet.</p>
                   <p className="text-[11px] text-muted-foreground/80">
-                    Ketik pesan di bawah untuk memulai percakapan langsung.
+                    Type a message below to start a conversation.
                   </p>
                 </div>
               )}
@@ -576,10 +574,10 @@ export function InboxView({
                 yesterday.setDate(today.getDate() - 1)
                 const dayLabel =
                   date.toDateString() === today.toDateString()
-                    ? 'Hari ini'
+                    ? 'Today'
                     : date.toDateString() === yesterday.toDateString()
-                      ? 'Kemarin'
-                      : date.toLocaleDateString('id-ID', {
+                      ? 'Yesterday'
+                      : date.toLocaleDateString('en-US', {
                           day: 'numeric',
                           month: 'long',
                           year: 'numeric',
@@ -593,7 +591,7 @@ export function InboxView({
                       <Check
                         className="h-3.5 w-3.5"
                         role="img"
-                        aria-label="Pesan tersimpan"
+                        aria-label="Message saved"
                       />
                     )}
                   </span>
@@ -643,7 +641,7 @@ export function InboxView({
                           <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
                             <div className="flex items-center gap-1.5 font-bold text-xs">
                               <Sparkles className="h-3.5 w-3.5 text-primary" />
-                              <span>Rencana Eksekusi Sprint</span>
+                              <span>Sprint execution plan</span>
                             </div>
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-secondary text-secondary-foreground">
                               {msg.action_card.worker_agent}
@@ -676,7 +674,7 @@ export function InboxView({
                             {approvedTasks[msg.action_card.task_title] ? (
                               <div className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-center gap-2">
                                 <CheckCheck className="h-4 w-4" />
-                                <span>Task Berhasil Dijalankan di Sprint!</span>
+                                <span>Task started successfully!</span>
                               </div>
                             ) : (
                               <button
@@ -696,8 +694,8 @@ export function InboxView({
                                 <Play className="h-3.5 w-3.5 fill-current" />
                                 <span>
                                   {approving === msg.action_card.task_title
-                                    ? 'Menjalankan Task...'
-                                    : 'Mulai Kerjakan (1-Click Approve)'}
+                                    ? 'Starting task…'
+                                    : 'Approve and start task'}
                                 </span>
                               </button>
                             )}
@@ -751,8 +749,8 @@ export function InboxView({
                       disabled={sending || retryCount >= 3}
                       onClick={handleSendMessage}
                     >
-                      Periksa pengiriman yang sama (
-                      {Math.max(0, 3 - retryCount)} tersisa)
+                      Check the same message ({Math.max(0, 3 - retryCount)}{' '}
+                      remaining)
                     </button>
                   )}
                   <button
@@ -763,7 +761,7 @@ export function InboxView({
                       )
                     }
                   >
-                    Segarkan riwayat
+                    Refresh history
                   </button>
                 </div>
               )}
@@ -780,7 +778,7 @@ export function InboxView({
                       )}
                     </div>
                     <span className="text-xs text-muted-foreground font-medium">
-                      Mengirim pesan ke {activeContact.name}...
+                      Sending message to {activeContact.name}...
                     </span>
                     <div className="flex items-center gap-1 ml-1">
                       <span
@@ -813,7 +811,7 @@ export function InboxView({
                   })
                 }}
               >
-                Ke pesan terbaru ↓
+                Latest messages ↓
               </button>
             )}
             {streamState !== 'live' && (
@@ -822,8 +820,8 @@ export function InboxView({
                 role="status"
               >
                 {streamState === 'login'
-                  ? 'Sesi berakhir. Masuk kembali untuk melanjutkan.'
-                  : 'Menghubungkan chat… Riwayat tetap tersimpan.'}
+                  ? 'Your session has expired. Sign in again to continue.'
+                  : 'Connecting… Your conversation history is saved.'}
               </p>
             )}
             {/* ── Modern Composer (Bottom) ── */}
@@ -831,7 +829,7 @@ export function InboxView({
               <div className="flex items-end gap-2 max-w-4xl mx-auto">
                 <textarea
                   ref={textareaRef}
-                  aria-label="Pesan"
+                  aria-label="Message"
                   rows={1}
                   value={inputMessage}
                   onChange={(e) => {
@@ -842,7 +840,7 @@ export function InboxView({
                   onKeyDown={handleKeyDown}
                   placeholder={
                     activeContact.type === 'agent'
-                      ? 'Tulis pesan…'
+                      ? 'Write a message…'
                       : `Balas ${activeContact.name}…`
                   }
                   className="wa-input min-w-0 flex-1 min-h-12 max-h-[140px] resize-none overflow-hidden rounded-[24px] px-4 py-3 text-base leading-6"
@@ -853,8 +851,8 @@ export function InboxView({
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || sending}
                   className="wa-send h-12 w-12 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0"
-                  title="Kirim Pesan (Enter)"
-                  aria-label="Kirim pesan"
+                  title="Send message (Enter)"
+                  aria-label="Send message"
                 >
                   <Send className="h-5 w-5" />
                 </button>

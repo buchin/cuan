@@ -14,7 +14,7 @@ export function ContactStatus({
   if (contact.type !== 'agent')
     return (
       <span className="text-xs text-muted-foreground">
-        Pelanggan{contact.product ? ` · ${contact.product}` : ''}
+        Customer{contact.product ? ` · ${contact.product}` : ''}
       </span>
     )
   const status = connectionStatus(agentForContact(contact, agents), now)

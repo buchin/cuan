@@ -52,7 +52,7 @@ func accountDirectory(id string) (string, error) {
 func CreateProviderAccount(owner, label string) (*ProviderAccount, error) {
 	label = strings.TrimSpace(label)
 	if owner == "" || label == "" || len(label) > 100 || strings.ContainsAny(label, "\r\n") {
-		return nil, errors.New("Nama akun wajib diisi, maksimal 100 karakter")
+		return nil, errors.New("Enter an account name of up to 100 characters")
 	}
 	accountProfileMu.Lock()
 	defer accountProfileMu.Unlock()
@@ -133,7 +133,7 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 		a.VerifiedAt = nil
 	} else if a.State == "verified" && (a.VerifiedAt == nil || time.Since(*a.VerifiedAt) > 5*time.Minute) {
 		a.State = "unknown"
-		a.Message = "Verifikasi sebelumnya sudah kedaluwarsa; periksa kembali koneksi"
+		a.Message = "The previous verification has expired. Check the connection again"
 	}
 	return &a, nil
 }
@@ -208,7 +208,7 @@ func StartProviderAccountAuth(ctx context.Context, owner, id string) (*Antigravi
 	}
 	// Existing credentials are never overwritten by a fresh login request.
 	if id == "legacy" || IsAntigravityLoggedInInDir(home) {
-		return nil, errors.New("Akun sudah menyimpan kredensial. Tambahkan akun baru untuk login lain.")
+		return nil, errors.New("This account already has credentials. Add a new account for a different sign-in.")
 	}
 	return startAntigravityAuthSession(ctx, home, owner, id)
 }
@@ -225,7 +225,7 @@ func CancelProviderAccountAuth(owner, id, sessionID string) error {
 	ok := s != nil && s.OwnerID == owner && s.AccountID == id
 	authSessionsMu.Unlock()
 	if !ok {
-		return errors.New("Sesi login tidak tersedia")
+		return errors.New("Sign-in session is unavailable")
 	}
 	CancelAntigravityAuthSession(sessionID)
 	return nil
@@ -248,7 +248,7 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 		a.CredentialsPresent = IsAntigravityLoggedIn()
 	}
 	a.State = "verified"
-	a.Message = "Koneksi provider terverifikasi"
+	a.Message = "Provider connection verified"
 	a.VerifiedAt = &now
 	if probeErr != nil {
 		a.VerifiedAt = nil
@@ -256,7 +256,7 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 		a.Message = probeErr.Error()
 		if !a.CredentialsPresent {
 			a.State = "login_required"
-		} else if strings.Contains(a.Message, "Kuota") {
+		} else if strings.Contains(strings.ToLower(a.Message), "quota") {
 			a.State = "quota_limited"
 		}
 	}
@@ -293,13 +293,13 @@ func BindProviderAccount(owner, id, agentID, connectionID string) error {
 		return err
 	}
 	if a.Legacy || !a.CredentialsPresent {
-		return errors.New("Selesaikan login agen terlebih dahulu")
+		return errors.New("Complete agent sign-in first")
 	}
 	if agentID == "" || !strings.HasPrefix(connectionID, "conn_profile_") {
-		return errors.New("Koneksi agen tidak valid")
+		return errors.New("Invalid agent connection")
 	}
 	if a.ConnectionID != "" && (a.ConnectionID != connectionID || a.AgentID != agentID) {
-		return errors.New("Koneksi ini sudah digunakan agen lain")
+		return errors.New("This connection is already used by another agent")
 	}
 	a.AgentID = agentID
 	a.ConnectionID = connectionID

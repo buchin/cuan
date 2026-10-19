@@ -1,152 +1,135 @@
-# Contacts dan live chat
+# Contacts and live chat
 
-Buka **Contacts** di sidebar atau navigasi bawah. Pengunjung yang membuka widget
-otomatis tersimpan sebagai kontak. Gunakan pencarian nama/email/produk/tag,
-filter tag, pilih kontak, lalu **Buka percakapan** untuk membalas dari Inbox.
-Pada HP, detail tampil sebelum daftar dan dapat ditutup dengan **Kembali ke daftar
-kontak**. Tag dipisahkan koma, maksimal 20 tag masing-masing 40 karakter;
-**Simpan tag** memberikan konfirmasi atau error dengan opsi mencoba kembali.
+Open Contacts from the sidebar or phone bottom navigation. Contacts is a CRM
+directory, separate from Settings → Agents and widget installation.
 
-## Pasang widget
+## Browse and organize contacts
 
-Buka **Settings → Integrations → Live Chat** untuk kode pemasangan, tombol salin,
-identitas email opsional dan langkah pengecekan. Saat Contacts kosong, tombol
-**Hubungkan live chat** langsung menuju halaman ini. Pasang sebelum penutup `body`.
+Visitors are saved when they open the live chat widget. Passive page views do
+not create contacts. Search by name, email, product, or tag; filter by tag or
+source. Clear filters restores the complete list.
+
+Select a contact to view its identity, source, last update, tags, and connected
+conversation. Updated is a saved timestamp, not an online indicator. On phones
+and tablets, details replace the list; Back to contacts returns to it. Wide
+desktops show both. `/contacts?contact=ID` supports direct links and reload.
+
+Choose Open conversation to reply through Inbox. Manual contacts do not offer
+this action because they have no connected messaging channel.
+
+## Create a manual contact
+
+Select **New contact** at the top right. Enter a name and optional email, then
+Save contact. The saved contact opens immediately and can be tagged.
+
+Manual contacts have the source Manual. Saving one does not send a message or
+email, verify identity, merge contacts with matching emails, or establish a chat
+channel. They do not appear in the New message recipient picker. Editing an
+existing contact's name/email is not yet supported.
+
+Authenticated API: `POST /api/v1/contacts` with JSON:
+
+```json
+{
+  "request_id": "7e1e62ee-98cc-4676-894a-0b24815b598c",
+  "name": "Customer name",
+  "email": "customer@example.com"
+}
+```
+
+Generate a new UUID for each new contact; retain it when retrying the same save.
+Names are trimmed and limited to 120 characters. Email is optional and validated
+when present. Identical retries return the same contact (201 on creation, 200 on
+retry). Reusing a key with different identity data returns 409. The form keeps
+the key after a connection failure. Responses contain `contact`, including
+`is_manual: true`. Creation does not create a room, message, or provider call.
+The `manual_` visitor namespace is reserved and rejected by public widget init.
+
+## Manage tags
+
+Select a tag chip to remove it, or type a tag and press Enter/Add. Existing tags
+are suggested while typing. Limits: 20 tags per contact and 40 characters per tag;
+case-insensitive duplicates are ignored.
+
+Changes are sent only when Save tags is selected, including any tag still in the
+input. All tags may be removed. Save errors retain the draft. Discard changes
+restores saved tags. Drafts survive switching contacts within the page, but not
+reload or navigation away. Tags support segmentation; they do not represent
+broadcast consent. Broadcast is not available yet.
+
+## Install the widget
+
+Open **Settings → Integrations → Live Chat** for installation code, identity
+options, and checks. Place the script before your closing `body` tag:
 
 ```html
-<script src="https://cuan.dojo.cc/chat/widget.js"
-        data-product="website-anda" defer></script>
+<script src="https://your-cuan.example/chat/widget.js"
+        data-product="your-website" defer></script>
 ```
 
-`data-product` memisahkan identitas visitor per produk. Browser menyimpan guest ID
-acak dan sesi per origin Cuan + produk. Pengunjung pasif yang belum pernah
-membuka chat tidak membuat kontak. Sesi lama yang telah terhubung dilanjutkan
-saat reload. Membersihkan penyimpanan browser menghasilkan kontak anonim baru.
+Use your Cuan installation's origin. `data-product` separates visitor identities
+by product. The browser stores a random guest ID and a session for each Cuan
+origin/product. Reload resumes a registered session. Clearing browser storage
+creates a new anonymous identity.
 
-## Email identifier (opsional)
+### Optional email identifier
 
-Integrator dapat memasang `data-email` dan `data-name` dari pengguna login pada
-script tag, dengan HTML escaping dari framework integrator. Alternatif setelah
-widget tersedia:
+Set `data-email` and `data-name` from the signed-in user, using your framework's
+HTML escaping. Alternatively, after the widget is available:
 
 ```js
-await window.$dojoChat.identify({ email: 'customer@example.com', name: 'Nama pelanggan' })
+await window.$dojoChat.identify({
+  email: 'customer@example.com',
+  name: 'Customer name'
+})
 ```
 
-Shim Dojo yang sudah ada tetap tersedia (`open`, `close`, `toggle`, `setMessage`,
-`startTopic`). Shim Crisp menerima antrean sebelum script dimuat maupun perubahan
-setelahnya:
+The existing Dojo shim supports open, close, toggle, setMessage, and startTopic.
+The Crisp compatibility shim accepts queued and later identity updates:
 
 ```js
 window.$crisp = window.$crisp || []
 window.$crisp.push(['set', 'user:email', ['customer@example.com']])
-window.$crisp.push(['set', 'user:nickname', ['Nama pelanggan']])
+window.$crisp.push(['set', 'user:nickname', ['Customer name']])
 ```
 
-Identify sebelum chat dibuka menyiapkan metadata; sesudah dibuka memperbarui kontak
-browser/produk yang sama. Mengirim nilai kosong mempertahankan metadata tersimpan.
-Email dinormalisasi dan divalidasi di server. Email ini **diklaim, belum
-terverifikasi**; tidak menjadi autentikasi, tidak menggabungkan kontak browser
-lain, dan tidak membuka riwayat hanya karena email sama. Saat logout/pergantian
-akun pada browser bersama, jangan anggap widget mendukung pemisahan akun: reset
-identitas/logout aman dan verifikasi server masih pekerjaan lanjutan.
+Identify before opening chat prepares metadata; afterward it updates the same
+browser/product contact. Empty values preserve saved metadata. Email is normalized
+and validated on the server but remains unverified, visitor-provided data.
+Matching emails do not authenticate visitors, merge devices, or grant history
+access. Safe logout/account separation on shared browsers is not implemented;
+do not use widget identity as an authentication boundary.
 
-## Persistensi dan batas
+## Persistence and limits
 
-Kontak, identitas visitor/sesi, email dan tag tersimpan di PostgreSQL. Session UUID
-acak adalah capability rahasia untuk percakapan visitor: jangan dipublikasikan.
-Visitor tidak dapat memilih room agent/internal melalui session payload. API
-internal `GET /api/v1/contacts` dan `PATCH /api/v1/contacts/:id` membutuhkan login.
-Cuan saat ini menggunakan cakupan owner instalasi; produk adalah label sumber,
-bukan isolasi multi-tenant. Directory ini masih memuat daftar seluruh kontak;
-paginasi server diperlukan untuk skala besar.
+PostgreSQL stores contacts, visitor/session identities, email, and tags. A visitor
+session UUID is a secret capability for its conversation; do not publish it.
+Visitors cannot select internal or agent rooms through the session payload.
+Internal contact list/create/tag APIs require owner authentication. The deployment
+is single-owner; product labels do not provide tenant isolation. The directory
+currently loads all contacts; server pagination is needed for large datasets.
 
-Room lama tetap dapat dibuka oleh operator melalui Inbox. Tidak menebak identitas
-atau melakukan backfill CRM dari judul room lama yang dapat berisi diskusi agent.
-Widget menggunakan sesi visitor baru yang terdaftar; legacy widget yang sebelumnya
-gagal inisialisasi tidak dianggap sudah memiliki identitas CRM.
+Older rooms remain accessible through Inbox. They are not guessed or backfilled
+into CRM identities from room titles. Broadcast, subscription consent, cross-device
+deduplication, verified email, and contact merging are not implemented.
 
-Broadcast, opt-in/opt-out, deduplikasi lintas perangkat, verifikasi email, penggabungan
-kontak, dan pemisahan pengguna yang bergantian pada browser belum tersedia.
-Tag merupakan fondasi segmentasi, bukan persetujuan menerima broadcast.
+## Deploy, verify, and roll back
 
-## Deploy, smoke dan rollback
+Schema22 (`000022_contacts_crm`) adds the CRM table/index. Manual creation and the
+English UI require no additional migration. Back up the database and account
+profiles, check that Inbox/task execution is idle, and validate the backup before
+restarting. Keep production auto-migration disabled. Test migrations against an
+isolated staging schema and apply them explicitly using the standard migrator.
 
-Migration `000022_contacts_crm` hanya menambahkan tabel/index; lakukan backup privat
-tervalidasi dan pastikan Inbox/task tidak aktif sebelum migrasi dan restart.
-Uji SQL pada schema terisolasi di database `cuan_s25`, lalu terapkan migration22
-secara eksplisit dengan migrator standar. Auto-migrate production tetap nonaktif.
-Aktivasi native `scripts/fural-deploy.sh --branch sprint26-agents` memerlukan schema22,
-memverifikasi manifest, readiness dan aset, serta mendukung rollback otomatis.
-Untuk rollback aplikasi, pertahankan schema22/data kontak dan jalankan activator:
+The native deployment procedure uses `scripts/fural-deploy.sh`, a release lock,
+private backup, checksums, atomic activation, readiness checks, and rollback.
+For an application-only rollback, preserve schema22 and contact data; do not run
+a down migration or restore the database. Installation-specific commands and
+health/rollback details are in [the operations guide](message_task_lifecycle.md).
 
-```sh
-sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22
-```
-
-Jangan jalankan down migration atau restore database untuk rollback aplikasi biasa.
-Smoke: Contacts pada desktop/tablet/HP, buka detail/tag, link ke chat, widget identity,
-retry pengiriman dan reload. Pengujian fixture: `node docs/evidence/contacts-crm/browser-check.cjs`
-dan `node docs/evidence/contacts-crm/widget-check.cjs`. Bukti production dicatat terpisah.
-
-## Bukti rilis production
-
-Rilis `f7cb900` aktif di https://cuan.dojo.cc, schema22 dan auto-migrate nonaktif.
-Production Chromium lulus 42 kombinasi route/viewport, tag yang bertahan setelah
-reload, Contacts → riwayat customer, serta widget lintas origin yang mengirim dan
-memuat ulang pesan dengan API nyata. Aset SPA dan widget identik dengan build.
-
-Tiga kontak dan dua pesan khusus smoke test dibersihkan. Seluruh 34 tabel lama
-(selain sesi login smoke) dan 378 file profil identik dengan backup sebelum rilis.
-Persistent project checkout diperbarui melalui fast-forward Git bundle tanpa
-transfer kredensial. Bukti: `docs/evidence/contacts-crm/production-browser.json`,
-`production-crm-flow.json`, `production-widget.json`, dan `production-retention.json`.
-
-Rilis sebelum Contacts `48c2d68b3adc1c6dcc95fd2058b1668706fed946` dapat diaktifkan
-secara eksplisit dengan `--release SHA --schema-count 22`; jangan turunkan schema.
-Pengujian menggunakan emulasi viewport Chromium, belum sertifikasi Safari/perangkat fisik.
-
-## Daftar dan detail kontak
-
-Daftar memakai avatar/inisial, nama/email dan maksimal dua tag; `+N` menunjukkan
-tag lainnya. Sumber website dan tanggal **Diperbarui** adalah metadata, bukan
-klaim bahwa pelanggan sedang online. Cari nama/email/tag atau gunakan filter
-tag dan sumber. **Hapus filter** mengembalikan seluruh daftar.
-
-Di bawah1200px, memilih kontak membuka detail tersendiri dengan tombol
-**Kembali ke daftar kontak**. Desktop menampilkan daftar dan detail berdampingan.
-URL `/contacts?contact=ID` dapat dibuka/reload langsung dan Back browser dapat
-kembali ke daftar. Kontak tidak ditemukan ditampilkan secara eksplisit.
-**Buka percakapan** adalah aksi utama. Nama/email berasal dari widget atau form kontak manual;
-pengubahan identitas kontak yang sudah tersimpan belum tersedia.
-
-## Mengelola tag
-
-Klik chip untuk menghapus, atau isi **Tambah tag** lalu Enter/Tambah. Pilihan
-tag yang sudah dipakai kontak lain tersedia di bawah input dan mengikuti
-pencarian input. Tag dibatasi20 per kontak,40 karakter per tag; duplikasi
-diabaikan tanpa membedakan huruf besar/kecil.
-
-Perubahan belum dikirim sampai **Simpan tag** ditekan. Input yang masih diketik
-juga disertakan saat menyimpan. Semua tag boleh dihapus. Kesalahan simpan
-mempertahankan draft agar bisa dicoba lagi. **Batalkan perubahan** memulihkan
-tag tersimpan. Draft per kontak bertahan saat Back/beralih kontak dalam halaman
-yang sama; reload atau meninggalkan halaman menghapus edit yang belum disimpan.
-Tidak ada broadcast, penggabungan kontak, atau perubahan identitas otomatis baru.
-
-## Membuat kontak manual
-
-Pada Contacts, tekan **+ New**, isi nama dan email opsional lalu simpan. Kontak
-baru langsung terbuka dan dapat diberi tag. Kontak manual berlabel sumber Manual;
-belum memiliki kanal pesan sehingga tidak menampilkan Buka percakapan dan tidak
-masuk pemilih New message. Menambahkan email tidak mengirim pesan atau email,
-memverifikasi identitas, atau menggabungkan kontak dengan email yang sama.
-
-API terautentikasi `POST /api/v1/contacts` menerima JSON `request_id` (UUID),
-`name` (1–120 karakter setelah trim), dan `email` opsional. Form mempertahankan
-request_id ketika mencoba ulang: payload identik mengembalikan kontak yang sama
-(201 pertama,200 retry); payload identitas berbeda dengan kunci yang sama mendapat
-409. Pertahankan kunci pada retry setelah koneksi terputus. Respons berisi
-`contact` dengan `is_manual: true`. Tidak ada room, pesan, atau provider yang
-dibuat. Prefix visitor `manual_` dicadangkan dan ditolak oleh inisialisasi widget.
-Tidak membutuhkan perubahan schema22.
+Smoke checks: responsive list/detail, tags and retry, conversation links, widget
+identity/reload, manual save/reload, and same-key retry without duplicates.
+Fixture checks are in `docs/evidence/english-sidebar/browser-check.cjs` and
+`widget-check.cjs`; earlier CRM and production evidence remains in
+`docs/evidence/contacts-crm/`, `crm-patterns/`, and `context-new/`. Use isolated
+fixtures or exact synthetic records for write checks; preserve real contacts.

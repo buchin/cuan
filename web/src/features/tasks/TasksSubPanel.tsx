@@ -36,17 +36,22 @@ export function TasksSubPanel({
     let pool = tasks
     if (selectedProject !== 'all') {
       pool = pool.filter(
-        (t) => t.project_id === selectedProject || t.project_ids?.includes(selectedProject)
+        (t) =>
+          t.project_id === selectedProject ||
+          t.project_ids?.includes(selectedProject),
       )
     }
     if (statusId === 'all') return pool.length
-    return pool.filter((t) => (t.status === 'backlog' ? 'todo' : t.status || 'todo') === statusId).length
+    return pool.filter(
+      (t) =>
+        (t.status === 'backlog' ? 'todo' : t.status || 'todo') === statusId,
+    ).length
   }
 
   const getProjectCount = (projId: string) => {
     if (projId === 'all') return tasks.length
     return tasks.filter(
-      (t) => t.project_id === projId || t.project_ids?.includes(projId)
+      (t) => t.project_id === projId || t.project_ids?.includes(projId),
     ).length
   }
 
@@ -79,7 +84,7 @@ export function TasksSubPanel({
                 'w-full px-2.5 py-1.5 text-xs text-left rounded-md flex items-center justify-between transition-colors',
                 selectedStatus === s.id
                   ? 'bg-accent text-accent-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
               )}
             >
               <div className="flex items-center gap-2">
@@ -105,10 +110,10 @@ export function TasksSubPanel({
                 'w-full px-2.5 py-1.5 text-xs text-left rounded-md flex items-center justify-between transition-colors',
                 selectedProject === 'all'
                   ? 'bg-accent text-accent-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
               )}
             >
-              <span className="truncate">Semua Proyek</span>
+              <span className="truncate">All projects</span>
               <span className="text-[10px] font-mono opacity-70">
                 {getProjectCount('all')}
               </span>
@@ -121,7 +126,7 @@ export function TasksSubPanel({
                   'w-full px-2.5 py-1.5 text-xs text-left rounded-md flex items-center justify-between transition-colors',
                   selectedProject === p.id
                     ? 'bg-accent text-accent-foreground font-semibold'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
                 )}
               >
                 <div className="flex items-center gap-1.5 truncate pr-2">

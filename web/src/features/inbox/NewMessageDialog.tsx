@@ -33,37 +33,37 @@ export function NewMessageDialog({
   return (
     <ActionDialog open={open} title="New message" onClose={onClose}>
       <p className="mb-4 text-sm text-muted-foreground">
-        Pilih agen atau pelanggan live chat. Membuka percakapan tidak mengirim
-        pesan.
+        Choose an agent or live chat customer. Opening a conversation does not
+        send a message.
       </p>
       <input
         className="field-control mb-3"
-        aria-label="Cari penerima"
-        placeholder="Cari nama agen atau pelanggan"
+        aria-label="Search recipients"
+        placeholder="Search agents or customers"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       {loading ? (
         <p role="status" className="py-4 text-sm">
-          Memuat penerima…
+          Loading recipients…
         </p>
       ) : error ? (
         <div role="alert">
           <p>{error}</p>
           <button className="action-secondary mt-3" onClick={onRetry}>
-            Coba lagi
+            Try again
           </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="space-y-3 py-3 text-sm">
           <p>
             {contacts.length
-              ? 'Penerima tidak ditemukan.'
-              : 'Belum ada penerima. Tambahkan agen atau hubungkan live chat terlebih dahulu.'}
+              ? 'No recipients found.'
+              : 'No recipients yet. Add an agent or connect live chat first.'}
           </p>
           {query ? (
             <button className="action-secondary" onClick={() => setQuery('')}>
-              Hapus pencarian
+              Clear search
             </button>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -72,14 +72,14 @@ export function NewMessageDialog({
                 to="/settings/agents"
                 onClick={onClose}
               >
-                Kelola agen
+                Manage agents
               </Link>
               <Link
                 className="action-secondary"
                 to="/settings/integrations/live-chat"
                 onClick={onClose}
               >
-                Hubungkan live chat
+                Connect live chat
               </Link>
             </div>
           )}
@@ -107,8 +107,8 @@ export function NewMessageDialog({
                 </span>
                 <span className="block truncate text-sm text-muted-foreground">
                   {c.type === 'agent'
-                    ? 'Agen'
-                    : c.product || 'Pelanggan live chat'}
+                    ? 'Agent'
+                    : c.product || 'Live chat customer'}
                 </span>
               </span>
             </button>

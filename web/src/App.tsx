@@ -138,7 +138,7 @@ export function App() {
       )
     } catch (err) {
       setProjectsError(
-        'Project belum dapat dimuat. Periksa koneksi dan coba lagi.',
+        'Could not load projects. Check your connection and try again.',
       )
     } finally {
       setProjectsLoading(false)
@@ -164,7 +164,7 @@ export function App() {
       setContactsError('')
     } else
       setContactsError(
-        'Kontak belum dapat dimuat. Periksa koneksi dan coba lagi.',
+        'Could not load contacts. Check your connection and try again.',
       )
     setDirectoryAgents(agents.status === 'fulfilled' ? agents.value : [])
     setContactsLoading(false)
@@ -373,7 +373,7 @@ export function App() {
   const settingTitles: Record<string, string> = {
     agents: 'Agents',
     integrations: 'Integrations',
-    appearance: 'Tampilan',
+    appearance: 'Appearance',
   }
   const settingsDetail = currentTab === 'settings' && !!settingTitles[subParam]
   const headerTitle = projectDetail
@@ -525,12 +525,11 @@ export function App() {
           (subParam && activeProject?.id !== subParam ? (
             <section className="page-content space-y-4">
               {projectsLoading ? (
-                <p role="status">Memuat project…</p>
+                <p role="status">Loading projects…</p>
               ) : (
                 <>
                   <p role="alert">
-                    {projectsError ||
-                      'Project tidak ditemukan atau tidak tersedia.'}
+                    {projectsError || 'Project not found or unavailable.'}
                   </p>
                   <button
                     className="action-secondary"
@@ -538,10 +537,10 @@ export function App() {
                       void refreshProjects()
                     }}
                   >
-                    Coba lagi
+                    Try again
                   </button>
                   <Link to="/projects" className="action-secondary">
-                    Semua project
+                    All projects
                   </Link>
                 </>
               )}
@@ -566,7 +565,7 @@ export function App() {
                       navigate('/projects')
                     }}
                   >
-                    ← Semua project
+                    ← All projects
                   </button>
                   <Link
                     className="action-secondary"
@@ -641,7 +640,7 @@ export function App() {
         onClose={() => setNewFlow(null)}
       >
         <p className="mb-3 text-sm text-muted-foreground">
-          Apa yang ingin Anda buat?
+          What would you like to create?
         </p>
         <div className="grid gap-2">
           {(['message', 'contact', 'task', 'project', 'agent'] as const).map(

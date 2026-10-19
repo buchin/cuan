@@ -50,7 +50,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 	agents, err := s.agentRepo.ListAgents(r.Context(), filter)
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "Daftar agen belum tersedia. Coba lagi nanti")
+		respondJSONError(w, http.StatusInternalServerError, "Agent list is unavailable. Try again later")
 		return
 	}
 
@@ -121,7 +121,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		if !s.requireOAuthOwner(w, r) {
 			return
 		}
-		respondJSONError(w, http.StatusConflict, "Gunakan Tambah agen untuk menghubungkan akun agen ini")
+		respondJSONError(w, http.StatusConflict, "Use Add agent to connect this agent account")
 		return
 	}
 	entity, err := input.ToEntity()
@@ -153,16 +153,16 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	var encryptedCred string
 
-	planHint := "Sesi Host Server (Tanpa API Key)"
+	planHint := "Host server session (no API key)"
 	switch entity.Harness {
 	case "agy":
-		planHint = "Sesi Antigravity CLI"
+		planHint = "Antigravity CLI session"
 	case "claude":
-		planHint = "Sesi Claude CLI"
+		planHint = "Claude CLI session"
 	case "codex":
-		planHint = "Sesi Codex CLI"
+		planHint = "Codex CLI session"
 	case "custom":
-		planHint = "Sesi Custom Model"
+		planHint = "Custom model session"
 	}
 
 	conn := &db.AgentConnection{
@@ -205,7 +205,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 				AuthorType: "agent",
 				AuthorID:   entity.ID,
 				AuthorName: entity.Name,
-				Content:    fmt.Sprintf("Halo Buchin! Saya %s. Sesi agen telah terhubung via UI (%s). Saya siap menerima instruksi.", entity.Name, entity.Harness),
+				Content:    fmt.Sprintf("Hello! I am %s. My agent session is connected through the UI (%s) and ready for instructions.", entity.Name, entity.Harness),
 				CreatedAt:  now,
 				UpdatedAt:  now,
 			})
@@ -496,7 +496,7 @@ func (s *Server) handleCreateAgentConnection(w http.ResponseWriter, r *http.Requ
 			rawSecret = "cuan_cli_session_" + db.GenerateUUID()
 		}
 		if req.PlanHint == "" {
-			req.PlanHint = "Sesi Host Server (Tanpa API Key)"
+			req.PlanHint = "Host server session (no API key)"
 		}
 	}
 
@@ -808,7 +808,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		var err error
 		profile, err = agent.GetProviderAccount(ownerID, req.AccountID)
 		if err != nil || profile.Legacy || !profile.CredentialsPresent {
-			respondJSONError(w, http.StatusConflict, "Selesaikan login Google untuk agen ini terlebih dahulu")
+			respondJSONError(w, http.StatusConflict, "Complete Google sign-in for this agent first")
 			return
 		}
 	}
@@ -860,14 +860,14 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 				if err == nil {
 					for _, room := range rooms {
 						if room.Topic == "agent:"+agentID {
-							respondJSON(w, http.StatusOK, map[string]any{"status": "success", "agent": existing.ToDTO(), "connection": conn.ToDTO(), "conversation_id": room.ID, "room_id": room.ID, "provider": provider, "handle": handle, "message": "Agen sudah tersimpan"})
+							respondJSON(w, http.StatusOK, map[string]any{"status": "success", "agent": existing.ToDTO(), "connection": conn.ToDTO(), "conversation_id": room.ID, "room_id": room.ID, "provider": provider, "handle": handle, "message": "Agent already saved"})
 							return
 						}
 					}
 				}
 			}
 		}
-		respondJSONError(w, http.StatusConflict, "Nama agen sudah digunakan. Pilih nama lain.")
+		respondJSONError(w, http.StatusConflict, "Agent name is already in use. Choose another name.")
 		return
 	}
 
@@ -911,14 +911,14 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		UserID:               ownerID,
 		Provider:             provider,
 		CredentialsEncrypted: encryptedToken,
-		PlanHint:             "Sesi Host Server (Tanpa API Key)",
+		PlanHint:             "Host server session (no API key)",
 		Status:               db.ConnectionStatusActive,
 		CreatedAt:            time.Now().UTC(),
 		UpdatedAt:            time.Now().UTC(),
 	}
 	if err := s.agentRepo.CreateConnection(r.Context(), connEntity); err != nil {
 		s.rollbackAgentRegistration(agentID, connID, false)
-		respondJSONError(w, http.StatusInternalServerError, "Agen belum bisa disimpan. Silakan coba lagi.")
+		respondJSONError(w, http.StatusInternalServerError, "Could not save the agent. Try again.")
 		return
 	}
 
@@ -945,7 +945,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 				UpdatedAt: now,
 			}); err != nil {
 				s.rollbackAgentRegistration(agentID, connID, true)
-				respondJSONError(w, http.StatusInternalServerError, "Agen gagal disimpan ke Inbox. Coba lagi.")
+				respondJSONError(w, http.StatusInternalServerError, "Could not save the agent to Inbox. Try again.")
 				return
 			}
 		}
@@ -1000,7 +1000,7 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 			if err != nil {
 				status["message"] = err.Error()
 			} else {
-				status["message"] = "Koneksi provider Antigravity terverifikasi"
+				status["message"] = "Antigravity provider connection verified"
 			}
 		}
 		respondJSON(w, http.StatusOK, status)
@@ -1049,7 +1049,7 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 				"status":        "success",
 				"harness":       "agy",
 				"authenticated": true,
-				"message":       "Sesi Antigravity server aktif & siap digunakan",
+				"message":       "Antigravity server session is active and ready",
 				"auth_url":      "",
 				"verified":      true,
 			})
@@ -1100,7 +1100,7 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 
 	if req.Code == "" && req.SessionID != "" && r.URL.Query().Get("cancel") == "true" {
 		if !agent.CancelLegacyAntigravityAuthSession(req.SessionID) {
-			respondJSONError(w, http.StatusNotFound, "Sesi login tidak tersedia")
+			respondJSONError(w, http.StatusNotFound, "Sign-in session is unavailable")
 			return
 		}
 		respondJSON(w, http.StatusOK, map[string]any{"status": "cancelled", "authenticated": false})
@@ -1125,6 +1125,6 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 		"verified":      true,
 		"status":        "success",
 		"authenticated": true,
-		"message":       "Otentikasi berhasil! Sesi Antigravity server aktif & siap digunakan.",
+		"message":       "Signed in successfully. Antigravity server session is active and ready.",
 	})
 }

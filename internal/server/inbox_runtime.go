@@ -32,7 +32,7 @@ func (s *inboxRuntimeStream) emit(kind, text string) {
 	if s.traceCount >= 64 {
 		if !s.truncated {
 			s.truncated = true
-			s.step("runtime_trace_limited", "Batas detail aktivitas tercapai; hasil akhir tetap diperiksa.")
+			s.step("runtime_trace_limited", "Activity detail limit reached. The final result will still be checked.")
 		}
 		return
 	}
@@ -106,9 +106,9 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 	}
 	switch e.Event {
 	case "init":
-		s.emit("runtime_init", "Sesi runtime dimulai.")
+		s.emit("runtime_init", "Runtime session started.")
 		if inboxRuntimeID.MatchString(e.ConversationID) {
-			s.emit("runtime_session", "ID sesi runtime: "+e.ConversationID)
+			s.emit("runtime_session", "Runtime session ID: "+e.ConversationID)
 		}
 	case "result":
 		if len(s.result) > 0 || len(e.Result) == 0 || string(e.Result) == "null" {
@@ -120,7 +120,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			DeniedActions []json.RawMessage `json:"denied_actions"`
 		}
 		if json.Unmarshal(e.Result, &final) == nil && len(final.DeniedActions) > 0 {
-			s.emit("runtime_permission_denied", "Izin tool ditolak oleh runtime. Aktivitas berakhir bukan berarti perintah berhasil dijalankan.")
+			s.emit("runtime_permission_denied", "Tool permission denied by the runtime. Activity ending does not mean the command succeeded.")
 		}
 	case "step_update":
 		u := e.Update
@@ -145,30 +145,30 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		}
 		duration := ""
 		if u.Duration != nil && !math.IsNaN(*u.Duration) && !math.IsInf(*u.Duration, 0) && *u.Duration >= 0 && *u.Duration <= 86400 {
-			duration = fmt.Sprintf(" (%.1f dtk)", *u.Duration)
+			duration = fmt.Sprintf(" (%.1f s)", *u.Duration)
 		}
 		if u.Type == "tool" {
-			names := map[string]string{"view_file": "Baca file", "view_file_outline": "Struktur file", "view_code_item": "Baca kode", "list_dir": "Daftar direktori", "grep_search": "Cari teks", "find_by_name": "Cari file", "run_command": "Perintah terminal"}
+			names := map[string]string{"view_file": "Read file", "view_file_outline": "File outline", "view_code_item": "Read code", "list_dir": "List directory", "grep_search": "Search text", "find_by_name": "Find file", "run_command": "Terminal command"}
 			name := names[u.Tool]
 			if name == "" {
 				name = "Tool"
 			}
-			kind, label := "runtime_tool_started", "dimulai"
+			kind, label := "runtime_tool_started", "started"
 			if u.State == "DONE" {
-				kind, label = "runtime_tool_finished", "aktivitas berakhir"
+				kind, label = "runtime_tool_finished", "activity ended"
 			}
 			if u.State == "ERROR" {
-				kind, label = "runtime_tool_failed", "gagal"
+				kind, label = "runtime_tool_failed", "failed"
 				s.toolFailures++
 			}
 			s.emit(kind, fmt.Sprintf("Tool #%d · %s %s%s.", *u.Index, name, label, duration))
 		} else {
-			kind, label := "runtime_provider_started", "Provider menyiapkan respons."
+			kind, label := "runtime_provider_started", "The provider is preparing a response."
 			if u.State == "DONE" {
-				kind, label = "runtime_provider_finished", "Tahap respons provider selesai"+duration+"."
+				kind, label = "runtime_provider_finished", "Provider response stage finished"+duration+"."
 			}
 			if u.State == "ERROR" {
-				kind, label = "runtime_provider_failed", "Tahap respons provider gagal"+duration+"."
+				kind, label = "runtime_provider_failed", "Provider response stage failed"+duration+"."
 			}
 			s.emit(kind, label)
 		}
@@ -180,13 +180,13 @@ func (s *inboxRuntimeStream) finish() (string, string, string) {
 		s.pending = nil
 	}
 	if s.overflow {
-		return "", "Aktivitas provider melewati batas ukuran. Pesan tersimpan; permintaan tidak dijalankan ulang.", "runtime_overflow"
+		return "", "Provider activity exceeded the size limit. Your message is saved. The request was not rerun.", "runtime_overflow"
 	}
 	if s.invalid {
-		return "", "Format event runtime tidak valid. Pesan tersimpan; permintaan tidak dijalankan ulang.", "runtime_invalid"
+		return "", "Invalid runtime event format. Your message is saved. The request was not rerun.", "runtime_invalid"
 	}
 	if len(s.result) == 0 {
-		return "", "Proses berhenti sebelum hasil akhir diterima. Pesan tersimpan; hasil belum pasti dan permintaan tidak dijalankan ulang.", "runtime_missing_result"
+		return "", "The process stopped before a final result. Your message is saved, but the result is unknown. The request was not rerun.", "runtime_missing_result"
 	}
 	return strings.TrimSpace(string(s.result)), "", ""
 }

@@ -21,11 +21,11 @@ const (
 )
 
 var (
-	ErrFileTooLarge        = errors.New("ukuran file logo melebihi batas maksimal 2MB")
-	ErrEmptyFile           = errors.New("file logo kosong")
-	ErrUnsupportedMimeType = errors.New("tipe file tidak didukung: hanya SVG, PNG, dan WebP yang diizinkan")
-	ErrMaliciousSVG        = errors.New("upload file berbahaya ditolak: terdeteksi skrip berbahaya atau payload XSS")
-	ErrInvalidSVG          = errors.New("format file SVG tidak valid")
+	ErrFileTooLarge        = errors.New("Logo file exceeds the 2 MB limit")
+	ErrEmptyFile           = errors.New("Logo file is empty")
+	ErrUnsupportedMimeType = errors.New("Unsupported file type. Only SVG, PNG, and WebP are allowed")
+	ErrMaliciousSVG        = errors.New("Upload rejected. Unsafe scripts or an XSS payload were detected")
+	ErrInvalidSVG          = errors.New("Invalid SVG file format")
 )
 
 var (
@@ -34,13 +34,13 @@ var (
 	webpMagic = []byte("WEBP")
 
 	// Regexes for detecting and sanitizing SVG
-	scriptTagRegex    = regexp.MustCompile(`(?is)<\s*script[^>]*>.*?<\s*/\s*script\s*>|<\s*script[^>]*/>|<\s*script[^>]*>`)
-	foreignObjRegex   = regexp.MustCompile(`(?is)<\s*foreignObject[^>]*>.*?<\s*/\s*foreignObject\s*>|<\s*foreignObject[^>]*/>|<\s*foreignObject[^>]*>`)
-	embedTagsRegex    = regexp.MustCompile(`(?is)<\s*(iframe|embed|object|applet|meta|link|base)[^>]*>.*?<\s*/\s*(iframe|embed|object|applet|meta|link|base)\s*>|<\s*(iframe|embed|object|applet|meta|link|base)[^>]*/>|<\s*(iframe|embed|object|applet|meta|link|base)[^>]*>`)
-	onEventAttrRegex  = regexp.MustCompile(`(?i)\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)`)
-	jsHrefAttrRegex   = regexp.MustCompile(`(?i)(href|xlink:href|src)\s*=\s*["']\s*(?:javascript|vbscript|data:text/html|data:application/javascript):[^"']*["']`)
-	doctypeEntityReg  = regexp.MustCompile(`(?is)<!ENTITY[^>]*>|<!DOCTYPE[^>]*\[.*?\]>`)
-	jsProtocolSearch  = regexp.MustCompile(`(?i)(?:javascript|vbscript)\s*:`)
+	scriptTagRegex   = regexp.MustCompile(`(?is)<\s*script[^>]*>.*?<\s*/\s*script\s*>|<\s*script[^>]*/>|<\s*script[^>]*>`)
+	foreignObjRegex  = regexp.MustCompile(`(?is)<\s*foreignObject[^>]*>.*?<\s*/\s*foreignObject\s*>|<\s*foreignObject[^>]*/>|<\s*foreignObject[^>]*>`)
+	embedTagsRegex   = regexp.MustCompile(`(?is)<\s*(iframe|embed|object|applet|meta|link|base)[^>]*>.*?<\s*/\s*(iframe|embed|object|applet|meta|link|base)\s*>|<\s*(iframe|embed|object|applet|meta|link|base)[^>]*/>|<\s*(iframe|embed|object|applet|meta|link|base)[^>]*>`)
+	onEventAttrRegex = regexp.MustCompile(`(?i)\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)`)
+	jsHrefAttrRegex  = regexp.MustCompile(`(?i)(href|xlink:href|src)\s*=\s*["']\s*(?:javascript|vbscript|data:text/html|data:application/javascript):[^"']*["']`)
+	doctypeEntityReg = regexp.MustCompile(`(?is)<!ENTITY[^>]*>|<!DOCTYPE[^>]*\[.*?\]>`)
+	jsProtocolSearch = regexp.MustCompile(`(?i)(?:javascript|vbscript)\s*:`)
 )
 
 // DetectMimeType detects whether the file is PNG, WebP, or SVG.
