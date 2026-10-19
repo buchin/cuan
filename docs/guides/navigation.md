@@ -214,3 +214,23 @@ draft task. Isi pesan asli tidak diubah. Badge unread memakai hitungan yang
 diterima dari API, tanpa mengarang status baca; navigasi bawah menampilkan
 total hanya bila nilainya lebih dari nol. Filter, pencarian, retry, Back, dan
 navigasi desktop yang dapat diciutkan tetap tersedia.
+
+## Penyempurnaan halaman lain
+
+Logo kepeng24px kembali di kiri Inbox mobile dengan tinggi header tetap56px.
+Contacts memakai jarak tepi dan ukuran judul yang sama dengan halaman lain;
+pada kondisi kosong, gunakan Hubungkan live chat tanpa pencarian/filter kosong.
+
+Tasks pada HP mengutamakan judul dan status. Kode/assignee berada di bawah judul,
+judul panjang dibatasi tiga baris dan dapat dibaca lengkap dengan membuka detail.
+Empty state menyediakan Create first task atau Clear filters sesuai kondisi.
+Form New task memiliki label terlihat, target sentuh44px, fokus keyboard yang
+tetap di dialog, Escape untuk menutup dan fokus kembali ke pemicu. Jika simpan
+gagal, nilai form tetap tersedia. Saat menyimpan, form tidak dapat ditutup agar
+status hasil tidak rancu. Project arsip tidak ditawarkan sebagai pilihan baru.
+
+Projects menempatkan New Project di dekat judul. Pencarian yang tidak cocok
+menampilkan Clear search, bukan mengklaim semua project belum ada. Mode List
+dapat dibuka melalui keyboard. Bagian Settings memakai navigasi satu baris
+yang bisa digeser saat layar sempit; Agents/Integrations/Tampilan tetap di lokasi
+yang sama.

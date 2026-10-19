@@ -113,7 +113,7 @@ export function SettingsView({
       </header>
       <nav
         aria-label="Bagian pengaturan"
-        className="flex flex-wrap gap-2 border-b border-border pb-3"
+        className="flex gap-1 overflow-x-auto border-b border-border"
       >
         {[
           ['general', 'Umum'],
@@ -125,7 +125,7 @@ export function SettingsView({
             key={id}
             to={id === 'general' ? '/settings' : `/settings/${id}`}
             aria-current={section === id ? 'page' : undefined}
-            className={`action-secondary ${section === id ? 'bg-accent font-semibold' : ''}`}
+            className={`inline-flex min-h-11 shrink-0 items-center border-b-2 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${section === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
             {label}
           </Link>

@@ -80,13 +80,10 @@ export function ContactsView() {
     }
   }
   return (
-    <section
-      className="h-full overflow-y-auto p-4 md:p-6"
-      aria-label="Contacts"
-    >
+    <section className="page-content" aria-label="Contacts">
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Contacts</h1>
+          <h1 className="page-title">Contacts</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Pelanggan dari live chat, dengan identitas dan tag dalam satu
             tempat.
@@ -101,29 +98,31 @@ export function ContactsView() {
           <RefreshCw className="h-5 w-5" />
         </button>
       </header>
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row">
-        <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-background px-3">
-          <Search className="h-4 w-4 shrink-0" />
-          <input
-            aria-label="Cari kontak"
-            className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-            placeholder="Cari nama, email, produk, atau tag"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-        <select
-          aria-label="Filter tag"
-          className="min-h-11 max-w-full rounded-lg border bg-background px-3 text-base"
-          value={tag}
-          onChange={(e) => setTag(e.target.value)}
-        >
-          <option value="">Semua tag</option>
-          {tags.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
-      </div>
+      {contacts.length > 0 && (
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row">
+          <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-background px-3">
+            <Search className="h-4 w-4 shrink-0" />
+            <input
+              aria-label="Cari kontak"
+              className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
+              placeholder="Cari nama, email, produk, atau tag"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <select
+            aria-label="Filter tag"
+            className="min-h-11 max-w-full rounded-lg border bg-background px-3 text-base"
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+          >
+            <option value="">Semua tag</option>
+            {tags.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {loading ? (
         <p role="status">Memuat kontak…</p>
       ) : error ? (

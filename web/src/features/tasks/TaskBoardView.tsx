@@ -113,7 +113,7 @@ export function TaskBoardView({
             aria-label="Filter project"
             value={project}
             onChange={(event) => setProject(event.target.value)}
-            className="min-h-11 rounded-md border border-input bg-background px-3 text-base md:text-sm"
+            className="min-h-11 w-full max-w-full rounded-md border border-input bg-background px-3 text-base sm:w-auto md:text-sm"
           >
             <option value="all">All projects</option>
             {projects.map((p) => (
@@ -156,12 +156,12 @@ export function TaskBoardView({
         })}
       </nav>
       <div className="overflow-auto flex-1 rounded-lg border border-border">
-        <table className="w-full text-left text-sm">
+        <table className="w-full table-fixed text-left text-sm sm:table-auto">
           <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
             <tr>
-              <th className="p-3">Code</th>
+              <th className="hidden p-3 sm:table-cell">Code</th>
               <th className="p-3">Title</th>
-              <th className="p-3">Status</th>
+              <th className="w-24 p-3 sm:w-auto">Status</th>
               <th className="p-3 hidden sm:table-cell">Assignee</th>
               <th className="p-3 hidden md:table-cell">Updated</th>
             </tr>
@@ -173,7 +173,7 @@ export function TaskBoardView({
               const displayStatus = visibleTaskStatus(task.status)
               return (
                 <tr key={task.id} className="hover:bg-muted/50">
-                  <td className="p-3 font-mono text-xs text-muted-foreground">
+                  <td className="hidden p-3 font-mono text-xs text-muted-foreground sm:table-cell">
                     #
                     {task.id
                       .replace(/^task_/, '')
@@ -183,12 +183,19 @@ export function TaskBoardView({
                   <td className="p-3">
                     <button
                       onClick={() => onSelectTask(task)}
-                      className="block min-h-11 w-full text-left font-medium hover:underline focus:underline"
+                      className="block min-h-11 w-full break-words text-left text-base font-medium hover:underline focus:underline sm:text-sm"
                     >
-                      {task.title}
+                      <span className="line-clamp-3 sm:line-clamp-none">
+                        {task.title}
+                      </span>
                     </button>
-                    <span className="mt-1 block text-xs text-muted-foreground sm:hidden">
-                      {agents.get(assignee) || assignee || 'Unassigned'}
+                    <span className="mt-1 block break-words text-xs text-muted-foreground sm:hidden">
+                      #
+                      {task.id
+                        .replace(/^(task_|msg_)/, '')
+                        .slice(0, 6)
+                        .toUpperCase()}{' '}
+                      · {agents.get(assignee) || assignee || 'Unassigned'}
                     </span>
                   </td>
                   <td className="p-3">
@@ -227,7 +234,35 @@ export function TaskBoardView({
                   colSpan={5}
                   className="p-10 text-center text-muted-foreground"
                 >
-                  No tasks match these filters.
+                  <p className="font-medium">
+                    {projectTasks.length === 0
+                      ? 'No tasks yet'
+                      : 'No tasks match these filters.'}
+                  </p>
+                  <p className="mt-2 text-sm">
+                    {projectTasks.length === 0
+                      ? 'Create a task to organize the next piece of work.'
+                      : 'Try another search or reset the status filter.'}
+                  </p>
+                  {projectTasks.length === 0 ? (
+                    <button
+                      className="action-primary mt-4"
+                      onClick={onCreateTask}
+                    >
+                      Create first task
+                    </button>
+                  ) : (
+                    <button
+                      className="action-secondary mt-4"
+                      onClick={() => {
+                        setQuery('')
+                        setLocalStatus('all')
+                        onStatusFilterChange?.('all')
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  )}
                 </td>
               </tr>
             )}

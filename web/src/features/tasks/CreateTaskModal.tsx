@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Project, TaskPriority, TaskStatus, DoDItem } from '../../api/types'
-import { X, CheckSquare, AlertCircle, FolderGit2, Flag, CornerDownLeft } from 'lucide-react'
+import { X, AlertCircle } from 'lucide-react'
+import { trapDialogFocus } from '../../lib/dialog'
 
 interface CreateTaskModalProps {
   isOpen: boolean
@@ -24,194 +25,202 @@ export function CreateTaskModal({
   onClose,
   onSubmit,
 }: CreateTaskModalProps) {
+  const defaultProject =
+    projects.find((p) => p.id === activeProjectId && !p.is_archived)?.id ||
+    projects.find((p) => !p.is_archived)?.id ||
+    ''
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('normal')
-  const [status] = useState<TaskStatus>('todo')
-  const [selectedProjectId, setSelectedProjectId] = useState(activeProjectId || (projects[0]?.id || ''))
+  const [selectedProjectId, setSelectedProjectId] = useState(defaultProject)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const titleInputRef = useRef<HTMLInputElement>(null)
-
-  // Reset and autofocus title whenever modal opens
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    if (isOpen) {
-      setTitle('')
-      setDescription('')
-      setError(null)
-      setSelectedProjectId(activeProjectId || (projects[0]?.id || ''))
-      setPriority('normal')
-      setTimeout(() => {
-        titleInputRef.current?.focus()
-      }, 50)
-    }
-  }, [isOpen, activeProjectId, projects])
-
-  // Handle escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
-
-  const submitForm = async () => {
-    if (!title.trim() || loading) {
-      if (!title.trim()) setError('Judul task tidak boleh kosong')
-      return
-    }
-
-    setLoading(true)
+    if (!isOpen) return
+    setTitle('')
+    setDescription('')
     setError(null)
-    try {
-      await onSubmit({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        project_ids: selectedProjectId ? [selectedProjectId] : undefined,
-        priority,
-        status,
-      })
-      onClose()
-    } catch (err: any) {
-      setError(err.message || 'Gagal membuat task')
-    } finally {
-      setLoading(false)
+    setPriority('normal')
+    setSelectedProjectId(defaultProject)
+  }, [isOpen, defaultProject])
+  useEffect(() => {
+    if (!isOpen) return
+    const previous = document.activeElement as HTMLElement | null
+    const dialog = dialogRef.current
+    dialog?.showModal()
+    titleRef.current?.focus()
+    return () => {
+      dialog?.close()
+      if (previous?.isConnected) previous.focus()
     }
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    submitForm()
-  }
-
+  }, [isOpen])
+  if (!isOpen) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 select-none">
-      <div className="w-full max-w-lg bg-card border border-border shadow-2xl rounded-xl p-5 text-card-foreground animate-in fade-in-0 zoom-in-95 duration-150">
-        {/* Header: Minimal title & Close */}
-        <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
-          <div className="flex items-center gap-2">
-            <CheckSquare className="h-4 w-4 text-primary" />
-            <h2 className="text-xs font-bold tracking-tight text-foreground uppercase">
-              Tugas Baru (Quick Task)
-            </h2>
+    <dialog
+      ref={dialogRef}
+      onKeyDown={trapDialogFocus}
+      aria-labelledby="create-task-heading"
+      onCancel={(e) => {
+        e.preventDefault()
+        if (!loading) onClose()
+      }}
+      className="m-auto w-[calc(100%_-_24px)] max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl border border-border bg-card p-5 text-card-foreground shadow-2xl backdrop:bg-black/60"
+    >
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <h2 id="create-task-heading" className="text-xl font-semibold">
+          New task
+        </h2>
+        <button
+          type="button"
+          aria-label="Tutup form task"
+          className="icon-action"
+          disabled={loading}
+          onClick={onClose}
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </header>
+      {error && (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          if (loading) return
+          if (!title.trim()) {
+            setError('Judul task tidak boleh kosong')
+            return
+          }
+          setLoading(true)
+          setError(null)
+          try {
+            await onSubmit({
+              title: title.trim(),
+              description: description.trim() || undefined,
+              project_ids: selectedProjectId ? [selectedProjectId] : undefined,
+              priority,
+              status: 'todo',
+            })
+            onClose()
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Gagal membuat task')
+          } finally {
+            setLoading(false)
+          }
+        }}
+      >
+        <div>
+          <label htmlFor="create-task-title" className="text-sm font-medium">
+            Judul task
+          </label>
+          <input
+            id="create-task-title"
+            ref={titleRef}
+            className="field-control mt-1"
+            required
+            maxLength={200}
+            placeholder="Apa yang ingin dikerjakan?"
+            value={title}
+            disabled={loading}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="create-task-description"
+            className="text-sm font-medium"
+          >
+            Deskripsi <span className="text-muted-foreground">(opsional)</span>
+          </label>
+          <textarea
+            id="create-task-description"
+            rows={4}
+            className="field-control mt-1 resize-y"
+            placeholder="Tujuan, scope, dan kriteria selesai"
+            value={description}
+            disabled={loading}
+            onChange={(e) => setDescription(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault()
+                e.currentTarget.form?.requestSubmit()
+              }
+            }}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="min-w-0">
+            <label
+              htmlFor="create-task-project"
+              className="text-sm font-medium"
+            >
+              Project
+            </label>
+            <select
+              id="create-task-project"
+              className="field-control mt-1"
+              value={selectedProjectId}
+              disabled={loading}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+            >
+              <option value="">Global / Tanpa project</option>
+              {projects
+                .filter((p) => !p.is_archived)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
           </div>
+          <div className="min-w-0">
+            <label
+              htmlFor="create-task-priority"
+              className="text-sm font-medium"
+            >
+              Prioritas
+            </label>
+            <select
+              id="create-task-priority"
+              className="field-control mt-1"
+              value={priority}
+              disabled={loading}
+              onChange={(e) => setPriority(e.target.value as TaskPriority)}
+            >
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
           <button
             type="button"
+            className="action-secondary"
+            disabled={loading}
             onClick={onClose}
-            className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
           >
-            <X className="h-4 w-4" />
+            Batal
+          </button>
+          <button
+            type="submit"
+            className="action-primary"
+            disabled={loading || !title.trim()}
+          >
+            {loading ? 'Menyimpan…' : 'Buat task'}
           </button>
         </div>
-
-        {error && (
-          <div className="mb-3 p-2 bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2 rounded-md">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Title Input with autofocus & Enter shortcut */}
-          <div>
-            <input
-              ref={titleInputRef}
-              type="text"
-              autoFocus
-              required
-              placeholder="Apa yang ingin dikerjakan?..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  submitForm()
-                }
-              }}
-              className="w-full px-3.5 py-2.5 text-sm font-medium bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-lg shadow-2xs"
-            />
-          </div>
-
-          {/* Description Textarea (Optional, Ctrl+Enter to submit) */}
-          <div>
-            <textarea
-              rows={3}
-              placeholder="Deskripsi atau instruksi tambahan (opsional)..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault()
-                  submitForm()
-                }
-              }}
-              className="w-full px-3.5 py-2 text-xs bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-lg resize-none leading-relaxed"
-            />
-          </div>
-
-          {/* Sub-panel Controls: Project dropdown & Priority */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border">
-            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              {/* Project selector */}
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <FolderGit2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => setSelectedProjectId(e.target.value)}
-                  className="w-full px-2 py-1 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-md truncate cursor-pointer"
-                >
-                  <option value="">(Global / Tanpa Project)</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Priority selector */}
-              <div className="flex items-center gap-1 shrink-0">
-                <Flag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                  className="px-2 py-1 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-md cursor-pointer"
-                >
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 ml-auto shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !title.trim()}
-                className="px-3.5 py-1.5 bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-all disabled:opacity-50 rounded-md flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <span>{loading ? 'Menyimpan...' : 'Buat Tugas'}</span>
-                <CornerDownLeft className="h-3 w-3 opacity-70" />
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </dialog>
   )
 }

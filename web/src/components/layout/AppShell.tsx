@@ -188,9 +188,12 @@ export function AppShell({
         >
           <div className="flex min-w-0 items-center gap-2">
             {currentTab === 'inbox' ? (
-              <h1 className="truncate text-xl font-semibold tracking-tight">
-                Inbox
-              </h1>
+              <>
+                <CuanMark className="h-6 w-6 md:hidden" />
+                <h1 className="truncate text-xl font-semibold tracking-tight">
+                  Inbox
+                </h1>
+              </>
             ) : (
               <span className="truncate text-sm font-medium">
                 <span className="inline-flex items-center gap-2 align-middle">

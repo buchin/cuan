@@ -77,56 +77,43 @@ export function ProjectsView({
           {error}
         </p>
       )}
-      {/* Top Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <header className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="page-title">Projects</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {activeProjects.length} active · {archivedProjects.length} archived
           </p>
         </div>
-
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <input
-            type="text"
-            aria-label="Search projects"
-            placeholder="Search projects…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="min-h-11 px-3 py-2 text-sm bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-md w-full sm:w-48"
-          />
-
-          <div className="flex items-center border border-input rounded-md overflow-hidden">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`inline-flex h-11 w-11 items-center justify-center transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-background text-muted-foreground hover:text-foreground'
-              }`}
-              title="Grid view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`inline-flex h-11 w-11 items-center justify-center transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-background text-muted-foreground hover:text-foreground'
-              }`}
-              title="List view"
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-
+        <button onClick={onCreateProject} className="action-primary shrink-0">
+          <Plus className="h-4 w-4" />
+          New Project
+        </button>
+      </header>
+      <div className="flex items-center gap-2">
+        <input
+          type="search"
+          aria-label="Search projects"
+          placeholder="Search projects…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="field-control flex-1"
+        />
+        <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
           <button
-            onClick={onCreateProject}
-            className="flex items-center gap-1.5 min-h-11 px-3 py-2 bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors rounded-md"
+            onClick={() => setViewMode('grid')}
+            aria-label="Grid view"
+            aria-pressed={viewMode === 'grid'}
+            className={`icon-action ${viewMode === 'grid' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
           >
-            <Plus className="h-4 w-4" />
-            <span>New Project</span>
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            aria-label="List view"
+            aria-pressed={viewMode === 'list'}
+            className={`icon-action ${viewMode === 'list' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
+          >
+            <List className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -134,8 +121,9 @@ export function ProjectsView({
       {/* Tabs */}
       <div className="flex items-center gap-4 border-b border-border text-sm">
         <button
+          aria-pressed={activeTab === 'active'}
           onClick={() => setActiveTab('active')}
-          className={`pb-2.5 font-medium transition-colors border-b-2 -mb-px ${
+          className={`min-h-11 pb-2.5 font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'active'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -144,8 +132,9 @@ export function ProjectsView({
           Active Projects ({activeProjects.length})
         </button>
         <button
+          aria-pressed={activeTab === 'archived'}
           onClick={() => setActiveTab('archived')}
-          className={`pb-2.5 font-medium transition-colors border-b-2 -mb-px ${
+          className={`min-h-11 pb-2.5 font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'archived'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -160,23 +149,33 @@ export function ProjectsView({
         <div className="border border-dashed border-border p-12 text-center bg-muted/30 rounded-lg">
           <FolderGit2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <h3 className="text-sm font-semibold text-foreground">
-            {activeTab === 'active'
-              ? 'No active projects yet'
-              : 'No archived projects'}
+            {search.trim()
+              ? 'No projects match your search'
+              : activeTab === 'active'
+                ? 'No active projects yet'
+                : 'No archived projects'}
           </h3>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto mt-1 mb-5">
-            {activeTab === 'active'
-              ? 'Create your first project to start managing tasks and assigning AI Agents.'
-              : 'Archived projects will appear here.'}
+            {search.trim()
+              ? 'Try another name or repository URL.'
+              : activeTab === 'active'
+                ? 'Create your first project to start managing tasks and assigning AI Agents.'
+                : 'Archived projects will appear here.'}
           </p>
-          {activeTab === 'active' && (
-            <button
-              onClick={onCreateProject}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors rounded-md"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Create New Project</span>
+          {search.trim() ? (
+            <button className="action-secondary" onClick={() => setSearch('')}>
+              Clear search
             </button>
+          ) : (
+            activeTab === 'active' && (
+              <button
+                onClick={onCreateProject}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors rounded-md"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create New Project</span>
+              </button>
+            )
           )}
         </div>
       ) : viewMode === 'grid' ? (
@@ -187,7 +186,7 @@ export function ProjectsView({
             return (
               <div
                 key={project.id}
-                className="group border border-border bg-card p-5 flex flex-col justify-between hover:border-primary/50 transition-all rounded-lg shadow-sm"
+                className="group min-w-0 border border-border bg-card p-5 flex flex-col justify-between hover:border-primary/50 transition-all rounded-lg shadow-sm"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -214,7 +213,7 @@ export function ProjectsView({
                   <button
                     type="button"
                     onClick={() => onSelectProject(project)}
-                    className="min-h-11 text-left font-bold text-base text-foreground group-hover:text-primary transition-colors"
+                    className="min-h-11 w-full break-words text-left font-bold text-base text-foreground group-hover:text-primary transition-colors"
                   >
                     {project.name}
                   </button>
@@ -256,10 +255,12 @@ export function ProjectsView({
             return (
               <div
                 key={project.id}
-                onClick={() => onSelectProject(project)}
-                className="group p-4 flex items-center justify-between gap-4 hover:bg-accent cursor-pointer transition-colors"
+                className="group p-4 flex items-center justify-between gap-2 transition-colors"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => onSelectProject(project)}
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                >
                   <FolderGit2 className="h-4 w-4 text-primary shrink-0" />
                   <div className="min-w-0">
                     <h3 className="font-bold text-sm text-foreground group-hover:text-primary truncate">
@@ -271,10 +272,10 @@ export function ProjectsView({
                       </p>
                     )}
                   </div>
-                </div>
+                </button>
 
-                <div className="flex items-center gap-6 shrink-0 text-sm">
-                  <span className="text-xs uppercase font-mono px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded">
+                <div className="flex items-center gap-2 sm:gap-6 shrink-0 text-sm">
+                  <span className="hidden sm:inline text-xs uppercase font-mono px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded">
                     {project.project_type || 'custom'}
                   </span>
 
@@ -298,7 +299,13 @@ export function ProjectsView({
                     </button>
                   )}
 
-                  <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-1 transition-transform" />
+                  <button
+                    className="icon-action text-primary"
+                    aria-label={`Open project ${project.name}`}
+                    onClick={() => onSelectProject(project)}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             )
