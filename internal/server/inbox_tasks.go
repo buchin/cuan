@@ -47,10 +47,11 @@ func (s *Server) handleInboxMessageTask(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		ProjectID    string       `json:"project_id"`
 		Title        string       `json:"title"`
+		Description  *string      `json:"description,omitempty"`
 		Assignee     string       `json:"assignee,omitempty"`
 		DoDChecklist []db.DoDItem `json:"dod_checklist,omitempty"`
 	}
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req) != nil {
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&req) != nil {
 		respondJSONError(w, 400, "Permintaan task tidak valid")
 		return
 	}
@@ -86,7 +87,18 @@ func (s *Server) handleInboxMessageTask(w http.ResponseWriter, r *http.Request) 
 		respondJSONError(w, 409, "Project diarsipkan. Pilih project aktif.")
 		return
 	}
-	instructions := fmt.Sprintf("%s\n\nSumber: percakapan %s, pesan %s.\nKerjakan sesuai instruksi dan laporkan hasil serta bukti verifikasi; jangan menandai selesai hanya karena proses keluar dengan kode nol.", source.Content, resolved.RoomID, id)
+	description := source.Content
+	if _, draft := splitInboxTaskDraft(source.AuthorType, source.Content); draft != nil {
+		description = draft.Description
+	}
+	if req.Description != nil {
+		description = strings.TrimSpace(*req.Description)
+		if description == "" || len([]rune(description)) > 6000 {
+			respondJSONError(w, 400, "Isi deskripsi task maksimal 6000 karakter")
+			return
+		}
+	}
+	instructions := fmt.Sprintf("%s\n\nSumber: percakapan %s, pesan %s.\nKerjakan sesuai instruksi dan laporkan hasil serta bukti verifikasi; jangan menandai selesai hanya karena proses keluar dengan kode nol.", description, resolved.RoomID, id)
 	if len(req.DoDChecklist) > 0 {
 		instructions += "\n\nKriteria selesai (belum diverifikasi):"
 		for _, item := range req.DoDChecklist {

@@ -660,7 +660,6 @@ export function InboxView({
 
                       {msg.uuid && (
                         <InboxTaskAction
-                          compact
                           linkedTask={linkedTasks.find(
                             (task) => task.source_message_id === msg.uuid,
                           )}
@@ -668,7 +667,7 @@ export function InboxView({
                             activeContact.conversation_id || activeContact.id
                           }
                           messageId={msg.uuid}
-                          content={msg.content || msg.message}
+                          draft={isAgentMessage ? msg.task_draft : undefined}
                         />
                       )}
                       {isAgentMessage && (

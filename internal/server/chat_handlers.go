@@ -65,6 +65,7 @@ type ChatMessageDTO struct {
 	AttachmentSize  int64            `json:"attachment_size,omitempty"`
 	HasAttachment   bool             `json:"has_attachment,omitempty"`
 	ActionCard      *AgentActionCard `json:"action_card,omitempty"`
+	TaskDraft       *InboxTaskDraft  `json:"task_draft,omitempty"`
 	CreatedAt       time.Time        `json:"created_at"`
 }
 
@@ -1133,6 +1134,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		}
 
 		var actionCard *AgentActionCard
+		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
 
 		dtos[i] = ChatMessageDTO{
 			ID:              int64(i + 1), // Monotonic numeric ID for Dojo widget
@@ -1142,10 +1144,11 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			SenderType:      senderType,
 			AuthorType:      m.AuthorType,
 			AuthorName:      m.AuthorName,
-			Message:         m.Content,
-			Content:         m.Content,
+			Message:         content,
+			Content:         content,
 			Product:         product,
 			ActionCard:      actionCard,
+			TaskDraft:       draft,
 			CreatedAt:       m.CreatedAt,
 		}
 	}

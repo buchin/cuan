@@ -6,8 +6,8 @@
    berdampingan. Di HP/tablet, pilih percakapan dari daftar lalu gunakan Back
    untuk kembali. Pencarian dan filter daftar tetap tersedia.
 2. Ketik pesan. Pesan dan balasan memakai teks 16 px; tombol kirim 48 px.
-   Untuk membuat task, gunakan tombol **⋯** di sisi bubble pesan. Task yang
-   sudah tertaut tetap dapat dibuka dari pesan tersebut.
+   Untuk membuat task, minta agent di chat, misalnya **“Bikinin task dari
+   pembahasan tadi”**. Periksa draft, pilih project, lalu tekan **Buat task**.
 3. Buka **Tasks** untuk backlog global, atau **Projects → nama project** untuk
    board yang hanya memuat task project tersebut. Detail task dapat ditutup
    dengan Escape dan kembali ke project asal.
@@ -142,7 +142,7 @@ masuk putih; tema gelap memakai hijau tua dan charcoal netral tanpa nuansa biru.
 pada chat dan mengikuti pilihan Settings → Tampilan.
 
 Centang tunggal berarti **Pesan tersimpan**, bukan sudah dibaca penerima.
-Tombol **⋯** di sisi bubble membuka form pembuatan task. Detail respons tetap
+Tombol Task per bubble sudah dihapus; gunakan permintaan draft melalui chat. Detail respons tetap
 dapat dibuka di bawah balasan untuk menelusuri proses dan informasi teknis.
 Markdown, salin kode, pesan panjang, safe-area dan Back tetap tersedia.
 Perubahan visual ini tidak menambahkan panggilan, lampiran atau reply kutipan.
@@ -164,3 +164,35 @@ perintah berhasil. Hasil kosong setelah penolakan tetap berstatus gagal dengan
 penjelasan; tidak dibuat balasan agent palsu dan pesan tidak dijalankan ulang.
 Balasan akhir nonkosong yang menjelaskan batasan tetap dapat ditampilkan.
 Untuk eksekusi yang perlu ditindaklanjuti, buat task.
+
+## Membuat task melalui percakapan
+
+1. Bahas tujuan, scope, batasan dan kriteria selesai dengan agent.
+2. Kirim **“Bikinin task dari pembahasan tadi”**. Agent memakai riwayat chat
+   yang tersedia (maksimal 20 pesan, dengan batas ukuran konteks). Jika pembahasan
+   sudah panjang, sertakan ulang batasan penting pada pesan permintaan.
+3. Kartu **Draft task** menampilkan judul, deskripsi dan project. Semua bisa
+   diedit. Project yang diarsipkan tidak dapat dipilih; bila project ambigu,
+   pilih sendiri. Belum ada task yang tersimpan pada tahap ini.
+4. Tekan **Buat task**. Task masuk backlog dan kartu berubah menjadi tautan
+   **Buka task**. Eksekusi agent dimulai terpisah dari halaman task.
+
+Jika penyimpanan gagal, edit tetap tersedia dan klik ulang tidak membuat task
+ganda dari pesan sumber yang sama. Reload sebelum konfirmasi memuat ulang draft
+asli agent (edit lokal belum disimpan); reload setelah konfirmasi menampilkan
+task tersimpan. Task lama yang tertaut ke pesan tetap dapat dibuka. Draft revisi
+dalam balasan baru adalah calon task baru; gunakan kartu asli untuk menghindari
+duplikasi pekerjaan yang sama.
+
+Agent mengirim satu blok akhir `cuan-task` berisi JSON title/description/project_id;
+server memvalidasi batas 200/6000 karakter dan hanya mengenalinya pada balasan
+agent. Metadata dipisahkan dari teks saat snapshot/SSE sehingga kartu dapat pulih
+setelah reload tanpa migration. Draft tidak menjalankan tool tulis atau membuat
+task otomatis. Format yang tidak valid tetap ditampilkan sebagai teks; minta
+agent menyusun ulang draft.
+
+Endpoint konfirmasi existing: `POST /api/v1/chat/conversations/:id/messages/:messageID/task`
+dengan `project_id`, `title`, dan `description` opsional untuk kompatibilitas.
+Deskripsi yang dikirim wajib nonkosong dan maksimal 6000 karakter. Sumber pesan
+harus berada dalam percakapan tersebut. Task memakai kunci idempoten dari ID
+pesan, menyimpan referensi percakapan/pesan, dan tidak membuat execution attempt.

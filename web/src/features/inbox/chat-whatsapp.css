@@ -47,10 +47,6 @@
 .wa-input:focus-visible { outline: 2px solid var(--wa-send); outline-offset: 1px; }
 .wa-send { background: var(--wa-send); color: var(--wa-send-text); }
 .wa-send:hover { filter: brightness(.95); }
-.wa-task-action { position: absolute; top: 0; color: var(--wa-meta); }
-.wa-outgoing > .wa-task-action { right: calc(100% + 2px); }
-.wa-incoming > .wa-task-action { left: calc(100% + 2px); }
-.wa-task-action .message-action-trigger { padding-inline: 0; }
 .wa-chat .chat-markdown { font-size: 16px; line-height: 1.45; }
 .wa-chat .chat-markdown blockquote { border-left-color: var(--wa-send); background: rgb(128 128 128 / .08); padding: .4em .65em; border-radius: 4px; }
 @media (min-width: 1200px) { .wa-message-bubble { max-width: min(75%, 72ch); } }

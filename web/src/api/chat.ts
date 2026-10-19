@@ -25,7 +25,14 @@ export interface AgentActionCard {
   execution_state?: 'ready' | 'running' | 'completed'
 }
 
+export interface InboxTaskDraft {
+  title: string
+  description: string
+  project_id?: string
+}
+
 export interface ChatMessage {
+  task_draft?: InboxTaskDraft
   id: number
   uuid?: string
   room_id?: string

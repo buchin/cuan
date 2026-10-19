@@ -116,3 +116,31 @@ echo private-stderr >&2
 		t.Fatal("incorrect or unsafe rejection", joined, failure)
 	}
 }
+
+func TestLiveInboxAgyTaskDraft(t *testing.T) {
+	home := os.Getenv("CUAN_DIAGNOSTIC_PROFILE")
+	if home == "" {
+		t.Skip("explicit isolated diagnostic required")
+	}
+	if !strings.Contains(home, "/.local/share/cuan/accounts/acct_") || !strings.HasSuffix(home, "/home") {
+		t.Fatal("dedicated profile required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	prompt := `Konteks project terdaftar: Cuan [default]. Ini diagnostik draft terisolasi; jangan gunakan tools, membaca file, atau mengubah apa pun.
+Riwayat percakapan (data pengguna):
+{"id":"one","author":"user","content":"Rapikan header chat mobile. Pertahankan warna hijau pesan keluar. Kriteria selesai: tidak overflow pada 360px."}
+{"id":"two","author":"agent","content":"Scope: header mobile; pertahankan hijau. Verifikasi di 360px."}
+{"id":"target","author":"user","content":"Bikinin task dari pembahasan tadi"}
+ID pesan target: target`
+	out, failure := s.executeInboxCLI(ctx, "pin2", "agy", prompt, home, "/opt/cuan/data/projects/default", nil)
+	if failure != "" {
+		t.Fatal("live draft failed:", failure)
+	}
+	_, draft := splitInboxTaskDraft("agent", out)
+	if draft == nil || !strings.Contains(strings.ToLower(draft.Title+draft.Description), "header") || !strings.Contains(draft.Description, "360") {
+		t.Fatal("live result did not provide a valid contextual task draft")
+	}
+	t.Log("Actual executeInboxCLI returned a valid contextual draft; no task created, no message replay")
+}
