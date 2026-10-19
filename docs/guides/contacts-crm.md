@@ -87,3 +87,20 @@ Jangan jalankan down migration atau restore database untuk rollback aplikasi bia
 Smoke: Contacts pada desktop/tablet/HP, buka detail/tag, link ke chat, widget identity,
 retry pengiriman dan reload. Pengujian fixture: `node docs/evidence/contacts-crm/browser-check.cjs`
 dan `node docs/evidence/contacts-crm/widget-check.cjs`. Bukti production dicatat terpisah.
+
+## Bukti rilis production
+
+Rilis `f7cb900` aktif di https://cuan.dojo.cc, schema22 dan auto-migrate nonaktif.
+Production Chromium lulus 42 kombinasi route/viewport, tag yang bertahan setelah
+reload, Contacts → riwayat customer, serta widget lintas origin yang mengirim dan
+memuat ulang pesan dengan API nyata. Aset SPA dan widget identik dengan build.
+
+Tiga kontak dan dua pesan khusus smoke test dibersihkan. Seluruh 34 tabel lama
+(selain sesi login smoke) dan 378 file profil identik dengan backup sebelum rilis.
+Persistent project checkout diperbarui melalui fast-forward Git bundle tanpa
+transfer kredensial. Bukti: `docs/evidence/contacts-crm/production-browser.json`,
+`production-crm-flow.json`, `production-widget.json`, dan `production-retention.json`.
+
+Rilis sebelum Contacts `48c2d68b3adc1c6dcc95fd2058b1668706fed946` dapat diaktifkan
+secara eksplisit dengan `--release SHA --schema-count 22`; jangan turunkan schema.
+Pengujian menggunakan emulasi viewport Chromium, belum sertifikasi Safari/perangkat fisik.

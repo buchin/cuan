@@ -1,0 +1,16 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "embeddingPage": "synthetic external-origin page",
+  "apiMocked": false,
+  "checks": [
+    "production widget loads across origins",
+    "session initialization",
+    "email identify",
+    "real message send and poll",
+    "history after reload"
+  ],
+  "fixtureContacts": 1,
+  "fixtureMessages": 1,
+  "providerInvocations": 0,
+  "errors": []
+}

@@ -1,0 +1,25 @@
+{
+  "release": "f7cb90025e950e09ff6b7952b0c77adae8093c54",
+  "initialCRMRelease": "bfec7192965486bae3bec5768c3d9b5b4dc3cf43",
+  "preCRMRelease": "48c2d68b3adc1c6dcc95fd2058b1668706fed946",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "autoMigrate": false,
+  "migration": "000022_contacts_crm",
+  "backupValidated": true,
+  "privateBackup": "/opt/cuan/backups/contacts-crm-release",
+  "oldApplicationHealthyAfterMigration": true,
+  "activation": "native atomic SSH release, manifest/readiness checks and health rollback",
+  "productionRouteViewportChecks": 42,
+  "retainedTablesVerified": 34,
+  "retainedProfileFilesVerified": 378,
+  "smokeFixturesRemoved": true,
+  "providerInvocations": 0,
+  "persistentWorkspaceRelease": "f7cb90025e950e09ff6b7952b0c77adae8093c54",
+  "limits": [
+    "Chromium emulation, no physical Safari/device certification",
+    "Claimed widget email, no cross-browser merging or shared-browser account isolation",
+    "Broadcast and server pagination not implemented",
+    "Existing CSS minifier and JS chunk warnings"
+  ]
+}
