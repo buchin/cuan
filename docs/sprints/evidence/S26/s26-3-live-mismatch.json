@@ -1,0 +1,3 @@
+{
+  "log": "{\"actualStagingHTTP\": true, \"mismatchedProfileProviderVerifyHTTP\": 409, \"mismatchedRosterState\": \"login_required\", \"profileCredentialAndMetadataHashesRestored\": true, \"pin1QuotaPreserved\": true, \"noProviderProbeOrConsent\": true, \"sourceSHA256\": {\"internal/server/agent_profile.go\": \"ecf090e33b9fb8e04903e9c55adeac39c793946b8f7f5b25fcd26f6f3940a319\", \"internal/server/agent_handlers.go\": \"36d36e9cbf18ef875b6a624d518575d7fead850940399ef3795afaf08c102275\"}}"
+}

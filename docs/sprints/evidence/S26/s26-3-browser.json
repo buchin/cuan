@@ -1,5 +1,5 @@
 {
-  "localBuildOverlay": true,
+  "localBuildOverlay": false,
   "proof": [
     {
       "width": 360,

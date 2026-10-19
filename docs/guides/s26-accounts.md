@@ -4,7 +4,7 @@
 
 SM menerima S26.1 di ed97cfa. s26-2-before.json dan s26-2-after.json membuktikan mapping serta balasan pin1/pin2 bertahan setelah restart independen. Pin2 menjadi Belum diperiksa setelah lima menit tanpa menghapus login. Pin1 quota_limited tidak perlu login ulang.
 
-s26-2-targeted.txt membuktikan dua jalur HTTP Inbox dan dua PTY OS memakai HOME masing-masing melalui CLI/credential fixture. s26-2-task-history.json hanya membuktikan peluncuran dan exit 0 CLI AGY nyata di staging, bukan isi jawaban atau observasi HOME child nyata. Bukti identitas Google dan nonce nyata tetap terpisah. Resolver menolak provider koneksi/profil yang berbeda dari jenis agen; hardening S26.2 diuji di source dan perlu masuk validasi staging pada gate release berikutnya. Production belum diperbarui. Detail DoD ada di docs/sprints/S26.md.
+s26-2-targeted.txt membuktikan dua jalur HTTP Inbox dan dua PTY OS memakai HOME masing-masing melalui CLI/credential fixture. s26-2-task-history.json hanya membuktikan peluncuran dan exit 0 CLI AGY nyata di staging, bukan isi jawaban atau observasi HOME child nyata. Bukti identitas Google dan nonce nyata tetap terpisah. Resolver menolak provider koneksi/profil yang berbeda dari jenis agen; hardening S26.2 kini sudah diterbitkan ke staging bersama S26.3. Pemeriksaan HTTP nyata menolak mismatch provider profil dengan 409 dan memulihkan metadata byte-for-byte; regresi staging mencakup mismatch koneksi/owner dan jalur fixture. Versi aset diperiksa persis dan smoke mobile lulus. Detail: s26-3-version.json, s26-3-live-mismatch.json, s26-3-staged-targeted.json dan s26-3-browser.json (tanpa overlay lokal). Production belum diperbarui. Detail DoD ada di docs/sprints/S26.md.
 
 ## Membaca status per agen
 
