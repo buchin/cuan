@@ -90,7 +90,7 @@ export function InboxSubPanel({
           <span className="text-xs font-bold tracking-tight text-foreground uppercase">
             Percakapan
           </span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+          <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
             {contacts.length} percakapan
           </span>
         </div>
@@ -198,7 +198,7 @@ export function InboxSubPanel({
                     <span className="text-sm font-semibold text-foreground truncate">
                       {contact.name}
                     </span>
-                    <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
+                    <span className="text-xs text-muted-foreground shrink-0 font-mono">
                       {formatTime(
                         contact.last_message_at || contact.updated_at,
                       )}
@@ -219,7 +219,7 @@ export function InboxSubPanel({
                       {contact.last_message || 'Belum ada pesan.'}
                     </p>
                     {contact.unread_count > 0 && (
-                      <span className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                      <span className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
                         {contact.unread_count}
                       </span>
                     )}

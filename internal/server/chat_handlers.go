@@ -164,7 +164,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 		Message     string `json:"message"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
@@ -174,34 +174,31 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 		guestUUID = db.GenerateUUID()
 	}
 
-	sessionUUID := strings.TrimSpace(payload.SessionUUID)
-	if sessionUUID == "" {
-		globalChatManager.RLock()
-		if existing, ok := globalChatManager.sessionByGuest[guestUUID]; ok && existing != nil {
-			sessionUUID = existing.UUID
-		}
-		globalChatManager.RUnlock()
+	email, err := normalizeCRMEmail(payload.Email)
+	if err != nil || len(guestUUID) > 128 || len(payload.Product) > 100 || len(payload.Name) > 200 {
+		respondJSONError(w, 400, "Identitas pengunjung tidak valid")
+		return
 	}
-	if sessionUUID == "" {
-		sessionUUID = db.GenerateUUID()
-	}
-
+	product := strings.TrimSpace(payload.Product)
 	name := strings.TrimSpace(payload.Name)
-	if name == "" {
-		if payload.Product != "" {
-			name = fmt.Sprintf("Customer (%s)", payload.Product)
-		} else {
-			name = fmt.Sprintf("Visitor #%s", guestUUID[:6])
-		}
+	contact, err := s.crmUpsert(r.Context(), guestUUID, product, name, email)
+	if err != nil {
+		respondJSONError(w, 503, "Sesi belum dapat disimpan")
+		return
 	}
-
+	sessionUUID := contact.SessionUUID
+	name = contact.Name
+	if name == "" {
+		name = "Visitor #" + contact.ID[:6]
+	}
+	email = contact.Email
 	now := time.Now().UTC()
 	liveSession := &LiveChatSession{
 		UUID:        sessionUUID,
 		GuestUUID:   guestUUID,
 		Product:     strings.TrimSpace(payload.Product),
 		Name:        name,
-		Email:       strings.TrimSpace(payload.Email),
+		Email:       email,
 		CurrentURL:  payload.CurrentURL,
 		PageTitle:   payload.PageTitle,
 		ReferrerURL: payload.ReferrerURL,
@@ -218,19 +215,22 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 	// Ensure backing database room
 	if s.projectStudioRepo != nil {
 		if _, err := s.projectStudioRepo.GetRoomByID(r.Context(), sessionUUID); err != nil {
-			_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+			if err := s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
 				ID:        sessionUUID,
 				ProjectID: "default",
 				Title:     name,
 				Topic:     liveSession.Product,
 				CreatedAt: now,
 				UpdatedAt: now,
-			})
+			}); err != nil {
+				respondJSONError(w, 503, "Percakapan belum dapat disimpan")
+				return
+			}
 		}
 
 		// If initial message provided in session payload
 		if text := strings.TrimSpace(payload.Message); text != "" {
-			_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 				ID:         db.GenerateUUID(),
 				RoomID:     sessionUUID,
 				AuthorType: "user",
@@ -239,7 +239,10 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 				Content:    text,
 				CreatedAt:  now,
 				UpdatedAt:  now,
-			})
+			}); err != nil {
+				respondJSONError(w, 503, "Pesan belum tersimpan")
+				return
+			}
 		}
 	}
 
@@ -269,6 +272,10 @@ func (s *Server) handleVisitorGetMessages(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if _, err := s.crmSession(r.Context(), sessionUUID); err != nil {
+		respondJSONError(w, 404, "Sesi tidak ditemukan")
+		return
+	}
 	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
 
 	product := ""
@@ -307,7 +314,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 		AttachmentSize int64  `json:"attachment_size"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
@@ -330,10 +337,11 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	globalChatManager.RLock()
-	sess := globalChatManager.sessions[sessionUUID]
-	globalChatManager.RUnlock()
-
+	sess, err := s.crmSession(r.Context(), sessionUUID)
+	if err != nil {
+		respondJSONError(w, 404, "Sesi tidak ditemukan; buka ulang live chat")
+		return
+	}
 	authorName := "Customer"
 	product := ""
 	if sess != nil {
@@ -347,26 +355,32 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 	if s.projectStudioRepo != nil {
 		// Ensure room exists
 		if _, err := s.projectStudioRepo.GetRoomByID(r.Context(), sessionUUID); err != nil {
-			_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+			if err := s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
 				ID:        sessionUUID,
 				ProjectID: "default",
 				Title:     authorName,
 				Topic:     product,
 				CreatedAt: now,
 				UpdatedAt: now,
-			})
+			}); err != nil {
+				respondJSONError(w, 503, "Percakapan belum dapat disimpan")
+				return
+			}
 		}
 
-		_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+		if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 			ID:         msgUUID,
 			RoomID:     sessionUUID,
 			AuthorType: "user",
-			AuthorID:   payload.GuestUUID,
+			AuthorID:   sess.GuestUUID,
 			AuthorName: authorName,
 			Content:    text,
 			CreatedAt:  now,
 			UpdatedAt:  now,
-		})
+		}); err != nil {
+			respondJSONError(w, 503, "Pesan belum tersimpan")
+			return
+		}
 	}
 
 	// Determine new message index
@@ -524,33 +538,29 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 
 	// 3. Customer Live Chat Sessions (from Dojo Live Chat visitors)
 	if typeFilter != "agents" {
-		globalChatManager.RLock()
-		sessionList := make([]*LiveChatSession, 0, len(globalChatManager.sessions))
-		for _, sess := range globalChatManager.sessions {
-			sessionList = append(sessionList, sess)
+		sessionList := []*LiveChatSession{}
+		saved, err := s.crmList(r.Context())
+		if err != nil {
+			respondJSONError(w, 503, "Percakapan pelanggan belum dapat dimuat")
+			return
 		}
-		globalChatManager.RUnlock()
+		for _, c := range saved {
+			name := c.Name
+			if name == "" {
+				name = "Visitor #" + c.ID[:6]
+			}
+			sessionList = append(sessionList, &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: name, Email: c.Email, Status: "offline", CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt})
+		}
 
-		// Also read any rooms from DB that belong to visitors
 		if s.projectStudioRepo != nil {
-			if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
-				for _, rm := range allRooms {
-					if rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && !strings.HasPrefix(rm.Topic, "agent:") && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
-						globalChatManager.Lock()
-						if _, exists := globalChatManager.sessions[rm.ID]; !exists {
-							sess := &LiveChatSession{
-								UUID:      rm.ID,
-								GuestUUID: rm.ID,
-								Product:   rm.Topic,
-								Name:      rm.Title,
-								Status:    "online",
-								CreatedAt: rm.CreatedAt,
-								UpdatedAt: rm.UpdatedAt,
-							}
-							globalChatManager.sessions[rm.ID] = sess
-							sessionList = append(sessionList, sess)
-						}
-						globalChatManager.Unlock()
+			known := map[string]bool{}
+			for _, v := range sessionList {
+				known[v.UUID] = true
+			}
+			if rooms, e := s.projectStudioRepo.ListAllRooms(r.Context()); e == nil {
+				for _, rm := range rooms {
+					if !known[rm.ID] && rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && !strings.HasPrefix(rm.Topic, "agent:") && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
+						sessionList = append(sessionList, &LiveChatSession{UUID: rm.ID, GuestUUID: rm.ID, Product: rm.Topic, Name: rm.Title, Status: "offline", CreatedAt: rm.CreatedAt, UpdatedAt: rm.UpdatedAt})
 					}
 				}
 			}
@@ -582,7 +592,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				Type:           "customer",
 				Name:           sess.Name,
 				Avatar:         "👤",
-				Status:         "online",
+				Status:         "offline",
 				Product:        sess.Product,
 				GuestUUID:      sess.GuestUUID,
 				ConversationID: sess.UUID,

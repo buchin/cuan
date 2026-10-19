@@ -2,7 +2,7 @@
 # Native SSH release: versioned payload, checksums, atomic switch, health rollback.
 set -euo pipefail
 if [[ "${1:-}" == "--help" ]]; then
-  echo 'Usage: scripts/fural-deploy.sh [--branch APPROVED_BRANCH] (clean tree; default main). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass. Schema21 must be explicitly prepared after private backup; activation never migrates.'
+  echo 'Usage: scripts/fural-deploy.sh [--branch APPROVED_BRANCH] (clean tree; default main). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass. Schema22 must be explicitly prepared after private backup; activation never migrates.'
   exit 0
 fi
 approved_branch=main

@@ -301,3 +301,5 @@ _Belum ada sponsor terdaftar pada batch ini. Jadilah Founding Backer pertama di 
 
 Licensed under the [Apache License, Version 2.0](LICENSE).
 Copyright 2026 Buchin and Cuan contributors. See [NOTICE](NOTICE) for details.
+
+- [Contacts CRM dan integrasi live chat](docs/guides/contacts-crm.md)

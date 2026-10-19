@@ -4,6 +4,7 @@ import { NavigationDrawer } from './NavigationDrawer'
 import { useTheme } from '../../context/ThemeContext'
 import {
   Inbox,
+  Users,
   CheckSquare,
   FolderGit2,
   Plus,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-export type AppTab = 'inbox' | 'tasks' | 'projects' | 'settings'
+export type AppTab = 'inbox' | 'tasks' | 'projects' | 'contacts' | 'settings'
 interface AppShellProps {
   currentTab: AppTab
   onSelectTab: (tab: AppTab) => void
@@ -28,6 +29,7 @@ interface AppShellProps {
 }
 const NAV_ITEMS = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
+  { id: 'contacts', label: 'Contacts', icon: Users },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
 ] as const

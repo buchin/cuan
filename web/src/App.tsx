@@ -24,6 +24,7 @@ import {
   DoDItem,
 } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
 
 export function App() {
@@ -42,6 +43,8 @@ export function App() {
   // Current tab derived from URL route
   const currentTab: AppTab = useMemo(() => {
     switch (rootSegment) {
+      case 'contacts':
+        return 'contacts'
       case 'tasks':
         return 'tasks'
       case 'projects':
@@ -400,6 +403,7 @@ export function App() {
         )}
 
         {/* 2. Global Task Board View — Tasks */}
+        {currentTab === 'contacts' && <ContactsView />}
         {currentTab === 'tasks' && (
           <div className="h-full overflow-hidden">
             {taskRouteError && (

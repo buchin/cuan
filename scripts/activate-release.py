@@ -15,7 +15,7 @@ import urllib.parse
 BASE = Path('/opt/cuan')
 SERVICE = 'cuan'
 PORT = 8080
-SCHEMA_COUNT = 21
+SCHEMA_COUNT = 22
 
 
 def switch(link, target):
@@ -85,7 +85,7 @@ def main():
     parser.add_argument('--base', type=Path, default=BASE, help='Native installation directory (isolated drill uses its own base)')
     parser.add_argument('--service', default=SERVICE, help='Existing systemd service')
     parser.add_argument('--port', type=int, default=PORT, help='Loopback health port')
-    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
+    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
     args = parser.parse_args()
     BASE, SERVICE, PORT, SCHEMA_COUNT = args.base.resolve(), args.service, args.port, args.schema_count
     if not re.fullmatch(r'[a-zA-Z0-9_-]+', SERVICE) or not 1 <= PORT <= 65535:

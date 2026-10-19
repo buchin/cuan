@@ -41,6 +41,7 @@ import (
 )
 
 type Server struct {
+	crm                    *crmStore
 	cfg                    *config.Config
 	db                     *sql.DB
 	authSvc                *auth.Service
@@ -445,6 +446,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 
 	s := &Server{
+		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
 		cfg:                    cfg,
 		db:                     db,
 		authSvc:                svc,
@@ -1573,6 +1575,8 @@ func (s *Server) routes() {
 			pr.Post("/inbox/{id}/approve", s.handleApproveInboxThread)
 
 			// Direct Messenger Hub (Sprint 18)
+			pr.Get("/contacts", s.handleCRMList)
+			pr.Patch("/contacts/{id}", s.handleCRMUpdate)
 			pr.Get("/chat/contacts", s.handleInternalListContacts)
 			pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 			pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)

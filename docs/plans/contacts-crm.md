@@ -1,6 +1,6 @@
 # Contacts CRM — kebutuhan lanjutan
 
-Arahan PO 2026-10-19: **Contacts ditunda** dari rilis perbaikan navigasi/responsif.
+Arahan PO 2026-10-19: semula ditunda, kemudian **disetujui dilanjutkan bersama UI** melalui jawaban “Dua2nya”.
 Contacts nantinya menjadi CRM pelanggan, terpisah dari konfigurasi AI agent.
 
 ## Kebutuhan yang sudah dinyatakan
@@ -25,8 +25,12 @@ Contacts nantinya menjadi CRM pelanggan, terpisah dari konfigurasi AI agent.
 - Definisikan channel, opt-in/opt-out, segmentasi, antrean, batas pengiriman dan
   hasil delivery saat broadcast benar-benar masuk scope.
 
-## Batas rilis UI sekarang
+## Batas rilis UI sebelumnya
 
-Tidak menambahkan menu Contacts kosong, mengganti daftar agent menjadi CRM,
+Rilis UI sebelumnya tidak menambahkan menu Contacts kosong, mengganti daftar agent menjadi CRM,
 atau menganggap API daftar percakapan sebagai penyimpanan CRM lengkap.
 Navigasi saat ini berfokus pada Inbox, Tasks, Projects dan Settings → Agents.
+
+## Implementasi lanjutan
+
+Contacts CRM kini memiliki capture visitor, identitas widget, tag, pencarian/filter dan tautan percakapan. Broadcast tetap di luar scope. Kontrak, batas identitas, penggunaan dan deployment: [panduan Contacts](../guides/contacts-crm.md).

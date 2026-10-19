@@ -47,18 +47,17 @@ melaporkan kegagalan; arsip tidak diberi label Delete.
   percakapan 280 px hanya pada Inbox dan bisa disembunyikan.
 - 768–1199 px: navigasi 64 px, tanpa panel kedua permanen. Inbox memakai satu
   tampilan daftar/chat agar area kerja tetap luas.
-- <768 px: navigasi bawah Inbox/Tasks/Projects, header untuk Settings/menu akun,
+- <768 px: navigasi bawah Inbox/Contacts/Tasks/Projects, header untuk Settings/menu akun,
   serta drawer navigasi. Dalam chat, Back mengembalikan daftar dan navigasi bawah.
 - Drawer tertutup tidak ada di urutan Tab. Drawer/task detail membatasi fokus,
   Escape menutup, dan fokus dikembalikan jika elemen asal masih tersedia.
 - Safe-area HP dan perubahan visible viewport dipertahankan untuk composer.
 
-## Contacts ditunda
+## Contacts CRM
 
-Tidak ada menu Contacts kosong pada rilis ini. Sesuai arahan PO, Contacts akan
-menjadi CRM untuk pengunjung live chat, email identifier widget, tag, dan dasar
-broadcast pada fase berikutnya. Kebutuhan dicatat di
-[Contacts CRM](../plans/contacts-crm.md); belum diimplementasikan pada rilis UI ini.
+Contacts tersedia sebagai direktori CRM pengunjung live chat, terpisah dari
+Settings → Agents. Mendukung email identifier widget, tag, pencarian/filter dan
+Buka percakapan. Lihat [panduan Contacts](contacts-crm.md). Broadcast belum tersedia.
 
 ## Verifikasi
 
@@ -69,7 +68,7 @@ Back/reload, preferensi tema/navigasi, dan error/retry. Tidak memanggil provider
 Bukti ada pada `docs/evidence/ui-refresh/`; audit awal pada
 `docs/evidence/ui-ux-audit/`. Viewport Chromium bukan pengujian perangkat fisik.
 
-## Production
+## Rilis UI sebelumnya
 
 Release `48c2d68` aktif di https://cuan.dojo.cc sejak 2026-10-19. Schema tetap 21,
 auto-migrate nonaktif. Backup privat tervalidasi sebelum native atomic activation.
@@ -82,3 +81,5 @@ menjalankan provider saat smoke test. Checkpoint dan screenshot tersimpan di
 
 Untuk rollback aplikasi, pertahankan schema21 dan gunakan activator native dari
 panduan lifecycle. Release sebelumnya `9708a0d` tetap dipertahankan.
+
+Rilis Contacts berikutnya menggunakan schema22. Panduan terbaru: [Contacts CRM](contacts-crm.md).
