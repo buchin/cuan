@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -370,11 +371,22 @@ func VerifyAntigravityConnection(ctx context.Context) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "agy", "--print", "Reply with exactly CUAN_AUTH_OK. Do not use tools.", "--print-timeout", "30s")
 	cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil || !strings.Contains(string(out), "CUAN_AUTH_OK") {
-		return errors.New("provider verification failed; login may have expired or provider is unavailable")
+		return antigravityProbeError(stderr.String())
 	}
 	return nil
+}
+
+// Never return raw CLI output: it can contain account or authorization material.
+func antigravityProbeError(output string) error {
+	lower := strings.ToLower(output)
+	if strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "quota") {
+		return errors.New("Kuota provider Antigravity sedang dibatasi. Kredensial tetap tersimpan; tunggu kuota pulih lalu coba verifikasi lagi. Login Google ulang tidak menambah kuota.")
+	}
+	return errors.New("Koneksi provider Antigravity belum dapat diverifikasi. Kredensial tetap tersimpan; coba verifikasi lagi. Jangan ulangi login hanya karena gangguan provider.")
 }
 
 func validGoogleAuthURL(raw string) bool {

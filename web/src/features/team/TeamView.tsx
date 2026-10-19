@@ -170,7 +170,7 @@ export function TeamView({ selectedRole = 'all', onAgentAdded }: {
           <div className="rounded-md border border-border p-3 text-sm space-y-3">
             <p className="font-medium">Antigravity · Akun Google</p>
             <p role="status" className="text-muted-foreground">{busy ? 'Memproses…' : auth?.verified ? 'Koneksi provider terverifikasi.' : auth?.message || 'Hubungkan akun Anda.'}</p>
-            {!auth?.verified && <button type="button" onClick={login} disabled={busy} className={buttonClass}>{auth?.session_id ? 'Mulai ulang login' : 'Login dengan Google'}</button>}
+            {!auth?.verified && <button type="button" onClick={login} disabled={busy} className={buttonClass}>{auth?.session_id ? 'Mulai ulang login' : auth?.credentials_present ? 'Verifikasi ulang koneksi' : 'Login dengan Google'}</button>}
             {auth?.auth_url && !auth.verified && <div className="space-y-3">
               <a href={auth.auth_url} target="_blank" rel="noopener noreferrer" className="block text-primary underline">Buka login Google ↗</a>
               <p className="text-xs text-muted-foreground">Selesaikan login di browser, lalu tempel kode otorisasi. Sesi berlaku 5 menit.</p>

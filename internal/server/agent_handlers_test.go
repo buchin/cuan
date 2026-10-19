@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -712,5 +714,36 @@ func TestS25OAuthRequiresOwnerSession(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized {
 			t.Fatalf("%s must require owner session: %d", route, rec.Code)
 		}
+	}
+}
+
+func TestS25ExistingAccountProviderFailureDoesNotStartOAuth(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	dir := t.TempDir()
+	credential := filepath.Join(dir, "credential")
+	if err := os.WriteFile(credential, []byte("stored-test-credential"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ANTIGRAVITY_TOKEN_PATH", credential)
+	t.Setenv("PATH", dir)
+	script := "#!/bin/sh\nif [ \"$1\" = \"--print\" ]; then echo '429 RESOURCE_EXHAUSTED quota private-marker' >&2; exit 3; fi\necho interactive-started > " + filepath.Join(dir, "interactive") + "\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/agents/auth-init", strings.NewReader(`{"harness":"agy"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "Kuota") {
+		t.Fatalf("expected factual quota error, got %d %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "private-marker") {
+		t.Fatal("raw output leaked")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "interactive")); !os.IsNotExist(err) {
+		t.Fatal("must not launch OAuth on provider quota")
+	}
+	if _, err := os.Stat(credential); err != nil {
+		t.Fatal("credential removed")
 	}
 }

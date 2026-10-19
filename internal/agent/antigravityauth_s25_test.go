@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -70,5 +71,20 @@ func TestS25AuthorizationCodeUsesTerminalEnter(t *testing.T) {
 	_ = SubmitAntigravityAuthCode(id, "diagnostic-code")
 	if string(writer.input) != "diagnostic-code\r" {
 		t.Fatal("OAuth PTY must receive the Enter key, not a newline")
+	}
+}
+
+func TestS25ProbeErrorsDoNotExposeProviderOutput(t *testing.T) {
+	for _, output := range []string{"AGY_ERROR RESOURCE_EXHAUSTED 429 quota secret-account-token", "unavailable secret-account-token"} {
+		err := antigravityProbeError(output)
+		if strings.Contains(err.Error(), "secret-account-token") {
+			t.Fatal("raw provider output leaked")
+		}
+		if !strings.Contains(err.Error(), "Kredensial tetap tersimpan") {
+			t.Fatal("missing factual credential state")
+		}
+	}
+	if !strings.Contains(antigravityProbeError("quota 429").Error(), "Kuota") {
+		t.Fatal("quota not classified")
 	}
 }

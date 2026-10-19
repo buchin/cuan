@@ -974,7 +974,13 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if harness == "agy" {
-		if agent.IsAntigravityLoggedIn() && agent.VerifyAntigravityConnection(r.Context()) == nil {
+		if agent.IsAntigravityLoggedIn() {
+			if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
+				// A stored account can hit provider quota while remaining signed in.
+				// Starting its interactive CLI does not produce a new OAuth URL.
+				respondJSONError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
 			respondJSON(w, http.StatusOK, map[string]interface{}{
 				"status":        "success",
 				"harness":       "agy",
