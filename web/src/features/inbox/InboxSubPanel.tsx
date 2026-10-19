@@ -1,3 +1,5 @@
+import type { Agent } from '../../api/agents'
+import { ContactStatus } from '../agents/ContactStatus'
 import { useState } from 'react'
 import { ChatContact } from '../../api/chat'
 import { Search, Bot, User } from 'lucide-react'
@@ -7,6 +9,11 @@ export type ContactFilterTab = 'all' | 'agents' | 'customers'
 
 interface InboxSubPanelProps {
   contacts: ChatContact[]
+  agents?: Agent[]
+  now?: number
+  loading?: boolean
+  error?: string
+  onRetry?: () => void
   activeContactId?: string
   onSelectContact: (contact: ChatContact) => void
   selectedTab?: ContactFilterTab
@@ -17,6 +24,11 @@ interface InboxSubPanelProps {
 
 export function InboxSubPanel({
   contacts,
+  agents = [],
+  now,
+  loading = false,
+  error = '',
+  onRetry,
   activeContactId,
   onSelectContact,
   selectedTab = 'all',
@@ -76,22 +88,23 @@ export function InboxSubPanel({
       <div className="p-3 border-b border-border space-y-2.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold tracking-tight text-foreground uppercase">
-            Direct Messenger
+            Percakapan
           </span>
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-            {contacts.length} kontak
+            {contacts.length} percakapan
           </span>
         </div>
 
         {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-3.5 h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Cari kontak atau pesan..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label="Cari percakapan"
+            placeholder="Cari percakapan…"
+            className="w-full min-h-11 pl-8 pr-3 py-2 text-base rounded-md bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 
@@ -100,57 +113,70 @@ export function InboxSubPanel({
           <button
             onClick={() => handleTabClick('all')}
             className={cn(
-              'flex-1 py-1 rounded text-center transition-all font-medium text-[11px]',
+              'flex-1 min-h-11 py-2 rounded text-center transition-all font-medium text-sm',
               activeTab === 'all'
                 ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            All
+            Semua
           </button>
           <button
             onClick={() => handleTabClick('agents')}
             className={cn(
-              'flex-1 py-1 rounded text-center transition-all font-medium text-[11px] flex items-center justify-center gap-1',
+              'flex-1 min-h-11 py-2 rounded text-center transition-all font-medium text-sm flex items-center justify-center gap-1',
               activeTab === 'agents'
                 ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <span>Agents</span>
-            <span className="text-[9px] opacity-70">({agentCount})</span>
+            <span>Agen</span>
+            <span className="sr-only">({agentCount})</span>
           </button>
           <button
             onClick={() => handleTabClick('customers')}
             className={cn(
-              'flex-1 py-1 rounded text-center transition-all font-medium text-[11px] flex items-center justify-center gap-1',
+              'flex-1 min-h-11 py-2 rounded text-center transition-all font-medium text-sm flex items-center justify-center gap-1',
               activeTab === 'customers'
                 ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <span>Customers</span>
-            <span className="text-[9px] opacity-70">({customerCount})</span>
+            <span>Pelanggan</span>
+            <span className="sr-only">({customerCount})</span>
           </button>
         </div>
       </div>
 
       {/* Contacts List */}
       <div className="flex-1 overflow-y-auto divide-y divide-border/40">
-        {filteredContacts.length === 0 ? (
+        {loading ? (
+          <p role="status" className="p-4 text-sm">
+            Memuat percakapan…
+          </p>
+        ) : error ? (
+          <div role="alert" className="p-4 text-sm">
+            <p>{error}</p>
+            <button className="action-secondary mt-3" onClick={onRetry}>
+              Coba lagi
+            </button>
+          </div>
+        ) : filteredContacts.length === 0 ? (
           <div className="p-6 text-center text-xs text-muted-foreground">
-            Tidak ada kontak yang cocok.
+            Belum ada percakapan yang cocok.
           </div>
         ) : (
           filteredContacts.map((contact) => {
-            const isSelected = activeContactId === contact.id || activeContactId === contact.conversation_id
+            const isSelected =
+              activeContactId === contact.id ||
+              activeContactId === contact.conversation_id
             return (
               <button
                 key={contact.id}
                 onClick={() => onSelectContact(contact)}
                 className={cn(
                   'w-full text-left p-3 transition-colors flex items-start gap-3 hover:bg-accent/40',
-                  isSelected && 'bg-accent text-accent-foreground font-medium'
+                  isSelected && 'bg-accent text-accent-foreground font-medium',
                 )}
               >
                 {/* Avatar with Online Dot */}
@@ -164,51 +190,32 @@ export function InboxSubPanel({
                       <User className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
-                  {/* Status Indicator */}
-                  <span
-                    className={cn(
-                      'absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background',
-                      contact.status === 'online'
-                        ? 'bg-emerald-500'
-                        : contact.status === 'idle'
-                        ? 'bg-amber-500'
-                        : 'bg-zinc-400'
-                    )}
-                  />
                 </div>
 
                 {/* Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="text-xs font-semibold text-foreground truncate">
+                    <span className="text-sm font-semibold text-foreground truncate">
                       {contact.name}
                     </span>
                     <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-                      {formatTime(contact.last_message_at || contact.updated_at)}
+                      {formatTime(
+                        contact.last_message_at || contact.updated_at,
+                      )}
                     </span>
                   </div>
 
                   {/* Badge & Last Message */}
                   <div className="flex items-center gap-1.5 mb-1">
-                    {contact.type === 'agent' ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-primary/10 text-primary">
-                          Agent
-                        </span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          <span>Connected</span>
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                        {contact.product ? `Customer: ${contact.product}` : 'Customer'}
-                      </span>
-                    )}
+                    <ContactStatus
+                      contact={contact}
+                      agents={agents}
+                      now={now}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] text-muted-foreground truncate leading-relaxed">
+                    <p className="text-sm text-muted-foreground truncate leading-relaxed">
                       {contact.last_message || 'Belum ada pesan.'}
                     </p>
                     {contact.unread_count > 0 && (

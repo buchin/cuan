@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { AppShell, AppTab } from './components/layout/AppShell'
@@ -8,15 +8,22 @@ import { CreateProjectModal } from './features/projects/CreateProjectModal'
 import { CreateTaskModal } from './features/tasks/CreateTaskModal'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
 import { TaskBoardView } from './features/tasks/TaskBoardView'
-import { TasksSubPanel } from './features/tasks/TasksSubPanel'
-import { TeamView, TeamSubPanel } from './features/team/TeamView'
+import { agentsApi, type Agent } from './api/agents'
 import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
 import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { InboxView } from './features/inbox/InboxView'
-import { Project, Task, TaskStatus, TaskPriority, ProjectType, DoDItem } from './api/types'
+import {
+  Project,
+  Task,
+  TaskStatus,
+  TaskPriority,
+  ProjectType,
+  DoDItem,
+} from './api/types'
+import { useMediaQuery } from './hooks/useMediaQuery'
 import { Loader2 } from 'lucide-react'
 
 export function App() {
@@ -25,7 +32,10 @@ export function App() {
   const navigate = useNavigate()
 
   // Parse URL pathname segments: /:tab/:id
-  const pathSegments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname])
+  const pathSegments = useMemo(
+    () => location.pathname.split('/').filter(Boolean),
+    [location.pathname],
+  )
   const rootSegment = pathSegments[0] || ''
   const subParam = pathSegments[1] || ''
 
@@ -37,7 +47,7 @@ export function App() {
       case 'projects':
         return 'projects'
       case 'team':
-        return 'team'
+        return 'settings'
       case 'settings':
         return 'settings'
       case 'inbox':
@@ -48,12 +58,30 @@ export function App() {
 
   // Data States
   const [projects, setProjects] = useState<Project[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState('')
   const [tasks, setTasks] = useState<Task[]>([])
   const [contacts, setContacts] = useState<ChatContact[]>([])
+  const [directoryAgents, setDirectoryAgents] = useState<Agent[]>([])
+  const [contactsLoading, setContactsLoading] = useState(true)
+  const [contactsError, setContactsError] = useState('')
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  useEffect(() => {
+    if (rootSegment === 'team')
+      navigate('/settings/agents' + location.search, { replace: true })
+  }, [rootSegment, location.search, navigate])
 
   // Active selections
-  const [activeProject, setActiveProject] = useState<Project | undefined>(undefined)
-  const [activeContact, setActiveContact] = useState<ChatContact | undefined>(undefined)
+  const [activeProject, setActiveProject] = useState<Project | undefined>(
+    undefined,
+  )
+  const [activeContact, setActiveContact] = useState<ChatContact | undefined>(
+    undefined,
+  )
   const [taskRouteError, setTaskRouteError] = useState('')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isSidePeekOpen, setIsSidePeekOpen] = useState(false)
@@ -65,9 +93,7 @@ export function App() {
   // Filters & Mobile
   const [contactTab, setContactTab] = useState<ContactFilterTab>('all')
   const [contactSearch, setContactSearch] = useState('')
-  const [selectedTeamRole, setSelectedTeamRole] = useState('all')
   const [selectedTaskStatus, setSelectedTaskStatus] = useState('all')
-  const [selectedTaskProject, setSelectedTaskProject] = useState('all')
   const [isMobileChatActive, setIsMobileChatActive] = useState(false)
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
 
@@ -83,32 +109,44 @@ export function App() {
     try {
       const data = await projectsApi.list()
       setProjects(data)
-      if (activeProject) {
-        const updated = data.find((p) => p.id === activeProject.id)
-        if (updated) setActiveProject(updated)
-      }
+      setProjectsError('')
+      setActiveProject((previous) =>
+        previous
+          ? data.find((p) => p.id === previous.id) || previous
+          : undefined,
+      )
     } catch (err) {
-      console.error('Failed to load projects:', err)
+      setProjectsError(
+        'Project belum dapat dimuat. Periksa koneksi dan coba lagi.',
+      )
+    } finally {
+      setProjectsLoading(false)
     }
-  }, [activeProject])
+  }, [])
 
   const refreshTasks = useCallback(async () => {
     try {
-      const projId = currentTab === 'projects' ? activeProject?.id : undefined
-      const data = await tasksApi.list(projId)
+      const data = await tasksApi.list()
       setTasks(data)
     } catch (err) {
       console.error('Failed to load tasks:', err)
     }
-  }, [currentTab, activeProject])
+  }, [currentTab, activeProject?.id])
 
   const refreshContacts = useCallback(async () => {
-    try {
-      const data = await chatApi.listContacts()
-      setContacts(data)
-    } catch (err) {
-      console.error('Failed to load contacts:', err)
-    }
+    const [list, agents] = await Promise.allSettled([
+      chatApi.listContacts(),
+      agentsApi.list(),
+    ])
+    if (list.status === 'fulfilled') {
+      setContacts(list.value)
+      setContactsError('')
+    } else
+      setContactsError(
+        'Kontak belum dapat dimuat. Periksa koneksi dan coba lagi.',
+      )
+    setDirectoryAgents(agents.status === 'fulfilled' ? agents.value : [])
+    setContactsLoading(false)
   }, [])
 
   useEffect(() => {
@@ -119,27 +157,21 @@ export function App() {
     }
   }, [isAuthenticated, refreshProjects, refreshTasks, refreshContacts])
 
-  // Deep Link Synchronization: /inbox/:conversationId
-  useEffect(() => {
-    if (rootSegment === 'inbox' && contacts.length > 0) {
-      if (subParam) {
-        const matched = contacts.find(
+  // Read the visible conversation directly from the URL. Back/forward and
+  // responsive list mode cannot race against an effect restoring old selection.
+  const wide = useMediaQuery('(min-width: 1200px)')
+  const visibleContact =
+    subParam && rootSegment === 'inbox'
+      ? contacts.find(
           (c) =>
             c.conversation_id === subParam ||
             c.id === subParam ||
             c.id === 'contact_' + subParam ||
-            c.name.toLowerCase() === subParam.toLowerCase() ||
-            ('@' + c.name.toLowerCase()) === subParam.toLowerCase()
+            c.name.toLowerCase() === subParam.toLowerCase(),
         )
-        if (matched) {
-          setActiveContact(matched)
-        }
-      } else if (!activeContact) {
-        const sm = contacts.find((c) => c.id === 'agent-sm' || c.name.toLowerCase().includes('scrum master'))
-        setActiveContact(sm || contacts[0])
-      }
-    }
-  }, [rootSegment, subParam, contacts, activeContact])
+      : wide && rootSegment === 'inbox'
+        ? contacts.find((c) => c.id === activeContact?.id) || contacts[0]
+        : undefined
 
   // URL drives the SidePeek so refresh/back/forward cannot leave a stale panel.
   useEffect(() => {
@@ -151,11 +183,29 @@ export function App() {
       return
     }
     if (!isAuthenticated) return
-    const matched = tasks.find(task => task.id === subParam)
-    if (matched) { setSelectedTask(matched); setIsSidePeekOpen(true) }
-    else tasksApi.get(subParam).then(task => { if (current) { setSelectedTask(task); setIsSidePeekOpen(true) } })
-      .catch(() => { if (current) { setSelectedTask(null); setIsSidePeekOpen(false); setTaskRouteError('Task not found or unavailable.') } })
-    return () => { current = false }
+    const matched = tasks.find((task) => task.id === subParam)
+    if (matched) {
+      setSelectedTask(matched)
+      setIsSidePeekOpen(true)
+    } else
+      tasksApi
+        .get(subParam)
+        .then((task) => {
+          if (current) {
+            setSelectedTask(task)
+            setIsSidePeekOpen(true)
+          }
+        })
+        .catch(() => {
+          if (current) {
+            setSelectedTask(null)
+            setIsSidePeekOpen(false)
+            setTaskRouteError('Task not found or unavailable.')
+          }
+        })
+    return () => {
+      current = false
+    }
   }, [rootSegment, subParam, tasks, isAuthenticated])
 
   // Deep Link Synchronization: /projects/:projectId
@@ -173,9 +223,15 @@ export function App() {
   // Navigation handlers
   const handleSelectTab = (tab: AppTab) => {
     if (tab === 'inbox') {
-      navigate(activeContact ? `/inbox/${activeContact.conversation_id || activeContact.id}` : '/inbox')
+      navigate(
+        activeContact
+          ? `/inbox/${activeContact.conversation_id || activeContact.id}`
+          : '/inbox',
+      )
     } else if (tab === 'tasks') {
-      navigate(selectedTask && isSidePeekOpen ? `/tasks/${selectedTask.id}` : '/tasks')
+      navigate(
+        selectedTask && isSidePeekOpen ? `/tasks/${selectedTask.id}` : '/tasks',
+      )
     } else if (tab === 'projects') {
       navigate(activeProject ? `/projects/${activeProject.id}` : '/projects')
     } else {
@@ -194,13 +250,24 @@ export function App() {
   const handleSelectTask = (t: Task) => {
     setSelectedTask(t)
     setIsSidePeekOpen(true)
-    navigate(`/tasks/${t.id}`)
+    navigate(`/tasks/${t.id}`, {
+      state: {
+        taskReturnTo: location.pathname.startsWith('/projects/')
+          ? location.pathname
+          : '/tasks',
+      },
+    })
   }
 
   const handleCloseSidePeek = () => {
     setIsSidePeekOpen(false)
     setSelectedTask(null)
-    navigate('/tasks')
+    const target = location.state?.taskReturnTo
+    navigate(
+      typeof target === 'string' && /^\/projects\/[^/?#]+$/.test(target)
+        ? target
+        : '/tasks',
+    )
   }
 
   const handleSelectProject = (p?: Project) => {
@@ -257,7 +324,7 @@ export function App() {
   }
 
   const handleRunAgent = async (taskId: string) => {
-    const task = tasks.find(item => item.id === taskId)
+    const task = tasks.find((item) => item.id === taskId)
     if (task) handleSelectTask(task)
     await refreshTasks()
   }
@@ -289,15 +356,17 @@ export function App() {
         onSelectTab={handleSelectTab}
         isMobileDrawerOpen={isMobileDrawerOpen}
         onMobileDrawerOpenChange={setIsMobileDrawerOpen}
-        activeProject={activeProject}
-        projects={projects}
-        onSelectProject={handleSelectProject}
         onCreateProjectClick={() => setIsCreateProjectOpen(true)}
         hideBottomNav={currentTab === 'inbox' && isMobileChatActive}
         inboxSubPanel={
           <InboxSubPanel
             contacts={contacts}
-            activeContactId={activeContact?.id}
+            agents={directoryAgents}
+            now={now}
+            loading={contactsLoading}
+            error={contactsError}
+            onRetry={refreshContacts}
+            activeContactId={visibleContact?.id}
             onSelectContact={handleSelectContact}
             selectedTab={contactTab}
             onTabChange={setContactTab}
@@ -305,88 +374,141 @@ export function App() {
             onSearchChange={setContactSearch}
           />
         }
-        tasksSubPanel={
-          <TasksSubPanel
-            tasks={tasks}
-            projects={projects}
-            selectedStatus={selectedTaskStatus}
-            onSelectStatus={setSelectedTaskStatus}
-            selectedProject={selectedTaskProject}
-            onSelectProject={setSelectedTaskProject}
-            onCreateTaskClick={() => setIsCreateTaskOpen(true)}
-          />
-        }
-        teamSubPanel={
-          <TeamSubPanel
-            selectedRole={selectedTeamRole}
-            onSelectRole={setSelectedTeamRole}
-          />
-        }
       >
         {/* 1. Messenger View — Inbox */}
         {currentTab === 'inbox' && (
           <InboxView
             contacts={contacts}
-            activeContact={activeContact}
+            agents={directoryAgents}
+            now={now}
+            loading={contactsLoading}
+            error={contactsError}
+            onRetry={refreshContacts}
+            activeContact={visibleContact}
             onSelectContact={handleSelectContact}
             onContactUpdated={refreshContacts}
             contactTab={contactTab}
             onContactTabChange={setContactTab}
             contactSearch={contactSearch}
             onContactSearchChange={setContactSearch}
+            onBackToContacts={() => {
+              setActiveContact(undefined)
+              navigate('/inbox')
+            }}
             onMobileChatActiveChange={setIsMobileChatActive}
-            onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
           />
         )}
 
         {/* 2. Global Task Board View — Tasks */}
         {currentTab === 'tasks' && (
-          <div className="h-full p-4 md:p-6 overflow-hidden">
-            {taskRouteError && <p role="alert" className="mb-3 text-sm text-destructive">{taskRouteError}</p>}
+          <div className="h-full overflow-hidden">
+            {taskRouteError && (
+              <p role="alert" className="mb-3 text-sm text-destructive">
+                {taskRouteError}
+              </p>
+            )}
             <TaskBoardView
               tasks={tasks}
               projects={projects}
-              activeProject={selectedTaskProject !== 'all' ? projects.find((p) => p.id === selectedTaskProject) : undefined}
+
               selectedStatusFilter={selectedTaskStatus}
               onStatusFilterChange={setSelectedTaskStatus}
               onSelectTask={handleSelectTask}
               onCreateTask={() => setIsCreateTaskOpen(true)}
-              onUpdateTaskStatus={(taskId, status) => handleUpdateTask(taskId, { status })}
+              onUpdateTaskStatus={(taskId, status) =>
+                handleUpdateTask(taskId, { status })
+              }
               onRunAgent={handleRunAgent}
             />
           </div>
         )}
 
         {/* 3. Projects Workspace & Repositories */}
-        {currentTab === 'projects' && (
-          <ProjectsView
-            projects={projects}
-            tasks={tasks}
-            onSelectProject={handleSelectProject}
-            onCreateProject={() => setIsCreateProjectOpen(true)}
-            onArchiveProject={handleArchiveProject}
-          />
-        )}
-
-        {/* 4. Unified Team Directory — Humans + AI Agents */}
-        {currentTab === 'team' && (
-          <div className="h-full p-4 md:p-6 overflow-y-auto">
-            <TeamView
-              selectedRole={selectedTeamRole}
-              onAgentAdded={refreshContacts}
+        {currentTab === 'projects' &&
+          (subParam && activeProject?.id !== subParam ? (
+            <section className="page-content space-y-4">
+              {projectsLoading ? (
+                <p role="status">Memuat project…</p>
+              ) : (
+                <>
+                  <p role="alert">
+                    {projectsError ||
+                      'Project tidak ditemukan atau tidak tersedia.'}
+                  </p>
+                  <button
+                    className="action-secondary"
+                    onClick={() => {
+                      void refreshProjects()
+                    }}
+                  >
+                    Coba lagi
+                  </button>
+                  <Link to="/projects" className="action-secondary">
+                    Semua project
+                  </Link>
+                </>
+              )}
+            </section>
+          ) : subParam && activeProject?.id === subParam ? (
+            pathSegments[2] === 'settings' ? (
+              <SettingsView
+                key={activeProject.id}
+                activeProject={activeProject}
+                onDeleteProject={async (id) => {
+                  await projectsApi.archive(id, true)
+                  await refreshProjects()
+                }}
+              />
+            ) : (
+              <section className="flex h-full min-h-0 flex-col gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    className="action-secondary"
+                    onClick={() => {
+                      setActiveProject(undefined)
+                      navigate('/projects')
+                    }}
+                  >
+                    ← Semua project
+                  </button>
+                  <Link
+                    className="action-secondary"
+                    to={`/projects/${encodeURIComponent(activeProject.id)}/settings`}
+                  >
+                    Project settings
+                  </Link>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <TaskBoardView
+                    tasks={tasks}
+                    projects={projects}
+                    activeProject={activeProject}
+                    onSelectTask={handleSelectTask}
+                    onCreateTask={() => setIsCreateTaskOpen(true)}
+                    onUpdateTaskStatus={(id, status) =>
+                      handleUpdateTask(id, { status })
+                    }
+                    onRunAgent={handleRunAgent}
+                  />
+                </div>
+              </section>
+            )
+          ) : (
+            <ProjectsView
+              projects={projects}
+              tasks={tasks}
+              onSelectProject={handleSelectProject}
+              onCreateProject={() => setIsCreateProjectOpen(true)}
+              onArchiveProject={handleArchiveProject}
             />
-          </div>
-        )}
+          ))}
 
         {/* 5. Settings Configuration */}
         {currentTab === 'settings' && (
-          <div className="h-full p-4 md:p-6 overflow-y-auto">
+          <div className="h-full">
             <SettingsView
-              activeProject={activeProject}
-              onUpdateProject={async (id, data) => {
-                await projectsApi.update(id, data)
-                await refreshProjects()
-              }}
+              projects={projects}
+              onAgentAdded={refreshContacts}
               onDeleteProject={async (id) => {
                 await projectsApi.archive(id, true)
                 await refreshProjects()
@@ -406,7 +528,7 @@ export function App() {
 
       <CreateTaskModal
         isOpen={isCreateTaskOpen}
-        projects={projects}
+        projects={projects.filter((project) => !project.is_archived)}
         activeProjectId={activeProject?.id}
         onClose={() => setIsCreateTaskOpen(false)}
         onSubmit={handleCreateTask}

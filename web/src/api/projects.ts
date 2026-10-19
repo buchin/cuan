@@ -1,9 +1,11 @@
 import { apiFetch } from './client'
-import { Project, CreateProjectRequest, UpdateProjectRequest } from './types'
+import { Project, CreateProjectRequest } from './types'
 
 export const projectsApi = {
   list: async (): Promise<Project[]> => {
-    const res = await apiFetch<{ projects: Project[] }>('/api/v1/projects')
+    const res = await apiFetch<{ projects: Project[] }>(
+      '/api/v1/projects?include_archived=true',
+    )
     return res.projects || []
   },
 
@@ -18,13 +20,6 @@ export const projectsApi = {
     })
   },
 
-  update: async (id: string, data: UpdateProjectRequest): Promise<Project> => {
-    return apiFetch<Project>(`/api/v1/projects/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    })
-  },
-
   delete: async (id: string): Promise<void> => {
     await apiFetch(`/api/v1/projects/${id}`, {
       method: 'DELETE',
@@ -32,9 +27,11 @@ export const projectsApi = {
   },
 
   archive: async (id: string, isArchived: boolean): Promise<Project> => {
-    return apiFetch<Project>(`/api/v1/projects/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ is_archived: isArchived }),
-    })
+    return apiFetch<Project>(
+      `/api/v1/projects/${encodeURIComponent(id)}/${isArchived ? 'archive' : 'unarchive'}`,
+      {
+        method: 'POST',
+      },
+    )
   },
 }

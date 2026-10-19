@@ -9,7 +9,10 @@ interface NavUserProps {
   dropdownPosition?: 'side' | 'bottom-right' | 'bottom-left'
 }
 
-export function NavUser({ isCollapsed = false, dropdownPosition }: NavUserProps) {
+export function NavUser({
+  isCollapsed = false,
+  dropdownPosition,
+}: NavUserProps) {
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -17,7 +20,10 @@ export function NavUser({ isCollapsed = false, dropdownPosition }: NavUserProps)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node)
+      ) {
         setMenuOpen(false)
       }
     }
@@ -49,10 +55,12 @@ export function NavUser({ isCollapsed = false, dropdownPosition }: NavUserProps)
         {/* Trigger Button */}
         <button
           type="button"
+          aria-label="Menu akun"
+          aria-expanded={menuOpen}
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
-            'flex w-full items-center gap-2 p-2 text-left hover:bg-accent hover:text-accent-foreground transition-colors rounded-md',
-            isCollapsed && 'justify-center p-2'
+            'flex min-h-11 w-full items-center gap-2 p-2 text-left hover:bg-accent hover:text-accent-foreground transition-colors rounded-md',
+            isCollapsed && 'justify-center p-2',
           )}
           title={isCollapsed ? username : undefined}
         >
@@ -85,10 +93,10 @@ export function NavUser({ isCollapsed = false, dropdownPosition }: NavUserProps)
               dropdownPosition === 'bottom-right'
                 ? 'right-0 top-full mt-1.5'
                 : dropdownPosition === 'bottom-left'
-                ? 'left-0 top-full mt-1.5'
-                : isCollapsed
-                ? 'left-full bottom-0 ml-2'
-                : 'bottom-full left-0 mb-1 w-full'
+                  ? 'left-0 top-full mt-1.5'
+                  : isCollapsed
+                    ? 'left-full bottom-0 ml-2'
+                    : 'bottom-full left-0 mb-1 w-full',
             )}
           >
             {/* User Identity Header */}
@@ -113,7 +121,7 @@ export function NavUser({ isCollapsed = false, dropdownPosition }: NavUserProps)
             <button
               type="button"
               onClick={handleOpenPasswordModal}
-              className="flex w-full items-center gap-2 px-2.5 py-2 text-xs text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
+              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
             >
               <KeyRound className="h-4 w-4 text-primary shrink-0" />
               <span>Profil & Ganti Password</span>
@@ -124,7 +132,7 @@ export function NavUser({ isCollapsed = false, dropdownPosition }: NavUserProps)
             <button
               type="button"
               onClick={handleLogout}
-              className="flex w-full items-center gap-2 px-2.5 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors text-left rounded-md"
+              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors text-left rounded-md"
             >
               <LogOut className="h-4 w-4 shrink-0" />
               <span className="font-semibold">Keluar (Logout)</span>

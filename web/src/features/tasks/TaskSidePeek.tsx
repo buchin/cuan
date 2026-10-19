@@ -18,6 +18,7 @@ import '@xterm/xterm/css/xterm.css'
 import { agentsApi } from '../../api/agents'
 import { tasksApi } from '../../api/tasks'
 import { apiFetch, getAuthToken } from '../../api/client'
+import { trapDialogFocus } from '../../lib/dialog'
 import { TaskDiscussion } from './TaskDiscussion'
 
 interface TaskSidePeekProps {
@@ -38,63 +39,124 @@ interface AgentRunnerOption {
   binary: string
 }
 
-
 export function TaskSidePeek(props: TaskSidePeekProps) {
   if (!props.isOpen || !props.task) return null
-  return <TaskSidePeekContent key={props.task.id} {...props} task={props.task} />
+  return (
+    <TaskSidePeekContent key={props.task.id} {...props} task={props.task} />
+  )
 }
 
-function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRunAgent }: TaskSidePeekProps & { task: Task }) {
+function TaskSidePeekContent({
+  task,
+  projects,
+  onClose,
+  onUpdate,
+  onDelete,
+  onRunAgent,
+}: TaskSidePeekProps & { task: Task }) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const dialog = dialogRef.current
+    dialog?.showModal()
+    return () => {
+      dialog?.close()
+      if (previous?.isConnected) previous.focus()
+    }
+  }, [])
   const linkedProject = projects.find(
-    (p) => p.id === task.project_id || task.project_ids?.includes(p.id)
+    (p) => p.id === task.project_id || task.project_ids?.includes(p.id),
   )
-  const [activeTab, setActiveTab] = useState<'details' | 'runner' | 'discussion'>('details')
+  const [activeTab, setActiveTab] = useState<
+    'details' | 'runner' | 'discussion'
+  >('details')
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(
-    task.description || task.body || task.prompt || ''
+    task.description || task.body || task.prompt || '',
   )
   const [status, setStatus] = useState<TaskStatus>(task.status)
-  const [priority, setPriority] = useState<TaskPriority>(task.priority || 'normal')
-  const [assignee, setAssignee] = useState<string>(task.assignee || task.assignee_id || '')
-  const [saving, setSaving] = useState(false)
-  const [agentRunning, setAgentRunning] = useState(task.execution_status === 'running')
-  const [executionStatus, setExecutionStatus] = useState<string>(
-    task.execution_status || 'idle'
+  const [priority, setPriority] = useState<TaskPriority>(
+    task.priority || 'normal',
   )
-  const [availableAgents, setAvailableAgents] = useState<AgentRunnerOption[]>([])
+  const [assignee, setAssignee] = useState<string>(
+    task.assignee || task.assignee_id || '',
+  )
+  const [saving, setSaving] = useState(false)
+  const [agentRunning, setAgentRunning] = useState(
+    task.execution_status === 'running',
+  )
+  const [executionStatus, setExecutionStatus] = useState<string>(
+    task.execution_status || 'idle',
+  )
+  const [availableAgents, setAvailableAgents] = useState<AgentRunnerOption[]>(
+    [],
+  )
 
   const [savedOutput, setSavedOutput] = useState('')
- const [error, setError] = useState('')
+  const [error, setError] = useState('')
   const [terminalRevision, setTerminalRevision] = useState(0)
-  const nextStatus: TaskStatus | undefined = status === 'backlog' ? 'todo' : status === 'todo' ? 'doing' : status === 'doing' ? 'review' : status === 'review' ? 'done' : undefined
+  const nextStatus: TaskStatus | undefined =
+    status === 'backlog'
+      ? 'todo'
+      : status === 'todo'
+        ? 'doing'
+        : status === 'doing'
+          ? 'review'
+          : status === 'review'
+            ? 'done'
+            : undefined
   const advance = async () => {
     if (!nextStatus) return
-    setSaving(true); setError('')
-    try { await onUpdate(task.id, { status: nextStatus }); setStatus(nextStatus) }
-    catch { setError('Status was not saved. Please retry.') }
-    finally { setSaving(false) }
+    setSaving(true)
+    setError('')
+    try {
+      await onUpdate(task.id, { status: nextStatus })
+      setStatus(nextStatus)
+    } catch {
+      setError('Status was not saved. Please retry.')
+    } finally {
+      setSaving(false)
+    }
   }
   useEffect(() => {
     if (activeTab !== 'runner') return
     const update = async () => {
       try {
-        const detail = await apiFetch<{ status: TaskStatus; latest_attempt?: { id: string; status: string; error_message?: string } }>(`/api/v1/tasks/${task.id}`)
+        const detail = await apiFetch<{
+          status: TaskStatus
+          latest_attempt?: {
+            id: string
+            status: string
+            error_message?: string
+          }
+        }>(`/api/v1/tasks/${task.id}`)
         if (detail.latest_attempt) {
           const state = detail.latest_attempt.status
           setExecutionStatus(state === 'succeeded' ? 'completed' : state)
           setAgentRunning(state === 'running' || state === 'queued')
           setStatus(detail.status)
-          if (detail.latest_attempt.error_message) setError(detail.latest_attempt.error_message)
- const retained=await apiFetch<{logs:{line:string}[]}>(`/api/v1/tasks/${task.id}/attempts/${detail.latest_attempt.id}/logs?limit=1000`)
- setSavedOutput(retained.logs.map(line=>line.line).join('\n'))
+          if (detail.latest_attempt.error_message)
+            setError(detail.latest_attempt.error_message)
+          const retained = await apiFetch<{ logs: { line: string }[] }>(
+            `/api/v1/tasks/${task.id}/attempts/${detail.latest_attempt.id}/logs?limit=1000`,
+          )
+          setSavedOutput(retained.logs.map((line) => line.line).join('\n'))
           return
         }
-        const result = await apiFetch<{ history: { status: string }[] }>(`/api/v1/tasks/${task.id}/run-agent/history`)
+        const result = await apiFetch<{ history: { status: string }[] }>(
+          `/api/v1/tasks/${task.id}/run-agent/history`,
+        )
         const latest = result.history?.at(-1)
-        if (latest) { setExecutionStatus(latest.status); setAgentRunning(latest.status === 'running') }
-      } catch { /* Keep last known state while reconnecting. */ }
+        if (latest) {
+          setExecutionStatus(latest.status)
+          setAgentRunning(latest.status === 'running')
+        }
+      } catch {
+        /* Keep last known state while reconnecting. */
+      }
     }
-    void update(); const timer = setInterval(update, 3000)
+    void update()
+    const timer = setInterval(update, 3000)
     return () => clearInterval(timer)
   }, [task.id, activeTab, terminalRevision])
 
@@ -103,30 +165,44 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
-  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected')
+  const [wsStatus, setWsStatus] = useState<
+    'connecting' | 'connected' | 'disconnected'
+  >('disconnected')
 
   // Load custom agents from DB
   useEffect(() => {
-    agentsApi.list().then((dbAgents) => {
-      if (dbAgents && dbAgents.length > 0) {
-        const extra = dbAgents.filter(agent => agent.enabled !== false).map((a) => {
-          const harness = a.harness || a.provider || 'agy'
-          const binary = harness === 'claude' ? 'claude' : (harness === 'codex' ? 'codex' : (harness === 'custom' ? 'shell' : 'agy'))
-          return {
-            id: a.id,
-            name: `${a.name} (${harness})`,
-            harness: harness,
-            role: `Harness: ${harness}`,
-            binary,
+    agentsApi
+      .list()
+      .then((dbAgents) => {
+        if (dbAgents && dbAgents.length > 0) {
+          const extra = dbAgents
+            .filter((agent) => agent.enabled !== false)
+            .map((a) => {
+              const harness = a.harness || a.provider || 'agy'
+              const binary =
+                harness === 'claude'
+                  ? 'claude'
+                  : harness === 'codex'
+                    ? 'codex'
+                    : harness === 'custom'
+                      ? 'shell'
+                      : 'agy'
+              return {
+                id: a.id,
+                name: `${a.name} (${harness})`,
+                harness: harness,
+                role: `Harness: ${harness}`,
+                binary,
+              }
+            })
+          const map = new Map<string, any>()
+          for (const ag of extra) {
+            map.set(ag.id, ag)
           }
-        })
-        const map = new Map<string, any>()
-        for (const ag of extra) {
-          map.set(ag.id, ag)
+          setAvailableAgents(Array.from(map.values()))
         }
-        setAvailableAgents(Array.from(map.values()))
-      }
-    }).catch(() => {})
+      })
+      .catch(() => {})
   }, [])
 
   // Update local state when task prop changes
@@ -166,12 +242,13 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
         cursorBlink: false,
         disableStdin: true,
         fontSize: 12,
-        fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        fontFamily:
+          'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
         lineHeight: 1.25,
         theme: {
           background: '#09090b', // zinc-950
           foreground: '#f4f4f5', // zinc-100
-          cursor: '#10b981',     // emerald-500
+          cursor: '#10b981', // emerald-500
           cursorAccent: '#09090b',
           selectionBackground: '#27272a',
           black: '#09090b',
@@ -210,11 +287,21 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
       fitAddonRef.current = fitAddon
 
       // Initial welcome banner in xterm
-      term.writeln('\x1b[1;36m┌──────────────────────────────────────────────────────────┐\x1b[0m')
-      term.writeln(`\x1b[1;36m│\x1b[0m \x1b[1;32mCuan Self-Hosted Agent CLI Runner & Web Terminal\x1b[0m         \x1b[1;36m│\x1b[0m`)
-      term.writeln(`\x1b[1;36m│\x1b[0m Task: \x1b[1;33m#${task.id.slice(0, 16)}\x1b[0m                           \x1b[1;36m│\x1b[0m`)
-      term.writeln('\x1b[1;36m└──────────────────────────────────────────────────────────┘\x1b[0m')
-      term.writeln('\x1b[90mConnecting to live bidirectional WebSocket PTY...\x1b[0m\r\n')
+      term.writeln(
+        '\x1b[1;36m┌──────────────────────────────────────────────────────────┐\x1b[0m',
+      )
+      term.writeln(
+        `\x1b[1;36m│\x1b[0m \x1b[1;32mCuan Self-Hosted Agent CLI Runner & Web Terminal\x1b[0m         \x1b[1;36m│\x1b[0m`,
+      )
+      term.writeln(
+        `\x1b[1;36m│\x1b[0m Task: \x1b[1;33m#${task.id.slice(0, 16)}\x1b[0m                           \x1b[1;36m│\x1b[0m`,
+      )
+      term.writeln(
+        '\x1b[1;36m└──────────────────────────────────────────────────────────┘\x1b[0m',
+      )
+      term.writeln(
+        '\x1b[90mConnecting to live bidirectional WebSocket PTY...\x1b[0m\r\n',
+      )
 
       // Connect WebSocket
       setWsStatus('connecting')
@@ -222,15 +309,22 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
       const token = getAuthToken()
       const wsUrl = `${protocol}//${window.location.host}/api/v1/tasks/${task.id}/terminal?mode=watch`
 
-      const ws = new WebSocket(wsUrl, token ? ['cuan-terminal', `token.${token}`] : ['cuan-terminal'])
+      const ws = new WebSocket(
+        wsUrl,
+        token ? ['cuan-terminal', `token.${token}`] : ['cuan-terminal'],
+      )
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws
 
       ws.onopen = () => {
         if (isDisposed) return
         setWsStatus('connected')
-        term.writeln('\x1b[1;32m[Connected]\x1b[0m Terminal stream online (PTY mode).\r\n')
-        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
+        term.writeln(
+          '\x1b[1;32m[Connected]\x1b[0m Terminal stream online (PTY mode).\r\n',
+        )
+        ws.send(
+          JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }),
+        )
       }
 
       ws.onmessage = (evt) => {
@@ -243,7 +337,9 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
             if (parsed.type === 'connected') {
               setWsStatus('connected')
             } else if (parsed.type === 'error') {
-              term.write(`\r\n\x1b[1;31m[Runner Error]\x1b[0m ${parsed.message}\r\n`)
+              term.write(
+                `\r\n\x1b[1;31m[Runner Error]\x1b[0m ${parsed.message}\r\n`,
+              )
             }
           } catch {
             term.write(evt.data)
@@ -254,13 +350,17 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
       ws.onerror = () => {
         if (isDisposed) return
         setWsStatus('disconnected')
-        term.writeln('\r\n\x1b[1;31m[WebSocket Connection Error]\x1b[0m Failed to communicate with PTY runner.\r\n')
+        term.writeln(
+          '\r\n\x1b[1;31m[WebSocket Connection Error]\x1b[0m Failed to communicate with PTY runner.\r\n',
+        )
       }
 
       ws.onclose = () => {
         if (isDisposed) return
         setWsStatus('disconnected')
-        term.writeln('\r\n\x1b[90m[Disconnected] Session closed or idle timeout.\x1b[0m\r\n')
+        term.writeln(
+          '\r\n\x1b[90m[Disconnected] Session closed or idle timeout.\x1b[0m\r\n',
+        )
       }
 
       term.onData((data) => {
@@ -275,11 +375,13 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
         try {
           fitAddonRef.current.fit()
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'resize',
-              cols: xtermRef.current.cols,
-              rows: xtermRef.current.rows,
-            }))
+            ws.send(
+              JSON.stringify({
+                type: 'resize',
+                cols: xtermRef.current.cols,
+                rows: xtermRef.current.rows,
+              }),
+            )
           }
         } catch {
           // ignore layout fits
@@ -323,16 +425,24 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
   }
 
   const handleTriggerAgent = async () => {
-    if (!availableAgents.some(agent => agent.id === assignee)) return
+    if (!availableAgents.some((agent) => agent.id === assignee)) return
     setAgentRunning(true)
     setExecutionStatus('running')
     setActiveTab('runner')
 
     const targetAgent = availableAgents.find((a) => a.id === assignee)
-    const runnerBin = targetAgent?.binary || (targetAgent?.harness === 'claude' ? 'claude' : (targetAgent?.harness === 'codex' ? 'codex' : 'agy'))
+    const runnerBin =
+      targetAgent?.binary ||
+      (targetAgent?.harness === 'claude'
+        ? 'claude'
+        : targetAgent?.harness === 'codex'
+          ? 'codex'
+          : 'agy')
 
     if (xtermRef.current) {
-      xtermRef.current.writeln(`\r\n\x1b[1;33m[Trigger]\x1b[0m Spawning Agent runner (${targetAgent?.name || assignee})...\r\n`)
+      xtermRef.current.writeln(
+        `\r\n\x1b[1;33m[Trigger]\x1b[0m Spawning Agent runner (${targetAgent?.name || assignee})...\r\n`,
+      )
     }
 
     try {
@@ -341,11 +451,13 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
         prompt: description || title,
         binary: runnerBin,
       })
-      setTerminalRevision(value => value + 1)
+      setTerminalRevision((value) => value + 1)
       await onRunAgent(task.id)
     } catch (err: any) {
       if (xtermRef.current) {
-        xtermRef.current.writeln(`\r\n\x1b[1;31m[Error]\x1b[0m ${err.message || 'Runner trigger failed'}\r\n`)
+        xtermRef.current.writeln(
+          `\r\n\x1b[1;31m[Error]\x1b[0m ${err.message || 'Runner trigger failed'}\r\n`,
+        )
       }
       setExecutionStatus('failed')
       setAgentRunning(false)
@@ -354,8 +466,17 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
 
   const handleCancelRun = async () => {
     setError('')
-    try { await apiFetch(`/api/v1/tasks/${task.id}/cancel`, { method: 'POST' }); setExecutionStatus('canceled'); setAgentRunning(false); setStatus('blocked') }
-    catch (e: any) { setError(e.message || 'Cancellation is not confirmed. Check the session before retrying.') }
+    try {
+      await apiFetch(`/api/v1/tasks/${task.id}/cancel`, { method: 'POST' })
+      setExecutionStatus('canceled')
+      setAgentRunning(false)
+      setStatus('blocked')
+    } catch (e: any) {
+      setError(
+        e.message ||
+          'Cancellation is not confirmed. Check the session before retrying.',
+      )
+    }
   }
 
   const handleClearTerminal = () => {
@@ -365,11 +486,21 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Task detail" className="fixed inset-y-0 right-0 z-40 w-full sm:w-[560px] md:w-[620px] bg-card text-card-foreground border-l border-border shadow-2xl flex flex-col font-mono select-none">
+    <dialog
+      ref={dialogRef}
+      aria-modal="true"
+      aria-label="Task detail"
+      onKeyDown={trapDialogFocus}
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
+      className="fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-none max-w-none p-0 backdrop:bg-black/40 z-40 w-full sm:w-[560px] md:w-[620px] bg-card text-card-foreground border-l border-border shadow-2xl task-detail flex flex-col font-sans"
+    >
       {/* Header */}
       <div className="h-14 border-b border-border px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+          <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
             Task
           </span>
           <span className="text-xs font-mono text-primary font-bold">
@@ -378,7 +509,7 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
 
           {/* Visual Execution Status Indicator */}
           {executionStatus === 'running' || agentRunning ? (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-xs font-bold">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -386,25 +517,37 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
               <span>Running</span>
             </span>
           ) : executionStatus === 'completed' ? (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
               <span>Process finished · review required</span>
             </span>
-          ) : ['failed', 'interrupted', 'canceled'].includes(executionStatus) ? (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-destructive/10 text-destructive text-[10px]">
+          ) : ['failed', 'interrupted', 'canceled'].includes(
+              executionStatus,
+            ) ? (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-destructive/10 text-destructive text-xs">
               <span className="h-1.5 w-1.5 rounded-full bg-destructive"></span>
-              <span>{executionStatus === 'canceled' ? 'Cancelled' : executionStatus === 'interrupted' ? 'Interrupted' : 'Error'}</span>
+              <span>
+                {executionStatus === 'canceled'
+                  ? 'Cancelled'
+                  : executionStatus === 'interrupted'
+                    ? 'Interrupted'
+                    : 'Error'}
+              </span>
             </span>
           ) : (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-xs">
               <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60"></span>
               <span>Idle</span>
             </span>
           )}
 
-          {agentRunning && <button className="text-xs underline" onClick={handleCancelRun}>Cancel run</button>}
+          {agentRunning && (
+            <button className="text-xs underline" onClick={handleCancelRun}>
+              Cancel run
+            </button>
+          )}
           {linkedProject && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 truncate max-w-[120px] rounded">
+            <span className="text-xs px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 truncate max-w-[120px] rounded">
               {linkedProject.name}
             </span>
           )}
@@ -413,7 +556,10 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
         <div className="flex items-center gap-2">
           <button
             onClick={handleTriggerAgent}
-            disabled={agentRunning || !availableAgents.some(agent => agent.id === assignee)}
+            disabled={
+              agentRunning ||
+              !availableAgents.some((agent) => agent.id === assignee)
+            }
             className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600 transition-colors disabled:opacity-50 rounded"
             title="Execute task with AI Agent CLI in real PTY"
           >
@@ -425,8 +571,10 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
             <span>{agentRunning ? 'Running...' : 'Run Agent'}</span>
           </button>
           <button
+            autoFocus
+            aria-label="Tutup detail task"
             onClick={onClose}
-            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            className="icon-action text-muted-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -434,7 +582,7 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border text-xs px-6 bg-muted/40 shrink-0">
+      <div className="flex border-b border-border text-sm px-6 bg-muted/40 shrink-0">
         <button
           onClick={() => setActiveTab('details')}
           className={`py-2.5 px-3 font-semibold border-b-2 transition-colors ${
@@ -459,48 +607,79 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
           )}
         </button>
-        <button onClick={() => setActiveTab('discussion')} aria-pressed={activeTab === 'discussion'} className={`px-3 py-2.5 font-semibold border-b-2 ${activeTab === 'discussion' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Discussion</button>
+        <button
+          onClick={() => setActiveTab('discussion')}
+          aria-pressed={activeTab === 'discussion'}
+          className={`px-3 py-2.5 font-semibold border-b-2 ${activeTab === 'discussion' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+        >
+          Discussion
+        </button>
       </div>
-      {error && <p role="alert" className="px-6 py-2 text-xs text-destructive">{error}</p>}
+      {error && (
+        <p role="alert" className="px-6 py-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        {activeTab === 'discussion' ? <TaskDiscussion taskId={task.id} /> : activeTab === 'details' ? (
+        {activeTab === 'discussion' ? (
+          <TaskDiscussion taskId={task.id} />
+        ) : activeTab === 'details' ? (
           <>
             <div>
-              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
                 Title
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-background border border-input text-foreground font-semibold focus:outline-none focus:ring-1 focus:ring-ring rounded"
+                className="w-full px-3 py-2 text-base bg-background border border-input text-foreground font-semibold focus:outline-none focus:ring-1 focus:ring-ring rounded"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
                   Status
                 </label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className="w-full px-3 py-1.5 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
+                  className="w-full px-3 py-1.5 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
                 >
-                  {[status, nextStatus, status === 'blocked' ? 'todo' : status !== 'done' ? 'blocked' : undefined].filter((value, index, list): value is TaskStatus => !!value && list.indexOf(value) === index).map(value => <option key={value} value={value}>{value === 'backlog' ? 'Backlog' : value.charAt(0).toUpperCase() + value.slice(1)}</option>)}
+                  {[
+                    status,
+                    nextStatus,
+                    status === 'blocked'
+                      ? 'todo'
+                      : status !== 'done'
+                        ? 'blocked'
+                        : undefined,
+                  ]
+                    .filter(
+                      (value, index, list): value is TaskStatus =>
+                        !!value && list.indexOf(value) === index,
+                    )
+                    .map((value) => (
+                      <option key={value} value={value}>
+                        {value === 'backlog'
+                          ? 'Backlog'
+                          : value.charAt(0).toUpperCase() + value.slice(1)}
+                      </option>
+                    ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
                   Priority
                 </label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                  className="w-full px-3 py-1.5 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
+                  className="w-full px-3 py-1.5 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
                 >
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
@@ -512,10 +691,10 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
 
             {/* S22.4: Agent Assignment Selector */}
             <div>
-              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1 flex items-center justify-between">
+              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1 flex items-center justify-between">
                 <span>Assigned Agent (Worker Account)</span>
                 {assignee && (
-                  <span className="text-[10px] text-primary lowercase flex items-center gap-1">
+                  <span className="text-xs text-primary lowercase flex items-center gap-1">
                     <Sparkles className="h-3 w-3" />
                     <span>No raw API key required</span>
                   </span>
@@ -525,7 +704,7 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
                 <select
                   value={assignee}
                   onChange={(e) => setAssignee(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
+                  className="w-full px-3 py-2 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
                 >
                   <option value="">Belum Ditugaskan (Unassigned)</option>
                   {availableAgents.map((ag) => (
@@ -538,7 +717,7 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
                 Prompt / Task Description
               </label>
               <textarea
@@ -546,19 +725,20 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe instructions for the human or AI Agent..."
-                className="w-full px-3 py-2 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
+                className="w-full px-3 py-2 text-base bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
               />
             </div>
 
             {task.dod_checklist && task.dod_checklist.length > 0 && (
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">
                   Definition of Done (DoD)
                 </label>
                 <div className="space-y-1.5 bg-muted/40 p-3 border border-border rounded">
                   {task.dod_checklist.map((item, idx) => {
                     const text = typeof item === 'string' ? item : item.text
-                    const completed = typeof item === 'object' && !!item.completed
+                    const completed =
+                      typeof item === 'object' && !!item.completed
                     return (
                       <div key={idx} className="flex items-start gap-2 text-xs">
                         <CheckSquare
@@ -590,31 +770,36 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
               <div className="flex items-center gap-2">
                 <Bot className="h-4 w-4 text-primary" />
                 <span className="font-bold text-foreground">
-                  {assignee ? availableAgents.find((a) => a.id === assignee)?.name || assignee : 'Agent CLI Terminal'}
+                  {assignee
+                    ? availableAgents.find((a) => a.id === assignee)?.name ||
+                      assignee
+                    : 'Agent CLI Terminal'}
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground">
+                <span className="text-xs px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground">
                   PTY output
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
                 {/* WebSocket status indicator */}
-                <div className="flex items-center gap-1.5 text-[11px]">
+                <div className="flex items-center gap-1.5 text-sm">
                   <span
                     className={`h-2 w-2 rounded-full ${
                       wsStatus === 'connected'
                         ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
                         : wsStatus === 'connecting'
-                        ? 'bg-yellow-500 animate-pulse'
-                        : 'bg-muted-foreground/50'
+                          ? 'bg-yellow-500 animate-pulse'
+                          : 'bg-muted-foreground/50'
                     }`}
                   />
-                  <span className="text-muted-foreground capitalize">{wsStatus}</span>
+                  <span className="text-muted-foreground capitalize">
+                    {wsStatus}
+                  </span>
                 </div>
 
                 <button
                   onClick={handleClearTerminal}
-                  className="px-2 py-0.5 bg-muted hover:bg-muted/80 text-[11px] rounded text-muted-foreground hover:text-foreground transition-colors"
+                  className="px-2 py-0.5 bg-muted hover:bg-muted/80 text-sm rounded text-muted-foreground hover:text-foreground transition-colors"
                   title="Clear Terminal Display"
                 >
                   Clear
@@ -622,8 +807,24 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
               </div>
             </div>
 
-            {savedOutput && <details className="rounded border border-border p-2 text-xs"><summary className="cursor-pointer">Saved attempt output</summary><pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-words">{savedOutput}</pre></details>}
-            {wsStatus === 'disconnected' && <button className="self-start text-xs underline" onClick={() => setTerminalRevision(value => value + 1)}>Reconnect terminal</button>}
+            {savedOutput && (
+              <details className="rounded border border-border p-2 text-xs">
+                <summary className="cursor-pointer">
+                  Saved attempt output
+                </summary>
+                <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-words">
+                  {savedOutput}
+                </pre>
+              </details>
+            )}
+            {wsStatus === 'disconnected' && (
+              <button
+                className="self-start text-xs underline"
+                onClick={() => setTerminalRevision((value) => value + 1)}
+              >
+                Reconnect terminal
+              </button>
+            )}
             {/* xterm.js Mount Container */}
             <div className="relative flex-1 bg-zinc-950 border border-border rounded overflow-hidden shadow-inner p-2 min-h-[380px]">
               <div
@@ -637,7 +838,10 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
             <div className="flex items-center justify-between gap-3 pt-1">
               <button
                 onClick={handleTriggerAgent}
-                disabled={agentRunning || !availableAgents.some(agent => agent.id === assignee)}
+                disabled={
+                  agentRunning ||
+                  !availableAgents.some((agent) => agent.id === assignee)
+                }
                 className="flex-1 py-2 bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 rounded shadow-xs"
               >
                 {agentRunning ? (
@@ -645,7 +849,11 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
                 ) : (
                   <Play className="h-3.5 w-3.5 fill-current" />
                 )}
-                <span>{agentRunning ? 'Agent Runner is Active...' : 'Run Agent on Task (PTY)'}</span>
+                <span>
+                  {agentRunning
+                    ? 'Agent Runner is Active...'
+                    : 'Run Agent on Task (PTY)'}
+                </span>
               </button>
             </div>
           </div>
@@ -663,7 +871,15 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
             <span>Delete</span>
           </button>
 
-          {nextStatus && <button onClick={advance} disabled={saving} className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50">Move to {nextStatus}</button>}
+          {nextStatus && (
+            <button
+              onClick={advance}
+              disabled={saving}
+              className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50"
+            >
+              Move to {nextStatus}
+            </button>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}
@@ -674,6 +890,6 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
           </button>
         </div>
       )}
-    </div>
+    </dialog>
   )
 }

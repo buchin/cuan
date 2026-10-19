@@ -1,4 +1,10 @@
-import { isValidElement, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  isValidElement,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Check, Copy } from 'lucide-react'
@@ -13,7 +19,11 @@ function safeLinkUrl(url: string) {
 }
 
 function CodeBlock({ children }: { children?: ReactNode }) {
-  const element = isValidElement<{ children?: ReactNode; className?: string }>(children) ? children : null
+  const element = isValidElement<{ children?: ReactNode; className?: string }>(
+    children,
+  )
+    ? children
+    : null
   const text = String(element?.props.children ?? '').replace(/\n$/, '')
   const language = element?.props.className?.replace(/^language-/, '') || 'text'
   const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -32,43 +42,96 @@ function CodeBlock({ children }: { children?: ReactNode }) {
       field.value = text
       field.style.cssText = 'position:fixed;left:-9999px;top:0'
       document.body.appendChild(field)
-      try { field.select(); copied = document.execCommand('copy') } catch { /* Show actionable failure below. */ }
-      finally { field.remove(); previous?.focus() }
+      try {
+        field.select()
+        copied = document.execCommand('copy')
+      } catch {
+        /* Show actionable failure below. */
+      } finally {
+        field.remove()
+        previous?.focus()
+      }
     }
     setStatus(copied ? 'copied' : 'failed')
     timer.current = setTimeout(() => setStatus('idle'), 2500)
   }
 
-  return <div className="chat-code rounded-lg border border-border bg-muted/50">
-    <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
-      <span className="truncate font-mono">{language}</span>
-      <button type="button" onClick={copy} aria-label="Copy code" className="inline-flex shrink-0 items-center gap-1.5 rounded px-1.5 py-1 hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-        {status === 'copied' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-        {status === 'copied' ? 'Copied' : 'Copy'}
-      </button>
+  return (
+    <div className="chat-code rounded-lg border border-border bg-muted/50">
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
+        <span className="truncate font-mono">{language}</span>
+        <button
+          type="button"
+          onClick={copy}
+          aria-label="Copy code"
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1.5 rounded px-1.5 py-1 hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          {status === 'copied' ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+          {status === 'copied' ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre tabIndex={0} aria-label="Code block">
+        <code className={element?.props.className}>{text}</code>
+      </pre>
+      <span
+        role="status"
+        className={status === 'failed' ? 'block px-3 pb-2 text-xs' : 'sr-only'}
+      >
+        {status === 'failed'
+          ? 'Could not copy. Select the code and copy manually.'
+          : status === 'copied'
+            ? 'Code copied'
+            : ''}
+      </span>
     </div>
-    <pre tabIndex={0} aria-label="Code block"><code className={element?.props.className}>{text}</code></pre>
-    <span role="status" className={status === 'failed' ? 'block px-3 pb-2 text-xs' : 'sr-only'}>
-      {status === 'failed' ? 'Could not copy. Select the code and copy manually.' : status === 'copied' ? 'Code copied' : ''}
-    </span>
-  </div>
+  )
 }
 
 export function ChatMarkdown({ content }: { content: string }) {
-  return <div className="chat-markdown min-w-0 max-w-full text-sm leading-relaxed">
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      skipHtml
-      urlTransform={safeLinkUrl}
-      components={{
-        pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-        a: ({ href, children }) => href
-          ? <a href={href} target={/^https?:/i.test(href) ? '_blank' : undefined} rel="noopener noreferrer">{children}</a>
-          : <span>{children}</span>,
-        // Avoid loading arbitrary remote images/tracking pixels from agent output.
-        img: ({ alt }) => <span className="text-muted-foreground">{alt ? `[Image: ${alt}]` : '[Image]'}</span>,
-        table: ({ children }) => <div className="chat-table" role="region" aria-label="Message table" tabIndex={0}><table>{children}</table></div>,
-      }}
-    >{content}</ReactMarkdown>
-  </div>
+  return (
+    <div className="chat-markdown min-w-0 max-w-full text-base leading-relaxed">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        skipHtml
+        urlTransform={safeLinkUrl}
+        components={{
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+          a: ({ href, children }) =>
+            href ? (
+              <a
+                href={href}
+                target={/^https?:/i.test(href) ? '_blank' : undefined}
+                rel="noopener noreferrer"
+              >
+                {children}
+              </a>
+            ) : (
+              <span>{children}</span>
+            ),
+          // Avoid loading arbitrary remote images/tracking pixels from agent output.
+          img: ({ alt }) => (
+            <span className="text-muted-foreground">
+              {alt ? `[Image: ${alt}]` : '[Image]'}
+            </span>
+          ),
+          table: ({ children }) => (
+            <div
+              className="chat-table"
+              role="region"
+              aria-label="Message table"
+              tabIndex={0}
+            >
+              <table>{children}</table>
+            </div>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
 }
