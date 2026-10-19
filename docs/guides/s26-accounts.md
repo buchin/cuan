@@ -2,18 +2,20 @@
 
 ## Status
 
-Tersedia di staging https://cuan-s25-dojo.fural.space/team. Production tetap pada rilis S25. Fitur pemilihan akun per agen belum diaktifkan karena gate login akun kedua belum terpenuhi; tombol Tambah agen lama masih menggunakan akun server lama. Jangan menganggap tersimpannya label akun sebagai bukti Google login atau provider siap.
+Tersedia di staging https://cuan-s25-dojo.fural.space/team. Production tetap pada rilis S25. Fitur pemilihan akun per agen belum diaktifkan karena gate login akun kedua belum terpenuhi; Tambah agen sekarang selalu memulai profil Google terpisah dan tidak otomatis menggunakan akun lama. Jangan menganggap tersimpannya label akun sebagai bukti Google login atau provider siap.
 
-## Menambahkan akun Google lain
+## Menghubungkan Google
 
-1. Masuk ke Cuan staging, buka Team → Akun provider.
-2. Isi nama akun sebagai label yang mudah dikenali, misalnya Google kerja. Ini bukan email yang sudah diverifikasi.
-3. Klik Tambah akun Google. Akun dan profil privatnya disimpan; login baru tidak memakai kredensial akun lama dan tidak memerlukan akun lama lolos verifikasi kuota.
-4. Buka login Google. Google diminta menampilkan pilihan akun; pilih akun lain yang memang ingin dihubungkan, kemudian selesaikan consent.
-5. Tempel kode otorisasi hanya pada kolom kode dalam Cuan, lalu Simpan dan verifikasi login. Jangan kirim kode di chat/terminal.
-6. Login dan ketersediaan provider diperiksa terpisah. Kuota/gangguan provider tidak menghapus hasil login. Jika kredensial sudah ada, gunakan Verifikasi akun; untuk akun Google lain buat akun baru.
+1. Buka Team → Tambah agen.
+2. Pada Langkah 1, isi nama agen seperti @penulis, lalu klik Hubungkan Google.
+3. Pada Langkah 2, klik Buka Google, pilih akun dan selesaikan login.
+4. Kembali ke Cuan, tempel kode dari Google, lalu klik Konfirmasi login. Kode hanya dimasukkan di Cuan, bukan di chat.
 
-Batalkan login menghentikan sesi tersebut tanpa menghapus akun/kredensial akun lain. Sesi OAuth berlaku lima menit; setelah kedaluwarsa klik Login Google pada akun yang sama. Nama akun dan profil tetap ada setelah reload/restart. Belum ada fitur hapus akun. Beberapa agen yang kelak memilih akun sama berbagi kuota; menambah label/agen bukan menambah kuota.
+Jika link kedaluwarsa, klik Buat link baru. Batal atau Escape menutup modal dan membatalkan sesi login tersebut; akun lama tetap tersimpan. Error muncul dekat langkah terkait, dengan tindakan untuk mencoba kembali.
+
+Akun yang sudah tersimpan dapat dilihat pada bagian opsional Akun Google di bawah daftar agen. Login belum selesai dapat dilanjutkan dari sana menggunakan modal yang sama; Periksa koneksi memeriksa akun tanpa mengganti login. Tidak ada formulir pembuatan akun kedua yang bersaing dengan alur utama. Label akun adalah nama yang Anda berikan, bukan identitas email yang sudah diverifikasi.
+
+Batas pratinjau saat ini: hasil login disimpan sebagai akun. Penambahan/pemetaan agen ke akun baru belum aktif sampai gate login nyata dan tahap pemetaan terpenuhi. Layar hasil menjelaskan Akun sudah tersimpan, Agen belum ditambahkan; tidak menampilkan keberhasilan agen palsu atau tombol Tambah agen yang selalu mati. Production tetap S25.
 
 ## Status dan batas pratinjau
 
@@ -49,6 +51,11 @@ Bukti ada di docs/sprints/evidence/S26/: targeted.txt, real-isolated-oauth.txt, 
 
 ## Alur Tambah agen yang disederhanakan
 
-Mengikuti referensi Fural yang dibaca saja (coding-agents-manager.tsx forceNew dan OrganizationAgentsNewPage addMode), Tambah agen selalu membuka formulir nama unik dan login Google baru. Modal tidak memeriksa/memakai akun server lama secara otomatis. Klik Login dengan Google, buka link resmi, dan tempel kode pada modal yang sama. Kelola akun Google menjadi bagian opsional yang bisa dibuka, bukan langkah wajib berpindah panel. Pendaftaran agen dengan akun baru masih bergantung pada gate login nyata dan pemetaan akun S26 berikutnya; pratinjau tidak pernah mengarahkan agen baru diam-diam ke akun lama.
+Mengikuti referensi Fural yang dibaca saja (coding-agents-manager.tsx forceNew dan OrganizationAgentsNewPage addMode), Tambah agen selalu membuka formulir nama unik dan login Google baru. Modal tidak memeriksa/memakai akun server lama secara otomatis. Isi nama, klik Hubungkan Google, buka Google dan tempel kode pada langkah kedua dalam modal yang sama. Kelola akun Google menjadi bagian opsional yang bisa dibuka, bukan langkah wajib berpindah panel. Pendaftaran agen dengan akun baru masih bergantung pada gate login nyata dan pemetaan akun S26 berikutnya; pratinjau tidak pernah mengarahkan agen baru diam-diam ke akun lama.
 
 Error Failed to save agent connection ditemukan setelah agen dihapus tetapi koneksi dengan ID deterministik conn_agent_dev masih tersimpan. Pendaftaran sekarang menggunakan ID koneksi unik baru; koneksi lama/history tidak dihapus. Targeted regression membuktikan buat–hapus–buat ulang tetap berhasil dengan koneksi lama dipertahankan. Ini bukti penyimpanan dengan fixture, bukan keberhasilan login/provider.
+
+
+## Bukti UI terarah
+
+Pemeriksaan aktual staging pada 360×800, 390×844 dan 1280×900 mencakup satu input nama, satu tombol utama per langkah, URL Google resmi terisolasi, tidak ada probe/login akun lama, Tab/Shift+Tab/Escape, cancel dan overflow. Bukti guided-ui.json dan gambar guided-<width>-name/google.png. Gambar error/saved bernama FIXTURE memakai respons sintetis hanya untuk memeriksa tampilan; sesi OAuth backend dibatalkan setelah pemeriksaan. Tidak ada kode, consent, kredensial atau pendaftaran agen nyata yang diklaim oleh fixture tersebut.
