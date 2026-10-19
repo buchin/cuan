@@ -22,6 +22,11 @@ export const activeAttempt = (attempt?: TaskAttempt) =>
   !!attempt && ['queued', 'running'].includes(attempt.status)
 export function executionLabel(task: Task) {
   const state = task.latest_attempt?.status || task.execution_status
+  if (
+    (state === 'succeeded' || state === 'completed') &&
+    task.status === 'done'
+  )
+    return 'Finished · approved'
   return state
     ? (
         {

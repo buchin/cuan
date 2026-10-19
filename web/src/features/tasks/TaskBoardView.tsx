@@ -6,6 +6,11 @@ import {
   ArrowUpDown,
   Circle,
   LoaderCircle,
+  CircleDot,
+  CheckCircle2,
+  Ban,
+  X,
+  ChevronDown,
 } from 'lucide-react'
 import type { Task, TaskStatus, Project } from '../../api/types'
 import { agentsApi, type Agent } from '../../api/agents'
@@ -19,6 +24,7 @@ import {
   relativeTime,
 } from './task-ui'
 import { cn } from '../../lib/utils'
+import { tasksApi } from '../../api/tasks'
 interface Props {
   loading?: boolean
   error?: string
@@ -40,12 +46,16 @@ export function TaskBoardView({
   activeProject,
   onSelectTask,
   onStatusFilterChange,
+  onRunAgent,
   loading = false,
   error = '',
   onRetry,
 }: Props) {
   const [params, setParams] = useSearchParams(),
     [filtersOpen, setFiltersOpen] = useState(false),
+    [sortOpen, setSortOpen] = useState(false),
+    [saving, setSaving] = useState(''),
+    [actionError, setActionError] = useState(''),
     [agents, setAgents] = useState<Agent[]>([]),
     [limit, setLimit] = useState(100)
   const query = params.get('q') || '',
@@ -151,6 +161,125 @@ export function TaskBoardView({
     )
     onStatusFilterChange?.('all')
   }
+  const sortOptions = (
+    <>
+      <option value="updated">Updated</option>
+      <option value="created">Newest</option>
+      <option value="priority">Priority</option>
+      <option value="title">Title</option>
+    </>
+  )
+  const chips = [
+    ...(!activeProject && project !== 'all'
+      ? [
+          {
+            key: 'project',
+            label:
+              'Project: ' +
+              (project === 'none'
+                ? 'No project'
+                : projects.find((p) => p.id === project)?.name || project),
+          },
+        ]
+      : []),
+    ...(priority !== 'all'
+      ? [{ key: 'priority', label: 'Priority: ' + priority }]
+      : []),
+    ...(assignee !== 'all'
+      ? [
+          {
+            key: 'assignee',
+            label:
+              'Assignee: ' +
+              (assignee === 'unassigned'
+                ? 'Unassigned'
+                : names.get(assignee) || assignee),
+          },
+        ]
+      : []),
+  ]
+  const saveRow = async (
+    t: Task,
+    patch: import('../../api/types').UpdateTaskRequest,
+  ) => {
+    if (saving) return
+    setSaving(t.id)
+    setActionError('')
+    try {
+      await tasksApi.update(t.id, {
+        ...patch,
+        expected_updated_at: t.updated_at,
+      })
+      await onRunAgent(t.id)
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : 'Could not save the task. Try again.',
+      )
+      await onRunAgent(t.id)
+    } finally {
+      setSaving('')
+    }
+  }
+  const statusTone = (value: string) =>
+    ({
+      doing: 'text-blue-600 dark:text-blue-400',
+      review: 'text-amber-700 dark:text-amber-400',
+      done: 'text-emerald-700 dark:text-emerald-400',
+      blocked: 'text-destructive',
+    })[taskStatus(value)] || 'text-muted-foreground'
+  const statusIcon = (value: string) => {
+    const Icon =
+      {
+        doing: LoaderCircle,
+        review: CircleDot,
+        done: CheckCircle2,
+        blocked: Ban,
+      }[taskStatus(value)] || Circle
+    return (
+      <Icon
+        aria-hidden
+        className={cn(
+          'h-3.5 w-3.5 shrink-0',
+          statusTone(value),
+          value === 'doing' && 'animate-spin',
+          value === 'backlog' && 'opacity-60',
+        )}
+      />
+    )
+  }
+  const statusPicker = (t: Task) => (
+    <span className="relative inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 text-xs">
+      {statusIcon(t.status)}
+      <select
+        aria-label={`Change status for ${t.title}`}
+        className="min-h-9 min-w-0 max-w-full appearance-none bg-transparent pr-4 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+        value={taskStatus(t.status)}
+        disabled={
+          !!saving ||
+          ['running', 'queued'].includes(t.latest_attempt?.status || '') ||
+          t.status === 'done'
+        }
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) =>
+          void saveRow(t, { status: e.target.value as TaskStatus })
+        }
+      >
+        {TASK_STATUSES.filter(
+          (item) =>
+            item.id === taskStatus(t.status) ||
+            ['backlog', 'todo', 'blocked'].includes(item.id),
+        ).map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden
+        className="pointer-events-none absolute right-2 h-3 w-3 text-muted-foreground"
+      />
+    </span>
+  )
   const fields = (
     <>
       {!activeProject && (
@@ -242,7 +371,14 @@ export function TaskBoardView({
             </span>
           )}
         </button>
-        <label className="relative">
+        <button
+          className="icon-action sm:hidden"
+          aria-label="Sort tasks"
+          onClick={() => setSortOpen(true)}
+        >
+          <ArrowUpDown className="h-4 w-4" />
+        </button>
+        <label className="relative hidden sm:block">
           <ArrowUpDown
             aria-hidden
             className="pointer-events-none absolute left-2 top-3.5 h-4 w-4 text-muted-foreground"
@@ -253,16 +389,53 @@ export function TaskBoardView({
             onChange={(e) => update('sort', e.target.value)}
             className="min-h-11 max-w-[118px] rounded-md border border-input bg-background pl-7 pr-1 text-sm sm:max-w-none"
           >
-            <option value="updated">Updated</option>
-            <option value="created">Newest</option>
-            <option value="priority">Priority</option>
-            <option value="title">Title</option>
+            {sortOptions}
           </select>
         </label>
       </div>
+      <label className="flex items-center justify-between gap-3 sm:hidden">
+        <span className="text-xs text-muted-foreground">Show</span>
+        <select
+          aria-label="Task status filter"
+          className="min-h-11 max-w-[75%] rounded-md border border-input bg-background px-3 text-sm"
+          value={status}
+          onChange={(e) => {
+            update('status', e.target.value)
+            onStatusFilterChange?.(e.target.value)
+          }}
+        >
+          {[{ id: 'all', label: 'All tasks' }, ...TASK_STATUSES].map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label} (
+              {item.id === 'all'
+                ? scoped.length
+                : scoped.filter((t) => taskStatus(t.status) === item.id).length}
+              )
+            </option>
+          ))}
+        </select>
+      </label>
+      {chips.length > 0 && (
+        <div
+          aria-label="Active task filters"
+          className="flex flex-wrap gap-1.5"
+        >
+          {chips.map((chip) => (
+            <button
+              key={chip.key}
+              aria-label={`Remove ${chip.label} filter`}
+              className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border bg-muted/40 px-2.5 text-xs"
+              onClick={() => update(chip.key, 'all')}
+            >
+              <span className="truncate">{chip.label}</span>
+              <X className="h-3 w-3 shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
       <nav
         aria-label="Filter task status"
-        className="flex shrink-0 gap-1 overflow-x-auto border-b pb-1"
+        className="hidden shrink-0 gap-1 overflow-x-auto border-b pb-1 sm:flex"
       >
         {[{ id: 'all', label: 'All' }, ...TASK_STATUSES].map((item) => (
           <button
@@ -290,8 +463,9 @@ export function TaskBoardView({
       </nav>
       <div className="flex min-h-6 items-center justify-between gap-2 text-xs text-muted-foreground">
         <span role="status">
-          {rows.length} {rows.length === 1 ? 'task' : 'tasks'}
-          {filtered ? ` of ${scoped.length}` : ''}
+          {saving
+            ? 'Saving changes…'
+            : `${rows.length} ${rows.length === 1 ? 'task' : 'tasks'}${filtered ? ` of ${scoped.length}` : ''}`}
         </span>
         {filtered && (
           <button
@@ -302,6 +476,17 @@ export function TaskBoardView({
           </button>
         )}
       </div>
+      {actionError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
+        >
+          {actionError}
+          <button className="ml-3 underline" onClick={() => setActionError('')}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {error && (
         <div
           role="alert"
@@ -335,104 +520,145 @@ export function TaskBoardView({
           )}
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-          <table className="hidden w-full table-fixed text-left text-sm md:table">
-            <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground">
-              <tr>
-                <th className="w-[42%] px-4 py-3">Task</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Priority</th>
-                <th className="px-3 py-3">Assignee</th>
-                <th className="px-3 py-3">Updated</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rows.slice(0, limit).map((t) => (
-                <tr
-                  key={t.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => onSelectTask(t)}
-                >
-                  <td className="px-4 py-3">
-                    <button
-                      className="min-h-11 w-full text-left font-medium hover:underline"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSelectTask(t)
-                      }}
-                    >
-                      <span className="line-clamp-2 break-words">
-                        {t.title}
-                      </span>
-                    </button>
-                    <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                      <span className="shrink-0 font-mono">
-                        {taskRef(t.id)}
-                      </span>
-                      {!activeProject && (
-                        <>
-                          <span>·</span>
-                          <span className="truncate">{projectName(t)}</span>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-3">
-                    <span className="rounded border px-2 py-1 text-xs">
-                      {statusLabel(t.status)}
-                    </span>
-                    {executionLabel(t) && (
-                      <span className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                        {['queued', 'running'].includes(
-                          t.latest_attempt?.status || '',
-                        ) && <LoaderCircle className="h-3 w-3 animate-spin" />}
-                        {executionLabel(t)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3">
-                    <span
-                      className={cn(
-                        'text-xs capitalize',
-                        t.priority === 'urgent' &&
-                          'font-semibold text-destructive',
-                        t.priority === 'high' && 'font-semibold',
-                      )}
-                    >
-                      {t.priority}
-                    </span>
-                  </td>
-                  <td className="break-words px-3 py-3 text-xs text-muted-foreground">
-                    {name(t)}
-                  </td>
-                  <td className="px-3 py-3 text-xs text-muted-foreground">
-                    <time
-                      dateTime={t.updated_at}
-                      title={new Date(t.updated_at).toLocaleString('en-US')}
-                    >
-                      {relativeTime(t.updated_at)}
-                    </time>
-                  </td>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="hidden rounded-lg border lg:block">
+            <table className="w-full table-fixed text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground">
+                <tr>
+                  <th className="w-[42%] px-4 py-3">Task</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Priority</th>
+                  <th className="px-3 py-2">Assignee</th>
+                  <th className="px-3 py-2">Updated</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div role="list" className="divide-y md:hidden">
+              </thead>
+              <tbody className="divide-y">
+                {rows.slice(0, limit).map((t) => (
+                  <tr
+                    key={t.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => onSelectTask(t)}
+                  >
+                    <td className="px-4 py-2">
+                      <button
+                        className="block w-full text-left font-medium leading-5 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSelectTask(t)
+                        }}
+                      >
+                        <span className="line-clamp-2 break-words">
+                          {t.title}
+                        </span>
+                      </button>
+                      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                        <span className="shrink-0 font-mono">
+                          {taskRef(t.id)}
+                        </span>
+                        {!activeProject && (
+                          <>
+                            <span>·</span>
+                            <span className="truncate">{projectName(t)}</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {statusPicker(t)}
+                      {executionLabel(t) && (
+                        <span className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                          {['queued', 'running'].includes(
+                            t.latest_attempt?.status || '',
+                          ) && (
+                            <LoaderCircle className="h-3 w-3 animate-spin" />
+                          )}
+                          {executionLabel(t)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={cn(
+                          'text-xs capitalize',
+                          t.priority === 'urgent' &&
+                            'font-semibold text-destructive',
+                          t.priority === 'high' && 'font-semibold',
+                        )}
+                      >
+                        {t.priority}
+                      </span>
+                    </td>
+                    <td className="break-words px-3 py-3 text-xs text-muted-foreground">
+                      <select
+                        aria-label={`Change assignee for ${t.title}`}
+                        className="min-h-9 w-full truncate rounded-md border border-transparent bg-transparent px-1 text-xs hover:border-input focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                        value={t.assignee_id || t.assignee || ''}
+                        disabled={
+                          !!saving ||
+                          ['running', 'queued'].includes(
+                            t.latest_attempt?.status || '',
+                          )
+                        }
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) =>
+                          void saveRow(t, { assignee_id: e.target.value })
+                        }
+                      >
+                        <option value="">Unassigned</option>
+                        {!names.has(t.assignee_id || t.assignee || '') &&
+                          (t.assignee_id || t.assignee) && (
+                            <option value={t.assignee_id || t.assignee}>
+                              {name(t)}
+                            </option>
+                          )}
+                        {agents
+                          .filter(
+                            (a) =>
+                              a.enabled !== false ||
+                              a.id === (t.assignee_id || t.assignee),
+                          )
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-muted-foreground">
+                      <time
+                        dateTime={t.updated_at}
+                        title={new Date(t.updated_at).toLocaleString('en-US')}
+                      >
+                        {relativeTime(t.updated_at)}
+                      </time>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div role="list" className="divide-y border-y lg:hidden">
             {rows.slice(0, limit).map((t) => (
               <div key={t.id} role="listitem">
                 <button
-                  className="block min-h-24 w-full p-3 text-left hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                  className="block min-h-24 w-full px-1 py-3 text-left hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => onSelectTask(t)}
                 >
                   <span className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="font-mono text-xs text-muted-foreground">
                       {taskRef(t.id)}
                     </span>
-                    <span className="rounded border px-2 py-1 text-xs">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 text-xs',
+                        statusTone(t.status),
+                      )}
+                    >
+                      {statusIcon(t.status)}
                       {statusLabel(t.status)}
                     </span>
                   </span>
-                  <span className="line-clamp-2 break-words text-base font-medium">
+                  <span className="line-clamp-2 break-words text-[15px] font-medium leading-snug">
                     {t.title}
                   </span>
                   <span className="mt-2 block truncate text-xs text-muted-foreground">
@@ -446,6 +672,13 @@ export function TaskBoardView({
                       {t.priority}
                     </span>
                   </span>
+                  <time
+                    className="mt-1 block text-xs text-muted-foreground"
+                    dateTime={t.updated_at}
+                    title={new Date(t.updated_at).toLocaleString('en-US')}
+                  >
+                    Updated {relativeTime(t.updated_at)}
+                  </time>
                   {executionLabel(t) && (
                     <span className="mt-1 block text-xs text-muted-foreground">
                       {executionLabel(t)}
@@ -465,6 +698,38 @@ export function TaskBoardView({
           )}
         </div>
       )}
+      <ActionDialog
+        open={sortOpen}
+        title="Sort tasks"
+        onClose={() => setSortOpen(false)}
+      >
+        <fieldset className="grid gap-1">
+          <legend className="sr-only">Sort order</legend>
+          {[
+            { id: 'updated', label: 'Recently updated' },
+            { id: 'created', label: 'Newest first' },
+            { id: 'priority', label: 'Highest priority' },
+            { id: 'title', label: 'Title A–Z' },
+          ].map((item) => (
+            <label
+              key={item.id}
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 hover:bg-muted"
+            >
+              <input
+                type="radio"
+                name="task-sort"
+                value={item.id}
+                checked={sort === item.id}
+                onChange={() => {
+                  update('sort', item.id)
+                  setSortOpen(false)
+                }}
+              />
+              {item.label}
+            </label>
+          ))}
+        </fieldset>
+      </ActionDialog>
       <ActionDialog
         open={filtersOpen}
         title="Filter tasks"

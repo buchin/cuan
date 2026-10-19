@@ -40,6 +40,7 @@ import {
 } from './task-ui'
 import './task-workspace.css'
 interface Props {
+  initialError?: string
   task: Task | null
   projects: import('../../api/types').Project[]
   isOpen: boolean
@@ -96,6 +97,7 @@ export function TaskSidePeek(props: Props) {
 }
 function TaskDetailView({
   task: initial,
+  initialError,
   projects,
   onClose,
   onUpdate,
@@ -112,7 +114,7 @@ function TaskDetailView({
     }),
     [loaded, setLoaded] = useState(false),
     [loadError, setLoadError] = useState(''),
-    [error, setError] = useState(''),
+    [error, setError] = useState(initialError || ''),
     [notice, setNotice] = useState(''),
     [agents, setAgents] = useState<Agent[]>([]),
     [live, setLive] = useState<LiveTaskSession | null>(null),
@@ -139,6 +141,9 @@ function TaskDetailView({
       readPending(initial.id),
     ),
     [preferredSession, setPreferredSession] = useState('')
+  useEffect(() => {
+    if (initialError) setError(initialError)
+  }, [initialError])
   const busyRef = useRef(false),
     mounted = useRef(true)
   const running = activeAttempt(detail.latest_attempt),

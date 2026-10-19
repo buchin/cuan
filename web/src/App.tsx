@@ -15,15 +15,11 @@ import { agentsApi, type Agent } from './api/agents'
 import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
+import { ApiError } from './api/client'
 import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { InboxView } from './features/inbox/InboxView'
-import {
-  Project,
-  Task,
-  CreateTaskRequest,
-  ProjectType,
-} from './api/types'
+import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
@@ -65,8 +61,8 @@ export function App() {
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectsError, setProjectsError] = useState('')
   const [tasks, setTasks] = useState<Task[]>([])
-  const [tasksLoading,setTasksLoading]=useState(true)
-  const [tasksError,setTasksError]=useState('')
+  const [tasksLoading, setTasksLoading] = useState(true)
+  const [tasksError, setTasksError] = useState('')
   const [contacts, setContacts] = useState<ChatContact[]>([])
   const [directoryAgents, setDirectoryAgents] = useState<Agent[]>([])
   const [contactsLoading, setContactsLoading] = useState(true)
@@ -89,6 +85,7 @@ export function App() {
     undefined,
   )
   const [taskRouteError, setTaskRouteError] = useState('')
+  const [taskLaunchError, setTaskLaunchError] = useState('')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isSidePeekOpen, setIsSidePeekOpen] = useState(false)
 
@@ -148,8 +145,15 @@ export function App() {
   const refreshTasks = useCallback(async () => {
     try {
       const data = await tasksApi.list()
-      setTasks(data);setTasksError('')
-    } catch {setTasksError('Could not load tasks. Check your connection and try again.')}finally{setTasksLoading(false)}
+      setTasks(data)
+      setTasksError('')
+    } catch {
+      setTasksError(
+        'Could not load tasks. Check your connection and try again.',
+      )
+    } finally {
+      setTasksLoading(false)
+    }
   }, [])
 
   const refreshContacts = useCallback(async () => {
@@ -267,19 +271,36 @@ export function App() {
   }
 
   const handleSelectTask = (t: Task) => {
+    setTaskLaunchError('')
     setSelectedTask(t)
     setIsSidePeekOpen(true)
-    const search = new URLSearchParams(location.search);search.delete('view')
-    const suffix=search.toString()?'?'+search.toString():''
-    const returnTo=location.pathname.startsWith('/projects/')?location.pathname+suffix:typeof location.state?.taskReturnTo==='string'?location.state.taskReturnTo:'/tasks'+suffix
-    navigate(`/tasks/${encodeURIComponent(t.id)}${suffix}`,{state:{taskReturnTo:returnTo}})
+    const search = new URLSearchParams(location.search)
+    search.delete('view')
+    const suffix = search.toString() ? '?' + search.toString() : ''
+    const returnTo = location.pathname.startsWith('/projects/')
+      ? location.pathname + suffix
+      : typeof location.state?.taskReturnTo === 'string'
+        ? location.state.taskReturnTo
+        : '/tasks' + suffix
+    navigate(`/tasks/${encodeURIComponent(t.id)}${suffix}`, {
+      state: { taskReturnTo: returnTo },
+    })
   }
   const handleCloseSidePeek = () => {
-    setIsSidePeekOpen(false);setSelectedTask(null);void refreshTasks()
-    const search=new URLSearchParams(location.search);search.delete('view')
-    const fallback='/tasks'+(search.toString()?'?'+search.toString():'')
-    const target=location.state?.taskReturnTo
-    navigate(typeof target==='string'&&/^\/(?:tasks|projects\/[^/?#]+)(?:\?[^#]*)?$/.test(target)?target:fallback)
+    setIsSidePeekOpen(false)
+    setSelectedTask(null)
+    void refreshTasks()
+    const search = new URLSearchParams(location.search)
+    search.delete('view')
+    const fallback =
+      '/tasks' + (search.toString() ? '?' + search.toString() : '')
+    const target = location.state?.taskReturnTo
+    navigate(
+      typeof target === 'string' &&
+        /^\/(?:tasks|projects\/[^/?#]+)(?:\?[^#]*)?$/.test(target)
+        ? target
+        : fallback,
+    )
   }
 
   const handleSelectProject = (p?: Project) => {
@@ -309,10 +330,43 @@ export function App() {
   }
 
   // Handlers for Tasks
-  const handleCreateTask = async (data: CreateTaskRequest) => {
-    const created=await tasksApi.create(data)
+  const handleCreateTask = async (
+    data: CreateTaskRequest,
+    startAgentId?: string,
+  ) => {
+    const created = await tasksApi.create(data)
+    let launchError = ''
+    if (startAgentId) {
+      const payload = {
+        request_id: crypto.randomUUID(),
+        agent_id: startAgentId,
+      }
+      const key = 'cuan-task-launch:' + created.id
+      let stored = false
+      try {
+        localStorage.setItem(key, JSON.stringify(payload))
+        stored = true
+      } catch {}
+      if (!stored)
+        launchError =
+          'Task created. Browser storage is unavailable, so the agent was not started. Open Start when storage is available.'
+      else
+        try {
+          await tasksApi.runAgent(created.id, payload)
+          localStorage.removeItem(key)
+        } catch (e) {
+          if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+            localStorage.removeItem(key)
+            launchError =
+              'Task created, but the agent could not start: ' + e.message
+          } else
+            launchError =
+              'Task created. The launch response was not confirmed. Use Check launch request to recover the same session.'
+        }
+    }
     await refreshTasks()
     handleSelectTask(created)
+    setTaskLaunchError(launchError)
   }
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
@@ -491,7 +545,7 @@ export function App() {
               tasks={tasks}
               loading={tasksLoading}
               error={tasksError}
-              onRetry={()=>void refreshTasks()}
+              onRetry={() => void refreshTasks()}
               projects={projects}
 
               selectedStatusFilter={selectedTaskStatus}
@@ -564,7 +618,7 @@ export function App() {
                     tasks={tasks}
                     loading={tasksLoading}
                     error={tasksError}
-                    onRetry={()=>void refreshTasks()}
+                    onRetry={() => void refreshTasks()}
                     projects={projects}
                     activeProject={activeProject}
                     onSelectTask={handleSelectTask}
@@ -654,12 +708,13 @@ export function App() {
       <CreateTaskModal
         isOpen={isCreateTaskOpen}
         projects={projects.filter((project) => !project.is_archived)}
-        activeProjectId={projectDetail ? headerProject?.id : undefined}
+        activeProjectId={projectDetail ? subParam : undefined}
         onClose={() => setIsCreateTaskOpen(false)}
         onSubmit={handleCreateTask}
       />
 
       <TaskSidePeek
+        initialError={taskLaunchError}
         task={selectedTask}
         projects={projects}
         isOpen={isSidePeekOpen}

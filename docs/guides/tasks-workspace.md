@@ -1,18 +1,25 @@
 # Tasks workspace
 
 Open **Tasks** to search, sort, or filter by status, project, priority, and agent.
-Filters are part of the URL and remain when a task is closed. **New task** creates
-an unassigned Backlog item; creating or viewing a task never starts an agent.
+Filters are part of the URL and remain when a task is closed. **New task** opens a simple prompt composer. Select a Project when repository
+context is needed. The first line supplies the initial title and the complete
+prompt is saved as the human instructions. Choose **Not now** to save to Backlog,
+or select an agent and confirm **Create & start** to create and launch one session.
+Viewing a task never starts an agent.
 
 ## Prepare and run
 
-1. Write the human instructions and acceptance criteria. Select a project when
+1. Describe the work in the prompt; title, priority, and acceptance criteria do
+   not need separate input during creation. You can refine them in task detail.
+   Select a project when
    repository context is required; use **No project** for standalone work.
 2. Open the task to read its instructions, summary, checklist, and completion
    notes. Choose **Edit** to change them. Failed saves retain the draft. A stale
    draft is rejected rather than overwriting newer work; copy the draft, discard
    it, and reopen Edit to apply the current version.
-3. Choose **Start**, select a configured agent, and confirm **Start session**.
+3. Choose **Start**, select a configured agent, and confirm **Start session**
+   for a saved task. The new-task composer can also explicitly create and start
+   with a selected agent.
    Configure and verify agents in **Settings → Agents** first. The saved title,
    instructions, criteria, existing notes, and additional feedback form the run
    context. Human instructions remain a separate field.
@@ -86,3 +93,21 @@ and attempt-request hash with defaults. It does not rewrite existing rows.
 6. For application rollback, keep additive schema23 and run the native activator
    on the previous release with `--schema-count 23`. Do not run the down migrator:
    it can remove application data and is not the application rollback procedure.
+
+## List controls and quick creation
+
+Desktop uses compact table rows with inline status and assignee controls. Status
+shortcuts cannot approve Done or start execution. Active sessions lock these
+changes; stale edits are rejected. Tablet and mobile use task rows with visible
+updated times. Phones have a status selector and a Sort menu so search retains
+space. Project, priority, and assignee filter chips can be removed individually.
+
+The new-task composer has one instructions field, a Project selector, and an
+optional Agent selector. It has no mandatory metadata form. Drafts and the create
+request ID survive reload in this browser tab. Closing a nonempty composer asks
+before discarding it. A failed create keeps the same request ID. If creation
+succeeds but launch fails, the persisted task still opens; uncertain launches
+expose **Check launch request** instead of inviting a duplicate creation/run.
+Choosing an agent explicitly changes the action to **Create & start**. An existing
+CLI agent must be connected/configured before execution; creating a task is still
+possible with **Not now** when agent listing is unavailable.

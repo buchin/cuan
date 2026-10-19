@@ -1,14 +1,44 @@
 import { useState, useRef, useEffect } from 'react'
-import { Project, TaskPriority, CreateTaskRequest } from '../../api/types'
-import { X, AlertCircle } from 'lucide-react'
+import { ArrowUp, X, AlertCircle, Folder, Bot } from 'lucide-react'
+import type { Project, CreateTaskRequest } from '../../api/types'
+import { agentsApi, type Agent } from '../../api/agents'
 import { trapDialogFocus } from '../../lib/dialog'
 
-interface CreateTaskModalProps {
+interface Props {
   isOpen: boolean
   projects: Project[]
   activeProjectId?: string
   onClose: () => void
-  onSubmit: (data: CreateTaskRequest) => Promise<void>
+  onSubmit: (data: CreateTaskRequest, startAgentId?: string) => Promise<void>
+}
+interface Draft {
+  prompt: string
+  project: string
+  agent: string
+  requestId: string
+}
+function readDraft(key: string, project: string): Draft {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(key) || 'null')
+    if (
+      d &&
+      typeof d.prompt === 'string' &&
+      typeof d.project === 'string' &&
+      typeof d.agent === 'string' &&
+      /^[0-9a-f-]{36}$/i.test(d.requestId)
+    )
+      return d
+  } catch {}
+  return { prompt: '', project, agent: '', requestId: crypto.randomUUID() }
+}
+function titleFromPrompt(prompt: string) {
+  const first =
+    prompt
+      .trim()
+      .split(/\r?\n/)
+      .find((line) => line.trim()) || ''
+  const title = first.replace(/^\s*#{1,6}\s+/, '').trim()
+  return title.length > 110 ? title.slice(0, 107).trimEnd() + '…' : title
 }
 
 export function CreateTaskModal({
@@ -17,211 +47,256 @@ export function CreateTaskModal({
   activeProjectId,
   onClose,
   onSubmit,
-}: CreateTaskModalProps) {
-  const defaultProject =
-    projects.find((p) => p.id === activeProjectId && !p.is_archived)?.id ||
-    ''
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [criteria,setCriteria]=useState('')
-  const [requestId,setRequestId]=useState(()=>crypto.randomUUID())
-  const [priority, setPriority] = useState<TaskPriority>('normal')
-  const [selectedProjectId, setSelectedProjectId] = useState(defaultProject)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const titleRef = useRef<HTMLInputElement>(null)
+}: Props) {
+  const key = 'cuan-new-task:' + (activeProjectId || 'global')
+  const [draft, setDraft] = useState<Draft>(() =>
+      readDraft(key, activeProjectId || ''),
+    ),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState(''),
+    [agents, setAgents] = useState<Agent[]>([]),
+    [agentsError, setAgentsError] = useState(false)
+  const dialog = useRef<HTMLDialogElement>(null),
+    input = useRef<HTMLTextAreaElement>(null),
+    submitting = useRef(false),
+    mounted = useRef(false)
   useEffect(() => {
     if (!isOpen) return
-    setRequestId(crypto.randomUUID())
-    setCriteria('')
-    setTitle('')
-    setDescription('')
-    setError(null)
-    setPriority('normal')
-    setSelectedProjectId(defaultProject)
-  }, [isOpen])
-  useEffect(() => {
-    if (!isOpen) return
+    mounted.current = true
+    setLoading(false)
+    submitting.current = false
+    setDraft(readDraft(key, activeProjectId || ''))
+    setError('')
+    let alive = true
+    agentsApi
+      .list()
+      .then((list) => {
+        if (alive) {
+          setAgents(list)
+          setAgentsError(false)
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setAgents([])
+          setAgentsError(true)
+        }
+      })
     const previous = document.activeElement as HTMLElement | null
-    const dialog = dialogRef.current
-    dialog?.showModal()
-    titleRef.current?.focus()
+    dialog.current?.showModal()
+    input.current?.focus()
     return () => {
-      dialog?.close()
+      mounted.current = false
+      alive = false
+      dialog.current?.close()
       if (previous?.isConnected) previous.focus()
     }
-  }, [isOpen])
+  }, [isOpen, key, activeProjectId])
+  const change = (patch: Partial<Draft>) =>
+    setDraft((d) => {
+      const next = { ...d, ...patch }
+      try {
+        sessionStorage.setItem(key, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  const close = () => {
+    if (loading) return
+    if (draft.prompt.trim() && !window.confirm('Discard this task draft?'))
+      return
+    try {
+      sessionStorage.removeItem(key)
+    } catch {}
+    onClose()
+  }
   if (!isOpen) return null
+  const eligible = agents.filter(
+    (a) => a.enabled !== false && a.status !== 'inactive',
+  )
   return (
     <dialog
-      ref={dialogRef}
-      onKeyDown={trapDialogFocus}
+      ref={dialog}
       aria-labelledby="create-task-heading"
+      onKeyDown={trapDialogFocus}
       onCancel={(e) => {
         e.preventDefault()
-        if (!loading) onClose()
+        close()
       }}
-      className="m-auto w-[calc(100%_-_24px)] max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl border border-border bg-card p-5 text-card-foreground shadow-2xl backdrop:bg-black/60"
+      className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-2xl overflow-y-auto rounded-2xl border bg-card p-4 text-card-foreground shadow-2xl backdrop:bg-black/50 sm:p-6"
     >
-      <header className="mb-4 flex items-center justify-between gap-3">
-        <h2 id="create-task-heading" className="text-xl font-semibold">
-          New task
-        </h2>
+      <div className="mb-2 flex justify-end">
         <button
           type="button"
           aria-label="Close task form"
-          className="icon-action"
+          className="icon-action -mr-1 -mt-1"
+          onClick={close}
           disabled={loading}
-          onClick={onClose}
         >
           <X className="h-5 w-5" />
         </button>
-      </header>
-      {error && (
-        <div
-          role="alert"
-          className="mb-4 flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+      </div>
+      <header className="mb-5 space-y-2 text-center">
+        <h2
+          id="create-task-heading"
+          className="text-xl font-medium tracking-tight sm:text-2xl"
         >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
+          What should we work on?
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Describe the work. Let your agent handle the details.
+        </p>
+      </header>
+      <label className="mb-5 flex items-center justify-center gap-2">
+        <Folder aria-hidden className="h-4 w-4 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Project</span>
+        <select
+          aria-label="Project"
+          className="min-h-11 min-w-0 max-w-[70%] rounded-md border border-input bg-background px-3 text-sm"
+          value={draft.project}
+          onChange={(e) => change({ project: e.target.value })}
+          disabled={loading}
+        >
+          <option value="">No project</option>
+          {draft.project && !projects.some((p) => p.id === draft.project) && (
+            <option value={draft.project}>Project unavailable</option>
+          )}
+          {projects
+            .filter((p) => !p.is_archived)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      {error && (
+        <p
+          role="alert"
+          className="mb-3 flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
+        </p>
       )}
       <form
-        className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault()
-          if (loading) return
-          if (!title.trim()) {
-            setError('Enter a task title')
+          if (submitting.current || !draft.prompt.trim()) return
+          if (
+            draft.project &&
+            !projects.some((p) => p.id === draft.project && !p.is_archived)
+          ) {
+            setError('Choose an available project or No project.')
             return
           }
+          if (draft.agent && !eligible.some((a) => a.id === draft.agent)) {
+            setError('Choose an available agent or Not now.')
+            return
+          }
+          submitting.current = true
           setLoading(true)
-          setError(null)
+          setError('')
           try {
-            await onSubmit({
-              title: title.trim(),
-              description: description.trim() || undefined,
-              project_ids: selectedProjectId ? [selectedProjectId] : undefined,
-              priority,
-              status: 'backlog',
-              request_id:requestId,
-              dod_checklist:criteria.split('\n').map(text=>text.trim()).filter(Boolean).map(text=>({text,completed:false})),
-            })
-            onClose()
-          } catch (err) {
-            setError(
-              err instanceof Error ? err.message : 'Could not create task',
+            await onSubmit(
+              {
+                title: titleFromPrompt(draft.prompt),
+                description: draft.prompt.trim(),
+                project_ids: draft.project ? [draft.project] : undefined,
+                assignee_id: draft.agent,
+                priority: 'normal',
+                status: 'backlog',
+                request_id: draft.requestId,
+              },
+              draft.agent || undefined,
             )
+            try {
+              sessionStorage.removeItem(key)
+            } catch {}
+            onClose()
+          } catch (e) {
+            if (mounted.current)
+              setError(
+                e instanceof Error
+                  ? e.message
+                  : 'Could not create task. Your draft is retained; try again.',
+              )
           } finally {
-            setLoading(false)
+            submitting.current = false
+            if (mounted.current) setLoading(false)
           }
         }}
       >
-        <div>
-          <label htmlFor="create-task-title" className="text-sm font-medium">
-            Task title
-          </label>
-          <input
-            id="create-task-title"
-            ref={titleRef}
-            className="field-control mt-1"
-            required
-            maxLength={200}
-            placeholder="What needs to be done?"
-            value={title}
-            disabled={loading}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="create-task-description"
-            className="text-sm font-medium"
-          >
-            Description{' '}
-            <span className="text-muted-foreground">(optional)</span>
-          </label>
+        <div className="overflow-hidden rounded-xl border bg-background focus-within:ring-2 focus-within:ring-ring">
           <textarea
-            id="create-task-description"
+            ref={input}
+            aria-label="Task instructions"
+            aria-describedby="new-task-help"
+            placeholder="Describe the work…"
+            className="block min-h-32 w-full resize-y border-0 bg-transparent p-4 text-base leading-relaxed outline-none focus:ring-0 sm:text-[15px]"
             rows={4}
-            className="field-control mt-1 resize-y"
-            placeholder="Goal, scope, and acceptance criteria"
-            value={description}
+            required
+            maxLength={24000}
+            value={draft.prompt}
             disabled={loading}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => change({ prompt: e.target.value })}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              if (
+                !e.nativeEvent.isComposing &&
+                e.key === 'Enter' &&
+                (e.ctrlKey || e.metaKey)
+              ) {
                 e.preventDefault()
                 e.currentTarget.form?.requestSubmit()
               }
             }}
           />
-        </div>
-        <label className="grid gap-1 text-sm font-medium">Acceptance criteria (optional)<textarea aria-label="Acceptance criteria" className="field-control font-normal" rows={3} value={criteria} onChange={e=>setCriteria(e.target.value)} disabled={loading}/><span className="text-xs font-normal text-muted-foreground">One criterion per line. The new task starts in Backlog; creating it does not run an agent.</span></label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="min-w-0">
-            <label
-              htmlFor="create-task-project"
-              className="text-sm font-medium"
-            >
-              Project
-            </label>
-            <select
-              id="create-task-project"
-              className="field-control mt-1"
-              value={selectedProjectId}
-              disabled={loading}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-            >
-              <option value="">Global / No project</option>
-              {projects
-                .filter((p) => !p.is_archived)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
+          <div className="flex items-center justify-between gap-2 px-3 pb-3">
+            <label className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+              <Bot aria-hidden className="h-4 w-4 shrink-0" />
+              <span className="sr-only">Agent</span>
+              <select
+                aria-label="Agent"
+                className="min-h-11 min-w-0 max-w-[150px] rounded-md border border-input bg-card px-2 text-xs sm:max-w-[240px]"
+                value={draft.agent}
+                onChange={(e) => change({ agent: e.target.value })}
+                disabled={loading}
+              >
+                <option value="">Not now</option>
+                {draft.agent && !eligible.some((a) => a.id === draft.agent) && (
+                  <option value={draft.agent}>Agent unavailable</option>
+                )}
+                {eligible.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
                   </option>
                 ))}
-            </select>
-          </div>
-          <div className="min-w-0">
-            <label
-              htmlFor="create-task-priority"
-              className="text-sm font-medium"
-            >
-              Priority
+              </select>
             </label>
-            <select
-              id="create-task-priority"
-              className="field-control mt-1"
-              value={priority}
-              disabled={loading}
-              onChange={(e) => setPriority(e.target.value as TaskPriority)}
+            <button
+              type="submit"
+              aria-label="Create task"
+              className="action-primary shrink-0"
+              disabled={loading || !draft.prompt.trim()}
             >
-              <option value="low">Low</option>
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
+              <ArrowUp className="h-4 w-4" />
+              {loading
+                ? 'Creating…'
+                : draft.agent
+                  ? 'Create & start'
+                  : 'Create'}
+            </button>
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <button
-            type="button"
-            className="action-secondary"
-            disabled={loading}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="action-primary"
-            disabled={loading || !title.trim()}
-          >
-            {loading ? 'Saving…' : 'Create task'}
-          </button>
-        </div>
+        <p
+          id="new-task-help"
+          className="mt-3 text-center text-xs text-muted-foreground"
+        >
+          {agentsError
+            ? 'Could not load agents. You can save the task and choose an agent later.'
+            : draft.agent
+              ? 'Creates the task and starts the selected agent.'
+              : 'Choose an agent to start immediately, or Not now to save to Backlog.'}
+        </p>
       </form>
     </dialog>
   )
