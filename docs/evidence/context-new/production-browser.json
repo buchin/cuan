@@ -1,5 +1,5 @@
 {
-  "release": "6b3cc641a4bb529e737bbc03a4506ef0558e1630",
+  "release": "8e0c6974aaced45e7d9e0f39a92e5ef944f85d35",
   "measurements": [
     {
       "width": 1440,
@@ -386,9 +386,7 @@
       "noOverflow": true
     }
   ],
-  "manualContactPersisted": true,
-  "idempotentRetry": true,
-  "manualExcludedFromRecipients": true,
+  "visibleContextLabels": true,
   "assets": [
     "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
     "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
@@ -401,8 +399,8 @@
     "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
     "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
     "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
-    "index-BL6eBopY.js",
-    "index-Di-MMTQ1.css"
+    "index-Di-MMTQ1.css",
+    "index-oSCi-hPo.js"
   ],
   "errors": [],
   "providerInvocations": 0

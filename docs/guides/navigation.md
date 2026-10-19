@@ -288,3 +288,10 @@ setiap percakapan selama halaman tetap terbuka; reload menghapus draft lokal.
 Verifikasi fixture: `node docs/evidence/context-new/browser-check.cjs`,64 kombinasi
 route/viewport/tema, keyboard dan retry kontak tanpa duplikasi. Tidak menjalankan
 provider. Chromium viewport belum menggantikan pengujian perangkat fisik.
+
+Rilis `8e0c697` aktif di production. Label lengkap New tampil sesuai konteks pada
+mobile/tablet/desktop. Fixture64 dan production48 kombinasi route/viewport/tema
+lulus, termasuk dialog dan aset build identik. Kontak manual nyata diuji tersimpan
+setelah reload dan retry idempoten; record sintetis sudah dibersihkan. Seluruh35
+tabel yang dipertahankan (selain sesi login) dan493 file profil sama dengan backup.
+Schema tetap22, tanpa migration baru. Bukti: `docs/evidence/context-new/`.
