@@ -302,3 +302,7 @@ Isi bubble memakai15px pada tablet/desktop (≥768px),16px pada HP, dengan
 line-height1,55. Heading balasan dibatasi16–18px dan jarak paragraf/list dipadatkan.
 Composer tetap16px. Ukuran waktu/status tidak diubah; kode dan tabel tetap bisa
 digeser mendatar di dalam bubble.
+
+Rilis tipografi `3a904db` aktif di production; build dan10 kombinasi fixture
+serta10 kombinasi production lulus. Tidak ada migration atau pengiriman pesan
+pada smoke test. Bukti: `docs/evidence/chat-typography/`.
