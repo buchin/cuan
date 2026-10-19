@@ -42,7 +42,7 @@ untuk efek eksternal berada di luar scope. Hasil provider yang tidak diketahui
 menjadi interrupted tanpa replay otomatis.
 
 Migration 21 menambah lifecycle serta metadata sumber task. Migrasi lama tetap
-utuh. Tidak ada schema/deploy production pada pekerjaan ini. Sebelum penerapan
+utuh. Production telah dideploy setelah permintaan eksplisit PO pada 2026-10-19. Sebelum penerapan
 berdata: backup privat, staging, quiesce pekerjaan, explicit migration dengan
 auto-migrate off, native atomic release, health/readiness, dan rollback aplikasi
 sambil mempertahankan schema additive. Lihat panduan penggunaan/operasi.
@@ -67,7 +67,12 @@ HOME sementara dan provider palsu; tidak ada credential/history production.
 Provider nyata tidak dipanggil. Pengujian viewport bukan sertifikasi perangkat
 fisik/keyboard. Warning CSS/chunk bawaan frontend tetap tercatat.
 
-Implementasi, panduan dan bukti siap dikomit pada branch kerja yang ada. Jangan
+Implementasi, panduan dan bukti dikomit pada branch kerja yang ada. Jangan
 merge main atau menghapus branch S26 yang belum merged dari pekerjaan ini.
-Production tetap tidak diubah; penerapan berdata memerlukan prosedur backup,
-explicit migration 21 dan native release/rollback pada panduan.
+Production https://cuan.dojo.cc aktif pada release
+`10956efa85d9c014c75d6ed7a2d06aa193c05d88`, schema21. Backup privat, explicit
+migration, native atomic release dan actual rollback/reactivation lulus.
+Sebelum smoke login, 35 tabel dan 361 file profil privat terbukti tetap utuh.
+Login owner, API dan UI Inbox production lulus; aset identik dengan preview
+terverifikasi, tanpa pemanggilan provider. Bukti deployment dan screenshot:
+`docs/evidence/message-task/production/`.

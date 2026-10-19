@@ -1,0 +1,38 @@
+{
+  "verified_at": "2026-10-19T05:44:18.890312+00:00",
+  "url": "https://cuan.dojo.cc",
+  "deployed_release": "10956efa85d9c014c75d6ed7a2d06aa193c05d88",
+  "previous_release": "f8341b49fd6da3fa223e19d8184a7f3d51ff378c",
+  "schema": 21,
+  "auto_migrate": false,
+  "pre_migration_backup": {
+    "validated_pg_restore_list": true,
+    "file_mode": "0600",
+    "directory_mode": "0700",
+    "private_profile_files": 361
+  },
+  "quiesce_before_migration": {
+    "active_requests": 0,
+    "active_attempts": 0
+  },
+  "native_activation": {
+    "checksum_manifest": true,
+    "exclusive_lock": true,
+    "atomic_symlink": true,
+    "health_and_exact_html": true
+  },
+  "actual_rollback_and_reactivation": true,
+  "continuity_before_browser_login": {
+    "existing_tables_unchanged": 35,
+    "private_profile_files_unchanged": 361
+  },
+  "unauthenticated_auth_me": 401,
+  "provider_probe": false,
+  "down_migration": false,
+  "database_restore": false,
+  "build_warnings": [
+    "existing CSS minification warning",
+    "bundle size warning"
+  ],
+  "browser_initial_launch": "Missing library search path; fixed by using existing isolated Chromium library path; rerun passed."
+}

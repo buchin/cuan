@@ -81,7 +81,19 @@ Quiesce pekerjaan sebelum mengganti versi. Untuk rollback aplikasi, selesaikan
 atau batalkan queued/running/cancelling dan pertahankan schema additive; jangan
 jalankan down migration untuk rollback aplikasi biasa. Gunakan release native
 repo dengan lock, checksum, atomic activation, health/readiness dan rollback.
-Belum ada penerapan schema atau release production dari pekerjaan ini.
+Production https://cuan.dojo.cc telah memakai schema 21 dan release
+`10956efa85d9c014c75d6ed7a2d06aa193c05d88` sejak 2026-10-19.
+Backup privat sebelum migrasi dan uji rollback/aktivasi kembali lulus.
+Rollback aplikasi tetap mempertahankan schema 21; gunakan:
+
+```sh
+sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 21
+# Aktivasi kembali release terverifikasi:
+sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --release 10956efa85d9c014c75d6ed7a2d06aa193c05d88 --schema-count 21
+```
+
+Pastikan antrean/attempt tidak aktif sebelum rollback. Jangan gunakan instruksi
+schema20 lama untuk deployment ini. Bukti: `docs/evidence/message-task/production/`.
 
 ## Verifikasi dan checkpoint 2026-10-19
 
@@ -111,5 +123,7 @@ memerlukan Playwright/Chromium dan preview fixture yang disebut di atas, tanpa
 response mock/asset overlay. Source preview opt-in: TestInboxLifecycleBrowserPreview.
 
 Preview memakai temporary HOME, data memori dan provider palsu. Tidak ada klaim
-respons provider nyata, pengujian perangkat fisik atau release production.
+respons provider nyata, pengujian perangkat fisik atau bukti provider production.
+Smoke production terpisah lulus untuk login owner, API, UI Inbox, viewport
+360/390/1280, serta kecocokan aset publik; tidak memanggil provider.
 Spesifikasi dan bukti final: docs/plans/message-task-adoption.md.
