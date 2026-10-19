@@ -18,4 +18,10 @@ Frontend TypeScript/Vite build passed. Chromium fixture covers light/dark at 360
 
 ## Production
 
-Release is pending: the production idle gate detected an active local agent session with a live child process. No restart, migration or deployment was performed; that session has been preserved. Re-run the backup/idle gate and native release after the session finishes.
+Deployed to https://cuan.dojo.cc: code `84e65e07ba18f8cec93c86c00ef196ef56214dda` via the native atomic release script. The idle gate passed with zero active requests/attempts; validated database and account-profile backup retained privately. Readiness is healthy, schema remains23, automatic migration disabled.
+
+Authenticated production smoke passed eight viewport/theme checks, current/earlier session navigation, acceptance gates, draft/start behavior and exact deployed asset comparison. Synthetic fixtures were deleted; no real provider or run-agent calls. The first pass timed out while waiting for saved terminal output; a repeat passed without code changes.
+
+Isolated production-host PTY fixture passed Done/Review/Blocked reporting, two interactive turns, final output drain and progress/cancel guards. It used memory stores and a fake provider, without production database access. This proves runner/report handling; real provider adherence to reporting instructions was not tested.
+
+Retention verification:35 existing tables unchanged (login sessions excluded),697 account-profile files unchanged. Persistent project checkout fast-forwarded cleanly to the deployed code. See `production.json` and production screenshots.
