@@ -1,3 +1,4 @@
+import { CuanMark } from '../brand/CuanMark'
 import { useState, FormEvent } from 'react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card'
 import { Button } from '../ui/button'
@@ -62,15 +63,8 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
       {/* Top Bar with Brand & Theme Toggle */}
       <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 bg-primary text-primary-foreground font-mono font-black text-sm flex items-center justify-center shadow-xs">
-            C
-          </div>
-          <span className="font-bold text-base tracking-tight text-foreground">
-            Cuan
-          </span>
-          <span className="hidden sm:inline-block text-[11px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-muted">
-            Clean Slate UI
-          </span>
+          <CuanMark className="h-9 w-9" />
+          <span className="font-bold text-lg tracking-tight text-foreground">cuan</span>
         </div>
       </header>
 
@@ -206,7 +200,7 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
       {/* Footer */}
       <footer className="w-full max-w-5xl mx-auto py-3 text-center text-xs text-muted-foreground border-t border-border/60">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Cuan Platform — shadcn Sidebar-09 Shell</span>
+          <span>Cuan</span>
           <span className="font-mono text-[11px]">PostgreSQL Session Guard • Bcrypt Hash</span>
         </div>
       </footer>

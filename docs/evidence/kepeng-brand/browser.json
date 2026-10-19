@@ -1,0 +1,70 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "checks": [
+    "theme-aware inline kepeng in mobile/header and sidebar",
+    "square opening and ring preserved at16/24/32/64/128",
+    "adaptive favicon",
+    "no horizontal overflow"
+  ],
+  "sizes": [
+    {
+      "width": 40,
+      "theme": "light",
+      "height": 40,
+      "color": "oklch(0.2095 0.0019 286.23)",
+      "viewBox": "0 0 64 64"
+    },
+    {
+      "width": 40,
+      "theme": "dark",
+      "height": 40,
+      "color": "oklch(1 0 0)",
+      "viewBox": "0 0 64 64"
+    },
+    {
+      "width": 40,
+      "theme": "light",
+      "height": 40,
+      "color": "oklch(0.2095 0.0019 286.23)",
+      "viewBox": "0 0 64 64"
+    },
+    {
+      "width": 40,
+      "theme": "dark",
+      "height": 40,
+      "color": "oklch(1 0 0)",
+      "viewBox": "0 0 64 64"
+    },
+    {
+      "width": 24,
+      "theme": "light",
+      "height": 24,
+      "color": "oklch(0.2095 0.0019 286.23)",
+      "viewBox": "0 0 64 64"
+    },
+    {
+      "width": 24,
+      "theme": "dark",
+      "height": 24,
+      "color": "oklch(1 0 0)",
+      "viewBox": "0 0 64 64"
+    },
+    {
+      "width": 24,
+      "theme": "light",
+      "height": 24,
+      "color": "oklch(0.2095 0.0019 286.23)",
+      "viewBox": "0 0 64 64"
+    },
+    {
+      "width": 24,
+      "theme": "dark",
+      "height": 24,
+      "color": "oklch(1 0 0)",
+      "viewBox": "0 0 64 64"
+    }
+  ],
+  "errors": [],
+  "providerInvocations": 0
+}

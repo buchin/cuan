@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { useTheme } from '../../context/ThemeContext'
 import {
@@ -121,10 +122,10 @@ export function AppShell({
         className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-2.5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
-            C
+          <CuanMark className="h-10 w-10" />
+          <span className="nav-label text-lg font-semibold tracking-tight">
+            cuan
           </span>
-          <span className="nav-label text-lg font-semibold">Cuan</span>
         </div>
         <div className="flex-1 space-y-1 p-2.5">
           {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon))}
@@ -184,7 +185,11 @@ export function AppShell({
         >
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-medium">
-              Cuan <span className="mx-1 text-muted-foreground">/</span> {label}
+              <span className="inline-flex items-center gap-2 align-middle">
+                <CuanMark className="h-6 w-6 md:hidden" />
+                <span>cuan</span>
+              </span>{' '}
+              <span className="mx-1 text-muted-foreground">/</span> {label}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
