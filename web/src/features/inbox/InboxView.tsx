@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { NavUser } from '../../components/layout/NavUser'
 import type { Agent } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
@@ -14,6 +15,7 @@ import {
 } from '../../api/chat'
 import {
   Send,
+  Plus,
   Bot,
   User,
   Check,
@@ -34,6 +36,7 @@ import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 
 interface InboxViewProps {
+  onNewMessage?: () => void
   contacts?: ChatContact[]
   agents?: Agent[]
   now?: number
@@ -52,6 +55,7 @@ interface InboxViewProps {
 }
 
 export function InboxView({
+  onNewMessage,
   contacts = [],
   agents = [],
   now,
@@ -68,6 +72,8 @@ export function InboxView({
   onBackToContacts,
   onMobileChatActiveChange,
 }: InboxViewProps) {
+  const navigate = useNavigate()
+  const unsentDrafts = useRef<Record<string, string>>({})
   const loadVersion = useRef(0)
   const followTail = useRef(true)
   const [hasNewMessages, setHasNewMessages] = useState(false)
@@ -130,6 +136,8 @@ export function InboxView({
           localStorage.removeItem('cuan_inbox_pending:' + convId)
           pendingRef.current = null
           setSendError('')
+          if (unsentDrafts.current[convId]?.trim() === pending.text)
+            delete unsentDrafts.current[convId]
           setInputMessage((current) =>
             current.trim() === pending.text ? '' : current,
           )
@@ -163,6 +171,7 @@ export function InboxView({
       const convId = activeContact.conversation_id || activeContact.id
       followTail.current = true
       setHasNewMessages(false)
+      setInputMessage(unsentDrafts.current[convId] || '')
       setMessages([])
       setRequests([])
       setLinkedTasks([])
@@ -299,6 +308,8 @@ export function InboxView({
     setRetryCount((n) => n + 1)
     try {
       await chatApi.sendMessage(convId, text, 'Buchin', request.id)
+      if (unsentDrafts.current[convId]?.trim() === request.text)
+        delete unsentDrafts.current[convId]
       if (activeConvRef.current === convId) {
         setInputMessage((current) =>
           current.trim() === request.text ? '' : current,
@@ -445,21 +456,38 @@ export function InboxView({
                 </div>
 
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-semibold leading-tight">
-                    {activeContact.name}
-                  </h2>
-                  <ContactStatus
-                    contact={activeContact}
-                    agents={agents}
-                    now={now}
-                  />
+                  {activeContact.type === 'agent' && (
+                    <Link
+                      className="flex min-h-11 min-w-0 flex-col justify-center md:hidden"
+                      aria-label="Kelola koneksi agen"
+                      to={`/settings/agents?agent=${encodeURIComponent(agentForContact(activeContact, agents)?.id || '')}&returnTo=${encodeURIComponent('/inbox/' + (activeContact.conversation_id || activeContact.id))}`}
+                    >
+                      <span className="truncate text-base font-semibold">
+                        {activeContact.name}
+                      </span>
+                    </Link>
+                  )}
+                  <div
+                    className={
+                      activeContact.type === 'agent' ? 'hidden md:block' : ''
+                    }
+                  >
+                    <h2 className="truncate text-base font-semibold leading-tight">
+                      {activeContact.name}
+                    </h2>
+                    <ContactStatus
+                      contact={activeContact}
+                      agents={agents}
+                      now={now}
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
                 {activeContact.type === 'agent' && (
                   <Link
-                    className="icon-action"
+                    className="icon-action hidden md:inline-flex"
                     aria-label="Kelola koneksi agen"
                     title="Kelola koneksi agen"
                     to={`/settings/agents?agent=${encodeURIComponent(agentForContact(activeContact, agents)?.id || '')}&returnTo=${encodeURIComponent('/inbox/' + (activeContact.conversation_id || activeContact.id))}`}
@@ -481,6 +509,25 @@ export function InboxView({
                     className={cn('h-4 w-4', loading && 'animate-spin')}
                   />
                 </button>
+                <div className="flex items-center gap-1 md:hidden">
+                  {onNewMessage && (
+                    <button
+                      className="action-primary px-2"
+                      aria-label="New message"
+                      onClick={onNewMessage}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>New</span>
+                    </button>
+                  )}
+                  <div className="w-11">
+                    <NavUser
+                      isCollapsed
+                      dropdownPosition="bottom-right"
+                      onSettings={() => navigate('/settings')}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -788,6 +835,7 @@ export function InboxView({
                   rows={1}
                   value={inputMessage}
                   onChange={(e) => {
+                    unsentDrafts.current[activeConvRef.current] = e.target.value
                     setInputMessage(e.target.value)
                     autoResizeTextarea(e.target)
                   }}

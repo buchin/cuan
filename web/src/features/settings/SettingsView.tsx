@@ -6,12 +6,16 @@ import { IntegrationsView } from './IntegrationsView'
 import { TeamView } from '../team/TeamView'
 
 interface SettingsViewProps {
+  createAgentRequested?: boolean
+  onCreateAgentHandled?: () => void
   activeProject?: Project
   projects?: Project[]
   onAgentAdded?: () => void
   onDeleteProject?: (id: string) => Promise<void>
 }
 export function SettingsView({
+  createAgentRequested = false,
+  onCreateAgentHandled,
   activeProject,
   projects = [],
   onAgentAdded,
@@ -138,6 +142,9 @@ export function SettingsView({
           )}
           <TeamView
             showHeading={false}
+            showCreateAction={false}
+            createRequested={createAgentRequested}
+            onCreateHandled={onCreateAgentHandled}
             focusAgentId={query.get('agent') || undefined}
             onAgentAdded={onAgentAdded}
           />

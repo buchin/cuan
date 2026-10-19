@@ -77,10 +77,16 @@ type Step = 'name' | 'google' | 'save'
 export function TeamView({
   selectedRole = 'all',
   showHeading = true,
+  showCreateAction = true,
+  createRequested = false,
+  onCreateHandled,
   onAgentAdded,
   focusAgentId,
 }: {
   showHeading?: boolean
+  showCreateAction?: boolean
+  createRequested?: boolean
+  onCreateHandled?: () => void
   focusAgentId?: string
   selectedRole?: string
   onAgentAdded?: () => void
@@ -117,6 +123,7 @@ export function TeamView({
   const epoch = useRef(0)
   const dialogActive = useRef(false)
   const addButton = useRef<HTMLButtonElement>(null)
+  const createTrigger = useRef<HTMLElement | null>(null)
 
   const cancelSession = async () => {
     const session = active.current
@@ -172,9 +179,17 @@ export function TeamView({
     setCode('')
     setAuth(null)
     setBusy(false)
-    window.setTimeout(() => addButton.current?.focus(), 0)
+    window.setTimeout(
+      () =>
+        (createTrigger.current?.isConnected
+          ? createTrigger.current
+          : addButton.current
+        )?.focus(),
+      0,
+    )
   }
   const begin = () => {
+    createTrigger.current = document.activeElement as HTMLElement | null
     epoch.current++
     dialogActive.current = true
     accountScope.current = ''
@@ -197,6 +212,12 @@ export function TeamView({
       next = `@dev${++suffix}`
     setHandle(next)
   }
+  useEffect(() => {
+    if (createRequested) {
+      begin()
+      onCreateHandled?.()
+    }
+  }, [createRequested])
   const connect = async () => {
     if (busy || handle.length < 2) return
     const currentEpoch = epoch.current
@@ -382,14 +403,16 @@ export function TeamView({
             Satu agen, satu koneksi.
           </p>
         </div>
-        <button
-          ref={addButton}
-          onClick={() => begin()}
-          className={`${primary} shrink-0`}
-        >
-          <Plus className="h-4 w-4" />
-          Tambah agen
-        </button>
+        {showCreateAction && (
+          <button
+            ref={addButton}
+            onClick={() => begin()}
+            className={`${primary} shrink-0`}
+          >
+            <Plus className="h-4 w-4" />
+            Tambah agen
+          </button>
+        )}
       </div>
       {visibleAgents.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -431,9 +454,11 @@ export function TeamView({
           <p className="mt-1 text-sm text-muted-foreground">
             Tambahkan agen pertama Anda, lalu hubungkan akun Google.
           </p>
-          <button onClick={() => begin()} className={`${primary} mt-4`}>
-            Tambah agen pertama
-          </button>
+          {showCreateAction && (
+            <button onClick={() => begin()} className={`${primary} mt-4`}>
+              Tambah agen pertama
+            </button>
+          )}
         </div>
       ) : filteredAgents.length === 0 ? (
         <div className="rounded-lg border p-5 text-center">

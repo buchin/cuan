@@ -6,6 +6,9 @@ import { AppShell, AppTab } from './components/layout/AppShell'
 import { ProjectsView } from './features/projects/ProjectsView'
 import { CreateProjectModal } from './features/projects/CreateProjectModal'
 import { CreateTaskModal } from './features/tasks/CreateTaskModal'
+import { ActionDialog } from './components/dialogs/ActionDialog'
+import { NewContactDialog } from './features/contacts/NewContactDialog'
+import { NewMessageDialog } from './features/inbox/NewMessageDialog'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
 import { TaskBoardView } from './features/tasks/TaskBoardView'
 import { agentsApi, type Agent } from './api/agents'
@@ -92,6 +95,22 @@ export function App() {
   // Modals
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+  const [newFlow, setNewFlow] = useState<'message' | 'contact' | 'menu' | null>(
+    null,
+  )
+  const [contactRevision, setContactRevision] = useState(0)
+  const [agentCreateRequested, setAgentCreateRequested] = useState(false)
+  const openNew = (
+    kind: 'message' | 'contact' | 'task' | 'project' | 'agent' | 'menu',
+  ) => {
+    setNewFlow(null)
+    if (kind === 'task') setIsCreateTaskOpen(true)
+    else if (kind === 'project') setIsCreateProjectOpen(true)
+    else if (kind === 'agent') {
+      navigate('/settings/agents')
+      setAgentCreateRequested(true)
+    } else setNewFlow(kind)
+  }
 
   // Filters & Mobile
   const [contactTab, setContactTab] = useState<ContactFilterTab>('all')
@@ -404,7 +423,34 @@ export function App() {
           0,
         )}
         onSelectTab={handleSelectTab}
-        onCreateProjectClick={() => setIsCreateProjectOpen(true)}
+        newAction={{
+          label:
+            currentTab === 'inbox'
+              ? 'New message'
+              : currentTab === 'contacts'
+                ? 'New contact'
+                : currentTab === 'tasks' || projectDetail
+                  ? 'New task'
+                  : currentTab === 'projects'
+                    ? 'New project'
+                    : subParam === 'agents'
+                      ? 'New agent'
+                      : 'New',
+          onClick: () =>
+            openNew(
+              currentTab === 'inbox'
+                ? 'message'
+                : currentTab === 'contacts'
+                  ? 'contact'
+                  : currentTab === 'tasks' || projectDetail
+                    ? 'task'
+                    : currentTab === 'projects'
+                      ? 'project'
+                      : subParam === 'agents'
+                        ? 'agent'
+                        : 'menu',
+            ),
+        }}
         hideBottomNav={currentTab === 'inbox' && isMobileChatActive}
         inboxSubPanel={
           <InboxSubPanel
@@ -434,6 +480,7 @@ export function App() {
             onRetry={refreshContacts}
             activeContact={visibleContact}
             onSelectContact={handleSelectContact}
+            onNewMessage={() => openNew('message')}
             onContactUpdated={refreshContacts}
             contactTab={contactTab}
             onContactTabChange={setContactTab}
@@ -448,7 +495,9 @@ export function App() {
         )}
 
         {/* 2. Global Task Board View — Tasks */}
-        {currentTab === 'contacts' && <ContactsView />}
+        {currentTab === 'contacts' && (
+          <ContactsView refreshKey={contactRevision} />
+        )}
         {currentTab === 'tasks' && (
           <div className="h-full overflow-hidden">
             {taskRouteError && (
@@ -463,7 +512,6 @@ export function App() {
               selectedStatusFilter={selectedTaskStatus}
               onStatusFilterChange={setSelectedTaskStatus}
               onSelectTask={handleSelectTask}
-              onCreateTask={() => setIsCreateTaskOpen(true)}
               onUpdateTaskStatus={(taskId, status) =>
                 handleUpdateTask(taskId, { status })
               }
@@ -533,7 +581,6 @@ export function App() {
                     projects={projects}
                     activeProject={activeProject}
                     onSelectTask={handleSelectTask}
-                    onCreateTask={() => setIsCreateTaskOpen(true)}
                     onUpdateTaskStatus={(id, status) =>
                       handleUpdateTask(id, { status })
                     }
@@ -547,7 +594,6 @@ export function App() {
               projects={projects}
               tasks={tasks}
               onSelectProject={handleSelectProject}
-              onCreateProject={() => setIsCreateProjectOpen(true)}
               onArchiveProject={handleArchiveProject}
             />
           ))}
@@ -557,6 +603,8 @@ export function App() {
           <div className="min-h-full">
             <SettingsView
               projects={projects}
+              createAgentRequested={agentCreateRequested}
+              onCreateAgentHandled={() => setAgentCreateRequested(false)}
               onAgentAdded={refreshContacts}
               onDeleteProject={async (id) => {
                 await projectsApi.archive(id, true)
@@ -568,6 +616,47 @@ export function App() {
       </AppShell>
 
       {/* Modals & Drawers */}
+      <NewMessageDialog
+        open={newFlow === 'message'}
+        onClose={() => setNewFlow(null)}
+        contacts={contacts}
+        loading={contactsLoading}
+        error={contactsError}
+        onRetry={() => void refreshContacts()}
+        onSelect={handleSelectContact}
+      />
+      <NewContactDialog
+        open={newFlow === 'contact'}
+        onClose={() => setNewFlow(null)}
+        onCreated={(contact) => {
+          setNewFlow(null)
+          setContactRevision((n) => n + 1)
+          navigate('/contacts?contact=' + encodeURIComponent(contact.id))
+          void refreshContacts()
+        }}
+      />
+      <ActionDialog
+        open={newFlow === 'menu'}
+        title="New"
+        onClose={() => setNewFlow(null)}
+      >
+        <p className="mb-3 text-sm text-muted-foreground">
+          Apa yang ingin Anda buat?
+        </p>
+        <div className="grid gap-2">
+          {(['message', 'contact', 'task', 'project', 'agent'] as const).map(
+            (kind) => (
+              <button
+                key={kind}
+                className="action-secondary justify-start"
+                onClick={() => openNew(kind)}
+              >
+                New {kind}
+              </button>
+            ),
+          )}
+        </div>
+      </ActionDialog>
 
       <CreateProjectModal
         isOpen={isCreateProjectOpen}
@@ -578,7 +667,7 @@ export function App() {
       <CreateTaskModal
         isOpen={isCreateTaskOpen}
         projects={projects.filter((project) => !project.is_archived)}
-        activeProjectId={activeProject?.id}
+        activeProjectId={projectDetail ? headerProject?.id : undefined}
         onClose={() => setIsCreateTaskOpen(false)}
         onSubmit={handleCreateTask}
       />

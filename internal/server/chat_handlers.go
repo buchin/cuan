@@ -176,7 +176,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 	}
 
 	email, err := normalizeCRMEmail(payload.Email)
-	if err != nil || len(guestUUID) > 128 || len(payload.Product) > 100 || len(payload.Name) > 200 {
+	if err != nil || strings.HasPrefix(guestUUID, "manual_") || len(guestUUID) > 128 || len(payload.Product) > 100 || len(payload.Name) > 200 {
 		respondJSONError(w, 400, "Identitas pengunjung tidak valid")
 		return
 	}
@@ -546,6 +546,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		for _, c := range saved {
+			if c.IsManual {
+				continue
+			}
 			name := c.Name
 			if name == "" {
 				name = "Visitor #" + c.ID[:6]

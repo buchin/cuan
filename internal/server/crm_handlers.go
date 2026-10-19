@@ -18,6 +18,7 @@ import (
 )
 
 type CRMContact struct {
+	IsManual    bool      `json:"is_manual"`
 	ID          string    `json:"id"`
 	Product     string    `json:"product"`
 	GuestUUID   string    `json:"guest_uuid"`
@@ -40,6 +41,7 @@ func scanCRM(row interface{ Scan(...any) error }) (CRMContact, error) {
 	err := row.Scan(&c.ID, &c.Product, &c.GuestUUID, &c.SessionUUID, &c.Name, &c.Email, &tags, &c.CreatedAt, &c.UpdatedAt)
 	if err == nil {
 		err = json.Unmarshal(tags, &c.Tags)
+		c.IsManual = strings.HasPrefix(c.GuestUUID, "manual_")
 	}
 	return c, err
 }

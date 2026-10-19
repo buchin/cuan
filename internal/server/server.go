@@ -1576,6 +1576,7 @@ func (s *Server) routes() {
 
 			// Direct Messenger Hub (Sprint 18)
 			pr.Get("/contacts", s.handleCRMList)
+			pr.Post("/contacts", s.handleCRMCreate)
 			pr.Patch("/contacts/{id}", s.handleCRMUpdate)
 			pr.Get("/chat/contacts", s.handleInternalListContacts)
 			pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)

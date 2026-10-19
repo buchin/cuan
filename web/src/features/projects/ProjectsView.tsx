@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Project, Task } from '../../api/types'
 import {
   FolderGit2,
-  Plus,
   GitBranch,
   ArrowRight,
   Archive,
@@ -15,7 +14,6 @@ interface ProjectsViewProps {
   projects: Project[]
   tasks?: Task[]
   onSelectProject: (project: Project) => void
-  onCreateProject: () => void
   onArchiveProject?: (id: string, isArchived: boolean) => Promise<void>
 }
 
@@ -23,7 +21,6 @@ export function ProjectsView({
   projects,
   tasks = [],
   onSelectProject,
-  onCreateProject,
   onArchiveProject,
 }: ProjectsViewProps) {
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active')
@@ -96,10 +93,6 @@ export function ProjectsView({
             {activeProjects.length} active · {archivedProjects.length} archived
           </p>
         </div>
-        <button onClick={onCreateProject} className="action-primary shrink-0">
-          <Plus className="h-4 w-4" />
-          New Project
-        </button>
       </header>
       <div className="flex items-center gap-2">
         <input
@@ -181,24 +174,14 @@ export function ProjectsView({
             {search.trim()
               ? 'Try another name or repository URL.'
               : activeTab === 'active'
-                ? 'Create your first project to start managing tasks and assigning AI Agents.'
+                ? 'Use New in the header to create your first project.'
                 : 'Archived projects will appear here.'}
           </p>
           {search.trim() ? (
             <button className="action-secondary" onClick={() => setSearch('')}>
               Clear search
             </button>
-          ) : (
-            activeTab === 'active' && (
-              <button
-                onClick={onCreateProject}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors rounded-md"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Create New Project</span>
-              </button>
-            )
-          )}
+          ) : null}
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

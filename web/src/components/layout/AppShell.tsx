@@ -21,7 +21,7 @@ interface AppShellProps {
   currentTab: AppTab
   onSelectTab: (tab: AppTab) => void
   children: React.ReactNode
-  onCreateProjectClick?: () => void
+  newAction?: { label: string; onClick: () => void }
   hideBottomNav?: boolean
   inboxSubPanel?: React.ReactNode
   inboxUnread?: number
@@ -39,7 +39,7 @@ export function AppShell({
   currentTab,
   onSelectTab,
   children,
-  onCreateProjectClick,
+  newAction,
   hideBottomNav = false,
   inboxSubPanel,
   inboxUnread = 0,
@@ -136,17 +136,6 @@ export function AppShell({
         </div>
         <div className="flex-1 space-y-1 p-2.5">
           {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon))}
-          {onCreateProjectClick && (
-            <button
-              onClick={onCreateProjectClick}
-              className="nav-action"
-              title="New project"
-              aria-label="New project"
-            >
-              <Plus className="h-5 w-5 shrink-0" />
-              <span className="nav-label">New project</span>
-            </button>
-          )}
         </div>
         <div className="space-y-2 border-t border-border p-2.5">
           {navButton('settings', 'Settings', Settings)}
@@ -230,18 +219,24 @@ export function AppShell({
                 <PanelLeft className="h-5 w-5" />
               </button>
             )}
-            {currentTab !== 'settings' && (
+            {newAction && (
               <button
-                title="Settings"
-                aria-label="Settings"
-                onClick={() => navigate('settings')}
-                className="icon-action md:hidden"
+                id="header-new-action"
+                className="action-primary shrink-0 px-3"
+                aria-label={newAction.label}
+                title={newAction.label}
+                onClick={newAction.onClick}
               >
-                <Settings className="h-5 w-5" />
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                <span>New</span>
               </button>
             )}
             <div className="w-11 md:hidden">
-              <NavUser isCollapsed dropdownPosition="bottom-right" />
+              <NavUser
+                isCollapsed
+                dropdownPosition="bottom-right"
+                onSettings={() => navigate('settings')}
+              />
             </div>
           </div>
         </header>

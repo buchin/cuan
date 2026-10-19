@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { Task, TaskStatus, Project } from '../../api/types'
 import { agentsApi } from '../../api/agents'
 import { cn } from '../../lib/utils'
@@ -11,7 +11,6 @@ interface TaskBoardViewProps {
   selectedStatusFilter?: string
   onStatusFilterChange?: (status: string) => void
   onSelectTask: (task: Task) => void
-  onCreateTask: () => void
   onUpdateTaskStatus: (taskId: string, status: TaskStatus) => void
   onRunAgent: (taskId: string) => void
 }
@@ -34,7 +33,6 @@ export function TaskBoardView({
   selectedStatusFilter = 'all',
   onStatusFilterChange,
   onSelectTask,
-  onCreateTask,
 }: TaskBoardViewProps) {
   const [localStatus, setLocalStatus] = useState(selectedStatusFilter)
   const [project, setProject] = useState('all')
@@ -99,13 +97,6 @@ export function TaskBoardView({
         <div>
           <p className="text-xs text-muted-foreground">{rows.length} tasks</p>
         </div>
-        <button
-          onClick={onCreateTask}
-          className="inline-flex items-center gap-2 min-h-11 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
-        >
-          <Plus className="h-4 w-4" />
-          New task
-        </button>
       </header>
       <div className="flex flex-wrap gap-3">
         <label className="relative flex-1 min-w-[180px]">
@@ -261,17 +252,9 @@ export function TaskBoardView({
                   </p>
                   <p className="mt-2 text-sm">
                     {emptyScope
-                      ? 'Create a task to organize the next piece of work.'
+                      ? 'Use New in the header to create a task.'
                       : 'Try another search or reset the status filter.'}
                   </p>
-                  {emptyScope ? (
-                    <button
-                      className="action-primary mt-4"
-                      onClick={onCreateTask}
-                    >
-                      Create first task
-                    </button>
-                  ) : null}
                 </td>
               </tr>
             )}

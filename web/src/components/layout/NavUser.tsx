@@ -1,21 +1,24 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ChangePasswordModal } from '../auth/ChangePasswordModal'
-import { LogOut, KeyRound, ChevronsUpDown } from 'lucide-react'
+import { LogOut, KeyRound, ChevronsUpDown, Settings } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 interface NavUserProps {
   isCollapsed?: boolean
   dropdownPosition?: 'side' | 'bottom-right' | 'bottom-left'
+  onSettings?: () => void
 }
 
 export function NavUser({
   isCollapsed = false,
   dropdownPosition,
+  onSettings,
 }: NavUserProps) {
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -27,11 +30,22 @@ export function NavUser({
         setMenuOpen(false)
       }
     }
+    const keyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
     if (menuOpen) {
+      popoverRef.current
+        ?.querySelector<HTMLElement>('[data-account-popover] button')
+        ?.focus()
+      document.addEventListener('keydown', keyDown)
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', keyDown)
     }
   }, [menuOpen])
 
@@ -55,6 +69,7 @@ export function NavUser({
         {/* Trigger Button */}
         <button
           type="button"
+          ref={triggerRef}
           aria-label="Menu akun"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen(!menuOpen)}
@@ -88,6 +103,9 @@ export function NavUser({
         {/* Dropdown Menu */}
         {menuOpen && (
           <div
+            data-account-popover
+            role="region"
+            aria-label="Menu akun"
             className={cn(
               'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1 rounded-lg',
               dropdownPosition === 'bottom-right'
@@ -117,6 +135,19 @@ export function NavUser({
               </div>
             </div>
 
+            {onSettings && (
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onSettings()
+                }}
+              >
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </button>
+            )}
             {/* Menu Actions */}
             <button
               type="button"

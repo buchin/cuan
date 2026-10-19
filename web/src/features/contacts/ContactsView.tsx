@@ -11,6 +11,7 @@ import {
 import { apiFetch } from '../../api/client'
 
 type Contact = {
+  is_manual?: boolean
   id: string
   name: string
   email: string
@@ -28,7 +29,7 @@ const dateLabel = (iso: string) => {
     : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
 }
 
-export function ContactsView() {
+export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true),
     [error, setError] = useState('')
@@ -85,7 +86,7 @@ export function ContactsView() {
   }
   useEffect(() => {
     void load()
-  }, [])
+  }, [refreshKey])
   useEffect(() => {
     setTagInput('')
     setSaveError('')
@@ -350,16 +351,23 @@ export function ContactsView() {
                   </p>
                   {selected.email && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Email dari widget, belum terverifikasi.
+                      Email belum terverifikasi.
                     </p>
                   )}
-                  <Link
-                    className="action-primary my-5 w-full"
-                    to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    Buka percakapan
-                  </Link>
+                  {selected.is_manual ? (
+                    <p className="my-5 rounded-lg border p-3 text-sm text-muted-foreground">
+                      Kontak manual belum terhubung ke kanal percakapan.
+                      Menyimpan kontak tidak mengirim pesan atau email.
+                    </p>
+                  ) : (
+                    <Link
+                      className="action-primary my-5 w-full"
+                      to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      Buka percakapan
+                    </Link>
+                  )}
                   <form
                     aria-label="Kelola tag"
                     className="space-y-3 border-t pt-4"

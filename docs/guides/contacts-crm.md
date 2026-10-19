@@ -117,8 +117,8 @@ Di bawah1200px, memilih kontak membuka detail tersendiri dengan tombol
 **Kembali ke daftar kontak**. Desktop menampilkan daftar dan detail berdampingan.
 URL `/contacts?contact=ID` dapat dibuka/reload langsung dan Back browser dapat
 kembali ke daftar. Kontak tidak ditemukan ditampilkan secara eksplisit.
-**Buka percakapan** adalah aksi utama. Nama/email tetap berasal dari widget;
-pengubahan identitas manual belum tersedia.
+**Buka percakapan** adalah aksi utama. Nama/email berasal dari widget atau form kontak manual;
+pengubahan identitas kontak yang sudah tersimpan belum tersedia.
 
 ## Mengelola tag
 
@@ -133,3 +133,20 @@ mempertahankan draft agar bisa dicoba lagi. **Batalkan perubahan** memulihkan
 tag tersimpan. Draft per kontak bertahan saat Back/beralih kontak dalam halaman
 yang sama; reload atau meninggalkan halaman menghapus edit yang belum disimpan.
 Tidak ada broadcast, penggabungan kontak, atau perubahan identitas otomatis baru.
+
+## Membuat kontak manual
+
+Pada Contacts, tekan **+ New**, isi nama dan email opsional lalu simpan. Kontak
+baru langsung terbuka dan dapat diberi tag. Kontak manual berlabel sumber Manual;
+belum memiliki kanal pesan sehingga tidak menampilkan Buka percakapan dan tidak
+masuk pemilih New message. Menambahkan email tidak mengirim pesan atau email,
+memverifikasi identitas, atau menggabungkan kontak dengan email yang sama.
+
+API terautentikasi `POST /api/v1/contacts` menerima JSON `request_id` (UUID),
+`name` (1–120 karakter setelah trim), dan `email` opsional. Form mempertahankan
+request_id ketika mencoba ulang: payload identik mengembalikan kontak yang sama
+(201 pertama,200 retry); payload identitas berbeda dengan kunci yang sama mendapat
+409. Pertahankan kunci pada retry setelah koneksi terputus. Respons berisi
+`contact` dengan `is_manual: true`. Tidak ada room, pesan, atau provider yang
+dibuat. Prefix visitor `manual_` dicadangkan dan ditolak oleh inisialisasi widget.
+Tidak membutuhkan perubahan schema22.

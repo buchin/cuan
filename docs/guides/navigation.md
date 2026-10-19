@@ -223,13 +223,13 @@ pada kondisi kosong, gunakan Hubungkan live chat tanpa pencarian/filter kosong.
 
 Tasks pada HP mengutamakan judul dan status. Kode/assignee berada di bawah judul,
 judul panjang dibatasi tiga baris dan dapat dibaca lengkap dengan membuka detail.
-Empty state menyediakan Create first task atau Clear filters sesuai kondisi.
+Empty state mengarahkan ke New atau menyediakan Clear filters sesuai kondisi.
 Form New task memiliki label terlihat, target sentuh44px, fokus keyboard yang
 tetap di dialog, Escape untuk menutup dan fokus kembali ke pemicu. Jika simpan
 gagal, nilai form tetap tersedia. Saat menyimpan, form tidak dapat ditutup agar
 status hasil tidak rancu. Project arsip tidak ditawarkan sebagai pilihan baru.
 
-Projects menempatkan New Project di dekat judul. Pencarian yang tidak cocok
+Projects menyediakan New project melalui tombol New di kanan atas. Pencarian yang tidak cocok
 menampilkan Clear search, bukan mengklaim semua project belum ada. Mode List
 dapat dibuka melalui keyboard. Bagian Settings memakai navigasi satu baris
 yang bisa digeser saat layar sempit; Agents/Integrations/Tampilan tetap di lokasi
@@ -267,3 +267,22 @@ Label project mengikuti project terdaftar pada URL, bukan pilihan project lama.
 Halaman yang belum selesai memuat atau tidak ditemukan menggunakan judul
 Project tanpa mengklaim project lain. Chat mobile tetap memakai header
 percakapan sendiri saat percakapan dibuka.
+
+## Satu tombol New
+
+Kanan atas desktop, tablet dan HP menyediakan **+ New** sesuai halaman:
+Inbox membuka pemilih penerima, Contacts membuka form kontak, Tasks membuka form
+task, Projects membuka form project, dan Settings → Agents membuka onboarding
+agent. Pada detail project, New task memakai project halaman tersebut. Settings
+lain menyediakan pilihan jenis data. Tombol pembuatan duplikat pada isi halaman
+dan shortcut New project di sidebar dihapus.
+
+Desktop mempertahankan Settings dan akun di bagian bawah sidebar. Di HP, avatar
+di sebelah New membuka menu akun termasuk Settings. Header chat HP memakai pola
+New dan avatar yang sama. Escape menutup dialog/menu dan mengembalikan fokus.
+Memilih penerima hanya membuka chat; tidak mengirim pesan. Draft terpisah untuk
+setiap percakapan selama halaman tetap terbuka; reload menghapus draft lokal.
+
+Verifikasi fixture: `node docs/evidence/context-new/browser-check.cjs`,64 kombinasi
+route/viewport/tema, keyboard dan retry kontak tanpa duplikasi. Tidak menjalankan
+provider. Chromium viewport belum menggantikan pengujian perangkat fisik.
