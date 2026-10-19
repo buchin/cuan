@@ -25,9 +25,7 @@ export function SettingsView({
   const section = location.pathname.split('/')[2] || 'general'
   const query = new URLSearchParams(location.search)
   const returnTo = query.get('returnTo') || ''
-  const safeReturn = /^\/(inbox)(\/[^?#]*)?$/.test(returnTo)
-    ? returnTo
-    : '/inbox'
+  const safeReturn = /^\/(inbox)(\/[^?#]*)?$/.test(returnTo) ? returnTo : ''
   if (activeProject)
     return (
       <section className="page-content max-w-3xl space-y-6">
@@ -135,9 +133,11 @@ export function SettingsView({
       </nav>
       {section === 'agents' ? (
         <>
-          <Link to={safeReturn} className="action-secondary">
-            ← Kembali ke percakapan
-          </Link>
+          {safeReturn && (
+            <Link to={safeReturn} className="action-secondary">
+              ← Kembali ke percakapan
+            </Link>
+          )}
           <TeamView
             focusAgentId={query.get('agent') || undefined}
             onAgentAdded={onAgentAdded}

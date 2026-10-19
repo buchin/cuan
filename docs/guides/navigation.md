@@ -111,3 +111,20 @@ Rilis `4d62cfb` aktif di production. Build dan fixture48 pasangan halaman/viewpo
 serta production48 pasangan halaman/viewport lulus. Semua tab bawah, Settings, akun,
 Back chat, resize dan sidebar desktop/tablet terverifikasi tanpa product write
 atau pemanggilan provider. Schema22 tidak berubah; bukti `docs/evidence/mobile-navigation/`.
+
+## Daftar agen yang ringkas
+
+Settings → Agents menampilkan nama, status singkat, tombol **Periksa koneksi**
+dan menu **⋮**. Status yang belum pernah diperiksa dibedakan dari hasil yang
+kedaluwarsa. Halaman ini tidak otomatis menjalankan provider atau login ulang.
+Detail pemeriksaan hanya tampil bila ada waktu pemeriksaan/hasil tersimpan;
+penjelasan status dan waktu berada di dalam detail tersebut.
+
+Menu tindakan menyediakan **Hapus** dengan konfirmasi. Batal tidak mengirim
+permintaan hapus; error ditampilkan agar dapat dicoba kembali. Menu dapat ditutup
+dengan Escape, klik di luar, atau memindahkan fokus keluar.
+
+Header HP menyembunyikan ikon Settings saat sedang di Settings. Tombol kembali
+ke percakapan hanya muncul bila halaman dibuka dengan parameter returnTo yang
+valid dan mengarah ke Inbox di aplikasi yang sama. Navigasi Settings biasa
+menampilkan daftar agen tanpa tombol kembali yang tidak memiliki sumber.

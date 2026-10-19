@@ -204,14 +204,16 @@ export function AppShell({
                 <PanelLeft className="h-5 w-5" />
               </button>
             )}
-            <button
-              title="Settings"
-              aria-label="Settings"
-              onClick={() => navigate('settings')}
-              className="icon-action md:hidden"
-            >
-              <Settings className="h-5 w-5" />
-            </button>
+            {currentTab !== 'settings' && (
+              <button
+                title="Settings"
+                aria-label="Settings"
+                onClick={() => navigate('settings')}
+                className="icon-action md:hidden"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
+            )}
             <div className="w-11 md:hidden">
               <NavUser isCollapsed dropdownPosition="bottom-right" />
             </div>

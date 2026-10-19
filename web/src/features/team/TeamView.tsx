@@ -1,8 +1,76 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bot, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Bot, Plus, RefreshCw, Trash2, MoreVertical, X } from 'lucide-react'
 import { connectionStatus } from '../agents/connection'
 import { accountsApi } from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth } from '../../api/agents'
+
+function AgentActions({
+  name,
+  onRemove,
+  disabled,
+}: {
+  name: string
+  onRemove: () => void
+  disabled: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!expanded) return
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setExpanded(false)
+    }
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExpanded(false)
+        trigger.current?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', key)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('keydown', key)
+    }
+  }, [expanded])
+  return (
+    <div
+      ref={root}
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node))
+          setExpanded(false)
+      }}
+    >
+      <button
+        ref={trigger}
+        className="icon-action"
+        aria-label={`Tindakan ${name}`}
+        aria-expanded={expanded}
+        onClick={() => setExpanded(!expanded)}
+        disabled={disabled}
+      >
+        <MoreVertical className="h-5 w-5" />
+      </button>
+      {expanded && (
+        <div className="absolute right-0 top-full z-20 mt-1 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+          <button
+            className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-sm text-destructive hover:bg-accent"
+            onClick={() => {
+              setExpanded(false)
+              trigger.current?.focus()
+              if (window.confirm(`Hapus agen ${name}?`)) onRemove()
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+            Hapus {name}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type Step = 'name' | 'google' | 'save'
 
@@ -27,6 +95,7 @@ export function TeamView({
   const [formError, setFormError] = useState('')
   const [notice, setNotice] = useState('')
   const [checking, setChecking] = useState('')
+  const [removing, setRemoving] = useState('')
   const [now, setNow] = useState(Date.now())
   // Expire visible success even when this roster stays open or resumes from sleep.
   useEffect(() => {
@@ -269,6 +338,8 @@ export function TeamView({
     }
   }
   const remove = async (id: string) => {
+    if (removing) return
+    setRemoving(id)
     setError('')
     try {
       await agentsApi.delete(id)
@@ -276,6 +347,8 @@ export function TeamView({
       onAgentAdded?.()
     } catch {
       setError('Agen belum bisa dihapus. Silakan coba lagi.')
+    } finally {
+      setRemoving('')
     }
   }
   useEffect(() => {
@@ -341,7 +414,7 @@ export function TeamView({
         <div
           role="list"
           aria-label="Daftar agen"
-          className="divide-y divide-border overflow-hidden rounded-lg border border-border"
+          className="divide-y divide-border rounded-lg border border-border"
         >
           {visibleAgents.map((agent) => {
             const expiry = agent.verified_at
@@ -367,53 +440,59 @@ export function TeamView({
                 id={`settings-agent-${a.id}`}
                 className="p-4"
               >
-                <div className="flex items-start gap-3">
-                  <Bot className="mt-2 h-5 w-5 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-base font-medium">{a.name}</h3>
-                    <p
-                      className={`mt-1 text-sm ${state.verified ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}
-                    >
-                      {state.label}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    {(a.harness === 'agy' ||
-                      a.provider === 'agy' ||
-                      a.provider === 'antigravity') && (
-                      <button
-                        onClick={() => void check(a.id)}
-                        disabled={!!checking}
-                        aria-label={`Periksa ulang koneksi ${a.name}`}
-                        title={`Periksa ulang koneksi ${a.name}`}
-                        className="icon-action border border-border disabled:opacity-50"
+                <div className="grid grid-cols-[minmax(0,1fr)_44px] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_auto_44px]">
+                  <div className="flex min-w-0 gap-3">
+                    <Bot className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <h3 className="break-words text-base font-medium">
+                        {a.name}
+                      </h3>
+                      <p
+                        className={`mt-1 text-sm ${state.verified ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}
                       >
-                        <RefreshCw
-                          className={`h-4 w-4 ${checking === a.id ? 'animate-spin' : ''}`}
-                        />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => void remove(a.id)}
-                      aria-label={`Hapus ${a.name}`}
-                      className="icon-action text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                        {state.state === 'unknown'
+                          ? a.last_checked_at || a.verified_at
+                            ? 'Status koneksi perlu diperiksa ulang'
+                            : 'Status koneksi belum diperiksa'
+                          : state.label}
+                      </p>
+                    </div>
                   </div>
+                  <div className="col-start-2 row-start-1 sm:col-start-3">
+                    <AgentActions
+                      name={a.name}
+                      disabled={!!checking || !!removing}
+                      onRemove={() => void remove(a.id)}
+                    />
+                  </div>
+                  {(a.harness === 'agy' ||
+                    a.provider === 'agy' ||
+                    a.provider === 'antigravity') && (
+                    <button
+                      onClick={() => void check(a.id)}
+                      disabled={!!checking || !!removing}
+                      aria-label={`Periksa koneksi ${a.name}`}
+                      className="action-secondary col-span-2 justify-self-start sm:col-span-1 sm:col-start-2 sm:row-start-1"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${checking === a.id ? 'animate-spin' : ''}`}
+                      />
+                      {checking === a.id ? 'Memeriksa…' : 'Periksa koneksi'}
+                    </button>
+                  )}
                 </div>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {state.state === 'disabled'
-                    ? 'Agen ini tidak aktif.'
-                    : details[a.connection_state || 'unknown'] ||
-                      details.unknown}
-                </p>
                 {(a.last_checked_at || a.verified_at) && (
                   <details className="mt-2 text-xs text-muted-foreground">
                     <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
                       Detail pemeriksaan
                     </summary>
-                    <div className="space-y-1 pb-2">
+                    <div className="space-y-2 pb-2">
+                      <p className="text-sm">
+                        {state.state === 'disabled'
+                          ? 'Agen ini tidak aktif.'
+                          : details[a.connection_state || 'unknown'] ||
+                            details.unknown}
+                      </p>
                       {a.last_checked_at && (
                         <p>
                           Diperiksa:{' '}
