@@ -295,3 +295,18 @@ hasil akhirSUCCESS, bounded stream/detail, FIFO/cancel/recovery dan fungsi execu
 Cuan dengan tool baca nyata. Bukti kontrak tersanitasi dan live diagnostic ada di
 `docs/evidence/runtime-response-trace/`. Uji live memerlukan opt-in dan menggunakan
 kuota provider; tidak dijalankan otomatis dalam test biasa.
+
+Rilis runtime `73cc916` aktif di production, schema tetap22. Satu room diagnostik
+sementara menjalankan request autentikasi owner melalui aplikasi dan profil @pin2,
+membaca README, menampilkan event tool saat state masih running, lalu menyimpan
+balasan akhir. Trace tetap sama setelah reload, ID sesi tersembunyi sampai Detail
+teknis dibuka, dan UI diverifikasi pada1440/820/390/360px. Room/request/dua pesan
+fixture dibersihkan dengan guard;35 tabel lama (di luar sesi login) identik dengan
+backup.428 file profil lama tetap ada;5 berubah oleh sesi/cache CLI diagnostik,
+yang sengaja dipertahankan. Tidak ada replay pesan pengguna.
+
+Rilis ini memakai empat eksekusi CLI diagnostik eksplisit: kontrak baca sukses,
+kontrak toolERROR, executor Cuan, dan satu request aplikasi production. Tidak ada
+probe otomatis pada pembukaan halaman. Bukti ada di
+`docs/evidence/runtime-response-trace/production-browser.json` dan
+`production-cleanup.json`. Raw trace CLI tetap privat, tidak masuk repo/UI.

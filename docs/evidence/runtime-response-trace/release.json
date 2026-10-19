@@ -1,0 +1,26 @@
+{
+  "release": "73cc916c59c033b072c630fe4c0f225a33f6188c",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "newMigration": false,
+  "protocol": "AGY stream-json NDJSON, actual observed init/step_update/result contract",
+  "explicitLiveCLIExecutions": 4,
+  "syntheticProductionApplicationRequests": 1,
+  "runtimeEventObservedWhileRequestRunning": true,
+  "productionToolStarts": 1,
+  "productionToolFinishes": 1,
+  "syntheticRoomRequestAndMessagesCleaned": true,
+  "productionViewportChecks": 4,
+  "originalUserMessagesReplayed": false,
+  "retainedApplicationTablesVerified": 35,
+  "priorProfileFilesRetained": 428,
+  "priorProfileFilesChangedByCLIDiagnostics": 5,
+  "limits": [
+    "AGY runtime events only; Claude/Codex unchanged",
+    "Tool DONE means finished, not guaranteed semantic success",
+    "Tool parameters/raw output/reasoning omitted; unknown tools generic label",
+    "Historical missing events not reconstructed",
+    "Provider failures/truncated-stream classified by protocol fixtures; controlled actual toolERROR contract verified",
+    "Chromium emulation, existing CSS/chunk warnings"
+  ]
+}
