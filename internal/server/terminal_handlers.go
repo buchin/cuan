@@ -130,6 +130,9 @@ type runTaskAgentPayload struct {
 // handleRunTaskAgent spawns an autonomous or interactive agent process bound to the task PTY.
 // POST /api/v1/tasks/{id}/run-agent
 func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOAuthOwner(w, r) {
+		return
+	}
 	if s.terminalManager == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
 		return
@@ -208,7 +211,7 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 				taskPrompt = tDetail.Instructions
 			}
 			statusDoing := task.TaskStatusDoing
-			_, _ = s.taskSvc.UpdateTask(r.Context(), "system", taskID, task.UpdateTaskRequest{
+			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "system", task.UpdateTaskRequest{
 				Status:        &statusDoing,
 				AssignedAgent: &agentID,
 			})
@@ -233,7 +236,7 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			if s.taskSvc != nil {
 				if h.Status == "completed" {
 					statusReview := task.TaskStatusReview
-					_, _ = s.taskSvc.UpdateTask(context.Background(), "runner", taskID, task.UpdateTaskRequest{
+					_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{
 						Status: &statusReview,
 					})
 				}

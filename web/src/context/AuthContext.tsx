@@ -55,11 +55,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 2. If token exists, fetch profile from /api/v1/auth/me
       const currentToken = localStorage.getItem(TOKEN_KEY) || token
-      if (currentToken) {
+      {
         const meRes = await fetch('/api/v1/auth/me', {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentToken}`,
+            ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
           },
         })
 
@@ -76,8 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken('')
           setUser(null)
         }
-      } else {
-        setUser(null)
       }
     } catch (err) {
       console.error('Failed to load user session:', err)

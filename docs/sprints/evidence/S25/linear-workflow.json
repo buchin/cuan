@@ -1,0 +1,18 @@
+[
+  {
+    "requested": "todo",
+    "persisted": "todo"
+  },
+  {
+    "requested": "doing",
+    "persisted": "doing"
+  },
+  {
+    "requested": "review",
+    "persisted": "review"
+  },
+  {
+    "requested": "done",
+    "persisted": "done"
+  }
+]

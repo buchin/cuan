@@ -196,3 +196,37 @@ func TestManager_RunTaskAgent(t *testing.T) {
 		t.Log("process exit monitor completed or timed out")
 	}
 }
+
+// This fixture checks process/argv invariants, not provider authentication.
+func TestS25AgentOutlivesRequestAndPromptIsNotShellCode(t *testing.T) {
+	root := t.TempDir()
+	marker := filepath.Join(root, "must-not-exist")
+	bin := filepath.Join(root, "agy")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$2\"\nsleep 0.2\nprintf 'PROCESS_COMPLETED\\n'\n"
+	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	mgr := NewManager(ManagerConfig{WorkspacesDir: filepath.Join(root, "work")})
+	defer mgr.CloseAll()
+	request, cancel := context.WithCancel(context.Background())
+	session, err := mgr.RunTaskAgent(request, TaskAgentRunConfig{TaskID: "invariant-task", AgentID: "fixture", Command: "agy", Prompt: "$(touch " + marker + ")"})
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	cancel()
+	done := make(chan struct{})
+	go func() { _ = session.PTY().Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("process did not finish")
+	}
+	if session.PTY().ExitCode() != 0 {
+		t.Fatal("HTTP request cancellation killed the agent")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("prompt was evaluated as shell code")
+	}
+}

@@ -1,34 +1,42 @@
 import { apiFetch } from './client'
 import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatus } from './types'
 
+function normalize(raw: Task & { instructions?: string; assigned_agent?: string }): Task {
+  return { ...raw, description: raw.description ?? raw.instructions ?? '', assignee_id: raw.assignee_id || raw.assigned_agent || raw.assignee || '' }
+}
+
 export const tasksApi = {
   list: async (projectId?: string): Promise<Task[]> => {
     const url = projectId ? `/api/v1/tasks?project_id=${projectId}` : '/api/v1/tasks'
     const res = await apiFetch<{ tasks: Task[] }>(url)
-    return res.tasks || []
+    return (res.tasks || []).map(normalize)
   },
 
   get: async (id: string): Promise<Task> => {
-    return apiFetch<Task>(`/api/v1/tasks/${id}`)
+    return normalize(await apiFetch<Task>(`/api/v1/tasks/${id}`))
   },
 
   create: async (data: CreateTaskRequest): Promise<Task> => {
-    return apiFetch<Task>('/api/v1/tasks', {
+    const created = await apiFetch<Task>('/api/v1/tasks', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, instructions: data.description, assigned_agent: data.assignee_id || data.assignee }),
     })
+    if (data.status && data.status !== 'backlog') {
+      return normalize(await apiFetch<Task>(`/api/v1/tasks/${created.id}`, { method: 'PUT', body: JSON.stringify({ status: data.status }) }))
+    }
+    return normalize(created)
   },
 
   update: async (id: string, data: UpdateTaskRequest): Promise<Task> => {
-    return apiFetch<Task>(`/api/v1/tasks/${id}`, {
+    return normalize(await apiFetch<Task>(`/api/v1/tasks/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
-    })
+      body: JSON.stringify({ ...data, instructions: data.description, assigned_agent: data.assignee_id ?? data.assignee }),
+    }))
   },
 
   updateStatus: async (id: string, status: TaskStatus): Promise<Task> => {
-    return apiFetch<Task>(`/api/v1/tasks/${id}/status`, {
-      method: 'PATCH',
+    return apiFetch<Task>(`/api/v1/tasks/${id}`, {
+      method: 'PUT',
       body: JSON.stringify({ status }),
     })
   },

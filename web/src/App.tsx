@@ -54,6 +54,7 @@ export function App() {
   // Active selections
   const [activeProject, setActiveProject] = useState<Project | undefined>(undefined)
   const [activeContact, setActiveContact] = useState<ChatContact | undefined>(undefined)
+  const [taskRouteError, setTaskRouteError] = useState('')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isSidePeekOpen, setIsSidePeekOpen] = useState(false)
 
@@ -140,21 +141,22 @@ export function App() {
     }
   }, [rootSegment, subParam, contacts, activeContact])
 
-  // Deep Link Synchronization: /tasks/:taskId
+  // URL drives the SidePeek so refresh/back/forward cannot leave a stale panel.
   useEffect(() => {
-    if (rootSegment === 'tasks' && tasks.length > 0) {
-      if (subParam) {
-        const matched = tasks.find((t) => t.id === subParam)
-        if (matched) {
-          setSelectedTask(matched)
-          setIsSidePeekOpen(true)
-        }
-      } else {
-        setIsSidePeekOpen(false)
-        setSelectedTask(null)
-      }
+    let current = true
+    setTaskRouteError('')
+    if (rootSegment !== 'tasks' || !subParam) {
+      setIsSidePeekOpen(false)
+      if (rootSegment === 'tasks') setSelectedTask(null)
+      return
     }
-  }, [rootSegment, subParam, tasks])
+    if (!isAuthenticated) return
+    const matched = tasks.find(task => task.id === subParam)
+    if (matched) { setSelectedTask(matched); setIsSidePeekOpen(true) }
+    else tasksApi.get(subParam).then(task => { if (current) { setSelectedTask(task); setIsSidePeekOpen(true) } })
+      .catch(() => { if (current) { setSelectedTask(null); setIsSidePeekOpen(false); setTaskRouteError('Task not found or unavailable.') } })
+    return () => { current = false }
+  }, [rootSegment, subParam, tasks, isAuthenticated])
 
   // Deep Link Synchronization: /projects/:projectId
   useEffect(() => {
@@ -255,7 +257,8 @@ export function App() {
   }
 
   const handleRunAgent = async (taskId: string) => {
-    await tasksApi.runAgent(taskId)
+    const task = tasks.find(item => item.id === taskId)
+    if (task) handleSelectTask(task)
     await refreshTasks()
   }
 
@@ -339,11 +342,13 @@ export function App() {
         {/* 2. Global Task Board View — Tasks */}
         {currentTab === 'tasks' && (
           <div className="h-full p-4 md:p-6 overflow-hidden">
+            {taskRouteError && <p role="alert" className="mb-3 text-sm text-destructive">{taskRouteError}</p>}
             <TaskBoardView
               tasks={tasks}
               projects={projects}
               activeProject={selectedTaskProject !== 'all' ? projects.find((p) => p.id === selectedTaskProject) : undefined}
               selectedStatusFilter={selectedTaskStatus}
+              onStatusFilterChange={setSelectedTaskStatus}
               onSelectTask={handleSelectTask}
               onCreateTask={() => setIsCreateTaskOpen(true)}
               onUpdateTaskStatus={(taskId, status) => handleUpdateTask(taskId, { status })}

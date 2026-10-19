@@ -25,11 +25,11 @@ export function TasksSubPanel({
 
   const STATUSES: { id: string; label: string; dotClass: string }[] = [
     { id: 'all', label: 'All Tasks', dotClass: 'bg-primary' },
-    { id: 'backlog', label: 'Backlog', dotClass: 'bg-muted-foreground' },
-    { id: 'todo', label: 'To Do', dotClass: 'bg-blue-500' },
-    { id: 'doing', label: 'In Progress', dotClass: 'bg-yellow-500' },
-    { id: 'review', label: 'In Review', dotClass: 'bg-purple-500' },
+    { id: 'todo', label: 'Todo', dotClass: 'bg-blue-500' },
+    { id: 'doing', label: 'Doing', dotClass: 'bg-yellow-500' },
+    { id: 'review', label: 'Review', dotClass: 'bg-purple-500' },
     { id: 'done', label: 'Done', dotClass: 'bg-green-500' },
+    { id: 'blocked', label: 'Blocked', dotClass: 'bg-destructive' },
   ]
 
   const getStatusCount = (statusId: string) => {
@@ -40,7 +40,7 @@ export function TasksSubPanel({
       )
     }
     if (statusId === 'all') return pool.length
-    return pool.filter((t) => (t.status || 'todo') === statusId).length
+    return pool.filter((t) => (t.status === 'backlog' ? 'todo' : t.status || 'todo') === statusId).length
   }
 
   const getProjectCount = (projId: string) => {

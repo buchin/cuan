@@ -1,0 +1,2 @@
+ok  	github.com/buchin/cuan/internal/terminal	0.199s
+ok  	github.com/buchin/cuan/internal/server	0.694s

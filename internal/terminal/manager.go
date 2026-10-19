@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	ErrInvalidTaskID    = errors.New("invalid task id: contains forbidden characters or path traversal elements")
-	ErrSessionNotFound  = errors.New("terminal session not found")
+	ErrInvalidTaskID   = errors.New("invalid task id: contains forbidden characters or path traversal elements")
+	ErrSessionNotFound = errors.New("terminal session not found")
 )
 
 var validTaskIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
@@ -68,7 +68,7 @@ type ManagerConfig struct {
 type Manager struct {
 	cfg       ManagerConfig
 	mu        sync.RWMutex
-	sessions  map[string]*Session // taskID -> Session
+	sessions  map[string]*Session          // taskID -> Session
 	histories map[string][]*TaskRunHistory // taskID -> []History
 	stopChan  chan struct{}
 	stopOnce  sync.Once
@@ -341,132 +341,66 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		mode = ModeInteractive
 	}
 
+	// Pass prompts directly as argv; never interpolate task input into a shell script.
+	agentID := cfg.AgentID
+	agentName := cfg.AgentName
+	commandLabel := strings.ToLower(strings.TrimSpace(cfg.Command))
+	if commandLabel == "" || commandLabel == "antigravity" {
+		commandLabel = "agy"
+	}
+	var executable string
+	var ptyArgs []string
+	var err error
+	switch commandLabel {
+	case "agy", "claude":
+		executable, err = exec.LookPath(commandLabel)
+		ptyArgs = []string{"-p", cfg.Prompt}
+		if commandLabel == "agy" {
+			ptyArgs = append(ptyArgs, "--print-timeout", "9m")
+			cfg.Env = append(cfg.Env, "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+		}
+	case "codex":
+		executable, err = exec.LookPath("codex")
+		ptyArgs = []string{"exec", cfg.Prompt}
+	case "shell":
+		executable = FindShell(m.cfg.DefaultShell)
+		ptyArgs = []string{"-i"}
+	default:
+		return nil, fmt.Errorf("unsupported task harness %q", commandLabel)
+	}
+	if err != nil || executable == "" {
+		return nil, fmt.Errorf("task harness %s is not installed", commandLabel)
+	}
+
 	m.mu.Lock()
-	// If an active session is already running for this task, terminate it first so we can re-run
+	// A watch shell can be replaced, but never launch a duplicate active agent.
+	if runs := m.histories[taskID]; len(runs) > 0 && runs[len(runs)-1].Status == "running" {
+		m.mu.Unlock()
+		return nil, fmt.Errorf("agent already running for this task")
+	}
+	// Replace any idle terminal session with the requested agent.
 	if existing, exists := m.sessions[taskID]; exists && !existing.IsClosed() {
 		_ = existing.Close()
 		delete(m.sessions, taskID)
 	}
 	m.mu.Unlock()
 
-	// Determine command and args
-	shellBin := FindShell(m.cfg.DefaultShell)
-	cmdName := strings.ToLower(strings.TrimSpace(cfg.Command))
-	agentID := cfg.AgentID
-	if agentID == "" {
-		agentID = "worker-flash"
-	}
-	agentName := cfg.AgentName
-	if agentName == "" {
-		agentName = "Antigravity Agent"
-	}
-
-	var ptyArgs []string
-	var commandLabel string
-
-	// Check if agy or claude or custom binary is available
-	hasAGY := false
-	var agyPath string
-	if p, err := exec.LookPath("agy"); err == nil {
-		hasAGY = true
-		agyPath = p
-	}
-	hasClaude := false
-	var claudePath string
-	if p, err := exec.LookPath("claude"); err == nil {
-		hasClaude = true
-		claudePath = p
-	}
-	hasCodex := false
-	var codexPath string
-	if p, err := exec.LookPath("codex"); err == nil {
-		hasCodex = true
-		codexPath = p
-	}
-
-	if (cmdName == "agy" || cmdName == "antigravity" || (cmdName == "" && hasAGY)) && hasAGY {
-		commandLabel = "agy"
-		promptText := cfg.Prompt
-		if promptText == "" {
-			promptText = "Task #" + taskID
-		}
-		// Write startup script to display banner and invoke agy in workspace
-		script := fmt.Sprintf(
-			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Task \\033[1;33m#%s\\033[0m\"\n"+
-				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Agent: \\033[1;37m%s (agy)\\033[0m\"\n"+
-				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
-				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
-				"%s -p %q --dangerously-skip-permissions\n"+
-				"EXIT_CODE=$?\n"+
-				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
-				"if [ $EXIT_CODE -eq 0 ]; then\n"+
-				"  echo -e \"\\033[1;32m[Cuan Agent Runner] Task completed successfully (Exit Code: 0)\\033[0m\"\n"+
-				"else\n"+
-				"  echo -e \"\\033[1;31m[Cuan Agent Runner] Process finished with exit code: $EXIT_CODE\\033[0m\"\n"+
-				"fi\n"+
-				"exit $EXIT_CODE\n",
-			taskID, agentName, workDir, agyPath, promptText,
-		)
-		ptyArgs = []string{"-c", script}
-	} else if (cmdName == "claude" || (cmdName == "" && hasClaude)) && hasClaude {
-		commandLabel = "claude"
-		promptText := cfg.Prompt
-		if promptText == "" {
-			promptText = "Task #" + taskID
-		}
-		script := fmt.Sprintf(
-			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Task \\033[1;33m#%s\\033[0m\"\n"+
-				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Agent: \\033[1;37m%s (Claude Code)\\033[0m\"\n"+
-				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
-				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
-				"%s -p %q\n"+
-				"exit $?\n",
-			taskID, agentName, workDir, claudePath, promptText,
-		)
-		ptyArgs = []string{"-c", script}
-	} else if (cmdName == "codex" || (cmdName == "" && hasCodex)) && hasCodex {
-		commandLabel = "codex"
-		promptText := cfg.Prompt
-		if promptText == "" {
-			promptText = "Task #" + taskID
-		}
-		script := fmt.Sprintf(
-			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Task \\033[1;33m#%s\\033[0m\"\n"+
-				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Agent: \\033[1;37m%s (Codex)\\033[0m\"\n"+
-				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
-				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
-				"%s -p %q\n"+
-				"exit $?\n",
-			taskID, agentName, workDir, codexPath, promptText,
-		)
-		ptyArgs = []string{"-c", script}
-	} else {
-		// Interactive shell fallback with Cuan environment
-		commandLabel = "shell"
-		script := fmt.Sprintf(
-			"echo -e \"\\033[1;36m[Cuan Agent Runner]\\033[0m Interactive runner spawned for Task \\033[1;33m#%s\\033[0m\"\n"+
-				"echo -e \"\\033[1;32m[Cuan Agent Runner]\\033[0m Assigned Agent: \\033[1;37m%s\\033[0m\"\n"+
-				"echo -e \"\\033[0;37mWorkspace:\\033[0m %s\"\n"+
-				"echo -e \"\\033[1;30m------------------------------------------------------------\\033[0m\"\n"+
-				"exec bash -i 2>/dev/null || exec sh -i\n",
-			taskID, agentName, workDir,
-		)
-		ptyArgs = []string{"-c", script}
-	}
-
 	sessionID := generateSessionID()
 	ptyCfg := PTYConfig{
 		TaskID:      taskID,
 		WorkDir:     workDir,
-		Shell:       shellBin,
+		Shell:       executable,
 		Args:        ptyArgs,
 		Env:         cfg.Env,
 		InitialCols: cols,
 		InitialRows: rows,
 	}
 
-	proc, err := SpawnPTY(ctx, ptyCfg)
+	// A task outlives the HTTP request that starts it, with a bounded lifetime.
+	runContext, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	proc, err := SpawnPTY(runContext, ptyCfg)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("spawn agent pty for task %s: %w", taskID, err)
 	}
 
@@ -490,8 +424,10 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 
 	// Monitor completion in background to record exit code and duration
 	go func() {
+		defer cancel()
 		_ = proc.Wait()
 		exitCode := proc.ExitCode()
+		m.mu.Lock()
 		history.FinishedAt = time.Now().UTC()
 		history.DurationMs = history.FinishedAt.Sub(history.StartedAt).Milliseconds()
 		history.ExitCode = exitCode
@@ -501,8 +437,10 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 			history.Status = "failed"
 		}
 
+		snapshot := *history
+		m.mu.Unlock()
 		if cfg.OnExit != nil {
-			cfg.OnExit(history)
+			cfg.OnExit(&snapshot)
 		}
 	}()
 

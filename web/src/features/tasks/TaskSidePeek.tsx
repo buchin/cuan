@@ -17,6 +17,8 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { agentsApi } from '../../api/agents'
 import { tasksApi } from '../../api/tasks'
+import { apiFetch, getAuthToken } from '../../api/client'
+import { TaskDiscussion } from './TaskDiscussion'
 
 interface TaskSidePeekProps {
   task: Task | null
@@ -37,21 +39,16 @@ interface AgentRunnerOption {
 }
 
 
-export function TaskSidePeek({
-  task,
-  projects,
-  isOpen,
-  onClose,
-  onUpdate,
-  onDelete,
-  onRunAgent,
-}: TaskSidePeekProps) {
-  if (!isOpen || !task) return null
+export function TaskSidePeek(props: TaskSidePeekProps) {
+  if (!props.isOpen || !props.task) return null
+  return <TaskSidePeekContent key={props.task.id} {...props} task={props.task} />
+}
 
+function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRunAgent }: TaskSidePeekProps & { task: Task }) {
   const linkedProject = projects.find(
     (p) => p.id === task.project_id || task.project_ids?.includes(p.id)
   )
-  const [activeTab, setActiveTab] = useState<'details' | 'runner'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'runner' | 'discussion'>('details')
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(
     task.description || task.body || task.prompt || ''
@@ -65,6 +62,26 @@ export function TaskSidePeek({
     task.execution_status || 'idle'
   )
   const [availableAgents, setAvailableAgents] = useState<AgentRunnerOption[]>([])
+
+  const [error, setError] = useState('')
+  const [terminalRevision, setTerminalRevision] = useState(0)
+  const nextStatus: TaskStatus | undefined = status === 'backlog' ? 'todo' : status === 'todo' ? 'doing' : status === 'doing' ? 'review' : status === 'review' ? 'done' : undefined
+  const advance = async () => {
+    if (!nextStatus) return
+    setSaving(true); setError('')
+    try { await onUpdate(task.id, { status: nextStatus }); setStatus(nextStatus) }
+    catch { setError('Status was not saved. Please retry.') }
+    finally { setSaving(false) }
+  }
+  useEffect(() => {
+    if (activeTab !== 'runner') return
+    const update = () => apiFetch<{ history: { status: string }[] }>(`/api/v1/tasks/${task.id}/run-agent/history`).then(result => {
+      const latest = result.history?.at(-1)
+      if (latest) { setExecutionStatus(latest.status); setAgentRunning(latest.status === 'running') }
+    }).catch(() => {})
+    void update(); const timer = setInterval(update, 3000)
+    return () => clearInterval(timer)
+  }, [task.id, activeTab, terminalRevision])
 
   // Terminal state & refs
   const terminalContainerRef = useRef<HTMLDivElement>(null)
@@ -131,7 +148,8 @@ export function TaskSidePeek({
       terminalContainerRef.current.innerHTML = ''
 
       const term = new Terminal({
-        cursorBlink: true,
+        cursorBlink: false,
+        disableStdin: true,
         fontSize: 12,
         fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
         lineHeight: 1.25,
@@ -186,10 +204,10 @@ export function TaskSidePeek({
       // Connect WebSocket
       setWsStatus('connecting')
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const token = localStorage.getItem('cuan_auth_token') || ''
-      const wsUrl = `${protocol}//${window.location.host}/api/v1/tasks/${task.id}/terminal?token=${encodeURIComponent(token)}`
+      const token = getAuthToken()
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/tasks/${task.id}/terminal?mode=watch`
 
-      const ws = new WebSocket(wsUrl)
+      const ws = new WebSocket(wsUrl, token ? ['cuan-terminal', `token.${token}`] : ['cuan-terminal'])
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws
 
@@ -268,7 +286,7 @@ export function TaskSidePeek({
         xtermRef.current = null
       }
     }
-  }, [activeTab, task.id])
+  }, [activeTab, task.id, terminalRevision])
 
   const handleSave = async () => {
     setSaving(true)
@@ -283,7 +301,7 @@ export function TaskSidePeek({
       })
       onClose()
     } catch (err) {
-      console.error(err)
+      setError('Task could not be saved. Please retry.')
     } finally {
       setSaving(false)
     }
@@ -308,6 +326,7 @@ export function TaskSidePeek({
         prompt: description || title,
         binary: runnerBin,
       })
+      setTerminalRevision(value => value + 1)
       await onRunAgent(task.id)
     } catch (err: any) {
       if (xtermRef.current) {
@@ -325,7 +344,7 @@ export function TaskSidePeek({
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[560px] md:w-[620px] bg-card text-card-foreground border-l border-border shadow-2xl flex flex-col font-mono select-none">
+    <div role="dialog" aria-modal="true" aria-label="Task detail" className="fixed inset-y-0 right-0 z-40 w-full sm:w-[560px] md:w-[620px] bg-card text-card-foreground border-l border-border shadow-2xl flex flex-col font-mono select-none">
       {/* Header */}
       <div className="h-14 border-b border-border px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -402,7 +421,7 @@ export function TaskSidePeek({
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
-          Task Brief & DoD
+          Overview
         </button>
         <button
           onClick={() => setActiveTab('runner')}
@@ -413,16 +432,18 @@ export function TaskSidePeek({
           }`}
         >
           <TerminalIcon className="h-3.5 w-3.5" />
-          <span>Live Web Terminal (xterm.js)</span>
+          <span>Agent Terminal</span>
           {agentRunning && (
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
           )}
         </button>
+        <button onClick={() => setActiveTab('discussion')} aria-pressed={activeTab === 'discussion'} className={`px-3 py-2.5 font-semibold border-b-2 ${activeTab === 'discussion' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>Discussion</button>
       </div>
+      {error && <p role="alert" className="px-6 py-2 text-xs text-destructive">{error}</p>}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        {activeTab === 'details' ? (
+        {activeTab === 'discussion' ? <TaskDiscussion taskId={task.id} /> : activeTab === 'details' ? (
           <>
             <div>
               <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
@@ -446,11 +467,7 @@ export function TaskSidePeek({
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
                   className="w-full px-3 py-1.5 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded"
                 >
-                  <option value="backlog">Backlog</option>
-                  <option value="todo">To Do</option>
-                  <option value="doing">In Progress</option>
-                  <option value="review">In Review</option>
-                  <option value="done">Completed</option>
+                  {[status, nextStatus, status === 'blocked' ? 'todo' : status !== 'done' ? 'blocked' : undefined].filter((value, index, list): value is TaskStatus => !!value && list.indexOf(value) === index).map(value => <option key={value} value={value}>{value === 'backlog' ? 'Backlog' : value.charAt(0).toUpperCase() + value.slice(1)}</option>)}
                 </select>
               </div>
 
@@ -554,7 +571,7 @@ export function TaskSidePeek({
                   {assignee ? availableAgents.find((a) => a.id === assignee)?.name || assignee : 'Agent CLI Terminal'}
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground">
-                  PTY Interactive
+                  PTY output
                 </span>
               </div>
 
@@ -622,6 +639,7 @@ export function TaskSidePeek({
             <span>Delete</span>
           </button>
 
+          {nextStatus && <button onClick={advance} disabled={saving} className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50">Move to {nextStatus}</button>}
           <button
             onClick={handleSave}
             disabled={saving}

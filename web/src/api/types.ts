@@ -55,7 +55,7 @@ export interface UpdateProjectRequest {
   is_archived?: boolean
 }
 
-export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done'
+export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done' | 'blocked'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export interface DoDItem {
