@@ -50,6 +50,7 @@ type TaskAgentRunConfig struct {
 	Cols      uint16
 	Rows      uint16
 	Mode      Mode
+	OnOutput  func([]byte)
 	OnExit    func(history *TaskRunHistory)
 }
 
@@ -383,7 +384,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		_ = existing.Close()
 		delete(m.sessions, taskID)
 	}
-	m.mu.Unlock()
+	// Keep launch reservation until process and history are installed.
 
 	sessionID := generateSessionID()
 	ptyCfg := PTYConfig{
@@ -401,10 +402,11 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	proc, err := SpawnPTY(runContext, ptyCfg)
 	if err != nil {
 		cancel()
+		m.mu.Unlock()
 		return nil, fmt.Errorf("spawn agent pty for task %s: %w", taskID, err)
 	}
 
-	sess := NewSession(sessionID, taskID, proc, mode)
+	sess := NewSession(sessionID, taskID, proc, mode, cfg.OnOutput)
 
 	history := &TaskRunHistory{
 		ID:        generateSessionID(),
@@ -417,7 +419,6 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		StartedAt: time.Now().UTC(),
 	}
 
-	m.mu.Lock()
 	m.sessions[taskID] = sess
 	m.histories[taskID] = append(m.histories[taskID], history)
 	m.mu.Unlock()
@@ -426,6 +427,10 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	go func() {
 		defer cancel()
 		_ = proc.Wait()
+		select {
+		case <-sess.readerDone:
+		case <-time.After(3 * time.Second):
+		}
 		exitCode := proc.ExitCode()
 		m.mu.Lock()
 		history.FinishedAt = time.Now().UTC()

@@ -1,17 +1,18 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/buchin/cuan/internal/creator"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -46,6 +47,7 @@ type CreateInboxMessageRequest struct {
 
 // ApproveInboxThreadRequest defines the payload for 1-click approval to spawn tasks.
 type ApproveInboxThreadRequest struct {
+	ProjectID    string       `json:"project_id,omitempty"`
 	Title        string       `json:"title,omitempty"`
 	DoDChecklist []db.DoDItem `json:"dod_checklist,omitempty"`
 	Assignee     string       `json:"assignee,omitempty"`
@@ -451,108 +453,54 @@ func (s *Server) handleCreateInboxMessage(w http.ResponseWriter, r *http.Request
 
 // handleApproveInboxThread handles 1-Click approval to spawn sprint tasks from thread (S17.3).
 // POST /api/v1/inbox/{id}/approve or POST /api/inbox/{id}/approve
+// Legacy thread approval delegates to canonical source-message capture. It no
+// longer starts an unrelated Gemini job or fabricates completed DoD items.
 func (s *Server) handleApproveInboxThread(w http.ResponseWriter, r *http.Request) {
+	if s.accountOwner(w, r) == "" {
+		return
+	}
 	if s.projectStudioRepo == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "project studio repository is not configured")
+		respondJSONError(w, 503, "Penyimpanan belum tersedia")
 		return
 	}
-
 	roomID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if roomID == "" {
-		respondJSONError(w, http.StatusBadRequest, "thread id is required")
+	room, e := s.projectStudioRepo.GetRoomByID(r.Context(), roomID)
+	if e != nil || room == nil {
+		respondJSONError(w, 404, "Percakapan tidak ditemukan")
 		return
 	}
-
-	room, err := s.projectStudioRepo.GetRoomByID(r.Context(), roomID)
-	if err != nil {
-		if errors.Is(err, db.ErrRoomNotFound) {
-			respondJSONError(w, http.StatusNotFound, "thread not found")
-			return
-		}
-		respondJSONError(w, http.StatusInternalServerError, "failed to verify thread: "+err.Error())
-		return
-	}
-
 	var req ApproveInboxThreadRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
-
-	taskTitle := strings.TrimSpace(req.Title)
-	if taskTitle == "" {
-		taskTitle = room.Title
-	}
-
-	assignee := strings.TrimSpace(req.Assignee)
-	if assignee == "" {
-		assignee = "antigravity-flash"
-	}
-
-	checklist := req.DoDChecklist
-	if len(checklist) == 0 {
-		checklist = []db.DoDItem{
-			{Text: "Analisis & implementasi perubahan sesuai spesifikasi", Completed: false},
-			{Text: "Verifikasi targeted unit tests & zero regression", Completed: false},
-			{Text: "Bundle build & live verification", Completed: false},
-		}
-	}
-
-	now := time.Now().UTC()
-	taskID := db.GenerateUUID()
-	task := &db.ProjectTask{
-		ID:           taskID,
-		ProjectID:    room.ProjectID,
-		RoomID:       &roomID,
-		Title:        taskTitle,
-		Description:  room.Topic,
-		Status:       "doing",
-		Priority:     "high",
-		DoDChecklist: checklist,
-		AssigneeID:   &assignee,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-
-	if err := s.projectStudioRepo.CreateTask(r.Context(), task); err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "failed to spawn sprint task: "+err.Error())
+	if r.Body != nil && json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req) != nil {
+		respondJSONError(w, 400, "Permintaan task tidak valid")
 		return
 	}
-
-	// Post SM confirmation message
-	confirmMsgText := fmt.Sprintf("🚀 **Sprint Dimulai!**\nTask **%s** telah disetujui oleh Product Owner dan didaftarkan ke board.\nWorker agent terpilih: **%s**.\nStatus: `doing` (sedang dikerjakan).",
-		taskTitle, assignee)
-
-	confirmMsg := &db.ProjectMessage{
-		ID:         db.GenerateUUID(),
-		RoomID:     roomID,
-		AuthorType: "agent",
-		AuthorName: "Scrum Master",
-		Content:    confirmMsgText,
-		CreatedAt:  now.Add(50 * time.Millisecond),
-		UpdatedAt:  now.Add(50 * time.Millisecond),
+	messages, e := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID)
+	if e != nil {
+		respondJSONError(w, 503, "Pesan belum dapat dibaca")
+		return
 	}
-	_ = s.projectStudioRepo.CreateMessage(r.Context(), confirmMsg)
-
-	// Update room timestamp
-	room.UpdatedAt = now
-	_ = s.projectStudioRepo.UpdateRoom(r.Context(), room)
-
-	if s.roomEventBroker != nil {
-		s.roomEventBroker.Broadcast(roomID, "task.created", task.ToDTO())
-		s.roomEventBroker.Broadcast(roomID, "message.created", confirmMsg.ToDTO())
+	var source *db.ProjectMessage
+	for i := range messages {
+		if messages[i].AuthorType == "user" && (source == nil || messages[i].CreatedAt.After(source.CreatedAt)) {
+			source = &messages[i]
+		}
 	}
-
-	if s.taskExecutionEngine != nil {
-		go func(tid string) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
-			_, _ = s.taskExecutionEngine.ExecuteTask(ctx, creator.ExecuteTaskRequest{
-				TaskID: tid,
-			})
-		}(taskID)
+	if source == nil {
+		respondJSONError(w, 400, "Pilih pesan sumber sebelum membuat task")
+		return
 	}
-
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":  "in_progress",
-		"task":    task.ToDTO(),
-		"message": confirmMsg.ToDTO(),
-	})
+	if req.ProjectID == "" {
+		req.ProjectID = room.ProjectID
+	}
+	if strings.TrimSpace(req.Title) == "" {
+		req.Title = room.Title
+	}
+	payload, _ := json.Marshal(req)
+	copy := r.Clone(r.Context())
+	copy.Body = io.NopCloser(bytes.NewReader(payload))
+	params := chi.NewRouteContext()
+	params.URLParams.Add("id", roomID)
+	params.URLParams.Add("messageID", source.ID)
+	copy = copy.WithContext(context.WithValue(copy.Context(), chi.RouteCtxKey, params))
+	s.handleInboxMessageTask(w, copy)
 }

@@ -11,6 +11,7 @@ Single Source of Truth (SSOT): [docs/sprints/S14.md](docs/sprints/S14.md) | [doc
 
 ### Documentation & Guides
 
+- [Messages & Tasks Guide](docs/guides/message_task_lifecycle.md) — Durable chat, follow-up queue, live activity, message-to-task capture, execution attempts, and recovery.
 - [Onboarding & Self-Hosting Guide](docs/guides/onboarding.md) — 5-minute setup, system requirements, initial configuration.
 - [User & Operational Guide](docs/guides/user_guide.md) — Task lifecycle, review phase, revision cycles, and runner monitoring.
 - [Troubleshooting & Recovery Playbook](docs/guides/troubleshooting.md) — Container issues, runner recovery, database locks, and disaster mitigation.

@@ -2,7 +2,9 @@ import { apiFetch } from './client'
 import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatus } from './types'
 
 function normalize(raw: Task & { instructions?: string; assigned_agent?: string }): Task {
-  return { ...raw, description: raw.description ?? raw.instructions ?? '', assignee_id: raw.assignee_id || raw.assigned_agent || raw.assignee || '' }
+  const attempt = raw.latest_attempt?.status
+  const execution = attempt === 'succeeded' ? 'completed' : attempt === 'queued' ? 'running' : attempt
+  return { ...raw, execution_status: execution || raw.execution_status, description: raw.description ?? raw.instructions ?? '', assignee_id: raw.assignee_id || raw.assigned_agent || raw.assignee || '' }
 }
 
 export const tasksApi = {

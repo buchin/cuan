@@ -27,9 +27,9 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 		INSERT INTO tasks (
 			id, project_id, title, instructions, status, priority, assigned_agent,
 			branch_name, pr_url, pr_number, commit_sha, diff_summary, test_summary,
-			created_at, updated_at
+			created_at, updated_at,source_room_id,source_message_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,NULLIF($16,'')::uuid,NULLIF($17,'')::uuid
 		)
 	`
 	_, err := s.db.ExecContext(ctx, query,
@@ -47,7 +47,7 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 		t.DiffSummary,
 		t.TestSummary,
 		t.CreatedAt,
-		t.UpdatedAt,
+		t.UpdatedAt, t.SourceRoomID, t.SourceMessageID,
 	)
 	if err != nil {
 		return fmt.Errorf("create task: %w", err)
@@ -84,7 +84,7 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 			COALESCE(commit_sha, ''),
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
-			created_at, updated_at
+			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,'')
 		FROM tasks
 		WHERE id = $1
 	`
@@ -104,7 +104,7 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		&t.DiffSummary,
 		&t.TestSummary,
 		&t.CreatedAt,
-		&t.UpdatedAt,
+		&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrTaskNotFound
@@ -144,14 +144,15 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			COALESCE(commit_sha, ''),
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
-			created_at, updated_at
+			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,'')
 		FROM tasks
 		WHERE ($1 = '' OR project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = tasks.id AND tp.project_id = $1))
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR LOWER(title) LIKE '%' || LOWER($3) || '%' OR LOWER(instructions) LIKE '%' || LOWER($3) || '%')
-		ORDER BY created_at DESC
+		AND ($4='' OR source_room_id::text=$4)
+ ORDER BY created_at DESC
 	`
-	rows, err := s.db.QueryContext(ctx, query, filter.ProjectID, filter.Status, filter.Search)
+	rows, err := s.db.QueryContext(ctx, query, filter.ProjectID, filter.Status, filter.Search, filter.SourceRoomID)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
@@ -176,7 +177,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			&t.DiffSummary,
 			&t.TestSummary,
 			&t.CreatedAt,
-			&t.UpdatedAt,
+			&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
@@ -323,6 +324,30 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	if a.AttemptNumber <= 0 {
 		a.AttemptNumber = 1
 	}
+	var tx *sql.Tx
+	var execer interface {
+		ExecContext(context.Context, string, ...any) (sql.Result, error)
+	} = s.db
+	if a.RunnerID == "local_terminal" {
+		var err error
+		tx, err = s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "task:"+a.TaskID); err != nil {
+			return err
+		}
+		var count, maxAttempt int
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FILTER(WHERE status IN ('running','queued')),COALESCE(MAX(attempt_number),0) FROM task_attempts WHERE task_id=$1`, a.TaskID).Scan(&count, &maxAttempt); err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrTaskActive
+		}
+		a.AttemptNumber = maxAttempt + 1
+		execer = tx
+	}
 	query := `
 		INSERT INTO task_attempts (
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
@@ -332,7 +357,7 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 		)
 	`
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := execer.ExecContext(ctx, query,
 		a.ID,
 		a.TaskID,
 		a.RunnerID,
@@ -352,6 +377,9 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	)
 	if err != nil {
 		return fmt.Errorf("create attempt: %w", err)
+	}
+	if tx != nil {
+		return tx.Commit()
 	}
 	return nil
 }
@@ -494,7 +522,7 @@ func (s *DBStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 			started_at = $10,
 			finished_at = $11,
 			error_message = $12
-		WHERE id = $1
+		WHERE id = $1 AND (status IN ('queued','running') OR status=$2)
 	`
 	res, err := s.db.ExecContext(ctx, query,
 		a.ID,
@@ -518,6 +546,9 @@ func (s *DBStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 		return fmt.Errorf("update attempt rows affected: %w", err)
 	}
 	if rows == 0 {
+		if _, e := s.GetAttempt(ctx, a.ID); e == nil {
+			return ErrAttemptFinal
+		}
 		return ErrAttemptNotFound
 	}
 	return nil
@@ -661,4 +692,3 @@ func (s *DBStore) GetLogs(ctx context.Context, attemptID string, afterID int64, 
 
 	return result, nil
 }
-

@@ -11,6 +11,8 @@ import (
 	"context"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/task"
 )
 
 func setupTestInboxServer(t *testing.T) (*Server, db.ProjectStudioRepository) {
@@ -23,6 +25,7 @@ func setupTestInboxServer(t *testing.T) (*Server, db.ProjectStudioRepository) {
 
 func TestInboxHandlers_CompleteFlow(t *testing.T) {
 	s, _ := setupTestInboxServer(t)
+	s.projectSvc.Store().CreateProject(context.Background(), &project.Project{ID: "fixture-project", Name: "Fixture"})
 
 	// Admin Login to get JWT auth token
 	loginBody := []byte(`{"username":"admin","password":"whosyourdaddy"}`)
@@ -77,7 +80,7 @@ func TestInboxHandlers_CompleteFlow(t *testing.T) {
 	}
 
 	var createResp struct {
-		Thread   db.ProjectRoomDTO     `json:"thread"`
+		Thread   db.ProjectRoomDTO      `json:"thread"`
 		Messages []db.ProjectMessageDTO `json:"messages"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &createResp); err != nil {
@@ -143,8 +146,8 @@ func TestInboxHandlers_CompleteFlow(t *testing.T) {
 
 	// 5. 1-Click Approval via POST /api/v1/inbox/{id}/approve
 	approvePayload := ApproveInboxThreadRequest{
-		Title:    "Fix Safari Mobile login padding",
-		Assignee: "antigravity-flash",
+		Title:     "Fix Safari Mobile login padding",
+		ProjectID: "fixture-project",
 	}
 	body, _ = json.Marshal(approvePayload)
 	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/inbox/%s/approve", threadID), bytes.NewReader(body))
@@ -158,18 +161,18 @@ func TestInboxHandlers_CompleteFlow(t *testing.T) {
 	}
 
 	var approveResp struct {
-		Status  string            `json:"status"`
-		Task    db.ProjectTaskDTO `json:"task"`
+		Status  string               `json:"status"`
+		Task    task.Task            `json:"task"`
 		Message db.ProjectMessageDTO `json:"message"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &approveResp); err != nil {
 		t.Fatalf("failed to decode approve response: %v", err)
 	}
-	if approveResp.Status != "in_progress" {
-		t.Errorf("expected status in_progress, got %s", approveResp.Status)
+	if approveResp.Status != "backlog" {
+		t.Errorf("expected status backlog, got %s", approveResp.Status)
 	}
-	if approveResp.Task.Status != "doing" {
-		t.Errorf("expected task status doing, got %s", approveResp.Task.Status)
+	if approveResp.Task.Status != "backlog" {
+		t.Errorf("expected task status backlog, got %s", approveResp.Task.Status)
 	}
 
 	// 6. Verify status update in thread list filter
@@ -187,7 +190,7 @@ func TestInboxHandlers_CompleteFlow(t *testing.T) {
 		Total   int               `json:"total"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &filteredResp)
-	if filteredResp.Total != 1 {
-		t.Errorf("expected 1 in_progress thread, got %d", filteredResp.Total)
+	if filteredResp.Total != 0 {
+		t.Errorf("expected no in_progress thread before execution, got %d", filteredResp.Total)
 	}
 }

@@ -3,9 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -23,6 +26,10 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if err := s.terminalHandler.ValidateRequestAuth(r); err != nil {
+		respondJSONError(w, 401, "Masuk ke Cuan untuk membuka terminal")
+		return
+	}
 	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
 	if taskID == "" {
 		taskID = strings.TrimSpace(r.URL.Query().Get("id"))
@@ -36,17 +43,20 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Verify task exists if repositories are configured
+	found := false
 	if s.projectStudioRepo != nil {
-		// If valid UUID format, check project tasks repository
-		if _, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil {
-			// Found in projectStudioRepo
-		} else if s.taskSvc != nil {
-			// Check runner tasks
-			if _, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil {
-				// Found in taskSvc
-			}
+		if _, e := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); e == nil {
+			found = true
 		}
+	}
+	if !found && s.taskSvc != nil {
+		if _, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil {
+			found = true
+		}
+	}
+	if !found {
+		respondJSONError(w, 404, "Task tidak ditemukan; terminal tidak dibuat.")
+		return
 	}
 
 	s.terminalHandler.ServeHTTP(w, r)
@@ -156,6 +166,15 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&payload)
 	}
 
+	if _, busy := s.taskLaunches.LoadOrStore(taskID, true); busy {
+		respondJSONError(w, 409, "Task sedang memulai sesi. Buka sesi yang ada.")
+		return
+	}
+	defer s.taskLaunches.Delete(taskID)
+	if history := s.terminalManager.GetTaskHistory(taskID); len(history) > 0 && history[len(history)-1].Status == "running" {
+		respondJSONError(w, 409, "Task sudah memiliki sesi aktif. Buka terminal task.")
+		return
+	}
 	agentID := strings.TrimSpace(payload.AgentID)
 	if agentID == "" {
 		respondJSONError(w, http.StatusBadRequest, "Pilih agen terdaftar terlebih dahulu")
@@ -174,7 +193,11 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, http.StatusConflict, "Agen dinonaktifkan")
 		return
 	}
-	profileHome, err := s.agentProfileHome(r.Context(), registeredAgent)
+	ownerID := s.accountOwner(w, r)
+	if ownerID == "" {
+		return
+	}
+	profileHome, err := s.ownedAgentProfileHome(r.Context(), ownerID, registeredAgent)
 	if err != nil {
 		respondJSONError(w, http.StatusConflict, err.Error())
 		return
@@ -197,10 +220,13 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 
 	taskPrompt := strings.TrimSpace(payload.Prompt)
 	workDir := ""
+	taskFound := false
+	sourceRoom := ""
 
 	// 1. Check project tasks repository
 	if s.projectStudioRepo != nil {
 		if pt, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil && pt != nil {
+			taskFound = true
 			if taskPrompt == "" {
 				taskPrompt = pt.Description
 				if taskPrompt == "" {
@@ -214,20 +240,63 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 2. Check runner task service
+	// Canonical tasks persist an attempt before the process is launched.
+	var attempt *task.TaskAttempt
 	if s.taskSvc != nil {
-		if tDetail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && tDetail != nil {
-			if taskPrompt == "" {
-				taskPrompt = tDetail.Instructions
+		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
+			taskFound = true
+			sourceRoom = detail.SourceRoomID
+			if detail.ProjectID != "" && s.projectSvc != nil {
+				project, e := s.projectSvc.Get(r.Context(), detail.ProjectID)
+				if e != nil || project == nil {
+					respondJSONError(w, 409, "Project task tidak tersedia")
+					return
+				}
+				if project.RepoURL != "" {
+					info, e := os.Stat(project.LocalPath)
+					if project.LocalPath == "" || e != nil || !info.IsDir() {
+						respondJSONError(w, 409, "Repository project belum siap. Sinkronkan repository sebelum menjalankan task.")
+						return
+					}
+					workDir = project.LocalPath
+				}
 			}
-			statusDoing := task.TaskStatusDoing
-			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "system", task.UpdateTaskRequest{
-				Status:        &statusDoing,
-				AssignedAgent: &agentID,
-			})
+
+			if taskPrompt == "" {
+				taskPrompt = detail.Instructions
+			}
+			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: agentID})
+			if errors.Is(err, task.ErrTaskActive) {
+				respondJSONError(w, 409, "Task sudah memiliki attempt aktif; periksa sesi sebelum mengulang.")
+				return
+			}
+			if err != nil {
+				respondJSONError(w, 503, "Attempt belum dapat disimpan; eksekusi belum dimulai.")
+				return
+			}
+			doing := task.TaskStatusDoing
+			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID}); err != nil {
+				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Status task gagal disimpan sebelum peluncuran."})
+				respondJSONError(w, 503, "Status task belum tersimpan")
+				return
+			}
+			_, err = s.taskSvc.UpdateAttemptStatus(r.Context(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
+			if err != nil {
+				respondJSONError(w, 503, "Status attempt belum tersimpan; proses belum dimulai.")
+				return
+			}
 		}
 	}
 
+	if !taskFound {
+		respondJSONError(w, 404, "Task tidak ditemukan")
+		return
+	}
+
+	var output *taskOutputRecorder
+	if attempt != nil {
+		output = newTaskOutputRecorder(s.taskSvc, attempt.ID)
+	}
 	// 3. Spawn PTY process via Manager
 	runCfg := terminal.TaskAgentRunConfig{
 		TaskID:    taskID,
@@ -239,16 +308,32 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		Cols:      payload.Cols,
 		Rows:      payload.Rows,
 		Mode:      terminal.ModeInteractive,
-		OnExit: func(h *terminal.TaskRunHistory) {
-			if s.projectStudioRepo != nil {
-				_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s)", h.ExitCode, h.Status))
+		OnOutput: func(chunk []byte) {
+			if output != nil {
+				output.append(chunk)
 			}
-			if s.taskSvc != nil {
-				if h.Status == "completed" {
-					statusReview := task.TaskStatusReview
-					_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{
-						Status: &statusReview,
-					})
+		},
+		OnExit: func(h *terminal.TaskRunHistory) {
+			defer func() {
+				if sourceRoom != "" {
+					s.publishInbox(sourceRoom)
+				}
+			}()
+			if output != nil {
+				output.flush()
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if s.projectStudioRepo != nil {
+				_ = s.projectStudioRepo.UpdateTaskExecution(ctx, taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s). Perlu review hasil dan bukti.", h.ExitCode, h.Status))
+			}
+			if attempt != nil && s.taskSvc != nil {
+				state := task.AttemptStatusFailed
+				if h.ExitCode == 0 {
+					state = task.AttemptStatusSucceeded
+				}
+				if _, e := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: output.failureNote()}); e == nil {
+					_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
 				}
 			}
 		},
@@ -259,10 +344,21 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to spawn agent runner: %v", err))
+		if attempt != nil {
+			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "CLI tidak dapat dimulai. Periksa instalasi dan koneksi agen."})
+			status := task.TaskStatusBlocked
+			_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+		}
+		if s.projectStudioRepo != nil {
+			_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, "failed", "CLI tidak dapat dimulai.")
+		}
+		respondJSONError(w, http.StatusInternalServerError, "CLI tidak dapat dimulai. Periksa instalasi dan koneksi agen.")
 		return
 	}
 
+	if sourceRoom != "" {
+		s.publishInbox(sourceRoom)
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":       "running",
 		"session_id":   sess.ID(),
@@ -271,12 +367,16 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		"terminal_url": fmt.Sprintf("/api/v1/tasks/%s/terminal", taskID),
 		"agent_id":     agentID,
 		"agent_name":   agentName,
+		"attempt":      attempt,
 	})
 }
 
 // handleGetTaskRunHistory returns execution history of an agent runner on a task.
 // GET /api/v1/tasks/{id}/run-agent/history
 func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request) {
+	if s.accountOwner(w, r) == "" {
+		return
+	}
 	if s.terminalManager == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
 		return

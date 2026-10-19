@@ -1,0 +1,8 @@
+=== RUN   TestInboxLifecyclePostgres
+    inbox_request_sql_test.go:162: {"CLIExecutions":1,"actualPostgreSQL":true,"distinctOSProcesses":true,"messages":2,"provider":"FIXTURE; no real provider invocation","requestID":"5f4799ef-fede-42f5-890d-7d6c30f17040","scenario":"completed","state":"completed","userMessageID":"499df626-886a-4909-ad6e-0e96919e2675"}
+    inbox_request_sql_test.go:162: {"CLIExecutions":1,"actualPostgreSQL":true,"distinctOSProcesses":true,"messages":1,"provider":"FIXTURE; no real provider invocation","requestID":"3b9ebe94-8d80-43a2-b7cb-361ba04cef6f","scenario":"crash","state":"interrupted","userMessageID":"63db97f3-38ea-470d-ae6c-9e1e50dbb148"}
+--- PASS: TestInboxLifecyclePostgres (1.50s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	1.507s
+
+postgres_sql_exit=0

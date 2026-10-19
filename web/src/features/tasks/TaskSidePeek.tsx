@@ -63,7 +63,8 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
   )
   const [availableAgents, setAvailableAgents] = useState<AgentRunnerOption[]>([])
 
-  const [error, setError] = useState('')
+  const [savedOutput, setSavedOutput] = useState('')
+ const [error, setError] = useState('')
   const [terminalRevision, setTerminalRevision] = useState(0)
   const nextStatus: TaskStatus | undefined = status === 'backlog' ? 'todo' : status === 'todo' ? 'doing' : status === 'doing' ? 'review' : status === 'review' ? 'done' : undefined
   const advance = async () => {
@@ -75,10 +76,24 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
   }
   useEffect(() => {
     if (activeTab !== 'runner') return
-    const update = () => apiFetch<{ history: { status: string }[] }>(`/api/v1/tasks/${task.id}/run-agent/history`).then(result => {
-      const latest = result.history?.at(-1)
-      if (latest) { setExecutionStatus(latest.status); setAgentRunning(latest.status === 'running') }
-    }).catch(() => {})
+    const update = async () => {
+      try {
+        const detail = await apiFetch<{ status: TaskStatus; latest_attempt?: { id: string; status: string; error_message?: string } }>(`/api/v1/tasks/${task.id}`)
+        if (detail.latest_attempt) {
+          const state = detail.latest_attempt.status
+          setExecutionStatus(state === 'succeeded' ? 'completed' : state)
+          setAgentRunning(state === 'running' || state === 'queued')
+          setStatus(detail.status)
+          if (detail.latest_attempt.error_message) setError(detail.latest_attempt.error_message)
+ const retained=await apiFetch<{logs:{line:string}[]}>(`/api/v1/tasks/${task.id}/attempts/${detail.latest_attempt.id}/logs?limit=1000`)
+ setSavedOutput(retained.logs.map(line=>line.line).join('\n'))
+          return
+        }
+        const result = await apiFetch<{ history: { status: string }[] }>(`/api/v1/tasks/${task.id}/run-agent/history`)
+        const latest = result.history?.at(-1)
+        if (latest) { setExecutionStatus(latest.status); setAgentRunning(latest.status === 'running') }
+      } catch { /* Keep last known state while reconnecting. */ }
+    }
     void update(); const timer = setInterval(update, 3000)
     return () => clearInterval(timer)
   }, [task.id, activeTab, terminalRevision])
@@ -337,6 +352,12 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
     }
   }
 
+  const handleCancelRun = async () => {
+    setError('')
+    try { await apiFetch(`/api/v1/tasks/${task.id}/cancel`, { method: 'POST' }); setExecutionStatus('canceled'); setAgentRunning(false); setStatus('blocked') }
+    catch (e: any) { setError(e.message || 'Cancellation is not confirmed. Check the session before retrying.') }
+  }
+
   const handleClearTerminal = () => {
     if (xtermRef.current) {
       xtermRef.current.clear()
@@ -367,12 +388,12 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
           ) : executionStatus === 'completed' ? (
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-              <span>Completed</span>
+              <span>Process finished · review required</span>
             </span>
-          ) : executionStatus === 'failed' ? (
+          ) : ['failed', 'interrupted', 'canceled'].includes(executionStatus) ? (
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-destructive/10 text-destructive text-[10px]">
               <span className="h-1.5 w-1.5 rounded-full bg-destructive"></span>
-              <span>Error</span>
+              <span>{executionStatus === 'canceled' ? 'Cancelled' : executionStatus === 'interrupted' ? 'Interrupted' : 'Error'}</span>
             </span>
           ) : (
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px]">
@@ -381,6 +402,7 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
             </span>
           )}
 
+          {agentRunning && <button className="text-xs underline" onClick={handleCancelRun}>Cancel run</button>}
           {linkedProject && (
             <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 truncate max-w-[120px] rounded">
               {linkedProject.name}
@@ -600,6 +622,8 @@ function TaskSidePeekContent({ task, projects, onClose, onUpdate, onDelete, onRu
               </div>
             </div>
 
+            {savedOutput && <details className="rounded border border-border p-2 text-xs"><summary className="cursor-pointer">Saved attempt output</summary><pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-words">{savedOutput}</pre></details>}
+            {wsStatus === 'disconnected' && <button className="self-start text-xs underline" onClick={() => setTerminalRevision(value => value + 1)}>Reconnect terminal</button>}
             {/* xterm.js Mount Container */}
             <div className="relative flex-1 bg-zinc-950 border border-border rounded overflow-hidden shadow-inner p-2 min-h-[380px]">
               <div

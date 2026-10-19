@@ -188,6 +188,10 @@ func main() {
 		_ = srv.DNSPoller().Start(context.Background())
 	}
 
+	inboxCtx, stopInbox := context.WithCancel(context.Background())
+	defer stopInbox()
+	srv.StartInboxDispatcher(inboxCtx)
+
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{
 		Addr:         addr,
@@ -213,6 +217,7 @@ func main() {
 		log.Fatalf("Server error: %v", err)
 	case sig := <-shutdown:
 		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+		stopInbox()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 

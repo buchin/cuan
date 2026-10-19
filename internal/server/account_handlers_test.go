@@ -14,6 +14,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
 )
 
@@ -238,7 +239,11 @@ func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
 		home, _ := agent.ProviderAccountHome(owner.ID, profiles[i].ID)
 		proof := filepath.Join(home, "task-used-profile")
 		os.Remove(proof)
-		r := httptest.NewRequest("POST", "/api/v1/tasks/profile-fixture-"+id+"/run-agent", strings.NewReader(`{"agent_id":"`+id+`","prompt":"fixture"}`))
+		bound, err := s.taskSvc.CreateTask(context.Background(), "fixture", task.CreateTaskRequest{Title: "Profile fixture task", AssignedAgent: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := httptest.NewRequest("POST", "/api/v1/tasks/"+bound.ID+"/run-agent", strings.NewReader(`{"agent_id":"`+id+`","prompt":"fixture"}`))
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		s.Router().ServeHTTP(w, r)

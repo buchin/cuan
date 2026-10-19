@@ -1,0 +1,4 @@
+ok  	github.com/buchin/cuan/internal/db	0.012s
+ok  	github.com/buchin/cuan/internal/task	0.005s
+ok  	github.com/buchin/cuan/internal/server	1.858s
+ok  	github.com/buchin/cuan/internal/terminal	0.223s

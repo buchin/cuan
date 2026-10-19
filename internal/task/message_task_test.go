@@ -1,0 +1,90 @@
+package task
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestMessageTaskIdempotencyAndLocalAttempt(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got, e := svc.CreateTaskFromMessage(ctx, "owner", "fixture-message", CreateTaskRequest{ProjectID: "fixture-project", Title: "Do work", Instructions: "fixture"})
+			if e != nil || got.ID != "msg_fixture-message" {
+				t.Error(got, e)
+			}
+		}()
+	}
+	wg.Wait()
+	all, _ := svc.ListTasks(ctx, TaskFilter{})
+	if len(all) != 1 {
+		t.Fatal("duplicated task", len(all))
+	}
+	a, e := svc.CreateAttempt(ctx, all[0].ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = svc.CreateAttempt(ctx, all[0].ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal"}); !errors.Is(e, ErrTaskActive) {
+		t.Fatal("duplicate local attempt", e)
+	}
+	if _, e = svc.UpdateAttemptStatus(ctx, a.ID, "runner", UpdateAttemptRequest{Status: "running"}); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = svc.CancelTask(ctx, all[0].ID, "owner"); e != nil {
+		t.Fatal(e)
+	}
+	zero := 0
+	got, e := svc.UpdateAttemptStatus(ctx, a.ID, "runner", UpdateAttemptRequest{Status: "succeeded", ExitCode: &zero})
+	if e != nil || got.Status != "canceled" {
+		t.Fatal("late completion replaced cancel", got, e)
+	}
+	a, e = svc.CreateAttempt(ctx, all[0].ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	past := time.Now().Add(-time.Second)
+	a.LeaseExpiresAt = &past
+	store.UpdateAttempt(ctx, a)
+	if e = svc.RecoverLocalAttempts(ctx); e != nil {
+		t.Fatal(e)
+	}
+	detail, _ := svc.GetTaskDetail(ctx, all[0].ID)
+	if detail.LatestAttempt.Status != "interrupted" || detail.Status != "blocked" {
+		t.Fatal("unknown outcome not exposed", detail)
+	}
+}
+
+func TestMessageTaskDelayedExitDoesNotOverwriteNewAttempt(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	created, _ := svc.CreateTask(ctx, "fixture", CreateTaskRequest{Title: "Delayed callback"})
+	old, _ := svc.CreateAttempt(ctx, created.ID, "fixture", CreateAttemptRequest{RunnerID: "local_terminal"})
+	svc.UpdateAttemptStatus(ctx, old.ID, "fixture", UpdateAttemptRequest{Status: "succeeded"})
+	newer, e := svc.CreateAttempt(ctx, created.ID, "fixture", CreateAttemptRequest{RunnerID: "local_terminal"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	doing := TaskStatusDoing
+	svc.UpdateTask(ctx, created.ID, "fixture", UpdateTaskRequest{Status: &doing})
+	if e = svc.ReconcileLocalTask(ctx, created.ID, old.ID); e != nil {
+		t.Fatal(e)
+	}
+	detail, _ := svc.GetTaskDetail(ctx, created.ID)
+	if detail.Status != "doing" || detail.LatestAttempt.ID != newer.ID {
+		t.Fatal("stale exit overwrote active task", detail)
+	}
+	// An independent caller with stale attempt state cannot revive a terminal row.
+	old.Status = "running"
+	if e = store.UpdateAttempt(ctx, old); !errors.Is(e, ErrAttemptFinal) {
+		t.Fatal("terminal attempt revived", e)
+	}
+}

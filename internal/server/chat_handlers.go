@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -10,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -20,8 +18,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/buchin/cuan/internal/agent"
-	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -773,6 +769,9 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 
 // GET /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r *http.Request) {
+	if s.accountOwner(w, r) == "" {
+		return
+	}
 	convID := chi.URLParam(r, "id")
 	if convID == "" {
 		respondJSONError(w, http.StatusBadRequest, "conversation id is required")
@@ -841,9 +840,19 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			return
 		}
 	}
-	messages := s.getFormattedMessages(r.Context(), resolved.RoomID, product)
+	messages, err := s.getFormattedMessagesResult(r.Context(), resolved.RoomID, product)
+	if err != nil {
+		respondJSONError(w, 503, "Riwayat Inbox belum dapat dibaca. Coba lagi.")
+		return
+	}
 
+	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID)
+	if err != nil {
+		respondJSONError(w, 503, "Task percakapan belum dapat dibaca")
+		return
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"tasks":           linked,
 		"requests":        requests,
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,
@@ -854,6 +863,10 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 
 // POST /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r *http.Request) {
+	ownerID := s.accountOwner(w, r)
+	if ownerID == "" {
+		return
+	}
 	var payload struct {
 		AuthorType string `json:"author_type"`
 		AuthorName string `json:"author_name"`
@@ -861,7 +874,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		Content    string `json:"content"`
 		RequestID  string `json:"request_id"`
 	}
-	if json.NewDecoder(r.Body).Decode(&payload) != nil {
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload) != nil {
 		respondJSONError(w, 400, "Permintaan tidak valid")
 		return
 	}
@@ -888,7 +901,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	}
 	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
 	now := time.Now().UTC()
-	q := db.InboxRequest{RoomID: resolved.RoomID, RequestID: payload.RequestID, PayloadHash: fmt.Sprintf("%x", sha256.Sum256([]byte(text))), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "running", CreatedAt: now, Deadline: now.Add(60 * time.Second)}
+	q := db.InboxRequest{RoomID: resolved.RoomID, RequestID: payload.RequestID, PayloadHash: fmt.Sprintf("%x", sha256.Sum256([]byte(text))), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: ownerID, AgentID: resolved.TargetAgentID, State: "queued", CreatedAt: now, Deadline: now.Add(24 * time.Hour)}
 	user := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", AuthorID: "operator_user", AuthorName: "Buchin", Content: text, CreatedAt: now, UpdatedAt: now}
 	if !resolved.IsAgent {
 		if kind, e := db.NormalizeAuthorType(payload.AuthorType); e == nil {
@@ -899,6 +912,10 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		}
 	}
 	q, fresh, err := store.AcceptInboxRequest(r.Context(), q, user)
+	if errors.Is(err, db.ErrInboxQueueFull) {
+		respondJSONError(w, 429, "Antrean penuh (20 pesan). Tunggu atau batalkan pesan yang belum diproses.")
+		return
+	}
 	if errors.Is(err, db.ErrInboxRequestConflict) {
 		respondJSONError(w, 409, "ID permintaan sudah digunakan untuk pesan berbeda")
 		return
@@ -907,64 +924,12 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		respondJSONError(w, 503, "Pesan belum diterima. Penyimpanan Inbox belum siap; coba lagi dengan ID yang sama.")
 		return
 	}
-	ownerID := ""
-	if s.authSvc != nil {
-		if owner, e := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); e == nil {
-			ownerID = owner.ID
-		}
-	}
 	if fresh {
-		work := func(q db.InboxRequest) {
-			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
-			defer cancel()
-			q.State = "completed"
-			var reply *db.ProjectMessage
-			if resolved.IsAgent {
-				home := ""
-				if s.agentRepo != nil {
-					registered, e := s.agentRepo.GetAgentByID(ctx, resolved.TargetAgentID)
-					if e != nil || registered == nil {
-						q.SafeError = "Agen tidak tersedia. Pesan tersimpan; periksa daftar agen."
-					} else {
-						status := agent.LegacyConnectionVerification(ownerID, registered.ID, registered.ConnectionID).State
-						if strings.HasPrefix(registered.ConnectionID, "conn_profile_") {
-							if conn, ce := s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID); ce == nil {
-								if profile, pe := agent.ProviderAccountForConnection(ownerID, registered.ID, conn.ID); pe == nil {
-									status = profile.State
-								}
-							}
-						}
-						if status == "quota_limited" {
-							q.SafeError = "Kuota provider agen ini sedang terbatas. Pesan tersimpan; tunggu kuota pulih. Tidak ada permintaan provider baru atau pengalihan akun."
-						}
-						home, e = s.agentProfileHome(ctx, registered)
-						if e != nil {
-							q.SafeError = "Koneksi agen belum siap. Pesan tersimpan; periksa login agen ini."
-						}
-					}
-				}
-				if q.SafeError == "" {
-					output, failure := s.executeAgentInboxResponse(ctx, resolved.TargetAgentName, resolved.TargetHarness, text, ClassifyMessageContext(text), home)
-					if output == "" {
-						q.SafeError = failure
-					} else {
-						reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: resolved.TargetAgentID, AuthorName: resolved.TargetAgentName, Content: output, ReplyToID: &q.MessageID, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
-					}
-				}
-				if q.SafeError != "" {
-					q.State = "failed"
-				}
-			}
-			// Terminal state and reply are committed together. Failure leaves a durable
-			// running record that expires to interrupted, never an automatic replay.
-			saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer saveCancel()
-			_ = store.FinishInboxRequest(saveCtx, q, reply)
-		}
+		s.publishInbox(q.RoomID)
 		if legacy {
-			work(q)
+			s.drainInboxRoom(q.RoomID)
 		} else {
-			go work(q)
+			s.kickInboxRoom(q.RoomID)
 		}
 	}
 	requests, err := store.ListInboxRequests(r.Context(), q.RoomID)
@@ -988,7 +953,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		}
 	}
 	status := http.StatusOK
-	if q.State == "running" {
+	if q.State == "running" || q.State == "queued" {
 		status = http.StatusAccepted
 	}
 	if legacy && q.State == "failed" {
@@ -1076,69 +1041,11 @@ func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName s
 }
 
 func (s *Server) executeAgentInboxResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole, profileHomes ...string) (string, string) {
-	// Execute the real CLI in development, staging and production.
-	if s.cfg == nil || s.cfg.Environment != "testing" {
-		binName := "agy"
-		if harness == "claude" {
-			binName = "claude"
-		} else if harness == "codex" {
-			binName = "codex"
-		}
-
-		binPath, err := exec.LookPath(binName)
-		if err != nil && binName == "agy" {
-			candidate := "/home/dev/.local/bin/agy"
-			if _, statErr := os.Stat(candidate); statErr == nil {
-				binPath = candidate
-				err = nil
-			}
-		}
-
-		if err == nil && binPath != "" {
-			execCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
-			defer cancel()
-
-			var systemContext string
-			switch role {
-			case RoleScrumMaster:
-				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah sebagai Scrum Master yang memfasilitasi koordinasi sprint, evaluasi backlog, Definition of Done (DoD), dan alur kerja tim. Pengguna mengatakan: \"%s\". Berikan respon profesional terarah dalam Bahasa Indonesia.", agentName, userPrompt)
-			case RoleDeveloper:
-				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah sebagai Developer handal yang berfokus pada implementasi teknis, coding, arsitektur, debugging, dan unit testing. Pengguna mengatakan: \"%s\". Berikan respon teknis yang solutif dalam Bahasa Indonesia.", agentName, userPrompt)
-			default:
-				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah ramah dan natural sebagai rekan kerja tim. Pengguna mengatakan: \"%s\". Berikan respon sapaan hangat, natural, dan ringkas (1-2 kalimat) dalam Bahasa Indonesia tanpa template kaku.", agentName, userPrompt)
-			}
-
-			systemContext += " Jawab hanya dalam percakapan; jangan gunakan tools atau menjalankan perintah."
-			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "40s")
-			home, _ := os.UserHomeDir()
-			if len(profileHomes) > 0 && profileHomes[0] != "" {
-				home = profileHomes[0]
-			}
-			cmd.Env = agent.AntigravityProfileEnvironment(home)
-			cmd.Dir = home
-
-			var stdoutBuf, stderrBuf bytes.Buffer
-			cmd.Stdout = &stdoutBuf
-			cmd.Stderr = &stderrBuf
-
-			cmdErr := cmd.Run()
-			if cmdErr != nil {
-				return "", safeInboxProviderFailure(execCtx.Err(), stdoutBuf.String()+"\n"+stderrBuf.String())
-			}
-			if cmdErr == nil {
-				out := strings.TrimSpace(stdoutBuf.String())
-				if out != "" {
-					if !strings.Contains(out, agentName) && !strings.Contains(out, "Antigravity") {
-						out = fmt.Sprintf("[%s] %s", agentName, out)
-					}
-					return out, ""
-				}
-			}
-		}
+	home, _ := os.UserHomeDir()
+	if len(profileHomes) > 0 && profileHomes[0] != "" {
+		home = profileHomes[0]
 	}
-
-	// Provider failure is reported by the caller; never fabricate a reply.
-	return "", "Provider tidak tersedia. Pesan tersimpan; periksa instalasi CLI dan koneksi agen ini."
+	return s.executeInboxCLI(ctx, agentName, harness, userPrompt, home, nil)
 }
 
 func safeInboxProviderFailure(ctxErr error, raw string) string {
@@ -1189,13 +1096,20 @@ func (s *Server) handleChatWidgetJS(w http.ResponseWriter, r *http.Request) {
 // ============================================================================
 
 func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string) []ChatMessageDTO {
+	messages, _ := s.getFormattedMessagesResult(ctx, roomID, product)
+	return messages
+}
+func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product string) ([]ChatMessageDTO, error) {
 	if s.projectStudioRepo == nil {
-		return []ChatMessageDTO{}
+		return []ChatMessageDTO{}, nil
 	}
 
 	rawMsgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, roomID)
-	if err != nil || len(rawMsgs) == 0 {
-		return []ChatMessageDTO{}
+	if err != nil {
+		return nil, err
+	}
+	if len(rawMsgs) == 0 {
+		return []ChatMessageDTO{}, nil
 	}
 
 	dtos := make([]ChatMessageDTO, len(rawMsgs))
@@ -1206,21 +1120,6 @@ func (s *Server) getFormattedMessages(ctx context.Context, roomID string, produc
 		}
 
 		var actionCard *AgentActionCard
-		if m.AuthorType == "agent" && strings.Contains(m.Content, "Definition of Done (DoD)") {
-			// Extract DoD items
-			cardDoD := []db.DoDItem{
-				{Text: "Selesaikan instruksi spesifik", Completed: false},
-				{Text: "Lulus automated test & audit evidence", Completed: false},
-			}
-			actionCard = &AgentActionCard{
-				TaskTitle:      "Sprint Task: " + m.AuthorName,
-				DoDChecklist:   cardDoD,
-				WorkerAgent:    "antigravity-flash",
-				Recommended:    true,
-				ApproveURL:     fmt.Sprintf("/api/v1/inbox/%s/approve", roomID),
-				ExecutionState: "ready",
-			}
-		}
 
 		dtos[i] = ChatMessageDTO{
 			ID:              int64(i + 1), // Monotonic numeric ID for Dojo widget
@@ -1238,7 +1137,7 @@ func (s *Server) getFormattedMessages(ctx context.Context, roomID string, produc
 		}
 	}
 
-	return dtos
+	return dtos, nil
 }
 
 // SMTriageResult holds distilled problem analysis and DoD.

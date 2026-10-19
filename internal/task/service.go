@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/project"
@@ -16,6 +18,7 @@ type ProjectFinder interface {
 }
 
 type Service struct {
+	attemptMu     sync.Mutex
 	store         Store
 	projectFinder ProjectFinder
 }
@@ -84,6 +87,26 @@ func generateID(prefix string) string {
 }
 
 func (s *Service) CreateTask(ctx context.Context, author string, req CreateTaskRequest) (*Task, error) {
+	return s.createTaskWithID(ctx, author, req, generateID("task"))
+}
+
+// CreateTaskFromMessage uses the source UUID as the idempotency key. A lost
+// response or concurrent click cannot create a second task for the same message.
+func (s *Service) CreateTaskFromMessage(ctx context.Context, author, source string, req CreateTaskRequest) (*Task, error) {
+	id := "msg_" + source
+	req.SourceMessageID = source
+	if existing, err := s.store.GetTask(ctx, id); err == nil {
+		return existing, nil
+	}
+	result, err := s.createTaskWithID(ctx, author, req, id)
+	if err != nil {
+		if existing, e := s.store.GetTask(ctx, id); e == nil {
+			return existing, nil
+		}
+	}
+	return result, err
+}
+func (s *Service) createTaskWithID(ctx context.Context, author string, req CreateTaskRequest, id string) (*Task, error) {
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
 		return nil, fmt.Errorf("%w: judul task wajib diisi", ErrInvalidTaskInput)
@@ -114,7 +137,8 @@ func (s *Service) CreateTask(ctx context.Context, author string, req CreateTaskR
 	}
 
 	t := &Task{
-		ID:            generateID("task"),
+		ID:           id,
+		SourceRoomID: req.SourceRoomID, SourceMessageID: req.SourceMessageID,
 		ProjectID:     projectID,
 		ProjectIDs:    projectIDs,
 		Title:         title,
@@ -194,11 +218,6 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 	tasks, err := s.store.ListTasks(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
-	}
-
-	if len(tasks) == 0 && filter.ProjectID == "" && len(filter.ProjectIDs) == 0 && filter.Status == "" && filter.Search == "" {
-		_ = s.SeedSprint1Tasks(ctx)
-		tasks, _ = s.store.ListTasks(ctx, filter)
 	}
 
 	// Cache project names to avoid duplicate lookups
@@ -442,6 +461,10 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 		CreatedAt:    time.Now().UTC(),
 	}
 
+	if runnerID == "local_terminal" {
+		lease := time.Now().UTC().Add(11 * time.Minute)
+		att.LeaseExpiresAt = &lease
+	}
 	if err := s.store.CreateAttempt(ctx, att); err != nil {
 		return nil, fmt.Errorf("create attempt: %w", err)
 	}
@@ -463,12 +486,17 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 }
 
 func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, author string, req UpdateAttemptRequest) (*TaskAttempt, error) {
+	s.attemptMu.Lock()
+	defer s.attemptMu.Unlock()
 	att, err := s.store.GetAttempt(ctx, attemptID)
 	if err != nil {
 		return nil, err
 	}
 
 	oldStatus := att.Status
+	if att.Status != "queued" && att.Status != "running" {
+		return att, nil
+	}
 	newStatus := strings.ToLower(strings.TrimSpace(req.Status))
 
 	// CRITICAL DoD Rule:
@@ -507,6 +535,9 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 	}
 
 	if err := s.store.UpdateAttempt(ctx, att); err != nil {
+		if errors.Is(err, ErrAttemptFinal) {
+			return s.store.GetAttempt(ctx, attemptID)
+		}
 		return nil, fmt.Errorf("update attempt: %w", err)
 	}
 
@@ -537,6 +568,8 @@ func (s *Service) UpdateAttemptStatus(ctx context.Context, attemptID string, aut
 
 // CancelTask marks the active attempt for a task as canceled and triggers process cancellation.
 func (s *Service) CancelTask(ctx context.Context, taskID string, author string) (*TaskAttempt, error) {
+	s.attemptMu.Lock()
+	defer s.attemptMu.Unlock()
 	t, err := s.store.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, err
@@ -668,3 +701,27 @@ func (s *Service) GetAttemptLogs(ctx context.Context, attemptID string, afterID 
 	return s.store.GetLogs(ctx, attemptID, afterID, limit)
 }
 
+// RecoverLocalAttempts exposes an unknown result after the local runner lease
+// expires. It never launches the previous attempt again.
+func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
+	tasks, err := s.store.ListTasks(ctx, TaskFilter{})
+	if err != nil {
+		return err
+	}
+	for _, t := range tasks {
+		a, err := s.store.GetLatestAttempt(ctx, t.ID)
+		if err != nil || a == nil || a.RunnerID != "local_terminal" || (a.Status != "running" && a.Status != "queued") {
+			continue
+		}
+		if a.LeaseExpiresAt != nil && time.Now().Before(*a.LeaseExpiresAt) {
+			continue
+		}
+		if _, err = s.UpdateAttemptStatus(ctx, a.ID, "recovery", UpdateAttemptRequest{Status: AttemptStatusInterrupted, ErrorMessage: "Sesi lokal terputus atau lease habis. Hasil belum pasti; tidak dijalankan ulang otomatis."}); err != nil {
+			return err
+		}
+		if err = s.ReconcileLocalTask(ctx, t.ID, a.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}

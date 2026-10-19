@@ -1,0 +1,119 @@
+package server
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/buchin/cuan/internal/agent"
+)
+
+// boundedInboxOutput prevents noisy subprocesses exhausting server memory.
+// Live activity contains only application-owned labels, never stderr/reasoning.
+type boundedInboxOutput struct {
+	mu       sync.Mutex
+	data     []byte
+	first    func()
+	once     sync.Once
+	overflow bool
+}
+
+func (b *boundedInboxOutput) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	remaining := 1024*1024 - len(b.data)
+	if len(p) > remaining {
+		b.overflow = true
+	}
+	if remaining > 0 {
+		n := len(p)
+		if n > remaining {
+			n = remaining
+		}
+		b.data = append(b.data, p[:n]...)
+	}
+	b.mu.Unlock()
+	if len(p) > 0 && b.first != nil {
+		b.once.Do(b.first)
+	}
+	return len(p), nil
+}
+func (b *boundedInboxOutput) String() string { b.mu.Lock(); defer b.mu.Unlock(); return string(b.data) }
+
+func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home string, step func(string, string)) (string, string) {
+	if s.cfg != nil && s.cfg.Environment == "testing" {
+		return "", "Provider tidak tersedia. Pesan tersimpan; periksa instalasi CLI dan koneksi agen ini."
+	}
+	if home == "" {
+		home, _ = os.UserHomeDir()
+	}
+	system := fmt.Sprintf("Anda adalah %s, rekan kerja di Cuan. Jawab sesuai kebutuhan pesan: sapaan singkat, pertanyaan substantif dengan jawaban yang berguna, atau minta klarifikasi bila ambigu. Gunakan bahasa pengguna. Jangan memaksa semua pesan menjadi sapaan. Jangan mengklaim aksi, perubahan file, task, atau deployment yang belum dilakukan. Percakapan ini tidak memberi akses tool; bila diminta melakukan pekerjaan, jelaskan kebutuhan dan tawarkan membuat task melalui tombol Buat task. Jangan gunakan tools atau menjalankan perintah. Jangan tampilkan reasoning privat, token, credential atau diagnostik runtime.\n\n%s", name, prompt)
+	binary := "agy"
+	var args []string
+	switch harness {
+	case "claude":
+		binary = "claude"
+		args = []string{"-p", "--tools", "", "--output-format", "text", system}
+	case "codex":
+		binary = "codex"
+		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
+	case "", "agy", "antigravity":
+		args = []string{"-p", system, "--print-timeout", "170s"}
+	default:
+		return "", "Jenis CLI agen belum didukung untuk percakapan. Gunakan agen agy, Claude, atau Codex yang terdaftar."
+	}
+	path, err := exec.LookPath(binary)
+	if err != nil && binary == "agy" {
+		candidate := "/home/dev/.local/bin/agy"
+		if _, e := os.Stat(candidate); e == nil {
+			path = candidate
+			err = nil
+		}
+	}
+	if err != nil {
+		return "", "Provider tidak tersedia. Pesan tersimpan; periksa instalasi CLI dan koneksi agen ini."
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Dir = home
+	cmd.Env = agent.AntigravityProfileEnvironment(home)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if err == syscall.ESRCH {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	cmd.WaitDelay = 2 * time.Second
+	stdout := &boundedInboxOutput{}
+	stderr := &boundedInboxOutput{}
+	if step != nil {
+		stdout.first = func() { step("output", "Menerima balasan provider.") }
+	}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	if err := cmd.Start(); err != nil {
+		return "", safeInboxProviderFailure(ctx.Err(), "")
+	}
+	if step != nil {
+		step("provider", "Proses agen berjalan; menunggu respons provider.")
+	}
+	if err := cmd.Wait(); err != nil {
+		return "", safeInboxProviderFailure(ctx.Err(), stdout.String()+"\n"+stderr.String())
+	}
+	if stdout.overflow {
+		return "", "Balasan melewati batas ukuran. Pesan tersimpan; pecah permintaan menjadi bagian lebih kecil."
+	}
+	output := strings.TrimSpace(stdout.String())
+	if output == "" {
+		return "", "Provider selesai tanpa balasan. Pesan tersimpan; tidak dijalankan ulang otomatis."
+	}
+	return output, ""
+}

@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -39,57 +41,61 @@ import (
 )
 
 type Server struct {
-	cfg                 *config.Config
-	db                  *sql.DB
-	authSvc             *auth.Service
-	projectSvc          *project.Service
-	taskSvc             *task.Service
-	runnerSvc           *runner.RunnerService
-	sponsorshipSvc      *sponsorship.Service
-	deployerDriver      deployer.DeployDriver
-	serverRepo          cuanDB.ServerRepository
-	domainRepo          cuanDB.DomainRepository
-	dnsVerifier         *domain.DNSVerifier
-	dnsPoller           *domain.DNSHealthPoller
-	keyVault            *crypto.KeyVault
-	sshManager          deployer.SSHManager
-	healthPoller        *deployer.ProcessHealthPoller
-	caddyRouter         *deployer.CaddyRouter
-	obsRepo             cuanDB.ObservabilityRepository
-	obsHealthPoller     *observability.HealthPoller
-	obsMetricsCollector *observability.MetricsCollector
-	obsAlertDispatcher  *observability.AlertDispatcher
-	projectStudioRepo   cuanDB.ProjectStudioRepository
-	batchCampaignRepo   cuanDB.BatchCampaignRepository
-	agentRepo           cuanDB.AgentRepository
-	blueprintEngine     *creator.BlueprintEngine
-	taskExecutionEngine *creator.TaskExecutionEngine
-	inspectorEngine     *inspector.Engine
-	providerRegistry    *agent.ProviderRegistry
-	distillerEngine     *studio.DistillerEngine
-	agentExecutionHook  studio.AgentExecutionHook
-	campaignDecompiler  *campaign.DecompilerEngine
-	campaignRunner      *campaign.MultiProjectRunner
-	campaignAggregator  *campaign.RollupAggregator
-	roomEventBroker     *RoomEventBroker
-	terminalManager     *terminal.Manager
-	terminalHandler     *terminal.Handler
+	cfg                    *config.Config
+	db                     *sql.DB
+	authSvc                *auth.Service
+	projectSvc             *project.Service
+	taskSvc                *task.Service
+	runnerSvc              *runner.RunnerService
+	sponsorshipSvc         *sponsorship.Service
+	deployerDriver         deployer.DeployDriver
+	serverRepo             cuanDB.ServerRepository
+	domainRepo             cuanDB.DomainRepository
+	dnsVerifier            *domain.DNSVerifier
+	dnsPoller              *domain.DNSHealthPoller
+	keyVault               *crypto.KeyVault
+	sshManager             deployer.SSHManager
+	healthPoller           *deployer.ProcessHealthPoller
+	caddyRouter            *deployer.CaddyRouter
+	obsRepo                cuanDB.ObservabilityRepository
+	obsHealthPoller        *observability.HealthPoller
+	obsMetricsCollector    *observability.MetricsCollector
+	obsAlertDispatcher     *observability.AlertDispatcher
+	projectStudioRepo      cuanDB.ProjectStudioRepository
+	batchCampaignRepo      cuanDB.BatchCampaignRepository
+	agentRepo              cuanDB.AgentRepository
+	blueprintEngine        *creator.BlueprintEngine
+	taskExecutionEngine    *creator.TaskExecutionEngine
+	inspectorEngine        *inspector.Engine
+	providerRegistry       *agent.ProviderRegistry
+	distillerEngine        *studio.DistillerEngine
+	agentExecutionHook     studio.AgentExecutionHook
+	campaignDecompiler     *campaign.DecompilerEngine
+	campaignRunner         *campaign.MultiProjectRunner
+	campaignAggregator     *campaign.RollupAggregator
+	inboxSlots             chan struct{}
+	inboxStopping          atomic.Bool
+	inboxWorkers           sync.Map
+	taskLaunches           sync.Map
+	inboxCancels           sync.Map
+	roomEventBroker        *RoomEventBroker
+	terminalManager        *terminal.Manager
+	terminalHandler        *terminal.Handler
 	projectIntegrationRepo cuanDB.ProjectIntegrationRepository
-	publisherEngine     *publisher.Engine
-	scriptDeployRepo    cuanDB.ScriptDeploymentRepository
-	provisionedDBRepo   cuanDB.ProvisionedDatabaseRepository
-	provisionerEngine   *deployer.DatabaseProvisioner
-	scriptRunner          *deployer.ScriptRunner
-	processSupervisor     *deployer.ProcessSupervisor
-	wordpressRepo         cuanDB.WordPressRepository
-	wordpressOrchestrator *wordpress.Orchestrator
-	wordpressWebmaster    *wordpress.WebmasterEngine
-	projectRepo           cuanDB.ProjectRepository
-	taskProjectRepo       cuanDB.TaskProjectRepository
-	agentSessionStore     agent.SessionStore
-	router                *chi.Mux
+	publisherEngine        *publisher.Engine
+	scriptDeployRepo       cuanDB.ScriptDeploymentRepository
+	provisionedDBRepo      cuanDB.ProvisionedDatabaseRepository
+	provisionerEngine      *deployer.DatabaseProvisioner
+	scriptRunner           *deployer.ScriptRunner
+	processSupervisor      *deployer.ProcessSupervisor
+	wordpressRepo          cuanDB.WordPressRepository
+	wordpressOrchestrator  *wordpress.Orchestrator
+	wordpressWebmaster     *wordpress.WebmasterEngine
+	projectRepo            cuanDB.ProjectRepository
+	taskProjectRepo        cuanDB.TaskProjectRepository
+	agentSessionStore      agent.SessionStore
+	router                 *chi.Mux
 }
-
 
 func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server {
 	r := chi.NewRouter()
@@ -439,55 +445,56 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 
 	s := &Server{
-		cfg:                 cfg,
-		db:                  db,
-		authSvc:             svc,
-		projectSvc:          pSvc,
-		taskSvc:             tSvc,
-		runnerSvc:           rSvc,
-		sponsorshipSvc:      spSvc,
-		deployerDriver:      depDriver,
-		serverRepo:          srvRepo,
-		domainRepo:          domRepo,
-		dnsVerifier:         dnsVerifier,
-		dnsPoller:           dnsPoller,
-		keyVault:            vault,
-		sshManager:          sshMgr,
-		healthPoller:        healthPoller,
-		caddyRouter:         caddyRouter,
-		obsRepo:             obsRepo,
-		obsHealthPoller:     obsHealthPoller,
-		obsMetricsCollector: obsMetricsCollector,
-		obsAlertDispatcher:  obsAlertDispatcher,
-		projectStudioRepo:   studioRepo,
-		batchCampaignRepo:   batchRepo,
-		agentRepo:           agentRepo,
-		blueprintEngine:     bpEngine,
-		taskExecutionEngine: taskExecEngine,
-		inspectorEngine:     inspEngine,
-		providerRegistry:    agent.DefaultRegistry(),
-		distillerEngine:     distiller,
-		agentExecutionHook:  agentHook,
-		campaignDecompiler:  campaignDecompiler,
-		campaignRunner:      campaignRunner,
-		campaignAggregator:  campaignAggregator,
-		roomEventBroker:     roomBroker,
-		terminalManager:     termMgr,
-		terminalHandler:     termHandler,
+		cfg:                    cfg,
+		db:                     db,
+		authSvc:                svc,
+		projectSvc:             pSvc,
+		taskSvc:                tSvc,
+		runnerSvc:              rSvc,
+		sponsorshipSvc:         spSvc,
+		deployerDriver:         depDriver,
+		serverRepo:             srvRepo,
+		domainRepo:             domRepo,
+		dnsVerifier:            dnsVerifier,
+		dnsPoller:              dnsPoller,
+		keyVault:               vault,
+		sshManager:             sshMgr,
+		healthPoller:           healthPoller,
+		caddyRouter:            caddyRouter,
+		obsRepo:                obsRepo,
+		obsHealthPoller:        obsHealthPoller,
+		obsMetricsCollector:    obsMetricsCollector,
+		obsAlertDispatcher:     obsAlertDispatcher,
+		projectStudioRepo:      studioRepo,
+		batchCampaignRepo:      batchRepo,
+		agentRepo:              agentRepo,
+		blueprintEngine:        bpEngine,
+		taskExecutionEngine:    taskExecEngine,
+		inspectorEngine:        inspEngine,
+		providerRegistry:       agent.DefaultRegistry(),
+		distillerEngine:        distiller,
+		agentExecutionHook:     agentHook,
+		campaignDecompiler:     campaignDecompiler,
+		campaignRunner:         campaignRunner,
+		campaignAggregator:     campaignAggregator,
+		roomEventBroker:        roomBroker,
+		inboxSlots:             make(chan struct{}, 4),
+		terminalManager:        termMgr,
+		terminalHandler:        termHandler,
 		projectIntegrationRepo: intRepo,
-		publisherEngine:     pubEngine,
-		scriptDeployRepo:    scriptDeployRepo,
-		provisionedDBRepo:   provisionedDBRepo,
-		provisionerEngine:   provEngine,
-		scriptRunner:        scriptRunner,
-		processSupervisor:   processSupervisor,
-		wordpressRepo:       wpRepo,
-		wordpressOrchestrator: wpOrchestrator,
-		wordpressWebmaster:  wpWebmaster,
-		projectRepo:         projRepo,
-		taskProjectRepo:     tpRepo,
-		agentSessionStore:   agent.NewMemorySessionStore(),
-		router:              r,
+		publisherEngine:        pubEngine,
+		scriptDeployRepo:       scriptDeployRepo,
+		provisionedDBRepo:      provisionedDBRepo,
+		provisionerEngine:      provEngine,
+		scriptRunner:           scriptRunner,
+		processSupervisor:      processSupervisor,
+		wordpressRepo:          wpRepo,
+		wordpressOrchestrator:  wpOrchestrator,
+		wordpressWebmaster:     wpWebmaster,
+		projectRepo:            projRepo,
+		taskProjectRepo:        tpRepo,
+		agentSessionStore:      agent.NewMemorySessionStore(),
+		router:                 r,
 	}
 
 	s.routes()
@@ -1012,6 +1019,9 @@ func (s *Server) routes() {
 		cr.Get("/contacts", s.handleInternalListContacts)
 		cr.Get("/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 		cr.Post("/conversations/{id}/messages", s.handleInternalSendConversationMessage)
+		cr.Get("/conversations/{id}/events", s.handleInboxStream)
+		cr.Post("/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
+		cr.Post("/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
 	})
 
 	// Project Tasks
@@ -1566,10 +1576,12 @@ func (s *Server) routes() {
 			pr.Get("/chat/contacts", s.handleInternalListContacts)
 			pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 			pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)
+			pr.Get("/chat/conversations/{id}/events", s.handleInboxStream)
+			pr.Post("/chat/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
+			pr.Post("/chat/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
 		})
 	})
 }
-
 
 func (s *Server) setupStaticRoutes() {
 	staticDir := s.cfg.StaticDir
@@ -2338,7 +2350,6 @@ func (s *Server) handleUpdateProjectModules(w http.ResponseWriter, r *http.Reque
 	respondJSON(w, http.StatusOK, res)
 }
 
-
 func setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
 	isTLS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 	http.SetCookie(w, &http.Cookie{
@@ -2509,6 +2520,10 @@ func (s *Server) handleGetRunner(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetAttemptLogs(w http.ResponseWriter, r *http.Request) {
 	attemptID := chi.URLParam(r, "attemptId")
+	if _, err := s.taskSvc.AttemptForTask(r.Context(), chi.URLParam(r, "id"), attemptID); err != nil {
+		respondJSONError(w, 404, "Attempt tidak ditemukan pada task ini")
+		return
+	}
 	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 {
@@ -2551,6 +2566,12 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.terminalManager != nil {
+		_ = s.terminalManager.CloseSession(taskID)
+	}
+	if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail.SourceRoomID != "" {
+		s.publishInbox(detail.SourceRoomID)
+	}
 	respondJSON(w, http.StatusOK, att)
 }
 

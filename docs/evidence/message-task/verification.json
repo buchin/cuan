@@ -1,0 +1,110 @@
+{
+  "checks": [
+    {
+      "file": "targeted.txt",
+      "exit_code": 0,
+      "command": [
+        "go",
+        "test",
+        "./internal/db",
+        "./internal/task",
+        "./internal/server",
+        "./internal/terminal",
+        "-run",
+        "TestInboxLifecycle|TestMessageTask|TestS264TimeoutAfterAcceptanceSafeRetry|TestS25AgentOutlivesRequestAndPromptIsNotShellCode|TestManager_RunTaskAgent|TestInboxHandlers_CompleteFlow|TestS26DedicatedAgentRegistrationAndRuntimeIsolation",
+        "-count=1"
+      ]
+    },
+    {
+      "file": "transport.txt",
+      "exit_code": 0,
+      "command": [
+        "node",
+        "web/src/api/chat-stream.test.cjs"
+      ]
+    },
+    {
+      "file": "postgres.txt",
+      "exit_code": 0,
+      "command": [
+        "disposable PostgreSQL16.4",
+        "go test ./internal/server -run ^TestInboxLifecyclePostgres$ -count=1 -v"
+      ]
+    },
+    {
+      "file": "frontend.txt",
+      "exit_code": 0,
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ]
+    },
+    {
+      "file": "build.txt",
+      "exit_code": 0,
+      "command": [
+        "go",
+        "build",
+        "./cmd/server",
+        "./cmd/migrate"
+      ]
+    }
+  ],
+  "source_sha256": {
+    "cmd/server/main.go": "cd4f1cd13c2e8a824e2fadfdb0058f41fd3b8d067311a382f40ed52bc1fa3400",
+    "internal/db/inbox_request.go": "b9abc26a540216ec8a10c46636c64a96528dc0f583fdbd333e8c479ddd764797",
+    "internal/server/account_handlers_test.go": "4dbcc8ee7b5ce8723233ffcec51b58b73bc800be06a5c246efdfbd21bafe74e3",
+    "internal/server/agent_profile.go": "4c049d6b7a69ffb760a4bb13617e2ba0add3c0c6b971abe545e997954cad5e85",
+    "internal/server/chat_handlers.go": "bb6f92fc290077012e46ef96a1254d85071d41a87f1de027900fe04778e3a878",
+    "internal/server/inbox_handlers.go": "e07a172c5e2700513e46edd4f4f738cf194496f51914eace1f2497e296ceb286",
+    "internal/server/inbox_handlers_test.go": "9ba0930a6416b1d67ebae1dd437ca8b84d0f8243250fd2a69919b53152700b55",
+    "internal/server/server.go": "6c0ed57c893786c5a9996bb9243e9d0d7cff7f0f46043867e4f182bb43b7443a",
+    "internal/server/terminal_handlers.go": "8c6a6cb7ac03e174dcf11492a362650ed72790aef933d7b29b3770ccaaf7a20c",
+    "internal/task/model.go": "b4b682330208fcc35e17e8c1b2a6cd78040daa8741e26a570d862f858acd37cf",
+    "internal/task/service.go": "54c45c39b146de4e5b74eff4aae7a29ab86c35d462fd35d830a40eb5963b5821",
+    "internal/task/store.go": "fe6bfecf52cd53dd102b0b7ad8effbf3a2ed87c5f0aadc86053dabc54c4ba68b",
+    "internal/task/store_db.go": "3a94c6e468ff723979b2d4967209c9fef8f98dc4428f1f8173ddcd62d534088c",
+    "internal/task/store_memory.go": "9c3a9a7882060fa029afb87d741942ae4f64bfccdd9acdf01752327c794a3227",
+    "internal/terminal/manager.go": "80fa1b483aea1dacca86d84f3c664daae3b64458d31810fd392f7e159d8b1838",
+    "internal/terminal/session.go": "5d41977d9395f608b1d6628d5d093131572f5b095d759f3b599fb621721748ec",
+    "web/src/api/chat.ts": "a79d0f8a32cf886df4d3a7e99bcd78c647c9869fcae8196e418e38af964e684f",
+    "web/src/api/tasks.ts": "e033a324c1fb59eb2b0ca496bdd2e5e8937a7c10ff57151afb909b6bf163f93e",
+    "web/src/api/types.ts": "0fa21097b8deab6834701678c5428edb46777cb4fa3f6769512f39061af325b0",
+    "web/src/features/inbox/InboxView.tsx": "6255df680af66ba22550ecb6af1260df8b4e61d524a79b13b2d5f6b678982e4f",
+    "web/src/features/tasks/TaskSidePeek.tsx": "6e0c320a2c82d72c127fd8e4b322c2b0acf69a68e16759e6f995b209e632d01c",
+    "internal/db/inbox_lifecycle_test.go": "83f00bad65f2f6edb01ec42bdf7264bfcf93a63b9da70342bd3e71fc0f2773ae",
+    "internal/server/inbox_browser_test.go": "4935a4b7fd6d62f822ec6952a09f7675e558ec73c576bb2ebab3d384552b5102",
+    "internal/server/inbox_cli.go": "09fd4c65868be5b202a94e8d3b9dfffc430a8f6c1edeeab9953e6ad5397bdc81",
+    "internal/server/inbox_lifecycle.go": "b8a00c79636d9a8ae73ac48421b00badb89181b4b74cdda542944aa47a54be8b",
+    "internal/server/inbox_lifecycle_sql_test.go": "bff2f70fb72ff0787b784afb7f24155e855e72b1c739e87725c735ba925544be",
+    "internal/server/inbox_lifecycle_test.go": "cc913c3fb198709c45e72fc226da1403d820fdd3f149cf74a9125e2cc31b7c66",
+    "internal/server/inbox_tasks.go": "c355a0ba31698187b535d05ea39c9a6f16de3a6de67e3afd1c237e886d06c048",
+    "internal/server/task_output.go": "d93e246fd122aa64b43f014efeddcd04d62f98d9c88b9cb9513830567d29e3b1",
+    "internal/task/local_attempt.go": "f538619aec0d468787c91d17a248626e0d8bdb74b9133446c3a37e990f39b6a2",
+    "internal/task/message_task_test.go": "12b922d1beeaf4b26a9873cb3da549b9106f04fc25062a95c3e39a7f7b3b8e31",
+    "migrations/000021_inbox_lifecycle.down.sql": "e2363f9592ee6a9a49d06ceebb77f9a5b109c5c403ce98de6c58249e74597828",
+    "migrations/000021_inbox_lifecycle.up.sql": "826f27890779009696c2b522a85cf0bbfec6b8c25923a5d1ba2dc3c990a7d118",
+    "web/src/api/chat-stream.test.cjs": "9afd8048ec8cf143f499259768294dc4ef55c9386d915a96e6c1b8aa3d0dfcc6",
+    "web/src/features/inbox/InboxActivity.tsx": "b69be27b41305149e8c474953190f460ca348503a134a19c0d4d649f27dfaf44",
+    "web/src/features/inbox/InboxTaskAction.tsx": "c196c797a3865704a4b996f51e4bad630600a8fe0b70c3c0d61afed41af7d3ee"
+  },
+  "full_test_suite": false,
+  "real_provider_calls": false,
+  "production_changes": false,
+  "browser": {
+    "result_file": "browser-results.json",
+    "result_sha256": "60033a5a458127a252453abae986557cde8b523e317dacaedcd09c44e6351ffc",
+    "exact_served_assets": true,
+    "terminal_connected": true,
+    "end_to_end_checks": 12,
+    "viewports": [
+      360,
+      390,
+      1280
+    ],
+    "response_mocks": false,
+    "asset_overlay": false,
+    "provider": "fixture"
+  }
+}

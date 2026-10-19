@@ -43,10 +43,12 @@ type Session struct {
 	closed        bool
 	closeChan     chan struct{}
 	onEmpty       func(s *Session)
+	onOutput      func([]byte)
+	readerDone    chan struct{}
 }
 
 // NewSession creates and starts a managed terminal session for a spawned PTY process.
-func NewSession(id, taskID string, proc *PTYProcess, defaultMode Mode) *Session {
+func NewSession(id, taskID string, proc *PTYProcess, defaultMode Mode, output ...func([]byte)) *Session {
 	if defaultMode == "" {
 		defaultMode = ModeInteractive
 	}
@@ -63,6 +65,10 @@ func NewSession(id, taskID string, proc *PTYProcess, defaultMode Mode) *Session 
 		closeChan:     make(chan struct{}),
 	}
 
+	s.readerDone = make(chan struct{})
+	if len(output) > 0 {
+		s.onOutput = output[0]
+	}
 	// Start background reader loop pumping PTY output to all subscribers
 	go s.readPump()
 
@@ -239,6 +245,7 @@ func (s *Session) IsClosed() bool {
 
 // readPump continuously reads from the PTY master descriptor and fans out to all subscribers.
 func (s *Session) readPump() {
+	defer close(s.readerDone)
 	buf := make([]byte, 4096)
 	for {
 		n, err := s.pty.Read(buf)
@@ -258,6 +265,9 @@ func (s *Session) readPump() {
 				}
 			}
 			s.mu.Unlock()
+			if s.onOutput != nil {
+				s.onOutput(chunk)
+			}
 		}
 
 		if err != nil {

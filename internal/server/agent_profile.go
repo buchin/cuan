@@ -97,3 +97,15 @@ func (s *Server) rollbackAgentRegistration(agentID, connectionID string, connect
 	}
 	_ = s.agentRepo.DeleteAgent(ctx, agentID)
 }
+
+// Execution must bind the profile to the authenticated request owner as well as
+// the registered agent. Stored connection metadata is not itself authorization.
+func (s *Server) ownedAgentProfileHome(ctx context.Context, owner string, a *db.Agent) (string, error) {
+	if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
+		conn, e := s.agentRepo.GetConnectionByID(ctx, a.ConnectionID)
+		if e != nil || conn == nil || conn.UserID != owner {
+			return "", errors.New("Koneksi bukan milik pemilik sesi")
+		}
+	}
+	return s.agentProfileHome(ctx, a)
+}

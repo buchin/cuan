@@ -65,6 +65,9 @@ export interface DoDItem {
 }
 
 export interface Task {
+  latest_attempt?: { id: string; status: string; attempt_number?: number; error_message?: string }
+  source_room_id?: string
+  source_message_id?: string
   id: string
   project_id?: string
   project_ids?: string[]

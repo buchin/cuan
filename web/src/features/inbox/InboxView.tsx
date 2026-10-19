@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ChatContact, ChatMessage, InboxRequest, chatApi, AgentActionCard } from '../../api/chat'
+import { ChatContact, ChatMessage, InboxRequest, chatApi, AgentActionCard, streamConversation, cancelInboxRequest } from '../../api/chat'
 import {
   Send,
   Bot,
@@ -13,6 +13,9 @@ import {
   ChevronLeft,
   Menu,
 } from 'lucide-react'
+import { Task } from '../../api/types'
+import { InboxActivity } from './InboxActivity'
+import { InboxTaskAction } from './InboxTaskAction'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 
@@ -43,6 +46,11 @@ export function InboxView({
   onMobileChatActiveChange,
   onOpenMobileDrawer,
 }: InboxViewProps) {
+  const loadVersion = useRef(0)
+  const followTail = useRef(true)
+  const [hasNewMessages, setHasNewMessages] = useState(false)
+  const [streamState, setStreamState] = useState('connecting')
+  const [linkedTasks, setLinkedTasks] = useState<Task[]>([])
   const [requests, setRequests] = useState<InboxRequest[]>([])
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
@@ -76,20 +84,23 @@ export function InboxView({
 
   const loadConversation = useCallback(async (convId: string, showSpinner = false) => {
     if (showSpinner) setLoading(true)
+    const version = ++loadVersion.current
     try {
       const data = await chatApi.getConversation(convId)
-      if (activeConvRef.current !== convId) return
+      if (activeConvRef.current !== convId || version !== loadVersion.current) return
       setMessages(data.messages || [])
       setRequests(data.requests || [])
+      setLinkedTasks(data.tasks || [])
       const pending = pendingRef.current
       if (pending?.convId === convId && data.requests?.some(q => q.request_id === pending.id)) {
         localStorage.removeItem('cuan_inbox_pending:' + convId)
         pendingRef.current = null
         setSendError('')
-        setInputMessage('')
+        setInputMessage(current => current.trim() === pending.text ? '' : current)
         setRetryCount(0)
       }
     } catch (err) {
+      if (activeConvRef.current !== convId || version !== loadVersion.current) return
       setSendError('Riwayat belum dapat dimuat. Segarkan lagi untuk memeriksa status pesan.')
     } finally {
       if (showSpinner) setLoading(false)
@@ -109,8 +120,11 @@ export function InboxView({
   useEffect(() => {
     if (activeContact) {
       const convId = activeContact.conversation_id || activeContact.id
+      followTail.current = true
+      setHasNewMessages(false)
       setMessages([])
       setRequests([])
+      setLinkedTasks([])
       setSendError('')
       setRetryCount(0)
       pendingRef.current = null
@@ -122,22 +136,50 @@ export function InboxView({
     }
   }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
 
-  // Polling every 3.5 seconds
+  // SSE updates carry authoritative snapshots. Poll only while disconnected.
   useEffect(() => {
     if (!activeContact) return
-    const timer = setInterval(() => {
-      loadConversation(activeContact.conversation_id || activeContact.id, false)
-    }, 3500)
-    return () => clearInterval(timer)
+    const convId = activeContact.conversation_id || activeContact.id
+    const abort = new AbortController()
+    let retry: ReturnType<typeof setTimeout> | undefined
+    let failures = 0
+    let connected = false
+    const connect = async () => {
+      try {
+        await streamConversation(convId, abort.signal, data => {
+          if (abort.signal.aborted || activeConvRef.current !== convId) return
+          ++loadVersion.current
+          connected = true; failures = 0; setStreamState('live')
+          setLoading(false); setMessages(data.messages || []); setRequests(data.requests || []); setLinkedTasks(data.tasks || [])
+          const pending = pendingRef.current
+          if (pending?.convId === convId && data.requests?.some(q => q.request_id === pending.id)) {
+            localStorage.removeItem('cuan_inbox_pending:' + convId); pendingRef.current = null
+            setSendError(''); setRetryCount(0)
+            setInputMessage(current => current.trim() === pending.text ? '' : current)
+          }
+        })
+      } catch (e: any) {
+        if (abort.signal.aborted) return
+        if (e.status === 401) { setStreamState('login'); return }
+        failures++
+      }
+      connected = false
+      if (!abort.signal.aborted) { setStreamState('reconnecting'); retry = setTimeout(connect, Math.min(1000 * 2 ** Math.min(failures, 4), 15000)) }
+    }
+    setStreamState('connecting'); void connect()
+    const poll = setInterval(() => { if (!connected) void loadConversation(convId) }, 10000)
+    const visible = () => { if (document.visibilityState === 'visible') void loadConversation(convId) }
+    document.addEventListener('visibilitychange', visible)
+    return () => { abort.abort(); clearTimeout(retry); clearInterval(poll); document.removeEventListener('visibilitychange', visible) }
   }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
 
   const lastMessageKey = messages[messages.length - 1]?.uuid || messages[messages.length - 1]?.id
 
   // Only scroll for a new message, not identical polling results.
   useEffect(() => {
-    if (messageListRef.current) {
+    if (messageListRef.current && followTail.current) {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight
-    }
+    } else if (messageListRef.current) { setHasNewMessages(true) }
   }, [lastMessageKey, activeContact?.id, sendError, requests.map(q => q.request_id + q.state).join(',')])
 
   const handleSendMessage = async () => {
@@ -151,12 +193,13 @@ export function InboxView({
     try { localStorage.setItem('cuan_inbox_pending:' + convId, JSON.stringify(request)) }
     catch { setSendError('Browser tidak dapat menyimpan ID pesan. Aktifkan penyimpanan browser lalu coba lagi.'); return }
     pendingRef.current = request
+    followTail.current = true
     setSending(true)
     setRetryCount(n => n + 1)
     try {
       await chatApi.sendMessage(convId, text, 'Buchin', request.id)
       if (activeConvRef.current === convId) {
-        setInputMessage('')
+        setInputMessage(current => current.trim() === request.text ? '' : current)
         setSendError('')
         setRetryCount(0)
         await loadConversation(convId)
@@ -345,6 +388,7 @@ export function InboxView({
       {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
       <div
         ref={messageListRef}
+        onScroll={e => { const el = e.currentTarget; followTail.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; if (followTail.current) setHasNewMessages(false) }}
         className="inbox-message-list min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 bg-muted/20"
       >
         {/* Connection Status & Guidance Banner */}
@@ -475,13 +519,11 @@ export function InboxView({
                   {isOutgoing && <CheckCheck className="h-3 w-3" />}
                 </div>
               </div>
-        {requests.filter(q => q.message_id === msg.uuid && q.state !== 'completed').map(q => (
-          <div key={q.request_id} role="status" className="mt-2 max-w-[85%] sm:max-w-[70%] rounded-xl border border-border bg-card p-3 text-xs break-words">
-            <p className="font-medium">{q.state === 'running' ? 'Pesan tersimpan · agen sedang memproses' : 'Balasan belum tersedia'}</p>
-            <p className="mt-1 text-muted-foreground">{q.safe_error || 'Anda boleh menyegarkan atau membuka kembali Inbox. Permintaan yang sama tidak dijalankan ulang.'}</p>
-            <p className="mt-1 text-muted-foreground">Pesan: {q.message_id.slice(0, 8)} · {formatMessageTime(q.created_at)}</p>
-          </div>
+        {requests.filter(q => q.message_id === msg.uuid && (q.state !== 'completed' || q.steps?.length)).map(q => (
+          <InboxActivity key={q.request_id} request={q} onCancel={async () => { const id = activeContact.conversation_id || activeContact.id; await cancelInboxRequest(id, q.request_id); await loadConversation(id) }} />
         ))}
+        {msg.uuid && <InboxTaskAction linkedTask={linkedTasks.find(task => task.source_message_id === msg.uuid)} conversationId={activeContact.conversation_id || activeContact.id} messageId={msg.uuid} content={msg.content || msg.message} />}
+
             </div>
           )
         })}
@@ -512,11 +554,14 @@ export function InboxView({
         )}
       </div>
 
+      {hasNewMessages && <button className="mx-auto mb-2 rounded-full border border-border bg-card px-3 py-1 text-xs" onClick={() => { followTail.current = true; setHasNewMessages(false); messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: 'smooth' }) }}>Ke pesan terbaru ↓</button>}
+      {streamState !== 'live' && <p className="px-4 py-1 text-xs text-muted-foreground" role="status">{streamState === 'login' ? 'Sesi berakhir. Masuk kembali untuk melanjutkan.' : 'Menghubungkan chat… Riwayat tetap tersimpan.'}</p>}
       {/* ── Modern Composer (Bottom) ── */}
       <div data-inbox-composer className="p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border bg-card shrink-0 z-20">
         <div className="flex items-end gap-2 max-w-4xl mx-auto">
           <textarea
             ref={textareaRef}
+ aria-label="Pesan"
             rows={1}
             value={inputMessage}
             onChange={(e) => {
@@ -538,6 +583,7 @@ export function InboxView({
             disabled={!inputMessage.trim() || sending}
             className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-xs cursor-pointer shrink-0"
             title="Kirim Pesan (Enter)"
+ aria-label="Kirim pesan"
           >
             <Send className="h-4 w-4" />
           </button>

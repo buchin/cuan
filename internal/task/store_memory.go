@@ -34,6 +34,9 @@ func (m *MemoryStore) CreateTask(ctx context.Context, t *Task) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, exists := m.tasks[t.ID]; exists {
+		return ErrTaskDuplicate
+	}
 	cp := *t
 	if cp.CreatedAt.IsZero() {
 		cp.CreatedAt = time.Now().UTC()
@@ -78,6 +81,9 @@ func (m *MemoryStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task
 	searchLower := strings.ToLower(strings.TrimSpace(filter.Search))
 
 	for _, t := range m.tasks {
+		if filter.SourceRoomID != "" && t.SourceRoomID != filter.SourceRoomID {
+			continue
+		}
 		pids := m.taskProjects[t.ID]
 		if len(pids) == 0 && t.ProjectID != "" {
 			pids = []string{t.ProjectID}
@@ -196,6 +202,21 @@ func (m *MemoryStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if a.AttemptNumber <= 0 {
+		a.AttemptNumber = 1
+	}
+	if a.RunnerID == "local_terminal" {
+		maxAttempt := 0
+		for _, old := range m.attempts {
+			if old.TaskID == a.TaskID && old.AttemptNumber > maxAttempt {
+				maxAttempt = old.AttemptNumber
+			}
+			if old.TaskID == a.TaskID && (old.Status == "running" || old.Status == "queued") {
+				return ErrTaskActive
+			}
+		}
+		a.AttemptNumber = maxAttempt + 1
+	}
 	cp := *a
 	if cp.CreatedAt.IsZero() {
 		cp.CreatedAt = time.Now().UTC()
@@ -264,6 +285,9 @@ func (m *MemoryStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 		return ErrAttemptNotFound
 	}
 
+	if existing.Status != "queued" && existing.Status != "running" && a.Status != existing.Status {
+		return ErrAttemptFinal
+	}
 	cp := *a
 	cp.CreatedAt = existing.CreatedAt
 	m.attempts[a.ID] = &cp
@@ -432,4 +456,3 @@ func (m *MemoryStore) Wipe() {
 	m.activities = make(map[string]*TaskActivity)
 	m.logs = make(map[string][]*LogRecord)
 }
-
