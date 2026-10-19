@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
+import { IntegrationsView } from './IntegrationsView'
 import { TeamView } from '../team/TeamView'
 
 interface SettingsViewProps {
@@ -119,6 +120,7 @@ export function SettingsView({
         {[
           ['general', 'Umum'],
           ['agents', 'Agents'],
+          ['integrations', 'Integrations'],
           ['appearance', 'Tampilan'],
         ].map(([id, label]) => (
           <Link
@@ -141,6 +143,8 @@ export function SettingsView({
             onAgentAdded={onAgentAdded}
           />
         </>
+      ) : section === 'integrations' ? (
+        <IntegrationsView />
       ) : section === 'appearance' ? (
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold">Tema aplikasi</h2>

@@ -232,7 +232,6 @@ export function AppShell({
             >
               <Settings className="h-5 w-5" />
             </button>
-            <div className="md:hidden">{themeButton}</div>
             <div className="w-11 md:hidden">
               <NavUser isCollapsed dropdownPosition="bottom-right" />
             </div>

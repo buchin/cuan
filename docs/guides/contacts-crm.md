@@ -9,8 +9,9 @@ kontak**. Tag dipisahkan koma, maksimal 20 tag masing-masing 40 karakter;
 
 ## Pasang widget
 
-Pasang sebelum penutup `body`; panduan singkat juga tersedia langsung di halaman
-Contacts melalui **Hubungkan live chat ke website**.
+Buka **Settings → Integrations → Live Chat** untuk kode pemasangan, tombol salin,
+identitas email opsional dan langkah pengecekan. Saat Contacts kosong, tombol
+**Hubungkan live chat** langsung menuju halaman ini. Pasang sebelum penutup `body`.
 
 ```html
 <script src="https://cuan.dojo.cc/chat/widget.js"

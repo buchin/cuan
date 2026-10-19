@@ -101,23 +101,6 @@ export function ContactsView() {
           <RefreshCw className="h-5 w-5" />
         </button>
       </header>
-      <details className="mb-5 rounded-xl border bg-card px-4">
-        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
-          Hubungkan live chat ke website
-        </summary>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Pasang sebelum penutup body website. Kontak dibuat saat pengunjung
-          membuka chat.
-        </p>
-        <pre className="mb-3 overflow-x-auto rounded-lg bg-muted p-3 text-xs select-all">
-          <code>{`<script src="${window.location.origin}/chat/widget.js" data-product="website-anda" defer></script>`}</code>
-        </pre>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Opsional: tambahkan data-email dan data-name dari pengguna yang login,
-          atau panggil $dojoChat.identify setelah widget dimuat. Email widget
-          belum terverifikasi dan tidak menggabungkan riwayat kontak lain.
-        </p>
-      </details>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-background px-3">
           <Search className="h-4 w-4 shrink-0" />
@@ -161,6 +144,12 @@ export function ContactsView() {
             Pengunjung yang membuka live chat akan otomatis masuk di sini.
             Tambahkan email melalui konfigurasi widget untuk mengenalinya.
           </p>
+          <Link
+            to="/settings/integrations/live-chat"
+            className="action-primary mt-4"
+          >
+            Hubungkan live chat
+          </Link>
         </div>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">

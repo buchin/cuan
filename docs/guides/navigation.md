@@ -83,3 +83,14 @@ Untuk rollback aplikasi, pertahankan schema21 dan gunakan activator native dari
 panduan lifecycle. Release sebelumnya `9708a0d` tetap dipertahankan.
 
 Rilis Contacts berikutnya menggunakan schema22. Panduan terbaru: [Contacts CRM](contacts-crm.md).
+
+## Integrations dan tema HP
+
+Setup widget berada di **Settings → Integrations → Live Chat**
+(`/settings/integrations/live-chat`), dengan daftar integrasi pada
+`/settings/integrations`. Contacts fokus pada data pelanggan; tombol pemasangan
+hanya muncul pada empty state dan menuju halaman pengaturan tersebut.
+
+Header HP tidak memiliki toggle tema duplikat. Gunakan **Settings → Tampilan**
+(`/settings/appearance`) untuk Light, Dark atau Ikuti sistem. Pilihan disimpan di
+browser dan berlaku setelah reload. Shortcut tema desktop tetap tersedia.
