@@ -53,6 +53,8 @@ export function AppShell({
       return false
     }
   })
+  const [sessionExpanded, setSessionExpanded] = useState(false)
+  const effectiveCollapsed = sessionWorkspace ? !sessionExpanded : collapsed
   const [listOpen, setListOpen] = useState(true)
   useEffect(() => {
     const viewport = window.visualViewport
@@ -105,7 +107,7 @@ export function AppShell({
       ref={shell}
       className={cn(
         'app-shell flex w-full overflow-hidden bg-background',
-        collapsed && 'nav-collapsed',
+        effectiveCollapsed && 'nav-collapsed',
       )}
     >
       <nav
@@ -119,16 +121,20 @@ export function AppShell({
           </span>
           <button
             className="sidebar-collapse icon-action hidden min-[1200px]:inline-flex"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={
+              effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+            }
             onClick={() =>
-              setCollapsed((value) => {
-                const next = !value
-                try {
-                  localStorage.setItem('cuan-nav-collapsed', String(next))
-                } catch {}
-                return next
-              })
+              sessionWorkspace
+                ? setSessionExpanded((value) => !value)
+                : setCollapsed((value) => {
+                    const next = !value
+                    try {
+                      localStorage.setItem('cuan-nav-collapsed', String(next))
+                    } catch {}
+                    return next
+                  })
             }
           >
             <PanelLeft className="h-4 w-4" />
@@ -139,7 +145,7 @@ export function AppShell({
         </div>
         <div className="space-y-2 border-t border-border p-2.5">
           {navButton('settings', 'Settings', Settings)}
-          <NavUser sidebar collapsed={collapsed} />
+          <NavUser sidebar collapsed={effectiveCollapsed} />
         </div>
       </nav>
       {currentTab === 'inbox' && listOpen && (
@@ -158,7 +164,7 @@ export function AppShell({
           className={cn(
             'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
             'app-page-header h-14 md:h-16',
-            (hideBottomNav || sessionWorkspace) && 'hidden md:flex',
+            sessionWorkspace ? 'hidden' : hideBottomNav && 'hidden md:flex',
           )}
         >
           <div className="flex min-w-0 items-center gap-2">

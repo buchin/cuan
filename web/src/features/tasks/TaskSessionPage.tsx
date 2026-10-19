@@ -22,6 +22,9 @@ export function TaskSessionPage({
     [error, setError] = useState(''),
     [runtimeError, setRuntimeError] = useState(''),
     [showDetail, setShowDetail] = useState(false),
+    [terminalControls, setTerminalControls] = useState<HTMLDivElement | null>(
+      null,
+    ),
     [followup, setFollowup] = useState(''),
     [cancel, setCancel] = useState(false),
     [busy, setBusy] = useState(false)
@@ -108,10 +111,13 @@ export function TaskSessionPage({
           <h2 className="truncate text-sm font-semibold" title={detail.title}>
             {detail.title}
           </h2>
-          <p className="text-xs text-muted-foreground">
-            {attemptLabel(attempt)} · Session {attempt.attempt_number}
+          <p className="truncate text-xs text-muted-foreground">
+            {attemptLabel(attempt)} ·{' '}
+            <span className="hidden sm:inline">Session </span>
+            {attempt.attempt_number}
           </p>
         </div>
+        <div ref={setTerminalControls} className="flex shrink-0 items-center" />
         <button
           className="icon-action shrink-0"
           aria-label="Detail"
@@ -145,13 +151,14 @@ export function TaskSessionPage({
           Session needs attention · View detail
         </button>
       )}
-      <div className="min-h-0 flex-1 px-2 pb-2">
+      <div className="min-h-0 flex-1">
         <TaskTerminal
           key={sessionId}
           taskId={taskId}
           attempt={attempt}
           live={live}
           onRefresh={() => void refresh()}
+          controlsTarget={terminalControls}
         />
       </div>
       {!active &&

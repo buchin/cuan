@@ -24,7 +24,7 @@ type taskAgentGrant struct {
 	Expires                    time.Time
 }
 
-func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID string) ([]string, string, string, func(), error) {
+func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID string, contextParts ...string) ([]string, string, string, func(), error) {
 	none := func() {}
 	var b [32]byte
 	if _, e := rand.Read(b[:]); e != nil {
@@ -62,15 +62,48 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		return nil, "", "", none, e
 	}
 	s.taskAgentGrants.Store(digest, taskAgentGrant{taskID, attemptID, agentID, time.Now().Add(8*time.Hour + 5*time.Minute)})
-	prompt := "\n\n" + `Task reporting tool (mandatory):
-The self-contained command is "$CUAN_TASK_EXECUTABLE" task. Run it through your terminal tool. Use task --help for flags.
-1. Run "$CUAN_TASK_EXECUTABLE" task get. Refine the task title/priority, define appropriate acceptance criteria, and publish a short plan using task report --summary "..." --progress "...".
-2. Send meaningful progress checkpoints using task report --progress "...". Preserve the original human instructions.
-3. Before finishing, send task report --state review --summary "What changed" --complete-note "Actual verification, results, limitations". For a blocker use --state blocked with summary and concrete blocker evidence.
-Use --report-file for JSON reports including dod_checklist [{"text":"...","completed":false}], commit_sha, and test_summary. Only mark criteria completed after verifying them. Do not invent evidence. This tool can update only this task during this active attempt; it cannot edit human instructions or approve Done.
-A successful process without a complete review report leaves the task Blocked. A final review/blocked report ends this session automatically after a short output drain. Stay interactive for questions and follow-up messages until the work has a final result. Do not print or copy the private capability file.
+	instructions := `## Session guidance
+Respond to the actual request. A greeting or question is not a request to build
+an application, create a repository, inspect deployment, or write tests.
+For conversational requests, answer directly and briefly; do not invent coding
+work or a project. Use tools only when needed for the request or final reporting.
+
+For file work, use the explicit workspace below (also WORKSPACE_DIR/PWD), even
+if a provider suggests its account-profile scratch directory. Do not create
+deliverables in a provider profile or scratch directory. Follow existing
+project conventions and stack. If no project stack exists and software is
+explicitly requested, default to Go backend and React/Vite/TypeScript frontend.
+Do not inspect, reverse-engineer, or search the Cuan server binary to understand
+this reporting tool. If the tool fails, report its actual error as a blocker.
+
+## Task reporting
+The built-in command is "$CUAN_TASK_EXECUTABLE" task.
+Run task get only when additional task context is needed. Metadata and checklists
+are optional; keep simple requests simple. Use task --help for supported flags.
+For substantial work, publish meaningful task report --progress "..." checkpoints.
+Print the user-facing answer before the final report.
+Finish with:
+"$CUAN_TASK_EXECUTABLE" task report --state review --summary "Actual result" --complete-note "Verification and limitations"
+For a greeting/question, state that it was answered directly and no files/tests
+were needed. Never claim unperformed work. For a blocker use --state blocked
+with summary and concrete evidence instead.
+A final report closes this session automatically after output drains.
+Human instructions and Done approval are read-only. Never print the private
+capability file. Need structured metadata? task --help documents --report-file.
 `
+	for _, part := range contextParts {
+		if strings.TrimSpace(part) != "" {
+			instructions += "\n" + part + "\n"
+		}
+	}
+	guide := filepath.Join(dir, "session.md")
+	if e = os.WriteFile(guide, []byte(instructions), 0600); e != nil {
+		cleanup()
+		return nil, "", "", none, e
+	}
+	prompt := "\n\nRead the session guidance at " + guide + " before proceeding."
 	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable}, prompt, token, cleanup, nil
+
 }
 func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")

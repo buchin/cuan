@@ -264,6 +264,7 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 
 	taskPrompt := strings.TrimSpace(payload.Prompt)
 	workDir := ""
+	sessionContext := ""
 	taskFound := false
 	sourceRoom := ""
 
@@ -328,7 +329,18 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			for _, item := range detail.DoDChecklist {
 				fmt.Fprintf(&criteria, "- %s\n", item.Text)
 			}
-			taskPrompt = fmt.Sprintf("Work on task %s: %s. Follow the human instructions and project conventions. Preserve the human task. Report actual changes, targeted verification, and any blockers. A zero exit code does not approve the work. Do not claim unperformed actions.\n\nHuman instructions:\n%s\n\nAcceptance criteria:\n%s\n\nPrevious work summary:\n%s\n\nPrevious completion notes:\n%s\n\nRevision feedback:\n%s", taskID, detail.Title, taskPrompt, criteria.String(), detail.Summary, detail.CompleteNote, payload.Revision)
+			sessionContext = fmt.Sprintf("## Bound task\nTask: %s\nTitle: %s\n", taskID, detail.Title)
+			for _, section := range []struct{ label, text string }{
+				{"Human instructions", detail.Instructions}, {"Acceptance criteria", criteria.String()}, {"Previous work summary", detail.Summary},
+				{"Previous completion notes", detail.CompleteNote}, {"Revision feedback", payload.Revision},
+			} {
+				if strings.TrimSpace(section.text) != "" {
+					sessionContext += "\n## " + section.label + "\n" + section.text + "\n"
+				}
+			}
+			if strings.TrimSpace(payload.Revision) != "" {
+				taskPrompt = payload.Revision
+			}
 			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash})
 			if errors.Is(err, task.ErrTaskActive) {
 				respondJSONError(w, 409, "This task already has an active attempt. Check the session before retrying.")
@@ -379,8 +391,18 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	reportToken := ""
 	reportCleanup := func() {}
 	if attempt != nil {
+		if workDir == "" {
+			workDir, err = s.terminalManager.ResolveTaskWorkspace(taskID)
+			if err != nil {
+				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Task workspace could not be prepared."})
+				_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)
+				respondJSONError(w, 503, "Task workspace unavailable.")
+				return
+			}
+		}
+		sessionContext += "\n## Workspace\n" + workDir + "\n"
 		var extra string
-		reportEnv, extra, reportToken, reportCleanup, err = s.issueTaskAgent(r.Context(), taskID, attempt.ID, agentID)
+		reportEnv, extra, reportToken, reportCleanup, err = s.issueTaskAgent(r.Context(), taskID, attempt.ID, agentID, sessionContext)
 		if err != nil {
 			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Task reporting tools could not be prepared. Execution did not start."})
 			_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)

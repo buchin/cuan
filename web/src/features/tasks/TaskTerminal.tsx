@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Copy,
@@ -7,7 +8,9 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Send,
+  Keyboard,
+  KeyboardOff,
+  MoreHorizontal,
 } from 'lucide-react'
 import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
@@ -20,12 +23,15 @@ export function TaskTerminal({
   attempt,
   live,
   onRefresh,
+  controlsTarget,
 }: {
   taskId: string
   attempt: TaskAttempt
   live: LiveTaskSession | null
   onRefresh: () => void
+  controlsTarget?: HTMLElement | null
 }) {
+  const menu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null),
     term = useRef<Terminal | null>(null),
     socket = useRef<WebSocket | null>(null)
@@ -36,8 +42,7 @@ export function TaskTerminal({
     [follow, setFollow] = useState(true),
     [input, setInput] = useState(false),
     [search, setSearch] = useState(''),
-    [match, setMatch] = useState(''),
-    [message, setMessage] = useState('')
+    [match, setMatch] = useState('')
   const following = useRef(true),
     interactive = useRef(false),
     searchIndex = useRef(-1),
@@ -284,6 +289,24 @@ export function TaskTerminal({
       if (term.current === terminal) term.current = null
     }
   }, [taskId, attempt.id, liveId, revision])
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (menu.current?.open && !menu.current.contains(event.target as Node))
+        menu.current.open = false
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && menu.current?.open) {
+        menu.current.open = false
+        menu.current.querySelector<HTMLElement>('summary')?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [])
   const toggleInput = () => {
     const ws = socket.current
     if (ws?.readyState !== WebSocket.OPEN) return
@@ -291,149 +314,194 @@ export function TaskTerminal({
       JSON.stringify({ type: 'mode', mode: input ? 'watch' : 'interactive' }),
     )
   }
+  const controls = (
+    <div
+      className={
+        controlsTarget
+          ? 'flex items-center gap-1'
+          : 'flex shrink-0 items-center gap-1 bg-background px-2 py-1'
+      }
+    >
+      <span
+        role="status"
+        className={
+          controlsTarget
+            ? 'sr-only'
+            : 'min-w-0 flex-1 truncate text-xs text-muted-foreground'
+        }
+      >
+        {
+          (
+            {
+              loading: 'Loading output…',
+              connecting: 'Connecting to existing session…',
+              connected: input
+                ? 'Connected · input enabled'
+                : 'Connected · read-only',
+              saved: 'Saved output',
+              disconnected: 'Disconnected · task status is checked separately',
+              error: 'Output unavailable',
+            } as Record<string, string>
+          )[connection]
+        }
+      </span>
+      {controlsTarget && (
+        <span
+          aria-hidden
+          className={
+            'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
+            (connection === 'connected'
+              ? 'bg-emerald-500'
+              : connection === 'saved'
+                ? 'bg-muted-foreground'
+                : 'bg-amber-500')
+          }
+          title={connection}
+        />
+      )}
+      <div className="flex flex-wrap items-center gap-1">
+        {liveId && (
+          <button
+            className="icon-action"
+            aria-label={input ? 'Disable input' : 'Enable input'}
+            title={input ? 'Disable input' : 'Enable input'}
+            disabled={connection !== 'connected'}
+            onClick={toggleInput}
+          >
+            {input ? (
+              <KeyboardOff className="h-4 w-4" />
+            ) : (
+              <Keyboard className="h-4 w-4" />
+            )}
+          </button>
+        )}
+      </div>
+      <details ref={menu} className="relative shrink-0">
+        <summary
+          aria-label="Terminal tools"
+          title="Terminal tools"
+          className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </summary>
+        <div className="absolute right-0 top-full z-20 w-[min(360px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
+          <div className="flex flex-wrap justify-end gap-1">
+            <button
+              className="icon-action"
+              aria-label="Reconnect terminal"
+              title="Reconnect to this session"
+              onClick={() => {
+                setRevision((n) => n + 1)
+                onRefresh()
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            <button
+              className="icon-action"
+              aria-label="Copy output"
+              title="Copy output"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(bufferText())
+                  setNotice('Output copied.')
+                } catch {
+                  setError(
+                    'Could not copy output. Use Download output instead.',
+                  )
+                }
+              }}
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+            <button
+              className="icon-action"
+              aria-label="Download output"
+              title="Download output"
+              onClick={() => {
+                const url = URL.createObjectURL(
+                  new Blob([bufferText()], {
+                    type: 'text/plain;charset=utf-8',
+                  }),
+                )
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `task-${taskId}-session-${attempt.attempt_number}.txt`
+                a.click()
+                setTimeout(() => URL.revokeObjectURL(url), 1000)
+              }}
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <label className="relative min-w-0 flex-1">
+              <Search
+                aria-hidden
+                className="absolute left-2 top-3.5 h-4 w-4 text-muted-foreground"
+              />
+              <input
+                className="field-control pl-8 text-sm"
+                aria-label="Search terminal output"
+                placeholder="Search output…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    find(e.shiftKey ? -1 : 1)
+                  }
+                }}
+              />
+            </label>
+            {search && (
+              <>
+                <span
+                  role="status"
+                  className="max-w-20 text-xs text-muted-foreground"
+                >
+                  {match}
+                </span>
+                <button
+                  className="icon-action"
+                  aria-label="Previous match"
+                  onClick={() => find(-1)}
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  className="icon-action"
+                  aria-label="Next match"
+                  onClick={() => find(1)}
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </>
+            )}
+            <button
+              className="action-secondary px-2 text-xs"
+              aria-pressed={follow}
+              onClick={() => {
+                const next = !follow
+                following.current = next
+                setFollow(next)
+                if (next) term.current?.scrollToBottom()
+              }}
+            >
+              <ArrowDown className="h-4 w-4" />
+              Follow
+            </button>
+          </div>
+        </div>
+      </details>
+    </div>
+  )
   return (
     <section
       aria-label="Session terminal"
-      className="flex h-full min-h-0 min-w-0 flex-col gap-2"
+      className="flex h-full min-h-0 min-w-0 flex-col bg-[#141414]"
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <span role="status" className="text-xs text-muted-foreground">
-          {
-            (
-              {
-                loading: 'Loading output…',
-                connecting: 'Connecting to existing session…',
-                connected: input
-                  ? 'Connected · input enabled'
-                  : 'Connected · read-only',
-                saved: 'Saved output',
-                disconnected:
-                  'Disconnected · task status is checked separately',
-                error: 'Output unavailable',
-              } as Record<string, string>
-            )[connection]
-          }
-        </span>
-        <div className="flex flex-wrap items-center gap-1">
-          {liveId && (
-            <button
-              className="action-secondary px-2 text-xs"
-              disabled={connection !== 'connected'}
-              onClick={toggleInput}
-            >
-              {input ? 'Disable input' : 'Enable input'}
-            </button>
-          )}
-        </div>
-      </div>
-      <details className="shrink-0">
-        <summary className="min-h-9 cursor-pointer py-2 text-xs text-muted-foreground">
-          Terminal tools
-        </summary>
-        <div className="flex flex-wrap justify-end gap-1">
-          <button
-            className="icon-action"
-            aria-label="Reconnect terminal"
-            title="Reconnect to this session"
-            onClick={() => {
-              setRevision((n) => n + 1)
-              onRefresh()
-            }}
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-          <button
-            className="icon-action"
-            aria-label="Copy output"
-            title="Copy output"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(bufferText())
-                setNotice('Output copied.')
-              } catch {
-                setError('Could not copy output. Use Download output instead.')
-              }
-            }}
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-          <button
-            className="icon-action"
-            aria-label="Download output"
-            title="Download output"
-            onClick={() => {
-              const url = URL.createObjectURL(
-                new Blob([bufferText()], { type: 'text/plain;charset=utf-8' }),
-              )
-              const a = document.createElement('a')
-              a.href = url
-              a.download = `task-${taskId}-session-${attempt.attempt_number}.txt`
-              a.click()
-              setTimeout(() => URL.revokeObjectURL(url), 1000)
-            }}
-          >
-            <Download className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <label className="relative min-w-0 flex-1">
-            <Search
-              aria-hidden
-              className="absolute left-2 top-3.5 h-4 w-4 text-muted-foreground"
-            />
-            <input
-              className="field-control pl-8 text-sm"
-              aria-label="Search terminal output"
-              placeholder="Search output…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  find(e.shiftKey ? -1 : 1)
-                }
-              }}
-            />
-          </label>
-          {search && (
-            <>
-              <span
-                role="status"
-                className="max-w-20 text-xs text-muted-foreground"
-              >
-                {match}
-              </span>
-              <button
-                className="icon-action"
-                aria-label="Previous match"
-                onClick={() => find(-1)}
-              >
-                <ChevronUp className="h-4 w-4" />
-              </button>
-              <button
-                className="icon-action"
-                aria-label="Next match"
-                onClick={() => find(1)}
-              >
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </>
-          )}
-          <button
-            className="action-secondary px-2 text-xs"
-            aria-pressed={follow}
-            onClick={() => {
-              const next = !follow
-              following.current = next
-              setFollow(next)
-              if (next) term.current?.scrollToBottom()
-            }}
-          >
-            <ArrowDown className="h-4 w-4" />
-            Follow
-          </button>
-        </div>
-      </details>
+      {controlsTarget ? createPortal(controls, controlsTarget) : controls}
       {error && (
         <p role="alert" className="shrink-0 text-sm text-destructive">
           {error}
@@ -445,53 +513,11 @@ export function TaskTerminal({
         </p>
       )}
       <div
-        className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-md bg-[#141414] p-2"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-2"
         aria-label="Terminal output"
       >
         <div ref={mount} className="h-full w-full" />
       </div>
-      {liveId && input && (
-        <form
-          className="flex shrink-0 items-end gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const ws = socket.current
-            if (
-              !message.trim() ||
-              !interactive.current ||
-              ws?.readyState !== WebSocket.OPEN
-            )
-              return
-            const clean = message.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
-            ws.send(
-              JSON.stringify({
-                type: 'stdin',
-                data: '\x1b[200~' + clean + '\x1b[201~',
-              }),
-            )
-            ws.send(JSON.stringify({ type: 'stdin', data: '\r' }))
-            setMessage('')
-          }}
-        >
-          <textarea
-            aria-label="Message agent"
-            placeholder="Message the agent…"
-            rows={1}
-            maxLength={16000}
-            className="field-control max-h-32 min-w-0 flex-1 resize-y text-base md:text-sm"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-          />
-          <button
-            className="icon-action shrink-0 bg-primary text-primary-foreground"
-            type="submit"
-            disabled={!message.trim() || connection !== 'connected'}
-            aria-label="Send message"
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </form>
-      )}
       <p className="sr-only">
         {liveId
           ? 'Closing this view does not stop the task. Use Cancel session to stop execution.'

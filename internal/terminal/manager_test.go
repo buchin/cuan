@@ -202,7 +202,7 @@ func TestS25AgentOutlivesRequestAndPromptIsNotShellCode(t *testing.T) {
 	root := t.TempDir()
 	marker := filepath.Join(root, "must-not-exist")
 	bin := filepath.Join(root, "agy")
-	script := "#!/bin/sh\n[ \"$1\" = --dangerously-skip-permissions ] || exit 21\n[ \"$2\" = --prompt-interactive ] || exit 22\nprintf '%s\\n' \"$3\"\nsleep 0.2\nprintf 'PROCESS_COMPLETED\\n'\n"
+	script := "#!/bin/sh\n[ \"$1\" = --dangerously-skip-permissions ] || exit 21\n[ \"$2\" = --prompt-interactive ] || exit 22\n[ \"$4\" = --add-dir ] && [ \"$5\" = \"$PWD\" ] || exit 23\nprintf '%s\\n' \"$3\"\nsleep 0.2\nprintf 'PROCESS_COMPLETED\\n'\n"
 	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}

@@ -54,8 +54,9 @@ Opening a session navigates to `/tasks/{taskId}/sessions/{attemptId}`. Each sess
 has its own shareable/reloadable page with the terminal and that attempt's recorded
 agent reports. The session selector inside Detail changes the URL; missing sessions show an
 error rather than attaching another run. The terminal fills the session workspace. **Detail** opens a side panel for
-agent reports, timestamps and session history. The mobile session hides the
-global header and bottom navigation; the back arrow returns to task details. Task details returns to the task drawer
+agent reports, timestamps and session history. Sessions hide the duplicate global header; the desktop sidebar defaults to
+icons and can be expanded without changing the normal navigation preference.
+Mobile sessions hide bottom navigation; the back arrow returns to task details. Task details returns to the task drawer
 and preserves the originating list filters. Select earlier sessions to read saved output. **Activity** shows workflow events
 and comments. The terminal starts in read-only mode. **Enable input** explicitly
 enables keyboard input; reconnect returns to read-only. Reconnect attaches the
@@ -64,8 +65,10 @@ cancel execution. **Cancel session** requires confirmation and retains evidence;
 it does not undo files the agent already changed.
 
 Expand **Terminal tools** for Follow, search with Next/Previous, Copy output,
-Download output and reconnect. After **Enable input**, type directly into the
-terminal or send text through **Message the agent…**. Input and keyboard control
+Download output and reconnect. The **⋯** menu contains these secondary tools and closes on Escape or outside
+click. The keyboard button enables/disables input. After enabling input, type
+directly into the terminal’s own prompt. There is no second message composer
+while the agent is live. Input and keyboard control
 attach to the same live interactive CLI, never a replacement shell. Once a
 session has ended, follow-up instructions start a new attempt with the saved
 task context. Older attempts stay read-only.
@@ -180,3 +183,18 @@ on normal termination. The CLI checks private file permissions and uses only the
 loopback API. Existing historical sessions remain readable and are not rewritten.
 No database migration is required for this reporting contract; it uses existing
 task activities on schema23.
+
+## Session guidance and workspace
+
+The initial conversation contains the user request and a short pointer to a
+private per-attempt guidance file. Reporting rules, nonempty criteria, original
+instructions, previous result/revision context and the explicit workspace live
+in that file. Existing repository instructions are preserved. Guidance and
+capability files are removed on normal session termination.
+
+Antigravity receives the workspace through both its process working directory
+and --add-dir; the guidance explicitly prohibits using provider profile/scratch
+directories for deliverables. Conversational requests do not imply creating an
+app, repository or tests. The reporting CLI --help includes the optional JSON
+schema example; agents must report actual tool errors rather than inspect the
+server executable to infer a contract.

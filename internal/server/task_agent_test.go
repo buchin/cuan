@@ -52,11 +52,23 @@ func TestTaskAgentScopedReportAndReviewGate(t *testing.T) {
 	doing := task.TaskStatusDoing
 	s.taskSvc.UpdateTask(ctx, created.ID, "owner", task.UpdateTaskRequest{Status: &doing})
 	s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
-	env, _, token, cleanup, e := s.issueTaskAgent(ctx, created.ID, a.ID, "agent_lifecycle")
+	env, visiblePrompt, token, cleanup, e := s.issueTaskAgent(ctx, created.ID, a.ID, "agent_lifecycle")
 	if e != nil {
 		t.Fatal(e)
 	}
 	defer cleanup()
+	guidePath := filepath.Join(filepath.Dir(strings.TrimPrefix(env[0], "CUAN_TASK_CAPABILITY_FILE=")), "session.md")
+	guideInfo, err := os.Stat(guidePath)
+	if err != nil || guideInfo.Mode().Perm() != 0600 {
+		t.Fatal("session guidance must be private", err)
+	}
+	guide, err := os.ReadFile(guidePath)
+	if err != nil || !strings.Contains(string(guide), "A greeting or question is not a request to build") || !strings.Contains(string(guide), "Do not inspect, reverse-engineer") {
+		t.Fatal("missing proportional task guidance", err)
+	}
+	if len(visiblePrompt) > 220 || strings.Contains(visiblePrompt, "Task reporting tool") || strings.Contains(string(guide), token) {
+		t.Fatal("internal reporting instructions or credential leaked into prompt")
+	}
 	var cap taskcli.Capability
 	raw, _ := os.ReadFile(strings.TrimPrefix(env[0], "CUAN_TASK_CAPABILITY_FILE="))
 	json.Unmarshal(raw, &cap)
@@ -106,6 +118,9 @@ func TestTaskAgentScopedReportAndReviewGate(t *testing.T) {
 		t.Fatal("late report accepted", w.Code)
 	}
 	cleanup()
+	if _, err := os.Stat(guidePath); !os.IsNotExist(err) {
+		t.Fatal("session guidance was not cleaned")
+	}
 	if w = invoke("GET", created.ID, "", token); w.Code != 401 {
 		t.Fatal("revoked access", w.Code)
 	}
@@ -166,6 +181,12 @@ func TestTaskAgentInteractiveTurnAndReportedFinish(t *testing.T) {
 			script := `#!/bin/sh
 [ "$1" = "--dangerously-skip-permissions" ] || exit 21
 [ "$2" = "--prompt-interactive" ] || exit 22
+[ "$4" = "--add-dir" ] && [ "$5" = "$PWD" ] || exit 26
+guide="${3##*Read the session guidance at }"
+guide="${guide% before proceeding.}"
+[ -r "$guide" ] || exit 27
+grep -F "$PWD" "$guide" >/dev/null || exit 28
+"$CUAN_TASK_EXECUTABLE" task --help | grep -F 'dod_checklist' >/dev/null || exit 29
 printf 'READY_FOR_FOLLOWUP\n'
 read -r followup
 [ "$followup" = "second turn" ] || exit 23
