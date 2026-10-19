@@ -92,7 +92,7 @@ export function TaskSessionPage({
   return (
     <section
       aria-label="Task session"
-      className="flex h-full min-h-0 flex-col gap-3"
+      className="flex h-full min-h-[680px] flex-col gap-3"
     >
       <header className="shrink-0 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">

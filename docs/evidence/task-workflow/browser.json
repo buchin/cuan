@@ -64,6 +64,12 @@
       "noOverflow": true,
       "terminalMinHeight": 240,
       "reportVisible": true
+    },
+    {
+      "width": 360,
+      "height": 640,
+      "terminalScreenMinHeight": 180,
+      "verticalScroll": true
     }
   ],
   "launchCalls": 3,
