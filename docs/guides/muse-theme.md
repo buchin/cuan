@@ -41,3 +41,17 @@ node docs/evidence/muse-theme/browser-check.cjs
 ```
 
 Bukti fixture tersimpan di `docs/evidence/muse-theme/browser.json`.
+
+## Production
+
+Tema aktif pada release `9708a0d` sejak 2026-10-19 di https://cuan.dojo.cc.
+Native atomic release sehat, schema tetap 21. Sebelum aktivasi, backup privat
+tervalidasi dan tidak ada request/attempt aktif. Checkout project untuk analisis
+agent disinkronkan fast-forward ke source release tanpa transfer credential.
+
+Chromium production memverifikasi seluruh token warna light/dark, radius,
+Geist/Geist Mono lokal, semua file font dan JS/CSS identik dengan build, serta
+persistensi pilihan dark setelah reload. Halaman Inbox, Tasks, Projects dan
+Settings tampil tanpa overflow desktop; Inbox lulus viewport 360/390/1280.
+Tidak ada error JavaScript, pesan baru atau panggilan provider dari smoke test.
+Bukti dan screenshot: `docs/evidence/muse-theme/production-browser.json`.

@@ -1,0 +1,37 @@
+{
+  "verified_at": "2026-10-19T07:04:50.553573+00:00",
+  "production": "https://cuan.dojo.cc",
+  "release": "9708a0d69f6ec800923356d1607b08db9fa13f32",
+  "previous_release": "dedf65dc384055c0aa846146ed9b73a4b543b7b5",
+  "theme": {
+    "name": "Muse",
+    "source": "https://tweakcn.com/themes/cmu77w83m000104kxbep145by?p=dashboard",
+    "registry": "https://tweakcn.com/r/themes/cmu77w83m000104kxbep145by",
+    "official_oklch_tokens_preserved": true,
+    "radius": "1.25rem",
+    "local_fonts": [
+      "Geist Variable",
+      "Geist Mono Variable"
+    ]
+  },
+  "schema": 21,
+  "new_migration": false,
+  "auto_migrate": false,
+  "pre_release": {
+    "active_inbox_and_attempts": 0,
+    "private_database_backup_validated": true,
+    "profile_files_backed_up": 378
+  },
+  "activation": "native release: checksum manifest, lock, atomic activation, readiness/schema and exact HTML verified",
+  "workspace_checkout": "9708a0d69f6ec800923356d1607b08db9fa13f32",
+  "workspace_fast_forward_only": true,
+  "credential_transfer": false,
+  "production_browser": "production-browser.json",
+  "fixture_browser": "browser.json",
+  "provider_requests": 0,
+  "limitations": [
+    "Theme styling applied to existing Cuan routes; no new dashboard functionality",
+    "Source serif token retained as fallback; serif font unused/not downloaded",
+    "Existing CSS/chunk build warnings and tooling audit advisories remain"
+  ]
+}
