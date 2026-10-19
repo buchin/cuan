@@ -90,7 +90,7 @@ func TestInboxProjectScopeSnapshotAndWorkspace(t *testing.T) {
 
 func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
 	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
-	script := "#!/bin/sh\nprintf '%s\\n%s\\n%s' \"$HOME\" \"$PWD\" \"$*\"\n"
+	script := "#!/bin/sh\npython3 - \"$*\" <<'PY'\nimport os,sys,json\nprint(json.dumps({'status':'SUCCESS','response':os.environ['HOME']+'\\n'+os.getcwd()+'\\n'+sys.argv[1]}))\nPY\n"
 	os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s, _ := setupTestChatServer(t)

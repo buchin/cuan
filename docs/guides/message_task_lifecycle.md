@@ -197,3 +197,38 @@ production baru atau panggilan provider untuk pengujian format ini.
 Kasus tabel lebar, code copy, penolakan clipboard, raw HTML/URL berbahaya, dan
 snapshot belum lengkap diverifikasi terpisah memakai fixture InboxView terisolasi.
 Bukti: `docs/evidence/chat-markdown/production-browser.json` dan `release.json`.
+
+## Detail respons dan kontrak CLI terstruktur
+
+Buka **Detail respons** di bawah pesan untuk melihat ID permintaan dan pesan,
+agen, status tersimpan, waktu diterima/mulai, dan timeline bertimestamp. Permintaan
+baru juga mencatat exit code CLI, durasi proses dan hasil validasi respons. Tombol
+**Salin detail respons** menyalin metadata aman ini untuk pelacakan; prompt,
+reasoning privat, stderr mentah dan kredensial tidak disertakan. Jika clipboard
+ditolak, ID tetap bisa dipilih manual. Log operator menghubungkan kegagalan ke
+room/request/agent; kategori penolakan, panjang output dan exit/durasi dicatat
+tanpa isi output. Metadata yang belum pernah direkam pada pesan lama ditandai
+belum tersedia, bukan dibuat ulang. Refresh atau membuka detail tidak mengeksekusi
+ulang pesan dan tidak menjalankan probe provider.
+
+Antigravity kini dijalankan dengan `--output-format json`. Exit0 tidak cukup:
+hanya status `SUCCESS` dengan `response` berupa teks tidak kosong menjadi
+balasan. JSON gagal, status error/timeout dan balasan kosong diperlakukan sebagai
+kegagalan, dengan kategori quota/login/timeout yang aman jika tersedia. Kegagalan
+berstatus exit0 juga dibaca; hasil parsial/envelope/error mentah tidak dikirim ke
+bubble. Claude/Codex tetap memakai kontrak keluaran masing-masing. Tidak ada
+retry/pengalihan akun otomatis atau perubahan login.
+
+Insiden 2026-10-19: request `54d6f90e-5e40-4138-ba51-0d56042fdc4e` milik
+@pin2 gagal dengan output teks kosong. Record pesan/permintaan lama dipertahankan.
+Penyebab upstream spesifik tidak dapat direkonstruksi karena output/status/error
+terstruktur tidak direkam oleh jalur lama. Dua diagnostik terarah pada profil
+terikat berhasil: pemeriksaan kontrak JSON CLI, lalu pemeriksaan fungsi
+`executeInboxCLI` Cuan yang diperbarui. Keduanya menggunakan pesan diagnostik baru,
+bukan replay “Ping”, tanpa membuat pesan/permintaan/task pada database aplikasi.
+
+Verifikasi: `go test ./internal/server -run 'TestInbox|TestDecodeInboxAgyResult' -count=1`
+dan `node docs/evidence/inbox-response-trace/browser-check.cjs` setelah build.
+Live test `TestLiveInboxAgyDiagnostic` memerlukan opt-in profil khusus dan dapat
+menggunakan kuota provider; tidak dijalankan dalam test biasa. Bukti diagnostik
+aman dan incident receipt ada di `docs/evidence/inbox-response-trace/`.

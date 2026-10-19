@@ -189,6 +189,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						step("context", "Konteks project diperiksa untuk analisis.")
 						output, failure := s.executeInboxCLI(ctx, registered.Name, registered.Harness, prompt, home, workspace, step)
 						if output == "" {
+							log.Printf("inbox provider failed room=%s request=%s agent=%s", q.RoomID, q.RequestID, registered.ID)
 							q.SafeError = failure
 						} else {
 							now := time.Now().UTC()
@@ -207,6 +208,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		q.SafeError = "Proses terputus atau melewati batas waktu. Hasil provider belum dapat dipastikan; permintaan tidak dijalankan ulang."
 		reply = nil
 	}
+	step("persistence", "Menyimpan status akhir percakapan.")
 	save, c := context.WithTimeout(context.Background(), 5*time.Second)
 	defer c()
 	if err := store.FinishInboxRequest(save, q, reply); err != nil {

@@ -12,6 +12,7 @@ export function InboxActivity({
   const [now, setNow] = useState(Date.now())
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
+  const [copyStatus, setCopyStatus] = useState('')
   const active =
     q.state === 'queued' || q.state === 'running' || q.state === 'cancelling'
   useEffect(() => {
@@ -88,16 +89,94 @@ export function InboxActivity({
       )}
       <details className="mt-1 text-muted-foreground">
         <summary className="min-h-11 cursor-pointer py-3">
-          Detail aktivitas
+          Detail respons
         </summary>
         <ol className="mt-2 space-y-1">
           {q.steps?.map((step) => (
             <li key={step.seq}>
-              {step.seq}. {step.text}
+              <span>
+                {step.seq}. {step.text}
+              </span>
+              {Number.isFinite(Date.parse(step.at)) && (
+                <time
+                  dateTime={step.at}
+                  className="ml-2 inline-block text-xs tabular-nums"
+                >
+                  {new Date(step.at).toLocaleTimeString()}
+                </time>
+              )}
             </li>
           ))}
         </ol>
-        <p className="mt-2">ID pesan: {q.message_id}</p>
+        <dl className="mt-3 space-y-2 text-xs">
+          <div>
+            <dt className="font-medium">ID permintaan</dt>
+            <dd className="break-all font-mono">{q.request_id}</dd>
+          </div>
+          <div>
+            <dt className="font-medium">ID pesan</dt>
+            <dd className="break-all font-mono">{q.message_id}</dd>
+          </div>
+          <div>
+            <dt className="font-medium">Status tersimpan</dt>
+            <dd>{q.state}</dd>
+          </div>
+          {q.agent_id && (
+            <div>
+              <dt className="font-medium">Agen</dt>
+              <dd className="break-all">{q.agent_id}</dd>
+            </div>
+          )}
+          <div>
+            <dt className="font-medium">Diterima</dt>
+            <dd>{new Date(q.created_at).toLocaleString()}</dd>
+          </div>
+          {q.started_at && (
+            <div>
+              <dt className="font-medium">Mulai diproses</dt>
+              <dd>{new Date(q.started_at).toLocaleString()}</dd>
+            </div>
+          )}
+        </dl>
+        {!active && <p className="mt-2">Status akhir ini sudah tersimpan.</p>}
+        {!q.steps?.some((step) => step.kind === 'provider_result') &&
+          !active && (
+            <p className="mt-2">
+              Metadata proses provider belum tersedia untuk permintaan ini.
+            </p>
+          )}
+        <button
+          type="button"
+          className="my-2 min-h-11 underline"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(
+                JSON.stringify(
+                  {
+                    request_id: q.request_id,
+                    message_id: q.message_id,
+                    agent_id: q.agent_id,
+                    state: q.state,
+                    created_at: q.created_at,
+                    started_at: q.started_at,
+                    steps: q.steps,
+                    safe_error: q.safe_error,
+                  },
+                  null,
+                  2,
+                ),
+              )
+              setCopyStatus('Detail tersalin.')
+            } catch {
+              setCopyStatus(
+                'Belum dapat menyalin. Pilih ID permintaan di atas untuk menyalin manual.',
+              )
+            }
+          }}
+        >
+          Salin detail respons
+        </button>
+        {copyStatus && <p role="status">{copyStatus}</p>}
         <p>
           Pesan tersimpan saat halaman ditutup. Refresh tidak menjalankan ulang
           permintaan ini.

@@ -1,0 +1,38 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "route": "inbox/room0",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "inbox/room0",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "inbox/room0",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "inbox/room0",
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "failed and completed response trace",
+    "event timestamps, process exit and duration",
+    "request/message/agent IDs",
+    "safe diagnostics copy and clipboard failure",
+    "legacy metadata explicitly unavailable",
+    "no replay or provider call"
+  ],
+  "errors": [],
+  "unknown": [],
+  "writes": [],
+  "actualProviderInvocations": 0
+}

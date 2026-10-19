@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -62,7 +64,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox"}
+		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--output-format", "json"}
 	default:
 		return "", "Jenis CLI agen belum didukung untuk percakapan. Gunakan agen agy, Claude, atau Codex yang terdaftar."
 	}
@@ -98,25 +100,78 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	stdout := &boundedInboxOutput{}
 	stderr := &boundedInboxOutput{}
 	if step != nil {
-		stdout.first = func() { step("output", "Menerima balasan provider.") }
+		stdout.first = func() { step("output", "Menerima hasil proses provider.") }
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+	started := time.Now()
 	if err := cmd.Start(); err != nil {
+		if step != nil {
+			step("provider_result", "Proses provider tidak dapat dimulai.")
+		}
 		return "", safeInboxProviderFailure(ctx.Err(), "")
 	}
 	if step != nil {
 		step("provider", "Proses agen berjalan; menunggu respons provider.")
 	}
-	if err := cmd.Wait(); err != nil {
+	runErr := cmd.Wait()
+	if step != nil {
+		step("provider_result", fmt.Sprintf("Proses provider selesai: exit %d, durasi %.1f dtk.", cmd.ProcessState.ExitCode(), time.Since(started).Seconds()))
+	}
+	if runErr != nil {
 		return "", safeInboxProviderFailure(ctx.Err(), stdout.String()+"\n"+stderr.String())
 	}
 	if stdout.overflow {
 		return "", "Balasan melewati batas ukuran. Pesan tersimpan; pecah permintaan menjadi bagian lebih kecil."
 	}
 	output := strings.TrimSpace(stdout.String())
-	if output == "" {
-		return "", "Provider selesai tanpa balasan. Pesan tersimpan; tidak dijalankan ulang otomatis."
+	if binary == "agy" {
+		reply, failure, reason := decodeInboxAgyResult(output, stderr.String())
+		if failure != "" {
+			log.Printf("inbox provider output rejected harness=agy reason=%s stdout_bytes=%d stderr_bytes=%d", reason, len(stdout.String()), len(stderr.String()))
+		}
+		if step != nil {
+			labels := map[string]string{"success": "Balasan provider tervalidasi.", "empty_output": "CLI tidak mengembalikan hasil terstruktur.", "invalid_result": "Format hasil CLI tidak valid.", "provider_timeout": "Provider melewati batas waktu.", "provider_failure": "Provider melaporkan kegagalan.", "empty_response": "Provider tidak menghasilkan teks balasan."}
+			step("result_validation", labels[reason])
+		}
+		return reply, failure
 	}
+	if output == "" {
+		return "", safeInboxProviderFailure(nil, stderr.String())
+	}
+
 	return output, ""
+}
+
+// Only the final response of a successful CLI result is user-visible. Never
+// publish JSON envelopes, stderr, reasoning, authentication material or partial
+// responses from failed turns. Exit zero alone does not establish success.
+func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
+	var result struct {
+		Status   string          `json:"status"`
+		Response string          `json:"response"`
+		Error    json.RawMessage `json:"error"`
+		Message  string          `json:"message"`
+	}
+	if strings.TrimSpace(raw) == "" {
+		return "", safeInboxProviderFailure(nil, stderr), "empty_output"
+	}
+	if json.Unmarshal([]byte(raw), &result) != nil {
+		return "", "Hasil agen belum dapat dibaca. Pesan tersimpan; coba periksa koneksi agen. Pesan tidak dikirim ulang otomatis.", "invalid_result"
+	}
+	if strings.ToUpper(strings.TrimSpace(result.Status)) != "SUCCESS" {
+		diagnostic := result.Status + "\n" + string(result.Error) + "\n" + result.Message + "\n" + stderr
+		if strings.Contains(strings.ToLower(result.Status), "timeout") {
+			return "", safeInboxProviderFailure(context.DeadlineExceeded, ""), "provider_timeout"
+		}
+		return "", safeInboxProviderFailure(nil, diagnostic), "provider_failure"
+	}
+	reply := strings.TrimSpace(result.Response)
+	if reply == "" {
+		if strings.TrimSpace(stderr) != "" {
+			return "", safeInboxProviderFailure(nil, stderr), "empty_response"
+		}
+		return "", "Agen belum menghasilkan balasan. Pesan tersimpan; Anda dapat mencoba lagi dengan pesan baru. Pesan ini tidak dikirim ulang otomatis.", "empty_response"
+	}
+	return reply, "", "success"
 }
