@@ -76,7 +76,7 @@ export function InboxActivity({
                 {seconds} dtk{!active && ' tercatat'}
               </span>
             )}
-            <span className="ml-auto text-xs">Detail respons</span>
+            <span className="ml-auto text-xs">Detail</span>
             <ChevronDown
               className="h-4 w-4 shrink-0 transition-transform group-open/response:rotate-180"
               aria-hidden="true"
