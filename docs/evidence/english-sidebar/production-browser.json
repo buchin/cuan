@@ -1,5 +1,5 @@
 {
-  "release": "ff99938549c00c967e3d7130eb789088b1d2e9a8",
+  "release": "d8a09a549ef253004207c84fcccb590905c97d58",
   "production": "https://cuan.dojo.cc",
   "measurements": [
     {
@@ -791,8 +791,8 @@
     "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
     "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
     "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
-    "index-BJj2A-23.js",
-    "index-BQkP6QyX.css"
+    "index-BQkP6QyX.css",
+    "index-CRMAFs36.js"
   ],
   "errors": [],
   "productMutations": 0,

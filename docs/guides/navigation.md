@@ -133,3 +133,10 @@ Earlier UI evidence is retained in `ui-refresh`, `integrations-navigation`,
 `header-hierarchy`, `context-new`, and `chat-typography` under `docs/evidence/`.
 For production health, backup, and rollback procedures, see
 [Messages and tasks operations](message_task_lifecycle.md).
+
+English/sidebar release `d8a09a5` is deployed to production. Production Chromium
+passed96 route/viewport/theme combinations, account/collapse/navigation checks,
+an English validation error, and exact SPA/widget asset comparison.35 retained
+tables (excluding login sessions) and493 existing profile files match the private
+pre-release backup. Schema22 is unchanged and auto-migration remains disabled.
+The persistent project checkout was updated by fast-forward only.
