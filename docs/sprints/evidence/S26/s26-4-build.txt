@@ -3,7 +3,7 @@
 > tsc && vite build
 
 vite v5.4.21 building for production...
-(node:1958) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1242) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 transforming...
 node_modules/react-router/dist/development/index.mjs (11:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-router/dist/development/index.mjs" was ignored.
@@ -21,10 +21,10 @@ rendering chunks...
 computing gzip size...
 dist/index.html                   0.56 kB │ gzip:   0.37 kB
 dist/assets/index-B4xGb_Ee.css   46.01 kB │ gzip:   9.69 kB
-dist/assets/index-L6xewjDX.js   681.67 kB │ gzip: 185.34 kB
+dist/assets/index-D24cbRK4.js   681.83 kB │ gzip: 185.37 kB
 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-✓ built in 3.43s
+✓ built in 3.32s

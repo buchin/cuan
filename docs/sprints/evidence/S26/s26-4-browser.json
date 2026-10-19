@@ -1,0 +1,21 @@
+{
+  "actualServedAssets": true,
+  "localAssetOverlay": false,
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "actualAcceptedResponseDropped": true,
+  "sameKeyPOSTs": 2,
+  "sameRequestKey": true,
+  "requestID": "ae83756d-cb0c-497b-84be-7999222979bd",
+  "oneAdditionalUserMessage": true,
+  "noAgentReplyFabricated": true,
+  "actualPersistedQuotaFailure": true,
+  "quotaBubbleSurvivesReload": true,
+  "noOverflow": true,
+  "providerProbes": 0,
+  "consents": 0,
+  "progressScreenshot": "GET status FIXTURE over actual served assets; not provider or live execution proof",
+  "limits": "Chromium mobile viewport only; no physical-device/keyboard or real provider reply claim. PostgreSQL/process restart verified separately."
+}

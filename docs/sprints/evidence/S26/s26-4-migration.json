@@ -1,0 +1,15 @@
+{
+  "isolatedDatabase": "cuan_s25",
+  "privateBackupBytes": 110912,
+  "privateBackupMode": "0o600",
+  "backupSHA256": "557cbf45f2da1d644c7b331b2e8a60695b7401f473dc1cceaff7c6bd7db2cf79",
+  "backupBeforeMigration": true,
+  "explicitUpMigration": "000020",
+  "explicitMigratorExit": 0,
+  "autoMigrate": false,
+  "readinessAppliedMigrations": 20,
+  "originalMigrationsUnchanged": 19,
+  "productionSchemaAction": false,
+  "destructiveOperation": false,
+  "ordinaryRollback": "Leave additive table and data; rollback application only."
+}

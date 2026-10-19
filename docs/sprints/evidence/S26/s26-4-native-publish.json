@@ -1,0 +1,10 @@
+{
+  "boot_script": "cd \"$HOME\"\nbash scripts/boot-s25-staging.sh\n",
+  "files_copied": 2,
+  "hostname": "cuan-s25-dojo.fural.space",
+  "name": "cuan-s25",
+  "port": 8081,
+  "sandbox_id": "CSd9bffddac00994453568f6cc",
+  "slug": "cuan-s25",
+  "url": "https://cuan-s25-dojo.fural.space/"
+}
