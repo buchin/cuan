@@ -91,6 +91,16 @@ func TestTaskWorkspacePostgres(t *testing.T) {
 	if _, e = svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Status: &doing}); e != nil {
 		t.Fatal(e)
 	}
+	if e = svc.RequireAgentReport(ctx, created.ID, attempt.ID, "fixture"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = svc.UpdateAttemptStatus(ctx, attempt.ID, "runner", UpdateAttemptRequest{Status: AttemptStatusRunning}); e != nil {
+		t.Fatal(e)
+	}
+	summaryReport, noteReport := "SQL summary", "SQL verification"
+	if _, e = svc.ReportAgent(ctx, created.ID, attempt.ID, "fixture", AgentReport{Summary: &summaryReport, CompleteNote: &noteReport, State: "review"}); e != nil {
+		t.Fatal(e)
+	}
 	zero := 0
 	if _, e = svc.UpdateAttemptStatus(ctx, attempt.ID, "runner", UpdateAttemptRequest{Status: AttemptStatusSucceeded, ExitCode: &zero}); e != nil {
 		t.Fatal(e)

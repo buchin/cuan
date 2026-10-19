@@ -2,7 +2,7 @@
 
 Open **Tasks** to search, sort, or filter by status, project, priority, and agent.
 Filters are part of the URL and remain when a task is closed. **New task** opens a simple prompt composer. Select a Project when repository
-context is needed. The first line supplies the initial title and the complete
+context is needed. The server derives the initial title and priority from the prompt; the agent can refine them. The first line usually supplies the initial title and the complete
 prompt is saved as the human instructions. Choose **No agent** to save to Backlog,
 or select an agent and confirm **Create & start** to create and launch one session.
 Viewing a task never starts an agent.
@@ -28,8 +28,10 @@ Viewing a task never starts an agent.
 
 ## Review and revisions
 
-Execution and workflow are separate. Successful exit moves the task to **Review**,
-not Done. Failed, interrupted, and canceled attempts retain their output and leave
+Execution and workflow are separate. New agent sessions enter **Review** only
+after a successful exit and a structured report containing summary and verification
+evidence. A successful exit without a complete report leaves the task **Blocked**.
+Neither an agent report nor an exit code approves Done. Failed, interrupted, and canceled attempts retain their output and leave
 work blocked for an explicit retry. Editing a status does not launch an agent.
 
 Inspect the result, check every acceptance criterion, and enter verification
@@ -37,12 +39,17 @@ evidence before **Approve result**. **Request changes** requires concrete feedba
 and starts a new session while retaining previous attempts and the human task.
 Criteria are reset for each new run and must be verified again. **Reopen task**
 returns approved work to Todo. Summary and completion notes are written by the
-user or an API client; an exit code alone does not fabricate a result summary.
+bound agent through its task tool, or by the user; an exit code alone does not fabricate a result summary.
 
 ## Sessions and terminal
 
 **Sessions** lists durable attempts, status, timestamps, exit code, and errors.
-Select earlier sessions to read saved output. **Activity** shows workflow events
+Opening a session navigates to `/tasks/{taskId}/sessions/{attemptId}`. Each session
+has its own shareable/reloadable page with the terminal and that attempt's recorded
+agent reports. The session selector changes the URL; missing sessions show an
+error rather than attaching another run. Phones switch between Terminal and
+Agent report; desktop shows both panels. Task details returns to the task drawer
+and preserves the originating list filters. Select earlier sessions to read saved output. **Activity** shows workflow events
 and comments. The terminal starts in read-only mode. **Enable input** explicitly
 enables keyboard input; reconnect returns to read-only. Reconnect attaches the
 same live process. Closing a drawer, switching tabs, or disconnecting does not
@@ -111,3 +118,41 @@ expose **Check launch request** instead of inviting a duplicate creation/run.
 Choosing an agent explicitly changes the action to **Create & start**. An existing
 CLI agent must be connected/configured before execution; creating a task is still
 possible with **No agent** when agent listing is unavailable.
+
+## Bound agent reporting
+
+Create & start saves and opens the task immediately. Launch runs in the background;
+the UI navigates to its session once the durable attempt is returned. Navigating
+away does not cancel work or pull the user back. Failed/uncertain launches leave
+the task available, with explicit same-request recovery. The browser does not
+choose title/priority defaults; prompt-only API creation derives them on the server
+without a remote inference call.
+
+The server executable includes its agent tool, so no extra SDK or CLI install is
+required. Inside a bound session:
+
+```sh
+"$CUAN_TASK_EXECUTABLE" task --help
+"$CUAN_TASK_EXECUTABLE" task get
+"$CUAN_TASK_EXECUTABLE" task report --summary "Plan and current progress" --progress "Inspecting the project"
+"$CUAN_TASK_EXECUTABLE" task report --state review --summary "Actual changes" --complete-note "Actual verification, outcomes and limitations"
+```
+
+Use `--state blocked` with a summary and concrete blocker instead of claiming a
+review-ready result. `--report-file path.json` accepts a structured report with
+optional title, priority, summary, complete_note, progress, state, dod_checklist,
+commit_sha and test_summary. The agent defines/refines criteria and records actual
+verification; the human still approves Done. Final result snapshots remain in the
+attempt's activity history even when a later session replaces the task's current
+summary. Previous notes are included in the next session's context, then cleared
+for the new attempt so earlier evidence cannot qualify new work.
+
+The private capability file supplies a short-lived credential for just the current
+task and active attempt. It is never an owner token and is not placed in URLs,
+prompts or command arguments. It cannot change human instructions, assignment,
+project, process state or Done. Access is revoked on process exit, expires after
+eleven minutes, and is invalid after server restart; temporary files are removed
+on normal termination. The CLI checks private file permissions and uses only the
+loopback API. Existing historical sessions remain readable and are not rewritten.
+No database migration is required for this reporting contract; it uses existing
+task activities on schema23.

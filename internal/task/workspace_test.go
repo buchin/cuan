@@ -118,3 +118,22 @@ func TestTaskWorkspaceLateExitPreservesApprovalAndStaleEdits(t *testing.T) {
 		t.Fatal("stale edit accepted", e)
 	}
 }
+
+func TestTaskPromptMetadataAndIdempotency(t *testing.T) {
+	svc := NewService(NewMemoryStore(), nil)
+	ctx := context.Background()
+	req := CreateTaskRequest{Instructions: "Production down: restore checkout\nKeep all human instructions.", RequestID: "50000000-0000-4000-8000-000000000001"}
+	created, e := svc.CreateTask(ctx, "owner", req)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if created.Title != "Production down: restore checkout" || created.Priority != PriorityUrgent || created.Instructions != req.Instructions {
+		t.Fatal("prompt inference", created)
+	}
+	refined := "Restore checkout safely"
+	svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Title: &refined})
+	replay, e := svc.CreateTask(ctx, "owner", req)
+	if e != nil || replay.ID != created.ID || replay.Title != refined {
+		t.Fatal("metadata refinement broke create replay", replay, e)
+	}
+}

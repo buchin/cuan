@@ -156,6 +156,7 @@ func TestInboxLifecycleContextFIFOStreamAndTask(t *testing.T) {
 	if created.Status != "backlog" || !strings.Contains(created.Instructions, "FIRST context detail") {
 		t.Fatal("wrong task source", created)
 	}
+	prepareTaskReporter(t, s)
 	runPath := "/api/v1/tasks/" + created.ID + "/run-agent"
 	w := call("POST", runPath, `{"agent_id":"agent_lifecycle"}`)
 	if w.Code != 200 {

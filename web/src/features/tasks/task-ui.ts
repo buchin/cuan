@@ -32,7 +32,7 @@ export function executionLabel(task: Task) {
         {
           queued: 'Queued',
           running: 'Running',
-          succeeded: 'Finished · review required',
+          succeeded: 'Finished',
           completed: 'Finished · review required',
           failed: 'Failed',
           canceled: 'Cancelled',
@@ -59,7 +59,7 @@ export function attemptLabel(attempt: TaskAttempt) {
   return (
     (
       {
-        succeeded: 'Finished · review required',
+        succeeded: 'Finished',
         canceled: 'Cancelled',
         running: 'Running',
         queued: 'Queued',

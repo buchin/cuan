@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   X,
   Maximize2,
@@ -40,6 +40,7 @@ import {
 } from './task-ui'
 import './task-workspace.css'
 interface Props {
+  launching?: boolean
   initialError?: string
   task: Task | null
   projects: import('../../api/types').Project[]
@@ -98,6 +99,7 @@ export function TaskSidePeek(props: Props) {
 function TaskDetailView({
   task: initial,
   initialError,
+  launching = false,
   projects,
   onClose,
   onUpdate,
@@ -139,11 +141,24 @@ function TaskDetailView({
     [comment, setComment] = useState(''),
     [pending, setPending] = useState<RunTaskRequest | null>(() =>
       readPending(initial.id),
-    ),
-    [preferredSession, setPreferredSession] = useState('')
+    )
   useEffect(() => {
     if (initialError) setError(initialError)
   }, [initialError])
+  const navigate = useNavigate(),
+    location = useLocation()
+  const openSession = (id: string) => {
+    if (!id) return
+    const next = new URLSearchParams(location.search)
+    next.delete('view')
+    navigate(
+      `/tasks/${encodeURIComponent(initial.id)}/sessions/${encodeURIComponent(id)}${next.toString() ? '?' + next.toString() : ''}`,
+      { state: location.state },
+    )
+  }
+  useEffect(() => {
+    if (!launching) setPending(readPending(initial.id))
+  }, [launching, initial.id])
   const busyRef = useRef(false),
     mounted = useRef(true)
   const running = activeAttempt(detail.latest_attempt),
@@ -307,10 +322,13 @@ function TaskDetailView({
       const result = await tasksApi.runAgent(initial.id, payload)
       localStorage.removeItem(pendingKey(initial.id))
       setPending(null)
-      if (result.attempt) setPreferredSession(result.attempt.id)
+      void onRunAgent(initial.id)
+      if (result.attempt) {
+        openSession(result.attempt.id)
+        return
+      }
       setTab('sessions')
       await reload()
-      await onRunAgent(initial.id)
       setNotice(
         result.replayed
           ? 'Showing the recorded result of the same launch request.'
@@ -341,8 +359,7 @@ function TaskDetailView({
         : 'Start'
   const taskAction = () => {
     if (running) {
-      setPreferredSession(detail.latest_attempt?.id || '')
-      setTab('sessions')
+      openSession(detail.latest_attempt?.id || '')
     } else openRun()
   }
   const authorName = (id: string) => agents.find((a) => a.id === id)?.name || id
@@ -421,7 +438,7 @@ function TaskDetailView({
                     onClick={async () => {
                       setMenu(false)
                       try {
-                        await navigator.clipboard.writeText(location.href)
+                        await navigator.clipboard.writeText(window.location.href)
                         setNotice('Task link copied.')
                       } catch {
                         setError(
@@ -522,7 +539,12 @@ function TaskDetailView({
           {notice}
         </p>
       )}
-      {pending && (
+      {launching && (
+        <p role="status" className="shrink-0 border-b px-4 py-3 text-sm">
+          Starting session…
+        </p>
+      )}
+      {pending && !launching && (
         <div className="shrink-0 border-b bg-muted/40 px-4 py-3 text-sm">
           <p>
             A launch request is not confirmed. Check this same request before
@@ -538,10 +560,7 @@ function TaskDetailView({
         </div>
       )}
       <main
-        className={cn(
-          'min-h-0 min-w-0 flex-1 p-4 sm:p-6',
-          tab === 'sessions' ? 'overflow-hidden' : 'overflow-y-auto',
-        )}
+        className={cn('min-h-0 min-w-0 flex-1 p-4 sm:p-6', 'overflow-y-auto')}
       >
         {!loaded && (
           <p role="status" className="mb-3 text-sm text-muted-foreground">
@@ -854,12 +873,10 @@ function TaskDetailView({
             )}
             <div className="min-h-0 flex-1">
               <TaskSessions
-                taskId={initial.id}
                 attempts={detail.attempts}
                 agents={agents}
                 live={live}
-                preferred={preferredSession}
-                onRefresh={() => void reload()}
+                onOpen={openSession}
                 onCancel={() => {
                   setError('')
                   setModal('cancel')
@@ -906,8 +923,7 @@ function TaskDetailView({
                         <button
                           className="mt-2 min-h-9 text-xs text-primary underline"
                           onClick={() => {
-                            setPreferredSession(item.attempt_id || '')
-                            setTab('sessions')
+                            openSession(item.attempt_id || '')
                           }}
                         >
                           Open session
@@ -1010,7 +1026,7 @@ function TaskDetailView({
                   )}
                   <button
                     className="action-primary"
-                    disabled={busy || !loaded || !!pending}
+                    disabled={busy || !loaded || !!pending || launching}
                     onClick={taskAction}
                   >
                     {busy ? (

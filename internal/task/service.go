@@ -129,13 +129,17 @@ func (s *Service) CreateTaskFromMessage(ctx context.Context, author, source stri
 }
 func (s *Service) createTaskWithID(ctx context.Context, author string, req CreateTaskRequest, id string) (*Task, error) {
 	title := strings.TrimSpace(req.Title)
+	inferredTitle, inferredPriority := inferPrompt(req.Instructions)
+	if title == "" {
+		title = inferredTitle
+	}
 	if title == "" || len([]rune(title)) > 200 {
 		return nil, fmt.Errorf("%w: task title must contain 1–200 characters", ErrInvalidTaskInput)
 	}
 
 	priority := strings.ToLower(strings.TrimSpace(req.Priority))
 	if priority == "" {
-		priority = PriorityNormal
+		priority = inferredPriority
 	}
 	switch priority {
 	case PriorityLow, PriorityNormal, PriorityHigh, PriorityUrgent:

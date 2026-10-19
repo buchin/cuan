@@ -43,6 +43,7 @@ func waitWorkspaceTask(t *testing.T, s *Server, id, state string) *task.TaskDeta
 }
 func TestTaskWorkspaceLaunchReviewRevisionAndReplay(t *testing.T) {
 	s, _, call, _ := inboxFixture(t)
+	prepareTaskReporter(t, s)
 	created := workspaceTask(t, call)
 	path := "/api/v1/tasks/" + created.ID
 	// Creating from the same form is atomic, even if the previous response was lost.
@@ -116,9 +117,10 @@ func TestTaskWorkspaceLaunchReviewRevisionAndReplay(t *testing.T) {
 }
 func TestTaskWorkspaceTerminalAttachInputReconnectAndSavedOutput(t *testing.T) {
 	s, token, call, _ := inboxFixture(t)
+	prepareTaskReporter(t, s)
 	// A real local PTY fixture, never a provider invocation.
 	bin := strings.Split(os.Getenv("PATH"), ":")[0]
-	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf 'READY\\n'\nread -r answer\nprintf 'ACK:%s\\n' \"$answer\"\n"), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf 'READY\\n'\nread -r answer\nprintf 'ACK:%s\\n' \"$answer\"\n"+fixtureReviewReport), 0700); err != nil {
 		t.Fatal(err)
 	}
 	created := workspaceTask(t, call)

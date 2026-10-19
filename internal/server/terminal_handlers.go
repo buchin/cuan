@@ -350,11 +350,12 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			doing := task.TaskStatusDoing
+			emptyReport := ""
 			resetCriteria := append([]task.DoDItem{}, detail.DoDChecklist...)
 			for i := range resetCriteria {
 				resetCriteria[i].Completed = false
 			}
-			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID, DoDChecklist: &resetCriteria}); err != nil {
+			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: &emptyReport, CompleteNote: &emptyReport}); err != nil {
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
 				respondJSONError(w, 503, "Task status could not be saved")
 				return
@@ -374,9 +375,30 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var reportEnv []string
+	reportToken := ""
+	reportCleanup := func() {}
+	if attempt != nil {
+		var extra string
+		reportEnv, extra, reportToken, reportCleanup, err = s.issueTaskAgent(r.Context(), taskID, attempt.ID, agentID)
+		if err != nil {
+			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Task reporting tools could not be prepared. Execution did not start."})
+			_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)
+			respondJSONError(w, 503, "Task reporting tools unavailable. The process has not started.")
+			return
+		}
+		taskPrompt += extra
+	}
+	launched := false
+	defer func() {
+		if !launched {
+			reportCleanup()
+		}
+	}()
 	var output *taskOutputRecorder
 	if attempt != nil {
 		output = newTaskOutputRecorder(s.taskSvc, attempt.ID)
+		output.secrets = append(output.secrets, reportToken)
 	}
 	// 3. Spawn PTY process via Manager
 	runCfg := terminal.TaskAgentRunConfig{
@@ -395,6 +417,7 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		},
 		OnExit: func(h *terminal.TaskRunHistory) {
+			defer reportCleanup()
 			defer func() {
 				if sourceRoom != "" {
 					s.publishInbox(sourceRoom)
@@ -413,7 +436,14 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 				if h.ExitCode == 0 {
 					state = task.AttemptStatusSucceeded
 				}
-				if _, e := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: output.failureNote()}); e == nil {
+				note := output.failureNote()
+				if h.ExitCode == 0 {
+					ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
+					if e != nil || !ready {
+						note = "No review-ready result was recorded. Check the agent report and saved output."
+					}
+				}
+				if _, e := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note}); e == nil {
 					_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
 				}
 			}
@@ -426,6 +456,7 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	if profileHome != "" {
 		runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
 	}
+	runCfg.Env = append(runCfg.Env, reportEnv...)
 	sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
 	if err != nil {
 		if attempt != nil {
@@ -443,6 +474,8 @@ func (s *Server) handleRunTaskAgent(w http.ResponseWriter, r *http.Request) {
 	if sourceRoom != "" {
 		s.publishInbox(sourceRoom)
 	}
+	launched = true
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":       "running",
 		"session_id":   sess.ID(),

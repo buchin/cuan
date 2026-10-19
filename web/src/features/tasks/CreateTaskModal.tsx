@@ -31,15 +31,6 @@ function readDraft(key: string, project: string): Draft {
   } catch {}
   return { prompt: '', project, agent: '', requestId: crypto.randomUUID() }
 }
-function titleFromPrompt(prompt: string) {
-  const first =
-    prompt
-      .trim()
-      .split(/\r?\n/)
-      .find((line) => line.trim()) || ''
-  const title = first.replace(/^\s*#{1,6}\s+/, '').trim()
-  return title.length > 110 ? title.slice(0, 107).trimEnd() + '…' : title
-}
 
 export function CreateTaskModal({
   isOpen,
@@ -190,11 +181,10 @@ export function CreateTaskModal({
           try {
             await onSubmit(
               {
-                title: titleFromPrompt(draft.prompt),
+                title: '',
                 description: draft.prompt.trim(),
                 project_ids: draft.project ? [draft.project] : undefined,
                 assignee_id: draft.agent,
-                priority: 'normal',
                 status: 'backlog',
                 request_id: draft.requestId,
               },

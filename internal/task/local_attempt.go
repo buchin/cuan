@@ -38,7 +38,14 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	}
 	board := TaskStatusBlocked
 	if status == AttemptStatusSucceeded {
-		board = TaskStatusReview
+		var ready bool
+		e = tx.QueryRowContext(ctx, `SELECT NOT EXISTS(SELECT 1 FROM task_activities WHERE attempt_id=$2 AND activity_type='agent_contract') OR (btrim(summary)<>'' AND btrim(complete_note)<>'' AND COALESCE((SELECT new_status='review' FROM task_activities WHERE attempt_id=$2 AND activity_type='agent_report' ORDER BY created_at DESC,id DESC LIMIT 1),false)) FROM tasks WHERE id=$1`, taskID, attemptID).Scan(&ready)
+		if e != nil {
+			return e
+		}
+		if ready {
+			board = TaskStatusReview
+		}
 	}
 	if _, e = tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status='doing'`, taskID, board); e != nil {
 		return e
@@ -67,7 +74,22 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 	t.UpdatedAt = time.Now().UTC()
 	t.Status = TaskStatusBlocked
 	if latest.Status == AttemptStatusSucceeded {
-		t.Status = TaskStatusReview
+		required := false
+		var last *TaskActivity
+		for _, a := range s.activities {
+			if a.AttemptID == nil || *a.AttemptID != attemptID {
+				continue
+			}
+			if a.ActivityType == "agent_contract" {
+				required = true
+			}
+			if a.ActivityType == "agent_report" && (last == nil || a.CreatedAt.After(last.CreatedAt)) {
+				last = a
+			}
+		}
+		if !required || (last != nil && last.NewStatus == "review" && t.Summary != "" && t.CompleteNote != "") {
+			t.Status = TaskStatusReview
+		}
 	}
 	return nil
 }

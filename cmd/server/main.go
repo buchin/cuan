@@ -21,9 +21,13 @@ import (
 	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/server"
 	"github.com/buchin/cuan/internal/sponsorship"
+	"github.com/buchin/cuan/internal/taskcli"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "task" {
+		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	showHelp := flag.Bool("help", false, "Show help message")
 	showVersion := flag.Bool("version", false, "Show Cuan server version")
 	showInfo := flag.Bool("info", false, "Show Cuan server metadata and release information")

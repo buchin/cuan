@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoginScreen } from './components/auth/LoginScreen'
@@ -11,6 +11,7 @@ import { NewContactDialog } from './features/contacts/NewContactDialog'
 import { NewMessageDialog } from './features/inbox/NewMessageDialog'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
 import { TaskBoardView } from './features/tasks/TaskBoardView'
+import { TaskSessionPage } from './features/tasks/TaskSessionPage'
 import { agentsApi, type Agent } from './api/agents'
 import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
@@ -36,6 +37,13 @@ export function App() {
   )
   const rootSegment = pathSegments[0] || ''
   const subParam = pathSegments[1] || ''
+  const sessionRoute =
+    rootSegment === 'tasks' &&
+    pathSegments[2] === 'sessions' &&
+    !!pathSegments[3]
+  const currentPath = useRef(location.pathname)
+  currentPath.current = location.pathname
+  const [launchingTask, setLaunchingTask] = useState('')
 
   // Current tab derived from URL route
   const currentTab: AppTab = useMemo(() => {
@@ -200,7 +208,7 @@ export function App() {
   useEffect(() => {
     let current = true
     setTaskRouteError('')
-    if (rootSegment !== 'tasks' || !subParam) {
+    if (rootSegment !== 'tasks' || !subParam || sessionRoute) {
       setIsSidePeekOpen(false)
       if (rootSegment === 'tasks') setSelectedTask(null)
       return
@@ -229,7 +237,7 @@ export function App() {
     return () => {
       current = false
     }
-  }, [rootSegment, subParam, tasks, isAuthenticated])
+  }, [rootSegment, subParam, tasks, isAuthenticated, sessionRoute])
 
   // Deep Link Synchronization: /projects/:projectId
   useEffect(() => {
@@ -335,38 +343,58 @@ export function App() {
     startAgentId?: string,
   ) => {
     const created = await tasksApi.create(data)
-    let launchError = ''
-    if (startAgentId) {
-      const payload = {
-        request_id: crypto.randomUUID(),
-        agent_id: startAgentId,
-      }
-      const key = 'cuan-task-launch:' + created.id
-      let stored = false
+    const payload = startAgentId
+      ? { request_id: crypto.randomUUID(), agent_id: startAgentId }
+      : null
+    const key = 'cuan-task-launch:' + created.id
+    let canLaunch = !!payload
+    if (payload)
       try {
         localStorage.setItem(key, JSON.stringify(payload))
-        stored = true
-      } catch {}
-      if (!stored)
-        launchError =
-          'Task created. Browser storage is unavailable, so the agent was not started. Open Start when storage is available.'
-      else
-        try {
-          await tasksApi.runAgent(created.id, payload)
-          localStorage.removeItem(key)
-        } catch (e) {
-          if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
-            localStorage.removeItem(key)
-            launchError =
-              'Task created, but the agent could not start: ' + e.message
-          } else
-            launchError =
-              'Task created. The launch response was not confirmed. Use Check launch request to recover the same session.'
-        }
-    }
-    await refreshTasks()
+      } catch {
+        canLaunch = false
+      }
+    if (canLaunch) setLaunchingTask(created.id)
     handleSelectTask(created)
-    setTaskLaunchError(launchError)
+    void refreshTasks()
+    if (!payload) return
+    if (!canLaunch) {
+      setTaskLaunchError(
+        'Task saved. Browser storage is unavailable; start a session when storage is available.',
+      )
+      return
+    }
+    const suffix = location.search
+    const returnTo = location.pathname.startsWith('/projects/')
+      ? location.pathname + suffix
+      : '/tasks' + suffix
+    void (async () => {
+      try {
+        const result = await tasksApi.runAgent(created.id, payload)
+        localStorage.removeItem(key)
+        if (result.attempt && currentPath.current === `/tasks/${created.id}`)
+          navigate(
+            `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(result.attempt.id)}${suffix}`,
+            { state: { taskReturnTo: returnTo } },
+          )
+      } catch (e) {
+        if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+          localStorage.removeItem(key)
+          if (currentPath.current === `/tasks/${created.id}`)
+            setTaskLaunchError(
+              'Task saved. Could not start the agent: ' + e.message,
+            )
+        } else if (currentPath.current === `/tasks/${created.id}`)
+          setTaskLaunchError(
+            'The launch response was not confirmed. Use Check launch request to recover the same session.',
+          )
+      } finally {
+        setLaunchingTask((previous) =>
+          previous === created.id ? '' : previous,
+        )
+        void refreshTasks()
+      }
+    })()
   }
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
@@ -452,7 +480,7 @@ export function App() {
     <>
       <AppShell
         currentTab={currentTab}
-        pageTitle={headerTitle}
+        pageTitle={sessionRoute ? 'Task session' : headerTitle}
         breadcrumbs={headerBreadcrumbs}
         inboxUnread={contacts.reduce(
           (sum, contact) => sum + Math.max(0, contact.unread_count || 0),
@@ -534,7 +562,14 @@ export function App() {
         {currentTab === 'contacts' && (
           <ContactsView refreshKey={contactRevision} />
         )}
-        {currentTab === 'tasks' && (
+        {sessionRoute && (
+          <TaskSessionPage
+            key={subParam}
+            taskId={subParam}
+            sessionId={pathSegments[3]}
+          />
+        )}
+        {currentTab === 'tasks' && !sessionRoute && (
           <div className="h-full overflow-hidden">
             {taskRouteError && (
               <p role="alert" className="mb-3 text-sm text-destructive">
@@ -714,6 +749,7 @@ export function App() {
       />
 
       <TaskSidePeek
+        launching={launchingTask === selectedTask?.id}
         initialError={taskLaunchError}
         task={selectedTask}
         projects={projects}
