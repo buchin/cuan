@@ -15,8 +15,8 @@
 }
 .dark .wa-chat {
   --wa-bg: #121212;
-  --wa-header: #262626;
-  --wa-incoming: #262626;
+  --wa-header: #1a1a1a;
+  --wa-incoming: #2b2b2b;
   --wa-outgoing: #005c4b;
   --wa-text: #ededed;
   --wa-meta: #b5b5b5;
