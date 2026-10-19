@@ -1,0 +1,4 @@
+(node:877) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"postPaths":["/cdn-cgi/rum","/cdn-cgi/rum","/cdn-cgi/rum","/cdn-cgi/rum"]}
+Actual staging read-only mobile Team/Inbox passed.

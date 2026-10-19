@@ -1,0 +1,31 @@
+{
+  "actualStaging": true,
+  "assetOverlay": false,
+  "responseFixtures": false,
+  "results": [
+    {
+      "width": 360,
+      "height": 844,
+      "teamQuota": true,
+      "inboxPersistedQuota": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "teamQuota": true,
+      "inboxPersistedQuota": true,
+      "noOverflow": true
+    }
+  ],
+  "probes": 0,
+  "consents": 0,
+  "posts": 4,
+  "postPaths": [
+    "/cdn-cgi/rum",
+    "/cdn-cgi/rum",
+    "/cdn-cgi/rum",
+    "/cdn-cgi/rum"
+  ],
+  "limits": "Read-only Chromium viewport smoke; no physical device/keyboard or new provider reply."
+}
