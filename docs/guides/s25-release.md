@@ -39,3 +39,7 @@ The owner completed consent in staging. For this release, the same account's CLI
 The retained private systemd EnvironmentFile takes precedence over Environment directives. Activation therefore writes non-secret `/opt/cuan/release.env` and loads it after `.env` to select the active static payload and disable migrations. Health gates compare the actual `/tasks` HTML with the selected release index, so a healthy API serving stale frontend fails activation.
 
 Fural's ship process may not inherit injected AgentSession secrets. If it fails with an unset DOJO_TERMAPI variable before uploading, run the same checked-in `scripts/fural-deploy.sh` directly from the authorized AgentSession environment. Do not copy credentials into the repository or shared runtime. Upload uses SCP with the injected service-host credential; native VPS rsync performs the final synchronization.
+
+## Verified S25 release
+
+Production release: `7f1bdcd679ebaec063c16d0c936ce14e987f162f` on main. See `docs/sprints/evidence/S25/final-release.json`, `final-rollback-drill.txt`, `production-browser.json` and `production-smoke.json`. Final documentation-only commits can follow this deployed application SHA. Actual rollback and reactivation were exercised. Provider quota can intermittently reject a live request with HTTP 429 even when credentials remain valid; wait for provider recovery or use a supported account/model choice rather than repeating Google consent solely on this error.
