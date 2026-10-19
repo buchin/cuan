@@ -29,6 +29,9 @@ def healthy():
                 body = json.load(response)
                 if endpoint == 'readyz' and body.get('migrations_count') != 19:
                     return False
+        with urllib.request.urlopen('http://127.0.0.1:8080/tasks', timeout=3) as response:
+            if response.read() != (BASE / 'current/web/dist/index.html').read_bytes():
+                return False
         return True
     except Exception:
         return False
@@ -111,8 +114,13 @@ def main():
                     (release / name).symlink_to(BASE / name)
         unit_dir = Path('/etc/systemd/system/cuan.service.d')
         unit_dir.mkdir(exist_ok=True)
+        # systemd EnvironmentFile overrides Environment, even in drop-ins.
+        # Load these non-secret release settings after the retained private .env.
+        (BASE / 'release.env').write_text(
+            'PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
+            'CUAN_STATIC_DIR=/opt/cuan/current/web/dist\nCUAN_AUTO_MIGRATE=false\n')
         (unit_dir / 'release.conf').write_text(
-            '[Service]\nWorkingDirectory=/opt/cuan/current\nExecStart=\n'
+            '[Service]\nEnvironmentFile=/opt/cuan/release.env\nWorkingDirectory=/opt/cuan/current\nExecStart=\n'
             'ExecStart=/opt/cuan/current/bin/cuan-server\n'
             'Environment=PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
             'Environment=CUAN_STATIC_DIR=/opt/cuan/current/web/dist\n'
