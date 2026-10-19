@@ -31,5 +31,9 @@
     "/assets/index-BUDXr3Gh.js",
     "/assets/index-traJKXUg.css"
   ],
-  "productionDeployPerformed": false
+  "productionDeployPerformed": false,
+  "servedAssetsMatchExactLocalBuild": {
+    "/assets/index-D24cbRK4.js": "67658b1c41c002f1b66f22569388df613f4452c9bc1f883c2471ebf4eb66b5f1",
+    "/assets/index-B4xGb_Ee.css": "79e5ca763a937737540b0c46371eb855d2377dd884dbe41199bea228a946c9af"
+  }
 }

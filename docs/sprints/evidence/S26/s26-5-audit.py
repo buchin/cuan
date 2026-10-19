@@ -24,3 +24,17 @@ prod_refs=[x for x in prod.decode().split('"') if '/assets/' in x]
 readiness=get('/readyz');assert readiness['migrations_count']==20
 result={'fixture':False,'agents':current,'mappingUnchanged':True,'pin1ActualReplyRetained':True,'pin2ActualNonceRetained':True,'readiness':readiness,'original19MigrationsByteIdentical':True,'productionAssetReferences':prod_refs,'productionDeployPerformed':False}
 (out/'s26-5-continuity.json').write_text(json.dumps(result,indent=2)+'\n');print('Actual staging mapping, expired pin2, factual quota pin1, both stored replies and original 19 migrations verified; production assets observed.')
+
+import re
+html=subprocess.check_output(['curl','--fail','--silent','--show-error','--max-time','15',base+'/tasks']).decode()
+refs=re.findall(r'(?:src|href)="(/assets/[^"]+)"',html)
+assert refs
+checks={}
+for ref in refs:
+ served=subprocess.check_output(['curl','--fail','--silent','--show-error','--max-time','15',base+ref])
+ local=(root/'web/dist'/ref.lstrip('/')).read_bytes()
+ assert served==local
+ checks[ref]=hashlib.sha256(served).hexdigest()
+result['servedAssetsMatchExactLocalBuild']=checks
+(out/'s26-5-continuity.json').write_text(json.dumps(result,indent=2)+'\n')
+print('Exact actual served staging asset bytes match current build.')

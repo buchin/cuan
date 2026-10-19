@@ -2,11 +2,18 @@
 # Native SSH release: versioned payload, checksums, atomic switch, health rollback.
 set -euo pipefail
 if [[ "${1:-}" == "--help" ]]; then
-  echo 'Usage: scripts/fural-deploy.sh (from main, clean tree). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass.'
+  echo 'Usage: scripts/fural-deploy.sh [--branch APPROVED_BRANCH] (clean tree; default main). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass. Schema20 must be explicitly prepared after private backup; activation never migrates.'
   exit 0
 fi
+approved_branch=main
+if [[ "${1:-}" == "--branch" && -n "${2:-}" && "$#" == 2 ]]; then
+  approved_branch="$2"
+elif [[ "$#" != 0 ]]; then
+  echo 'Invalid arguments; use --help.' >&2
+  exit 1
+fi
 cd "$(dirname "$0")/.."
-[[ "$(git branch --show-current)" == main ]] || { echo 'Release must run from main.' >&2; exit 1; }
+[[ "$(git branch --show-current)" == "$approved_branch" ]] || { echo 'Release must run from the explicitly approved branch.' >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
 release_sha="$(git rev-parse HEAD)"
 release_dir="$HOME/.local/share/cuan-releases/$release_sha"
