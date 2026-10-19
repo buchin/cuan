@@ -128,14 +128,14 @@ atau batalkan queued/running/cancelling dan pertahankan schema additive; jangan
 jalankan down migration untuk rollback aplikasi biasa. Gunakan release native
 repo dengan lock, checksum, atomic activation, health/readiness dan rollback.
 Production https://cuan.dojo.cc telah memakai schema 21 dan release
-`9708a0d69f6ec800923356d1607b08db9fa13f32` sejak 2026-10-19.
+`48c2d68b3adc1c6dcc95fd2058b1668706fed946` sejak 2026-10-19.
 Backup privat sebelum migrasi dan uji rollback/aktivasi kembali lulus.
 Rollback aplikasi tetap mempertahankan schema 21; gunakan:
 
 ```sh
 sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 21
 # Aktivasi kembali release terverifikasi:
-sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --release 9708a0d69f6ec800923356d1607b08db9fa13f32 --schema-count 21
+sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --release 48c2d68b3adc1c6dcc95fd2058b1668706fed946 --schema-count 21
 ```
 
 Pastikan antrean/attempt tidak aktif sebelum rollback. Jangan gunakan instruksi

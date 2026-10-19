@@ -68,3 +68,17 @@ legacy redirect, status agent, project-scoped tasks, archive/restore, modal/draw
 Back/reload, preferensi tema/navigasi, dan error/retry. Tidak memanggil provider.
 Bukti ada pada `docs/evidence/ui-refresh/`; audit awal pada
 `docs/evidence/ui-ux-audit/`. Viewport Chromium bukan pengujian perangkat fisik.
+
+## Production
+
+Release `48c2d68` aktif di https://cuan.dojo.cc sejak 2026-10-19. Schema tetap 21,
+auto-migrate nonaktif. Backup privat tervalidasi sebelum native atomic activation.
+Chromium production memverifikasi 35 pasangan route/viewport, status koneksi,
+Settings → Agents dan kembali ke chat, direct URL project settings/reload,
+Back chat, drawer keyboard, modal task, preferensi navigasi/tema, serta semua aset
+publik identik dengan build. Tidak mengubah project, mengirim pesan baru atau
+menjalankan provider saat smoke test. Checkpoint dan screenshot tersimpan di
+`docs/evidence/ui-refresh/production-browser.json` dan `release.json`.
+
+Untuk rollback aplikasi, pertahankan schema21 dan gunakan activator native dari
+panduan lifecycle. Release sebelumnya `9708a0d` tetap dipertahankan.
