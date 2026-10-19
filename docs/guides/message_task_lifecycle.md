@@ -256,3 +256,8 @@ timeline kosong dan metadata lama yang tidak tersedia dinyatakan eksplisit.
 Belum ada trace tool terperinci dari runtime AGY: tampilan hanya menggunakan event
 aplikasi yang direkam, tidak mengarang tool call atau reasoning. Tidak ada tombol
 retry, replay otomatis, pergantian provider atau perubahan izin eksekusi.
+
+Rilis tampilan bertingkat `a882d23` aktif di production. Fixture semua state dan
+production empat lebar layar memverifikasi status44px, detail proses dan teknis
+yang tertutup awal, salin metadata, serta request asli tidak berubah/replay.
+Schema tetap22; bukti `docs/evidence/layered-response-trace/`.
