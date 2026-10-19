@@ -1,0 +1,11 @@
+{
+  "release": "db4382f1a606cadd3bf9c15521bec3b566221e68",
+  "http": 503,
+  "elapsed_ms": 4307,
+  "verified": false,
+  "authenticated": false,
+  "oauth_url_returned": false,
+  "session_created": false,
+  "message": "Kuota provider Antigravity sedang dibatasi. Kredensial tetap tersimpan; tunggu kuota pulih lalu coba verifikasi lagi. Login Google ulang tidak menambah kuota.",
+  "timeout_reported": false
+}
