@@ -128,14 +128,14 @@ atau batalkan queued/running/cancelling dan pertahankan schema additive; jangan
 jalankan down migration untuk rollback aplikasi biasa. Gunakan release native
 repo dengan lock, checksum, atomic activation, health/readiness dan rollback.
 Production https://cuan.dojo.cc telah memakai schema 21 dan release
-`ccc45c88c0b948a1c1263818a6c9a42f1687dc76` sejak 2026-10-19.
+`dedf65dc384055c0aa846146ed9b73a4b543b7b5` sejak 2026-10-19.
 Backup privat sebelum migrasi dan uji rollback/aktivasi kembali lulus.
 Rollback aplikasi tetap mempertahankan schema 21; gunakan:
 
 ```sh
 sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 21
 # Aktivasi kembali release terverifikasi:
-sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --release ccc45c88c0b948a1c1263818a6c9a42f1687dc76 --schema-count 21
+sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --release dedf65dc384055c0aa846146ed9b73a4b543b7b5 --schema-count 21
 ```
 
 Pastikan antrean/attempt tidak aktif sebelum rollback. Jangan gunakan instruksi
@@ -184,3 +184,16 @@ Tidak membuat task dan tidak mengubah kode repo. Ini bukti provider nyata yang
 terpisah dari pengujian fixture sebelumnya. Request test diberi label verifikasi
 dan tetap tersimpan di Inbox; pesan pengguna sebelumnya tidak dikirim ulang.
 Bukti: `docs/evidence/chat-project/provider-read.json` dan `release.json`.
+
+## Verifikasi Markdown production
+
+Release `dedf65d` aktif pada 2026-10-19, schema tetap 21. Backup privat tervalidasi
+sebelum native activation. Chromium membaca riwayat production tanpa mock dan
+membuktikan 3 balasan agent memakai renderer baru, termasuk bold, list bertingkat,
+dan inline code. Aset publik identik dengan build lokal. Login owner/API,
+viewport 360/390/1280, dan pemeriksaan error JavaScript lulus. Tidak ada pesan
+production baru atau panggilan provider untuk pengujian format ini.
+
+Kasus tabel lebar, code copy, penolakan clipboard, raw HTML/URL berbahaya, dan
+snapshot belum lengkap diverifikasi terpisah memakai fixture InboxView terisolasi.
+Bukti: `docs/evidence/chat-markdown/production-browser.json` dan `release.json`.
