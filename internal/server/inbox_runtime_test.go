@@ -36,7 +36,7 @@ func TestInboxRuntimeStreamObservedEventsAndRedaction(t *testing.T) {
 		t.Fatal("runtime result", failure, decodedFailure, s.toolFailures)
 	}
 	joined := strings.Join(trace, "\n")
-	if strings.Contains(joined, "private") || !strings.Contains(joined, "runtime_tool_failed:Tool #2 · Baca file gagal (0.2 dtk).") || !strings.Contains(joined, "runtime_tool_finished:Tool #3 · Tool selesai.") {
+	if strings.Contains(joined, "private") || !strings.Contains(joined, "runtime_tool_failed:Tool #2 · Baca file gagal (0.2 dtk).") || !strings.Contains(joined, "runtime_tool_finished:Tool #3 · Tool aktivitas berakhir.") {
 		t.Fatal("unsafe or inaccurate trace", trace)
 	}
 	if strings.Count(joined, "runtime_tool_failed:") != 1 {
@@ -79,5 +79,23 @@ func TestInboxRuntimeStreamTraceCapKeepsFinalResult(t *testing.T) {
 	out, failure, _ := s.finish()
 	if failure != "" || out == "" || count != 65 || !s.truncated {
 		t.Fatal("trace cap discarded result", count, failure)
+	}
+}
+
+func TestInboxRuntimeDeniedActionsAreSafeAndNotSuccessEvidence(t *testing.T) {
+	var trace []string
+	s := &inboxRuntimeStream{step: func(k, v string) { trace = append(trace, k+":"+v) }}
+	s.Write([]byte(`{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command","display_name":"private-path"}]}}`))
+	raw, failure, _ := s.finish()
+	if failure != "" {
+		t.Fatal(failure)
+	}
+	reply, failure, reason := decodeInboxAgyResult(raw, "private-stderr")
+	if reply != "" || reason != "tool_permission_denied" || !strings.Contains(failure, "izin tool ditolak") {
+		t.Fatal(reply, failure, reason)
+	}
+	joined := strings.Join(trace, "\n")
+	if !strings.Contains(joined, "runtime_permission_denied") || strings.Contains(joined+failure, "private") {
+		t.Fatal("unsafe or missing denial", joined, failure)
 	}
 }

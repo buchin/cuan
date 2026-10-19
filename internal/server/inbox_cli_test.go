@@ -19,6 +19,8 @@ func TestDecodeInboxAgyResult(t *testing.T) {
 		{"exit zero error", `{"status":"ERROR","response":"partial private text","error":{"message":"429 RESOURCE_EXHAUSTED private-token"}}`, "", "", "provider_failure", "Kuota"},
 		{"auth", `{"status":"ERROR","message":"invalid_grant private-token"}`, "", "", "provider_failure", "Login"},
 		{"timeout", `{"status":"TIMEOUT","response":"partial private-token"}`, "", "", "provider_timeout", "Batas waktu"},
+		{"denied empty", `{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command"}]}`, "private-stderr", "", "tool_permission_denied", "izin tool ditolak"},
+		{"denied with explanation", `{"status":"SUCCESS","response":"Tool ditolak, berikut analisis dari README.","denied_actions":[{"action":"private-command"}]}`, "", "Tool ditolak, berikut analisis dari README.", "success", ""},
 		{"empty response", `{"status":"SUCCESS","response":" "}`, "", "", "empty_response", "belum menghasilkan"},
 		{"missing status", `{"response":"private-token"}`, "", "", "provider_failure", "gagal"},
 		{"malformed", "private-token", "", "", "invalid_result", "belum dapat dibaca"},
@@ -83,4 +85,34 @@ func TestLiveInboxAgyDiagnostic(t *testing.T) {
 		t.Fatal("actual tool trace missing")
 	}
 	t.Log("Actual Cuan executeInboxCLI + bound profile + project CWD: structured reply validated, actual read tool start/finish and exit0/duration trace; no user-message replay or database writes")
+}
+
+func TestInboxCLIDeniedToolExplainedWithoutReplay(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	script := `#!/bin/sh
+case "$*" in *--disable-slash-commands*) ;; *) exit 9;; esac
+case "$*" in *--dangerously-skip-permissions*) exit 8;; esac
+case "$2" in *"Jangan gunakan run_command"*) ;; *) exit 7;; esac
+printf x >> "$HOME/invocations"
+printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"run_command"}}' '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command","display_name":"private-path"}]}}'
+echo private-stderr >&2
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	var trace []string
+	out, failure := s.executeInboxCLI(context.Background(), "fixture", "agy", "Analyze README", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) })
+	if out != "" || !strings.Contains(failure, "izin tool ditolak") {
+		t.Fatal(out, failure)
+	}
+	calls, err := os.ReadFile(filepath.Join(home, "invocations"))
+	if err != nil || string(calls) != "x" {
+		t.Fatal("request replayed or not executed", err)
+	}
+	joined := strings.Join(trace, "\n")
+	if !strings.Contains(joined, "runtime_permission_denied") || !strings.Contains(joined, "Izin tool ditolak; runtime berhenti") || strings.Contains(joined+failure, "private") || strings.Contains(joined, "Perintah terminal selesai") {
+		t.Fatal("incorrect or unsafe rejection", joined, failure)
+	}
 }

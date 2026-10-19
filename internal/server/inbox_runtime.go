@@ -116,6 +116,12 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			return
 		}
 		s.result = append([]byte(nil), e.Result...)
+		var final struct {
+			DeniedActions []json.RawMessage `json:"denied_actions"`
+		}
+		if json.Unmarshal(e.Result, &final) == nil && len(final.DeniedActions) > 0 {
+			s.emit("runtime_permission_denied", "Izin tool ditolak oleh runtime. Aktivitas berakhir bukan berarti perintah berhasil dijalankan.")
+		}
 	case "step_update":
 		u := e.Update
 		if u.Index == nil || *u.Index < 0 || *u.Index > 1000000 {
@@ -149,7 +155,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			}
 			kind, label := "runtime_tool_started", "dimulai"
 			if u.State == "DONE" {
-				kind, label = "runtime_tool_finished", "selesai"
+				kind, label = "runtime_tool_finished", "aktivitas berakhir"
 			}
 			if u.State == "ERROR" {
 				kind, label = "runtime_tool_failed", "gagal"

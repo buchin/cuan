@@ -53,7 +53,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	if home == "" {
 		home, _ = os.UserHomeDir()
 	}
-	system := fmt.Sprintf("Anda adalah %s, rekan kerja di Cuan. Jawab sesuai kebutuhan pesan: sapaan singkat, pertanyaan substantif dengan jawaban yang berguna, atau minta klarifikasi bila ambigu. Gunakan bahasa pengguna. Jangan memaksa semua pesan menjadi sapaan. Jangan mengklaim aksi, perubahan file, task, atau deployment yang belum dilakukan. Anda memiliki konteks project dan boleh menggunakan tools baca untuk analisis repo, backlog, dan rekomendasi sprint tanpa membuat task. Gunakan hanya workspace project yang diberikan; jangan membaca credential, profil login atau project lain. Jangan mengubah file, commit, menjalankan tes/build, atau deployment saat analisis chat. Untuk implementasi yang perlu dilacak, tawarkan task. Jika snapshot menyebut repo belum terhubung atau project ambigu, jelaskan kondisi tersebut dan minta project yang benar; jangan mengaku tidak punya tools secara umum. Jangan tampilkan reasoning privat, token, credential atau diagnostik runtime.\n\n%s", name, prompt)
+	system := fmt.Sprintf("Anda adalah %s, rekan kerja di Cuan. Jawab sesuai kebutuhan pesan: sapaan singkat, pertanyaan substantif dengan jawaban yang berguna, atau minta klarifikasi bila ambigu. Gunakan bahasa pengguna. Jangan memaksa semua pesan menjadi sapaan. Jangan mengklaim aksi, perubahan file, task, atau deployment yang belum dilakukan. Anda memiliki konteks project dan boleh menggunakan tools baca untuk analisis repo, backlog, dan rekomendasi sprint tanpa membuat task. Untuk analisis gunakan view_file, list_dir, grep_search, find_by_name, view_file_outline atau view_code_item. Jangan gunakan run_command atau terminal karena chat tidak menyediakan konfirmasi interaktif. Jika akses tool ditolak, jelaskan batasan dan jawab berdasarkan informasi yang sudah tersedia; jangan mengklaim perintah berhasil. Gunakan hanya workspace project yang diberikan; jangan membaca credential, profil login atau project lain. Jangan mengubah file, commit, menjalankan tes/build, atau deployment saat analisis chat. Untuk implementasi yang perlu dilacak, tawarkan task. Jika snapshot menyebut repo belum terhubung atau project ambigu, jelaskan kondisi tersebut dan minta project yang benar; jangan mengaku tidak punya tools secara umum. Jangan tampilkan reasoning privat, token, credential atau diagnostik runtime.\n\n%s", name, prompt)
 	binary := "agy"
 	var args []string
 	switch harness {
@@ -64,7 +64,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--output-format", "stream-json"}
+		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 	default:
 		return "", "Jenis CLI agen belum didukung untuk percakapan. Gunakan agen agy, Claude, atau Codex yang terdaftar."
 	}
@@ -153,7 +153,7 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 			failure = safeInboxProviderFailure(ctx.Err(), "")
 			reason = "runtime_interrupted"
 		}
-		labels := map[string]string{"runtime_missing_result": "Runtime berhenti tanpa hasil akhir.", "runtime_invalid": "Event runtime tidak dapat divalidasi.", "runtime_overflow": "Batas ukuran aktivitas runtime tercapai.", "runtime_process_failure": "Proses runtime gagal.", "runtime_interrupted": "Proses terputus atau melewati batas waktu.", "provider_failure": "Provider melaporkan kegagalan.", "provider_timeout": "Provider melewati batas waktu.", "empty_response": "Provider tidak menghasilkan teks balasan.", "invalid_result": "Hasil akhir runtime tidak valid.", "empty_output": "Runtime tidak mengembalikan hasil akhir."}
+		labels := map[string]string{"runtime_missing_result": "Runtime berhenti tanpa hasil akhir.", "runtime_invalid": "Event runtime tidak dapat divalidasi.", "runtime_overflow": "Batas ukuran aktivitas runtime tercapai.", "runtime_process_failure": "Proses runtime gagal.", "runtime_interrupted": "Proses terputus atau melewati batas waktu.", "provider_failure": "Provider melaporkan kegagalan.", "provider_timeout": "Provider melewati batas waktu.", "tool_permission_denied": "Izin tool ditolak; runtime berhenti tanpa teks balasan.", "empty_response": "Provider tidak menghasilkan teks balasan.", "invalid_result": "Hasil akhir runtime tidak valid.", "empty_output": "Runtime tidak mengembalikan hasil akhir."}
 		if step != nil {
 			step("result_validation", labels[reason])
 		}
@@ -181,10 +181,11 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 // responses from failed turns. Exit zero alone does not establish success.
 func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 	var result struct {
-		Status   string          `json:"status"`
-		Response string          `json:"response"`
-		Error    json.RawMessage `json:"error"`
-		Message  string          `json:"message"`
+		Status        string            `json:"status"`
+		Response      string            `json:"response"`
+		Error         json.RawMessage   `json:"error"`
+		Message       string            `json:"message"`
+		DeniedActions []json.RawMessage `json:"denied_actions"`
 	}
 	if strings.TrimSpace(raw) == "" {
 		return "", safeInboxProviderFailure(nil, stderr), "empty_output"
@@ -201,6 +202,9 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 	}
 	reply := strings.TrimSpace(result.Response)
 	if reply == "" {
+		if len(result.DeniedActions) > 0 {
+			return "", "Agen berhenti karena izin tool ditolak. Chat tidak menyediakan konfirmasi terminal; gunakan pertanyaan yang dapat dianalisis dengan tool baca atau buat task untuk eksekusi. Pesan tersimpan; permintaan tidak dijalankan ulang otomatis.", "tool_permission_denied"
+		}
 		if strings.TrimSpace(stderr) != "" {
 			return "", safeInboxProviderFailure(nil, stderr), "empty_response"
 		}

@@ -1,0 +1,20 @@
+{
+  "originalRequest": "d96d040f-cdc7-4306-8c53-302d7c0299e9",
+  "originalReplayed": false,
+  "observedContract": {
+    "status": "SUCCESS",
+    "responseEmpty": true,
+    "deniedActions": 1,
+    "toolDoneIsNotExecutionSuccess": true
+  },
+  "isolatedProviderProbes": 2,
+  "deniedCommandProbe": "git log -1 --oneline",
+  "readProbe": {
+    "file": "README.md",
+    "replyVerified": true,
+    "deniedActions": 0
+  },
+  "targetedTests": "go test ./internal/server -run TestInbox|TestDecodeInboxAgyResult -count=1",
+  "testsPassed": true,
+  "deniedDetailsRedacted": true
+}

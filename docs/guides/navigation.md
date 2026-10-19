@@ -150,3 +150,17 @@ Perubahan visual ini tidak menambahkan panggilan, lampiran atau reply kutipan.
 Verifikasi build dan delapan kombinasi viewport 360/390/820/1440 px dengan
 tema terang/gelap: `docs/evidence/whatsapp-chat/`. Pengujian menggunakan Chromium;
 belum merupakan sertifikasi perangkat fisik atau Safari.
+
+## Analisis chat dan izin tool
+
+Analisis repo melalui chat diarahkan memakai tool baca file/direktori/pencarian.
+Chat tidak menyediakan persetujuan terminal interaktif. Ekspansi slash command
+AGY dinonaktifkan agar isi pesan tidak mengaktifkan skill/command secara implisit.
+Ini arahan penggunaan, bukan pengganti sandbox/permission enforcement runtime.
+
+Jika AGY mengembalikan `denied_actions`, Detail menampilkan **Izin tool ditolak**.
+Label **aktivitas berakhir** hanya menandai akhir aktivitas tool, bukan bukti
+perintah berhasil. Hasil kosong setelah penolakan tetap berstatus gagal dengan
+penjelasan; tidak dibuat balasan agent palsu dan pesan tidak dijalankan ulang.
+Balasan akhir nonkosong yang menjelaskan batasan tetap dapat ditampilkan.
+Untuk eksekusi yang perlu ditindaklanjuti, buat task.
