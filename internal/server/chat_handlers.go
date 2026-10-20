@@ -51,26 +51,29 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
-	ApprovalTitle   string                   `json:"approval_title,omitempty"`
-	Attachments     []conversationAttachment `json:"attachments,omitempty"`
-	ID              int64                    `json:"id"`
-	UUID            string                   `json:"uuid,omitempty"`
-	ChatSessionUUID string                   `json:"chat_session_uuid,omitempty"`
-	RoomID          string                   `json:"room_id,omitempty"`
-	SenderType      string                   `json:"sender_type"` // "visitor" or "operator"
-	AuthorType      string                   `json:"author_type"` // "user", "agent", "system"
-	AuthorName      string                   `json:"author_name"`
-	Message         string                   `json:"message"`
-	Content         string                   `json:"content"`
-	Product         string                   `json:"product,omitempty"`
-	AttachmentURL   string                   `json:"attachment_url,omitempty"`
-	AttachmentType  string                   `json:"attachment_type,omitempty"`
-	AttachmentName  string                   `json:"attachment_name,omitempty"`
-	AttachmentSize  int64                    `json:"attachment_size,omitempty"`
-	HasAttachment   bool                     `json:"has_attachment,omitempty"`
-	ActionCard      *AgentActionCard         `json:"action_card,omitempty"`
-	TaskDraft       *InboxTaskDraft          `json:"task_draft,omitempty"`
-	CreatedAt       time.Time                `json:"created_at"`
+	ApprovalRequestID string                   `json:"approval_request_id,omitempty"`
+	ApprovalAccepted  bool                     `json:"approval_accepted,omitempty"`
+	ApprovalPlan      *inboxApprovalPlan       `json:"approval_plan,omitempty"`
+	ApprovalTitle     string                   `json:"approval_title,omitempty"`
+	Attachments       []conversationAttachment `json:"attachments,omitempty"`
+	ID                int64                    `json:"id"`
+	UUID              string                   `json:"uuid,omitempty"`
+	ChatSessionUUID   string                   `json:"chat_session_uuid,omitempty"`
+	RoomID            string                   `json:"room_id,omitempty"`
+	SenderType        string                   `json:"sender_type"` // "visitor" or "operator"
+	AuthorType        string                   `json:"author_type"` // "user", "agent", "system"
+	AuthorName        string                   `json:"author_name"`
+	Message           string                   `json:"message"`
+	Content           string                   `json:"content"`
+	Product           string                   `json:"product,omitempty"`
+	AttachmentURL     string                   `json:"attachment_url,omitempty"`
+	AttachmentType    string                   `json:"attachment_type,omitempty"`
+	AttachmentName    string                   `json:"attachment_name,omitempty"`
+	AttachmentSize    int64                    `json:"attachment_size,omitempty"`
+	HasAttachment     bool                     `json:"has_attachment,omitempty"`
+	ActionCard        *AgentActionCard         `json:"action_card,omitempty"`
+	TaskDraft         *InboxTaskDraft          `json:"task_draft,omitempty"`
+	CreatedAt         time.Time                `json:"created_at"`
 }
 
 // LiveChatSession stores visitor session metadata for the Dojo live chat widget.
@@ -914,12 +917,13 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	var payload struct {
-		AttachmentIDs []string `json:"attachment_ids"`
-		AuthorType    string   `json:"author_type"`
-		AuthorName    string   `json:"author_name"`
-		Message       string   `json:"message"`
-		Content       string   `json:"content"`
-		RequestID     string   `json:"request_id"`
+		AttachmentIDs    []string `json:"attachment_ids"`
+		AuthorType       string   `json:"author_type"`
+		AuthorName       string   `json:"author_name"`
+		Message          string   `json:"message"`
+		Content          string   `json:"content"`
+		RequestID        string   `json:"request_id"`
+		ApproveMessageID string   `json:"approve_message_id"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload) != nil {
 		respondJSONError(w, 400, "Invalid request")
@@ -959,6 +963,23 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	if len(payload.AttachmentIDs) > 0 && !resolved.IsAgent {
 		respondJSONError(w, 400, "Attachments are currently supported in agent conversations")
 		return
+	}
+	if payload.ApproveMessageID == "" && resolved.IsAgent && len(payload.AttachmentIDs) == 0 {
+		payload.ApproveMessageID = s.conversationalApprovalID(r.Context(), resolved.RoomID, text)
+	}
+	if payload.ApproveMessageID != "" {
+		if !resolved.IsAgent || len(payload.AttachmentIDs) > 0 {
+			respondJSONError(w, 400, "Approve a plan in an agent conversation without new attachments")
+			return
+		}
+		plan, err := s.persistedInboxPlan(r.Context(), resolved.RoomID, ownerID, resolved.TargetAgentID, payload.ApproveMessageID)
+		if err != nil {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
+		payload.RequestID = delegationMessageID("approve-plan:" + resolved.RoomID + ":" + plan.MessageID)
+		raw, _ := json.Marshal(attachmentMessage{Text: "Approved: " + plan.Plan.Title, Approval: plan})
+		text = attachmentEnvelope + string(raw)
 	}
 	now := time.Now().UTC()
 	q := db.InboxRequest{RoomID: resolved.RoomID, RequestID: payload.RequestID, PayloadHash: fmt.Sprintf("%x", sha256.Sum256([]byte(text))), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: ownerID, AgentID: resolved.TargetAgentID, State: "queued", CreatedAt: now, Deadline: now.Add(24 * time.Hour)}
@@ -1176,6 +1197,14 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		return []ChatMessageDTO{}, nil
 	}
 
+	approved := map[string]bool{}
+	for _, m := range rawMsgs {
+		if m.AuthorType == "user" {
+			if p := decodeApprovedInboxPlan(m.Content); p != nil {
+				approved[p.MessageID] = true
+			}
+		}
+	}
 	dtos := make([]ChatMessageDTO, len(rawMsgs))
 	for i, m := range rawMsgs {
 		senderType := "visitor"
@@ -1186,6 +1215,14 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		var actionCard *AgentActionCard
 		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
 		content, approvalTitle := splitInboxApproval(m.AuthorType, content)
+		var approvalPlan *inboxApprovalPlan
+		approvalRequestID := ""
+		if m.AuthorType == "agent" {
+			approvalPlan = parseInboxApprovalPlan(m.Content)
+			if approvalPlan != nil {
+				approvalRequestID = delegationMessageID("approve-plan:" + roomID + ":" + m.ID)
+			}
+		}
 		var attached []conversationAttachment
 		if m.AuthorType == "user" {
 			var ids []string
@@ -1203,21 +1240,24 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		}
 
 		dtos[i] = ChatMessageDTO{
-			ID:              int64(i + 1), // Monotonic numeric ID for Dojo widget
-			UUID:            m.ID,
-			ChatSessionUUID: roomID,
-			RoomID:          roomID,
-			SenderType:      senderType,
-			AuthorType:      m.AuthorType,
-			AuthorName:      m.AuthorName,
-			Message:         content,
-			Content:         content,
-			Product:         product,
-			ActionCard:      actionCard,
-			TaskDraft:       draft,
-			ApprovalTitle:   approvalTitle,
-			Attachments:     attached,
-			CreatedAt:       m.CreatedAt,
+			ID:                int64(i + 1), // Monotonic numeric ID for Dojo widget
+			UUID:              m.ID,
+			ApprovalRequestID: approvalRequestID,
+			ApprovalAccepted:  approved[m.ID],
+			ChatSessionUUID:   roomID,
+			RoomID:            roomID,
+			SenderType:        senderType,
+			AuthorType:        m.AuthorType,
+			AuthorName:        m.AuthorName,
+			Message:           content,
+			Content:           content,
+			Product:           product,
+			ActionCard:        actionCard,
+			TaskDraft:         draft,
+			ApprovalTitle:     approvalTitle,
+			ApprovalPlan:      approvalPlan,
+			Attachments:       attached,
+			CreatedAt:         m.CreatedAt,
 		}
 	}
 

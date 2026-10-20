@@ -34,7 +34,10 @@ export interface InboxTaskDraft {
 }
 
 export interface ChatMessage {
+  approval_accepted?: boolean
+  approval_request_id?: string
   approval_title?: string
+  approval_plan?: { title: string; description: string; project_id?: string; project_name?: string }
   attachments?: import('../features/inbox/Attachments').Attachment[]
   task_draft?: InboxTaskDraft
   id: number
@@ -129,6 +132,7 @@ export const chatApi = {
     authorName = 'You',
     requestId?: string,
     attachmentIds?: string[],
+    approveMessageId?: string,
   ): Promise<{ message: ChatMessage; agent_reply?: ChatMessage }> => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15000)
@@ -142,6 +146,7 @@ export const chatApi = {
         body: JSON.stringify({
           request_id: requestId,
           attachment_ids: attachmentIds,
+          approve_message_id: approveMessageId,
           message,
           content: message,
           author_type: 'user',

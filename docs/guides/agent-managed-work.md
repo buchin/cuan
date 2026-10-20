@@ -98,3 +98,10 @@ in project documentation. Automatic result review uses the selected provider and
 therefore consumes its normal quota. Tests use deterministic fake providers and
 real PTYs; live provider behavior and semantic consent recognition need observation
 in normal use and are not proven by those fixtures.
+
+## Exact plan approval
+
+For structured scope snapshots, the approval button and short conversational
+consent path, see [Plan approval](plan-approval.md). The dispatcher starts the
+saved scope without another model rewriting it. Direct unstructured execution
+instructions retain the existing model-interpreted path.

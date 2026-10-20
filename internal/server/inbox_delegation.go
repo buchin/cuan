@@ -136,6 +136,12 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if authorization == nil || !authenticatedApproval {
 		return fail("approval must come from a user message in this conversation")
 	}
+	if plan := decodeApprovedInboxPlan(authorization.Content); plan != nil && d.TaskID == "" {
+		expected := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName}
+		if d.Action == "save" || d.Title != expected.Title || d.Description != expected.Description || d.ProjectID != expected.ProjectID || d.ProjectName != expected.ProjectName {
+			return fail("the delegation differs from the approved plan")
+		}
+	}
 	room, err := s.projectStudioRepo.GetRoomByID(ctx, q.RoomID)
 	if err != nil || room == nil {
 		return fail("conversation is unavailable")

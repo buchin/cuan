@@ -1,3 +1,4 @@
+import { Button } from "../../components/ui/button"
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import {
@@ -109,6 +110,7 @@ export function InboxView({
     text: string
     id: string
     attachmentIds?: string[]
+    approveMessageId?: string
   } | null>(null)
   const activeConvRef = useRef('')
   activeConvRef.current =
@@ -370,11 +372,11 @@ export function InboxView({
     requests.map((q) => q.request_id + q.state).join(','),
   ])
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string) => {
     if (!activeContact || sending || uploads.busy || retryCount >= 3) return
     const convId = activeContact.conversation_id || activeContact.id
     const pending = pendingRef.current
-    const text = pending?.convId === convId ? pending.text : inputMessage.trim()
+    const text = pending?.convId === convId ? pending.text : approveMessageId ? t('Approve this plan') : inputMessage.trim()
     if (!text && !uploads.items.length && !pending?.attachmentIds?.length)
       return
     const request =
@@ -383,8 +385,9 @@ export function InboxView({
         : {
             convId,
             text,
-            id: crypto.randomUUID(),
-            attachmentIds: uploads.items.map((a) => a.id),
+            id: approvalRequestId || crypto.randomUUID(),
+            attachmentIds: approveMessageId ? [] : uploads.items.map((a) => a.id),
+            approveMessageId,
           }
     // Save before the first network byte; reload/retry reuses the same key.
     try {
@@ -411,8 +414,9 @@ export function InboxView({
         'You',
         request.id,
         request.attachmentIds,
+        request.approveMessageId,
       )
-      uploads.clear()
+      if (!request.approveMessageId) uploads.clear()
       if (unsentDrafts.current[convId]?.trim() === request.text)
         delete unsentDrafts.current[convId]
       if (activeConvRef.current === convId) {
@@ -786,7 +790,7 @@ export function InboxView({
                     >
                       {msg.approval_title && (
                         <p className="mb-2 text-xs font-medium">
-                          {t('Needs approval')}
+                          {t(msg.approval_accepted ? 'Approved' : 'Needs approval')}
                         </p>
                       )}
                       {msg.attachments?.map((a) => (
@@ -805,6 +809,16 @@ export function InboxView({
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
                           <span>{msg.content || msg.message}</span>
                           {metadata}
+                        </div>
+                      )}
+
+                      {isAgentMessage && msg.approval_plan && (
+                        <div className="mt-3 space-y-2 border-l-2 border-primary/30 pl-3">
+                          <p className="text-sm font-medium">{msg.approval_plan.title}</p>
+                          <p className="whitespace-pre-wrap break-words text-sm">{msg.approval_plan.description}</p>
+                          <Button size="sm" disabled={msg.approval_accepted || sending || uploads.busy || retryCount >= 3 || !!pendingRef.current} onClick={() => handleSendMessage(msg.uuid, msg.approval_request_id)}>
+                            {t(msg.approval_accepted ? 'Approved' : 'Approve and start')}
+                          </Button>
                         </div>
                       )}
 
@@ -959,7 +973,7 @@ export function InboxView({
                     <button
                       className="mt-2 underline"
                       disabled={sending || retryCount >= 3}
-                      onClick={handleSendMessage}
+                      onClick={() => handleSendMessage()}
                     >
                       Check the same message ({Math.max(0, 3 - retryCount)}{' '}
                       remaining)
@@ -1086,7 +1100,7 @@ export function InboxView({
 
                   <button
                     type="button"
-                    onClick={handleSendMessage}
+                    onClick={() => handleSendMessage()}
                     disabled={
                       (!inputMessage.trim() && !uploads.items.length) ||
                       sending ||

@@ -36,8 +36,9 @@ type conversationAttachment struct {
 	URL  string `json:"url"`
 }
 type attachmentMessage struct {
-	Text string   `json:"text"`
-	IDs  []string `json:"attachments"`
+	Approval *approvedInboxPlan `json:"approval,omitempty"`
+	Text     string             `json:"text"`
+	IDs      []string           `json:"attachments"`
 }
 
 func attachmentRoot(owner string) (string, error) {

@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "exactScopeVisible": true,
+      "approveAction": true,
+      "stableRequestId": true,
+      "approvedButtonDisabled": true,
+      "draftPreserved": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "exactScopeVisible": true,
+      "approveAction": true,
+      "stableRequestId": true,
+      "approvedButtonDisabled": true,
+      "draftPreserved": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "exactScopeVisible": true,
+      "approveAction": true,
+      "stableRequestId": true,
+      "approvedButtonDisabled": true,
+      "draftPreserved": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "providerCalls": 0
+}

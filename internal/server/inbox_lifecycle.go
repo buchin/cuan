@@ -215,7 +215,16 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						workspace, projectContext := s.inboxProjectContext(ctx, q)
 						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + prompt
 						step("context", "Project context checked for analysis.")
-						output, failure := s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
+						var output, failure string
+						plan, planErr := s.inboxApprovedPlan(ctx, q)
+						if planErr != nil {
+							failure = "Could not read the approved plan. No new execution was started."
+						} else if plan != nil {
+							step("approved_plan", "Starting the exact plan approved in this conversation.")
+							output = approvedPlanDelegation(plan, q.MessageID)
+						} else {
+							output, failure = s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
+						}
 						if results, searched, searchErr := s.inboxMemorySearchResults(ctx, q, output); searched {
 							if searchErr != nil {
 								output = searchErr.Error()
