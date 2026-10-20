@@ -1,0 +1,73 @@
+{
+  "release": "491b2dddcbad72c1e478cfb60f0357b9edc2f381",
+  "schema": 25,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "compactSearch": true,
+      "compactCreate": true,
+      "noOverflow": true,
+      "neutralBlockedCounts": true
+    }
+  ],
+  "nonLoginWrites": [],
+  "markReadActions": 0,
+  "providerCalls": 0
+}

@@ -11,3 +11,11 @@ An isolated build passes TypeScript/Vite. Fixture browser checks pass at360,
 project task navigation, accurate state counts, create button dimensions and no
 horizontal overflow. No tasks or provider requests are launched by these tests.
 Screenshots and structured browser results accompany the exact check script.
+
+## Production
+
+Live release491b2dd passes read-only authenticated browser checks at all four
+widths and both themes. Tested/released frontend hashes match exactly. Actual
+rollback/reactivation passes. Schema25 stays unchanged with auto-migration off;
+37 retained application tables,896 profile files and11 notification read flags
+remain intact. Only login writes were used for browser verification.
