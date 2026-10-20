@@ -65,3 +65,7 @@ Search contacts by name, email, source or tag. Open **Filters** beside search to
 ## Pinned installation suggestion
 
 The install suggestion is an independent dismissible card at the top of Notifications, visible in both All and Unread when installation is supported. It is not part of the notification feed: it never increases unread counts, is unaffected by Mark all as read, and never triggers push. It hides after dismissal or detected installation. Settings → General → Install Cuan remains available. Dismissal is stored locally, so another browser/device may still offer installation.
+
+## Chat input
+
+Inbox uses a capsule composer with a growing text field and a circular Send button inside the right edge. Agent conversations have the attachment + button on the left; previews, upload progress and errors appear above the capsule. Existing attachment formats/limits and Camera/Photos/Files choices are preserved. No emoji button is included. Empty/whitespace-only messages cannot be sent unless an attachment is present. Enter sends, Shift+Enter adds a line, and IME composition is not treated as submission. Short viewports keep the input height bounded; OS keyboard behavior remains browser controlled. Customer chat uses the same input shape and retains its existing attachment capabilities.

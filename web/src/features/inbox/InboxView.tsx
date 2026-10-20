@@ -1,5 +1,10 @@
 import { useLanguage } from '../../context/LanguageContext'
-import { AttachmentPicker, AttachmentFile, useAttachments } from './Attachments'
+import {
+  AttachmentPicker,
+  AttachmentPreviews,
+  AttachmentFile,
+  useAttachments,
+} from './Attachments'
 import { Link } from 'react-router-dom'
 import { CreateAction } from '../../components/layout/CreateAction'
 import type { Agent } from '../../api/agents'
@@ -171,10 +176,30 @@ export function InboxView({
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto'
     const scrollH = el.scrollHeight
-    const newH = Math.min(Math.max(scrollH, 42), 140)
+    const cap = Math.max(
+      48,
+      Math.min(
+        140,
+        (window.visualViewport?.height || window.innerHeight) * 0.25,
+      ),
+    )
+    const newH = Math.min(Math.max(scrollH, 48), cap)
     el.style.height = newH + 'px'
-    el.style.overflowY = scrollH > 140 ? 'auto' : 'hidden'
+    el.style.overflowY = scrollH > cap ? 'auto' : 'hidden'
   }
+
+  useEffect(() => {
+    const resize = () => {
+      if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+    }
+    resize()
+    window.visualViewport?.addEventListener('resize', resize)
+    window.addEventListener('resize', resize)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', resize)
+      window.removeEventListener('resize', resize)
+    }
+  }, [inputMessage, activeContact?.id])
 
   // Load conversation when activeContact changes
   useEffect(() => {
@@ -366,7 +391,7 @@ export function InboxView({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -916,49 +941,54 @@ export function InboxView({
               }}
               onDragOver={uploads.onDragOver}
             >
-              <div className="mx-auto max-w-4xl">
+              <div className="mx-auto max-w-4xl space-y-2">
                 {activeContact.type === 'agent' && (
-                  <AttachmentPicker
-                    key={activeContact.conversation_id}
-                    uploads={uploads}
-                    disabled={sending}
-                  />
+                  <AttachmentPreviews uploads={uploads} disabled={sending} />
                 )}
-              </div>
-              <div className="flex items-end gap-2 max-w-4xl mx-auto">
-                <textarea
-                  ref={textareaRef}
-                  aria-label={t('Message')}
-                  rows={1}
-                  value={inputMessage}
-                  onChange={(e) => {
-                    unsentDrafts.current[activeConvRef.current] = e.target.value
-                    setInputMessage(e.target.value)
-                    autoResizeTextarea(e.target)
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder={
-                    activeContact.type === 'agent'
-                      ? t('Write a message…')
-                      : `Reply to ${activeContact.name}…`
-                  }
-                  className="wa-input min-w-0 flex-1 min-h-12 max-h-[140px] resize-none overflow-hidden rounded-[24px] px-4 py-3 text-base leading-6"
-                />
+                <div className="wa-input-capsule flex min-w-0 items-end gap-1 rounded-[28px] p-1">
+                  {activeContact.type === 'agent' && (
+                    <AttachmentPicker
+                      key={activeContact.conversation_id}
+                      uploads={uploads}
+                      disabled={sending}
+                      compact
+                    />
+                  )}
+                  <textarea
+                    ref={textareaRef}
+                    aria-label={t('Message')}
+                    rows={1}
+                    value={inputMessage}
+                    onChange={(e) => {
+                      unsentDrafts.current[activeConvRef.current] =
+                        e.target.value
+                      setInputMessage(e.target.value)
+                      autoResizeTextarea(e.target)
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder={
+                      activeContact.type === 'agent'
+                        ? t('Write a message…')
+                        : `Reply to ${activeContact.name}…`
+                    }
+                    className="wa-input min-w-0 flex-1 min-h-12 max-h-[140px] resize-none overflow-hidden px-2 py-3 text-base leading-6"
+                  />
 
-                <button
-                  type="button"
-                  onClick={handleSendMessage}
-                  disabled={
-                    (!inputMessage.trim() && !uploads.items.length) ||
-                    sending ||
-                    uploads.busy
-                  }
-                  className="wa-send h-12 w-12 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0"
-                  title={t('Send message (Enter)')}
-                  aria-label={t('Send message')}
-                >
-                  <Send className="h-5 w-5" />
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleSendMessage}
+                    disabled={
+                      (!inputMessage.trim() && !uploads.items.length) ||
+                      sending ||
+                      uploads.busy
+                    }
+                    className="wa-send h-12 w-12 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0"
+                    title={t('Send message (Enter)')}
+                    aria-label={t('Send message')}
+                  >
+                    <Send className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
             </div>
           </>

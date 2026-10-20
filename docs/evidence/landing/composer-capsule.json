@@ -1,0 +1,90 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "attachmentLeft": true,
+      "sendInsideRight": true,
+      "growingInput": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    }
+  ],
+  "shortViewport": true,
+  "mobileAttachmentChoices": true,
+  "previewOutsideCapsule": true,
+  "textSendOnce": true,
+  "providerCalls": 0
+}

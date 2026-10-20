@@ -150,7 +150,9 @@ export function useAttachments(storageKey: string) {
 export function AttachmentPicker({
   uploads,
   disabled = false,
+  compact = false,
 }: {
+  compact?: boolean
   uploads: ReturnType<typeof useAttachments>
   disabled?: boolean
 }) {
@@ -167,7 +169,7 @@ export function AttachmentPicker({
     setChoices(false)
   }
   return (
-    <div className="space-y-2">
+    <div className={compact ? 'shrink-0' : 'space-y-2'}>
       <ActionDialog
         open={choices}
         title={t('Add attachment')}
@@ -238,7 +240,7 @@ export function AttachmentPicker({
         />
         <button
           type="button"
-          className="icon-action"
+          className="icon-action rounded-full"
           aria-label={t('Attach files')}
           title={t('Attach files (up to 5, 10 MB each)')}
           disabled={disabled || uploads.busy || uploads.items.length >= 5}
@@ -253,42 +255,60 @@ export function AttachmentPicker({
         >
           <Plus className="h-5 w-5" />
         </button>
-        {uploads.items.map((a) => (
-          <div
-            key={a.id}
-            className="flex max-w-full items-center gap-2 rounded-lg border border-border p-2 text-xs"
-          >
-            <AttachmentFile attachment={a} />
-            <button
-              type="button"
-              className="icon-action"
-              aria-label={t('Remove') + ' ' + a.name}
-              disabled={disabled || uploads.busy}
-              onClick={() => uploads.remove(a.id)}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ))}
-        {uploads.busy && (
-          <span
-            role="status"
-            className="flex items-center gap-2 text-xs text-muted-foreground"
-          >
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-            {t('Uploading…')}
-            {uploads.progress}%
-          </span>
+        {!compact && (
+          <AttachmentPreviews uploads={uploads} disabled={disabled} />
         )}
       </div>
+    </div>
+  )
+}
+export function AttachmentPreviews({
+  uploads,
+  disabled = false,
+}: {
+  uploads: ReturnType<typeof useAttachments>
+  disabled?: boolean
+}) {
+  const { t } = useLanguage()
+  if (!uploads.items.length && !uploads.busy && !uploads.error) return null
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {uploads.items.map((a) => (
+        <div
+          key={a.id}
+          className="flex max-w-full items-center gap-2 rounded-lg border border-border p-2 text-xs"
+        >
+          <AttachmentFile attachment={a} />
+          <button
+            type="button"
+            className="icon-action"
+            aria-label={t('Remove') + ' ' + a.name}
+            disabled={disabled || uploads.busy}
+            onClick={() => uploads.remove(a.id)}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      {uploads.busy && (
+        <span
+          role="status"
+          className="flex items-center gap-2 text-xs text-muted-foreground"
+        >
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          {t('Uploading…')}
+          {uploads.progress}%
+        </span>
+      )}
       {uploads.error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="w-full text-sm text-destructive">
           {uploads.error}
         </p>
       )}
     </div>
   )
 }
+
 export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
   const { t } = useLanguage()
 

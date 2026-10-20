@@ -42,9 +42,11 @@
 .wa-markdown-footer .wa-message-meta { margin-top: 2px; }
 .wa-day-label { background: var(--wa-header); color: var(--wa-meta); box-shadow: 0 1px 1px rgb(0 0 0 / .08); }
 .wa-composer { background: var(--wa-bg); padding: 6px 8px max(6px, env(safe-area-inset-bottom)); }
-.wa-input { background: var(--wa-incoming); color: var(--wa-text); border: 0; box-shadow: 0 1px 1px rgb(0 0 0 / .08); }
+.wa-input-capsule { background: var(--wa-incoming); color: var(--wa-text); border: 1px solid color-mix(in srgb, var(--wa-meta) 35%, transparent); }
+.wa-input-capsule:focus-within { border-color: var(--wa-send); }
+.wa-input { background: transparent; color: var(--wa-text); border: 0; box-shadow: none; }
 .wa-input::placeholder { color: var(--wa-meta); }
-.wa-input:focus-visible { outline: 2px solid var(--wa-send); outline-offset: 1px; }
+.wa-input:focus-visible { outline: none; }
 .wa-send { background: var(--wa-send); color: var(--wa-send-text); }
 .wa-send:hover { filter: brightness(.95); }
 .wa-chat .chat-markdown { font-size: 16px; line-height: 1.55; }
