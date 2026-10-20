@@ -15,10 +15,15 @@ process/Git/SQL evidence. Cancellation-aware recovery is deployed: old approvals
 and synthetic result reviews cannot undo a user cancellation. Actual rollback,
 read-only browser/assets and retained-data checks pass.
 
-The full objective remains unproven. Local Cuan has no connected AI account for
-isolated real-provider verification, and production GitHub OAuth App registration
-is absent. Fixture inference is not a substitute for actual authenticated goal →
-approval → implementation → interruption → continuation → verified Git delivery.
+The full objective remains unproven. An isolated native Cuan installation now
+exists on Dracin and the owner connected one dedicated Google account. Its
+interactive task remains live at the provider Terms of Service & Data Use screen;
+owner confirmation is pending. A separate minimal noninteractive CLI diagnostic
+returned the same provider location error as chat. Neither credentials being
+saved nor theme defaults establish completed first-run setup or working inference.
+Production GitHub OAuth App registration is still absent. Fixture inference is
+not a substitute for actual authenticated goal → approval → implementation →
+interruption → continuation → verified Git delivery.
 Do not resume the stopped experimental Docker/security probes. Historical sections
 below describe earlier releases and their findings at the time.
 
@@ -26,6 +31,7 @@ below describe earlier releases and their findings at the time.
 
 | Requirement | Authoritative implementation/evidence | Current finding |
 | --- | --- | --- |
+| Connect AI from Studio without an agent-name/configuration form | StudioView + TeamView connectionOnly; direct-ai-connect browser evidence | Source implementation and separate-checkout browser/build tests pass; draft retained and execution requires explicit submission. Not deployed while the actual test task remains active |
 | Accept a natural-language goal without requiring agent/project/task forms | Studio routes through durable Inbox; studio.go and studio_test.go | Implemented; existing targeted fixtures cover dispatch and identity |
 | Clarify ambiguity and obtain approval for consequential scope | workflow/coordinator.md; inbox_approval.go; inbox_delegation.go | Structured proposals now render an exact scope and persist a same-owner/agent/conversation approval snapshot; canonical dispatch needs no model rewrite. Direct unstructured intent still relies on model interpretation; deployed in ca9028f; clean fixture and read-only production verification pass |
 | Preserve original goal, project and authorization across execution | SourceRoomID/SourceMessageID, stored task instructions, task-bound reporting capability | Direct and structured-approved work retain the original request; structured scope snapshots, digests and task-bound capability are verified by plan-approval and recovery fixtures |
@@ -371,3 +377,26 @@ one implementation effect, and a final user-visible result. GitHub authorization
 must additionally be configured if that scenario includes remote delivery. The
 pending user question requests this account prerequisite; no secrets should be
 printed or committed.
+
+
+## Provider setup consent gate — current blocker
+
+`ddb04ed` pre-login settings preparation passed again in the separate checkout
+(0.116s), including an actual child fixture which reads settings before emitting
+its Google authorization URL. This verifies settings preparation, not completed
+real CLI onboarding.
+
+The latest read-only Dracin check confirms task
+`task_b186cfdf7cded14ee1292fff5f1fe546`, attempt
+`att_0b0284644f06210d595e06dd5c0ffd51`, remains running. The last inspected live
+terminal was waiting at Terms of Service & Data Use after default theme selection.
+The owner has not answered the explicit provider-terms question. No Done input,
+interaction-sharing acceptance, replay, service restart or rollout has occurred.
+
+This same consent gate has persisted over the initial request and two subsequent
+goal checkpoints. Independent source changes and verification are complete for
+now. Actual completion-state inspection, safe first-run wizard finalization and
+real-model recovery proof require the owner decision before continuing this live
+session. Do not infer approval from an automatic goal continuation message.
+The full goal is blocked at that prerequisite, not complete. Resume after the
+owner accepts or declines the provider terms with a clear sharing preference.
