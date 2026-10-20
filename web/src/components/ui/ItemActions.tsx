@@ -96,9 +96,9 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
       {!!offset && swipeAction && <div aria-hidden="true" className="absolute inset-0 flex items-center justify-end rounded-md bg-muted pr-3 text-xs font-medium">{t(swipeAction.previewLabel || swipeAction.label)}</div>}
       <div className={`relative flex min-w-0 ${subtle ? "items-start" : "items-center bg-background"}`} style={{ transform: offset ? `translateX(${offset}px)` : undefined }}>
         <div className="min-w-0 flex-1">{children}</div>
-        <button ref={trigger} data-item-menu type="button" disabled={busy} className={`icon-action mr-1 ${subtle ? "text-muted-foreground" : ""}`} aria-label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
+        <button ref={trigger} data-item-menu type="button" disabled={busy} className="icon-action text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground" aria-label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
           onClick={event => { event.stopPropagation(); if (menu) close(); else { const r = event.currentTarget.getBoundingClientRect(); open(r.right - 232, r.bottom) } }}>
-          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       </div>
       {feedback && <p role="status" className="px-3 pb-2 text-xs text-muted-foreground">{feedback}</p>}

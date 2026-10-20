@@ -505,5 +505,7 @@
   "Not running": "Tidak berjalan",
   "not running": "tidak berjalan",
   "completed": "selesai",
-  "Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.": "Status koneksi, sisa kuota, dan progres pekerjaan berbeda. Akun yang tersambung tetap bisa memiliki kuota terbatas."
+  "Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.": "Status koneksi, sisa kuota, dan progres pekerjaan berbeda. Akun yang tersambung tetap bisa memiliki kuota terbatas.",
+  "Conversation filters": "Filter percakapan",
+  "No archived conversations.": "Belum ada percakapan yang diarsipkan."
 }

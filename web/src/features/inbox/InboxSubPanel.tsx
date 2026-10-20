@@ -6,7 +6,7 @@ import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState } from 'react'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User } from 'lucide-react'
+import { Search, Bot, User, Archive } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export function conversationPreview(message?: string) {
@@ -135,9 +135,8 @@ export function InboxSubPanel({
           />
         </div>
 
-        <button type="button" className="min-h-11 px-2 text-xs text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{t(showArchived ? 'Back to Inbox' : 'Archived conversations')}</button>
         {/* Filter Tabs (All, Agents, Customers) */}
-        <div className="flex gap-4 text-sm">
+        <div className="flex gap-2 text-sm" role="group" aria-label={t('Conversation filters')}>
           <button
             aria-pressed={activeTab === 'all'}
             onClick={() => handleTabClick('all')}
@@ -176,6 +175,11 @@ export function InboxSubPanel({
             <span>{t('Customers')}</span>
             <span className="sr-only">({customerCount})</span>
           </button>
+          <button type="button" aria-label={t(showArchived ? 'Back to Inbox' : 'Archived conversations')} title={t(showArchived ? 'Back to Inbox' : 'Archived conversations')} aria-pressed={showArchived} onClick={() => setShowArchived(value => !value)}
+            className={cn('min-h-11 min-w-11 flex items-center justify-center gap-1 border-b-2 text-xs', showArchived ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
+            <Archive className="h-4 w-4" aria-hidden="true" />
+            {contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length > 0 && <span>{contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length}</span>}
+          </button>
         </div>
       </div>
 
@@ -195,7 +199,7 @@ export function InboxSubPanel({
           </div>
         ) : filteredContacts.length === 0 ? (
           <div className="p-6 text-center text-xs text-muted-foreground">
-            No matching conversations.
+            {t(showArchived && !query.trim() ? 'No archived conversations.' : 'No matching conversations.')}
           </div>
         ) : (
           filteredContacts.map((contact) => {
@@ -252,7 +256,7 @@ export function InboxSubPanel({
                 {/* Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-medium")}>
+                    <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-normal")}>
                       {contact.name}
                     </span>
                     <span className={cn("text-xs shrink-0 tabular-nums", unread ? "text-primary font-medium" : "text-muted-foreground")}>

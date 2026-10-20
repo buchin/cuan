@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import { apiFetch } from '../api/client'
 import { useLanguage } from '../context/LanguageContext'
 
@@ -38,6 +40,7 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
     const items = await updateItemPreference(kind, id, { archived })
     setItems(items); setNotice(undo ? undefined : { id, archived })
   }
+  const dismiss = useCallback(() => setNotice(undefined), [])
   return {
     loaded, error, refresh, notice,
     archive: update,
@@ -51,7 +54,7 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
       return fallback
     },
     undo: async () => { if (notice) await update(notice.id, !notice.archived, true) },
-    dismiss: () => setNotice(undefined),
+    dismiss,
     isArchived: (id: string, latestMessage?: string) => {
       const at = Date.parse(items[id]?.archived_at || '')
       return Number.isFinite(at) && (!latestMessage || !Number.isFinite(Date.parse(latestMessage)) || Date.parse(latestMessage) <= at)
@@ -61,15 +64,25 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
 export function ArchiveNotice({ state }: { state: ReturnType<typeof useArchivedItems> }) {
   const { t } = useLanguage()
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false)
+  useEffect(() => { setError('') }, [state.notice])
+  useEffect(() => {
+    if (!state.notice || busy || error || hovered || focused) return
+    const timer = window.setTimeout(state.dismiss, 8000)
+    return () => window.clearTimeout(timer)
+  }, [state.notice, state.dismiss, busy, error, hovered, focused])
   if (!state.notice) return null
-  return <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-t bg-background px-3 py-2 text-xs">
-    <span>{t(error || (state.notice.archived ? 'Archived' : 'Restored'))}</span>
-    <span className="flex items-center gap-2">
-      <button type="button" className="min-h-11 px-2 font-medium underline" disabled={busy} onClick={async () => {
-        setBusy(true);setError('')
-        try { await state.undo() } catch { setError('Could not undo. Try again.') } finally { setBusy(false) }
-      }}>{t('Undo')}</button>
-      <button type="button" className="min-h-11 px-2 text-muted-foreground" onClick={state.dismiss}>{t('Dismiss')}</button>
-    </span>
-  </div>
+  return createPortal(<div data-archive-notice role="status" aria-live="polite" aria-atomic="true"
+    onPointerEnter={event => { if (event.pointerType === 'mouse') setHovered(true) }}
+    onPointerLeave={event => { if (event.pointerType === 'mouse') setHovered(false) }}
+    onFocusCapture={() => setFocused(true)}
+    onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}
+    className="fixed inset-x-4 bottom-[calc(80px+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-sm items-center gap-2 rounded-lg border bg-popover px-3 py-1 text-sm text-popover-foreground shadow-lg md:bottom-4 md:left-auto md:right-4 md:mx-0 md:w-80">
+    <span className="flex-1">{t(error || (state.notice.archived ? 'Archived' : 'Restored'))}</span>
+    <button type="button" className="min-h-11 px-2 font-medium underline" disabled={busy} onClick={async () => {
+      setBusy(true); setError('')
+      try { await state.undo() } catch { setError('Could not undo. Try again.') } finally { setBusy(false) }
+    }}>{t('Undo')}</button>
+    <button type="button" className="icon-action text-muted-foreground" aria-label={t('Dismiss')} onClick={state.dismiss}><X className="h-4 w-4" aria-hidden="true" /></button>
+  </div>, document.body)
 }

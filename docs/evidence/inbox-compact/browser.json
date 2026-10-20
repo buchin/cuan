@@ -1,0 +1,15 @@
+{
+  "responsiveWidths": [
+    360,
+    390,
+    820,
+    1440
+  ],
+  "archiveFilterSameRow": true,
+  "touchTarget44": true,
+  "undoFixed": true,
+  "focusPausesTimer": true,
+  "autoDismiss": true,
+  "noOverflow": true,
+  "providerCalls": 0
+}
