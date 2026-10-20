@@ -16,3 +16,5 @@ Frontend build and isolated browser tests verify backup preference defaults/pers
 Known legacy test `TestS264TimeoutAfterAcceptanceSafeRetry` uses raw CLI stdout and old Indonesian error labels rather than the current NDJSON runtime contract; it fails independently of routing and was not changed in this task. The new `TestInboxFailoverSingleDurableReply` exercises current request deduplication through the HTTP endpoint with a valid runtime fixture.
 
 User guide: ../../guides/provider-failover.md.
+
+Production release 0618dbd: both connected Google AI Pro accounts returned actual per-model quota snapshots (13 and 2 eligible text-model entries). No model inference was invoked. Backup/model permissions are enabled on both owner accounts. All 35 retained application tables matched backup. Across 732 existing profile files, only the two expected OAuth access-token updates occurred; refresh tokens, credential identity/extra fields, primary bindings and other profile files were preserved. Readiness healthy on schema23. Token recovery was atomic and limited to the normal expiry/401 path.

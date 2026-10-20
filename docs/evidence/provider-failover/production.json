@@ -16,8 +16,8 @@
   "usage": [
     {
       "checked": true,
-      "available": false,
-      "reportedModelCount": 0
+      "available": true,
+      "reportedModelCount": 13
     },
     {
       "checked": true,
