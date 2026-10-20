@@ -64,7 +64,7 @@ export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNoti
               const status = item.status || ({approval:'Needs approval',blocker:'Needs attention',completed:'Completed',customer:'Customer message'}[item.kind])
               const action = item.action_label || (item.href.startsWith('/inbox/') ? 'Open conversation' : 'View work')
               const href = /^\/(inbox|projects|tasks)(\/|$)/.test(item.href) ? item.href : '/studio'
-              const readAction = { label: 'Mark as read', disabled: !unread, run: () => markRead([item.id]) }
+              const readAction = { label: 'Mark as read', previewLabel: 'Read', disabled: !unread, run: () => markRead([item.id]) }
               return <li key={item.id}>
                 <ItemActions label={t(item.title)} swipeAction={readAction} actions={[
                   { label: action, run: () => { navigate(href); if (!item.read) void markRead([item.id]).catch(() => {}) } },

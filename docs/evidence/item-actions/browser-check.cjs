@@ -49,6 +49,7 @@ await menuButton.focus();await page.keyboard.press('Shift+F10');await page.getBy
 await page.keyboard.press('Escape');
 await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:x+120,y}]});
 await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+20,y:y+2}]});
+await page.getByText('Archive',{exact:true}).waitFor();await page.screenshot({path:'docs/evidence/item-actions/swipe-preview-390.png'});
 await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
 await page.getByRole('button',{name:'Undo',exact:true}).waitFor();await menuButton.waitFor({state:'detached'});
 await page.getByRole('button',{name:'Undo',exact:true}).click();await menuButton.waitFor();

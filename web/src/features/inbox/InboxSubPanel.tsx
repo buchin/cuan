@@ -220,7 +220,7 @@ export function InboxSubPanel({
               onSelectContact(contact)
               void archive.markRead(id, true, contact.last_message_at).catch(() => {})
             }
-            const archiveAction = { label: showArchived ? 'Restore conversation' : 'Archive conversation', disabled: !archive.loaded, run: () => archive.archive(id, !showArchived) }
+            const archiveAction = { label: showArchived ? 'Restore conversation' : 'Archive conversation', previewLabel: showArchived ? 'Restore' : 'Archive', disabled: !archive.loaded, run: () => archive.archive(id, !showArchived) }
             return (
               <ItemActions key={contact.id} label={contact.name} swipeAction={archiveAction} actions={[
                 { label: 'Open conversation', run: openContact },

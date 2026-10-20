@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 
-export type ItemAction = { label: string; run: () => void | Promise<void>; disabled?: boolean }
+export type ItemAction = { label: string; run: () => void | Promise<void>; disabled?: boolean; previewLabel?: string }
 export function ItemActions({ label, actions, swipeAction, children, subtle = false }: {
   label: string; actions: ItemAction[]; swipeAction?: ItemAction; children: ReactNode; subtle?: boolean
 }) {
@@ -52,7 +52,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
     finally { setBusy(false) }
   }
   return (
-    <div className={`relative min-w-0 ${subtle ? "message-actions max-w-[92%]" : ""}`} style={swipeAction ? { touchAction: 'pan-y' } : undefined}
+    <div className={`relative min-w-0 ${subtle ? "message-actions max-w-[92%]" : "overflow-hidden"}`} style={swipeAction ? { touchAction: 'pan-y' } : undefined}
       onContextMenu={event => {
         if (window.getSelection()?.toString() || (event.target as HTMLElement).closest('input,textarea,[contenteditable=true]')) return
         event.preventDefault(); open(event.clientX, event.clientY)
@@ -93,7 +93,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
         }
       }}
     >
-      {!!offset && swipeAction && <div aria-hidden="true" className="absolute inset-0 flex items-center justify-end rounded-md bg-muted pr-3 text-xs font-medium">{t(swipeAction.label)}</div>}
+      {!!offset && swipeAction && <div aria-hidden="true" className="absolute inset-0 flex items-center justify-end rounded-md bg-muted pr-3 text-xs font-medium">{t(swipeAction.previewLabel || swipeAction.label)}</div>}
       <div className={`relative flex min-w-0 ${subtle ? "items-start" : "items-center bg-background"}`} style={{ transform: offset ? `translateX(${offset}px)` : undefined }}>
         <div className="min-w-0 flex-1">{children}</div>
         <button ref={trigger} data-item-menu type="button" disabled={busy} className={`icon-action mr-1 ${subtle ? "text-muted-foreground" : ""}`} aria-label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
