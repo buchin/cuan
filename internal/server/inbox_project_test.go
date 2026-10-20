@@ -96,7 +96,7 @@ func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
 	s, _ := setupTestChatServer(t)
 	s.cfg.Environment = "staging"
 	out, failure := s.executeInboxCLI(context.Background(), "pin2", "agy", "Inspect README", home, workspace, nil)
-	if failure != "" || !strings.HasPrefix(out, home+"\n"+workspace+"\n") || !strings.Contains(out, "--mode plan --sandbox") || strings.Contains(out, "Jangan gunakan tools") {
+	if failure != "" || !strings.HasPrefix(out, home+"\n"+workspace+"\n") || !strings.Contains(out, "--dangerously-skip-permissions --sandbox") || strings.Contains(out, "--mode plan") || !strings.Contains(out, "Read-only terminal commands") || strings.Contains(out, "Do not use run_command") {
 		t.Fatal(out, failure)
 	}
 }
