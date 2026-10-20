@@ -117,17 +117,20 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
         </Link>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
-          <section aria-label="Original request">
+        <div className="max-w-3xl space-y-6 p-4 sm:p-6">
+          {task.status === 'done' && task.summary && <section aria-label="Recorded task result">
+            <p className="mb-2 text-xs text-muted-foreground">Completed</p>
+            <div className="w-fit max-w-full rounded-xl rounded-tl-sm border bg-muted/20 p-3 sm:p-4"><ChatMarkdown content={task.summary} /></div>
+            {task.complete_note && <details className="mt-3 text-sm"><summary className="min-h-11 cursor-pointer py-3 text-muted-foreground">Verification</summary><ChatMarkdown content={task.complete_note} /></details>}
+          </section>}
+          {task.status !== 'done' && <section aria-label="Original request">
             <h3 className="mb-2 text-xs font-medium text-muted-foreground">
               Your request
             </h3>
             <ChatMarkdown content={task.description || task.title} />
-          </section>
+          </section>}
           <p className="text-sm text-muted-foreground">
-            {waiting ? (cancelled ? 'The waiting work was cancelled.' : 'Waiting for an available AI session. Cuan will start this work automatically.') : task.launch?.state === 'stopped' ? (task.launch.safe_error || 'The pending launch stopped. Check its details before continuing.') : task.launch?.state === 'cancelled' ? 'The waiting work was cancelled.' : task.status === 'done'
-              ? 'This task is complete. Reopen it in Detail to continue.'
-              : 'This task has not started yet.'}
+            {task.status === 'done' ? 'This task is complete. Reopen it in Detail to continue.' : waiting ? (cancelled ? 'The waiting work was cancelled.' : 'Waiting for an available AI session. Cuan will start this work automatically.') : task.launch?.state === 'stopped' ? (task.launch.safe_error || 'The pending launch stopped. Check its details before continuing.') : task.launch?.state === 'cancelled' ? 'The waiting work was cancelled.' : 'This task has not started yet.'}
           </p>
           {waiting && <button className="action-secondary" disabled={busy || cancelled} onClick={async () => {
             setBusy(true);setError('')

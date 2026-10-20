@@ -48,5 +48,6 @@
   "liveChatEmptyState": true,
   "liveChatMenu": true,
   "noTaskLaunches": true,
-  "relocatedTaskLinkPreserved": true
+  "relocatedTaskLinkPreserved": true,
+  "completedWithoutAttemptShown": true
 }
