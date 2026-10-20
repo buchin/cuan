@@ -25,3 +25,10 @@ FinishInboxRequest records a final timestamp atomically even after 100 ordinary
 activity entries. Final event persistence uses a cancellation-independent short
 context. Interrupted bubbles no longer reuse an earlier stage's duration.
 Existing interrupted outcomes are not rewritten or rerun.
+
+Production release: e4afc881bd7ffd407a2d5fcff1b27b6bc05db9c1. Atomic native
+activation and readiness passed with schema24/auto-migration disabled. Read-only
+post-release checks passed for the real service-user sandbox, self-executable
+terminal helper, AGY startup, and recovery controls on mobile/desktop. All 36
+application tables and 863 profile files matched the new pre-release snapshot.
+No live model call or message replay was made. See production.json.
