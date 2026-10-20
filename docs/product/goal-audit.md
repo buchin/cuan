@@ -7,6 +7,24 @@ menggandakan pekerjaan.
 This audit preserves that end state. A successful retry or green unit test alone
 does not establish the whole goal.
 
+## Latest checkpoint — 2026-10-20
+
+Current production release is d1c7853/schema25; release numbers in older sections
+below describe historical checkpoints. The full goal remains active and unproven.
+Projects now expose compact project summaries, task-state filters and saved
+progress/results; established agent conversation topics may receive stable
+contextual display titles without extra model calls or changing room/task identity.
+Deterministic topic-title/recovery tests and read-only production UI/retention/
+rollback checks pass. See docs/evidence/project-summary and topic-titles.
+
+Native application installation now has a repeatable release/configuration wrapper
+with six targeted file/executable contracts. This is progress on self-contained
+setup, not proof of a real fresh native installation, service supervision or AI
+authentication. Actual binary/database validation remains next. Stock Docker AI
+runtime remains unsupported; no additional experimental isolation-policy probes
+were performed. The separate runtime/setup and deployment support questions are
+not silently removed from the goal.
+
 ## Current requirement audit
 
 | Requirement | Authoritative implementation/evidence | Current finding |

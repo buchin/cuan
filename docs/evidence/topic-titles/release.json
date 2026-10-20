@@ -1,0 +1,17 @@
+{
+  "release": "d1c78532b54b59614a647b3c16d67acf7c7c76aa",
+  "healthy": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "rollbackReactivationPassed": true,
+  "testedReleasedAssetsMatch": {
+    "index-uBDcZSNJ.css": "3039400e06119ec4d44d3abff01c97a38d6fb9460fca3dd061394fa6652dbf58",
+    "index-DtPBzLq3.js": "fea58c607087eb9005cf5cb6e4257aa97a44aae5c144fc8968dfc8328f353362"
+  },
+  "retainedApplicationTables": 37,
+  "unchangedProfileFiles": 904,
+  "retainedItemPreferences": 6,
+  "retainedNotificationReadFlags": 11,
+  "productionProviderCalls": 0,
+  "productionActionWrites": 0
+}
