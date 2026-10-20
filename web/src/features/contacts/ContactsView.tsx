@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search,
+  SlidersHorizontal,
   Users,
   MessageSquare,
   RefreshCw,
   ChevronLeft,
   X,
 } from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
 
 type Contact = {
@@ -20,16 +22,18 @@ type Contact = {
   tags: string[]
   updated_at: string
 }
-const label = (c: Contact) => c.name || c.email || 'Anonymous visitor'
 const source = (c: Contact) => c.product.trim() || 'Live chat'
-const dateLabel = (iso: string) => {
+const dateLabel = (iso: string, language: string) => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
     ? '—'
-    : d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
+    : d.toLocaleDateString(language, { day: 'numeric', month: 'short' })
 }
 
 export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
+  const { t, language } = useLanguage()
+  const label = (c: Contact) => c.name || c.email || t('Anonymous visitor')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true),
     [error, setError] = useState('')
@@ -160,121 +164,152 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
   return (
     <section
       className="flex h-full min-h-0 min-w-0 overflow-hidden"
-      aria-label="Contacts"
+      aria-label={t('Contacts')}
     >
       <aside
-        aria-label="Contact list"
+        aria-label={t('Contact list')}
         className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
         <div className="shrink-0 border-b p-3">
-          <header className="flex items-start justify-between gap-2">
-            <div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                People and conversations.
-              </p>
-            </div>
-            <button
-              className="icon-action"
-              aria-label="Reload contacts"
-              onClick={() => void load()}
-              disabled={loading || saving}
-            >
-              <RefreshCw className="h-5 w-5" />
-            </button>
-          </header>
           {contacts.length > 0 && (
-            <div className="mt-3 space-y-2">
-              <label className="flex min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
-                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <input
-                  aria-label="Search contacts"
-                  className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-                  placeholder="Search contacts…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  aria-label="Filter by tag"
-                  className="field-control min-w-0 text-sm"
-                  value={tag}
-                  onChange={(e) => setTag(e.target.value)}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <input
+                    aria-label={t('Search contacts')}
+                    className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
+                    placeholder={t('Search contacts\u2026')}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="icon-action relative shrink-0"
+                  aria-label={t('Filters')}
+                  aria-expanded={filtersOpen}
+                  aria-controls="contact-filters"
+                  onClick={() => setFiltersOpen(!filtersOpen)}
                 >
-                  <option value="">All tags</option>
-                  {tags.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filter by source"
-                  className="field-control min-w-0 text-sm"
-                  value={product}
-                  onChange={(e) => setProduct(e.target.value)}
-                >
-                  <option value="">All sources</option>
-                  {sources.map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
-                {filteredActive && (
-                  <button
-                    className="action-secondary col-span-2"
-                    onClick={clear}
-                  >
-                    Clear filters
-                  </button>
-                )}
+                  <SlidersHorizontal className="h-5 w-5" />
+                  {(tag || product) && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary"
+                    />
+                  )}
+                </button>
               </div>
+              {(tag || product) && !filtersOpen && (
+                <button
+                  type="button"
+                  className="min-h-11 text-xs text-primary underline"
+                  onClick={() => setFiltersOpen(true)}
+                >
+                  {t('Filters applied')}
+                </button>
+              )}
+              {filtersOpen && (
+                <div id="contact-filters" className="grid grid-cols-2 gap-2">
+                  <select
+                    aria-label={t('Filter by tag')}
+                    className="field-control min-w-0 text-sm"
+                    value={tag}
+                    onChange={(e) => setTag(e.target.value)}
+                  >
+                    <option value="">{t('All tags')}</option>
+                    {tags.map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label={t('Filter by source')}
+                    className="field-control min-w-0 text-sm"
+                    value={product}
+                    onChange={(e) => setProduct(e.target.value)}
+                  >
+                    <option value="">{t('All sources')}</option>
+                    {sources.map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                  {filteredActive && (
+                    <button
+                      className="action-secondary col-span-2"
+                      onClick={clear}
+                    >
+                      {t('Clear filters')}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {loading ? (
             <p role="status" className="py-6 text-sm text-muted-foreground">
-              Loading contacts…
+              {t('Loading contacts\u2026')}
             </p>
           ) : error ? (
             <div role="alert" className="rounded-lg border p-5">
-              <p>{error}</p>
+              <p>{t(error)}</p>
               <button
                 className="action-secondary mt-3"
                 onClick={() => void load()}
               >
-                Try again
+                {t('Try again')}
               </button>
             </div>
           ) : contacts.length === 0 && !selectedId ? (
             <div className="rounded-lg border border-dashed p-6 text-center">
               <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-              <h2 className="text-lg font-semibold">No contacts yet</h2>
+              <h2 className="text-lg font-semibold">{t('No contacts yet')}</h2>
               <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                Live chat visitors appear here automatically. Set up your widget
-                in Settings → Integrations.
+                {t(
+                  'Live chat visitors appear here automatically. Set up your widget in Settings \u2192 Integrations.',
+                )}
               </p>
               <Link
                 to="/settings/integrations/live-chat"
                 className="action-primary mt-4"
               >
-                Connect live chat
+                {t('Connect live chat')}
               </Link>
             </div>
           ) : (
             <div className="min-w-0">
-              <p className="mb-2 text-sm text-muted-foreground">
-                {filteredActive
-                  ? `${filtered.length} of ${contacts.length}`
-                  : contacts.length}{' '}
-                contacts
-              </p>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground" role="status">
+                  {filteredActive
+                    ? t('{shown} of {total} contacts')
+                        .replace('{shown}', String(filtered.length))
+                        .replace('{total}', String(contacts.length))
+                    : t(
+                        contacts.length === 1
+                          ? '{count} contact'
+                          : '{count} contacts',
+                      ).replace('{count}', String(contacts.length))}
+                </p>
+                <button
+                  type="button"
+                  className="icon-action"
+                  aria-label={t('Reload contacts')}
+                  onClick={() => void load()}
+                  disabled={loading || saving}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
               {filtered.length === 0 ? (
                 <div className="rounded-lg border p-5 text-center">
-                  <p className="font-medium">No matching contacts.</p>
+                  <p className="font-medium">{t('No matching contacts.')}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Try another search or clear your filters.
+                    {t('Try another search or clear your filters.')}
                   </p>
                   <button className="action-secondary mt-3" onClick={clear}>
-                    Clear all filters
+                    {t('Clear all filters')}
                   </button>
                 </div>
               ) : (
@@ -305,10 +340,10 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                           {label(c)}
                         </span>
                         <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-                          {c.email || 'No email provided'}
+                          {c.email || t('No email provided')}
                         </span>
                         <span className="mt-1 block truncate text-xs text-muted-foreground">
-                          {source(c)} · Updated {dateLabel(c.updated_at)}
+                          {t(source(c))}
                         </span>
                         {c.tags.length > 0 && (
                           <span className="mt-2 flex min-w-0 flex-wrap gap-1">
@@ -343,7 +378,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
           <aside
             ref={detailRef}
             tabIndex={-1}
-            aria-label="Contact details"
+            aria-label={t('Contact details')}
             className="mx-auto min-w-0 w-full max-w-3xl outline-none"
           >
             <button
@@ -352,7 +387,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
               onClick={() => select('')}
             >
               <ChevronLeft className="h-4 w-4" />
-              Back to contacts
+              {t('Back to contacts')}
             </button>
             {selected ? (
               <>
@@ -360,20 +395,22 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                   {label(selected)}
                 </h2>
                 <p className="mt-1 break-all text-sm text-muted-foreground">
-                  {selected.email || 'No email provided'}
+                  {selected.email || t('No email provided')}
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {source(selected)} · Updated {dateLabel(selected.updated_at)}
+                  {t(source(selected))} · {t('Updated')}{' '}
+                  {dateLabel(selected.updated_at, language)}
                 </p>
                 {selected.email && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Email is unverified.
+                    {t('Email is unverified.')}
                   </p>
                 )}
                 {selected.is_manual ? (
                   <p className="my-5 rounded-lg border p-3 text-sm text-muted-foreground">
-                    This manual contact has no connected messaging channel.
-                    Saving a contact does not send a message or email.
+                    {t(
+                      'This manual contact has no connected messaging channel. Saving a contact does not send a message or email.',
+                    )}
                   </p>
                 ) : (
                   <Link
@@ -381,25 +418,25 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                     to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
                   >
                     <MessageSquare className="h-4 w-4" />
-                    Open conversation
+                    {t('Open conversation')}
                   </Link>
                 )}
                 <form
-                  aria-label="Manage tags"
+                  aria-label={t('Manage tags')}
                   className="space-y-3 border-t pt-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     void save()
                   }}
                 >
-                  <h3 className="text-base font-semibold">Tags</h3>
+                  <h3 className="text-base font-semibold">{t('Tags')}</h3>
                   <div
-                    aria-label="Contact tags"
+                    aria-label={t('Contact tags')}
                     className="flex flex-wrap gap-2"
                   >
                     {draft.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        No tags yet.
+                        {t('No tags yet.')}
                       </p>
                     ) : (
                       draft.map((t) => (
@@ -407,7 +444,11 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                           type="button"
                           key={t}
                           disabled={saving}
-                          aria-label={`Remove tag ${t}`}
+                          aria-label={
+                            language === 'id'
+                              ? `Hapus tag ${t}`
+                              : `Remove tag ${t}`
+                          }
                           className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-3 text-sm hover:bg-accent"
                           onClick={() => {
                             setDrafts((old) => ({
@@ -428,13 +469,13 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                     className="block text-sm font-medium"
                     htmlFor="contact-add-tag"
                   >
-                    Add tag
+                    {t('Add tag')}
                   </label>
                   <div className="flex gap-2">
                     <input
                       id="contact-add-tag"
                       className="field-control flex-1"
-                      placeholder="For example: New customer"
+                      placeholder={t('For example: New customer')}
                       value={tagInput}
                       disabled={saving}
                       onChange={(e) => {
@@ -455,13 +496,13 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                       disabled={saving || !tagInput.trim()}
                       onClick={() => add(tagInput)}
                     >
-                      Add
+                      {t('Add')}
                     </button>
                   </div>
                   {suggestions.length > 0 && (
-                    <div aria-label="Available tags" className="space-y-1">
+                    <div aria-label={t('Available tags')} className="space-y-1">
                       <p className="text-xs text-muted-foreground">
-                        Use an existing tag
+                        {t('Use an existing tag')}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {suggestions.map((t) => (
@@ -479,17 +520,18 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {draft.length}/20 tags · up to 40 characters each. Press
-                    Enter to add.
+                    {t(
+                      '{count}/20 tags · up to 40 characters each. Press Enter to add.',
+                    ).replace('{count}', String(draft.length))}
                   </p>
                   {saveError && (
                     <p role="alert" className="text-sm text-destructive">
-                      {saveError}
+                      {t(saveError)}
                     </p>
                   )}
                   {dirty && !saving && (
                     <p className="text-sm text-muted-foreground">
-                      You have unsaved changes.
+                      {t('You have unsaved changes.')}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -498,7 +540,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                       className="action-primary"
                       disabled={saving || !dirty}
                     >
-                      {saving ? 'Saving…' : 'Save tags'}
+                      {saving ? t('Saving…') : t('Save tags')}
                     </button>
                     {dirty && (
                       <button
@@ -515,28 +557,30 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                           setSaved(false)
                         }}
                       >
-                        Discard changes
+                        {t('Discard changes')}
                       </button>
                     )}
                   </div>
                   {saved && (
                     <p role="status" className="text-sm">
-                      Tags saved.
+                      {t('Tags saved.')}
                     </p>
                   )}
                 </form>
               </>
             ) : (
               <>
-                <h2 className="text-lg font-semibold">Contact not found</h2>
+                <h2 className="text-lg font-semibold">
+                  {t('Contact not found')}
+                </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  This contact may no longer be available.
+                  {t('This contact may no longer be available.')}
                 </p>
                 <button
                   className="action-secondary mt-3"
                   onClick={() => select('')}
                 >
-                  View contacts
+                  {t('View contacts')}
                 </button>
               </>
             )}
@@ -545,7 +589,9 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
           <aside className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-muted-foreground">
             <Users className="mx-auto mb-3 h-8 w-8" />
             <p>
-              Select a contact to view their details, tags, and conversation.
+              {t(
+                'Select a contact to view their details, tags, and conversation.',
+              )}
             </p>
           </aside>
         )}

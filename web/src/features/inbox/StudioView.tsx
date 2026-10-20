@@ -93,84 +93,88 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
     }
   }
   return (
-    <section
-      aria-label={t('Studio')}
-      className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-start py-2 md:justify-center md:py-12"
-    >
-      <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-        {t('What would you like to get done today?')}
-      </h2>
-      <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
-        {t('Tell Cuan your goal. We’ll take care of the rest.')}
-      </p>
-      <form
-        className="mt-4 space-y-3 md:mt-6"
-        onPaste={(e) => {
-          if (!busy) uploads.onPaste(e)
-        }}
-        onDrop={(e) => {
-          e.preventDefault()
-          if (!busy) uploads.onDrop(e)
-        }}
-        onDragOver={uploads.onDragOver}
-        onSubmit={(e) => {
-          e.preventDefault()
-          void submit()
-        }}
+    <section aria-label={t('Studio')} className="mx-auto w-full max-w-2xl">
+      <div
+        data-studio-goal-panel
+        className="flex min-h-[calc(var(--visible-height,100dvh)-136px-env(safe-area-inset-bottom))] flex-col justify-center py-4 md:min-h-[calc(100dvh-112px)]"
       >
-        <label htmlFor="studio-goal" className="sr-only">
-          {t('Your goal')}
-        </label>
-        <div className="overflow-hidden rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-          <textarea
-            id="studio-goal"
-            ref={goalInput}
-            className="block min-h-36 max-h-80 md:min-h-44 w-full resize-none border-0 bg-transparent p-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
-            placeholder={t('Describe what you want to achieve…')}
-            value={goal}
-            maxLength={6000}
-            disabled={busy}
-            onChange={(e) => update(e.target.value)}
-          />
-          <div className="px-2 pb-2">
-            <AttachmentPicker uploads={uploads} disabled={busy} />
+        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          {t('What would you like to get done today?')}
+        </h2>
+        <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
+          {t('Tell Cuan your goal. We’ll take care of the rest.')}
+        </p>
+        <form
+          className="mt-4 space-y-3 md:mt-6"
+          onPaste={(e) => {
+            if (!busy) uploads.onPaste(e)
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (!busy) uploads.onDrop(e)
+          }}
+          onDragOver={uploads.onDragOver}
+          onSubmit={(e) => {
+            e.preventDefault()
+            void submit()
+          }}
+        >
+          <label htmlFor="studio-goal" className="sr-only">
+            {t('Your goal')}
+          </label>
+          <div className="overflow-hidden rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+            <textarea
+              id="studio-goal"
+              ref={goalInput}
+              className="block min-h-36 max-h-80 md:min-h-44 w-full resize-none border-0 bg-transparent p-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
+              placeholder={t('Describe what you want to achieve…')}
+              value={goal}
+              maxLength={6000}
+              disabled={busy}
+              onChange={(e) => update(e.target.value)}
+            />
+            <div className="px-2 pb-2">
+              <AttachmentPicker uploads={uploads} disabled={busy} />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <button
-            type="submit"
-            className="action-primary w-full sm:w-auto"
-            disabled={
-              busy || uploads.busy || (!goal.trim() && !uploads.items.length)
-            }
-          >
-            {busy ? (
-              <LoaderCircle
-                className="h-4 w-4 animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            )}
-            {busy ? t('Getting started…') : t('Get it done')}
-          </button>
-        </div>
-        {error && (
-          <div
-            role="alert"
-            className="rounded-lg border border-destructive/30 p-3 text-sm"
-          >
-            <p>{error}</p>
-            <Link
-              className="mt-2 inline-flex min-h-11 items-center underline"
-              to="/settings/agents"
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <button
+              type="submit"
+              className="action-primary w-full sm:w-auto"
+              disabled={
+                busy || uploads.busy || (!goal.trim() && !uploads.items.length)
+              }
             >
-              {t('Manage agent connections')}
-            </Link>
+              {busy ? (
+                <LoaderCircle
+                  className="h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              )}
+              {busy ? t('Getting started…') : t('Get it done')}
+            </button>
           </div>
-        )}
-      </form>
-      <InstallNudge />
+          {error && (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/30 p-3 text-sm"
+            >
+              <p>{error}</p>
+              <Link
+                className="mt-2 inline-flex min-h-11 items-center underline"
+                to="/settings/agents"
+              >
+                {t('Manage agent connections')}
+              </Link>
+            </div>
+          )}
+        </form>
+      </div>
+      <div className="pt-16">
+        <InstallNudge />
+      </div>
     </section>
   )
 }

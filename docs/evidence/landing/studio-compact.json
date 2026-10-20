@@ -5,28 +5,28 @@
       "width": 360,
       "theme": "light",
       "initialHeight": 144,
-      "ctaBottom": 456.75,
+      "ctaBottom": 582.375,
       "growthCapped": true
     },
     {
       "width": 360,
       "theme": "dark",
       "initialHeight": 144,
-      "ctaBottom": 456.75,
+      "ctaBottom": 582.375,
       "growthCapped": true
     },
     {
       "width": 390,
       "theme": "light",
       "initialHeight": 144,
-      "ctaBottom": 456.75,
+      "ctaBottom": 582.375,
       "growthCapped": true
     },
     {
       "width": 390,
       "theme": "dark",
       "initialHeight": 144,
-      "ctaBottom": 456.75,
+      "ctaBottom": 582.375,
       "growthCapped": true
     },
     {

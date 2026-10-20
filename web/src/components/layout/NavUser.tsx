@@ -90,7 +90,8 @@ export function NavUser({
           aria-current={bottomNavigation && active ? 'page' : undefined}
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
-            'flex min-h-11 w-full items-center gap-2 p-2 text-left hover:bg-accent hover:text-accent-foreground transition-colors rounded-md',
+            'flex min-h-11 w-full items-center gap-2 p-2 text-left transition-colors rounded-md',
+            !bottomNavigation && 'hover:bg-accent hover:text-accent-foreground',
             compact && 'justify-center p-2',
             sidebar && 'sidebar-account',
             bottomNavigation &&

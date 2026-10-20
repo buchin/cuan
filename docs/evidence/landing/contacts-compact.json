@@ -1,0 +1,71 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 185,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 185,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 185,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 185,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 193,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 193,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 193,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "filtersCollapsed": true,
+      "searchAndTagFilter": true,
+      "firstRowTop": 193,
+      "noOverflow": true
+    }
+  ],
+  "indonesian": true,
+  "providerCalls": 0
+}

@@ -1,3 +1,4 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { apiFetch } from '../../api/client'
@@ -11,6 +12,7 @@ export function NewContactDialog({
   onClose: () => void
   onCreated: (contact: { id: string }) => void
 }) {
+  const { t } = useLanguage()
   const [name, setName] = useState(''),
     [email, setEmail] = useState(''),
     [busy, setBusy] = useState(false),
@@ -25,10 +27,16 @@ export function NewContactDialog({
     }
   }, [open])
   return (
-    <ActionDialog open={open} title="New contact" onClose={onClose} busy={busy}>
+    <ActionDialog
+      open={open}
+      title={t('New contact')}
+      onClose={onClose}
+      busy={busy}
+    >
       <p className="mb-4 text-sm text-muted-foreground">
-        Add a manual contact to your CRM. This does not send a message or email
-        or connect a messaging channel.
+        {t(
+          'Add a manual contact to your CRM. This does not send a message or email or connect a messaging channel.',
+        )}
       </p>
       <form
         className="space-y-4"
@@ -63,7 +71,7 @@ export function NewContactDialog({
       >
         <div>
           <label htmlFor="new-contact-name" className="text-sm font-medium">
-            Name
+            {t('Name')}
           </label>
           <input
             id="new-contact-name"
@@ -78,7 +86,7 @@ export function NewContactDialog({
         </div>
         <div>
           <label htmlFor="new-contact-email" className="text-sm font-medium">
-            Email (optional)
+            {t('Email (optional)')}
           </label>
           <input
             id="new-contact-email"
@@ -93,7 +101,7 @@ export function NewContactDialog({
         </div>
         {error && (
           <p role="alert" className="text-sm text-destructive">
-            {error}
+            {t(error)}
           </p>
         )}
         <div className="flex justify-end gap-2">
@@ -103,10 +111,10 @@ export function NewContactDialog({
             disabled={busy}
             onClick={onClose}
           >
-            Cancel
+            {t('Cancel')}
           </button>
           <button className="action-primary" disabled={busy || !name.trim()}>
-            {busy ? 'Saving…' : 'Save contact'}
+            {busy ? t('Saving…') : t('Save contact')}
           </button>
         </div>
       </form>

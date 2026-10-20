@@ -56,4 +56,8 @@ Studio offers a small Install Cuan suggestion when the browser exposes an instal
 
 The permanent **Settings → General → Install Cuan** section remains available after the Studio suggestion is dismissed. The Studio suggestion also links directly to `/settings#install-cuan`. Settings provides ordered instructions for iPhone/iPad, Android, Safari on Mac, and other desktop browsers, or a native Install Cuan button when available. Standalone mode displays Cuan is installed.
 
-Studio uses compact mobile spacing and a 144px initial goal field (176px on desktop). The field grows with text up to 320px, then scrolls internally. The submission button stays immediately below the attachment area; no extra helper footer separates it from the rest of the page.
+Studio uses compact mobile spacing and a 144px initial goal field (176px on desktop). The field grows with text up to 320px, then scrolls internally. The submission button stays immediately below the attachment area; no extra helper footer separates it from the rest of the page. The complete goal block is vertically centered when space permits; the optional installation suggestion follows below the first viewport. Short viewports and the on-screen keyboard can scroll the content.
+
+## Contacts directory
+
+Search contacts by name, email, source or tag. Open **Filters** beside search to select a tag/source; an indicator remains when collapsed filters are active. Clear filters to restore all results. Contact rows show name, email, source and a short tag summary; the update date lives in the detail panel. Select a contact to manage tags or open its connected conversation. English and Indonesian labels follow Settings → Appearance. Contact names, emails, product names and tags keep their original content.
