@@ -152,12 +152,9 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 		if repo == strings.TrimSuffix(current.RepoURL, ".git") {
 			branch = current.DefaultBranch
 		} else if repo != "" {
-			token := ""
-			if current.EncryptedToken != "" {
-				token, err = crypto.Decrypt(current.EncryptedToken, s.authSecret)
-				if err != nil {
-					return nil, errors.New("Saved repository access could not be read.")
-				}
+			token, accessErr := s.repositoryToken(ctx, current.EncryptedToken)
+			if accessErr != nil {
+				return nil, accessErr
 			}
 			info, lookupErr := s.gitClient.ValidateRepository(ctx, owner+"/"+repoName, token)
 			if lookupErr != nil {
@@ -229,12 +226,9 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 			}
 		}()
 		if repo != "" {
-			token := ""
-			if current.EncryptedToken != "" {
-				token, err = crypto.Decrypt(current.EncryptedToken, s.authSecret)
-				if err != nil {
-					return nil, errors.New("Saved repository access could not be read.")
-				}
+			token, accessErr := s.repositoryToken(ctx, current.EncryptedToken)
+			if accessErr != nil {
+				return nil, accessErr
 			}
 			if _, err = s.gitClient.ValidateRepository(ctx, owner+"/"+repoName, token); err != nil {
 				return nil, errors.New("Could not access this repository. Check its URL and saved GitHub access. No changes were saved.")

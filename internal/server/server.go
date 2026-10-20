@@ -507,6 +507,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 
 	tSvc.SetProjectFinder(liveProjectFinder{server: s})
+	s.configureSharedGitHubAccess()
 	s.routes()
 	s.setupStaticRoutes()
 	return s
@@ -526,6 +527,7 @@ func (s *Server) ProjectService() *project.Service {
 
 func (s *Server) SetProjectService(svc *project.Service) {
 	s.projectSvc = svc
+	s.configureSharedGitHubAccess()
 }
 
 func (s *Server) ProjectRepository() cuanDB.ProjectRepository {

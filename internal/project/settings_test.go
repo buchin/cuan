@@ -118,6 +118,9 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 			w.WriteHeader(404)
 			return
 		}
+		if r.Header.Get("Authorization") != "Bearer shared-fixture" {
+			t.Error("shared GitHub access missing")
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"name":"fixture","full_name":"owner/fixture","default_branch":"trunk","owner":{"login":"owner"}}`))
 	}))
@@ -128,6 +131,7 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 	p := &Project{ID: "proj_connect", Name: "Original", DefaultBranch: "main", UpdatedAt: time.Now().UTC(), Metadata: json.RawMessage("{}"), SourceMetadata: json.RawMessage("{}")}
 	store.CreateProject(ctx, p)
 	service := NewService(store, client, "fixture-secret", t.TempDir())
+	service.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "shared-fixture", nil })
 	original, _ := service.Get(ctx, p.ID)
 	req := UpdateSettingsRequest{Name: "Connected", RepoURL: "owner/fixture", ExpectedUpdatedAt: original.UpdatedAt}
 	connected, err := service.UpdateSettings(ctx, p.ID, req)
@@ -145,6 +149,10 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 		t.Fatal("omitted branch changed existing repository workspace", err)
 	}
 	connected = preserved
+	savedConnection, _ := store.GetProject(ctx, p.ID)
+	if savedConnection.EncryptedToken != "" {
+		t.Fatal("shared credential copied into project")
+	}
 	oldPath := connected.LocalPath
 	req.Name = "Must not save"
 	req.RepoURL = "owner/missing"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { GitHubRepositoryPicker } from './GitHubRepositoryPicker'
 import { Link } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { ApiError } from '../../api/client'
@@ -63,6 +64,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{t('Advanced')}</summary>
         <div className="space-y-4 pb-3 pt-2">
           <div className="space-y-2"><label htmlFor="project-repository" className="text-sm font-medium">{t('Repository URL')}</label>
+            <GitHubRepositoryPicker disabled={busy} onSelect={url => { setForm(old => ({ ...old, repo_url: url, default_branch: url === baseline.repo_url ? baseline.default_branch : '' })); setNotice(''); setError('') }} />
             <input id="project-repository" className="field-control" disabled={busy} maxLength={500} value={form.repo_url} onChange={event => { setForm(old => ({ ...old, repo_url: event.target.value, default_branch: event.target.value === baseline.repo_url ? baseline.default_branch : '' })); setNotice(''); setError('') }} placeholder="https://github.com/owner/repository" /></div>
           <div className="space-y-2"><label htmlFor="project-branch" className="text-sm font-medium">{t('Default branch')}</label>
             <input id="project-branch" className="field-control" disabled={busy} maxLength={200} value={form.default_branch} placeholder={t('Use repository default')} onChange={event => change('default_branch', event.target.value)} /></div>

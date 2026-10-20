@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/buchin/cuan/internal/git"
 	"net/http"
@@ -105,4 +106,27 @@ func (s *Server) handleGitHubRepositories(w http.ResponseWriter, r *http.Request
 		return
 	}
 	respondJSON(w, 200, map[string]any{"repositories": repos, "page": page, "has_more": len(repos) == 50})
+}
+
+func (s *Server) configureSharedGitHubAccess() {
+	if s.projectSvc == nil {
+		return
+	}
+	s.projectSvc.SetSharedRepositoryAccess(func(ctx context.Context) (string, error) {
+		owner, err := s.authSvc.OwnerID(ctx)
+		if err != nil {
+			return "", err
+		}
+		path, err := githubConnectionPath(owner)
+		if err != nil {
+			return "", err
+		}
+		githubConnectionMu.Lock()
+		defer githubConnectionMu.Unlock()
+		_, token, err := git.LoadConnection(path, s.cfg.AuthSecret)
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return token, err
+	})
 }

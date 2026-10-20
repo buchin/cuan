@@ -14,7 +14,15 @@ Disconnect removes Cuan's saved connection; it does not revoke the token on
 GitHub or remove credentials previously stored separately for older projects.
 Revoke the token in GitHub settings to remove its upstream authority.
 
-This first implementation provides connection management and paginated repository
-discovery. Project repository picker and shared access in execution are still
-pending. It is not an OAuth login and does not automatically commit, push, merge,
-or deploy. GitHub is optional; projects without repositories remain supported.
+In Project Settings → Advanced, choose **Choose from GitHub** to browse accessible
+repositories. Load more for additional pages, or enter a repository URL directly.
+A changed repository uses GitHub's default branch unless you specify an override.
+Saving verifies and prepares a separate workspace; existing tasks keep their
+original workspace. The connection also supplies access for project sync and
+branch discovery. Existing explicit project credentials take precedence.
+
+Shared tokens are read on each repository operation, so replacement or disconnect
+applies to the next operation without copying credentials into projects. This is
+not an OAuth login and does not automatically commit, push, merge, or deploy.
+Agent runtime push access and the complete Git delivery workflow need separate
+verification. GitHub is optional; projects without repositories remain supported.

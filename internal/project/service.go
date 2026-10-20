@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/crypto"
@@ -17,10 +18,12 @@ import (
 )
 
 type Service struct {
-	store      Store
-	gitClient  *git.Client
-	authSecret string
-	baseDir    string
+	accessMu     sync.RWMutex
+	sharedAccess func(context.Context) (string, error)
+	store        Store
+	gitClient    *git.Client
+	authSecret   string
+	baseDir      string
 }
 
 func NewService(store Store, gitClient *git.Client, authSecret, baseDir string) *Service {
@@ -61,6 +64,12 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 	}
 
 	token := strings.TrimSpace(req.Token)
+	if token == "" {
+		token, err = s.repositoryToken(ctx, "")
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// 2. Pre-flight verification with GitHub (validates permissions & existence)
 	repoInfo, err := s.gitClient.ValidateRepository(ctx, fmt.Sprintf("%s/%s", owner, repo), token)
@@ -82,11 +91,11 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 	}
 
 	// 3. Encrypt GitHub access token for safe storage
-	encryptedToken, err := crypto.Encrypt(token, s.authSecret)
+	encryptedToken, err := crypto.Encrypt(strings.TrimSpace(req.Token), s.authSecret)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt token: %w", err)
 	}
-	tokenPreview := crypto.TokenPreview(token)
+	tokenPreview := crypto.TokenPreview(strings.TrimSpace(req.Token))
 
 	// Generate project ID
 	randBytes := make([]byte, 6)
@@ -185,13 +194,9 @@ func (s *Service) Sync(ctx context.Context, id string) (*ProjectResponse, error)
 		return nil, err
 	}
 
-	var token string
-	if p.EncryptedToken != "" {
-		decrypted, err := crypto.Decrypt(p.EncryptedToken, s.authSecret)
-		if err != nil {
-			return nil, fmt.Errorf("decrypt credentials: %w", err)
-		}
-		token = decrypted
+	token, err := s.repositoryToken(ctx, p.EncryptedToken)
+	if err != nil {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
@@ -222,13 +227,9 @@ func (s *Service) GetBranches(ctx context.Context, id string) ([]string, string,
 		return nil, "", err
 	}
 
-	var token string
-	if p.EncryptedToken != "" {
-		decrypted, err := crypto.Decrypt(p.EncryptedToken, s.authSecret)
-		if err != nil {
-			return nil, "", fmt.Errorf("decrypt credentials: %w", err)
-		}
-		token = decrypted
+	token, err := s.repositoryToken(ctx, p.EncryptedToken)
+	if err != nil {
+		return nil, "", err
 	}
 
 	branches, err := s.gitClient.FetchRemoteBranches(ctx, p.RepoOwner, p.RepoName, token)
