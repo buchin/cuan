@@ -1,6 +1,6 @@
 ## Concurrent sessions per connected account
 
-Pending clean release verification; not deployed yet.
+Application release: d1a313d9ead8b3cfdea799c77b0ae5fcb94b22ce.
 
 Replaced the profile-wide exclusive execution lease with a shared profile gate
 plus bounded exclusive slot files. Default capacity is four sessions per profile;
@@ -23,3 +23,18 @@ preflight checks pass. No live parallel inference was started.
 
 The durable launch queue foundation in the worktree is separate, unfinished,
 and excluded from this release. Its schema25 migration must not ship here.
+
+## Production verification
+
+Clean-worktree agent/server targeted tests pass, including integrated task
+process-loss recovery (server checks 3.902s). Clean build and native atomic
+activation/readiness pass. Read-only production mobile/desktop recovery and
+English-default smoke pass. No model was called and no message/task retried.
+All 36 application tables (auth sessions excluded) and 878 account-profile files
+match the pre-release backup at /opt/cuan/backups/account-sessions-release.
+Schema24 and disabled automatic migration are retained. Previous release: 3f98a03.
+See production.json. Existing frontend build warnings remain unchanged.
+
+The earlier live informational continuation accounts for the increased profile
+file count versus previous 863-file snapshots; this release retained its own
+878-file pre-release baseline exactly.
