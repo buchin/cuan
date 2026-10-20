@@ -72,8 +72,10 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 		return "", errors.New("Project default branch is unavailable. Sync the project first.")
 	}
 	if _, err = run("-C", source, "show-ref", "--verify", "refs/heads/"+branch); err == nil {
-		// A missing worktree is not evidence that its unsaved work can be recreated.
-		return "", errors.New("Original task workspace is missing; its branch was retained for recovery")
+		if err := s.restoreRetiredWorkspace(ctx, key, taskID, source, branch, destination); err != nil {
+			return "", err
+		}
+		return destination, nil
 	}
 	if _, err = run("-C", source, "worktree", "add", "-b", branch, destination, base); err != nil {
 		return "", errors.New("Could not prepare the isolated task workspace")

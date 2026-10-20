@@ -54,3 +54,12 @@ The inspector is a prerequisite, not an enabled cleanup scheduler. Automatic
 removal still requires an execution lock, remote verification, a durable retirement
 record and tested restoration for reopened tasks. Until those are implemented,
 workspaces are retained and this feature must not be described as automatic cleanup.
+
+The retirement primitive now requires an exclusive execution lease and a fresh
+state observation under it. It writes an authenticated retirement receipt, removes
+only a clean worktree without force, and keeps the branch. A reopened task can
+restore that same branch and committed files using the confirmed receipt.
+Interrupted/unconfirmed retirement or a changed retained branch requires review.
+Real-Git tests cover removal, restart restoration, active-lease refusal and keeping
+new revision files. The automatic scheduler and live remote verification are still
+not wired, so automatic cleanup remains disabled in production.
