@@ -1,7 +1,7 @@
 import { InstallNudge } from '../settings/InstallNudge'
 import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, useAttachments } from './Attachments'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
@@ -18,6 +18,18 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
       return ''
     }
   })
+  const goalInput = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const resize = () => {
+      const input = goalInput.current
+      if (!input) return
+      input.style.height = '0px'
+      input.style.height = `${Math.min(input.scrollHeight, 320)}px`
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [goal])
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('')
   const update = (text: string) => {
@@ -83,18 +95,16 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
   return (
     <section
       aria-label={t('Studio')}
-      className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-start py-6 md:justify-center md:py-12"
+      className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-start py-2 md:justify-center md:py-12"
     >
       <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {t('What would you like to get done today?')}
       </h2>
-      <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
-        {t(
-          'Tell Cuan the outcome. We’ll organize the work and keep you updated.',
-        )}
+      <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
+        {t('Tell Cuan your goal. We’ll take care of the rest.')}
       </p>
       <form
-        className="mt-6 space-y-3"
+        className="mt-4 space-y-3 md:mt-6"
         onPaste={(e) => {
           if (!busy) uploads.onPaste(e)
         }}
@@ -114,7 +124,8 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
         <div className="overflow-hidden rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
           <textarea
             id="studio-goal"
-            className="block min-h-44 w-full resize-none border-0 bg-transparent p-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
+            ref={goalInput}
+            className="block min-h-36 max-h-80 md:min-h-44 w-full resize-none border-0 bg-transparent p-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
             placeholder={t('Describe what you want to achieve…')}
             value={goal}
             maxLength={6000}
@@ -125,10 +136,7 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
             <AttachmentPicker uploads={uploads} disabled={busy} />
           </div>
         </div>
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="order-2 w-full text-center text-xs text-muted-foreground sm:order-none sm:w-auto sm:text-left">
-            {t('We’ll ask if anything needs clarification.')}
-          </p>
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
           <button
             type="submit"
             className="action-primary w-full sm:w-auto"
