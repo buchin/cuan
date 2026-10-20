@@ -96,27 +96,27 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
             disabled={busy}
             onChange={(e) => update(e.target.value)}
           />
-          <div className="flex justify-end px-3 pb-3">
-            <button
-              type="submit"
-              className="action-primary"
-              disabled={busy || !goal.trim()}
-            >
-              {busy ? (
-                <LoaderCircle
-                  className="h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              )}
-              {busy ? 'Getting started…' : 'Get it done'}
-            </button>
-          </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          We’ll ask if anything needs clarification.
-        </p>
+        <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="w-full text-xs text-muted-foreground sm:w-auto">
+            We’ll ask if anything needs clarification.
+          </p>
+          <button
+            type="submit"
+            className="action-primary"
+            disabled={busy || !goal.trim()}
+          >
+            {busy ? (
+              <LoaderCircle
+                className="h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            )}
+            {busy ? 'Getting started…' : 'Get it done'}
+          </button>
+        </div>
         {error && (
           <div
             role="alert"

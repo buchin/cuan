@@ -20,4 +20,4 @@ Named projects use application-generated IDs and controlled local workspace path
 
 ## Visual identity
 
-Studio uses Cuan’s kepeng mark in navigation. The navigation label remains **Studio**, including on mobile. The mark follows the current theme; the navigation mark inherits the active item color. The greeting has no repeated logo. The goal input has a dedicated bottom-right **Get it done** button, with no textarea resize handle. Navigation marks are decorative for assistive technology because the button already has a readable label.
+Studio uses Cuan’s kepeng mark in navigation. The navigation label remains **Studio**, including on mobile. The mark follows the current theme; the navigation mark inherits the active item color. The greeting has no repeated logo. The **Get it done** button sits outside the goal input, right aligned below it. Help text is on the left on desktop and on a separate row on mobile. There is no textarea resize handle. Navigation marks are decorative for assistive technology because the button already has a readable label.
