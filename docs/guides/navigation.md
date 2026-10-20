@@ -92,7 +92,7 @@ restore from Projects → Archived. Both operations require confirmation.
   280px conversation list beside the chat.
 - **768–1199px:** 64px sidebar. Inbox uses a single list/conversation view.
 - **Below 768px:** five bottom items: Inbox, Tasks, Projects, Contacts, Account; no hamburger drawer. The header contains a
-  24px kepeng logo, a 20px title, and a contextual creation button.
+  24px kepeng logo, a 20px title, and a contextual 44×44px icon-only creation button. Mobile uses compose for messages, person-plus for contacts, folder-plus for projects and plus for tasks; accessible labels retain the action name. Larger screens keep the text label.
 - App headers are 56px on phones and 64px on larger screens. Main pages use one
   H1 and no redundant breadcrumb. Project/settings details provide parent links.
 - Chat body text is 16px on phones and 15px on larger screens, with line height

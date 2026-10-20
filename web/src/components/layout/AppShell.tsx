@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
+import { CreateAction } from './CreateAction'
 import {
   Inbox,
   Users,
   CheckSquare,
   FolderGit2,
-  Plus,
   PanelLeft,
   Settings,
 } from 'lucide-react'
@@ -207,16 +207,12 @@ export function AppShell({
               </button>
             )}
             {newAction && (
-              <button
+              <CreateAction
                 id="header-new-action"
-                className="action-primary shrink-0 px-3"
-                aria-label={newAction.label}
-                title={newAction.label}
+                label={newAction.label}
                 onClick={newAction.onClick}
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                <span>{newAction.label}</span>
-              </button>
+                kind={currentTab}
+              />
             )}
           </div>
         </header>

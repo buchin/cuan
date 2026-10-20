@@ -1,0 +1,329 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "light",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "light",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "light",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "light",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "dark",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "dark",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "dark",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 767,
+      "theme": "dark",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "/inbox",
+      "accessibleLabel": "New message",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "/tasks",
+      "accessibleLabel": "New task",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "/contacts",
+      "accessibleLabel": "New contact",
+      "minimumTarget44": true,
+      "iconOnly": false
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "/projects",
+      "accessibleLabel": "New project",
+      "minimumTarget44": true,
+      "iconOnly": false
+    }
+  ],
+  "conversationHeader": true,
+  "providerInvocations": 0,
+  "errors": [],
+  "unknown": []
+}

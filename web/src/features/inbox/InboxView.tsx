@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { CreateAction } from '../../components/layout/CreateAction'
 import type { Agent } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
@@ -14,7 +15,6 @@ import {
 } from '../../api/chat'
 import {
   Send,
-  Plus,
   Bot,
   User,
   Check,
@@ -512,16 +512,12 @@ export function InboxView({
                 </button>
                 <div className="flex items-center gap-1 md:hidden">
                   {onNewMessage && (
-                    <button
-                      className="action-primary px-2"
-                      aria-label="New message"
+                    <CreateAction
+                      label="New message"
                       onClick={onNewMessage}
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>New message</span>
-                    </button>
+                      kind="inbox"
+                    />
                   )}
-
                 </div>
               </div>
             </div>
