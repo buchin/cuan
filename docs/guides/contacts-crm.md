@@ -12,7 +12,7 @@ source. Clear filters restores the complete list.
 Select a contact to view its identity, source, last update, tags, and connected
 conversation. Updated is a saved timestamp, not an online indicator. On phones
 and tablets, details replace the list; Back to contacts returns to it. Wide
-desktops show both. `/contacts?contact=ID` supports direct links and reload.
+desktops (1200px and wider) show a320px contact-list sidebar beside a spacious detail panel. The list and detail scroll independently. Search and filters remain in the list; returning from detail preserves them. `/contacts?contact=ID` supports direct links and reload.
 
 Choose Open conversation to reply through Inbox. Manual contacts do not offer
 this action because they have no connected messaging channel.

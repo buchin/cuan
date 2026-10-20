@@ -158,383 +158,398 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
     setProduct('')
   }
   return (
-    <section className="page-content" aria-label="Contacts">
-      <header
-        className={`mb-5 items-start justify-between gap-3 ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
+    <section
+      className="flex h-full min-h-0 min-w-0 overflow-hidden"
+      aria-label="Contacts"
+    >
+      <aside
+        aria-label="Contact list"
+        className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
-        <div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Customers and conversation history in one place.
-          </p>
-        </div>
-        <button
-          className="icon-action"
-          aria-label="Reload contacts"
-          onClick={() => void load()}
-          disabled={loading || saving}
-        >
-          <RefreshCw className="h-5 w-5" />
-        </button>
-      </header>
-      {contacts.length > 0 && (
-        <div
-          className={`mb-4 space-y-3 ${selectedId ? 'hidden min-[1200px]:block' : ''}`}
-        >
-          <label className="flex min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              aria-label="Search contacts"
-              className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-              placeholder="Search by name, email, or tag"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            <select
-              aria-label="Filter by tag"
-              className="field-control sm:w-auto sm:max-w-xs"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
+        <div className="shrink-0 border-b p-3">
+          <header className="flex items-start justify-between gap-2">
+            <div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                People and conversations.
+              </p>
+            </div>
+            <button
+              className="icon-action"
+              aria-label="Reload contacts"
+              onClick={() => void load()}
+              disabled={loading || saving}
             >
-              <option value="">All tags</option>
-              {tags.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-            <select
-              aria-label="Filter by source"
-              className="field-control sm:w-auto sm:max-w-xs"
-              value={product}
-              onChange={(e) => setProduct(e.target.value)}
-            >
-              <option value="">All sources</option>
-              {sources.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-            {filteredActive && (
-              <button className="action-secondary col-span-2" onClick={clear}>
-                Clear filters
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-      {loading ? (
-        <p role="status" className="py-6 text-sm text-muted-foreground">
-          Loading contacts…
-        </p>
-      ) : error ? (
-        <div role="alert" className="rounded-lg border p-5">
-          <p>{error}</p>
-          <button className="action-secondary mt-3" onClick={() => void load()}>
-            Try again
-          </button>
-        </div>
-      ) : contacts.length === 0 && !selectedId ? (
-        <div className="rounded-lg border border-dashed p-6 text-center">
-          <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">No contacts yet</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            Live chat visitors appear here automatically. Set up your widget in
-            Settings → Integrations.
-          </p>
-          <Link
-            to="/settings/integrations/live-chat"
-            className="action-primary mt-4"
-          >
-            Connect live chat
-          </Link>
-        </div>
-      ) : (
-        <div className="grid gap-5 min-[1200px]:grid-cols-[minmax(0,1fr)_360px]">
-          <div
-            className={`min-w-0 ${selectedId ? 'hidden min-[1200px]:block' : ''}`}
-            aria-label="Contact list"
-          >
-            <p className="mb-2 text-sm text-muted-foreground">
-              {filteredActive
-                ? `${filtered.length} of ${contacts.length}`
-                : contacts.length}{' '}
-              contacts
-            </p>
-            {filtered.length === 0 ? (
-              <div className="rounded-lg border p-5 text-center">
-                <p className="font-medium">No matching contacts.</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Try another search or clear your filters.
-                </p>
-                <button className="action-secondary mt-3" onClick={clear}>
-                  Clear all filters
-                </button>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-lg border divide-y divide-border/50">
-                {filtered.map((c) => (
+              <RefreshCw className="h-5 w-5" />
+            </button>
+          </header>
+          {contacts.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <label className="flex min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <input
+                  aria-label="Search contacts"
+                  className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
+                  placeholder="Search contacts…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  aria-label="Filter by tag"
+                  className="field-control min-w-0 text-sm"
+                  value={tag}
+                  onChange={(e) => setTag(e.target.value)}
+                >
+                  <option value="">All tags</option>
+                  {tags.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Filter by source"
+                  className="field-control min-w-0 text-sm"
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                >
+                  <option value="">All sources</option>
+                  {sources.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+                {filteredActive && (
                   <button
-                    key={c.id}
-                    type="button"
-                    disabled={saving}
-                    onClick={(e) => {
-                      lastOpened.current = e.currentTarget
-                      select(c.id)
-                    }}
-                    aria-pressed={selectedId === c.id}
-                    className={`flex min-h-24 w-full items-start gap-3 p-3 text-left hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 ${selectedId === c.id ? 'bg-accent' : ''}`}
+                    className="action-secondary col-span-2"
+                    onClick={clear}
                   >
-                    <span
-                      aria-hidden="true"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold"
-                    >
-                      {Array.from(label(c)).slice(0, 2).join('').toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-base font-semibold">
-                        {label(c)}
-                      </span>
-                      <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-                        {c.email || 'No email provided'}
-                      </span>
-                      <span className="mt-1 block truncate text-xs text-muted-foreground">
-                        {source(c)} · Updated {dateLabel(c.updated_at)}
-                      </span>
-                      {c.tags.length > 0 && (
-                        <span className="mt-2 flex min-w-0 flex-wrap gap-1">
-                          {c.tags.slice(0, 2).map((t) => (
-                            <span
-                              key={t}
-                              className="max-w-28 truncate rounded bg-secondary px-2 py-0.5 text-xs"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                          {c.tags.length > 2 && (
-                            <span className="text-xs text-muted-foreground">
-                              +{c.tags.length - 2}
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </span>
+                    Clear filters
                   </button>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-          {selectedId ? (
-            <aside
-              ref={detailRef}
-              tabIndex={-1}
-              aria-label="Contact details"
-              className="min-w-0 self-start rounded-lg border bg-card p-4 outline-none sm:p-5"
-            >
+            </div>
+          )}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {loading ? (
+            <p role="status" className="py-6 text-sm text-muted-foreground">
+              Loading contacts…
+            </p>
+          ) : error ? (
+            <div role="alert" className="rounded-lg border p-5">
+              <p>{error}</p>
               <button
-                className="action-secondary mb-4 min-[1200px]:hidden"
-                disabled={saving}
-                onClick={() => select('')}
+                className="action-secondary mt-3"
+                onClick={() => void load()}
               >
-                <ChevronLeft className="h-4 w-4" />
-                Back to contacts
+                Try again
               </button>
-              {selected ? (
-                <>
-                  <h2 className="break-words text-xl font-semibold">
-                    {label(selected)}
-                  </h2>
-                  <p className="mt-1 break-all text-sm text-muted-foreground">
-                    {selected.email || 'No email provided'}
+            </div>
+          ) : contacts.length === 0 && !selectedId ? (
+            <div className="rounded-lg border border-dashed p-6 text-center">
+              <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+              <h2 className="text-lg font-semibold">No contacts yet</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                Live chat visitors appear here automatically. Set up your widget
+                in Settings → Integrations.
+              </p>
+              <Link
+                to="/settings/integrations/live-chat"
+                className="action-primary mt-4"
+              >
+                Connect live chat
+              </Link>
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <p className="mb-2 text-sm text-muted-foreground">
+                {filteredActive
+                  ? `${filtered.length} of ${contacts.length}`
+                  : contacts.length}{' '}
+                contacts
+              </p>
+              {filtered.length === 0 ? (
+                <div className="rounded-lg border p-5 text-center">
+                  <p className="font-medium">No matching contacts.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Try another search or clear your filters.
                   </p>
+                  <button className="action-secondary mt-3" onClick={clear}>
+                    Clear all filters
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-hidden divide-y divide-border/50">
+                  {filtered.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={saving}
+                      onClick={(e) => {
+                        lastOpened.current = e.currentTarget
+                        select(c.id)
+                      }}
+                      aria-pressed={selectedId === c.id}
+                      className={`flex min-h-20 w-full items-start gap-3 p-3 text-left hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 ${selectedId === c.id ? 'bg-accent' : ''}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold"
+                      >
+                        {Array.from(label(c))
+                          .slice(0, 2)
+                          .join('')
+                          .toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">
+                          {label(c)}
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                          {c.email || 'No email provided'}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                          {source(c)} · Updated {dateLabel(c.updated_at)}
+                        </span>
+                        {c.tags.length > 0 && (
+                          <span className="mt-2 flex min-w-0 flex-wrap gap-1">
+                            {c.tags.slice(0, 2).map((t) => (
+                              <span
+                                key={t}
+                                className="max-w-28 truncate rounded bg-secondary px-2 py-0.5 text-xs"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                            {c.tags.length > 2 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{c.tags.length - 2}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+      <div
+        className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-6 ${selectedId ? '' : 'hidden min-[1200px]:block'}`}
+      >
+        {selectedId ? (
+          <aside
+            ref={detailRef}
+            tabIndex={-1}
+            aria-label="Contact details"
+            className="mx-auto min-w-0 w-full max-w-3xl outline-none"
+          >
+            <button
+              className="action-secondary mb-4 min-[1200px]:hidden"
+              disabled={saving}
+              onClick={() => select('')}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to contacts
+            </button>
+            {selected ? (
+              <>
+                <h2 className="break-words text-xl font-semibold">
+                  {label(selected)}
+                </h2>
+                <p className="mt-1 break-all text-sm text-muted-foreground">
+                  {selected.email || 'No email provided'}
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {source(selected)} · Updated {dateLabel(selected.updated_at)}
+                </p>
+                {selected.email && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {source(selected)} · Updated{' '}
-                    {dateLabel(selected.updated_at)}
+                    Email is unverified.
                   </p>
-                  {selected.email && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Email is unverified.
-                    </p>
-                  )}
-                  {selected.is_manual ? (
-                    <p className="my-5 rounded-lg border p-3 text-sm text-muted-foreground">
-                      This manual contact has no connected messaging channel.
-                      Saving a contact does not send a message or email.
-                    </p>
-                  ) : (
-                    <Link
-                      className="action-primary my-5 w-full"
-                      to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      Open conversation
-                    </Link>
-                  )}
-                  <form
-                    aria-label="Manage tags"
-                    className="space-y-3 border-t pt-4"
-                    onSubmit={(e) => {
-                      e.preventDefault()
-                      void save()
-                    }}
+                )}
+                {selected.is_manual ? (
+                  <p className="my-5 rounded-lg border p-3 text-sm text-muted-foreground">
+                    This manual contact has no connected messaging channel.
+                    Saving a contact does not send a message or email.
+                  </p>
+                ) : (
+                  <Link
+                    className="action-primary my-5 w-full sm:w-auto"
+                    to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
                   >
-                    <h3 className="text-base font-semibold">Tag</h3>
-                    <div
-                      aria-label="Contact tags"
-                      className="flex flex-wrap gap-2"
+                    <MessageSquare className="h-4 w-4" />
+                    Open conversation
+                  </Link>
+                )}
+                <form
+                  aria-label="Manage tags"
+                  className="space-y-3 border-t pt-4"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    void save()
+                  }}
+                >
+                  <h3 className="text-base font-semibold">Tags</h3>
+                  <div
+                    aria-label="Contact tags"
+                    className="flex flex-wrap gap-2"
+                  >
+                    {draft.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No tags yet.
+                      </p>
+                    ) : (
+                      draft.map((t) => (
+                        <button
+                          type="button"
+                          key={t}
+                          disabled={saving}
+                          aria-label={`Remove tag ${t}`}
+                          className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-3 text-sm hover:bg-accent"
+                          onClick={() => {
+                            setDrafts((old) => ({
+                              ...old,
+                              [selected!.id]: draft.filter((v) => v !== t),
+                            }))
+                            setSaved(false)
+                            setSaveError('')
+                          }}
+                        >
+                          <span className="min-w-0 break-all">{t}</span>
+                          <X className="h-4 w-4 shrink-0" />
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  <label
+                    className="block text-sm font-medium"
+                    htmlFor="contact-add-tag"
+                  >
+                    Add tag
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="contact-add-tag"
+                      className="field-control flex-1"
+                      placeholder="For example: New customer"
+                      value={tagInput}
+                      disabled={saving}
+                      onChange={(e) => {
+                        setTagInput(e.target.value)
+                        setSaved(false)
+                        setSaveError('')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          add(tagInput)
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="action-secondary"
+                      disabled={saving || !tagInput.trim()}
+                      onClick={() => add(tagInput)}
                     >
-                      {draft.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          No tags yet.
-                        </p>
-                      ) : (
-                        draft.map((t) => (
+                      Add
+                    </button>
+                  </div>
+                  {suggestions.length > 0 && (
+                    <div aria-label="Available tags" className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Use an existing tag
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestions.map((t) => (
                           <button
                             type="button"
                             key={t}
                             disabled={saving}
-                            aria-label={`Remove tag ${t}`}
-                            className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-3 text-sm hover:bg-accent"
-                            onClick={() => {
-                              setDrafts((old) => ({
-                                ...old,
-                                [selected!.id]: draft.filter((v) => v !== t),
-                              }))
-                              setSaved(false)
-                              setSaveError('')
-                            }}
+                            className="action-secondary max-w-full break-all"
+                            onClick={() => add(t)}
                           >
-                            <span className="min-w-0 break-all">{t}</span>
-                            <X className="h-4 w-4 shrink-0" />
+                            {t}
                           </button>
-                        ))
-                      )}
+                        ))}
+                      </div>
                     </div>
-                    <label
-                      className="block text-sm font-medium"
-                      htmlFor="contact-add-tag"
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {draft.length}/20 tags · up to 40 characters each. Press
+                    Enter to add.
+                  </p>
+                  {saveError && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {saveError}
+                    </p>
+                  )}
+                  {dirty && !saving && (
+                    <p className="text-sm text-muted-foreground">
+                      You have unsaved changes.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      className="action-primary"
+                      disabled={saving || !dirty}
                     >
-                      Add tag
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        id="contact-add-tag"
-                        className="field-control flex-1"
-                        placeholder="For example: New customer"
-                        value={tagInput}
-                        disabled={saving}
-                        onChange={(e) => {
-                          setTagInput(e.target.value)
-                          setSaved(false)
-                          setSaveError('')
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            add(tagInput)
-                          }
-                        }}
-                      />
+                      {saving ? 'Saving…' : 'Save tags'}
+                    </button>
+                    {dirty && (
                       <button
                         type="button"
                         className="action-secondary"
-                        disabled={saving || !tagInput.trim()}
-                        onClick={() => add(tagInput)}
+                        disabled={saving}
+                        onClick={() => {
+                          setDrafts((old) => ({
+                            ...old,
+                            [selected!.id]: selected!.tags,
+                          }))
+                          setTagInput('')
+                          setSaveError('')
+                          setSaved(false)
+                        }}
                       >
-                        Add
+                        Discard changes
                       </button>
-                    </div>
-                    {suggestions.length > 0 && (
-                      <div aria-label="Available tags" className="space-y-1">
-                        <p className="text-xs text-muted-foreground">
-                          Use an existing tag
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {suggestions.map((t) => (
-                            <button
-                              type="button"
-                              key={t}
-                              disabled={saving}
-                              className="action-secondary max-w-full break-all"
-                              onClick={() => add(t)}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      {draft.length}/20 tags · up to 40 characters each. Press
-                      Enter to add.
+                  </div>
+                  {saved && (
+                    <p role="status" className="text-sm">
+                      Tags saved.
                     </p>
-                    {saveError && (
-                      <p role="alert" className="text-sm text-destructive">
-                        {saveError}
-                      </p>
-                    )}
-                    {dirty && !saving && (
-                      <p className="text-sm text-muted-foreground">
-                        You have unsaved changes.
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="submit"
-                        className="action-primary"
-                        disabled={saving || !dirty}
-                      >
-                        {saving ? 'Saving…' : 'Save tags'}
-                      </button>
-                      {dirty && (
-                        <button
-                          type="button"
-                          className="action-secondary"
-                          disabled={saving}
-                          onClick={() => {
-                            setDrafts((old) => ({
-                              ...old,
-                              [selected!.id]: selected!.tags,
-                            }))
-                            setTagInput('')
-                            setSaveError('')
-                            setSaved(false)
-                          }}
-                        >
-                          Discard changes
-                        </button>
-                      )}
-                    </div>
-                    {saved && (
-                      <p role="status" className="text-sm">
-                        Tags saved.
-                      </p>
-                    )}
-                  </form>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-lg font-semibold">Contact not found</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    This contact may no longer be available.
-                  </p>
-                  <button
-                    className="action-secondary mt-3"
-                    onClick={() => select('')}
-                  >
-                    View contacts
-                  </button>
-                </>
-              )}
-            </aside>
-          ) : (
-            <aside className="hidden min-[1200px]:block self-start rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              <Users className="mx-auto mb-3 h-8 w-8" />
-              <p>
-                Select a contact to view their details, tags, and conversation.
-              </p>
-            </aside>
-          )}
-        </div>
-      )}
+                  )}
+                </form>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold">Contact not found</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  This contact may no longer be available.
+                </p>
+                <button
+                  className="action-secondary mt-3"
+                  onClick={() => select('')}
+                >
+                  View contacts
+                </button>
+              </>
+            )}
+          </aside>
+        ) : (
+          <aside className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-muted-foreground">
+            <Users className="mx-auto mb-3 h-8 w-8" />
+            <p>
+              Select a contact to view their details, tags, and conversation.
+            </p>
+          </aside>
+        )}
+      </div>
     </section>
   )
 }

@@ -223,7 +223,9 @@ export function AppShell({
         <div
           className={cn(
             'min-h-0 min-w-0 flex-1',
-            currentTab === 'inbox' || sessionWorkspace
+            currentTab === 'inbox' ||
+              currentTab === 'contacts' ||
+              sessionWorkspace
               ? 'overflow-hidden'
               : 'overflow-auto p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',

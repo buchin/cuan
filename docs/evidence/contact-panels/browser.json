@@ -1,0 +1,83 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1199,
+      "theme": "light",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1199,
+      "theme": "dark",
+      "independentPanels": false,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "independentPanels": true,
+      "responsive": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "independentPanels": true,
+      "responsive": true,
+      "noOverflow": true
+    }
+  ],
+  "independentScrolling": true,
+  "searchAndFilters": true,
+  "tagSaveFailureRetryPersistence": true,
+  "conversationLink": true,
+  "emptyAndErrorRetry": true,
+  "providerInvocations": 0,
+  "errors": [],
+  "unknown": []
+}
