@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/go-chi/chi/v5"
@@ -15,10 +16,17 @@ type inboxRecoveryDTO struct {
 
 func inboxRecoveryRequests(requests []db.InboxRequest) []inboxRecoveryDTO {
 	out := make([]inboxRecoveryDTO, 0, len(requests))
+	// Show the prepared recovery during the short backoff, before the dispatcher
+	// atomically queues its child. Only freshly opted-in, proven-safe failures
+	// can expose this state; historical/unknown outcomes cannot.
+	pending := db.InboxAutomaticRecoveryCandidate(requests, time.Now().Add(2*time.Second))
 	for _, q := range requests {
 		action := ""
 		if q.OwnerID != "" && q.AgentID != "" {
 			action = db.InboxRecoveryAction(q)
+			if pending != nil && pending.RequestID == q.RequestID {
+				action = "recovering"
+			}
 		}
 		out = append(out, inboxRecoveryDTO{InboxRequest: q, RecoveryAction: action})
 	}

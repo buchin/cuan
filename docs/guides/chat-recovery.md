@@ -10,8 +10,15 @@ shows the action supported by its recorded outcome:
 - **Check usage** opens Settings → Agents when account/model quota is limited.
 - **Check agent** opens the same page when sign-in needs attention.
 
-A retry is not an automatic restart. No task, deployment or uncertain tool action
-is replayed by these controls. Cuan currently makes a fresh provider turn with the
+For newly started replies, Cuan automatically makes at most one safe recovery
+attempt after a short backoff when a verified final failure proves no unsafe
+action occurred. The bubble shows **Recovering reply…** without requiring a click.
+Old failures are not replayed when deploying this feature. A newer message,
+cancellation, uncertain outcome, sign-in problem, or exhausted quota prevents
+this automatic recovery. Manual Try again and automatic recovery share the same
+child identity, so racing them cannot duplicate the attempt.
+
+No task, deployment or uncertain tool action is replayed by these controls. Cuan currently makes a fresh provider turn with the
 saved conversation context; it does not resume a native provider session or
 checkpoint. This differs from Fural's Resume implementation.
 
@@ -41,7 +48,11 @@ GET/SSE request snapshots include `recovery_action`.
 
 Retry insertion is serialized with the existing room advisory lock in PostgreSQL;
 the request and its previous outcome are retained. No migration is needed.
-Historical failures without sufficient evidence default to Check status.
+Historical failures without sufficient evidence default to Check status. Automatic
+recovery additionally requires the per-turn safe-reply-v1 policy, a final no-effect
+proof, a recent finished timestamp, no pending work or later turn in the room,
+and no prior child for that message. Dispatcher restarts reuse a queued child
+instead of creating another.
 
 Verification includes real PostgreSQL concurrency in an isolated schema (twelve
 simultaneous retries produce one child), owner/room boundaries, unknown-result

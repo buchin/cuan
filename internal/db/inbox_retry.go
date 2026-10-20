@@ -21,10 +21,14 @@ func InboxRecoveryAction(q InboxRequest) string {
 		}
 		return ""
 	}
-	safe := false
+	safe, observedTool := false, false
 	for _, step := range q.Steps {
-		if strings.HasPrefix(step.Kind, "runtime_tool_") || step.Kind == "runtime_permission_denied" {
+		if step.Kind == "runtime_permission_denied" {
 			return "check_status"
+		}
+		if strings.HasPrefix(step.Kind, "runtime_tool_") {
+			observedTool = true
+			safe = false
 		}
 		if step.Kind == "provider" {
 			safe = false
@@ -32,6 +36,11 @@ func InboxRecoveryAction(q InboxRequest) string {
 		if step.Kind == "recovery_safe" {
 			safe = true
 		}
+	}
+	// The executor emits recovery_safe only after a verified final result with
+	// no unsafe/unknown tool activity. Earlier tool entries alone are not proof.
+	if observedTool && !safe {
+		return "check_status"
 	}
 	lower := strings.ToLower(q.SafeError)
 	for _, unknown := range []string{"unknown", "interrupted", "timed out", "before a final result", "cannot be safely repeated", "invalid runtime", "size limit"} {
@@ -62,6 +71,53 @@ func InboxRetryID(source string) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", sum[:4], sum[4:6], sum[6:8], sum[8:10], sum[10:16])
 }
 
+// Automatic recovery is opt-in per newly started turn and consumes at most one
+// extra attempt. Old failures, later user turns, cancellations and unknown tool
+// outcomes are never replayed by a deployment or a dispatcher restart.
+func InboxAutomaticRecoveryCandidate(requests []InboxRequest, now time.Time) *InboxRequest {
+	var latest *InboxRequest
+	counts := map[string]int{}
+	for i := range requests {
+		q := &requests[i]
+		counts[q.MessageID]++
+		if q.State == "queued" || q.State == "running" || q.State == "cancelling" {
+			return nil
+		}
+		if latest == nil || q.CreatedAt.After(latest.CreatedAt) || (q.CreatedAt.Equal(latest.CreatedAt) && q.RequestID > latest.RequestID) {
+			latest = q
+		}
+	}
+	if latest == nil || latest.OwnerID == "" || latest.AgentID == "" || counts[latest.MessageID] != 1 || InboxRecoveryAction(*latest) != "try_again" {
+		return nil
+	}
+	policy, proof := false, false
+	var finished time.Time
+	for _, step := range latest.Steps {
+		if step.Kind == "recovery_policy" && step.Text == "safe-reply-v1" {
+			policy = true
+		}
+		if step.Kind == "provider" {
+			proof = false
+		}
+		if step.Kind == "recovery_safe" {
+			proof = true
+		}
+		if step.Kind == "finished" {
+			finished = step.At
+		}
+	}
+	elapsed := now.Sub(finished)
+	if !policy || !proof || finished.IsZero() || elapsed < 2*time.Second || elapsed > 2*time.Minute {
+		return nil
+	}
+	copy := *latest
+	return &copy
+}
+
+type InboxAutoRetryRepository interface {
+	AutoRetryInboxRequest(context.Context, string, string, string) (InboxRequest, bool, error)
+}
+
 type InboxRetryRepository interface {
 	RetryInboxRequest(context.Context, string, string, string) (InboxRequest, bool, error)
 }
@@ -74,6 +130,12 @@ func retryRequest(q InboxRequest) InboxRequest {
 }
 
 func (r *MemoryProjectStudioRepository) RetryInboxRequest(ctx context.Context, room, source, owner string) (InboxRequest, bool, error) {
+	return r.retryInboxRequest(ctx, room, source, owner, false)
+}
+func (r *MemoryProjectStudioRepository) AutoRetryInboxRequest(ctx context.Context, room, source, owner string) (InboxRequest, bool, error) {
+	return r.retryInboxRequest(ctx, room, source, owner, true)
+}
+func (r *MemoryProjectStudioRepository) retryInboxRequest(ctx context.Context, room, source, owner string, automatic bool) (InboxRequest, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	q, ok := r.requests[room+source]
@@ -83,6 +145,20 @@ func (r *MemoryProjectStudioRepository) RetryInboxRequest(ctx context.Context, r
 	child := retryRequest(q)
 	if old, ok := r.requests[room+child.RequestID]; ok {
 		return old, false, nil
+	}
+	if automatic {
+		rows := []InboxRequest{}
+		for _, row := range r.requests {
+			if row.RoomID == room {
+				rows = append(rows, row)
+			}
+		}
+		candidate := InboxAutomaticRecoveryCandidate(rows, time.Now())
+		if candidate == nil || candidate.RequestID != source {
+			return q, false, ErrInboxRetryUnavailable
+		}
+		child.Steps[0].Kind = "retry_auto"
+		child.Steps[0].Text = "Recovering this reply automatically from the saved message."
 	}
 	if InboxRecoveryAction(q) != "try_again" {
 		return q, false, ErrInboxRetryUnavailable
@@ -104,6 +180,12 @@ func (r *MemoryProjectStudioRepository) RetryInboxRequest(ctx context.Context, r
 }
 
 func (r *SQLProjectStudioRepository) RetryInboxRequest(ctx context.Context, room, source, owner string) (InboxRequest, bool, error) {
+	return r.retryInboxRequest(ctx, room, source, owner, false)
+}
+func (r *SQLProjectStudioRepository) AutoRetryInboxRequest(ctx context.Context, room, source, owner string) (InboxRequest, bool, error) {
+	return r.retryInboxRequest(ctx, room, source, owner, true)
+}
+func (r *SQLProjectStudioRepository) retryInboxRequest(ctx context.Context, room, source, owner string, automatic bool) (InboxRequest, bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return InboxRequest{}, false, err
@@ -143,12 +225,34 @@ func (r *SQLProjectStudioRepository) RetryInboxRequest(ctx context.Context, room
 		}
 		return old, false, tx.Commit()
 	}
+	if automatic {
+		candidate := InboxAutomaticRecoveryCandidate([]InboxRequest{q}, time.Now())
+		if candidate == nil {
+			return q, false, ErrInboxRetryUnavailable
+		}
+		var latest string
+		var siblings int
+		if err = tx.QueryRowContext(ctx, `SELECT request_id FROM inbox_requests WHERE room_id=$1 ORDER BY created_at DESC,request_id DESC LIMIT 1`, room).Scan(&latest); err != nil {
+			return q, false, err
+		}
+		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM inbox_requests WHERE room_id=$1 AND message_id=$2`, room, q.MessageID).Scan(&siblings); err != nil {
+			return q, false, err
+		}
+		if latest != source || siblings != 1 {
+			return q, false, ErrInboxRetryUnavailable
+		}
+		child.Steps[0].Kind = "retry_auto"
+		child.Steps[0].Text = "Recovering this reply automatically from the saved message."
+	}
 	if InboxRecoveryAction(q) != "try_again" {
 		return q, false, ErrInboxRetryUnavailable
 	}
 	var count int
 	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM inbox_requests WHERE room_id=$1 AND state IN ('queued','running','cancelling')`, room).Scan(&count); err != nil {
 		return q, false, err
+	}
+	if automatic && count > 0 {
+		return q, false, ErrInboxRetryUnavailable
 	}
 	if count >= 20 {
 		return q, false, ErrInboxQueueFull

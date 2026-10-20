@@ -38,6 +38,7 @@ export function InboxActivity({
   const [recoveryStatus, setRecoveryStatus] = useState('')
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
+  const autoPending = recovery === 'recovering'
   const recover = async (action: () => Promise<void>) => {
     if (recovering) return
     setRecovering(true)
@@ -71,6 +72,7 @@ export function InboxActivity({
   const activityText = latestActivity?.text
     ? Array.from(latestActivity.text).slice(0, 140).join('')
     : t('Working…')
+  const autoRecovery = q.steps?.some((step) => step.kind === 'retry_auto')
   const compact = q.state === 'completed' && !bubble
   const active = ['queued', 'running', 'cancelling'].includes(q.state)
   useEffect(() => {
@@ -106,10 +108,10 @@ export function InboxActivity({
   const processSteps =
     q.steps?.filter(
       (step) =>
-        step.kind !== 'provider_result' && step.kind !== 'runtime_session',
+        step.kind !== 'provider_result' && step.kind !== 'runtime_session' && step.kind !== 'recovery_policy',
     ) || []
   const Icon =
-    q.state === 'queued'
+    autoPending ? LoaderCircle : q.state === 'queued'
       ? Clock3
       : active
         ? LoaderCircle
@@ -132,7 +134,7 @@ export function InboxActivity({
             aria-hidden
             className={
               'h-4 w-4 shrink-0 ' +
-              (active && q.state !== 'queued'
+              ((active && q.state !== 'queued') || autoPending
                 ? 'animate-spin'
                 : q.state === 'failed'
                   ? 'text-destructive'
@@ -144,13 +146,15 @@ export function InboxActivity({
             className="min-w-0 font-medium break-words"
             aria-live="polite"
           >
-            {q.state === 'running'
+            {autoPending || (q.state === 'queued' && autoRecovery)
+              ? t('Recovering reply…')
+              : q.state === 'running'
               ? activityText
               : q.state === 'failed'
                 ? t('Could not reply')
                 : q.state === 'interrupted' ? t('Reply interrupted') : t(label)}
           </span>
-          {seconds !== null && (
+          {!autoPending && seconds !== null && (
             <span className="text-xs tabular-nums text-muted-foreground">
               {seconds} s
             </span>
@@ -415,7 +419,7 @@ export function InboxActivity({
       {failed && (
         <div className="px-2 pb-2">
           <p className="mb-1 max-w-prose text-muted-foreground">
-            {t(recovery === 'try_again'
+            {t(recovery === 'recovering' ? 'Your message is saved.' : recovery === 'try_again'
               ? 'Your message is saved. You can try again.'
               : recovery === 'check_usage'
                 ? 'Usage is limited. Check account availability before trying again.'
@@ -434,7 +438,7 @@ export function InboxActivity({
             <Link to="/settings/agents" className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4">
               {t(recovery === 'check_usage' ? 'Check usage' : 'Check agent')}
             </Link>
-          ) : onCheckStatus ? (
+          ) : !autoPending && onCheckStatus ? (
             <button type="button" disabled={recovering}
               className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4 disabled:opacity-50"
               onClick={() => void recover(onCheckStatus)}>

@@ -108,6 +108,17 @@ func (s *Server) drainInboxRoom(room string) {
 		if err != nil {
 			return
 		}
+		if candidate := db.InboxAutomaticRecoveryCandidate(requests, time.Now()); candidate != nil {
+			if recovery, ok := s.projectStudioRepo.(db.InboxAutoRetryRepository); ok {
+				recoveryCtx, recoveryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				child, fresh, recoveryErr := recovery.AutoRetryInboxRequest(recoveryCtx, room, candidate.RequestID, candidate.OwnerID)
+				recoveryCancel()
+				if recoveryErr == nil && fresh {
+					requests = append(requests, child)
+					s.publishInbox(room)
+				}
+			}
+		}
 		var next *db.InboxRequest
 		for j := range requests {
 			if requests[j].State == "queued" {
@@ -172,6 +183,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		}
 	}
 	step("accepted", "Message received.")
+	step("recovery_policy", "safe-reply-v1")
 	q.State = "completed"
 	var reply *db.ProjectMessage
 	if q.AgentID != "" {

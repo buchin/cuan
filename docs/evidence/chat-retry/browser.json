@@ -7,6 +7,7 @@
       "oneUserMessage": true,
       "unknownOutcomeOnlyChecksStatus": true,
       "quotaLinksToSettings": true,
+      "automaticRecoveryNeedsNoClick": true,
       "noHorizontalOverflow": true
     },
     {
@@ -16,6 +17,7 @@
       "oneUserMessage": true,
       "unknownOutcomeOnlyChecksStatus": true,
       "quotaLinksToSettings": true,
+      "automaticRecoveryNeedsNoClick": true,
       "noHorizontalOverflow": true
     },
     {
@@ -25,6 +27,7 @@
       "oneUserMessage": true,
       "unknownOutcomeOnlyChecksStatus": true,
       "quotaLinksToSettings": true,
+      "automaticRecoveryNeedsNoClick": true,
       "noHorizontalOverflow": true
     }
   ],

@@ -402,5 +402,6 @@
   "Status is up to date.": "Status sudah diperbarui.",
   "Reply interrupted": "Balasan terhenti",
   "Could not reply": "Belum bisa membalas",
-  "Your reply stopped. Your message is saved.": "Balasan terhenti. Pesan Anda tetap tersimpan."
+  "Your reply stopped. Your message is saved.": "Balasan terhenti. Pesan Anda tetap tersimpan.",
+  "Recovering reply…": "Memulihkan balasan…"
 }

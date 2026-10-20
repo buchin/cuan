@@ -27,9 +27,13 @@ for(const width of [390,820,1440]){
  const before=retryCalls;retryAccepted=false;recoveryAction='check_status';await page.reload();
  await page.getByRole('button',{name:'Check status',exact:true}).click();assert.equal(retryCalls,before);assert(!(await page.locator('[data-response-state=interrupted]').innerText()).includes('40 s'));
  assert.equal(await page.getByRole('button',{name:'Try again',exact:true}).count(),0);
+ recoveryAction='recovering';await page.reload();
+ await page.getByRole('status').filter({hasText:'Recovering reply…'}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Try again',exact:true}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'Check status',exact:true}).count(),0);
  recoveryAction='check_usage';await page.reload();await page.getByRole('link',{name:'Check usage',exact:true}).waitFor();
  assert.equal(await page.getByRole('link',{name:'Check usage',exact:true}).getAttribute('href'),'/settings/agents');
- checks.push({width,lostResponseSafeRetry:true,sameSourceId:true,oneUserMessage:true,unknownOutcomeOnlyChecksStatus:true,quotaLinksToSettings:true,noHorizontalOverflow:true});
+ checks.push({width,lostResponseSafeRetry:true,sameSourceId:true,oneUserMessage:true,unknownOutcomeOnlyChecksStatus:true,quotaLinksToSettings:true,automaticRecoveryNeedsNoClick:true,noHorizontalOverflow:true});
 }
 assert.deepEqual(errors,[]);
 fs.writeFileSync('docs/evidence/chat-retry/browser.json',JSON.stringify({checks,providerCalls:0},null,2));

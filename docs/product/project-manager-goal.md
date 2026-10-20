@@ -19,10 +19,13 @@ account/model or a clear recovery action.
 
 AGY chat analysis now has external read-only filesystem isolation with automatic
 tool approval. Safe failed replies support one idempotent new attempt using the
-saved message/context. Existing task delegation, progress and results remain in
+saved message/context; proven-safe failures on new turns can recover once
+automatically. Existing task delegation, progress and results remain in
 their current workflow.
 
 Native provider-session checkpoint continuation, network egress policy, and a
 verified turnkey Docker AGY runtime remain gaps. A fresh retry must not be
 presented as resuming saved execution progress. Extension foundations are being
 developed separately; this goal does not claim all recovery/product work complete.
+
+The requirement-by-requirement audit is maintained in [goal-audit.md](goal-audit.md).

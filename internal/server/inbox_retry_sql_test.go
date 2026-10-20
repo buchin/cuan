@@ -156,5 +156,48 @@ func TestInboxRetryPostgres(t *testing.T) {
 	if !finalFound {
 		t.Fatal("SQL final timestamp lost at timeline cap")
 	}
+	autoSource := accept(time.Since(now))
+	if _, ok, err := repo.ClaimInboxRequest(ctx, room, autoSource.RequestID); err != nil || !ok {
+		t.Fatal("claim automatic fixture", err)
+	}
+	repo.AppendInboxStep(ctx, room, autoSource.RequestID, "recovery_policy", "safe-reply-v1")
+	repo.AppendInboxStep(ctx, room, autoSource.RequestID, "recovery_safe", "No action was performed.")
+	autoSource.State = "failed"
+	autoSource.SafeError = "The provider could not reply."
+	if err := repo.FinishInboxRequest(ctx, autoSource, nil); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2100 * time.Millisecond)
+	wins = 0
+	for i := 0; i < 12; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			var child db.InboxRequest
+			var fresh bool
+			var err error
+			if index%2 == 0 {
+				child, fresh, err = repo.AutoRetryInboxRequest(ctx, room, autoSource.RequestID, autoSource.OwnerID)
+			} else {
+				child, fresh, err = repo.RetryInboxRequest(ctx, room, autoSource.RequestID, autoSource.OwnerID)
+			}
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if child.RequestID != db.InboxRetryID(autoSource.RequestID) || child.MessageID != autoSource.MessageID {
+				t.Error("automatic correlation lost")
+			}
+			if fresh {
+				mu.Lock()
+				wins++
+				mu.Unlock()
+			}
+		}(i)
+	}
+	wg.Wait()
+	if wins != 1 {
+		t.Fatalf("auto/manual race created %d children", wins)
+	}
 	t.Log("SQL retry: twelve simultaneous clicks, one new attempt, original user message retained; ownership and unknown outcome enforced; no inference")
 }
