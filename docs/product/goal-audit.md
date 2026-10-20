@@ -13,30 +13,33 @@ does not establish the whole goal.
 | --- | --- | --- |
 | Accept a natural-language goal without requiring agent/project/task forms | Studio routes through durable Inbox; studio.go and studio_test.go | Implemented; existing targeted fixtures cover dispatch and identity |
 | Clarify ambiguity and obtain approval for consequential scope | workflow/coordinator.md; inbox_approval.go; inbox_delegation.go | Structured proposals now render an exact scope and persist a same-owner/agent/conversation approval snapshot; canonical dispatch needs no model rewrite. Direct unstructured intent still relies on model interpretation; deployed in ca9028f; clean fixture and read-only production verification pass |
-| Preserve original goal, project and authorization across execution | SourceRoomID/SourceMessageID, stored task instructions, task-bound reporting capability | Implemented for normal delegated work; approval scope enforcement needs strengthening |
+| Preserve original goal, project and authorization across execution | SourceRoomID/SourceMessageID, stored task instructions, task-bound reporting capability | Direct and structured-approved work retain the original request; structured scope snapshots, digests and task-bound capability are verified by plan-approval and recovery fixtures |
 | Start approved work once and keep the user informed | Atomic attempt reservation; Inbox progress delivery and one review per terminal attempt; inbox_delegation_test.go | Existing fake-provider flow covers launch, progress/result, revisions and idempotency |
-| Retry known no-effect failures without user operation | New opt-in per-turn recovery policy, one child attempt per message, dispatcher retry | Implemented and tested locally/isolated SQL; release evidence must prove production delivery |
+| Retry known no-effect failures without user operation | New opt-in per-turn recovery policy, one child attempt per message, dispatcher retry | Deployed in 3b230b7; docs/evidence/automatic-recovery records isolated SQL/manual-auto races and production delivery |
 | Preserve context during recovery | Original message/attachments reused; prior task summary/verification in session guidance | Latest-attempt progress-only checkpoints now reach recovery guidance and coordinator review; integrated process-loss fixture passes (task-recovery evidence) |
 | Never overlap an orphaned execution with a replacement | Live manager guard and durable active-attempt lease | OS supervisor lock and parent-loss cleanup implemented; real process/reconstructed-manager tests pass; deployed in 0071835; production service-user binary conflict/exit probe passes |
 | Continue interrupted approved work from actual progress | Coordinator reviews interrupted attempts and may issue a scoped revision | Real fake-provider SIGKILL flow preserves one artifact and progress, continues the same task and verifies the result; no native provider-session checkpoint is claimed |
 | Handle unavailable quota/auth without blind repeats | Allowed account/model routing, cooldowns, explicit backup participation, safe recovery actions | Implemented with targeted routing tests; unavailable external access remains a reported blocker |
-| Return verified results and continue within approved scope | Task reporting, outcome reconciliation, coordinator result review | Existing evidence covers nominal flow; end-to-end interruption/recovery proof remains necessary |
+| Return verified results and continue within approved scope | Task reporting, outcome reconciliation, coordinator result review | Structured goal → approval → execution → SIGKILL → checkpoint → scoped revision → verified final outcome passes as one fake-provider path; one artifact, one task, two attempts, one final result |
 | Keep setup and usage self-contained | Native sandbox setup/check guide | Native path verified; Docker AGY turnkey runtime and several legacy guides remain gaps |
 
-## Next concrete verification
+## Remaining completion work
 
-1. Prove safe automatic recovery across a reconstructed server, with one original
-   message, one recovery child, bounded model calls, and a manual/automatic race.
-2. Persist/verify execution ownership independently of an expiring lease before
-   replacing an interrupted task; exercise actual child-process loss.
-3. Include bounded public progress checkpoints and previous execution state in
-   the next task session and coordinator review, then prove no completed work is
-   repeated in a fake-provider interruption fixture.
-4. Make approval scope explicit enough for the backend to reject unrelated user
-   messages or altered proposals as authorization.
-5. Reconcile documentation and install checks with current behavior, and run an
-   integrated goal → approval → execution → interruption → recovery → result
-   scenario without real AI inference.
+The latest verified behavior keeps clear instructions direct. Optional decisions
+use exact scope snapshots and choice actions; planning is not mandatory. The
+application release is 3f98a03, with detailed evidence in plan-approval.
+
+1. Reconcile public onboarding and legacy message/task guides with current
+   coordinator-managed execution, sandbox prerequisites and persistent profiles.
+   The old Docker quickstart still does not establish a turnkey AGY runtime.
+2. Inspect accepted-work launch failures (quota/account temporarily unavailable):
+   prove approved saved work can resume when its route becomes available without
+   creating duplicate tasks or requiring the user to operate the task board.
+3. Audit native fresh-install prerequisites and the actual supported deployment
+   path; application/database health alone is not provider readiness.
+4. Preserve documented boundaries: model intent interpretation for direct natural
+   instructions, unknown external side effects, cancellation, and external access
+   blockers must not be advertised as guarantees beyond actual evidence.
 
 Network egress and a native provider-session resume are separate implementation
 choices; neither should be advertised as already delivered. The acceptance

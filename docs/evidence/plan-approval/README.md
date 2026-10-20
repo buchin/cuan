@@ -41,7 +41,7 @@ files match /opt/cuan/backups/plan-approval-release. Schema24 and disabled autom
 migration remain unchanged. Previous release: 0071835c4c6f8e7a25f6ef549e23b6570a2d32d9.
 See production.json. Existing CSS syntax/chunk-size build warnings remain.
 
-## Optional choice actions follow-up (not deployed yet)
+## Optional choice actions follow-up
 
 Added Change plan (composer reference/focus, no send) and Not now (persisted,
 idempotent deferral, no provider/task launch). An approved task cannot be deferred
@@ -61,7 +61,7 @@ navigates with spawn/autostart=1 for a selected agent, without a mandatory plan
 step. Cuan likewise keeps proposals optional; the choice actions are only for
 conversations needing a decision.
 
-## Direct execution alignment (pending release)
+## Direct execution alignment
 
 Coordinator guidance now explicitly treats a clear work instruction as authority
 for that stated scope, without requiring “create task/run agent” words or another
@@ -70,3 +70,19 @@ for ambiguity, additional scope or consequential undecided actions.
 A fake-provider fixture sends an ordinary read-only audit instruction and verifies
 single-turn delegation, progress/result, identity and idempotency. This validates
 application plumbing and delivery of guidance, not universal model intent accuracy.
+
+## Direct-work release verification
+
+Application release 3f98a030f4c39b5497733134e87b5f79c73cf64f delivers optional
+choices and coordinator alignment. Clean targeted server checks pass (34.140s),
+including direct instructions, approval/deferral, process-loss recovery and
+legacy notifications. Clean TypeScript/Vite build and 390/820/1440 browser
+fixtures pass. Native atomic activation and readiness pass.
+
+Read-only production language/recovery smoke and served optional-action assets
+pass; no new message, approval, retry or provider call was made. The production
+check does not claim a new real-model turn was exercised. All 36 application
+tables (auth sessions excluded) and 863 profile files match the pre-release
+snapshot at /opt/cuan/backups/direct-work-release. Schema24 remains unchanged,
+automatic migration disabled. Previous application release: ca9028f.
+See direct-work-production.json. Existing build warnings remain unchanged.
