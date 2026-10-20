@@ -235,14 +235,15 @@ export function InboxSubPanel({
               <button
                 key={contact.id}
                 onClick={openContact}
+                aria-pressed={isSelected}
                 className={cn(
-                  'inbox-contact-row w-full min-h-20 text-left px-3 py-3 transition-colors flex items-center gap-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
+                  'inbox-contact-row w-full min-h-[4.5rem] text-left px-3 py-2.5 transition-colors flex items-center gap-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
                   isSelected && 'bg-accent text-accent-foreground font-medium',
                 )}
               >
                 {/* Avatar with Online Dot */}
                 <div className="relative shrink-0 mt-0.5">
-                  <div className="h-11 w-11 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold border border-border shadow-xs">
+                  <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold border border-border shadow-xs">
                     {contact.avatar ? (
                       <span>{contact.avatar}</span>
                     ) : contact.type === 'agent' ? (
@@ -273,7 +274,7 @@ export function InboxSubPanel({
                       </p>
                     )}
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground truncate leading-relaxed">
+                    <p className="text-xs text-muted-foreground truncate leading-5">
                       {conversationPreview(contact.last_message)}
                     </p>
                     {unread > 0 && (

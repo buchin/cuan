@@ -334,3 +334,10 @@ body {
   .item-action-row:focus-within > [data-item-menu],
   .item-action-row > [data-item-menu][aria-expanded="true"] { opacity: 1; }
 }
+
+/* Keep conversation actions within the same selected row, without a separate pill. */
+.item-action-row:has(.inbox-contact-row) > [data-item-menu] {
+  margin-inline-end: 0.25rem;
+  border-radius: 0.375rem;
+  background: transparent;
+}
