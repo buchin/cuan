@@ -1,6 +1,7 @@
 {
   "notesAPI": true,
   "notesUI": true,
+  "singleFieldEditor": true,
   "notesRequireAuthentication": true,
   "responsiveContactDetails": true,
   "projectPickerAndScopedTasks": true,
