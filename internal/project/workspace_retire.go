@@ -54,6 +54,14 @@ func (s *Service) saveWorkspaceReceipt(key string, receipt workspaceReceipt) err
 	if err == nil {
 		err = os.Rename(file.Name(), path)
 	}
+	if err == nil {
+		directory, openErr := os.Open(filepath.Dir(path))
+		if openErr != nil {
+			return openErr
+		}
+		err = directory.Sync()
+		_ = directory.Close()
+	}
 	return err
 }
 
@@ -132,6 +140,11 @@ func (s *Service) restoreRetiredWorkspace(ctx context.Context, key, taskID, sour
 	}
 	if exec.CommandContext(ctx, "git", "-C", source, "worktree", "add", destination, branch).Run() != nil {
 		return errors.New("Could not restore the retained task workspace")
+	}
+	// A retired receipt is single-use. A later external deletion must not be
+	// mistaken for another deliberate cleanup and silently lose pending edits.
+	if err := os.Remove(s.workspaceReceiptPath(key)); err != nil {
+		return errors.New("Workspace restored but receipt cleanup needs review")
 	}
 	return nil
 }

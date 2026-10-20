@@ -199,6 +199,7 @@ func main() {
 	defer stopInbox()
 	srv.StartInboxDispatcher(inboxCtx)
 	srv.StartNotificationDispatcher(inboxCtx)
+	srv.StartWorkspaceRetention(inboxCtx)
 
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{

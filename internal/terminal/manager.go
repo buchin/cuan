@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/buchin/cuan/internal/taskprocess"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -563,4 +564,14 @@ func (m *Manager) TaskExecutionActive(taskID string) (bool, error) {
 		return false, err
 	}
 	return taskprocess.Active(path)
+}
+
+// AcquireTaskExecutionLease prevents a provider process starting during cleanup.
+// The caller must close the lease; active or uncertain ownership refuses cleanup.
+func (m *Manager) AcquireTaskExecutionLease(taskID string) (io.Closer, error) {
+	path, err := m.taskLockPath(taskID)
+	if err != nil {
+		return nil, err
+	}
+	return taskprocess.Acquire(path)
 }

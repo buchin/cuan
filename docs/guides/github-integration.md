@@ -63,3 +63,19 @@ Interrupted/unconfirmed retirement or a changed retained branch requires review.
 Real-Git tests cover removal, restart restoration, active-lease refusal and keeping
 new revision files. The automatic scheduler and live remote verification are still
 not wired, so automatic cleanup remains disabled in production.
+
+## Automatic cleanup implementation status
+
+The server now starts an hourly retention worker. It examines at most ten done
+tasks per pass, rotates through candidates, acquires the same OS execution lease
+as task processes, rechecks task status, and reads the task branch ref directly
+from GitHub. Missing/expired access, absent remote branches or changed commits
+retain the workspace. Each observation has a 20-second deadline. No task records,
+chat history, branch refs or shared project clones are deleted.
+
+Confirmed retirement receipts are authenticated, synchronized to disk and consumed
+once on restoration. A pending receipt or changed retained branch stops automatic
+restoration for review. The worker and worktree isolation have not yet been
+released to production; runtime compatibility and combined worker verification
+remain prerequisites. Earlier implementation notes above describe the stages
+leading to this wiring, not separate active cleanup mechanisms.

@@ -67,4 +67,9 @@ func TestRetiredWorkspaceRestoresWithoutReplayingWork(t *testing.T) {
 	if e != nil || d.Eligible {
 		t.Fatal("new revision removed", e)
 	}
+	// A previously used retirement receipt cannot authorize a later accidental deletion.
+	run("worktree", "remove", "--force", workspace)
+	if _, e = restarted.ExecutionWorkspace(ctx, "retire-task", p); e == nil {
+		t.Fatal("old retirement receipt reused after later deletion")
+	}
 }
