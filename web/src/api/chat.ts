@@ -34,6 +34,7 @@ export interface InboxTaskDraft {
 }
 
 export interface ChatMessage {
+  approval_title?: string
   attachments?: import('../features/inbox/Attachments').Attachment[]
   task_draft?: InboxTaskDraft
   id: number

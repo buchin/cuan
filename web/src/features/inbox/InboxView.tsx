@@ -650,6 +650,11 @@ export function InboxView({
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
+                      {msg.approval_title && (
+                        <p className="mb-2 text-xs font-medium">
+                          {t('Needs approval')}
+                        </p>
+                      )}
                       {msg.attachments?.map((a) => (
                         <AttachmentFile key={a.id} attachment={a} />
                       ))}

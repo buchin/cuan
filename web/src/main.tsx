@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { NotificationsProvider } from './context/NotificationsContext'
+import { PWAProvider } from './context/PWAContext'
 import { LanguageProvider } from './context/LanguageContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
@@ -15,7 +17,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <ThemeProvider>
           <AuthProvider>
             <BrowserRouter>
-              <App />
+              <NotificationsProvider>
+                <PWAProvider>
+                  <App />
+                </PWAProvider>
+              </NotificationsProvider>
             </BrowserRouter>
           </AuthProvider>
         </ThemeProvider>

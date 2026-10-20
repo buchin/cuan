@@ -8,6 +8,7 @@ import React, {
 
 export interface OwnerInfo {
   id: string
+  display_name?: string
   username?: string
   email: string
 }
@@ -142,6 +143,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const currentToken = localStorage.getItem(TOKEN_KEY) || token
       if (currentToken) {
+        if ('serviceWorker' in navigator) {
+          try {
+            const registration = await navigator.serviceWorker.getRegistration()
+            const sub = await registration?.pushManager?.getSubscription()
+            if (sub) {
+              const abort = new AbortController()
+              const timeout = setTimeout(() => abort.abort(), 3000)
+              try {
+                await fetch('/api/v1/notifications/push', {
+                  method: 'DELETE',
+                  headers: {
+                    Authorization: 'Bearer ' + currentToken,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(sub.toJSON()),
+                  signal: abort.signal,
+                })
+              } finally {
+                clearTimeout(timeout)
+                await sub.unsubscribe()
+              }
+            }
+          } catch {
+            /* Clear the local session even if the push service is unavailable. */
+          }
+        }
         await fetch('/api/v1/auth/logout', {
           method: 'POST',
           headers: {

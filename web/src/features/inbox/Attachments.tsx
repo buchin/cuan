@@ -1,3 +1,5 @@
+import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { Camera, Images, FolderOpen } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState } from 'react'
 import { Plus, X, FileText, LoaderCircle, Download } from 'lucide-react'
@@ -155,8 +157,70 @@ export function AttachmentPicker({
   const { t } = useLanguage()
 
   const input = useRef<HTMLInputElement>(null)
+  const camera = useRef<HTMLInputElement>(null),
+    photos = useRef<HTMLInputElement>(null),
+    files = useRef<HTMLInputElement>(null)
+  const [choices, setChoices] = useState(false)
+  const selected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) void uploads.add(e.target.files)
+    e.target.value = ''
+    setChoices(false)
+  }
   return (
     <div className="space-y-2">
+      <ActionDialog
+        open={choices}
+        title={t('Add attachment')}
+        onClose={() => setChoices(false)}
+      >
+        <input
+          ref={camera}
+          type="file"
+          accept="image/jpeg,image/png"
+          capture="environment"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label={t('Take a photo')}
+          onChange={selected}
+        />
+        <input
+          ref={photos}
+          type="file"
+          accept="image/jpeg,image/png,image/gif"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-label={t('Choose photos')}
+          onChange={selected}
+        />
+        <input
+          ref={files}
+          type="file"
+          accept={accept}
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-label={t('Choose files')}
+          onChange={selected}
+        />
+        <div className="space-y-1">
+          {[
+            { label: 'Camera', Icon: Camera, ref: camera },
+            { label: 'Photos', Icon: Images, ref: photos },
+            { label: 'Files', Icon: FolderOpen, ref: files },
+          ].map(({ label, Icon, ref }) => (
+            <button
+              key={label}
+              type="button"
+              className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-accent"
+              onClick={() => ref.current?.click()}
+            >
+              <Icon className="h-5 w-5" />
+              {t(label)}
+            </button>
+          ))}
+        </div>
+      </ActionDialog>
       <div className="flex flex-wrap items-center gap-2">
         <input
           ref={input}
@@ -178,7 +242,14 @@ export function AttachmentPicker({
           aria-label={t('Attach files')}
           title={t('Attach files (up to 5, 10 MB each)')}
           disabled={disabled || uploads.busy || uploads.items.length >= 5}
-          onClick={() => input.current?.click()}
+          onClick={() => {
+            if (
+              window.matchMedia('(pointer: coarse)').matches ||
+              window.innerWidth < 768
+            )
+              setChoices(true)
+            else input.current?.click()
+          }}
         >
           <Plus className="h-5 w-5" />
         </button>

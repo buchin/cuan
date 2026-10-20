@@ -26,7 +26,7 @@ export function ActionDialog({
     dialog?.showModal()
     ;(
       dialog?.querySelector<HTMLElement>(
-        'input:not(:disabled),select:not(:disabled),textarea:not(:disabled)',
+        'input:not(:disabled):not([tabindex="-1"]),select:not(:disabled),textarea:not(:disabled)',
       ) ||
       dialog?.querySelector<HTMLElement>(
         '[data-action-dialog-body] button:not(:disabled)',

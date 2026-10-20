@@ -1528,6 +1528,16 @@ func (s *Server) routes() {
 			pr.Use(auth.Middleware(s.authSvc))
 
 			pr.Get("/auth/me", s.handleAuthMe)
+			pr.Patch("/auth/username", s.handleUsername)
+			pr.Get("/profile", s.handleProfile)
+			pr.Patch("/profile", s.handleProfile)
+			pr.Get("/notifications", s.handleNotifications)
+			pr.Patch("/notifications", s.handleNotifications)
+			pr.Get("/notifications/preferences", s.handleNotificationPreferences)
+			pr.Patch("/notifications/preferences", s.handleNotificationPreferences)
+			pr.Get("/notifications/push", s.handlePushSubscription)
+			pr.Post("/notifications/push", s.handlePushSubscription)
+			pr.Delete("/notifications/push", s.handlePushSubscription)
 			pr.Post("/auth/password", s.handleAuthPassword)
 
 			// Tasks endpoints (T4 & T5)
@@ -1619,10 +1629,18 @@ func (s *Server) setupStaticRoutes() {
 
 			filePath := filepath.Join(staticDir, path)
 			if f, err := os.Stat(filePath); err == nil && !f.IsDir() {
+				if path == "/sw.js" {
+					w.Header().Set("Cache-Control", "no-store")
+					w.Header().Set("Service-Worker-Allowed", "/")
+				}
+				if path == "/manifest.webmanifest" {
+					w.Header().Set("Content-Type", "application/manifest+json")
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}
 
+			w.Header().Set("Cache-Control", "no-store")
 			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 		})
 	} else {
@@ -1872,11 +1890,15 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ownerPreferencesMu.Lock()
+	preferences, _ := readOwnerPreferences(owner.ID)
+	ownerPreferencesMu.Unlock()
 	userData := map[string]interface{}{
-		"id":         owner.ID,
-		"username":   owner.Username,
-		"email":      owner.Email,
-		"created_at": owner.CreatedAt,
+		"display_name": preferences.DisplayName,
+		"id":           owner.ID,
+		"username":     owner.Username,
+		"email":        owner.Email,
+		"created_at":   owner.CreatedAt,
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{

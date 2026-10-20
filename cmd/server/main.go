@@ -195,6 +195,7 @@ func main() {
 	inboxCtx, stopInbox := context.WithCancel(context.Background())
 	defer stopInbox()
 	srv.StartInboxDispatcher(inboxCtx)
+	srv.StartNotificationDispatcher(inboxCtx)
 
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{

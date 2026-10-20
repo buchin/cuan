@@ -179,3 +179,15 @@ func (s *DBStore) DeleteExpiredSessions(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (s *DBStore) UpdateOwnerUsername(ctx context.Context, id, name string) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE owners SET username=$2,updated_at=$3 WHERE id=$1`, id, name, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("update username: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err == nil && rows == 0 {
+		return ErrOwnerNotFound
+	}
+	return err
+}

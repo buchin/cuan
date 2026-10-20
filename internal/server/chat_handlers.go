@@ -51,6 +51,7 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
+	ApprovalTitle   string                   `json:"approval_title,omitempty"`
 	Attachments     []conversationAttachment `json:"attachments,omitempty"`
 	ID              int64                    `json:"id"`
 	UUID            string                   `json:"uuid,omitempty"`
@@ -1184,6 +1185,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 
 		var actionCard *AgentActionCard
 		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
+		content, approvalTitle := splitInboxApproval(m.AuthorType, content)
 		var attached []conversationAttachment
 		if m.AuthorType == "user" {
 			var ids []string
@@ -1213,6 +1215,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			Product:         product,
 			ActionCard:      actionCard,
 			TaskDraft:       draft,
+			ApprovalTitle:   approvalTitle,
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
 		}

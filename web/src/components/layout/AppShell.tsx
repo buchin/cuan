@@ -1,3 +1,6 @@
+import { useNavigate } from 'react-router-dom'
+import { useNotifications } from '../../context/NotificationsContext'
+import { Bell } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
@@ -8,6 +11,7 @@ import { Inbox, Users, FolderGit2, PanelLeft, Settings } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export type AppTab =
+  | 'notifications'
   | 'studio'
   | 'inbox'
   | 'tasks'
@@ -51,6 +55,9 @@ export function AppShell({
 }: AppShellProps) {
   const { t } = useLanguage()
 
+  const routerNavigate = useNavigate()
+  const { items: notifications } = useNotifications()
+  const unreadNotifications = notifications.filter((n) => !n.read).length
   const shell = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -85,11 +92,13 @@ export function AppShell({
     }
   }, [])
   const label =
-    currentTab === 'tasks'
-      ? t('Work monitor')
-      : currentTab === 'settings'
-        ? t('Settings')
-        : NAV_ITEMS.find((n) => n.id === currentTab)?.label
+    currentTab === 'notifications'
+      ? 'Notifications'
+      : currentTab === 'tasks'
+        ? t('Work monitor')
+        : currentTab === 'settings'
+          ? t('Settings')
+          : NAV_ITEMS.find((n) => n.id === currentTab)?.label
   const navigate = (id: AppTab) => {
     onSelectTab(id)
   }
@@ -217,6 +226,26 @@ export function AppShell({
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              className={cn(
+                'icon-action relative',
+                currentTab === 'notifications' && 'text-primary',
+              )}
+              aria-label={t('Notifications')}
+              aria-current={currentTab === 'notifications' ? 'page' : undefined}
+              onClick={() => routerNavigate('/notifications')}
+            >
+              <Bell className="h-5 w-5" />
+              {unreadNotifications > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-0 top-0 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground"
+                >
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </button>
             {currentTab === 'inbox' && (
               <button
                 className="icon-action hidden min-[1200px]:inline-flex"

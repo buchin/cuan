@@ -1,3 +1,6 @@
+import { ProfileSettings } from './ProfileSettings'
+import { NotificationSettings } from './NotificationSettings'
+import { InstallAppCard } from './InstallAppCard'
 import {
   useLanguage,
   type LanguagePreference,
@@ -137,7 +140,11 @@ export function SettingsView({
           </Link>
         ))}
       </nav>
-      {section === 'agents' ? (
+      {section === 'profile' ? (
+        <ProfileSettings />
+      ) : section === 'notifications' ? (
+        <NotificationSettings />
+      ) : section === 'agents' ? (
         <>
           {safeReturn && (
             <Link to={safeReturn} className="action-secondary">
@@ -206,6 +213,7 @@ export function SettingsView({
         </section>
       ) : (
         <div className="space-y-4">
+          <InstallAppCard />
           <section className="rounded-lg border border-border bg-card p-5">
             <h2 className="text-lg font-semibold">{t('Agents')}</h2>
             <p className="my-3 text-sm text-muted-foreground">

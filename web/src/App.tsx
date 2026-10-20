@@ -1,3 +1,4 @@
+import { NotificationsView } from './features/notifications/NotificationsView'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
@@ -48,6 +49,8 @@ export function App() {
   // Current tab derived from URL route
   const currentTab: AppTab = useMemo(() => {
     switch (rootSegment) {
+      case 'notifications':
+        return 'notifications'
       case 'contacts':
         return 'contacts'
       case 'tasks':
@@ -482,6 +485,8 @@ export function App() {
     agents: 'Agents',
     integrations: 'Integrations',
     appearance: 'Appearance',
+    profile: 'Profile',
+    notifications: 'Notifications',
   }
   const settingsDetail = currentTab === 'settings' && !!settingTitles[subParam]
   const headerTitle = projectDetail
@@ -535,7 +540,10 @@ export function App() {
         )}
         onSelectTab={handleSelectTab}
         newAction={
-          currentTab === 'studio'
+          currentTab === 'studio' ||
+          currentTab === 'notifications' ||
+          (currentTab === 'settings' &&
+            ['profile', 'notifications'].includes(subParam))
             ? undefined
             : {
                 label:
@@ -588,6 +596,7 @@ export function App() {
           />
         }
       >
+        {currentTab === 'notifications' && <NotificationsView />}
         {currentTab === 'studio' && (
           <StudioView onAccepted={() => void refreshContacts()} />
         )}

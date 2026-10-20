@@ -1,7 +1,7 @@
 import { useLanguage } from '../../context/LanguageContext'
+import { useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { ChangePasswordModal } from '../auth/ChangePasswordModal'
 import {
   LogOut,
   KeyRound,
@@ -34,10 +34,10 @@ export function NavUser({
 }: NavUserProps) {
   const { t } = useLanguage()
 
+  const navigate = useNavigate()
   const compact = isCollapsed || (sidebar && collapsed)
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -69,18 +69,13 @@ export function NavUser({
     }
   }, [menuOpen])
 
-  const username = user?.username || 'admin'
+  const username = user?.display_name || user?.username || 'admin'
   const email = user?.email || 'admin@cuan.local'
   const initials = username.slice(0, 2).toUpperCase()
 
   const handleLogout = async () => {
     setMenuOpen(false)
     await logout()
-  }
-
-  const handleOpenPasswordModal = () => {
-    setMenuOpen(false)
-    setPasswordModalOpen(true)
   }
 
   return (
@@ -92,6 +87,7 @@ export function NavUser({
           ref={triggerRef}
           aria-label={t('Account menu')}
           aria-expanded={menuOpen}
+          aria-current={bottomNavigation && active ? 'page' : undefined}
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
             'flex min-h-11 w-full items-center gap-2 p-2 text-left hover:bg-accent hover:text-accent-foreground transition-colors rounded-md',
@@ -100,9 +96,7 @@ export function NavUser({
             bottomNavigation &&
               'min-h-14 flex-col justify-center gap-1 rounded-none p-0 text-xs',
             bottomNavigation &&
-              (active || menuOpen
-                ? 'text-primary font-semibold'
-                : 'text-muted-foreground'),
+              (active ? 'text-primary font-semibold' : 'text-muted-foreground'),
           )}
           title={compact ? username : undefined}
         >
@@ -111,6 +105,7 @@ export function NavUser({
             className={cn(
               'flex h-7 w-7 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full',
               bottomNavigation && 'h-5 w-5 text-[9px]',
+              bottomNavigation && !active && 'bg-muted text-muted-foreground',
             )}
           >
             {initials}
@@ -197,11 +192,14 @@ export function NavUser({
             {/* Menu Actions */}
             <button
               type="button"
-              onClick={handleOpenPasswordModal}
+              onClick={() => {
+                setMenuOpen(false)
+                navigate('/settings/profile')
+              }}
               className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
             >
               <KeyRound className="h-4 w-4 text-primary shrink-0" />
-              <span>Profile & password</span>
+              <span>{t('Profile & password')}</span>
             </button>
 
             <div className="h-px bg-border my-1" />
@@ -217,12 +215,6 @@ export function NavUser({
           </div>
         )}
       </div>
-
-      {/* Password Change Dialog Modal */}
-      <ChangePasswordModal
-        isOpen={passwordModalOpen}
-        onClose={() => setPasswordModalOpen(false)}
-      />
     </>
   )
 }
