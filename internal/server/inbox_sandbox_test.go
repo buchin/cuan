@@ -45,7 +45,13 @@ func TestInboxExternalSandboxBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	args, err := inboxSandboxArgs("/bin/sh", home, workspace, []string{attachment})
+	// BusyBox selects applets by argv[0], so /proc/self/exe cannot act as a
+	// shell helper there. Use dash when available, including the Alpine gate.
+	shell := "/bin/sh"
+	if dash, err := exec.LookPath("dash"); err == nil {
+		shell = dash
+	}
+	args, err := inboxSandboxArgs(shell, home, workspace, []string{attachment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +70,7 @@ echo temporary > /tmp/scratch
 echo refreshed > "$2"
 echo BOUNDARY_OK
 `
-	args = append(args, "--", "/bin/sh", "-c", script, "sandbox", hostSecret, filepath.Join(profile, "auth"), attachment, fmt.Sprint(os.Getpid()))
+	args = append(args, "--", shell, "-c", script, "sandbox", hostSecret, filepath.Join(profile, "auth"), attachment, fmt.Sprint(os.Getpid()))
 	out, err := exec.Command(bwrap, args...).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(out), "Can't mount proc") {
