@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IntegrationOverview } from './IntegrationOverview'
 import { GitHubIntegration } from './GitHubIntegration'
 import { Link, useLocation } from 'react-router-dom'
 
@@ -7,21 +8,7 @@ export function IntegrationsView() {
   const [copyState, setCopyState] = useState('')
   const snippet = `<script src="${window.location.origin}/chat/widget.js" data-product="your-website" defer></script>`
   if (pathname.endsWith('/github')) return <GitHubIntegration />
-  if (!pathname.endsWith('/live-chat'))
-    return (
-      <section className="rounded-lg border bg-card p-5">
-        <p className="my-3 text-sm text-muted-foreground">
-          Connect services to Cuan.
-        </p>
-        <Link to="/settings/integrations/github" className="action-secondary mr-2">GitHub →</Link>
-        <Link
-          to="/settings/integrations/live-chat"
-          className="action-secondary"
-        >
-          Live Chat →
-        </Link>
-      </section>
-    )
+  if (!pathname.endsWith('/live-chat')) return <IntegrationOverview />
   return (
     <section
       className="min-w-0 max-w-3xl space-y-5"

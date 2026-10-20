@@ -52,11 +52,11 @@ export function SettingsView({
   if (activeProject) return <ProjectSettings key={activeProject.id} project={activeProject} embedded={embeddedProject} onUpdated={onProjectUpdated} onArchive={onDeleteProject} />
   return (
     <section className="page-content space-y-5">
-      <header>
+      {!(section === 'integrations' && location.pathname.split('/')[3]) && <header>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t('Manage your workspace and agent connections.')}
+          {t(section === 'integrations' ? 'Connect the services your projects need.' : 'Manage your workspace and agent connections.')}
         </p>
-      </header>
+      </header>}
       <nav
         aria-label={t('Settings sections')}
         className="flex gap-1 overflow-x-auto border-b border-border"

@@ -16,7 +16,7 @@ export function GitHubIntegration() {
  useEffect(() => { void load(); void checkOAuth() }, [])
  return <section className="mx-auto w-full max-w-2xl space-y-5" aria-label="GitHub integration">
   <Link to="/settings/integrations" className="action-secondary">← Integrations</Link>
-  <p className="text-sm text-muted-foreground">Connect GitHub to choose repositories for your projects. Projects can also work without a repository.</p>
+  <p className="text-sm text-muted-foreground">Connect repositories so Cuan can work on your project files. Projects can also work without GitHub.</p>
   {!connection && !error && <p role="status">Loading GitHub connection…</p>}
   {connection?.connected && <section className="space-y-3 rounded-lg border bg-card p-4">
    <p className="text-sm">Connected as <strong>{connection.account?.login}</strong></p>
@@ -40,7 +40,7 @@ export function GitHubIntegration() {
    {oauthError && <div role="alert" className="space-y-2 text-sm"><p>Could not check GitHub sign-in availability.</p><button type="button" className="action-secondary" onClick={() => void checkOAuth()}>Check again</button></div>}
   </section>}
   {params.get('github_status') && params.get('github_status') !== 'connected' && <p role="status" className="text-sm text-muted-foreground">GitHub connection was not completed. Your work is saved. Try connecting again.</p>}
-  {connection && !connection.connected && <details className="rounded-lg border bg-card p-4"><summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">Advanced</summary><form className="space-y-3 rounded-lg border bg-card p-4" onSubmit={async event => {
+  {connection && !connection.connected && <details className="border-t pt-2"><summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">Advanced</summary><form className="space-y-3 py-3" onSubmit={async event => {
    event.preventDefault(); setBusy(true); setError('')
    try { setConnection(await apiFetch<Connection>('/api/v1/integrations/github', { method: 'PUT', body: JSON.stringify({ token }) })); setToken('') }
    catch { setError('Could not connect. Check your token and try again.') } finally { setBusy(false) }
