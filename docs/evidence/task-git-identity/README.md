@@ -21,3 +21,5 @@ Targeted tests pass:
 This change is committed but not yet deployed. Legacy standalone runners still
 require their explicit human Git identity configuration. Real provider inference
 and public OAuth application setup remain separate verification requirements.
+
+`TestFreshTaskProcessCommitsWithOwnerIdentity` additionally passes through the actual task start endpoint, PTY/supervisor and deterministic harness: a real Git commit succeeds with system/global Git config disabled, its author email matches the authenticated Cuan owner, and the task reports done. This replaces model inference only and does not claim a live provider test.
