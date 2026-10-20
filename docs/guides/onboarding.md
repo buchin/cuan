@@ -84,6 +84,23 @@ process under your host's service manager and reverse proxy before unattended us
 For controlled production upgrades, run migrations separately, then start with
 `CUAN_AUTO_MIGRATE=false`; follow the [deployment and rollback guide](deployment_recovery_guide.md).
 
+## First visit: account, AI, goal
+
+1. **Create your account.** This becomes the owner of this installation.
+2. **Connect your AI.** Studio checks installation prerequisites automatically.
+   Write your goal first if you prefer, then use the same primary button to
+   connect AI. After sign-in, Studio restores your goal and attachments.
+3. **Get it done.** Review your saved goal and submit it explicitly. Signing in
+   never starts a task by itself. Cuan organizes the project and execution work;
+   connecting an existing project is optional.
+
+If installation prerequisites are missing, Studio explains what needs attention
+and keeps the draft. Server administrator instructions stay collapsed. Use
+**Check again** after fixing the installation, or **Try again** after a temporary
+check failure. These checks inspect CLI availability and the supported deployment
+type only: they do not access provider accounts, spend quota, or prove successful
+chat/task execution. Other supported provider paths keep their own setup checks.
+
 ## Connect an agent and verify readiness
 
 1. Open Cuan and create the initial owner account. Protect first setup from public

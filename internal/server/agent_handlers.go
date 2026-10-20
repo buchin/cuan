@@ -990,6 +990,7 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 
 	if harness == "agy" {
 		status := agent.GetAntigravityAuthStatus()
+		status["runtime_prerequisites"] = onboardingRuntimePrerequisites()
 		if r.URL.Query().Get("verify") == "true" {
 			if !s.requireOAuthOwner(w, r) {
 				return

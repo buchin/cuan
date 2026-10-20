@@ -297,6 +297,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
   fi
   echo " Health Probe:        http://127.0.0.1:${APP_PORT}/healthz"
   echo " Readiness Probe:     http://127.0.0.1:${APP_PORT}/readyz"
+  echo " AI execution:        Not included in the stock Docker image; native Linux is the verified AI path."
   echo "--------------------------------------------------------------------------------"
   echo "Dry-run verification completed successfully."
   exit 0
@@ -355,12 +356,14 @@ if [[ "$ready" != "true" ]]; then
   exit 1
 fi
 echo "    [OK] Application health and database readiness confirmed."
-echo "    [NEXT] Finish owner setup, then configure a provider in Settings -> Agents."
-echo "           AI CLIs and the AGY sandbox are separate prerequisites; see docs/guides/onboarding.md."
+echo "    [NEXT] Open Cuan and create your owner account."
+echo "    [AI] The stock Docker image does not yet provide supported AI execution."
+echo "         For the verified native AI setup, follow docs/guides/onboarding.md."
+echo "         Web/database health does not verify an AI account or completed work."
 
 echo ""
 echo "================================================================================"
-echo " Cuan ${TARGET_ENV} installation completed successfully!"
+echo " Cuan ${TARGET_ENV} web application installation completed successfully!"
 echo " Deployment Mode: ${MODE}"
 echo " App Port:        ${APP_PORT}"
 echo " Health Checks:   /healthz (liveness), /readyz (readiness)"

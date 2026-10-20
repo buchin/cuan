@@ -465,5 +465,17 @@
   "needs attention": "perlu perhatian",
   "Message the agent…": "Kirim pesan ke agen…",
   "Close notifications": "Tutup notifikasi",
-  "View all notifications": "Lihat semua notifikasi"
+  "View all notifications": "Lihat semua notifikasi",
+  "Finish setting up Cuan": "Selesaikan penyiapan Cuan",
+  "Server setup": "Penyiapan server",
+  "This installation does not yet support AI execution. Your goal is saved.": "Instalasi ini belum mendukung eksekusi AI. Tujuan Anda tetap tersimpan.",
+  "The AI runtime is not installed yet. Your goal is saved.": "Runtime AI belum terpasang. Tujuan Anda tetap tersimpan.",
+  "For the server administrator": "Untuk administrator server",
+  "Complete the AI runtime setup under the account that runs Cuan, then check again.": "Selesaikan penyiapan runtime AI dengan akun yang menjalankan Cuan, lalu periksa lagi.",
+  "Installation guide": "Panduan instalasi",
+  "Check again": "Periksa lagi",
+  "Could not check your setup. Your goal is kept.": "Tidak dapat memeriksa penyiapan. Tujuan Anda tetap tersimpan.",
+  "Write your goal, then connect your AI to get started. Your draft will stay here.": "Tulis tujuan Anda, lalu hubungkan AI untuk memulai. Draf Anda tetap tersimpan.",
+  "Checking setup…": "Memeriksa penyiapan…",
+  "Start with your goal. Cuan will organize the work for you.": "Mulai dari tujuan Anda. Cuan akan mengatur pekerjaannya."
 }

@@ -646,6 +646,10 @@ export function App() {
         {currentTab === 'studio' && (
           <StudioView
             onAccepted={() => void refreshContacts()}
+            checkRuntime={!directoryAgents.some((a) =>
+              a.enabled !== false && a.status !== 'inactive' &&
+              ['codex', 'claude'].includes(a.harness || a.provider || '')
+            )}
             agentSetup={
               !agentsLoaded ? 'loading' : agentsError ? 'error' :
               directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
