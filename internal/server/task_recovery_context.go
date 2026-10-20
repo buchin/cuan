@@ -16,6 +16,9 @@ func taskRecoveryContext(detail *task.TaskDetailResponse) string {
 	}
 	attempt := detail.LatestAttempt
 	var b strings.Builder
+	if attempt.CancelRequested || attempt.Status == task.AttemptStatusCanceled || attempt.CanceledAt != nil {
+		b.WriteString("\nThe user cancelled this execution. Report the cancellation and preserve saved work. Do not revise or restart it automatically; wait for a new user instruction.\n")
+	}
 	fmt.Fprintf(&b, "\n## Saved execution checkpoint\nPrevious attempt: %s; status: %s.\n", attempt.ID, attempt.Status)
 	if attempt.ErrorMessage != "" {
 		fmt.Fprintf(&b, "Execution limitation: %s\n", truncateProjectText(attempt.ErrorMessage, 1000))

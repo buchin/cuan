@@ -77,6 +77,16 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if !authorized {
 		return finish("stopped", "The original user authorization is unavailable or cancelled.")
 	}
+	var trigger db.InboxRequest
+	for _, q := range requests {
+		if q.RequestID == job.RequestID && q.OwnerID == job.OwnerID && q.AgentID == job.AgentID {
+			trigger = q
+			break
+		}
+	}
+	if !s.taskContinuationAfterCancel(ctx, trigger, detail) {
+		return finish("stopped", "The work was cancelled. A new user instruction is required to continue.")
+	}
 	response := &delegationResponse{header: make(http.Header)}
 	request, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-queued-launch", nil)
 	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: job.AgentID, Revision: job.Revision}, job.OwnerID)

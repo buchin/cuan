@@ -172,6 +172,9 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		if err != nil || t.SourceRoomID != q.RoomID || t.ProjectID != d.ProjectID || !strings.Contains(t.Instructions, "Approval message: "+d.AuthorizationID) {
 			return fail("the task is outside this approved conversation scope")
 		}
+		if !s.taskContinuationAfterCancel(ctx, q, t) {
+			return fail("the work was cancelled; a new user instruction is required to continue")
+		}
 		if len(t.Attempts) >= 3 {
 			return fail("the task reached its retry limit; its blocker needs review")
 		}

@@ -317,3 +317,19 @@ No production task was resumed, submitted or modified; no account profile or
 credential was borrowed. Actual authenticated model implementation, final report,
 scoped Git delivery and interruption recovery remain unproven. Live GitHub OAuth
 App configuration remains absent. Keep the full objective open.
+
+
+## Cancellation is not an interruption to recover automatically
+
+The coordinator review path previously accepted an old approval to revise a
+user-cancelled attempt. A new guard rejects that automatic continuation both
+when delegation is received and when a persisted launch is drained. A later
+accepted user message can request continuation of the original scope; system
+reviews and pre-cancellation approvals cannot undo cancellation. Recovery context
+keeps saved checkpoints and explicitly carries the cancellation constraint.
+
+Targeted tests cover cancelled-task delegation, queued-launch rejection, unchanged
+attempt count, fresh authenticated user turns and rejected unaccepted triggers.
+Existing direct/approved process-loss recovery and queued reconstruction tests
+remain passing. This changes application behavior; it does not establish actual
+provider end-to-end recovery. Deployment of this guard remains pending.
