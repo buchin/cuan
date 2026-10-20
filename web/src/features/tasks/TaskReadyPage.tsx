@@ -1,3 +1,4 @@
+import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { tasksApi } from '../../api/tasks'
 import { workspacePath } from './workspacePath'
 import { useEffect, useRef, useState } from 'react'
@@ -81,6 +82,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
       aria-label="Task workspace"
       className="flex h-full min-h-0 flex-col"
     >
+      <GitHubPrerequisite task={task} />
       <header className="flex shrink-0 items-center gap-2 border-b p-2">
         <Link
           to={back}
