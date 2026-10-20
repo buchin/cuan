@@ -1,13 +1,14 @@
 ## Notification quick view
 
-The bell opens an anchored native popover on desktop/tablet and a bottom panel
-on phones, without leaving the current page. It previews up to six notifications
+The bell opens an anchored native popover on desktop/tablet without leaving the current page. On phones below768px,
+the bell opens the full notification page directly. Its Back action returns to
+the originating route. It previews up to six notifications
 using the same rows as the full page. Mark all as read is directly visible in
 both panel and full-page headers. View all opens the shareable full notifications
 page, whose Back action returns to the originating route. Older browsers without
 the native Popover API retain direct navigation to the full page.
 
-Native light-dismiss and Escape close the panel. Heading focus announces the
+On desktop/tablet, native light-dismiss and Escape close the panel. Heading focus announces the
 panel and focus returns to the bell when dismissed from inside. Standard Tab
 navigation is preserved; this is a nonmodal quick view. Loading, empty and retry
 states are supported. Failed mark-read keeps unread state and an actionable error;
@@ -31,3 +32,11 @@ excluded),878 account profile files,11 notification read flags and non-feed
 preferences remain unchanged. No production mark-read action, task launch or
 provider inference was used for verification. See
 `../project-task-ui/production.json` and `../project-task-ui/release.json`.
+
+## Mobile follow-up
+
+Following the user’s mobile navigation preference, phones now open the full page
+directly rather than a bottom sheet. The updated390px light/dark fixtures verify
+one-tap navigation, directly visible Mark all as read, no overflow and Back to the
+originating page. Tablet/desktop quick-view behavior and failure/read-state
+checks continue to pass. This is a follow-up to the initiale70ade0 release.

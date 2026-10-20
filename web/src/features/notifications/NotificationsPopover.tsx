@@ -39,7 +39,7 @@ export function NotificationsPopover() {
   const returnState = { notificationReturnTo: location.pathname+location.search+location.hash }
   return <>
     <button ref={trigger} type="button" className="icon-action relative" aria-label={t('Notifications')} aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => {
-      if (!panel.current?.showPopover) { navigate('/notifications', {state:returnState}); return }
+      if (window.matchMedia('(max-width: 767px)').matches || !panel.current?.showPopover) { navigate('/notifications', {state:returnState}); return }
       if (!open) void refresh()
       panel.current.togglePopover()
     }}>

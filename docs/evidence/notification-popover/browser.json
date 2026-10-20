@@ -3,19 +3,17 @@
     {
       "width": 390,
       "theme": "light",
-      "preservesCurrentPage": true,
-      "placementCorrect": true,
+      "directNotificationPage": true,
       "directMarkAllRead": true,
-      "escapeRestoresFocus": true,
+      "backReturnsToOrigin": true,
       "noOverflow": true
     },
     {
       "width": 390,
       "theme": "dark",
-      "preservesCurrentPage": true,
-      "placementCorrect": true,
+      "directNotificationPage": true,
       "directMarkAllRead": true,
-      "escapeRestoresFocus": true,
+      "backReturnsToOrigin": true,
       "noOverflow": true
     },
     {

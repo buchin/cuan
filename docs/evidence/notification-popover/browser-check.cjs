@@ -11,6 +11,13 @@ const checks=[];
 for(const width of [390,820,1440])for(const theme of ['light','dark']) {
  await page.setViewportSize({width,height:844});await page.goto(base+'/projects');await page.evaluate(value=>{localStorage.setItem('cuan-theme',value);localStorage.setItem('cuan-language','en')},theme);await page.reload();
  const trigger=page.getByRole('button',{name:'Notifications',exact:true});await trigger.click();
+ if(width<768) {
+  await page.waitForURL(base+'/notifications');await page.getByRole('button',{name:'Mark all as read',exact:true}).waitFor();
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:'docs/evidence/notification-popover/'+theme+'-'+width+'.png'});
+  await page.getByRole('button',{name:'Back',exact:true}).click();await page.waitForURL(base+'/projects');
+  checks.push({width,theme,directNotificationPage:true,directMarkAllRead:true,backReturnsToOrigin:true,noOverflow:true});continue;
+ }
  const panel=page.getByRole('dialog',{name:'Notifications',exact:true});await panel.waitFor();
  assert.equal(new URL(page.url()).pathname,'/projects');assert.equal(await panel.locator('li').count(),3);
  assert(await panel.getByRole('button',{name:'Mark all as read',exact:true}).isEnabled());

@@ -22,8 +22,9 @@ device is generic; project and conversation context is shown inside Cuan.
 
 ## Quick view
 
-Select the bell to preview recent notifications without leaving the current page.
-The panel sits near the bell on desktop and opens from the bottom on mobile.
+On desktop and tablet, select the bell to preview recent notifications without
+leaving the current page. On mobile, the bell opens the full notification page
+directly; use Back to return to the page you came from.
 Use **Mark all as read** directly in its header, or **View all notifications** for
 the full page. Escape, the close button or clicking outside dismisses the panel.
 The full page also exposes **Mark all as read** directly. If saving read state
