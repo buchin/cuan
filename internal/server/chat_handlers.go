@@ -138,18 +138,18 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 	if s.db != nil {
 		_, _ = s.db.ExecContext(ctx, `
 			INSERT INTO projects (id, name, repo_url, default_branch, clone_status, project_type, created_at, updated_at)
-			VALUES ('default', 'cuan', 'https://github.com/buchin/cuan', 'main', 'connected', 'custom', NOW(), NOW())
-			ON CONFLICT (id) DO UPDATE SET name = 'cuan' WHERE projects.name != 'cuan';
+			VALUES ('default', 'Default', '', 'main', 'pending', 'custom', NOW(), NOW())
+			ON CONFLICT (id) DO NOTHING;
 		`)
 	}
 	if s.projectRepo != nil {
 		if proj, err := s.projectRepo.GetProjectByID(ctx, "default"); err != nil || proj == nil {
 			_ = s.projectRepo.CreateProject(ctx, &db.Project{
 				ID:            "default",
-				Name:          "cuan",
-				RepoURL:       "https://github.com/buchin/cuan",
+				Name:          "Default",
+				RepoURL:       "",
 				DefaultBranch: "main",
-				CloneStatus:   "connected",
+				CloneStatus:   "pending",
 				ProjectType:   "custom",
 			})
 		}
