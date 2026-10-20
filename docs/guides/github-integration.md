@@ -81,3 +81,5 @@ remain prerequisites. Earlier implementation notes above describe the stages
 leading to this wiring, not separate active cleanup mechanisms.
 
 Combined worker verification now passes with real worktrees and fixture GitHub refs: an active execution lease prevents even a remote query; remote failure retains files; eligible completion removes its checkout; reopening restores the result; task records remain unchanged. Provider-runtime compatibility is still unverified, so the changes remain unreleased.
+
+The actual PTY/supervisor path now passes a deterministic harness test that runs real Git commands, commits task output, reconstructs the terminal manager and continues with exactly one implementation commit. This replaces inference only and does not establish every provider sandbox behavior. Release activation now blocks worktree-unaware binaries after isolated repository tasks exist, including automatic health fallback. Six release compatibility contracts pass.

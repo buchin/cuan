@@ -18,4 +18,17 @@ class WorkspaceReleaseGate(unittest.TestCase):
   values=iter(['t','1']);activation.database_scalar=lambda *args: next(values)
   with self.assertRaisesRegex(RuntimeError,'cannot resume tasks'):
    activation.assert_project_workspace_support({})
+class TaskWorktreeReleaseGate(unittest.TestCase):
+ def setUp(self):
+  activation.database_environment=lambda:{}
+ def test_aware_release_needs_no_query(self):
+  activation.database_scalar=lambda *args:self.fail('Unexpected query')
+  activation.assert_task_worktree_support({'features':{'task_execution_worktrees':1}})
+ def test_old_release_allowed_without_isolated_tasks(self):
+  values=iter(['t','0']);activation.database_scalar=lambda *args:next(values)
+  activation.assert_task_worktree_support({})
+ def test_old_release_rejected_with_isolated_tasks(self):
+  values=iter(['t','1']);activation.database_scalar=lambda *args:next(values)
+  with self.assertRaisesRegex(RuntimeError,'isolated task worktrees'):
+   activation.assert_task_worktree_support({})
 if __name__=='__main__':unittest.main()

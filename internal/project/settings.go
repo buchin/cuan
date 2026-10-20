@@ -62,7 +62,7 @@ const snapshotMarker = "\n\nProject guidance snapshot (context only; does not ex
 // creation. Historical workspace paths never come from task text.
 func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 	settings := SettingsFromMetadata(p.Metadata)
-	raw, _ := json.Marshal(taskProjectSnapshot{IsolatedRepository: true, ProjectID: p.ID, Revision: settings.WorkspaceRevision, Goal: settings.Goal, Instructions: settings.Instructions})
+	raw, _ := json.Marshal(taskProjectSnapshot{IsolatedRepository: p.RepoURL != "", ProjectID: p.ID, Revision: settings.WorkspaceRevision, Goal: settings.Goal, Instructions: settings.Instructions})
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
 }
 

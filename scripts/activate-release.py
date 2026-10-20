@@ -92,6 +92,17 @@ def assert_project_workspace_support(manifest, retained_environment=None):
         raise RuntimeError('This release cannot resume tasks with retained project workspaces. Activate a workspace-aware release; no data was changed.')
 
 
+def assert_task_worktree_support(manifest, retained_environment=None):
+    if manifest.get('features', {}).get('task_execution_worktrees') == 1:
+        return
+    env = retained_environment if retained_environment is not None else database_environment()
+    if database_scalar("SELECT to_regclass('public.tasks') IS NOT NULL", env) != 't':
+        return
+    count = database_scalar("SELECT count(*) FROM tasks WHERE instructions LIKE '%\"isolated_repository\":true%'", env)
+    if int(count):
+        raise RuntimeError('This release cannot resume isolated task worktrees. Activate a worktree-aware release; no data was changed.')
+
+
 def backup_database(release):
     backups=BASE/'backups'
     backups.mkdir(exist_ok=True,mode=0o700)
@@ -169,6 +180,7 @@ def main():
             parser.error('Incomplete release')
         assert_idle_work()
         assert_project_workspace_support(manifest)
+        assert_task_worktree_support(manifest)
         if args.release:
             backup_database(args.release)
         for release in (old, target):
@@ -193,6 +205,7 @@ def main():
         switch(current, target)
         if not restart_and_check():
             assert_project_workspace_support(json.loads((old / 'release.json').read_text()), retained_environment)
+            assert_task_worktree_support(json.loads((old / 'release.json').read_text()), retained_environment)
             switch(current, old)
             recovered = restart_and_check()
             raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
