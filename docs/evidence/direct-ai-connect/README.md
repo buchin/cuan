@@ -37,3 +37,21 @@ New failures now classify this explicit provider restriction safely rather than
 suggesting a generic reconnect. Recovery policy does not automatically retry the
 persistent restriction even when no-effect evidence exists. Targeted decoder and
 recovery tests pass. Never expose raw CLI logs/tokens in user-facing traces.
+
+
+## Documented pre-login CLI preferences
+
+The official CLI reference documents settings.json `colorScheme` and
+`enableTelemetry` (https://antigravity.google/docs/cli/reference.md). Profile login
+now prepares `colorScheme: terminal` and `enableTelemetry: false` before starting
+the authentication process. These are defaults only; explicit preferences and
+unknown settings survive. Malformed/linked settings stop with a safe error rather
+than being overwritten. Atomic private writes and directory fsync retain settings.
+
+Targeted tests prove a real child fixture reaches the Google URL only after
+those settings exist, no credentials are fabricated, explicit settings stay
+byte-identical, and malformed or linked files remain untouched. Six targeted
+settings/login contract checks passed in0.117s. This is not proof that the actual
+first-run wizard has completed. Metrics telemetry is distinct from provider
+interaction-data consent; no terms acceptance or interaction-sharing preference
+is inferred or written. Live wizard completion still awaits owner confirmation.

@@ -206,6 +206,11 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 }
 
 func startAntigravityAuthSession(ctx context.Context, home, ownerID, accountID string) (*AntigravityAuthSession, error) {
+	if home != "" {
+		if err := prepareAntigravitySettings(home); err != nil {
+			return nil, errors.New("Could not prepare the AI connection settings. Existing settings were preserved; check the service's file permissions and settings format.")
+		}
+	}
 	authSessionsMu.Lock()
 	defer authSessionsMu.Unlock()
 	for _, existing := range authSessions {
