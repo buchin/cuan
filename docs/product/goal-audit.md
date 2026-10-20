@@ -147,3 +147,16 @@ policy is shipped; all resources were stopped/cleaned and production health pass
 A separate runtime or a fully verified specialized isolation policy are both
 possible design directions. The first-release deployment support question remains
 unanswered; neither path has been silently selected or removed from scope.
+
+## Scoped AppArmor / private procfs checkpoint
+
+A temporary parent/child AppArmor candidate passed syntax checking and allowed
+Bubblewrap namespace/system bind mounts, while keeping the application parent's
+mount denial and upstream proc/sys denies. Private procfs mounting still fails
+EPERM with standard Docker system-path protections. Exact candidate, hashes and
+trace are retained in `docs/evidence/docker-install/`; no supported policy or
+container AI readiness is claimed. The test profile was unloaded and checked
+absent, caches/mounts/daemon cleaned, production health passed. A different
+execution boundary or explicitly designed replacement for container path
+protections would need review and full isolation verification. The deployment
+support choice remains unanswered and the goal remains active.

@@ -103,3 +103,29 @@ and AI execution verification. A supported specialized policy or separate runtim
 remains a design option; the data does not establish that a separate service is
 the only possible solution. The temporary profile, daemon caches and namespace
 mount were removed after the unit stopped; final production health passed.
+
+## Scoped AppArmor feasibility follow-up
+
+An experimental parent/child AppArmor profile, derived from pinned Moby profiles
+commit4b8214fc4971e06172938a1f1554ccff6647ee80, passed offline parser validation.
+The parent retains `deny mount`; `/usr/bin/bwrap` transitions to a child profile
+that allows mount and user namespaces while retaining upstream proc/sys deny
+rules. The exact [experimental profile](experimental-apparmor.txt) and
+[upstream license](MOBY-LICENSE.txt) are evidence only, not supported configuration.
+
+With that temporary named profile and the prior experimental seccomp rules,
+namespace creation and read-only system bind mounts succeeded. The next denial
+was mounting a new private procfs: `mount("proc", "/newroot/proc", ...) = EPERM`.
+The default Docker system-path protections remained in place. The result is
+consistent with the kernel's restrictions on mounting procfs from a less
+privileged namespace when the outer procfs has masked paths; it does not prove
+the exact cause independently of those protections. No host procfs was bound into
+the sandbox, no global sysctl changed, no extra capability/privileged mode used,
+and no system-path protections disabled to make the check pass.
+
+This confirms that a narrowly attached AppArmor profile can address the earlier
+mount denial on this host, while private procfs remains a separate blocker.
+The probe failed before executing its terminal helper and is not AI readiness
+evidence. Raw trace: [sandbox-apparmor-probe.json](sandbox-apparmor-probe.json).
+The temporary profile was unloaded and its absence verified. The daemon unit,
+private namespace mount and caches were cleaned; production health passed.
