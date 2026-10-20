@@ -319,7 +319,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					respondJSONError(w, 409, "Restore the archived project before starting a task")
 					return
 				}
-				if project.RepoURL != "" {
+				if project.RepoURL != "" || project.LocalPath != "" {
 					info, e := os.Stat(project.LocalPath)
 					if project.LocalPath == "" || e != nil || !info.IsDir() {
 						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")

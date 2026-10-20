@@ -19,6 +19,7 @@ import (
 const inboxDelegationInstruction = `Execution is available through application-managed delegation, not native shell tools in chat.
 For approved work end your reply with exactly ONE cuan-delegate fenced JSON block:
 ` + "```cuan-delegate\n{\"title\":\"Audit project security\",\"description\":\"Approved scope, constraints and acceptance criteria, self-contained\",\"project_id\":\"registered ID\",\"authorization_message_id\":\"ID of the user's explicit execution instruction or approval\"}\n```" + `
+For a new product/project that has no suitable registered project, omit project_id and supply project_name (up to100 characters). Only do this after the user authorizes that work. Reuse a registered project when appropriate; use Default for general work. Never create a project for a greeting or an unapproved plan.
 The application creates and starts the task with this conversation's agent and reports actual status here.
 If the user explicitly asks to save work without running it, include action: "save". Otherwise omit action. Never treat permission to save as permission to execute.
 Do not claim execution before application confirmation. Do not tell the user to create a task or assign a runner.
@@ -34,6 +35,7 @@ type inboxDelegation struct {
 	Title           string `json:"title"`
 	Description     string `json:"description"`
 	ProjectID       string `json:"project_id"`
+	ProjectName     string `json:"project_name,omitempty"`
 	AuthorizationID string `json:"authorization_message_id"`
 	TaskID          string `json:"task_id,omitempty"`
 	Revision        string `json:"revision,omitempty"`
@@ -60,10 +62,13 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 	if decoder.Decode(new(any)) != io.EOF {
 		return "", nil, bad
 	}
+	if d.TaskID != "" && d.ProjectName != "" {
+		return "", nil, bad
+	}
 	if d.Action != "" && d.Action != "run" && d.Action != "save" || d.TaskID != "" && d.Action == "save" {
 		return "", nil, bad
 	}
-	if d.ProjectID == "" || d.AuthorizationID == "" || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
+	if (d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || (d.ProjectID != "" && d.ProjectName != "") || len([]rune(d.ProjectName)) > 100 || d.AuthorizationID == "" || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
 		return "", nil, bad
 	}
 	if d.TaskID == "" && (strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Description) == "") || d.TaskID != "" && strings.TrimSpace(d.Revision) == "" {
@@ -131,16 +136,24 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if authorization == nil || !authenticatedApproval {
 		return fail("approval must come from a user message in this conversation")
 	}
-	p, err := s.projectSvc.Get(ctx, d.ProjectID)
-	if err != nil || p == nil || p.IsArchived {
-		return fail("the selected project is unavailable or archived")
-	}
 	room, err := s.projectStudioRepo.GetRoomByID(ctx, q.RoomID)
 	if err != nil || room == nil {
 		return fail("conversation is unavailable")
 	}
 	if roomAgentID(room.Topic) == "" && room.ProjectID != "" && room.ProjectID != d.ProjectID {
 		return fail("the plan belongs to another project")
+	}
+	if d.ProjectID == "" {
+		id := "proj_" + strings.ReplaceAll(delegationMessageID("project:"+q.RoomID+":"+d.AuthorizationID+":"+d.ProjectName), "-", "")
+		project, e := s.projectSvc.CreateManagedWorkspace(ctx, id, d.ProjectName)
+		if e != nil {
+			return fail("the project could not be prepared; clarify its name or restore the archived project")
+		}
+		d.ProjectID = project.ID
+	}
+	p, err := s.projectSvc.Get(ctx, d.ProjectID)
+	if err != nil || p == nil || p.IsArchived {
+		return fail("the selected project is unavailable or archived")
 	}
 	var t *task.TaskDetailResponse
 	if d.TaskID != "" {

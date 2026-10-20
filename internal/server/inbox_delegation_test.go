@@ -37,11 +37,13 @@ func TestInboxDelegationRunsAndReturnsResult(t *testing.T) {
 		if topic {
 			name = "topic"
 		}
-		t.Run(name, func(t *testing.T) { runInboxDelegation(t, topic) })
+		t.Run(name, func(t *testing.T) { runInboxDelegation(t, topic, false) })
 	}
 }
 
-func runInboxDelegation(t *testing.T, topic bool) {
+func TestInboxDelegationManagedProject(t *testing.T) { runInboxDelegation(t, true, true) }
+
+func runInboxDelegation(t *testing.T, topic, managed bool) {
 	s, _, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
@@ -53,12 +55,16 @@ func runInboxDelegation(t *testing.T, topic bool) {
 	defer api.Close()
 	s.taskAgentURL = api.URL
 	content := "```cuan-delegate\n{\"title\":\"Audit security\",\"description\":\"Read-only security audit. Report findings and evidence; do not modify or deploy.\",\"project_id\":\"delegate-project\",\"authorization_message_id\":\"AUTH\"}\n```"
+	if managed {
+		content = strings.Replace(content, `"project_id":"delegate-project"`, `"project_name":"Managed audit"`, 1)
+	}
 	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": content}})
 	verified, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": "Audit finished. Evidence checked against the approved request; no changes or deployment."}})
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
  "$CUAN_TASK_EXECUTABLE" task report --progress 'Checking the approved scope' >/dev/null || exit 20
  "$CUAN_TASK_EXECUTABLE" task report --state done --summary 'Audit fixture complete' --complete-note 'Verified deterministic audit evidence; no code changes' >/dev/null || exit 21
+ pwd > "$HOME/task-working-directory"
  printf 'AUDIT_RESULT_RETAINED\n'
  while :; do sleep 1; done
 fi
@@ -104,6 +110,17 @@ esac
 		t.Fatal(tasks, err)
 	}
 	result := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
+	if managed {
+		p, err := s.projectSvc.Get(ctx, result.ProjectID)
+		if err != nil || p.Name != "Managed audit" || p.LocalPath == "" {
+			t.Fatal(p, err)
+		}
+		working, err := os.ReadFile(filepath.Join(home, "task-working-directory"))
+		if err != nil || strings.TrimSpace(string(working)) != p.LocalPath {
+			t.Fatal("managed workspace not used", string(working), err)
+		}
+	}
+
 	if result.Status != "done" || !strings.Contains(result.Instructions, "do not deploy") {
 		t.Fatal(result)
 	}
@@ -167,7 +184,7 @@ esac
 	// The coordinator can return concrete corrections to the same task, but the
 	// server bounds autonomous retries rather than spawning unlimited sessions.
 	for i := 0; i < 2; i++ {
-		revision, _ := json.Marshal(inboxDelegation{ProjectID: "delegate-project", AuthorizationID: accepted.Request.MessageID, TaskID: result.ID, Revision: "Gap: verify the audit evidence. Area: approved security audit. Check: deterministic fixture. Finish: report verified evidence without code changes."})
+		revision, _ := json.Marshal(inboxDelegation{ProjectID: result.ProjectID, AuthorizationID: accepted.Request.MessageID, TaskID: result.ID, Revision: "Gap: verify the audit evidence. Area: approved security audit. Check: deterministic fixture. Finish: report verified evidence without code changes."})
 		q := accepted.Request
 		q.RequestID = db.GenerateUUID()
 		q.CreatedAt = time.Now()
@@ -180,7 +197,7 @@ esac
 	if len(result.Attempts) != 3 {
 		t.Fatal("revision did not resume the bound task", len(result.Attempts))
 	}
-	revision, _ := json.Marshal(inboxDelegation{ProjectID: "delegate-project", AuthorizationID: accepted.Request.MessageID, TaskID: result.ID, Revision: "Repeat indefinitely"})
+	revision, _ := json.Marshal(inboxDelegation{ProjectID: result.ProjectID, AuthorizationID: accepted.Request.MessageID, TaskID: result.ID, Revision: "Repeat indefinitely"})
 	q := accepted.Request
 	q.RequestID = db.GenerateUUID()
 	q.CreatedAt = time.Now()

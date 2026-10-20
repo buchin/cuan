@@ -336,3 +336,53 @@ func (s *Service) EnsureDefault(ctx context.Context) (*ProjectResponse, error) {
 	}
 	return s.Get(ctx, "default")
 }
+
+// CreateManagedWorkspace creates a local project for an approved delegated goal.
+// IDs are application-generated; neither a repository URL nor a user path is accepted.
+func (s *Service) CreateManagedWorkspace(ctx context.Context, id, name string) (*ProjectResponse, error) {
+	name = strings.TrimSpace(name)
+	if len([]rune(name)) < 1 || len([]rune(name)) > 100 || !strings.HasPrefix(id, "proj_") || len(id) != 37 {
+		return nil, errors.New("invalid managed project")
+	}
+	for _, r := range id[5:] {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return nil, errors.New("invalid managed project ID")
+		}
+	}
+	if existing, err := s.Get(ctx, id); err == nil {
+		if existing.Name != name || existing.IsArchived {
+			return nil, ErrProjectAlreadyExists
+		}
+		return existing, nil
+	} else if !errors.Is(err, ErrProjectNotFound) {
+		return nil, err
+	}
+	projects, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range projects {
+		if strings.EqualFold(p.Name, name) {
+			if p.IsArchived {
+				return nil, ErrProjectAlreadyExists
+			}
+			return p, nil
+		}
+	}
+	dir, err := filepath.Abs(filepath.Join(s.baseDir, id))
+	if err != nil {
+		return nil, err
+	}
+	if info, e := os.Lstat(dir); e == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
+		return nil, errors.New("project workspace is unavailable")
+	}
+	if err = os.MkdirAll(dir, 0700); err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	p := &Project{ID: id, Name: name, ProjectType: "custom", DefaultBranch: "main", LocalPath: dir, CreatedAt: now, UpdatedAt: now}
+	if err = s.store.CreateProject(ctx, p); err != nil {
+		return s.Get(ctx, id)
+	}
+	return s.Get(ctx, id)
+}

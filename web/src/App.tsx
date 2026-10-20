@@ -8,7 +8,6 @@ import { CreateProjectModal } from './features/projects/CreateProjectModal'
 import { CreateTaskModal } from './features/tasks/CreateTaskModal'
 import { ActionDialog } from './components/dialogs/ActionDialog'
 import { NewContactDialog } from './features/contacts/NewContactDialog'
-import { NewMessageDialog } from './features/inbox/NewMessageDialog'
 import { TaskSidePeek } from './features/tasks/TaskSidePeek'
 import { TaskBoardView } from './features/tasks/TaskBoardView'
 import { TaskSessionPage } from './features/tasks/TaskSessionPage'
@@ -23,6 +22,7 @@ import { InboxView } from './features/inbox/InboxView'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { ProjectWorkView } from './features/projects/ProjectWorkView'
+import { StudioView } from './features/inbox/StudioView'
 import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
 
@@ -59,8 +59,10 @@ export function App() {
       case 'settings':
         return 'settings'
       case 'inbox':
-      default:
         return 'inbox'
+      case 'studio':
+      default:
+        return 'studio'
     }
   }, [rootSegment])
 
@@ -100,16 +102,15 @@ export function App() {
   // Modals
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
-  const [newFlow, setNewFlow] = useState<'message' | 'contact' | 'menu' | null>(
-    null,
-  )
+  const [newFlow, setNewFlow] = useState<'contact' | 'menu' | null>(null)
   const [contactRevision, setContactRevision] = useState(0)
   const [agentCreateRequested, setAgentCreateRequested] = useState(false)
   const openNew = (
     kind: 'message' | 'contact' | 'task' | 'project' | 'agent' | 'menu',
   ) => {
     setNewFlow(null)
-    if (kind === 'task') setIsCreateTaskOpen(true)
+    if (kind === 'message') navigate('/studio')
+    else if (kind === 'task') setIsCreateTaskOpen(true)
     else if (kind === 'project') setIsCreateProjectOpen(true)
     else if (kind === 'agent') {
       navigate('/settings/agents')
@@ -123,10 +124,10 @@ export function App() {
   const [selectedTaskStatus, setSelectedTaskStatus] = useState('all')
   const [isMobileChatActive, setIsMobileChatActive] = useState(false)
 
-  // Default redirect from / to /inbox
+  // Studio is the default entry point.
   useEffect(() => {
     if (location.pathname === '/' || location.pathname === '') {
-      navigate('/inbox', { replace: true })
+      navigate('/studio', { replace: true })
     }
   }, [location.pathname, navigate])
 
@@ -530,34 +531,38 @@ export function App() {
           0,
         )}
         onSelectTab={handleSelectTab}
-        newAction={{
-          label:
-            currentTab === 'inbox'
-              ? 'New message'
-              : currentTab === 'contacts'
-                ? 'New contact'
-                : currentTab === 'tasks' || projectDetail
-                  ? 'New task'
-                  : currentTab === 'projects'
-                    ? 'New project'
-                    : subParam === 'agents'
-                      ? 'New agent'
-                      : 'New',
-          onClick: () =>
-            openNew(
-              currentTab === 'inbox'
-                ? 'message'
-                : currentTab === 'contacts'
-                  ? 'contact'
-                  : currentTab === 'tasks' || projectDetail
-                    ? 'task'
-                    : currentTab === 'projects'
-                      ? 'project'
-                      : subParam === 'agents'
-                        ? 'agent'
-                        : 'menu',
-            ),
-        }}
+        newAction={
+          currentTab === 'studio'
+            ? undefined
+            : {
+                label:
+                  currentTab === 'inbox'
+                    ? 'New message'
+                    : currentTab === 'contacts'
+                      ? 'New contact'
+                      : currentTab === 'tasks' || projectDetail
+                        ? 'New task'
+                        : currentTab === 'projects'
+                          ? 'New project'
+                          : subParam === 'agents'
+                            ? 'New agent'
+                            : 'New',
+                onClick: () =>
+                  openNew(
+                    currentTab === 'inbox'
+                      ? 'message'
+                      : currentTab === 'contacts'
+                        ? 'contact'
+                        : currentTab === 'tasks' || projectDetail
+                          ? 'task'
+                          : currentTab === 'projects'
+                            ? 'project'
+                            : subParam === 'agents'
+                              ? 'agent'
+                              : 'menu',
+                  ),
+              }
+        }
         projectWorkspace={projectDetail && !projectSettings}
         sessionWorkspace={sessionRoute}
         hideBottomNav={
@@ -580,6 +585,9 @@ export function App() {
           />
         }
       >
+        {currentTab === 'studio' && (
+          <StudioView onAccepted={() => void refreshContacts()} />
+        )}
         {/* 1. Messenger View — Inbox */}
         {currentTab === 'inbox' && (
           <InboxView
@@ -720,22 +728,6 @@ export function App() {
       </AppShell>
 
       {/* Modals & Drawers */}
-      <NewMessageDialog
-        open={newFlow === 'message'}
-        onClose={() => setNewFlow(null)}
-        contacts={contacts}
-        loading={contactsLoading}
-        error={contactsError}
-        onRetry={() => void refreshContacts()}
-        onSelect={(contact) => {
-          setContacts((old) => [
-            ...old.filter((c) => c.conversation_id !== contact.conversation_id),
-            contact,
-          ])
-          handleSelectContact(contact)
-          void refreshContacts()
-        }}
-      />
       <NewContactDialog
         open={newFlow === 'contact'}
         onClose={() => setNewFlow(null)}

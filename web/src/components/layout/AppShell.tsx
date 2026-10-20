@@ -3,10 +3,23 @@ import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
-import { Inbox, Users, FolderGit2, PanelLeft, Settings } from 'lucide-react'
+import {
+  Inbox,
+  Users,
+  FolderGit2,
+  PanelLeft,
+  Settings,
+  Sparkles,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-export type AppTab = 'inbox' | 'tasks' | 'projects' | 'contacts' | 'settings'
+export type AppTab =
+  | 'studio'
+  | 'inbox'
+  | 'tasks'
+  | 'projects'
+  | 'contacts'
+  | 'settings'
 interface AppShellProps {
   currentTab: AppTab
   onSelectTab: (tab: AppTab) => void
@@ -21,6 +34,7 @@ interface AppShellProps {
   breadcrumbs?: { label: string; to: string }[]
 }
 const NAV_ITEMS = [
+  { id: 'studio', label: 'Studio', icon: Sparkles },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'contacts', label: 'Contacts', icon: Users },
@@ -221,7 +235,8 @@ export function AppShell({
             'min-h-0 min-w-0 flex-1',
             currentTab === 'inbox' ||
               currentTab === 'contacts' ||
-              projectWorkspace || sessionWorkspace
+              projectWorkspace ||
+              sessionWorkspace
               ? 'overflow-hidden'
               : 'overflow-auto p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',
