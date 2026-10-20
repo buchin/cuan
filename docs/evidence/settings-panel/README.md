@@ -12,3 +12,13 @@ light/dark at360/390/820/1440, no overflow, matching desktop sidebar x/width bet
 Tasks and Settings, settings form to the right, and Tasks navigation. Targeted
 cross-page interactions/persistence regression and isolated frontend build pass.
 No provider calls or task launches.
+
+## Production
+
+Live release fd20e716e6f0fab907b9657da5df7b6652a71441. Read-only production checks
+confirm identical desktop project sidebar position/width between Tasks/Settings,
+form in right panel, correct Tasks destination, unchanged-save disabled,
+collapsed Advanced and no New task. Responsive light/dark checks pass.
+All application writes were blocked after login. Actual rollback/reactivation
+passed; schema25 unchanged,37 app tables,904 profile files,6 item entries and11
+read flags retained. Tested and released frontend asset hashes match.
