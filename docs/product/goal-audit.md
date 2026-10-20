@@ -255,3 +255,21 @@ scripts/test-native-installer-live.py harness. No production DB writes or AI cal
 This closes the application-install verification gap, not service-manager
 provisioning or authenticated AI runtime/container execution. The full goal stays
 active and unproven.
+
+## Editable project guidance and durable workspace revisions
+
+Release7b5362d adds editable project name, goal/instructions and optional
+repository/branch. Goal/instructions and repository revision are frozen with new
+tasks; revisions keep that binding. Connection changes prepare a separate
+workspace and retain authenticated old bindings for recovery, never resetting
+the prior directory. Atomic versioned saves reject stale changes. Coordinator
+context reads project guidance without treating it as expanded authorization.
+User-facing task instructions omit the internal binding snapshot.
+
+Targeted real-Git, memory, actual PostgreSQL API/install/restart, browser and
+direct/approved process-loss recovery tests pass. Release compatibility gates
+prevent activating workspace-unaware binaries after a connection history exists.
+Production read-only UI, health, rollback and retention pass without changing
+project settings or performing inference. See docs/evidence/project-settings.
+The full goal remains active; native service supervision and stock Docker AI
+runtime still require separate work and verification.
