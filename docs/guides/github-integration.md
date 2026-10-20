@@ -170,3 +170,14 @@ changing the task. Tokens and provider error bodies never enter redirects.
 OAuth App environment is currently absent in this installation. The implementation
 and fixture callback tests pass; real GitHub authorization and browser verification
 of the updated primary/Advanced UI remain pending. It is not yet deployed.
+
+## Human authorship for task commits
+
+Task sessions receive Git author/committer identity automatically. Connected
+GitHub accounts with a known numeric ID use their public name/login and GitHub
+no-reply email. Otherwise the authenticated Cuan owner's username/email is used.
+Set `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` in the service environment to override
+this explicitly (for example with another verified no-reply address). Identity
+is passed only to the task process; no global Git config is overwritten.
+Legacy standalone runners require explicit identity configuration. This automatic
+identity change is pending deployment after release 0eb1aea.

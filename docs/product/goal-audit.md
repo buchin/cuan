@@ -273,3 +273,19 @@ Production read-only UI, health, rollback and retention pass without changing
 project settings or performing inference. See docs/evidence/project-settings.
 The full goal remains active; native service supervision and stock Docker AI
 runtime still require separate work and verification.
+
+## 2026-10-21 verification checkpoint
+
+Current production is 0eb1aea/schema25. Native systemd supervision is now verified
+with actual binaries and SIGKILL/restart retention (native-service evidence).
+Task worktree isolation, safe retention/reopening, scoped Git push and contextual
+GitHub continuation are deployed with deterministic process and real-Git evidence.
+Integration/OAuth UI and actual rollback/retention checks pass. Real OAuth App
+configuration is absent, so production correctly reports Setup needed.
+
+A fresh-install audit found task Git author variables were dropped by the AUTH
+substring filter. Empty-HOME actual commits now pass with human owner identity;
+the fix is not yet deployed. See task-git-identity evidence. This demonstrates why
+passing developer-environment tests alone cannot prove fresh-install delivery.
+The full objective is still unproven; no actual-provider/GitHub end-to-end success
+is claimed. Experimental Docker isolation work remains stopped.

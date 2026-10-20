@@ -340,3 +340,12 @@ func (s *Service) OwnerID(ctx context.Context) (string, error) {
 	}
 	return owner.ID, nil
 }
+
+// OwnerIdentity returns only public identity fields, never password/session data.
+func (s *Service) OwnerIdentity(ctx context.Context) (OwnerInfo, error) {
+	owner, err := s.store.GetOwner(ctx)
+	if err != nil {
+		return OwnerInfo{}, err
+	}
+	return OwnerInfo{ID: owner.ID, Username: owner.Username, Email: owner.Email}, nil
+}

@@ -478,6 +478,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 		}
+		gitEnv, identityError := s.taskCommitEnvironment(r.Context(), ownerID)
+		if identityError != nil {
+			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Task Git identity is unavailable. Execution did not start."})
+			_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)
+			respondJSONError(w, 409, identityError.Error())
+			return
+		}
 		sessionContext += "\n## Workspace\n" + workDir + "\n"
 		var extra string
 		reportEnv, extra, reportToken, reportCleanup, err = s.issueTaskAgent(r.Context(), taskID, attempt.ID, agentID, sessionContext)
@@ -487,6 +494,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			respondJSONError(w, 503, "Task reporting tools unavailable. The process has not started.")
 			return
 		}
+		reportEnv = append(reportEnv, gitEnv...)
 		taskPrompt += extra
 	}
 	launched := false

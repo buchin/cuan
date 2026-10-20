@@ -11,6 +11,7 @@ import (
 
 // Account identifies the authenticated GitHub user without exposing credentials.
 type Account struct {
+	ID    int64  `json:"id,omitempty"`
 	Login string `json:"login"`
 	Name  string `json:"name"`
 }
