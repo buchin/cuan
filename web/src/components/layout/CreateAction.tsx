@@ -23,7 +23,7 @@ export function CreateAction({ label, onClick, kind, id }: CreateActionProps) {
     <button
       id={id}
       type="button"
-      className="action-primary h-11 w-11 shrink-0 p-0 md:w-auto md:px-3"
+      className="action-primary h-10 w-10 min-h-10 shrink-0 rounded-lg p-0 md:w-auto md:px-3"
       aria-label={t(label)}
       title={t(label)}
       onClick={onClick}

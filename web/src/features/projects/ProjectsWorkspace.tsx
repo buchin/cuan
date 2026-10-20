@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus } from 'lucide-react'
+import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus, ChevronRight } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
-import { tasksForProject, workStatus } from '../tasks/task-ui'
+import { relativeTime, tasksForProject, workStatus } from '../tasks/task-ui'
 import { ProjectWorkView } from './ProjectWorkView'
 
 export function ProjectsWorkspace({
@@ -45,7 +45,17 @@ export function ProjectsWorkspace({
   )
   const summaries = useMemo(() => new Map(projects.map((item) => {
     const work = tasksForProject(tasks, item.id)
-    return [item.id, { count: work.length, attention: work.filter((task) => workStatus(task) === 'Needs attention').length }]
+    const states = work.map(workStatus)
+    const latest = [item.updated_at, ...work.map((task) => task.updated_at)]
+      .filter((value) => Number.isFinite(Date.parse(value)))
+      .sort((a, b) => Date.parse(b) - Date.parse(a))[0]
+    return [item.id, {
+      count: work.length,
+      blocked: states.filter((state) => state === 'Needs attention').length,
+      working: states.filter((state) => state === 'Working').length,
+      review: states.filter((state) => state === 'Ready for review').length,
+      latest,
+    }]
   })), [projects, tasks])
   async function archive() {
     if (!project || !onArchiveProject || busy) return
@@ -76,8 +86,8 @@ export function ProjectsWorkspace({
         aria-label={t('Project list')}
         className={`min-h-0 w-full min-w-0 flex-col min-[1200px]:w-72 min-[1200px]:shrink-0 min-[1200px]:border-r ${project ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
-        <div className="shrink-0 border-b p-3 space-y-3">
-          <label className="flex min-h-11 items-center gap-2 rounded-lg border px-3">
+        <div className="shrink-0 border-b px-3 pt-3">
+          <label className="flex h-10 items-center gap-2 rounded-md border bg-muted/20 px-3 focus-within:ring-2 focus-within:ring-ring">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               aria-label={t('Search projects')}
@@ -88,7 +98,7 @@ export function ProjectsWorkspace({
             />
           </label>
           <div
-            className="flex gap-1"
+            className="mt-1 flex gap-4"
             role="group"
             aria-label={t('Project filters')}
           >
@@ -97,9 +107,10 @@ export function ProjectsWorkspace({
                 key={String(value)}
                 aria-pressed={archived === value}
                 onClick={() => setArchived(value)}
-                className={`min-h-11 rounded-md px-3 text-xs ${archived === value ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`min-h-11 border-b-2 px-1 text-xs transition-colors ${archived === value ? 'border-foreground font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
               >
                 {t(value ? 'Archived' : 'Active')}
+                <span className="ml-1.5 text-[11px] tabular-nums text-muted-foreground">{projects.filter((item) => !!item.is_archived === value).length}</span>
               </button>
             ))}
           </div>
@@ -110,16 +121,21 @@ export function ProjectsWorkspace({
               key={item.id}
               to={`/projects/${encodeURIComponent(item.id)}/tasks`}
               aria-current={project?.id === item.id ? 'page' : undefined}
-              className={`flex min-h-16 items-center gap-3 rounded-md p-3 hover:bg-accent ${project?.id === item.id ? 'bg-accent' : ''}`}
+              className={`group flex min-h-20 items-center gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
-              <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Folder className="h-4 w-4" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{item.name}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  {(summaries.get(item.id)?.count || 0)} {t((summaries.get(item.id)?.count || 0) === 1 ? 'task' : 'tasks')}
-                  {!!summaries.get(item.id)?.attention &&
-                    <span className="ml-2 text-destructive">· {summaries.get(item.id)?.attention} {t('needs attention')}</span>}
+                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span>{summaries.get(item.id)?.count || 0} {t(summaries.get(item.id)?.count === 1 ? 'task' : 'tasks')}</span>
+                  {!!summaries.get(item.id)?.working && <span className="text-primary">· {summaries.get(item.id)?.working} {t('working')}</span>}
+                  {!!summaries.get(item.id)?.blocked && <span>· {summaries.get(item.id)?.blocked} {t('blocked')}</span>}
+                  {!!summaries.get(item.id)?.review && <span>· {summaries.get(item.id)?.review} {t('ready for review')}</span>}
                 </span>
+              </span>
+              <span className="flex shrink-0 flex-col items-end gap-2">
+                {summaries.get(item.id)?.latest && <time dateTime={summaries.get(item.id)?.latest} className="text-[11px] text-muted-foreground">{t(relativeTime(summaries.get(item.id)?.latest))}</time>}
+                <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground/60" />
               </span>
             </Link>
           ))}
