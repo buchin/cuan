@@ -1,0 +1,66 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "noteSidebarSearch": true,
+      "deduplicatedContact": true,
+      "matchingNoteOpened": true,
+      "globalGroups": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "noteSidebarSearch": true,
+      "deduplicatedContact": true,
+      "matchingNoteOpened": true,
+      "globalGroups": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "noteSidebarSearch": true,
+      "deduplicatedContact": true,
+      "matchingNoteOpened": true,
+      "globalGroups": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "noteSidebarSearch": true,
+      "deduplicatedContact": true,
+      "matchingNoteOpened": true,
+      "globalGroups": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "noteSidebarSearch": true,
+      "deduplicatedContact": true,
+      "matchingNoteOpened": true,
+      "globalGroups": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "noteSidebarSearch": true,
+      "deduplicatedContact": true,
+      "matchingNoteOpened": true,
+      "globalGroups": true,
+      "noOverflow": true
+    }
+  ],
+  "staleSearchIgnored": true,
+  "keyboardShortcut": true,
+  "arrowNavigation": true,
+  "escapeClose": true,
+  "retry": true,
+  "resultNavigation": true,
+  "pageErrors": [],
+  "providerCalls": 0
+}

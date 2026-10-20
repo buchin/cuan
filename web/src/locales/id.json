@@ -370,5 +370,20 @@
   "Back to tasks": "Kembali ke task",
   "Back to projects": "Kembali ke project",
   "Search tasks…": "Cari task…",
-  "Restore project": "Pulihkan project"
+  "Restore project": "Pulihkan project",
+  "Search contacts and notes": "Cari kontak dan catatan",
+  "Search contacts and notes…": "Cari kontak dan catatan…",
+  "Load more contacts": "Muat kontak lainnya",
+  "Searching…": "Mencari…",
+  "Could not search contacts and notes. Try again.": "Kontak dan catatan gagal dicari. Coba lagi.",
+  "Search Cuan": "Cari di Cuan",
+  "Search anything": "Cari apa saja",
+  "Search anything…": "Cari apa saja…",
+  "Contacts, notes, conversations, projects, and tasks.": "Kontak, catatan, percakapan, project, dan task.",
+  "Type at least 2 characters.": "Ketik minimal 2 karakter.",
+  "No results found.": "Tidak ada hasil.",
+  "Could not search. Try again.": "Pencarian gagal. Coba lagi.",
+  "Show more results": "Tampilkan hasil lainnya",
+  "Retry search": "Ulangi pencarian",
+  "Search is temporarily unavailable for this category.": "Pencarian kategori ini sedang tidak tersedia."
 }

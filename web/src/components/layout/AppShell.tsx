@@ -1,3 +1,4 @@
+import { UniversalSearch } from './UniversalSearch'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useNotifications } from '../../context/NotificationsContext'
 import { ArrowLeft, Bell } from 'lucide-react'
@@ -253,6 +254,7 @@ export function AppShell({
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <UniversalSearch />
             {headerActions}
             {currentTab !== 'notifications' && (
               <button

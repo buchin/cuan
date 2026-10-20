@@ -18,16 +18,17 @@ import (
 )
 
 type CRMContact struct {
-	IsManual    bool      `json:"is_manual"`
-	ID          string    `json:"id"`
-	Product     string    `json:"product"`
-	GuestUUID   string    `json:"guest_uuid"`
-	SessionUUID string    `json:"conversation_id"`
-	Name        string    `json:"name"`
-	Email       string    `json:"email"`
-	Tags        []string  `json:"tags"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	SearchNote  *CRMSearchNote `json:"search_note,omitempty"`
+	IsManual    bool           `json:"is_manual"`
+	ID          string         `json:"id"`
+	Product     string         `json:"product"`
+	GuestUUID   string         `json:"guest_uuid"`
+	SessionUUID string         `json:"conversation_id"`
+	Name        string         `json:"name"`
+	Email       string         `json:"email"`
+	Tags        []string       `json:"tags"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
 type crmStore struct {

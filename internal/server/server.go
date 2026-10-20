@@ -1598,6 +1598,8 @@ func (s *Server) routes() {
 			pr.Post("/inbox/{id}/approve", s.handleApproveInboxThread)
 
 			// Direct Messenger Hub (Sprint 18)
+			pr.Get("/search", s.handleUniversalSearch)
+			pr.Get("/contacts/search", s.handleCRMSearch)
 			pr.Get("/contacts/{id}/memory", s.handleContactMemory)
 			pr.Post("/contacts/{id}/memory", s.handleContactMemory)
 			pr.Patch("/contacts/{id}/memory/{memoryID}", s.handleContactMemoryChange)

@@ -101,6 +101,14 @@ func TestCRMSQLPersistence(t *testing.T) {
 	if err != nil || len(scoped) != 1 {
 		t.Fatal("persisted notes", err)
 	}
+	sidebar, err := restarted.crmSearch(ctx, "dinosaur", "VIP", "one", 0)
+	if err != nil || len(sidebar) != 1 || sidebar[0].ID != c.ID || sidebar[0].SearchNote == nil {
+		t.Fatal("SQL sidebar search", sidebar, err)
+	}
+	globalNotes, err := restarted.globalNotes(ctx, "dinosaur", 0)
+	if err != nil || len(globalNotes) != 1 || !strings.Contains(globalNotes[0].URL, "note_query=") {
+		t.Fatal("SQL global notes", globalNotes, err)
+	}
 	if _, err = isolated.ExecContext(ctx, `UPDATE contact_memory SET deleted_at=NOW(),body='[deleted]' WHERE id=$1`, note.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -108,8 +116,71 @@ func TestCRMSQLPersistence(t *testing.T) {
 	if err != nil || len(hits) != 0 {
 		t.Fatal("deleted note recall", err)
 	}
+	sidebar, err = restarted.crmSearch(ctx, "dinosaur", "", "", 0)
+	if err != nil || len(sidebar) != 0 {
+		t.Fatal("deleted sidebar note", sidebar, err)
+	}
 	if _, err = restarted.memorySave(ctx, note); err == nil {
 		t.Fatal("deleted note resurrected")
 	}
 	t.Log("Actual PostgreSQL: additive schema, reconnect, separate email identities, fresh server lookup, tags; isolated schema removed")
+}
+
+func TestUniversalSearchSQL(t *testing.T) {
+	raw := os.Getenv("CUAN_CRM_TEST_DATABASE_URL")
+	if raw == "" {
+		t.Skip("isolated cuan_s25 database required")
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Path != "/cuan_s25" {
+		t.Fatal("isolated cuan_s25 required")
+	}
+	database, err := sql.Open("pgx", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	schema := "global_search_test_" + strings.ReplaceAll(time.Now().Format("150405.000000000"), ".", "")
+	if _, err = database.ExecContext(ctx, `CREATE SCHEMA `+schema); err != nil {
+		t.Fatal(err)
+	}
+	defer database.ExecContext(context.Background(), `DROP SCHEMA `+schema+` CASCADE`)
+	q := u.Query()
+	q.Set("search_path", schema)
+	u.RawQuery = q.Encode()
+	isolated, err := sql.Open("pgx", u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer isolated.Close()
+
+	if err := db.Run(ctx, isolated, "up"); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{db: isolated}
+	if _, err = isolated.ExecContext(ctx, `INSERT INTO projects(id,name,repo_url) VALUES('search-sql','Dinosaur project','')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = isolated.ExecContext(ctx, `INSERT INTO tasks(id,project_id,title,instructions) VALUES('search-task','search-sql','Dinosaur task','Review networking context')`); err != nil {
+		t.Fatal(err)
+	}
+	room := db.GenerateUUID()
+	if _, err = isolated.ExecContext(ctx, `INSERT INTO project_rooms(id,project_id,title,topic) VALUES($1,'search-sql','Networking','agent-topic:agent_sm')`, room); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = isolated.ExecContext(ctx, `INSERT INTO project_messages(id,room_id,content) VALUES($1,$2,'Discuss dinosaur interests')`, db.GenerateUUID(), room); err != nil {
+		t.Fatal(err)
+	}
+	for _, getter := range []struct {
+		name string
+		get  func(context.Context, string, int) ([]UniversalSearchItem, error)
+	}{{"projects", s.globalProjects}, {"tasks", s.globalTasks}, {"conversations", s.globalConversations}} {
+		items, e := getter.get(ctx, "dinosaur", 0)
+		if e != nil || len(items) != 1 {
+			t.Fatal(getter.name, items, e)
+		}
+	}
+	t.Log("Actual PostgreSQL: all migrations in isolated schema; lightweight project/task/conversation search queries passed; isolated schema removed")
 }

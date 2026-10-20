@@ -6,12 +6,19 @@ import {
   AttachmentFile,
   useAttachments,
 } from './Attachments'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { CreateAction } from '../../components/layout/CreateAction'
 import type { Agent } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from 'react'
 import {
   ChatContact,
   ChatMessage,
@@ -81,6 +88,10 @@ export function InboxView({
 }: InboxViewProps) {
   const clock = useConnectionClock(agents)
   const now = suppliedNow ?? clock
+  const location = useLocation()
+  const requestedMessageId =
+    new URLSearchParams(location.search).get('message') || ''
+  const openedSearchMessage = useRef('')
   const { t, language } = useLanguage()
 
   const unsentDrafts = useRef<Record<string, string>>({})
@@ -103,7 +114,10 @@ export function InboxView({
     activeContact?.conversation_id || activeContact?.id || ''
   const [messageLimit, setMessageLimit] = useState(50)
   const olderAnchor = useRef<{ height: number; top: number } | null>(null)
-  useEffect(() => { setMessageLimit(50); olderAnchor.current = null }, [activeContact?.id])
+  useEffect(() => {
+    setMessageLimit(50)
+    olderAnchor.current = null
+  }, [activeContact?.id])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const uploads = useAttachments(
@@ -211,7 +225,7 @@ export function InboxView({
   useEffect(() => {
     if (activeContact) {
       const convId = activeContact.conversation_id || activeContact.id
-      followTail.current = true
+      followTail.current = !requestedMessageId
       setHasNewMessages(false)
       setInputMessage(unsentDrafts.current[convId] || '')
       setMessages([])
@@ -312,6 +326,31 @@ export function InboxView({
       document.removeEventListener('visibilitychange', visible)
     }
   }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
+
+  useLayoutEffect(() => {
+    if (!requestedMessageId || !activeContact) return
+    const key = activeContact.id + ':' + requestedMessageId
+    if (openedSearchMessage.current === key) return
+    const index = messages.findIndex(
+      (message) => message.uuid === requestedMessageId,
+    )
+    if (index < 0) return
+    followTail.current = false
+    const needed = messages.length - Math.max(0, index - 3)
+    if (messageLimit < needed) {
+      setMessageLimit(needed)
+      return
+    }
+    const element = Array.from(
+      messageListRef.current?.querySelectorAll<HTMLElement>(
+        '[data-message-id]',
+      ) || [],
+    ).find((node) => node.dataset.messageId === requestedMessageId)
+    if (element) {
+      element.scrollIntoView({ block: 'center' })
+      openedSearchMessage.current = key
+    }
+  }, [requestedMessageId, activeContact?.id, messages, messageLimit])
 
   const lastMessageKey =
     messages[messages.length - 1]?.uuid || messages[messages.length - 1]?.id
@@ -454,10 +493,12 @@ export function InboxView({
     messages.map((message) => message.uuid).filter(Boolean),
   )
   const requestsByMessage = useMemo(() => {
-    const ids = new Set(messages.map(message => message.uuid).filter(Boolean))
+    const ids = new Set(messages.map((message) => message.uuid).filter(Boolean))
     const index = new Map<string, InboxRequest[]>()
     for (const request of requests) {
-      const key = ids.has(request.reply_id) ? request.reply_id : request.message_id
+      const key = ids.has(request.reply_id)
+        ? request.reply_id
+        : request.message_id
       if (key) index.set(key, [...(index.get(key) || []), request])
     }
     return index
@@ -466,7 +507,8 @@ export function InboxView({
   useLayoutEffect(() => {
     const list = messageListRef.current
     if (list && olderAnchor.current) {
-      list.scrollTop = olderAnchor.current.top + list.scrollHeight - olderAnchor.current.height
+      list.scrollTop =
+        olderAnchor.current.top + list.scrollHeight - olderAnchor.current.height
       olderAnchor.current = null
     }
   }, [messageLimit])
@@ -631,12 +673,26 @@ export function InboxView({
                 </div>
               )}
 
-              {messageStart > 0 && <div className="flex justify-center py-2"><button type="button" className="min-h-11 rounded-md border px-3 text-xs hover:bg-muted" onClick={() => {
-                const list = messageListRef.current
-                if (list) olderAnchor.current = { height: list.scrollHeight, top: list.scrollTop }
-                followTail.current = false
-                setMessageLimit(limit => limit + 50)
-              }}>{t('Load older messages')}</button></div>}
+              {messageStart > 0 && (
+                <div className="flex justify-center py-2">
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-md border px-3 text-xs hover:bg-muted"
+                    onClick={() => {
+                      const list = messageListRef.current
+                      if (list)
+                        olderAnchor.current = {
+                          height: list.scrollHeight,
+                          top: list.scrollTop,
+                        }
+                      followTail.current = false
+                      setMessageLimit((limit) => limit + 50)
+                    }}
+                  >
+                    {t('Load older messages')}
+                  </button>
+                </div>
+              )}
               {messages.slice(messageStart).map((msg, offset) => {
                 const index = messageStart + offset
                 // In WhatsApp/Telegram: User is right-aligned, Contact (Agent/Customer) is left-aligned
@@ -686,6 +742,10 @@ export function InboxView({
                 return (
                   <div
                     key={msg.uuid || msg.id || index}
+                    data-message-id={msg.uuid}
+                    data-search-message={
+                      msg.uuid === requestedMessageId || undefined
+                    }
                     className={cn(
                       'wa-message-row group relative flex flex-col',
                       isOutgoing ? 'items-end' : 'items-start',
@@ -702,6 +762,7 @@ export function InboxView({
                     <div
                       className={cn(
                         'wa-message-bubble relative min-w-0',
+                        msg.uuid === requestedMessageId && 'ring-2 ring-ring',
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
@@ -825,40 +886,38 @@ export function InboxView({
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}
                     </div>
-                    {(requestsByMessage.get(msg.uuid || '') || [])
-                      .map((q) => {
-                        const placeholder =
-                          (q.agent_id || activeContact.type === 'agent') &&
-                          q.reply_id !== msg.uuid
-                        const activity = (
-                          <InboxActivity
-                            request={q}
-                            bubble={!!placeholder}
-                            onCancel={async () => {
-                              const id =
-                                activeContact.conversation_id ||
-                                activeContact.id
-                              await cancelInboxRequest(id, q.request_id)
-                              await loadConversation(id)
-                            }}
-                          />
-                        )
-                        return placeholder ? (
-                          <div
-                            key={q.request_id}
-                            aria-label="Agent response progress"
-                            className="mt-3 flex w-full self-stretch flex-col items-start"
-                          >
-                            <div className="wa-message-bubble wa-incoming relative min-w-0">
-                              {activity}
-                            </div>
-                          </div>
-                        ) : (
-                          <div key={q.request_id} className="max-w-full">
+                    {(requestsByMessage.get(msg.uuid || '') || []).map((q) => {
+                      const placeholder =
+                        (q.agent_id || activeContact.type === 'agent') &&
+                        q.reply_id !== msg.uuid
+                      const activity = (
+                        <InboxActivity
+                          request={q}
+                          bubble={!!placeholder}
+                          onCancel={async () => {
+                            const id =
+                              activeContact.conversation_id || activeContact.id
+                            await cancelInboxRequest(id, q.request_id)
+                            await loadConversation(id)
+                          }}
+                        />
+                      )
+                      return placeholder ? (
+                        <div
+                          key={q.request_id}
+                          aria-label="Agent response progress"
+                          className="mt-3 flex w-full self-stretch flex-col items-start"
+                        >
+                          <div className="wa-message-bubble wa-incoming relative min-w-0">
                             {activity}
                           </div>
-                        )
-                      })}
+                        </div>
+                      ) : (
+                        <div key={q.request_id} className="max-w-full">
+                          {activity}
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })}

@@ -14,6 +14,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
 
 type Contact = {
+  search_note?: { id: string; snippet: string }
   is_manual?: boolean
   id: string
   name: string
@@ -38,12 +39,82 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true),
     [error, setError] = useState('')
-  const [query, setQuery] = useState(''),
+  const [query, setQuery] = useState(
+      () => new URLSearchParams(window.location.search).get('q') || '',
+    ),
     [tag, setTag] = useState(''),
     [product, setProduct] = useState('')
   const [params, setParams] = useSearchParams()
   const selectedId = params.get('contact') || ''
-  const selected = contacts.find((c) => c.id === selectedId)
+  const [searchResults, setSearchResults] = useState<{
+    key: string
+    contacts: Contact[]
+    more: boolean
+  }>({ key: '', contacts: [], more: false })
+  const [searchOffset, setSearchOffset] = useState(0)
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const [searchRevision, setSearchRevision] = useState(0)
+  const searchKey = JSON.stringify([query.trim(), tag, product])
+  const selected =
+    contacts.find((c) => c.id === selectedId) ||
+    searchResults.contacts.find((c) => c.id === selectedId)
+  useEffect(() => {
+    setSearchOffset(0)
+  }, [query, tag, product])
+  useEffect(() => {
+    const term = query.trim()
+    const controller = new AbortController()
+    if (!term) {
+      setSearching(false)
+      setSearchError('')
+      return
+    }
+    setSearching(true)
+    setSearchError('')
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({
+        q: term,
+        offset: String(searchOffset),
+        tag,
+        source: product,
+      })
+      apiFetch<{ contacts: Contact[]; has_more: boolean }>(
+        '/api/v1/contacts/search?' + params,
+        { signal: controller.signal },
+      )
+        .then((data) => {
+          if (!controller.signal.aborted)
+            setSearchResults((old) => ({
+              key: searchKey,
+              contacts:
+                searchOffset && old.key === searchKey
+                  ? [
+                      ...old.contacts,
+                      ...data.contacts.filter(
+                        (c) =>
+                          !old.contacts.some(
+                            (existing) => existing.id === c.id,
+                          ),
+                      ),
+                    ]
+                  : data.contacts,
+              more: data.has_more,
+            }))
+        })
+        .catch(() => {
+          if (!controller.signal.aborted)
+            setSearchError('Could not search contacts and notes. Try again.')
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearching(false)
+        })
+    }, 250)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [query, tag, product, searchOffset, searchKey, searchRevision, refreshKey])
   const [drafts, setDrafts] = useState<Record<string, string[]>>({})
   const [tagInput, setTagInput] = useState(''),
     [saveError, setSaveError] = useState(''),
@@ -56,14 +127,15 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
   selectedIdRef.current = selectedId
   const tags = [...new Set(contacts.flatMap((c) => c.tags))].sort()
   const sources = [...new Set(contacts.map(source))].sort()
-  const filtered = contacts.filter(
+  const filtered = (
+    query.trim()
+      ? searchResults.key === searchKey
+        ? searchResults.contacts
+        : []
+      : contacts
+  ).filter(
     (c) =>
-      (!tag || c.tags.includes(tag)) &&
-      (!product || source(c) === product) &&
-      [c.name, c.email, c.product, ...c.tags]
-        .join(' ')
-        .toLowerCase()
-        .includes(query.trim().toLowerCase()),
+      (!tag || c.tags.includes(tag)) && (!product || source(c) === product),
   )
   const filteredActive = !!(query.trim() || tag || product)
   const draft = selected ? drafts[selected.id] || selected.tags : []
@@ -113,6 +185,14 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
     const next = new URLSearchParams(params)
     if (id) next.set('contact', id)
     else next.delete('contact')
+    const match = filtered.find((c) => c.id === id)?.search_note
+    if (id && query.trim() && match) {
+      next.set('note_query', query.trim())
+      next.set('note', match.id)
+    } else {
+      next.delete('note_query')
+      next.delete('note')
+    }
     setParams(next, { replace: !id })
   }
   function append(value: string, base = draft): string[] | null {
@@ -186,9 +266,10 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                 <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
                   <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <input
-                    aria-label={t('Search contacts')}
+                    aria-label={t('Search contacts and notes')}
                     className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-                    placeholder={t('Search contacts\u2026')}
+                    placeholder={t('Search contacts and notes…')}
+                    maxLength={200}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
@@ -266,7 +347,11 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
               <p>{t(error)}</p>
               <button
                 className="action-secondary mt-3"
-                onClick={() => void load()}
+                onClick={() => {
+                  void load()
+                  setSearchOffset(0)
+                  setSearchRevision((value) => value + 1)
+                }}
               >
                 {t('Try again')}
               </button>
@@ -305,13 +390,33 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                   type="button"
                   className="icon-action"
                   aria-label={t('Reload contacts')}
-                  onClick={() => void load()}
+                  onClick={() => {
+                    void load()
+                    setSearchOffset(0)
+                    setSearchRevision((value) => value + 1)
+                  }}
                   disabled={loading || saving}
                 >
                   <RefreshCw className="h-4 w-4" />
                 </button>
               </div>
-              {filtered.length === 0 ? (
+              {query.trim() && searching && (
+                <p role="status" className="py-2 text-xs text-muted-foreground">
+                  {t('Searching…')}
+                </p>
+              )}
+              {searchError && (
+                <div role="alert" className="space-y-2 py-2 text-sm">
+                  <p>{t(searchError)}</p>
+                  <button
+                    className="action-secondary"
+                    onClick={() => setSearchRevision((value) => value + 1)}
+                  >
+                    {t('Try again')}
+                  </button>
+                </div>
+              )}
+              {!searching && !searchError && filtered.length === 0 ? (
                 <div className="rounded-lg border p-5 text-center">
                   <p className="font-medium">{t('No matching contacts.')}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -354,6 +459,12 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                         <span className="mt-1 block truncate text-xs text-muted-foreground">
                           {t(source(c))}
                         </span>
+                        {c.search_note && query.trim() && (
+                          <span className="mt-2 block break-words text-xs text-muted-foreground">
+                            <span className="font-medium">{t('Note')}:</span>{' '}
+                            {c.search_note.snippet}
+                          </span>
+                        )}
                         {c.tags.length > 0 && (
                           <span className="mt-2 flex min-w-0 flex-wrap gap-1">
                             {c.tags.slice(0, 2).map((t) => (
@@ -364,6 +475,19 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                                 {t}
                               </span>
                             ))}
+                            {query.trim() &&
+                              searchResults.key === searchKey &&
+                              searchResults.more && (
+                                <button
+                                  className="action-secondary my-3 w-full"
+                                  disabled={searching}
+                                  onClick={() =>
+                                    setSearchOffset((value) => value + 50)
+                                  }
+                                >
+                                  {t('Load more contacts')}
+                                </button>
+                              )}
                             {c.tags.length > 2 && (
                               <span className="text-xs text-muted-foreground">
                                 +{c.tags.length - 2}
@@ -429,8 +553,14 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                   </Link>
                 )}
                 <ContactMemoryPanel
-                  key={selected.id}
+                  key={selected.id + ':' + (params.get('note_query') || '')}
                   contactId={selected.id}
+                  initialQuery={params.get('note_query') || ''}
+                  matchedNoteId={params.get('note') || ''}
+                  onChanged={() => {
+                    setSearchOffset(0)
+                    setSearchRevision((value) => value + 1)
+                  }}
                   onDirtyChange={(dirty) => {
                     noteDirty.current = dirty
                   }}

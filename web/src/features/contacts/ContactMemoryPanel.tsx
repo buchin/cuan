@@ -16,15 +16,21 @@ type Entry = {
 }
 export function ContactMemoryPanel({
   contactId,
+  initialQuery = '',
+  matchedNoteId = '',
   onDirtyChange,
+  onChanged,
 }: {
   contactId: string
+  initialQuery?: string
+  matchedNoteId?: string
+  onChanged?: () => void
   onDirtyChange?: (dirty: boolean) => void
 }) {
   const { t, language } = useLanguage()
   const [items, setItems] = useState<Entry[]>([])
-  const [query, setQuery] = useState('')
-  const [search, setSearch] = useState('')
+  const [query, setQuery] = useState(initialQuery)
+  const [search, setSearch] = useState(initialQuery)
   const [offset, setOffset] = useState(0)
   const [more, setMore] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -117,6 +123,7 @@ export function ContactMemoryPanel({
       setBody('')
       setNotice('Saved')
       refresh()
+      onChanged?.()
     } catch (e) {
       setSaveError(
         e instanceof Error ? e.message : 'Could not save note. Try again.',
@@ -133,6 +140,7 @@ export function ContactMemoryPanel({
       setDeleting(null)
       setNotice('Note deleted')
       refresh()
+      onChanged?.()
     } catch {
       setSaveError('Could not delete note. Try again.')
     } finally {
@@ -145,7 +153,11 @@ export function ContactMemoryPanel({
   const facts = items.filter((item) => item.kind !== 'note')
   function cards(entries: Entry[]) {
     return entries.map((entry) => (
-      <article key={entry.id} className="rounded-lg border p-3 space-y-2">
+      <article
+        key={entry.id}
+        className={`rounded-lg border p-3 space-y-2 ${entry.id === matchedNoteId ? 'ring-1 ring-ring' : ''}`}
+        data-search-match={entry.id === matchedNoteId || undefined}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 text-xs text-muted-foreground">
             <span>
@@ -193,7 +205,7 @@ export function ContactMemoryPanel({
         {entry.source_room_id && (
           <Link
             className="inline-flex min-h-11 items-center text-xs text-muted-foreground underline underline-offset-4"
-            to={`/inbox/${encodeURIComponent(entry.source_room_id)}`}
+            to={`/inbox/${encodeURIComponent(entry.source_room_id)}${entry.source_message_id ? '?message=' + encodeURIComponent(entry.source_message_id) : ''}`}
           >
             {t('Source conversation')}
           </Link>
