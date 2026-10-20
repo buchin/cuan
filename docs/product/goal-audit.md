@@ -21,13 +21,13 @@ does not establish the whole goal.
 | Continue interrupted approved work from actual progress | Coordinator reviews interrupted attempts and may issue a scoped revision | Real fake-provider SIGKILL flow preserves one artifact and progress, continues the same task and verifies the result; no native provider-session checkpoint is claimed |
 | Handle unavailable quota/auth without blind repeats | Allowed account/model routing, cooldowns, explicit backup participation, safe recovery actions | Implemented with targeted routing tests; unavailable external access remains a reported blocker |
 | Return verified results and continue within approved scope | Task reporting, outcome reconciliation, coordinator result review | Structured goal → approval → execution → SIGKILL → checkpoint → scoped revision → verified final outcome passes as one fake-provider path; one artifact, one task, two attempts, one final result |
-| Keep setup and usage self-contained | Native sandbox setup/check guide | Native path verified; Docker AGY turnkey runtime and several legacy guides remain gaps |
+| Keep setup and usage self-contained | Native sandbox setup/check guide | Native sandbox and actual binary first-run/restart verified; current public guides reconciled. Docker AGY turnkey runtime remains explicitly unsupported/unverified |
 
 ## Remaining completion work
 
 The latest verified behavior keeps clear instructions direct. Optional decisions
 use exact scope snapshots and choice actions; planning is not mandatory. The
-application release is 3f98a03, with detailed evidence in plan-approval.
+application release is e828d1f/schema25, with detailed evidence in launch-queue.
 
 1. Reconcile public onboarding and legacy message/task guides with current
    coordinator-managed execution, sandbox prerequisites and persistent profiles.
@@ -58,3 +58,15 @@ validation remains open: this environment lacks Compose and a reachable daemon;
 no image build or container recreation has been established by these checks.
 The complete goal remains open until fresh-install execution prerequisites are
 verified on a supported host.
+
+## Guided onboarding and real native first-run
+
+New Studio users are guided to connect AI, then return to their saved goal.
+Connecting a project is optional. Browser checks cover390/820/1440, account-fetch
+failure, draft retention, optional project/cancel and exactly one submitted goal.
+Migration19 no longer seeds a shared owner for new databases; the command startup
+no longer overwrites Default. Existing applied migrations/owners/projects remain
+preserved. A real PostgreSQL full-server lifecycle and an actual native binary
+process-restart check pass with disposable databases; evidence is in
+`docs/evidence/onboarding/`. Provider inference and Docker execution were not part
+of those tests. Production delivery of this change is pending.

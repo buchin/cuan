@@ -88,9 +88,13 @@ For controlled production upgrades, run migrations separately, then start with
 
 1. Open Cuan and create the initial owner account. Protect first setup from public
    access until the owner exists.
-2. Install the supported provider CLI on the execution host and authenticate it
-   under the same Linux user/HOME that runs Cuan. Configure the account in
-   **Settings → Agents**. Retain its profile directory with application backups.
+2. Studio shows **Connect your AI** when no agent is available. It opens the
+   connection flow and returns you to your saved goal when the agent is added.
+   Install the provider CLI under the same Linux user/HOME that runs Cuan.
+   For AGY, run `python3 scripts/install-antigravity.py` as that user, then ensure
+   `$HOME/.local/bin` is on the service PATH. This installer verifies the official
+   release checksum. Complete Google sign-in inside **Settings → Agents** so the
+   account uses its dedicated persistent profile. Retain profiles with backups.
 3. For native AGY, run `sudo python3 scripts/setup-inbox-sandbox.py --user cuan`,
    replacing `cuan` with the service user. Run it again with `--check`. See the
    [sandbox guide](chat-sandbox.md) for PATH, isolation, and container limits.
@@ -104,6 +108,10 @@ Repository and deployment access are separate prerequisites for work that needs
 them. Configure those for the intended project rather than granting broad access.
 
 ## First daily workflow
+
+After connecting AI, Studio offers **Connect a project (optional)** for a first
+project. You can skip it and let Cuan organize the work. Connecting accounts or
+projects does not itself start execution; submit the goal when you are ready.
 
 Write your desired outcome in Studio. Cuan routes the conversation and organizes
 project/task details. Clear instructions can start directly. When a material choice

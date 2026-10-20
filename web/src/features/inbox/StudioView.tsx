@@ -5,7 +5,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 
-export function StudioView({ onAccepted }: { onAccepted: () => void }) {
+export function StudioView({
+  onAccepted, agentSetup, firstGoal, hasProject,
+  onConnectAgent, onCreateProject, onRetrySetup,
+}: {
+  onAccepted: () => void
+  agentSetup: 'loading' | 'needed' | 'ready' | 'error'
+  firstGoal: boolean
+  hasProject: boolean
+  onConnectAgent: () => void
+  onCreateProject: () => void
+  onRetrySetup: () => void
+}) {
   const { t } = useLanguage()
 
   const navigate = useNavigate()
@@ -40,7 +51,16 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
     }
   }
   async function submit() {
-    if (busy || uploads.busy || (!goal.trim() && !uploads.items.length)) return
+    if (busy || uploads.busy) return
+    if (agentSetup === 'needed') {
+      onConnectAgent()
+      return
+    }
+    if (agentSetup === 'error') {
+      onRetrySetup()
+      return
+    }
+    if (agentSetup === 'loading' || (!goal.trim() && !uploads.items.length)) return
     setBusy(true)
     setError('')
     try {
@@ -103,6 +123,26 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
         <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
           {t('Tell Cuan your goal. We’ll take care of the rest.')}
         </p>
+        {agentSetup === 'needed' && (
+          <aside aria-label={t('Get started')} className="mt-4 rounded-xl border bg-card p-4 text-sm">
+            <h3 className="font-medium">{t('Connect your AI to get started')}</h3>
+            <p className="mt-1 leading-relaxed text-muted-foreground">{t('Connect an AI account so Cuan can work on your goals. Your draft will stay here.')}</p>
+            <button type="button" className="action-secondary mt-3" onClick={onConnectAgent}>{t('Connect your AI')}</button>
+          </aside>
+        )}
+        {agentSetup === 'error' && (
+          <div role="alert" className="mt-4 rounded-xl border p-4 text-sm">
+            <p>{t('Could not check your AI connections.')}</p>
+            <button type="button" className="action-secondary mt-3" onClick={onRetrySetup}>{t('Try again')}</button>
+          </div>
+        )}
+        {agentSetup === 'ready' && firstGoal && !hasProject && (
+          <aside aria-label={t('Your first project')} className="mt-4 rounded-xl border bg-card p-4 text-sm">
+            <h3 className="font-medium">{t('Start with your first goal')}</h3>
+            <p className="mt-1 leading-relaxed text-muted-foreground">{t('Cuan can organize the project for you. Already have one? Connect it below, or start with your goal.')}</p>
+            <button type="button" className="action-secondary mt-3" onClick={onCreateProject}>{t('Connect a project (optional)')}</button>
+          </aside>
+        )}
         <form
           className="mt-4 space-y-3 md:mt-6"
           onPaste={(e) => {
@@ -141,7 +181,7 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
               type="submit"
               className="action-primary w-full sm:w-auto"
               disabled={
-                busy || uploads.busy || (!goal.trim() && !uploads.items.length)
+                busy || uploads.busy || agentSetup !== 'ready' || (!goal.trim() && !uploads.items.length)
               }
             >
               {busy ? (
@@ -152,7 +192,7 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
               ) : (
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               )}
-              {busy ? t('Getting started…') : t('Get it done')}
+              {busy ? t('Getting started…') : agentSetup === 'loading' ? t('Checking connection…') : t('Get it done')}
             </button>
           </div>
           {error && (

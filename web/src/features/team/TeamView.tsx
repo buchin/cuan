@@ -86,6 +86,7 @@ export function TeamView({
   createRequested = false,
   onCreateHandled,
   onAgentAdded,
+  onAgentConnected,
   focusAgentId,
 }: {
   showHeading?: boolean
@@ -95,6 +96,7 @@ export function TeamView({
   focusAgentId?: string
   selectedRole?: string
   onAgentAdded?: () => void
+  onAgentConnected?: () => void
 }) {
   const { t } = useLanguage()
   const [usage, setUsage] = useState<Record<string, AccountUsage>>({})
@@ -288,6 +290,7 @@ export function TeamView({
     setNotice(`${handle} was added.`)
     await load()
     onAgentAdded?.()
+    onAgentConnected?.()
   }
   const retrySave = async () => {
     const currentEpoch = epoch.current

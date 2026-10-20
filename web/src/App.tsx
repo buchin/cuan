@@ -82,6 +82,8 @@ export function App() {
   const [tasksError, setTasksError] = useState('')
   const [contacts, setContacts] = useState<ChatContact[]>([])
   const [directoryAgents, setDirectoryAgents] = useState<Agent[]>([])
+  const [agentsLoaded, setAgentsLoaded] = useState(false)
+  const [agentsError, setAgentsError] = useState(false)
   const [contactsLoading, setContactsLoading] = useState(true)
   const [contactsError, setContactsError] = useState('')
   useEffect(() => {
@@ -188,12 +190,15 @@ export function App() {
       setContactsError(
         'Could not load contacts. Check your connection and try again.',
       )
-    if (agents.status === 'fulfilled')
+    if (agents.status === 'fulfilled') {
+      setAgentsError(false)
       setDirectoryAgents((previous) =>
         JSON.stringify(previous) === JSON.stringify(agents.value)
           ? previous
           : agents.value,
       )
+    } else setAgentsError(true)
+    setAgentsLoaded(true)
     setContactsLoading(false)
   }, [])
 
@@ -638,7 +643,25 @@ export function App() {
       >
         {currentTab === 'notifications' && <NotificationsView />}
         {currentTab === 'studio' && (
-          <StudioView onAccepted={() => void refreshContacts()} />
+          <StudioView
+            onAccepted={() => void refreshContacts()}
+            agentSetup={
+              !agentsLoaded ? 'loading' : agentsError ? 'error' :
+              directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
+                ? 'ready' : 'needed'
+            }
+            firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+            hasProject={
+              projectsLoading || !!projectsError ||
+              projects.some((p) => p.id !== 'default' || !!p.repo_url)
+            }
+            onConnectAgent={() => {
+              navigate('/settings/agents?returnTo=%2Fstudio')
+              setAgentCreateRequested(true)
+            }}
+            onCreateProject={() => setIsCreateProjectOpen(true)}
+            onRetrySetup={() => void refreshContacts()}
+          />
         )}
         {/* 1. Messenger View — Inbox */}
         {currentTab === 'inbox' && (

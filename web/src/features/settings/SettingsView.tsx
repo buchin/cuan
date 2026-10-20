@@ -6,7 +6,7 @@ import {
   type LanguagePreference,
 } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
 import { IntegrationsView } from './IntegrationsView'
@@ -30,6 +30,7 @@ export function SettingsView({
 }: SettingsViewProps) {
   const { t, preference, setPreference } = useLanguage()
   const location = useLocation()
+  const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -43,7 +44,9 @@ export function SettingsView({
   }, [location.hash, section])
   const query = new URLSearchParams(location.search)
   const returnTo = query.get('returnTo') || ''
-  const safeReturn = /^\/(inbox)(\/[^?#]*)?$/.test(returnTo) ? returnTo : ''
+  const safeReturn =
+    returnTo === '/studio' || /^\/(inbox)(\/[^?#]*)?$/.test(returnTo)
+      ? returnTo : ''
   if (activeProject)
     return (
       <section className="page-content max-w-3xl space-y-6">
@@ -154,7 +157,7 @@ export function SettingsView({
         <>
           {safeReturn && (
             <Link to={safeReturn} className="action-secondary">
-              {t('← Back to conversation')}
+              {t(safeReturn === '/studio' ? '← Back to Studio' : '← Back to conversation')}
             </Link>
           )}
           <TeamView
@@ -164,6 +167,9 @@ export function SettingsView({
             onCreateHandled={onCreateAgentHandled}
             focusAgentId={query.get('agent') || undefined}
             onAgentAdded={onAgentAdded}
+            onAgentConnected={() => {
+              if (safeReturn === '/studio') navigate('/studio')
+            }}
           />
         </>
       ) : section === 'integrations' ? (

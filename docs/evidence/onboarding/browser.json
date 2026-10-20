@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "noExecutionBeforeSubmission": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "noExecutionBeforeSubmission": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "noExecutionBeforeSubmission": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    }
+  ],
+  "accountFetchFailureHandled": true,
+  "existingWorkspaceUnchanged": true,
+  "oneSubmissionAfterSetup": true,
+  "realProviderCalls": 0
+}

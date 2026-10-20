@@ -421,8 +421,10 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(authMig19.UpSQL, "idx_task_projects_task_id") {
 		t.Errorf("expected 000019 UpSQL to create idx_task_projects_task_id")
 	}
-	if !strings.Contains(authMig19.UpSQL, "whosyourdaddy") {
-		t.Errorf("expected 000019 UpSQL to mention whosyourdaddy hash")
+	for _, migration := range migs {
+		if strings.Contains(strings.ToLower(migration.UpSQL), "insert into owners") {
+			t.Errorf("migration %s must not create a shared owner credential; first owner uses setup", migration.Version)
+		}
 	}
 	if !strings.Contains(authMig19.DownSQL, "DROP TABLE IF EXISTS task_projects CASCADE") {
 		t.Errorf("expected 000019 DownSQL to drop task_projects table")

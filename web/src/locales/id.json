@@ -410,5 +410,15 @@
   "Change plan": "Ubah rencana",
   "Not now": "Nanti saja",
   "Saved for later": "Disimpan untuk nanti",
-  "Changes to this plan": "Perubahan untuk rencana ini"
+  "Changes to this plan": "Perubahan untuk rencana ini",
+  "Connect your AI to get started": "Hubungkan AI untuk memulai",
+  "Connect an AI account so Cuan can work on your goals. Your draft will stay here.": "Hubungkan akun AI agar Cuan bisa mengerjakan tujuan Anda. Draf Anda tetap tersimpan di sini.",
+  "Connect your AI": "Hubungkan AI",
+  "Could not check your AI connections.": "Koneksi AI belum bisa diperiksa.",
+  "Your first project": "Project pertama Anda",
+  "Start with your first goal": "Mulai dengan tujuan pertama Anda",
+  "Cuan can organize the project for you. Already have one? Connect it below, or start with your goal.": "Cuan bisa mengatur project untuk Anda. Sudah punya project? Hubungkan di bawah, atau langsung tulis tujuan Anda.",
+  "Connect a project (optional)": "Hubungkan project (opsional)",
+  "Checking connection…": "Memeriksa koneksi…",
+  "← Back to Studio": "← Kembali ke Studio"
 }

@@ -180,7 +180,6 @@ func main() {
 			if cfg.AutoMigrate {
 				runAutoMigration(dbConn)
 			}
-			ensureDefaultProjectSeed(dbConn)
 		}
 	}
 
@@ -281,25 +280,6 @@ func runAutoMigration(database *sql.DB) {
 		log.Printf("Warning: auto-migration failed: %v", err)
 	} else {
 		log.Println("PostgreSQL connected and schema migrations applied successfully.")
-	}
-}
-
-func ensureDefaultProjectSeed(database *sql.DB) {
-	if database == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	query := `
-		INSERT INTO projects (id, name, repo_url, default_branch, clone_status, project_type, created_at, updated_at)
-		VALUES ('default', 'cuan', 'https://github.com/buchin/cuan', 'main', 'connected', 'custom', NOW(), NOW())
-		ON CONFLICT (id) DO UPDATE SET name = 'cuan' WHERE projects.name != 'cuan';
-	`
-	if _, err := database.ExecContext(ctx, query); err != nil {
-		log.Printf("Warning: failed to seed default project: %v", err)
-	} else {
-		log.Println("Default project seed verified in database.")
 	}
 }
 
