@@ -83,3 +83,20 @@ leading to this wiring, not separate active cleanup mechanisms.
 Combined worker verification now passes with real worktrees and fixture GitHub refs: an active execution lease prevents even a remote query; remote failure retains files; eligible completion removes its checkout; reopening restores the result; task records remain unchanged. Provider-runtime compatibility is still unverified, so the changes remain unreleased.
 
 The actual PTY/supervisor path now passes a deterministic harness test that runs real Git commands, commits task output, reconstructs the terminal manager and continues with exactly one implementation commit. This replaces inference only and does not establish every provider sandbox behavior. Release activation now blocks worktree-unaware binaries after isolated repository tasks exist, including automatic health fallback. Six release compatibility contracts pass.
+
+## Save a task branch
+
+An active agent session can run `"$CUAN_TASK_EXECUTABLE" task push` after committing
+its scoped changes. The capability permits only its current task and active
+attempt. Cuan resolves the frozen repository/workspace, validates the managed
+branch, and pushes the exact captured commit to that branch using stored access.
+The GitHub credential stays out of the prompt, command arguments and remote config.
+
+This command does not stage or commit files, save uncommitted changes, merge,
+force-push, create a repository or deploy. Repeat push is safe for the same commit;
+remote divergence is rejected. If the response is lost, rerun push to confirm the
+same branch state rather than repeating implementation. Missing GitHub access
+returns an actionable connection message; contextual connection/resume UI is still
+pending. Legacy tasks on shared project branches cannot use this managed-branch
+push until explicitly migrated. Tests use real local Git remotes; no live GitHub
+write has been made. This command is not yet deployed.

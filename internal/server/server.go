@@ -918,6 +918,7 @@ func (s *Server) SetWordPressWebmaster(w *wordpress.WebmasterEngine) {
 func (s *Server) routes() {
 	s.router.Get("/api/v1/task-agent/{id}", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}", s.handleTaskAgent)
+	s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)

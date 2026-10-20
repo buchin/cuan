@@ -45,3 +45,27 @@ func TestTaskToolUsesOnlyPrivateCapability(t *testing.T) {
 		t.Fatal("help unavailable")
 	}
 }
+
+func TestTaskPushUsesBoundCapabilityEndpoint(t *testing.T) {
+	called := false
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.Method != "POST" || r.URL.Path != "/bound/push" || r.Header.Get("Authorization") != "Bearer fixture" {
+			t.Error("push escaped task capability")
+		}
+		w.Write([]byte(`{"pushed":true}`))
+	}))
+	defer api.Close()
+	path := filepath.Join(t.TempDir(), "capability.json")
+	raw, _ := json.Marshal(Capability{API: api.URL + "/bound", Token: "fixture", TaskID: "bound"})
+	os.WriteFile(path, raw, 0600)
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", path)
+	var out, errOut bytes.Buffer
+	if Run([]string{"push"}, &out, &errOut) != 0 || !called {
+		t.Fatal(errOut.String())
+	}
+	called = false
+	if Run([]string{"push", "--state", "done"}, &out, &errOut) != 2 || called {
+		t.Fatal("push accepted report mutation")
+	}
+}

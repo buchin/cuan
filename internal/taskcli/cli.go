@@ -23,14 +23,14 @@ type Capability struct {
 
 func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		fmt.Fprintln(out, "Usage: cuan-server task get | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE]\nUses CUAN_TASK_CAPABILITY_FILE; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
+		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE]\nUses CUAN_TASK_CAPABILITY_FILE; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:
 {"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true}],"commit_sha":"optional commit","test_summary":"Actual checks"}
 Omit metadata/checklists when unnecessary. Use --summary and --complete-note directly for a simple result.`)
 		return 0
 	}
 	command := args[0]
-	if command != "get" && command != "report" {
+	if command != "get" && command != "report" && command != "push" {
 		fmt.Fprintln(errOut, "Unknown task command; use task --help")
 		return 2
 	}
@@ -110,14 +110,27 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 		}
 		body = bytes.NewReader(encoded)
 	}
-	req, e := http.NewRequest(method, c.API, body)
+	endpoint := c.API
+	if command == "push" {
+		if fs.NFlag() != 0 {
+			fmt.Fprintln(errOut, "task push does not accept report flags")
+			return 2
+		}
+		method = "POST"
+		endpoint = strings.TrimRight(endpoint, "/") + "/push"
+	}
+	req, e := http.NewRequest(method, endpoint, body)
 	if e != nil {
 		fmt.Fprintln(errOut, "Invalid task API")
 		return 1
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	timeout := 10 * time.Second
+	if command == "push" {
+		timeout = 65 * time.Second
+	}
+	client := &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, e := client.Do(req)
 	if e != nil {
 		fmt.Fprintln(errOut, "Task API unavailable; the report was not confirmed. Retry from this session.")

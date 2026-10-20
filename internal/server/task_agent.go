@@ -89,7 +89,11 @@ this reporting tool. If the tool fails, report its actual error as a blocker.
 The built-in command is "$CUAN_TASK_EXECUTABLE" task.
 Run task get only when additional task context is needed. Metadata and checklists
 are optional; keep simple requests simple. Use task --help for supported flags.
-For substantial work, publish meaningful task report --progress "..." checkpoints.
+For repository implementation, commit only your scoped changes. Save the task
+branch with "$CUAN_TASK_EXECUTABLE" task push before reporting delivery. This
+pushes only the bound branch; it does not commit files, merge or deploy. A failed
+push retains local work; report the concrete access/conflict blocker. Never
+print credentials or force-push. For substantial work, publish meaningful task report --progress "..." checkpoints.
 Print the user-facing answer before the final report.
 For completed implementation, finish with:
 "$CUAN_TASK_EXECUTABLE" task report --state done --summary "Actual result" --complete-note "Verification and limitations"
@@ -140,6 +144,21 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	latest, e := s.taskSvc.GetTaskDetail(r.Context(), g.TaskID)
 	if e != nil || latest.LatestAttempt == nil || latest.LatestAttempt.ID != g.AttemptID || latest.LatestAttempt.Status != task.AttemptStatusRunning {
 		respondJSONError(w, 409, "This task attempt is no longer active")
+		return
+	}
+	if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/push") {
+		if s.projectSvc == nil {
+			respondJSONError(w, 503, "Project access is unavailable")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		commit, err := s.projectSvc.PushTaskBranch(ctx, g.TaskID, latest.ProjectID, latest.Instructions)
+		if err != nil {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
+		respondJSON(w, 200, map[string]any{"commit_sha": commit, "pushed": true, "scope": "bound task branch", "uncommitted_files_saved": false})
 		return
 	}
 	if r.Method == "GET" {

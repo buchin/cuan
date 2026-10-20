@@ -3,7 +3,6 @@ package git
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -283,20 +282,7 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 	}
 
 	repoURL := BuildAuthURL(owner, repo, "")
-	// Authentication is scoped to this child process, never persisted in .git/config.
-	authenticate := func(cmd *exec.Cmd) {
-		environment := []string{}
-		for _, value := range os.Environ() {
-			if !strings.HasPrefix(value, "GIT_CONFIG_") {
-				environment = append(environment, value)
-			}
-		}
-		environment = append(environment, "GIT_TERMINAL_PROMPT=0")
-		if token != "" {
-			environment = append(environment, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.https://github.com/.extraheader", "GIT_CONFIG_VALUE_0=Authorization: Basic "+base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token)))
-		}
-		cmd.Env = environment
-	}
+	authenticate := func(cmd *exec.Cmd) { cmd.Env = repositoryEnvironment(token) }
 
 	gitDir := filepath.Join(targetDir, ".git")
 	if fi, err := os.Stat(gitDir); err == nil && fi.IsDir() {
