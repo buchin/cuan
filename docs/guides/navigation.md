@@ -7,14 +7,11 @@ user's language.
 
 ## Find your work
 
-The main navigation is **Inbox → Tasks → Projects → Contacts**. On desktop it
-appears in the sidebar; on phones the same four destinations appear in the bottom
-navigation. Settings is separate from these work areas.
+The main work navigation is **Inbox → Projects → Contacts**. Desktop uses the sidebar; mobile adds **Account** as the fourth bottom item. Settings and the advanced Work monitor are available through Account on mobile; desktop keeps Settings below the work areas and Work monitor in the account menu.
 
 - **Inbox:** conversations with agents and live chat customers. Search or filter
   by All, Agents, or Customers. Choose a conversation to open it.
-- **Tasks:** the global backlog, with project and status filters. Open a task to
-  view its description, discussion, execution attempts, and saved output.
+- **Work monitor (Account):** the advanced global backlog, with project and status filters. Existing task links remain available for inspection.
 - **Projects:** connected repositories and project boards. Opening a project
   limits its board to that project. Project settings shows its saved repository
   details and archive action.
@@ -23,7 +20,7 @@ navigation. Settings is separate from these work areas.
 
 ## Create something
 
-Use the button at the top right. Its visible label follows the current page:
+Use the action at the top right: a contextual icon on mobile and a labeled button on larger screens. The action follows the current page:
 
 | Page | Action |
 | --- | --- |

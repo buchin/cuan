@@ -10,4 +10,12 @@ Targeted Go tests cover topic isolation and naming, owner authentication, idempo
 
 TypeScript/Vite and Chromium fixtures passed eight topic viewport/theme cases, recipient retry/dedupe, customer navigation, agent-bubble progress/terminal/back-to-conversation, advanced monitoring, eight project workspace cases and cross-project rejection. Providers are deterministic fixtures, not live paid calls.
 
-Production verification follows release.
+## Production release
+
+Deployed code `f44bb7adc4cfb7ba5be21aadb50243ea1305985b` to https://cuan.dojo.cc through the native atomic release. Readiness healthy; schema23 unchanged/no migration. Existing Default configuration was preserved.
+
+Authenticated production checks passed: UI new-topic creation, second independent topic, same-ID replay, registered-agent/topic metadata, Default assignment, project work/session paths, responsive project sidebar, Back navigation, advanced Work monitor and exact assets. Eight viewport/theme cases passed. Two empty synthetic topics and one task/finished attempt were cleaned without creating user messages, rooms for customers, provider executions or terminal runs in the live application.
+
+The compiled isolated server tests also passed on the production host: new topic context isolation, Default task routing and full legacy/topic delegation, real PTY reporting, coordinator result review, concrete corrections and retry bounds. Those tests used memory stores and fake providers, not the production database or a paid provider. Semantic model adherence in real use remains untested.
+
+Retention:35 existing tables and706 account-profile files unchanged (login sessions excluded). Validated private backup retained; persistent project checkout fast-forwarded to deployed code. Production screenshots show synthetic topic/work content. See `production-browser.json`.

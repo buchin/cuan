@@ -240,3 +240,9 @@ verification. Passing tests or agent-created criteria alone do not establish
 that the user’s request was satisfied. Session guidance asks the agent to make
 the same comparison before reporting and to avoid expanding a title or checklist
 into unrequested deliverables.
+
+## Project work and Inbox topics
+
+New project work is browsed at `/projects/PROJECT_ID/tasks`, with a work-list sidebar and session/result panel. Select work to open `/projects/PROJECT_ID/tasks/TASK_ID`; session paths extend it. Existing `/tasks/ID` links remain supported. The cross-project list is available from Account → Work monitor.
+
+Agent topics are independent conversations with stable IDs. Work cards in the agent reply open progress/results and return to the same conversation. A topic can exist without any task or PTY. New task creation without a project uses the initialized Default project; historical unassigned work stays readable in its Default workspace without changing its records.
