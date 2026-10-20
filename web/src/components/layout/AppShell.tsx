@@ -146,10 +146,16 @@ export function AppShell({
         className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"
       >
         <div className="sidebar-brand flex h-16 shrink-0 items-center gap-2 border-b border-border px-2.5">
-          <CuanMark className="h-9 w-9" />
-          <span className="nav-label text-lg font-semibold tracking-tight">
-            cuan
-          </span>
+          <Link
+            to="/studio"
+            aria-label={t('Go to Studio')}
+            className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <CuanMark decorative className="h-9 w-9" />
+            <span className="nav-label text-lg font-semibold tracking-tight">
+              cuan
+            </span>
+          </Link>
           <button
             className="sidebar-collapse icon-action hidden min-[1200px]:inline-flex"
             title={
@@ -226,7 +232,13 @@ export function AppShell({
                 <ArrowLeft className="h-5 w-5" />
               </button>
             ) : (
-              <CuanMark className="h-6 w-6 md:hidden" />
+              <Link
+                to="/studio"
+                aria-label={t('Go to Studio')}
+                className="icon-action md:hidden"
+              >
+                <CuanMark decorative className="h-6 w-6" />
+              </Link>
             )}
             {breadcrumbs.length > 0 && (
               <nav

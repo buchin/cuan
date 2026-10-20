@@ -1,13 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import {
+  Search,
+  Users,
+  FileText,
+  MessageSquare,
+  Folder,
+  CheckSquare,
+} from 'lucide-react'
 import { ActionDialog } from '../dialogs/ActionDialog'
 import { apiFetch } from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 
 type Item = { id: string; title: string; snippet: string; url: string }
-type Group = { kind: string; items: Item[]; has_more: boolean; error?: string }
+type Group = {
+  label?: string
+  kind: string
+  items: Item[]
+  has_more: boolean
+  error?: string
+}
 const labels: Record<string, string> = {
   contacts: 'Contacts',
   notes: 'Notes',
@@ -19,6 +32,41 @@ function localResultURL(url: string) {
   return (
     /^\/(contacts\?|inbox\/|projects\/|tasks\/)/.test(url) &&
     !url.includes('\\')
+  )
+}
+function plainPreview(value: string) {
+  return value
+    .replace(/```[^\n]*\n?/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\*\*|__|~~/g, '')
+    .replace(
+      /(?:\/home|\/opt|\/tmp|\/data|\/var)\/[^\s,;)]*/g,
+      '[project file]',
+    )
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+const resultIcons = {
+  contacts: Users,
+  notes: FileText,
+  conversations: MessageSquare,
+  projects: Folder,
+  tasks: CheckSquare,
+} as const
+function Match({ text, term }: { text: string; term: string }) {
+  const index = text.toLowerCase().indexOf(term.toLowerCase())
+  return index < 0 || !term ? (
+    <>{text}</>
+  ) : (
+    <>
+      {text.slice(0, index)}
+      <mark className="rounded bg-primary/15 font-medium text-inherit">
+        {text.slice(index, index + term.length)}
+      </mark>
+      {text.slice(index + term.length)}
+    </>
   )
 }
 export function UniversalSearch() {
@@ -126,12 +174,13 @@ export function UniversalSearch() {
       {createPortal(
         <ActionDialog
           open={open}
+          compact
           title={t('Search Cuan')}
           onClose={() => setOpen(false)}
         >
           <div
             ref={body}
-            className="space-y-4"
+            className="flex max-h-[75dvh] min-h-0 flex-col gap-2"
             onKeyDown={(event) => {
               const links = Array.from(
                 body.current?.querySelectorAll<HTMLAnchorElement>(
@@ -156,7 +205,7 @@ export function UniversalSearch() {
               }
             }}
           >
-            <label className="flex min-h-12 items-center gap-2 rounded-lg border px-3">
+            <label className="mr-11 flex min-h-11 shrink-0 items-center gap-2 px-2">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input
                 autoComplete="off"
@@ -187,13 +236,10 @@ export function UniversalSearch() {
                 }}
               />
             </label>
-            <p className="text-xs text-muted-foreground">
-              {t('Contacts, notes, conversations, projects, and tasks.')}
-            </p>
             <div
               role="status"
               aria-live="polite"
-              className="text-xs text-muted-foreground"
+              className="px-2 text-xs text-muted-foreground"
             >
               {loading
                 ? t('Searching…')
@@ -216,65 +262,93 @@ export function UniversalSearch() {
                 </button>
               </div>
             )}
-            {groups.map((group) => (
-              <section
-                key={group.kind}
-                aria-label={t(labels[group.kind] || group.kind)}
-                className="space-y-1"
-              >
-                {(group.items.length > 0 || group.error) && (
-                  <h3 className="px-2 py-1 text-xs font-semibold text-muted-foreground">
-                    {t(labels[group.kind] || group.kind)}
-                  </h3>
-                )}
-                {group.error && (
-                  <p className="px-2 text-xs text-destructive">
-                    {t(group.error)}
-                  </p>
-                )}
-                {group.items
-                  .filter((item) => localResultURL(item.url))
-                  .map((item) => (
-                    <Link
-                      key={item.id}
-                      data-search-result
-                      to={item.url}
-                      onClick={() => setOpen(false)}
-                      className="block min-h-14 rounded-md px-2 py-2.5 hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-                    >
-                      <span className="block truncate text-sm font-medium">
-                        {item.title}
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t pt-2"
+              data-search-scroll
+            >
+              {groups.map((group) => (
+                <section
+                  key={group.kind}
+                  aria-label={t(
+                    group.label || labels[group.kind] || group.kind,
+                  )}
+                  className="mb-2 space-y-0.5"
+                >
+                  {(group.items.length > 0 || group.error) && (
+                    <h3 className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                      {t(group.label || labels[group.kind] || group.kind)}{' '}
+                      <span className="ml-1 font-normal tabular-nums">
+                        {group.items.length}
+                        {group.has_more ? '+' : ''}
                       </span>
-                      {item.snippet && (
-                        <span className="mt-1 block line-clamp-2 break-words text-xs text-muted-foreground">
-                          {item.snippet}
-                        </span>
-                      )}
-                    </Link>
-                  ))}
-              </section>
-            ))}
-            {groups.some((group) => group.has_more) && (
-              <button
-                className="action-secondary w-full"
-                disabled={loading}
-                onClick={() => setOffset((value) => value + 5)}
-              >
-                {t('Show more results')}
-              </button>
-            )}
-            {groups.some((group) => group.error) && !error && (
-              <button
-                className="action-secondary"
-                disabled={loading}
-                onClick={() => {
-                  setOffset(0)
-                  setRevision((value) => value + 1)
-                }}
-              >
-                {t('Retry search')}
-              </button>
-            )}
+                    </h3>
+                  )}
+                  {group.error && (
+                    <p className="px-2 text-xs text-destructive">
+                      {t(group.error)}
+                    </p>
+                  )}
+                  {group.items
+                    .filter((item) => localResultURL(item.url))
+                    .map((item) => {
+                      const Icon =
+                        resultIcons[group.kind as keyof typeof resultIcons] ||
+                        Search
+                      const title = plainPreview(item.title),
+                        snippet = plainPreview(item.snippet)
+                      return (
+                        <Link
+                          key={item.id}
+                          data-search-result
+                          to={item.url}
+                          onClick={() => setOpen(false)}
+                          className="flex min-h-12 items-start gap-2.5 rounded-md px-2 py-2 hover:bg-accent focus-visible:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                        >
+                          <Icon
+                            aria-hidden
+                            className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">
+                              <Match text={title} term={term} />
+                            </span>
+                            {snippet &&
+                              snippet.toLowerCase() !== title.toLowerCase() && (
+                                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                                  <Match text={snippet} term={term} />
+                                </span>
+                              )}
+                          </span>
+                        </Link>
+                      )
+                    })}
+                </section>
+              ))}
+              {groups.some((group) => group.has_more) && (
+                <button
+                  className="action-secondary w-full"
+                  disabled={loading}
+                  onClick={() => setOffset((value) => value + 5)}
+                >
+                  {t('Show more results')}
+                </button>
+              )}
+              {groups.some((group) => group.error) && !error && (
+                <button
+                  className="action-secondary"
+                  disabled={loading}
+                  onClick={() => {
+                    setOffset(0)
+                    setRevision((value) => value + 1)
+                  }}
+                >
+                  {t('Retry search')}
+                </button>
+              )}
+            </div>
+            <p className="hidden shrink-0 border-t pt-2 text-[11px] text-muted-foreground sm:block">
+              {t('↑↓ Navigate · Enter Open · Esc Close')}
+            </p>
           </div>
         </ActionDialog>,
         document.body,

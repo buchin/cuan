@@ -62,7 +62,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if home == "" {
 		home, _ = os.UserHomeDir()
 	}
-	system := fmt.Sprintf("You are %s, a colleague in Cuan. Respond to the message appropriately: a brief greeting, a useful substantive answer, or a clarification when ambiguous. Use the user's language. Do not turn every message into a greeting. Do not claim actions, file changes, tasks, or deployments that have not happened. You have project context and may use read-only tools to analyze repositories, backlogs, and sprint recommendations without creating a task. For analysis use view_file, list_dir, grep_search, find_by_name, view_file_outline, or view_code_item. Do not use run_command or the terminal because chat does not offer interactive approvals. If a tool is denied, explain the limitation and answer from available information; do not claim the command succeeded. Use only the provided project workspace and the explicitly listed user attachment paths; do not read credentials, sign-in profiles, or other projects. Do not change files, commit, run tests/builds, or deploy during chat analysis. Use application-managed delegation for approved execution; native tools in chat remain read-only. If the snapshot says the repository is not connected or the project is ambiguous, explain and ask for the correct project; do not claim tools are generally unavailable. Do not expose private reasoning, tokens, credentials, or runtime diagnostics.\n\n%s", name, prompt)
+	system := fmt.Sprintf("You are %s, a colleague in Cuan. Respond to the message appropriately: a brief greeting, a useful substantive answer, or a clarification when ambiguous. Use the user's language. Do not turn every message into a greeting. Use the supplied conversation history first when asked about this chat. Your final reply must answer the question or explain a concrete limitation; never end with only a promise such as I will check or Aku cek dulu. Do not look for filesystem transcripts when the supplied history already contains the answer. Do not claim actions, file changes, tasks, or deployments that have not happened. You have project context and may use read-only tools to analyze repositories, backlogs, and sprint recommendations without creating a task. For analysis use view_file, list_dir, grep_search, find_by_name, view_file_outline, or view_code_item. Do not use run_command or the terminal because chat does not offer interactive approvals. If a tool is denied, explain the limitation and answer from available information; do not claim the command succeeded. Use only the provided project workspace and the explicitly listed user attachment paths; do not read credentials, sign-in profiles, or other projects. Do not change files, commit, run tests/builds, or deploy during chat analysis. Use application-managed delegation for approved execution; native tools in chat remain read-only. If the snapshot says the repository is not connected or the project is ambiguous, explain and ask for the correct project; do not claim tools are generally unavailable. Do not expose private reasoning, tokens, credentials, or runtime diagnostics.\n\n%s", name, prompt)
 	system = inboxMemorySearchInstruction + "\n\n" + inboxContactMemoryInstruction + "\n\n" + inboxApprovalInstruction + "\n\n" + workflow.Coordinator + "\n\n" + inboxDelegationInstruction + "\n\n" + inboxTaskDraftInstruction + "\n\n" + system
 	binary := "agy"
 	var args []string
@@ -228,11 +228,11 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 		}
 		return "", safeInboxProviderFailure(nil, diagnostic), "provider_failure"
 	}
+	if len(result.DeniedActions) > 0 {
+		return "", "The tool permission was denied, so the reply was not accepted as a completed result. Your message is saved. No work was restarted automatically.", "tool_permission_denied"
+	}
 	reply := strings.TrimSpace(result.Response)
 	if reply == "" {
-		if len(result.DeniedActions) > 0 {
-			return "", "The agent stopped because tool permission was denied. Chat does not offer terminal approvals. Ask a question that can use read-only tools, or create a task for execution. Your message is saved. The request will not be rerun automatically.", "tool_permission_denied"
-		}
 		if strings.TrimSpace(stderr) != "" {
 			return "", safeInboxProviderFailure(nil, stderr), "empty_response"
 		}
