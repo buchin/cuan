@@ -16,6 +16,7 @@ import { TeamView } from '../team/TeamView'
 interface SettingsViewProps {
   createAgentRequested?: boolean
   onCreateAgentHandled?: () => void
+  embeddedProject?: boolean
   activeProject?: Project
   projects?: Project[]
   onAgentAdded?: () => void
@@ -26,6 +27,7 @@ export function SettingsView({
   createAgentRequested = false,
   onCreateAgentHandled,
   activeProject,
+  embeddedProject = false,
   projects = [],
   onAgentAdded,
   onDeleteProject,
@@ -47,7 +49,7 @@ export function SettingsView({
   const safeReturn =
     returnTo === '/studio' || /^\/(inbox)(\/[^?#]*)?$/.test(returnTo)
       ? returnTo : ''
-  if (activeProject) return <ProjectSettings key={activeProject.id} project={activeProject} onUpdated={onProjectUpdated} onArchive={onDeleteProject} />
+  if (activeProject) return <ProjectSettings key={activeProject.id} project={activeProject} embedded={embeddedProject} onUpdated={onProjectUpdated} onArchive={onDeleteProject} />
   return (
     <section className="page-content space-y-5">
       <header>

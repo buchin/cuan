@@ -1,0 +1,22 @@
+{
+  "editableNameGoalInstructions": true,
+  "advancedCollapsed": true,
+  "saveDisabledUntilDirty": true,
+  "failedSaveRetainsDraft": true,
+  "saveReload": true,
+  "conflictPreservesDraftAndReloadsExplicitly": true,
+  "connectionChangeConfirmation": true,
+  "noNewTaskInSettings": true,
+  "responsiveWidths": [
+    360,
+    390,
+    820,
+    1440
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "noOverflow": true,
+  "providerCalls": 0
+}

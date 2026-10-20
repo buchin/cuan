@@ -1,5 +1,5 @@
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
@@ -18,7 +18,9 @@ export function ProjectsWorkspace({
   onRetry,
   onArchiveProject,
   onNewTask,
+  settingsContent,
 }: {
+  settingsContent?: ReactNode
   projects: Project[]
   project?: Project
   tasks: Task[]
@@ -191,6 +193,7 @@ export function ProjectsWorkspace({
                 <h2 className="truncate text-sm font-semibold">
                   {project.name}
                 </h2>
+                {settingsContent && <span className="text-xs text-muted-foreground">{t('Settings')}</span>}
                 {project.is_archived && (
                   <span className="text-xs text-muted-foreground">
                     {t('Archived')}
@@ -198,7 +201,8 @@ export function ProjectsWorkspace({
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {onNewTask && !project.is_archived && <button className="action-primary min-h-11 gap-1.5 px-3 text-sm" onClick={onNewTask}><Plus className="h-4 w-4" />{t('New task')}</button>}
+                {settingsContent && <Link className="action-secondary text-sm" to={`/projects/${encodeURIComponent(project.id)}/tasks`}>{t('Tasks')}</Link>}
+                {onNewTask && !settingsContent && !project.is_archived && <button className="action-primary min-h-11 gap-1.5 px-3 text-sm" onClick={onNewTask}><Plus className="h-4 w-4" />{t('New task')}</button>}
                 <details className="relative">
                   <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
                   <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
@@ -213,8 +217,8 @@ export function ProjectsWorkspace({
                 {t(saveError)}
               </p>
             )}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <ProjectWorkView
+            <div className={`min-h-0 flex-1 ${settingsContent ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+              {settingsContent || <ProjectWorkView
                 project={project}
                 tasks={tasks}
                 taskId={taskId}
@@ -222,7 +226,7 @@ export function ProjectsWorkspace({
                 loading={loading}
                 error={error}
                 onRetry={onRetry}
-              />
+              />}
             </div>
           </>
         ) : (

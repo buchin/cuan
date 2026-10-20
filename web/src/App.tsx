@@ -578,7 +578,7 @@ export function App() {
         }
         pageTitle={sessionRoute ? 'Task session' : headerTitle}
         pageTitleIsContent={
-          projectDetail && !projectSettings && !!headerProject
+          projectDetail && !!headerProject
         }
         breadcrumbs={headerBreadcrumbs}
         inboxUnread={contacts.reduce(
@@ -621,8 +621,8 @@ export function App() {
                   ),
               }
         }
-        contentHeader={projectDetail && !projectSettings && !!headerProject}
-        projectWorkspace={currentTab === 'projects' && !projectSettings}
+        contentHeader={projectDetail && !!headerProject}
+        projectWorkspace={currentTab === 'projects'}
         sessionWorkspace={sessionRoute}
         hideBottomNav={
           sessionRoute || (currentTab === 'inbox' && isMobileChatActive)
@@ -758,14 +758,24 @@ export function App() {
             </section>
           ) : subParam && activeProject?.id === subParam ? (
             pathSegments[2] === 'settings' ? (
-              <SettingsView
-                key={activeProject.id}
-                activeProject={activeProject}
-                onProjectUpdated={refreshProjects}
-                onDeleteProject={async (id) => {
-                  await projectsApi.archive(id, true)
-                  await refreshProjects()
-                }}
+              <ProjectsWorkspace
+                projects={projects}
+                project={activeProject}
+                tasks={tasks}
+                loading={projectsLoading}
+                error={projectsError}
+                onRetry={() => void refreshProjects()}
+                onArchiveProject={handleArchiveProject}
+                settingsContent={<SettingsView
+                  key={activeProject.id}
+                  activeProject={activeProject}
+                  embeddedProject
+                  onProjectUpdated={refreshProjects}
+                  onDeleteProject={async (id) => {
+                    await projectsApi.archive(id, true)
+                    await refreshProjects()
+                  }}
+                />}
               />
             ) : (
               <ProjectsWorkspace

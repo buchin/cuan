@@ -5,7 +5,8 @@ import { ApiError } from '../../api/client'
 import { projectsApi } from '../../api/projects'
 import { useLanguage } from '../../context/LanguageContext'
 
-export function ProjectSettings({ project, onUpdated, onArchive }: {
+export function ProjectSettings({ project, onUpdated, onArchive, embedded = false }: {
+  embedded?: boolean
   project: Project
   onUpdated?: () => Promise<void>
   onArchive?: (id: string) => Promise<void>
@@ -29,8 +30,8 @@ export function ProjectSettings({ project, onUpdated, onArchive }: {
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
   const change = (key: keyof typeof form, value: string) => { setForm(old => ({ ...old, [key]: value })); setNotice(''); setError('') }
-  return <section className="page-content mx-auto w-full max-w-2xl space-y-6">
-    <Link to={'/projects/' + encodeURIComponent(project.id) + '/tasks'} className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">{t('← Back to project')}</Link>
+  return <section className={`mx-auto w-full max-w-2xl space-y-6 ${embedded ? 'px-4 py-5 sm:px-5' : 'page-content'}`}>
+    {!embedded && <Link to={'/projects/' + encodeURIComponent(project.id) + '/tasks'} className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">{t('← Back to project')}</Link>}
     <form aria-label={t('Project settings')} className="space-y-5" onSubmit={async event => {
       event.preventDefault()
       if (busy || !dirty) return
