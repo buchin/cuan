@@ -48,3 +48,15 @@ simultaneous retries produce one child), owner/room boundaries, unknown-result
 rejection, one original message/one fake provider execution, and browser fixtures
 at 390/820/1440px for lost responses and quota/status controls. No live AI or
 production message is sent during these checks.
+
+## Bounded note search and reply timing
+
+A saved-note search with no matches returns a clear clarification without calling
+the model again. When matches exist, one short answer-only stage receives the
+conversation and retrieved notes without the project workspace or attachments.
+A tool attempt in that stage is stopped and replaced by a clear clarification.
+This prevents the summary stage from repeating the original repository analysis.
+
+Final timing is recorded atomically with the saved outcome, even when the activity
+timeline has reached its normal size limit. An earlier provider-stage duration
+is not shown as the total for a historical interrupted reply.

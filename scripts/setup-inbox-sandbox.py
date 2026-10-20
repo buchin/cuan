@@ -31,8 +31,8 @@ def check():
     for path in ["/usr", "/bin", "/lib", "/lib64"]:
         if Path(path).exists():
             command += ["--ro-bind", path, path]
-    command += ["--dev", "/dev", "--tmpfs", "/tmp", "--", "/bin/sh", "-c",
-                "test ! -e /opt/cuan/.env && test ! -e /proc/1/environ && echo SANDBOX_OK"]
+    command += ["--proc", "/proc", "--remount-ro", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--", "/bin/sh", "-c",
+                f"test ! -e /opt/cuan/.env && test ! -e /proc/{os.getpid()}/environ && /proc/self/exe -c 'echo SANDBOX_OK'"]
     result = subprocess.run(as_user(command), capture_output=True, text=True, timeout=15)
     if result.returncode or result.stdout.strip() != "SANDBOX_OK":
         raise RuntimeError("Sandbox blocked by host/container policy. Check user namespaces and AppArmor; never use privileged containers or disable the sandbox as a workaround.")

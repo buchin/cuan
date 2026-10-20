@@ -193,3 +193,53 @@ print(json.dumps({'event':'result','result':{'status':'SUCCESS','response':respo
 		t.Fatal("search round failed", found, string(count))
 	}
 }
+
+func TestInboxSearchFinishesWithoutRepeatedTools(t *testing.T) {
+	for _, scenario := range []string{"empty", "summary-tool"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, _, call, home := inboxFixture(t)
+			if scenario == "summary-tool" {
+				c, _ := s.crmUpsert(context.Background(), "fixture", "Manual", "Budi", "")
+				now := time.Now().UTC()
+				s.memorySave(context.Background(), ContactMemory{ID: db.GenerateUUID(), ContactID: c.ID, Kind: "fact", Body: "Likes dinosaurs", CreatedAt: now, UpdatedAt: now})
+			}
+			script := `#!/usr/bin/env python3
+import json,sys,pathlib,os,re,time
+p=pathlib.Path(os.environ['HOME'])/'bounded-search-calls'
+n=int(p.read_text()) if p.exists() else 0
+p.write_text(str(n+1))
+if n==0:
+ target=re.search(r'Target message ID: ([a-f0-9-]+)',sys.argv[2]).group(1)
+ response='` + "\x60\x60\x60cuan-search\\n" + `'+json.dumps({'query':'dinosaur','contact_id':'','authorization_message_id':target})+'` + "\\n\x60\x60\x60" + `'
+ print(json.dumps({'event':'result','result':{'status':'SUCCESS','response':response}}))
+else:
+ assert '--dangerously-skip-permissions' not in sys.argv and '--mode' in sys.argv
+ print(json.dumps({'event':'step_update','step_update':{'step_index':2,'state':'ACTIVE','step_type':'tool','tool_name':'run_command'}}),flush=True)
+ time.sleep(15)
+`
+			binary := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+			if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			w := call("POST", "/api/v1/chat/conversations/agent_lifecycle/messages", `{"request_id":"`+db.GenerateUUID()+`","message":"brp ip server kita"}`)
+			if w.Code != 202 {
+				t.Fatal(w.Body.String())
+			}
+			var result struct{ Request db.InboxRequest }
+			json.Unmarshal(w.Body.Bytes(), &result)
+			waitInboxState(t, s, result.Request.RoomID, result.Request.RequestID, "completed")
+			messages, _ := s.projectStudioRepo.ListMessagesByRoomID(context.Background(), result.Request.RoomID)
+			if len(messages) != 2 || !strings.Contains(messages[1].Content, "Saya") {
+				t.Fatal("missing useful localized fallback")
+			}
+			count, _ := os.ReadFile(filepath.Join(home, "bounded-search-calls"))
+			expected := "1"
+			if scenario == "summary-tool" {
+				expected = "2"
+			}
+			if string(count) != expected {
+				t.Fatal("unbounded tool/search stage", string(count))
+			}
+		})
+	}
+}

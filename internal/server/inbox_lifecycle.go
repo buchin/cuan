@@ -165,7 +165,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		}
 	}()
 	step := func(kind, text string) {
-		if err := store.AppendInboxStep(ctx, q.RoomID, q.RequestID, kind, text); err == nil {
+		eventCtx, eventCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer eventCancel()
+		if err := store.AppendInboxStep(eventCtx, q.RoomID, q.RequestID, kind, text); err == nil {
 			s.publishInbox(q.RoomID)
 		}
 	}
@@ -207,9 +209,27 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								output = searchErr.Error()
 							} else {
 								step("contact_search", "Searching saved contact notes.")
-								output, failure = s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt+results, home, workspace, false, step, s.inboxAttachmentPaths(ctx, q)...)
-								if strings.Contains(output, "```cuan-search") {
-									output = "I need a more specific name or keyword to narrow down the contact search. No data was changed."
+								if emptyMemorySearch(results) {
+									output = s.inboxMemorySearchFallback(ctx, q, true)
+									failure = ""
+								} else {
+									answerCtx, answerCancel := context.WithTimeout(ctx, 25*time.Second)
+									answerCtx = context.WithValue(answerCtx, inboxAnswerOnlyKey{}, true)
+									answerStep := func(kind, text string) {
+										step(kind, text)
+										if strings.HasPrefix(kind, "runtime_tool_") {
+											answerCancel()
+										}
+									}
+									answerPrompt, contextErr := s.inboxContext(ctx, q)
+									if contextErr == nil {
+										output, failure = s.executeInboxWithFailover(answerCtx, q.OwnerID, registered, answerPrompt+results, home, "", false, answerStep)
+									}
+									answerCancel()
+									if contextErr != nil || output == "" || strings.Contains(output, "```cuan-") {
+										output = s.inboxMemorySearchFallback(ctx, q, false)
+										failure = ""
+									}
 								}
 							}
 						}

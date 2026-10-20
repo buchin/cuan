@@ -20,16 +20,18 @@ AppArmor profile allowing user namespaces for this exact executable. It does not
 disable AppArmor or alter global sysctls. Repeating the command is supported.
 The service PATH must include its `$HOME/.local/bin`.
 
-A passing check starts a real sandbox under the service user without contacting
-an AI provider. Missing/blocked sandbox support fails closed: chat will show an
+A passing check starts a real sandbox under the service user and executes a
+self-executable terminal helper through `/proc/self/exe`, without contacting an
+AI provider. Missing/blocked sandbox support fails closed: chat will show an
 actionable setup error, with no unrestricted fallback.
 
 ## Filesystem and network boundaries
 
 The sandbox exposes system tools and certificates read-only, the selected project
-read-only, and explicitly supplied attachment files read-only. Host root,
-`/proc`, service environment files, SSH keys, and unrelated account homes are not
-mounted. Its temporary filesystem is disposable.
+read-only, and explicitly supplied attachment files read-only. Host root, service environment files, SSH keys, and unrelated account homes are
+not mounted. A read-only `/proc` is mounted inside a new PID namespace: AGY needs
+`/proc/self/exe` for terminal helpers, while host process metadata remains hidden.
+Its temporary filesystem is disposable.
 
 Only the selected account's `.gemini/antigravity-cli` directory is writable and
 persistent, so token refresh and provider state continue to work. The provider

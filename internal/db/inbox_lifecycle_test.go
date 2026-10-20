@@ -60,7 +60,7 @@ func TestInboxLifecycleFIFOAndCancellation(t *testing.T) {
 		t.Fatal(e)
 	}
 	all, _ := r.ListInboxRequests(ctx, room)
-	if all[0].State != "cancelled" || len(all[0].Steps) != 1 {
+	if all[0].State != "cancelled" || len(all[0].Steps) != 2 || all[0].Steps[1].Kind != "finished" {
 		t.Fatalf("lost cancellation/steps: %+v", all[0])
 	}
 	messages, _ := r.ListMessagesByRoomID(ctx, room)
@@ -109,5 +109,28 @@ func TestInboxLifecycleQueueCapacityAndIdempotency(t *testing.T) {
 	original.RequestID = GenerateUUID()
 	if _, _, e := r.AcceptInboxRequest(ctx, original, &ProjectMessage{}); !errors.Is(e, ErrInboxQueueFull) {
 		t.Fatal("capacity not enforced", e)
+	}
+}
+
+func TestInboxFinalTimestampSurvivesFullTimeline(t *testing.T) {
+	r := NewMemoryProjectStudioRepository()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	q := InboxRequest{RoomID: GenerateUUID(), RequestID: GenerateUUID(), MessageID: GenerateUUID(), ReplyID: GenerateUUID(), State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	r.AcceptInboxRequest(ctx, q, &ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, CreatedAt: now})
+	q, _, _ = r.ClaimInboxRequest(ctx, q.RoomID, q.RequestID)
+	for i := 0; i < 120; i++ {
+		r.AppendInboxStep(ctx, q.RoomID, q.RequestID, "runtime_tool_started", "Fixture")
+	}
+	q.State = "interrupted"
+	r.FinishInboxRequest(ctx, q, nil)
+	all, _ := r.ListInboxRequests(ctx, q.RoomID)
+	if len(all[0].Steps) != 101 || all[0].Steps[100].Kind != "finished" {
+		t.Fatal("final timestamp lost at activity limit")
+	}
+	r.FinishInboxRequest(ctx, q, nil)
+	all, _ = r.ListInboxRequests(ctx, q.RoomID)
+	if len(all[0].Steps) != 101 {
+		t.Fatal("duplicate final timestamp")
 	}
 }

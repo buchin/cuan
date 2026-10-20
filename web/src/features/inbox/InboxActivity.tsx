@@ -83,7 +83,12 @@ export function InboxActivity({
     ?.slice()
     .reverse()
     .find((step) => step.kind === 'provider_result')
-  const end = finished ? Date.parse(finished.at) : NaN
+  const terminal = q.steps?.slice().reverse().find((step) => step.kind === 'finished')
+  // A provider_result can describe only an earlier stage. Never show that
+  // duration as the total of an interrupted multi-stage reply.
+  const end = terminal
+    ? Date.parse(terminal.at)
+    : q.state === 'completed' && finished ? Date.parse(finished.at) : NaN
   const duration = active ? now - start : end - start
   const seconds =
     Number.isFinite(duration) && duration >= 0
@@ -142,8 +147,8 @@ export function InboxActivity({
             {q.state === 'running'
               ? activityText
               : q.state === 'failed'
-                ? 'Could not reply'
-                : label}
+                ? t('Could not reply')
+                : q.state === 'interrupted' ? t('Reply interrupted') : t(label)}
           </span>
           {seconds !== null && (
             <span className="text-xs tabular-nums text-muted-foreground">
@@ -416,7 +421,7 @@ export function InboxActivity({
                 ? 'Usage is limited. Check account availability before trying again.'
                 : recovery === 'check_agent'
                   ? 'Check the agent connection before trying again.'
-                  : 'Check the previous attempt before starting anything again.')}
+                  : 'Your reply stopped. Your message is saved.')}
           </p>
           {recovery === 'try_again' && onRetry ? (
             <button type="button" disabled={recovering}

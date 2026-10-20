@@ -10,7 +10,7 @@ setup=setup.replace("    if(method==='POST'&&/\\/chat\\/conversations",`    if(m
     if(method==='POST'&&/\\/chat\\/conversations`);
 setup=setup.replace('const data = history(chat[1])',`const data = history(chat[1]);
 data.messages=data.messages.slice(0,1);data.tasks=[];
-const old={request_id:'retry-parent',message_id:'m1',reply_id:'r1',agent_id:'agent_good',state:recoveryAction==='check_status'?'interrupted':'failed',created_at:now,steps:[],safe_error:'Fixture failure',recovery_action:recoveryAction};
+const old={request_id:'retry-parent',message_id:'m1',reply_id:'r1',agent_id:'agent_good',state:recoveryAction==='check_status'?'interrupted':'failed',created_at:now,steps:[{seq:1,kind:'provider_result',text:'Provider process finished: exit 0, duration 40 s.',at:new Date(Date.parse(now)+40000).toISOString()}],safe_error:'Fixture failure',recovery_action:recoveryAction};
 data.requests=retryAccepted?[old,{...old,request_id:'retry-child',reply_id:'r2',state:'queued',recovery_action:undefined,created_at:new Date(Date.parse(now)+1000).toISOString()}]:[old];`);
 setup+=`
 const checks=[];
@@ -25,7 +25,7 @@ for(const width of [390,820,1440]){
  assert.equal(new Set(retrySourceIds.slice(-2)).size,1);
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const before=retryCalls;retryAccepted=false;recoveryAction='check_status';await page.reload();
- await page.getByRole('button',{name:'Check status',exact:true}).click();assert.equal(retryCalls,before);
+ await page.getByRole('button',{name:'Check status',exact:true}).click();assert.equal(retryCalls,before);assert(!(await page.locator('[data-response-state=interrupted]').innerText()).includes('40 s'));
  assert.equal(await page.getByRole('button',{name:'Try again',exact:true}).count(),0);
  recoveryAction='check_usage';await page.reload();await page.getByRole('link',{name:'Check usage',exact:true}).waitFor();
  assert.equal(await page.getByRole('link',{name:'Check usage',exact:true}).getAttribute('href'),'/settings/agents');

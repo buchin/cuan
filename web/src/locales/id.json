@@ -399,5 +399,8 @@
   "Check the agent connection before trying again.": "Periksa koneksi agent sebelum mencoba lagi.",
   "Check the previous attempt before starting anything again.": "Periksa percobaan sebelumnya sebelum menjalankan ulang.",
   "Could not confirm recovery. Check status before trying again.": "Pemulihan belum bisa dipastikan. Periksa status sebelum mencoba lagi.",
-  "Status is up to date.": "Status sudah diperbarui."
+  "Status is up to date.": "Status sudah diperbarui.",
+  "Reply interrupted": "Balasan terhenti",
+  "Could not reply": "Belum bisa membalas",
+  "Your reply stopped. Your message is saved.": "Balasan terhenti. Pesan Anda tetap tersimpan."
 }

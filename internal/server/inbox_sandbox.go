@@ -11,6 +11,7 @@ import (
 // inboxSandboxArgs builds an allowlisted filesystem rather than binding the host
 // root. The selected provider must read its own authentication profile; other
 // accounts, service configuration and host process metadata are not mounted.
+// /proc belongs to the new PID namespace; AGY subprocesses need /proc/self/exe.
 func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]string, error) {
 	absolute := func(path string) (string, error) {
 		p, err := filepath.Abs(path)
@@ -38,7 +39,7 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]s
 			args = append(args, "--ro-bind", path, path)
 		}
 	}
-	args = append(args, "--dev", "/dev", "--tmpfs", "/tmp", "--dir", home)
+	args = append(args, "--proc", "/proc", "--remount-ro", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--dir", home)
 	// Keep token refresh and provider state persistent without exposing the rest of
 	// the service HOME (database settings, SSH keys, other account profiles).
 	profile := filepath.Join(home, ".gemini", "antigravity-cli")
