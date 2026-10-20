@@ -1,0 +1,11 @@
+{
+  "fixture": true,
+  "optInOffByDefault": true,
+  "enablePersists": true,
+  "disableWorks": true,
+  "failedSaveKeepsPrevious": true,
+  "modelFallbackOptIn": true,
+  "usagePerModel": true,
+  "mobileAndDesktop": true,
+  "providerCalls": 0
+}

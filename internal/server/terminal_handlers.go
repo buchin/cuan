@@ -271,6 +271,48 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	payload.Binary = expectedBinary
+	selectedModel := ""
+	routeNote := ""
+	routeRelease := func() {}
+	routeLaunched := false
+	defer func() {
+		if !routeLaunched {
+			routeRelease()
+		}
+	}()
+	if expectedBinary == "agy" {
+		primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
+		limited := primary != nil && primary.State == "quota_limited"
+		routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
+		if len(routes) == 0 {
+			respondJSONError(w, 409, "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started.")
+			return
+		}
+		var selected *inboxAccountRoute
+		for i := range routes {
+			release, err := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, routes[i])
+			if err == nil {
+				routeRelease = release
+				selected = &routes[i]
+				break
+			}
+		}
+		if selected == nil {
+			respondJSONError(w, 409, "Allowed AI accounts are busy. The task has not started. Try again when an account is available.")
+			return
+		}
+		profileHome = selected.home
+		selectedModel = selected.model
+		source := "primary account"
+		if !selected.primary {
+			source = "allowed backup account"
+		}
+		model := selected.model
+		if model == "" {
+			model = "provider default"
+		}
+		routeNote = fmt.Sprintf("Provider preflight selected %s; model: %s. Agent identity and task scope are unchanged.", source, model)
+	}
 	agentName := registeredAgent.Name
 
 	taskPrompt := strings.TrimSpace(payload.Prompt)
@@ -448,6 +490,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	}
 	// 3. Spawn PTY process via Manager
 	runCfg := terminal.TaskAgentRunConfig{
+		Model:           selectedModel,
 		AttachmentPaths: attachmentPaths,
 		TaskID:          taskID,
 		AgentID:         agentID,
@@ -464,6 +507,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		},
 		OnExit: func(h *terminal.TaskRunHistory) {
+			defer routeRelease()
 			defer reportCleanup()
 			defer func() {
 				if sourceRoom != "" {
@@ -513,6 +557,14 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
 	}
 	runCfg.Env = append(runCfg.Env, reportEnv...)
+	if attempt != nil && routeNote != "" {
+		if _, err := s.taskSvc.AddComment(r.Context(), taskID, "runner", routeNote); err != nil {
+			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Provider route could not be recorded. Execution did not start."})
+			_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)
+			respondJSONError(w, 503, "Provider route could not be recorded. The task has not started.")
+			return
+		}
+	}
 	sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
 	if err != nil {
 		if attempt != nil {
@@ -531,6 +583,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		s.publishInbox(sourceRoom)
 	}
 	launched = true
+	routeLaunched = true
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":       "running",

@@ -1,0 +1,13 @@
+{
+  "frontendBuild": true,
+  "targetedGoTests": true,
+  "fakeProvidersOnly": true,
+  "accountAndModelRouting": true,
+  "sameAccountDifferentModel": true,
+  "taskPreflightRealPTYFixture": true,
+  "durableSingleReply": true,
+  "accountLease": true,
+  "credentialsUnchanged": true,
+  "browserFixture": "../landing/account-failover.json",
+  "runningTaskReplay": false
+}

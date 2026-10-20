@@ -1304,6 +1304,9 @@ func (s *Server) routes() {
 		ar.Post("/{accountID}/auth-init", s.handleProviderAccountAuthInit)
 		ar.Post("/{accountID}/auth-code", s.handleProviderAccountAuthCode)
 		ar.Post("/{accountID}/verify", s.handleVerifyProviderAccount)
+		ar.Patch("/{accountID}/failover", s.handleProviderAccountFailover)
+		ar.Patch("/{accountID}/model-fallback", s.handleProviderAccountFailover)
+		ar.Get("/{accountID}/usage", s.handleProviderAccountUsage)
 	})
 
 	// Agent Personas route group in /api/v1 (Sprint 9 S09.2)

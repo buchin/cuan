@@ -122,3 +122,68 @@ func (s *Server) handleVerifyProviderAccount(w http.ResponseWriter, r *http.Requ
 	}
 	respondJSON(w, 200, map[string]any{"account": a})
 }
+
+func (s *Server) handleProviderAccountFailover(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+	var req struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req) != nil || req.Enabled == nil {
+		respondJSONError(w, 400, "Choose whether this account can be used as a backup")
+		return
+	}
+	id := chi.URLParam(r, "accountID")
+	setPolicy := agent.SetProviderAccountFailover
+	if strings.HasSuffix(r.URL.Path, "/model-fallback") {
+		setPolicy = agent.SetProviderAccountModelFallback
+	}
+	profile, err := agent.GetProviderAccount(owner, id)
+	if err != nil {
+		respondJSONError(w, 404, "Account not found")
+		return
+	}
+	if !*req.Enabled {
+		profile, err = setPolicy(owner, id, false)
+		if err != nil {
+			respondJSONError(w, 409, "Could not update backup account settings")
+			return
+		}
+		respondJSON(w, 200, map[string]any{"account": profile})
+		return
+	}
+	if s.agentRepo == nil {
+		respondJSONError(w, 503, "Agent list is unavailable")
+		return
+	}
+	registered, err := s.agentRepo.GetAgentByID(r.Context(), profile.AgentID)
+	if err != nil || registered == nil || registered.ConnectionID != profile.ConnectionID {
+		respondJSONError(w, 409, "Account connection does not match its agent")
+		return
+	}
+	if _, err := s.ownedAgentProfileHome(r.Context(), owner, registered); err != nil {
+		respondJSONError(w, 409, "Account connection is unavailable")
+		return
+	}
+	profile, err = setPolicy(owner, id, *req.Enabled)
+	if err != nil {
+		respondJSONError(w, 409, "Could not update backup account settings")
+		return
+	}
+	respondJSON(w, 200, map[string]any{"account": profile})
+}
+
+func (s *Server) handleProviderAccountUsage(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+	id := chi.URLParam(r, "accountID")
+	if _, err := agent.GetProviderAccount(owner, id); err != nil {
+		respondJSONError(w, 404, "Account not found")
+		return
+	}
+	respondJSON(w, 200, agent.FetchAccountModelUsage(r.Context(), owner, id))
+}

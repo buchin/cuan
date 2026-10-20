@@ -6,6 +6,7 @@ const fs = require('fs'),
   assert = require('node:assert/strict')
 const out = 'docs/evidence/landing',
   base = 'http://127.0.0.1:4181'
+const backupAccounts=[{id:'acct_fixture',agent_id:'agent_good',connection_id:'conn_profile_fixture',label:'Fixture account',provider:'agy',legacy:false,credentials_present:true,state:'unknown',allow_failover:false}];let failBackupSave=false;
 const now = new Date().toISOString()
 let contactsEmpty = false,
   taskSaveFail = true
@@ -274,6 +275,10 @@ const writes = [],
         body: JSON.stringify(data),
       })
 
+    if(p==='/api/v1/provider-accounts')return json({accounts:backupAccounts});
+    if(p==='/api/v1/provider-accounts/acct_fixture/model-fallback'){backupAccounts[0].allow_model_fallback=r.postDataJSON().enabled;return json({account:backupAccounts[0]})}
+    if(p==='/api/v1/provider-accounts/acct_fixture/usage')return json({available:true,checked_at:now,models:[{model:'gemini-test',remaining_percent:0},{model:'claude-sonnet-test',remaining_percent:80}]});
+    if(p==='/api/v1/provider-accounts/acct_fixture/failover'){if(failBackupSave)return json({error:'Fixture preference failed'},503);backupAccounts[0].allow_failover=r.postDataJSON().enabled;return json({account:backupAccounts[0]})}
     if(p==='/api/v1/auth/me')return r.headers().authorization==='Bearer fixture-only'?json({owner:profile,user:profile}):json({error:'unauthorized'},401);
     if(p==='/api/v1/auth/login')return json({owner:profile,user:profile,token:'fixture-only'});
     if(p==='/api/v1/profile'){if(method==='PATCH')profile.display_name=r.postDataJSON().display_name;return json({display_name:profile.display_name})}
@@ -443,6 +448,11 @@ const writes = [],
  await page.reload();await page.getByRole('textbox',{name:'Add tag',exact:true}).fill('Compact UI');await page.getByRole('button',{name:'Add',exact:true}).click();tagSaveFail=true;await page.getByRole('button',{name:'Save tags',exact:true}).click();await page.getByRole('alert').waitFor();tagSaveFail=false;await page.getByRole('button',{name:'Save tags',exact:true}).click();await page.getByText('Tags saved.',{exact:true}).waitFor();await page.reload();await page.getByRole('button',{name:'Remove tag Compact UI',exact:true}).waitFor();
  crmLoadFail=true;await page.goto(base+'/contacts');await page.getByRole('alert').waitFor();crmLoadFail=false;await page.getByRole('button',{name:'Try again',exact:true}).click();await page.getByRole('button',{name:/Alice Example/}).waitFor();contactsEmpty=true;await page.reload();await page.getByRole('heading',{name:'No contacts yet',exact:true}).waitFor();contactsEmpty=false;
  fs.writeFileSync(out+'/contacts-compact.json',JSON.stringify({fixture:true,checks:contactChecks,indonesian:true,providerCalls:0},null,2));
+
+ await page.evaluate(()=>localStorage.setItem('cuan-language','en'));await page.goto(base+'/settings/agents');const backupToggle=page.getByRole('checkbox',{name:'Use this AI account as a backup',exact:true});await backupToggle.waitFor();assert.equal(await backupToggle.isChecked(),false);await backupToggle.click();await page.waitForFunction(()=>document.querySelector('input[type=checkbox]')?.checked===true);await page.reload();await backupToggle.waitFor();assert(await backupToggle.isChecked());failBackupSave=true;await backupToggle.click();await page.getByRole('alert').filter({hasText:'Could not save backup account settings. Try again.'}).waitFor();assert(await backupToggle.isChecked());failBackupSave=false;await backupToggle.click();await page.waitForFunction(()=>document.querySelector('input[type=checkbox]')?.checked===false);assert.equal(await backupToggle.isChecked(),false);
+ const modelToggle=page.getByRole('checkbox',{name:'Allow available text models on this account',exact:true});await modelToggle.click();await page.waitForFunction(()=>document.querySelectorAll('input[type=checkbox]')[1]?.checked===true);await page.reload();await modelToggle.waitFor();assert(await modelToggle.isChecked());await page.getByRole('button',{name:'Check model usage',exact:true}).click();await page.getByText('80% remaining',{exact:true}).waitFor();await page.getByText('0% remaining',{exact:true}).waitFor();
+ for(const width of [390,1440]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:out+'/account-failover-'+width+'.png'});}
+ fs.writeFileSync(out+'/account-failover.json',JSON.stringify({fixture:true,optInOffByDefault:true,enablePersists:true,disableWorks:true,failedSaveKeepsPrevious:true,modelFallbackOptIn:true,usagePerModel:true,mobileAndDesktop:true,providerCalls:0},null,2));
  assert.deepEqual(errors,[]);assert.deepEqual(unknown,[]);assert.equal(launches.length,0);assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
  fs.writeFileSync(out+'/browser.json',JSON.stringify({fixture:true,checks,indonesian:true,privateRoutesProtected:true,authenticatedRootAndLoginToStudio:true,installNudgeDismissalAndPrompt:true,iosInstructions:true,draftPreserved:true,providerInvocations:0,errors,unknown},null,2)+'\n');console.log('PASS public landing, authenticated routing and install suggestion');
 })().catch(async e=>{if(page)await page.screenshot({path:out+'/check-failure.png'});console.error(e);process.exitCode=1}).finally(async()=>{if(browser)await browser.close();if(server)await new Promise(r=>server.close(r))})

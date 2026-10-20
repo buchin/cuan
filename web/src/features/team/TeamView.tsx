@@ -1,7 +1,12 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot, Plus, RefreshCw, Trash2, MoreVertical, X } from 'lucide-react'
 import { connectionStatus } from '../agents/connection'
-import { accountsApi } from '../../api/accounts'
+import {
+  accountsApi,
+  type AccountUsage,
+  type ProviderAccount,
+} from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth } from '../../api/agents'
 
 function AgentActions({
@@ -91,6 +96,12 @@ export function TeamView({
   selectedRole?: string
   onAgentAdded?: () => void
 }) {
+  const { t } = useLanguage()
+  const [usage, setUsage] = useState<Record<string, AccountUsage>>({})
+  const [usageBusy, setUsageBusy] = useState('')
+  const [accounts, setAccounts] = useState<ProviderAccount[]>([])
+  const [backupBusy, setBackupBusy] = useState('')
+  const [backupError, setBackupError] = useState('')
   const [search, setSearch] = useState('')
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -138,6 +149,14 @@ export function TeamView({
     setError('')
     try {
       setAgents(await agentsApi.list())
+      try {
+        setAccounts(await accountsApi.list())
+        setBackupError('')
+      } catch {
+        setBackupError(
+          'Backup account settings could not be loaded. Try again.',
+        )
+      }
     } catch {
       setError('Could not load agents. Try again.')
     } finally {
@@ -401,7 +420,9 @@ export function TeamView({
         <div>
           {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
           <p className="mt-1 text-sm text-muted-foreground">
-            One agent, one connection.
+            {t(
+              'Each agent keeps its identity. Allowed backup accounts can help when a provider reaches its usage limit.',
+            )}
           </p>
         </div>
         {showCreateAction && (
@@ -444,6 +465,14 @@ export function TeamView({
           </button>
         </div>
       )}
+      {backupError && (
+        <p role="alert" className="text-sm text-destructive">
+          {t(backupError)}{' '}
+          <button className="underline" onClick={() => void load()}>
+            {t('Try again')}
+          </button>
+        </p>
+      )}
       {loading ? (
         <p role="status" className="text-sm text-muted-foreground">
           Loading agents…
@@ -478,6 +507,9 @@ export function TeamView({
           className="divide-y divide-border rounded-lg border border-border"
         >
           {visibleAgents.map((agent) => {
+            const account = accounts.find(
+              (item) => item.agent_id === agent.id && !item.legacy,
+            )
             const expiry = agent.verified_at
               ? Date.parse(agent.verified_at) + 5 * 60_000
               : NaN
@@ -541,6 +573,155 @@ export function TeamView({
                     </button>
                   )}
                 </div>
+                {account && (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!!account.allow_failover}
+                        disabled={!!backupBusy}
+                        onChange={async (e) => {
+                          const enabled = e.target.checked
+                          setBackupBusy(account.id)
+                          setBackupError('')
+                          try {
+                            const updated = await accountsApi.failover(
+                              account.id,
+                              enabled,
+                            )
+                            setAccounts((old) =>
+                              old.map((item) =>
+                                item.id === updated.id ? updated : item,
+                              ),
+                            )
+                          } catch {
+                            setBackupError(
+                              'Could not save backup account settings. Try again.',
+                            )
+                          } finally {
+                            setBackupBusy('')
+                          }
+                        }}
+                      />
+                      {t('Use this AI account as a backup')}
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {t(
+                        'Allows your agents to use this account for Inbox replies and new task sessions. Cuan checks available model quota before starting. Primary connections stay unchanged.',
+                      )}
+                    </p>
+                    <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!!account.allow_model_fallback}
+                        disabled={!!backupBusy}
+                        onChange={async (e) => {
+                          const enabled = e.target.checked
+                          setBackupBusy(account.id)
+                          setBackupError('')
+                          try {
+                            const updated = await accountsApi.modelFallback(
+                              account.id,
+                              enabled,
+                            )
+                            setAccounts((old) =>
+                              old.map((item) =>
+                                item.id === updated.id ? updated : item,
+                              ),
+                            )
+                          } catch {
+                            setBackupError(
+                              'Could not save backup account settings. Try again.',
+                            )
+                          } finally {
+                            setBackupBusy('')
+                          }
+                        }}
+                      />
+                      {t('Allow available text models on this account')}
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {t(
+                        'Cuan can choose another Gemini or Claude text model using reported quota. Model capabilities and usage limits may differ. Your agent stays the same.',
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      className="action-secondary mt-3"
+                      disabled={!!usageBusy}
+                      onClick={async () => {
+                        setUsageBusy(account.id)
+                        setBackupError('')
+                        try {
+                          setUsage((old) => ({
+                            ...old,
+                            [account.id]: {
+                              available: false,
+                              checked_at: '',
+                              models: [],
+                              message: '',
+                            },
+                          }))
+                          const result = await accountsApi.usage(account.id)
+                          setUsage((old) => ({ ...old, [account.id]: result }))
+                        } catch {
+                          setBackupError(
+                            'Could not check model usage. Try again.',
+                          )
+                        } finally {
+                          setUsageBusy('')
+                        }
+                      }}
+                    >
+                      {usageBusy === account.id
+                        ? t('Checking…')
+                        : t('Check model usage')}
+                    </button>
+                    {usage[account.id] && !usageBusy && (
+                      <div
+                        className="mt-3 space-y-2 text-xs text-muted-foreground"
+                        aria-label={t('Model usage')}
+                      >
+                        {usage[account.id].available ? (
+                          usage[account.id].models.map((model) => (
+                            <div
+                              key={model.model}
+                              className="flex min-w-0 flex-wrap justify-between gap-2"
+                            >
+                              <span className="min-w-0 break-all">
+                                {model.model}
+                              </span>
+                              <span>
+                                {Math.round(model.remaining_percent)}%{' '}
+                                {t('remaining')}
+                              </span>
+                              {model.reset_at && (
+                                <span className="w-full">
+                                  {t('Resets')}:{' '}
+                                  {new Date(model.reset_at).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <p>
+                            {t(
+                              'Model usage is unavailable. No remaining quota is assumed.',
+                            )}
+                          </p>
+                        )}
+                        {usage[account.id].checked_at && (
+                          <p>
+                            {t('Checked')}:{' '}
+                            {new Date(
+                              usage[account.id].checked_at,
+                            ).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {(a.last_checked_at || a.verified_at) && (
                   <details className="mt-2 text-xs text-muted-foreground">
                     <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
@@ -557,7 +738,9 @@ export function TeamView({
                         <p>
                           Checked:{' '}
                           <time dateTime={a.last_checked_at}>
-                            {new Date(a.last_checked_at).toLocaleString('en-US')}
+                            {new Date(a.last_checked_at).toLocaleString(
+                              'en-US',
+                            )}
                           </time>
                         </p>
                       )}
@@ -803,7 +986,8 @@ export function TeamSubPanel({
     <div className="space-y-3 p-4">
       <h2 className="text-sm font-medium">Agent</h2>
       <p className="text-xs text-muted-foreground">
-        One agent, one connection.
+        Each agent keeps its identity. Allowed backup accounts can help when a
+        provider reaches its usage limit.
       </p>
       {onAddAgentClick && (
         <button

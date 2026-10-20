@@ -1,0 +1,3 @@
+ok  	github.com/buchin/cuan/internal/agent	0.063s
+ok  	github.com/buchin/cuan/internal/server	2.958s
+ok  	github.com/buchin/cuan/internal/terminal	0.212s

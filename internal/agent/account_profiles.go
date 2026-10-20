@@ -17,19 +17,23 @@ import (
 // Account metadata and CLI profiles share a private persistent configuration root.
 // Credentials stay CLI-owned; no token or filesystem path is part of the DTO.
 type ProviderAccount struct {
-	AgentID            string     `json:"agent_id,omitempty"`
-	ConnectionID       string     `json:"connection_id,omitempty"`
-	ID                 string     `json:"id"`
-	OwnerID            string     `json:"-"`
-	Label              string     `json:"label"`
-	Provider           string     `json:"provider"`
-	Legacy             bool       `json:"legacy"`
-	CredentialsPresent bool       `json:"credentials_present"`
-	State              string     `json:"state"`
-	Message            string     `json:"message,omitempty"`
-	LastCheckedAt      *time.Time `json:"last_checked_at,omitempty"`
-	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
-	CreatedAt          time.Time  `json:"created_at"`
+	AllowModelFallback bool                 `json:"allow_model_fallback"`
+	ModelCooldowns     map[string]time.Time `json:"model_cooldowns,omitempty"`
+	AllowFailover      bool                 `json:"allow_failover"`
+	QuotaRetryAt       *time.Time           `json:"quota_retry_at,omitempty"`
+	AgentID            string               `json:"agent_id,omitempty"`
+	ConnectionID       string               `json:"connection_id,omitempty"`
+	ID                 string               `json:"id"`
+	OwnerID            string               `json:"-"`
+	Label              string               `json:"label"`
+	Provider           string               `json:"provider"`
+	Legacy             bool                 `json:"legacy"`
+	CredentialsPresent bool                 `json:"credentials_present"`
+	State              string               `json:"state"`
+	Message            string               `json:"message,omitempty"`
+	LastCheckedAt      *time.Time           `json:"last_checked_at,omitempty"`
+	VerifiedAt         *time.Time           `json:"verified_at,omitempty"`
+	CreatedAt          time.Time            `json:"created_at"`
 }
 
 type storedProviderAccount struct {
@@ -131,6 +135,9 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 		a.State = "login_required"
 		a.Message = "Login Google diperlukan untuk akun ini"
 		a.VerifiedAt = nil
+	} else if a.State == "quota_limited" && a.QuotaRetryAt != nil && !time.Now().Before(*a.QuotaRetryAt) {
+		a.State = "unknown"
+		a.Message = "Usage cooldown ended. Availability has not been checked."
 	} else if a.State == "verified" && (a.VerifiedAt == nil || time.Since(*a.VerifiedAt) > 5*time.Minute) {
 		a.State = "unknown"
 		a.Message = "The previous verification has expired. Check the connection again"
@@ -240,6 +247,7 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	if err != nil {
 		return nil, err
 	}
+	probeStarted := time.Now().UTC()
 	probeErr := VerifyAntigravityProfile(ctx, home)
 	now := time.Now().UTC()
 	a.LastCheckedAt = &now
@@ -262,6 +270,26 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	}
 	if !a.Legacy {
 		accountProfileMu.Lock()
+		current, readErr := GetProviderAccount(owner, id)
+		if readErr != nil {
+			accountProfileMu.Unlock()
+			return nil, readErr
+		}
+		// A probe must not overwrite a concurrent preference edit or newer runtime cooldown.
+		a.AllowFailover = current.AllowFailover
+		a.AllowModelFallback = current.AllowModelFallback
+		a.ModelCooldowns = current.ModelCooldowns
+		a.AgentID = current.AgentID
+		a.ConnectionID = current.ConnectionID
+		if current.LastCheckedAt != nil && current.LastCheckedAt.After(probeStarted) {
+			accountProfileMu.Unlock()
+			return current, nil
+		}
+		a.QuotaRetryAt = nil
+		if a.State == "quota_limited" {
+			retry := now.Add(5 * time.Minute)
+			a.QuotaRetryAt = &retry
+		}
 		err = saveProviderAccount(a)
 		accountProfileMu.Unlock()
 		if err != nil {
@@ -327,4 +355,84 @@ func ProviderAccountForConnection(owner, agentID, connectionID string) (*Provide
 		}
 	}
 	return nil, ErrAccountNotFound
+}
+
+// Backup participation is an explicit owner choice. Primary account binding never changes.
+func SetProviderAccountFailover(owner, id string, enabled bool) (*ProviderAccount, error) {
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	if a.Legacy || (enabled && (!a.CredentialsPresent || a.AgentID == "" || a.ConnectionID == "")) {
+		return nil, errors.New("Only connected private accounts can be used as backups")
+	}
+	a.AllowFailover = enabled
+	if err := saveProviderAccount(a); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// Runtime observations update metadata only; credentials and primary binding are preserved.
+func RecordProviderAccountQuota(owner, id string) error {
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return err
+	}
+	if a.Legacy {
+		return nil
+	}
+	now := time.Now().UTC()
+	retry := now.Add(5 * time.Minute)
+	a.State = "quota_limited"
+	a.VerifiedAt = nil
+	a.LastCheckedAt = &now
+	a.QuotaRetryAt = &retry
+	a.Message = "Provider usage limit reached. This account is cooling down before another attempt."
+	return saveProviderAccount(a)
+}
+
+func SetProviderAccountModelFallback(owner, id string, enabled bool) (*ProviderAccount, error) {
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	if a.Legacy {
+		return nil, errors.New("Private account required")
+	}
+	a.AllowModelFallback = enabled
+	if err := saveProviderAccount(a); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+func RecordProviderModelQuota(owner, id, model string) error {
+	if !IsTextModel(model) {
+		return RecordProviderAccountQuota(owner, id)
+	}
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return err
+	}
+	if a.Legacy {
+		return nil
+	}
+	if a.ModelCooldowns == nil {
+		a.ModelCooldowns = map[string]time.Time{}
+	}
+	for key, until := range a.ModelCooldowns {
+		if !time.Now().Before(until) {
+			delete(a.ModelCooldowns, key)
+		}
+	}
+	a.ModelCooldowns[model] = time.Now().Add(5 * time.Minute)
+	return saveProviderAccount(a)
 }

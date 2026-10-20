@@ -41,6 +41,7 @@ type TaskRunHistory struct {
 
 // TaskAgentRunConfig specifies parameters for launching an agent process in a task workspace.
 type TaskAgentRunConfig struct {
+	Model           string
 	AttachmentPaths []string
 	AttemptID       string
 	TaskID          string
@@ -377,6 +378,12 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		ptyArgs = []string{"-i"}
 	default:
 		return nil, fmt.Errorf("unsupported task harness %q", commandLabel)
+	}
+	if commandLabel == "agy" && cfg.Model != "" {
+		if !regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$`).MatchString(cfg.Model) {
+			return nil, fmt.Errorf("invalid model identifier")
+		}
+		ptyArgs = append(ptyArgs, "--model", cfg.Model)
 	}
 	for _, file := range cfg.AttachmentPaths {
 		if commandLabel == "agy" || commandLabel == "claude" {

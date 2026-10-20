@@ -192,8 +192,6 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 				home, err := s.ownedAgentProfileHome(ctx, q.OwnerID, registered)
 				if err != nil {
 					q.SafeError = "The agent connection is not ready. Check its sign-in status."
-				} else if status == "quota_limited" {
-					q.SafeError = "This agent's provider quota is limited. Your message is saved. Wait for the quota to reset; accounts will not be switched."
 				} else {
 					prompt, err := s.inboxContext(ctx, q)
 					if err != nil {
@@ -202,7 +200,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						workspace, projectContext := s.inboxProjectContext(ctx, q)
 						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + prompt
 						step("context", "Project context checked for analysis.")
-						output, failure := s.executeInboxCLI(ctx, registered.Name, registered.Harness, prompt, home, workspace, step, s.inboxAttachmentPaths(ctx, q)...)
+						output, failure := s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
 						if output == "" {
 							log.Printf("inbox provider failed room=%s request=%s agent=%s", q.RoomID, q.RequestID, registered.ID)
 							q.SafeError = failure

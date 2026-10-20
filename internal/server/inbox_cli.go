@@ -49,6 +49,13 @@ func (b *boundedInboxOutput) Write(p []byte) (int, error) {
 func (b *boundedInboxOutput) String() string { b.mu.Lock(); defer b.mu.Unlock(); return string(b.data) }
 
 func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), attachmentPaths ...string) (string, string) {
+	return s.executeInboxCLIWithSafety(ctx, name, harness, prompt, home, workspace, step, nil, attachmentPaths...)
+}
+
+func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), retrySafe *bool, attachmentPaths ...string) (string, string) {
+	if retrySafe != nil {
+		*retrySafe = false
+	}
 	if s.cfg != nil && s.cfg.Environment == "testing" {
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
@@ -68,6 +75,9 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
 		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+		if model, _ := ctx.Value(inboxModelKey{}).(string); agent.IsTextModel(model) {
+			args = append(args, "--model", model)
+		}
 	default:
 		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, or Codex agent."
 	}
@@ -118,6 +128,11 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
 		runtime = &inboxRuntimeStream{step: step}
+		defer func() {
+			if retrySafe != nil {
+				*retrySafe = ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow
+			}
+		}()
 		cmd.Stdout = runtime
 	} else {
 		cmd.Stdout = stdout

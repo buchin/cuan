@@ -21,6 +21,7 @@ type inboxRuntimeStream struct {
 	result                                  json.RawMessage
 	bytes, events, traceCount, toolFailures int
 	invalid, overflow, truncated            bool
+	unsafeTool                              bool
 	seen                                    map[string]bool
 	step                                    func(string, string)
 }
@@ -120,9 +121,21 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			DeniedActions []json.RawMessage `json:"denied_actions"`
 		}
 		if json.Unmarshal(e.Result, &final) == nil && len(final.DeniedActions) > 0 {
+			s.unsafeTool = true
 			s.emit("runtime_permission_denied", "Tool permission denied by the runtime. Activity ending does not mean the command succeeded.")
 		}
 	case "step_update":
+		// Unknown/malformed tool activity cannot authorize a replay on another account.
+		if e.Update.Type != "agent_response" && e.Update.Type != "tool" {
+			s.unsafeTool = true
+		}
+		if e.Update.Type == "tool" {
+			switch e.Update.Tool {
+			case "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name":
+			default:
+				s.unsafeTool = true
+			}
+		}
 		u := e.Update
 		if u.Index == nil || *u.Index < 0 || *u.Index > 1000000 {
 			return
@@ -148,6 +161,12 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			duration = fmt.Sprintf(" (%.1f s)", *u.Duration)
 		}
 		if u.Type == "tool" {
+			switch u.Tool {
+			case "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name":
+			default:
+				s.unsafeTool = true
+			}
+
 			names := map[string]string{"view_file": "Read file", "view_file_outline": "File outline", "view_code_item": "Read code", "list_dir": "List directory", "grep_search": "Search text", "find_by_name": "Find file", "run_command": "Terminal command"}
 			name := names[u.Tool]
 			if name == "" {
@@ -172,6 +191,8 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			}
 			s.emit(kind, label)
 		}
+	default:
+		s.unsafeTool = true
 	}
 }
 func (s *inboxRuntimeStream) finish() (string, string, string) {
