@@ -9,11 +9,20 @@ On Debian/Ubuntu, run from a trusted Cuan checkout (replace `cuan` with the actu
 Linux service user):
 
 ```sh
-sudo python3 scripts/setup-inbox-sandbox.py --user cuan
-sudo python3 scripts/setup-inbox-sandbox.py --user cuan --check
+sudo python3 scripts/setup-agent-runtime.py --user cuan
+sudo python3 scripts/setup-agent-runtime.py --user cuan --check
 ```
 
-The installer extracts the distribution Bubblewrap package into a root-owned
+The combined installer first installs/checks the sandbox, then installs the
+official AGY CLI with its release SHA-512 checksum under the service user.
+It verifies CLI startup inside a network-disabled sandbox with a temporary HOME,
+without loading account profiles or contacting a provider. A ready runtime still
+needs account sign-in in Settings → Agents. Keep `$HOME/.local/bin` on the service
+PATH. Existing account profiles remain separate and untouched. `--check` performs
+no installation or policy changes. The lower-level `setup-inbox-sandbox.py`
+remains available for sandbox-only administration.
+
+The sandbox installer extracts the distribution Bubblewrap package into a root-owned
 `/opt/cuan/runtime` directory. It installs no system packages and enables no setuid
 bits. On Ubuntu with restricted user namespaces, it loads a narrowly attached
 AppArmor profile allowing user namespaces for this exact executable. It does not

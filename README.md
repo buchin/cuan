@@ -16,8 +16,10 @@ Indonesian. They describe earlier releases rather than current product behavior.
 ### AGY chat sandbox prerequisite
 
 Native Linux AGY chat analysis now requires an external Bubblewrap sandbox.
-Run `sudo python3 scripts/setup-inbox-sandbox.py --user cuan` with the actual
-Linux service user before enabling chat. See [setup, checks, container limitations,
+Run `sudo python3 scripts/setup-agent-runtime.py --user cuan` with the actual
+non-root Linux service user before enabling chat. This installs the official
+verified CLI and sandbox, then checks CLI startup inside isolation without using
+an AI account. Use `--check` to verify an existing installation. See [setup, checks, container limitations,
 and rollback](docs/guides/chat-sandbox.md). Docker AGY readiness is not yet verified;
 application health alone does not prove chat readiness.
 

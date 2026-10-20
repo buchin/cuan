@@ -91,12 +91,14 @@ For controlled production upgrades, run migrations separately, then start with
 2. Studio shows **Connect your AI** when no agent is available. It opens the
    connection flow and returns you to your saved goal when the agent is added.
    Install the provider CLI under the same Linux user/HOME that runs Cuan.
-   For AGY, run `python3 scripts/install-antigravity.py` as that user, then ensure
-   `$HOME/.local/bin` is on the service PATH. This installer verifies the official
-   release checksum. Complete Google sign-in inside **Settings → Agents** so the
+   For native AGY, run
+   `sudo python3 scripts/setup-agent-runtime.py --user cuan`, replacing `cuan`
+   with the actual non-root service user. This sets up the verified official CLI
+   and sandbox together. Ensure `$HOME/.local/bin` is on the service PATH. Complete Google sign-in inside **Settings → Agents** so the
    account uses its dedicated persistent profile. Retain profiles with backups.
-3. For native AGY, run `sudo python3 scripts/setup-inbox-sandbox.py --user cuan`,
-   replacing `cuan` with the service user. Run it again with `--check`. See the
+3. Verify with `sudo python3 scripts/setup-agent-runtime.py --user cuan --check`.
+   This checks CLI startup inside isolation without accessing accounts or using
+   provider quota. It does not establish authentication or task readiness. See the
    [sandbox guide](chat-sandbox.md) for PATH, isolation, and container limits.
 4. Check `/healthz` and `/readyz`. Then send one harmless informational message in
    Studio and inspect **Detail** to confirm the provider can return a response.

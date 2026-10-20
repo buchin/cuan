@@ -110,3 +110,13 @@ historical and superseded by this evidence. AGY execution in the stock image
 remains unsupported/unverified, so this does not close the whole goal. Native
 production remains5961b4a/schema25. Test daemons and image caches were stopped/removed;
 production health passed. See `docs/evidence/docker-install/README.md`.
+
+## Native runtime setup follow-up
+
+`scripts/setup-agent-runtime.py` combines verified CLI installation, sandbox
+installation and isolated CLI startup verification for the non-root service user.
+Read-only native production checking passed without network/account access; three
+negative/success contracts pass. README/onboarding now use this single command.
+See `docs/evidence/native-runtime-setup/`. This closes the split-prerequisite
+setup gap, not the unsupported stock Docker AI runtime or a fresh-provider
+inference verification. The full goal remains open.
