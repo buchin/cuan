@@ -101,7 +101,14 @@ func (s *Service) CreateTask(ctx context.Context, author string, req CreateTaskR
 		id = "task_" + hex.EncodeToString(sum[:16])
 		if prior, err := s.store.GetTask(ctx, id); err == nil {
 			if prior.CreationHash != taskCreationHash(req) {
-				return nil, ErrRequestConflict
+				// Default is the new home for formerly unassigned work. Preserve
+				// replay of a request accepted before that routing change.
+				legacy := req
+				legacy.ProjectID = ""
+				legacy.ProjectIDs = nil
+				if prior.ProjectID != "" || req.ProjectID != "default" || len(req.ProjectIDs) != 1 || req.ProjectIDs[0] != "default" || prior.CreationHash != taskCreationHash(legacy) {
+					return nil, ErrRequestConflict
+				}
 			}
 			return prior, nil
 		} else if !errors.Is(err, ErrTaskNotFound) {

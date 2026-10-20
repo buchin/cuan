@@ -118,3 +118,23 @@ func TestAgentExplicitCompletion(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultProjectKeepsLegacyCreationReplay(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore(), nil)
+	req := CreateTaskRequest{RequestID: "226345aa-e8c7-4e78-8bf4-56fa39bd9945", Title: "Saved before default routing", Instructions: "Original scope"}
+	old, err := svc.CreateTask(ctx, "owner", req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.ProjectID = "default"
+	req.ProjectIDs = []string{"default"}
+	replay, err := svc.CreateTask(ctx, "owner", req)
+	if err != nil || replay.ID != old.ID || replay.ProjectID != "" {
+		t.Fatal("legacy task changed or duplicated", replay, err)
+	}
+	req.Instructions = "Changed scope"
+	if _, err = svc.CreateTask(ctx, "owner", req); err == nil {
+		t.Fatal("changed request accepted")
+	}
+}

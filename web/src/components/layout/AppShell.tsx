@@ -3,14 +3,7 @@ import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
-import {
-  Inbox,
-  Users,
-  CheckSquare,
-  FolderGit2,
-  PanelLeft,
-  Settings,
-} from 'lucide-react'
+import { Inbox, Users, FolderGit2, PanelLeft, Settings } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export type AppTab = 'inbox' | 'tasks' | 'projects' | 'contacts' | 'settings'
@@ -21,6 +14,7 @@ interface AppShellProps {
   newAction?: { label: string; onClick: () => void }
   hideBottomNav?: boolean
   sessionWorkspace?: boolean
+  projectWorkspace?: boolean
   inboxSubPanel?: React.ReactNode
   inboxUnread?: number
   pageTitle?: string
@@ -28,7 +22,6 @@ interface AppShellProps {
 }
 const NAV_ITEMS = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'contacts', label: 'Contacts', icon: Users },
 ] as const
@@ -40,6 +33,7 @@ export function AppShell({
   newAction,
   hideBottomNav = false,
   sessionWorkspace = false,
+  projectWorkspace = false,
   inboxSubPanel,
   inboxUnread = 0,
   pageTitle,
@@ -79,9 +73,11 @@ export function AppShell({
     }
   }, [])
   const label =
-    currentTab === 'settings'
-      ? 'Settings'
-      : NAV_ITEMS.find((n) => n.id === currentTab)?.label
+    currentTab === 'tasks'
+      ? 'Work monitor'
+      : currentTab === 'settings'
+        ? 'Settings'
+        : NAV_ITEMS.find((n) => n.id === currentTab)?.label
   const navigate = (id: AppTab) => {
     onSelectTab(id)
   }
@@ -145,7 +141,11 @@ export function AppShell({
         </div>
         <div className="space-y-2 border-t border-border p-2.5">
           {navButton('settings', 'Settings', Settings)}
-          <NavUser sidebar collapsed={effectiveCollapsed} />
+          <NavUser
+            sidebar
+            collapsed={effectiveCollapsed}
+            onWork={() => navigate('tasks')}
+          />
         </div>
       </nav>
       {currentTab === 'inbox' && listOpen && (
@@ -221,7 +221,7 @@ export function AppShell({
             'min-h-0 min-w-0 flex-1',
             currentTab === 'inbox' ||
               currentTab === 'contacts' ||
-              sessionWorkspace
+              projectWorkspace || sessionWorkspace
               ? 'overflow-hidden'
               : 'overflow-auto p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',
@@ -264,7 +264,8 @@ export function AppShell({
           <div className="min-w-0 flex-1">
             <NavUser
               bottomNavigation
-              active={currentTab === 'settings'}
+              active={currentTab === 'settings' || currentTab === 'tasks'}
+              onWork={() => navigate('tasks')}
               dropdownPosition="top-right"
               onSettings={() => navigate('settings')}
             />

@@ -72,16 +72,33 @@ export function InboxTaskAction({
         className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground"
         aria-label="Task from conversation"
       >
-        <p className="font-medium">Task saved · {existing.status}</p>
+        <p className="font-medium">{existing.title}</p>
+        <p className="text-muted-foreground">
+          {existing.status === 'doing'
+            ? 'Work in progress'
+            : existing.status === 'done'
+              ? 'Completed'
+              : existing.status === 'blocked'
+                ? 'Needs attention'
+                : existing.status === 'review'
+                  ? 'Result ready'
+                  : 'Ready'}
+        </p>
         <Link
           className="inline-flex min-h-11 items-center underline"
-          to={`/tasks/${existing.id}`}
+          to={
+            existing.project_id
+              ? `/projects/${encodeURIComponent(existing.project_id)}/tasks/${encodeURIComponent(existing.id)}`
+              : `/tasks/${existing.id}`
+          }
+          state={{ taskReturnTo: `/inbox/${conversationId}` }}
         >
-          Open task: {existing.title}
+          {existing.latest_attempt
+            ? ['running', 'queued'].includes(existing.latest_attempt.status)
+              ? 'View progress'
+              : 'View result'
+            : 'View details'}
         </Link>
-        <p className="text-muted-foreground">
-          Manage execution from the task page.
-        </p>
       </div>
     )
   return (

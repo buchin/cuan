@@ -51,7 +51,7 @@ blocked while a save is in progress so its result stays clear.
 
 On wide desktops, the sidebar shows labels and the account row displays an
 avatar, username, and more icon. **Settings** sits directly above it. Open the
-account row for **Profile & password** and **Sign out**.
+account row for **Work monitor**, **Profile & password** and **Sign out**.
 
 The collapse control is beside the logo at the top. In collapsed mode, hovering
 or focusing the logo area reveals Expand sidebar; it remains keyboard accessible.
@@ -91,7 +91,7 @@ restore from Projects → Archived. Both operations require confirmation.
 - **1200px and above:** 200px sidebar, collapsible to 64px. Inbox has an optional
   280px conversation list beside the chat.
 - **768–1199px:** 64px sidebar. Inbox uses a single list/conversation view.
-- **Below 768px:** five bottom items: Inbox, Tasks, Projects, Contacts, Account; no hamburger drawer. The header contains a
+- **Below 768px:** four bottom items: Inbox, Projects, Contacts, Account; no hamburger drawer. The header contains a
   24px kepeng logo, a 20px title, and a contextual 44×44px icon-only creation button. Mobile uses compose for messages, person-plus for contacts, folder-plus for projects and plus for tasks; accessible labels retain the action name. Larger screens keep the text label.
 - App headers are 56px on phones and 64px on larger screens. Main pages use one
   H1 and no redundant breadcrumb. Project/settings details provide parent links.
@@ -141,3 +141,7 @@ an English validation error, and exact SPA/widget asset comparison.35 retained
 tables (excluding login sessions) and493 existing profile files match the private
 pre-release backup. Schema22 is unchanged and auto-migration remains disabled.
 The persistent project checkout was updated by fast-forward only.
+
+## Work inside projects
+
+Project work lives at `/projects/PROJECT_ID/tasks`, with a320px work sidebar and detail/session panel on desktops. Tablet and phone show one panel at a time. Old `/projects/PROJECT_ID` links redirect there. Tasks are available as an advanced cross-project Work monitor from the account menu, rather than a main-navigation item. Inbox topic work cards link directly into the corresponding project.

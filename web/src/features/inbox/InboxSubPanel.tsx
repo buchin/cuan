@@ -80,7 +80,10 @@ export function InboxSubPanel({
     if (activeTab === 'customers' && c.type !== 'customer') return false
     if (query.trim()) {
       const q = query.toLowerCase()
-      const matchName = c.name.toLowerCase().includes(q)
+      const matchName = [c.name, c.agent_name]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
       const matchMsg = (c.last_message || '').toLowerCase().includes(q)
       const matchProduct = (c.product || '').toLowerCase().includes(q)
       return matchName || matchMsg || matchProduct
@@ -233,6 +236,12 @@ export function InboxSubPanel({
                     </span>
                   </div>
 
+                  {contact.agent_name &&
+                    contact.name !== contact.agent_name && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {contact.agent_name}
+                      </p>
+                    )}
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-muted-foreground truncate leading-relaxed">
                       {conversationPreview(contact.last_message)}

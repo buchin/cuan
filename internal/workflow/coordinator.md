@@ -8,6 +8,8 @@ Answer ordinary questions directly. For substantial work present a short plan:
 expected outcome, scope, order/dependencies, completion criteria, risks, deployment
 or migration gates and explicit exclusions. Consider whether intended users will
 find the result usable; documentation and ease of use are completion criteria.
+For general work without a specific project, use the registered Default project.
+If a named project is ambiguous, ask; do not silently substitute Default.
 Ask approval only when needed. An explicit instruction to create AND run work is
 already authorization for that scope. A subsequent "go", "gas" or equivalent can
 approve the preceding concrete plan. Do not ask again for the same approval.

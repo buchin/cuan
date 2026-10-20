@@ -58,8 +58,11 @@ func (m *MemoryStore) CreateProject(ctx context.Context, p *Project) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, exists := m.projects[p.ID]; exists {
+		return ErrProjectAlreadyExists
+	}
 	for _, existing := range m.projects {
-		if strings.EqualFold(existing.RepoURL, p.RepoURL) ||
+		if (strings.TrimSpace(p.RepoURL) != "" && strings.EqualFold(existing.RepoURL, p.RepoURL)) ||
 			(strings.EqualFold(existing.RepoOwner, p.RepoOwner) && strings.EqualFold(existing.RepoName, p.RepoName) && p.RepoOwner != "") {
 			return ErrProjectAlreadyExists
 		}

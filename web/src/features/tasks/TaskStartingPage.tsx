@@ -1,3 +1,4 @@
+import { workspacePath } from './workspacePath'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
@@ -28,14 +29,15 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
     started = useRef(false),
     working = useRef(false),
     state = location.state
-  const taskURL = `/tasks/${encodeURIComponent(taskId)}${location.search}`
+  const basePath = workspacePath(taskId, location.pathname)
+  const taskURL = `${basePath}${location.search}`
   const openSession = useCallback(
     (id: string) =>
       navigate(
-        `/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(id)}${location.search}`,
+        `${basePath}/sessions/${encodeURIComponent(id)}${location.search}`,
         { replace: true, state: { taskReturnTo: state?.taskReturnTo } },
       ),
-    [navigate, taskId, location.search, state?.taskReturnTo],
+    [navigate, taskId, location.search, state?.taskReturnTo, basePath],
   )
   useEffect(() => {
     mounted.current = true

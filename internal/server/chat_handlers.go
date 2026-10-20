@@ -23,6 +23,8 @@ import (
 
 // ChatContact represents a contact in the direct messenger hub (agent or customer).
 type ChatContact struct {
+	AgentID        string    `json:"agent_id,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
 	ID             string    `json:"id"`
 	Type           string    `json:"type"` // "agent" or "customer"
 	Name           string    `json:"name"`
@@ -520,7 +522,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						}
 					}
 					c := ChatContact{
-						ID:             "contact_" + a.ID,
+						ID:      "contact_" + a.ID,
+						AgentID: a.ID, AgentName: a.Name,
 						Type:           "agent",
 						Name:           a.Name,
 						Avatar:         a.Avatar,
@@ -533,6 +536,27 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					}
 					contacts = append(contacts, c)
 				}
+			}
+		}
+	}
+
+	if typeFilter != "customers" && s.projectStudioRepo != nil && s.agentRepo != nil {
+		if rooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+			for _, room := range rooms {
+				if !strings.HasPrefix(room.Topic, "agent-topic:") {
+					continue
+				}
+				a, err := s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
+				if err != nil || a == nil || !a.Enabled {
+					continue
+				}
+				last := "No messages yet."
+				at := room.UpdatedAt
+				if messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID); err == nil && len(messages) > 0 {
+					last = messages[len(messages)-1].Content
+					at = messages[len(messages)-1].CreatedAt
+				}
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, LastMessage: last, LastMessageAt: at, UpdatedAt: at})
 			}
 		}
 	}
@@ -563,7 +587,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			}
 			if rooms, e := s.projectStudioRepo.ListAllRooms(r.Context()); e == nil {
 				for _, rm := range rooms {
-					if !known[rm.ID] && rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && !strings.HasPrefix(rm.Topic, "agent:") && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
+					if !known[rm.ID] && rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && roomAgentID(rm.Topic) == "" && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
 						sessionList = append(sessionList, &LiveChatSession{UUID: rm.ID, GuestUUID: rm.ID, Product: rm.Topic, Name: rm.Title, Status: "offline", CreatedAt: rm.CreatedAt, UpdatedAt: rm.UpdatedAt})
 					}
 				}
@@ -613,7 +637,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	if searchQuery != "" {
 		filtered := make([]ChatContact, 0)
 		for _, c := range contacts {
-			if strings.Contains(strings.ToLower(c.Name), searchQuery) ||
+			if strings.Contains(strings.ToLower(c.Name+" "+c.AgentName), searchQuery) ||
 				strings.Contains(strings.ToLower(c.LastMessage), searchQuery) ||
 				strings.Contains(strings.ToLower(c.Product), searchQuery) {
 				filtered = append(filtered, c)
@@ -622,6 +646,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		contacts = filtered
 	}
 
+	sort.SliceStable(contacts, func(i, j int) bool { return contacts[i].UpdatedAt.After(contacts[j].UpdatedAt) })
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"contacts": contacts,
 		"total":    len(contacts),
@@ -710,9 +735,9 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if s.projectStudioRepo != nil {
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
-			if strings.HasPrefix(rm.Topic, "agent:") && s.agentRepo != nil {
+			if roomAgentID(rm.Topic) != "" && s.agentRepo != nil {
 				result.IsAgent = true
-				result.TargetAgentID = strings.TrimPrefix(rm.Topic, "agent:")
+				result.TargetAgentID = roomAgentID(rm.Topic)
 				result.TargetAgentName = rm.Title
 				if s.agentRepo != nil {
 					if ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil && ag != nil {
@@ -805,12 +830,17 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			}
 		}
 		contact = ChatContact{
-			ID:             "contact_" + resolved.TargetAgentID,
+			ID:      "contact_" + resolved.TargetAgentID,
+			AgentID: resolved.TargetAgentID, AgentName: resolved.TargetAgentName,
 			Type:           "agent",
 			Name:           resolved.TargetAgentName,
 			Avatar:         avatar,
 			Status:         "online",
 			ConversationID: resolved.RoomID,
+		}
+		if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); e == nil && room != nil && strings.HasPrefix(room.Topic, "agent-topic:") {
+			contact.ID = "topic_" + room.ID
+			contact.Name = room.Title
 		}
 	} else {
 		// Customer contact
@@ -939,6 +969,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	if fresh {
+		s.nameAgentTopic(r.Context(), q.RoomID, text)
 		s.publishInbox(q.RoomID)
 		if legacy {
 			s.drainInboxRoom(q.RoomID)

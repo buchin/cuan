@@ -320,3 +320,19 @@ func (s *Service) Unarchive(ctx context.Context, id string) (*ProjectResponse, e
 
 	return p.ToResponse(), nil
 }
+
+// EnsureDefault makes first-run general work usable without replacing an existing
+// project's repository, workspace, archive state or configuration.
+func (s *Service) EnsureDefault(ctx context.Context) (*ProjectResponse, error) {
+	if p, err := s.Get(ctx, "default"); err == nil {
+		return p, nil
+	} else if !errors.Is(err, ErrProjectNotFound) {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	p := &Project{ID: "default", Name: "Default", ProjectType: "custom", DefaultBranch: "main", CreatedAt: now, UpdatedAt: now}
+	if err := s.store.CreateProject(ctx, p); err != nil {
+		return s.Get(ctx, "default")
+	}
+	return s.Get(ctx, "default")
+}

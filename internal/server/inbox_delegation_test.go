@@ -32,6 +32,16 @@ func TestInboxDelegationProtocol(t *testing.T) {
 }
 
 func TestInboxDelegationRunsAndReturnsResult(t *testing.T) {
+	for _, topic := range []bool{false, true} {
+		name := "legacy"
+		if topic {
+			name = "topic"
+		}
+		t.Run(name, func(t *testing.T) { runInboxDelegation(t, topic) })
+	}
+}
+
+func runInboxDelegation(t *testing.T, topic bool) {
 	s, _, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
@@ -61,9 +71,20 @@ esac
 	if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
+	conversation := "agent_lifecycle"
+	if topic {
+		raw, _ := json.Marshal(map[string]string{"agent_id": "agent_lifecycle", "request_id": db.GenerateUUID()})
+		response := call("POST", "/api/v1/chat/conversations", string(raw))
+		if response.Code != 200 {
+			t.Fatal(response.Code, response.Body.String())
+		}
+		var c ChatContact
+		json.Unmarshal(response.Body.Bytes(), &c)
+		conversation = c.ConversationID
+	}
 	requestID := db.GenerateUUID()
 	body, _ := json.Marshal(map[string]string{"request_id": requestID, "message": "Create a read-only security audit task and run it. Report here; do not deploy."})
-	w := call("POST", "/api/v1/chat/conversations/agent_lifecycle/messages", string(body))
+	w := call("POST", "/api/v1/chat/conversations/"+conversation+"/messages", string(body))
 	if w.Code != 202 && w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}

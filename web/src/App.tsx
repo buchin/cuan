@@ -22,6 +22,7 @@ import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { InboxView } from './features/inbox/InboxView'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { ProjectWorkView } from './features/projects/ProjectWorkView'
 import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
 
@@ -280,6 +281,17 @@ export function App() {
     }
   }, [rootSegment, subParam, projects])
 
+  useEffect(() => {
+    if (rootSegment === 'projects' && subParam && pathSegments.length === 2)
+      navigate(
+        '/projects/' +
+          encodeURIComponent(subParam) +
+          '/tasks' +
+          location.search,
+        { replace: true, state: location.state },
+      )
+  }, [rootSegment, subParam, location.pathname, navigate])
+
   // Navigation handlers
   const handleSelectTab = (tab: AppTab) => {
     if (tab === 'inbox') {
@@ -319,9 +331,12 @@ export function App() {
       : typeof location.state?.taskReturnTo === 'string'
         ? location.state.taskReturnTo
         : '/tasks' + suffix
-    navigate(`/tasks/${encodeURIComponent(t.id)}${suffix}`, {
-      state: { taskReturnTo: returnTo },
-    })
+    navigate(
+      `${t.project_id ? `/projects/${encodeURIComponent(t.project_id)}/tasks/` : '/tasks/'}${encodeURIComponent(t.id)}${suffix}`,
+      {
+        state: { taskReturnTo: returnTo },
+      },
+    )
   }
   const handleCloseSidePeek = () => {
     setIsSidePeekOpen(false)
@@ -333,7 +348,12 @@ export function App() {
       const target = location.state?.workspaceReturnTo
       navigate(
         typeof target === 'string' &&
-          target.startsWith('/tasks/' + encodeURIComponent(subParam)) &&
+          (target.startsWith('/tasks/' + encodeURIComponent(subParam)) ||
+            new RegExp(
+              '^/projects/[^/?#]+/tasks/' +
+                encodeURIComponent(subParam) +
+                '(?:/|$)',
+            ).test(target)) &&
           !/[?&]view=/.test(target)
           ? target
           : '/tasks/' +
@@ -348,7 +368,9 @@ export function App() {
     const target = location.state?.taskReturnTo
     navigate(
       typeof target === 'string' &&
-        /^\/(?:tasks|projects\/[^/?#]+)(?:\?[^#]*)?$/.test(target)
+        /^\/(?:tasks|projects\/[^/?#]+(?:\/tasks)?|inbox\/[^/?#]+)(?:\?[^#]*)?$/.test(
+          target,
+        )
         ? target
         : fallback,
     )
@@ -357,7 +379,7 @@ export function App() {
   const handleSelectProject = (p?: Project) => {
     setActiveProject(p)
     if (p) {
-      navigate(`/projects/${p.id}`)
+      navigate(`/projects/${p.id}/tasks`)
     } else {
       navigate('/projects')
     }
@@ -413,7 +435,7 @@ export function App() {
     setIsSidePeekOpen(false)
     setSelectedTask(null)
     navigate(
-      `/tasks/${encodeURIComponent(created.id)}/sessions/start${suffix}`,
+      `${created.project_id ? `/projects/${encodeURIComponent(created.project_id)}/tasks/` : '/tasks/'}${encodeURIComponent(created.id)}/sessions/start${suffix}`,
       { state: { taskReturnTo: returnTo, startRequestId: payload.request_id } },
     )
   }
@@ -536,6 +558,7 @@ export function App() {
                         : 'menu',
             ),
         }}
+        projectWorkspace={projectDetail && !projectSettings}
         sessionWorkspace={sessionRoute}
         hideBottomNav={
           sessionRoute || (currentTab === 'inbox' && isMobileChatActive)
@@ -609,7 +632,6 @@ export function App() {
               error={tasksError}
               onRetry={() => void refreshTasks()}
               projects={projects}
-
               selectedStatusFilter={selectedTaskStatus}
               onStatusFilterChange={setSelectedTaskStatus}
               onSelectTask={handleSelectTask}
@@ -657,40 +679,19 @@ export function App() {
                 }}
               />
             ) : (
-              <section className="flex h-full min-h-0 flex-col gap-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    className="action-secondary md:hidden"
-                    onClick={() => {
-                      setActiveProject(undefined)
-                      navigate('/projects')
-                    }}
-                  >
-                    ← All projects
-                  </button>
-                  <Link
-                    className="action-secondary"
-                    to={`/projects/${encodeURIComponent(activeProject.id)}/settings`}
-                  >
-                    Project settings
-                  </Link>
-                </div>
-                <div className="min-h-0 flex-1">
-                  <TaskBoardView
-                    tasks={tasks}
-                    loading={tasksLoading}
-                    error={tasksError}
-                    onRetry={() => void refreshTasks()}
-                    projects={projects}
-                    activeProject={activeProject}
-                    onSelectTask={handleSelectTask}
-                    onUpdateTaskStatus={(id, status) =>
-                      handleUpdateTask(id, { status })
-                    }
-                    onRunAgent={handleRunAgent}
-                  />
-                </div>
-              </section>
+              <ProjectWorkView
+                project={activeProject}
+                tasks={tasks}
+                taskId={
+                  pathSegments[2] === 'tasks' ? pathSegments[3] : undefined
+                }
+                sessionId={
+                  pathSegments[4] === 'sessions' ? pathSegments[5] : undefined
+                }
+                loading={tasksLoading}
+                error={tasksError}
+                onRetry={() => void refreshTasks()}
+              />
             )
           ) : (
             <ProjectsView
@@ -726,7 +727,14 @@ export function App() {
         loading={contactsLoading}
         error={contactsError}
         onRetry={() => void refreshContacts()}
-        onSelect={handleSelectContact}
+        onSelect={(contact) => {
+          setContacts((old) => [
+            ...old.filter((c) => c.conversation_id !== contact.conversation_id),
+            contact,
+          ])
+          handleSelectContact(contact)
+          void refreshContacts()
+        }}
       />
       <NewContactDialog
         open={newFlow === 'contact'}

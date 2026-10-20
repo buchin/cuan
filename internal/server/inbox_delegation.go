@@ -139,7 +139,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if err != nil || room == nil {
 		return fail("conversation is unavailable")
 	}
-	if !strings.HasPrefix(room.Topic, "agent:") && room.ProjectID != "" && room.ProjectID != d.ProjectID {
+	if roomAgentID(room.Topic) == "" && room.ProjectID != "" && room.ProjectID != d.ProjectID {
 		return fail("the plan belongs to another project")
 	}
 	var t *task.TaskDetailResponse

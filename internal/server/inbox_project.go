@@ -29,7 +29,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	}
 	room, _ := s.projectStudioRepo.GetRoomByID(ctx, q.RoomID)
 	var selected *project.ProjectResponse
-	if room != nil && !strings.HasPrefix(room.Topic, "agent:") {
+	if room != nil && roomAgentID(room.Topic) == "" {
 		for _, p := range projects {
 			if p.ID == room.ProjectID && !p.IsArchived {
 				selected = p

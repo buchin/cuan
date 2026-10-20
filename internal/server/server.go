@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -124,6 +125,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		pSvc = project.NewService(project.NewDBStore(db), git.NewClient(), cfg.AuthSecret, projectBaseDir)
 	} else {
 		pSvc = project.NewService(project.NewMemoryStore(), git.NewClient(), cfg.AuthSecret, projectBaseDir)
+	}
+	if _, err := pSvc.EnsureDefault(context.Background()); err != nil {
+		log.Print("Default project initialization unavailable")
 	}
 
 	var tStore task.Store
@@ -1585,6 +1589,7 @@ func (s *Server) routes() {
 			pr.Post("/contacts", s.handleCRMCreate)
 			pr.Patch("/contacts/{id}", s.handleCRMUpdate)
 			pr.Get("/chat/contacts", s.handleInternalListContacts)
+			pr.Post("/chat/conversations", s.handleCreateAgentTopic)
 			pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 			pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)
 			pr.Get("/chat/conversations/{id}/events", s.handleInboxStream)
@@ -1954,6 +1959,24 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	if strings.TrimSpace(req.ProjectID) == "" && len(req.ProjectIDs) == 0 {
+		if s.projectSvc == nil {
+			respondJSONError(w, 503, "Projects are unavailable")
+			return
+		}
+		p, err := s.projectSvc.EnsureDefault(r.Context())
+		if err != nil {
+			respondJSONError(w, 503, "Default project is unavailable")
+			return
+		}
+		if p.IsArchived {
+			respondJSONError(w, 409, "Default project is archived. Choose an active project.")
+			return
+		}
+		req.ProjectID = "default"
+		req.ProjectIDs = []string{"default"}
 	}
 
 	author := "owner"

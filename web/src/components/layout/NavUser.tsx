@@ -1,7 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ChangePasswordModal } from '../auth/ChangePasswordModal'
-import { LogOut, KeyRound, MoreHorizontal, Settings } from 'lucide-react'
+import {
+  LogOut,
+  KeyRound,
+  MoreHorizontal,
+  Settings,
+  Activity,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 interface NavUserProps {
@@ -12,6 +18,7 @@ interface NavUserProps {
   bottomNavigation?: boolean
   active?: boolean
   onSettings?: () => void
+  onWork?: () => void
 }
 
 export function NavUser({
@@ -20,6 +27,7 @@ export function NavUser({
   collapsed = false,
   dropdownPosition,
   onSettings,
+  onWork,
   bottomNavigation = false,
   active = false,
 }: NavUserProps) {
@@ -131,12 +139,12 @@ export function NavUser({
               dropdownPosition === 'top-right'
                 ? 'bottom-full right-2 mb-2 w-64 max-w-[calc(100vw-1rem)]'
                 : dropdownPosition === 'bottom-right'
-                ? 'right-0 top-full mt-1.5'
-                : dropdownPosition === 'bottom-left'
-                  ? 'left-0 top-full mt-1.5'
-                  : compact
-                    ? 'left-full bottom-0 ml-2'
-                    : 'bottom-full left-0 mb-1 w-full',
+                  ? 'right-0 top-full mt-1.5'
+                  : dropdownPosition === 'bottom-left'
+                    ? 'left-0 top-full mt-1.5'
+                    : compact
+                      ? 'left-full bottom-0 ml-2'
+                      : 'bottom-full left-0 mb-1 w-full',
             )}
           >
             {/* User Identity Header */}
@@ -157,6 +165,19 @@ export function NavUser({
               </div>
             </div>
 
+            {onWork && (
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onWork()
+                }}
+              >
+                <Activity className="h-4 w-4" />
+                <span>Work monitor</span>
+              </button>
+            )}
             {onSettings && (
               <button
                 type="button"

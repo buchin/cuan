@@ -1,3 +1,4 @@
+import { workspacePath } from './workspacePath'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Info, Square, Send } from 'lucide-react'
@@ -62,6 +63,7 @@ export function TaskSessionPage({
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
+  const basePath = workspacePath(taskId, location.pathname)
   const suffix = location.search,
     state = location.state
   const detailParams = new URLSearchParams(suffix)
@@ -70,9 +72,13 @@ export function TaskSessionPage({
     '/tasks/' + encodeURIComponent(taskId) + '?' + detailParams.toString()
   const backURL =
     typeof state?.taskReturnTo === 'string' &&
-    /^\/(?:tasks|projects\/[^/?#]+)(?:\?[^#]*)?$/.test(state.taskReturnTo)
+    /^\/(?:tasks|projects\/[^/?#]+(?:\/tasks)?|inbox\/[^/?#]+)(?:\?[^#]*)?$/.test(
+      state.taskReturnTo,
+    )
       ? state.taskReturnTo
-      : '/tasks' + suffix
+      : basePath.startsWith('/projects/')
+        ? basePath.split('/tasks/')[0] + '/tasks'
+        : '/tasks' + suffix
   const detailState = {
     ...state,
     workspaceReturnTo: location.pathname + location.search,
@@ -80,14 +86,10 @@ export function TaskSessionPage({
   useEffect(() => {
     if (sessionId === 'latest' && attempt)
       navigate(
-        '/tasks/' +
-          encodeURIComponent(taskId) +
-          '/sessions/' +
-          encodeURIComponent(attempt.id) +
-          suffix,
+        basePath + '/sessions/' + encodeURIComponent(attempt.id) + suffix,
         { replace: true, state },
       )
-  }, [sessionId, attempt?.id, taskId, suffix, navigate, state])
+  }, [sessionId, attempt?.id, taskId, suffix, navigate, state, basePath])
   useEffect(() => {
     setShowTerminal(false)
     setAccept(false)
@@ -173,8 +175,16 @@ export function TaskSessionPage({
           to={backURL}
           state={state}
           className="icon-action shrink-0"
-          aria-label="Back to tasks"
-          title="Back to tasks"
+          aria-label={
+            backURL.startsWith('/inbox/')
+              ? 'Back to conversation'
+              : 'Back to tasks'
+          }
+          title={
+            backURL.startsWith('/inbox/')
+              ? 'Back to conversation'
+              : 'Back to tasks'
+          }
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -345,18 +355,12 @@ export function TaskSessionPage({
                   'cuan-task-launch:' + taskId,
                   JSON.stringify(request),
                 )
-                navigate(
-                  '/tasks/' +
-                    encodeURIComponent(taskId) +
-                    '/sessions/start' +
-                    suffix,
-                  {
-                    state: {
-                      taskReturnTo: state?.taskReturnTo,
-                      startRequestId: request.request_id,
-                    },
+                navigate(basePath + '/sessions/start' + suffix, {
+                  state: {
+                    taskReturnTo: state?.taskReturnTo,
+                    startRequestId: request.request_id,
                   },
-                )
+                })
               } catch {
                 following.current = false
                 setBusy(false)
@@ -426,8 +430,7 @@ export function TaskSessionPage({
               onChange={(e) => {
                 setShowDetail(false)
                 navigate(
-                  '/tasks/' +
-                    encodeURIComponent(taskId) +
+                  basePath +
                     '/sessions/' +
                     encodeURIComponent(e.target.value) +
                     suffix,
@@ -515,11 +518,13 @@ export function TaskSessionPage({
                 {reports.map((r) => (
                   <li key={r.id} className="rounded-lg border p-3">
                     <p className="mb-2 text-xs text-muted-foreground">
-                      {r.new_status === 'done' ? 'Completed' : r.new_status === 'review'
-                        ? 'Result ready'
-                        : r.new_status === 'blocked'
-                          ? 'Blocker'
-                          : 'Progress'}{' '}
+                      {r.new_status === 'done'
+                        ? 'Completed'
+                        : r.new_status === 'review'
+                          ? 'Result ready'
+                          : r.new_status === 'blocked'
+                            ? 'Blocker'
+                            : 'Progress'}{' '}
                       · {new Date(r.created_at).toLocaleTimeString('en-US')}
                     </p>
                     <ChatMarkdown content={r.message} />

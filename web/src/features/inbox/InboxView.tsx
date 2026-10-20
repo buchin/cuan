@@ -697,7 +697,19 @@ export function InboxView({
                       {msg.uuid && (
                         <InboxTaskAction
                           linkedTask={linkedTasks.find(
-                            (task) => task.source_message_id === msg.uuid,
+                            (task) =>
+                              (task.source_message_id === msg.uuid ||
+                                requests.some(
+                                  (q) =>
+                                    q.reply_id === msg.uuid &&
+                                    q.message_id === task.source_message_id,
+                                )) &&
+                              (isAgentMessage ||
+                                !requests.some(
+                                  (q) =>
+                                    q.message_id === msg.uuid &&
+                                    visibleMessageIds.has(q.reply_id),
+                                )),
                           )}
                           conversationId={
                             activeContact.conversation_id || activeContact.id

@@ -3,7 +3,10 @@ import type { ChatContact } from '../../api/chat'
 
 export function agentForContact(contact: ChatContact, agents: Agent[]) {
   return contact.type === 'agent'
-    ? agents.find((a) => a.id === contact.id.replace(/^contact_/, ''))
+    ? agents.find(
+        (a) =>
+          a.id === (contact.agent_id || contact.id.replace(/^contact_/, '')),
+      )
     : undefined
 }
 

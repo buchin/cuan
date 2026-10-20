@@ -2,6 +2,8 @@ import { apiFetch, getAuthToken, ApiError } from './client'
 import { DoDItem, Task } from './types'
 
 export interface ChatContact {
+  agent_id?: string
+  agent_name?: string
   id: string
   type: 'agent' | 'customer'
   name: string

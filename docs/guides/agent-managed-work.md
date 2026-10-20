@@ -1,3 +1,29 @@
+## Conversation topics and project work
+
+Inbox is the main place to discuss goals and receive results. Choose New message,
+then an agent, to open a new independent topic with a stable conversation ID.
+The first message names the topic. One agent may have many topics with separate
+histories. Opening a topic sends no message and creates no task or terminal.
+Questions can stay conversational; approved execution creates tracked work in the
+background. A topic may contain multiple related pieces of work and execution
+attempts. Customer recipients continue their existing live chat conversation.
+
+Work cards appear with the agent's reply. View progress opens active execution;
+View result opens saved output/results. Back to conversation returns to the source
+topic. Global monitoring is under Account → Work monitor, outside main navigation.
+Old task and conversation links remain supported.
+
+Projects use `/projects/PROJECT_ID/tasks`: a work-list sidebar and detail/session
+panel on desktop, list/detail navigation on smaller screens. Selecting a task uses
+`/projects/PROJECT_ID/tasks/TASK_ID`; session URLs extend that path. Project settings
+remain separate. The project list cannot display another project's selected task.
+
+Default exists on fresh installs and is initialized idempotently. New tasks without
+a selected project belong to Default. General work may use it without setup; a named
+but ambiguous project requires clarification. Existing Default configuration and
+archive state are preserved. Legacy unassigned tasks remain readable in the Default
+workspace without rewriting historical records.
+
 ## Delegate work through chat
 
 Tell an agent what you want to achieve and which project it belongs to. For example:

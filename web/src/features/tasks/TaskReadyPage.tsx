@@ -1,3 +1,4 @@
+import { workspacePath } from './workspacePath'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Info, Play } from 'lucide-react'
@@ -16,6 +17,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
   const starting = useRef(false)
+  const basePath = workspacePath(task.id, location.pathname)
   const search = new URLSearchParams(location.search)
   search.delete('view')
   const suffix = search.toString() ? '?' + search.toString() : ''
@@ -23,11 +25,13 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
   detailSearch.set('view', 'detail')
   const back =
     typeof location.state?.taskReturnTo === 'string' &&
-    /^\/(?:tasks|projects\/[^/?#]+)(?:\?[^#]*)?$/.test(
+    /^\/(?:tasks|projects\/[^/?#]+(?:\/tasks)?|inbox\/[^/?#]+)(?:\?[^#]*)?$/.test(
       location.state.taskReturnTo,
     )
       ? location.state.taskReturnTo
-      : '/tasks' + suffix
+      : basePath.startsWith('/projects/')
+        ? basePath.split('/tasks/')[0] + '/tasks'
+        : '/tasks' + suffix
   useEffect(() => {
     let alive = true
     if (task.status === 'done') {
@@ -75,7 +79,15 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
       className="flex h-full min-h-0 flex-col"
     >
       <header className="flex shrink-0 items-center gap-2 border-b p-2">
-        <Link to={back} aria-label="Back to tasks" className="icon-action">
+        <Link
+          to={back}
+          aria-label={
+            back.startsWith('/inbox/')
+              ? 'Back to conversation'
+              : 'Back to tasks'
+          }
+          className="icon-action"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
@@ -130,18 +142,12 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
                     'cuan-task-launch:' + task.id,
                     JSON.stringify(request),
                   )
-                  navigate(
-                    '/tasks/' +
-                      encodeURIComponent(task.id) +
-                      '/sessions/start' +
-                      suffix,
-                    {
-                      state: {
-                        taskReturnTo: back,
-                        startRequestId: request.request_id,
-                      },
+                  navigate(basePath + '/sessions/start' + suffix, {
+                    state: {
+                      taskReturnTo: back,
+                      startRequestId: request.request_id,
                     },
-                  )
+                  })
                 } catch {
                   starting.current = false
                   setBusy(false)
