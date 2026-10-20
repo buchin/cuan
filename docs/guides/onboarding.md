@@ -140,3 +140,40 @@ is unresolved, the agent asks for that choice; an exact-scope proposal can show
 Follow progress in Inbox and open the task/session from its message when needed.
 See the [workspace guide](user_guide.md), [recovery behavior](message_task_lifecycle.md),
 and [troubleshooting](troubleshooting.md).
+
+## Repeatable native release installer
+
+For an existing non-root Linux service account and provisioned PostgreSQL, the
+native installer builds an immutable application release, keeps configuration
+private, and preserves the service HOME and workspaces:
+
+```sh
+# Set DATABASE_URL privately in the service environment first.
+python3 scripts/install-native.py --dry-run
+python3 scripts/install-native.py --migrate --start
+```
+
+The default directory is ~/.local/share/cuan-app. Use --directory for a different
+persistent location outside the source checkout and --port for a new installation.
+Go and npm must already be installed as described above. For release artifacts,
+supply both --binary-dir (cuan-server and cuan-migrate) and --static-dir (built web
+assets containing index.html).
+
+Existing config.json is retained, including its database URL, auth secret, HOME
+and port. A conflicting --port is rejected rather than silently ignored. The
+installer serializes concurrent runs, keeps previous release directories and
+activates a completed build through the current symlink. It does not delete data
+or existing releases. A failed migration leaves the current release unchanged,
+but database changes already applied by a migration are not automatically undone.
+Review migration compatibility and back up the database before upgrades.
+
+Migrations run only with --migrate or the installed `cuan migrate` command.
+Their potentially sensitive diagnostics go to private migration.log. The
+installed `cuan start` loads private settings and runs in the foreground; use
+your service manager to supervise this command and restart it after upgrades.
+Automatic service-manager provisioning is not part of this installer yet.
+`cuan check` checks local application/database readiness, not AI execution.
+
+This installs the application only. Set up the native AI runtime using
+scripts/setup-agent-runtime.py as described above, then connect AI through
+Studio. Neither installation success nor web health implies AI authentication.
