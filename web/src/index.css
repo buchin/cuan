@@ -324,3 +324,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .session-detail-panel[open] { animation: none; }
 }
+
+/* Keep touch actions discoverable; reveal desktop shortcuts on interaction. */
+.item-action-row:has(> div > button[aria-pressed="true"]) { background: oklch(var(--accent)); }
+@media (hover: hover) and (pointer: fine) {
+  .item-action-row > [data-item-menu] { opacity: 0; }
+  .item-action-row:hover > [data-item-menu],
+  .item-action-row:focus-within > [data-item-menu],
+  .item-action-row > [data-item-menu][aria-expanded="true"] { opacity: 1; }
+}

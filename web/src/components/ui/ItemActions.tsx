@@ -94,7 +94,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
       }}
     >
       {!!offset && swipeAction && <div aria-hidden="true" className="absolute inset-0 flex items-center justify-end rounded-md bg-muted pr-3 text-xs font-medium">{t(swipeAction.previewLabel || swipeAction.label)}</div>}
-      <div className={`relative flex min-w-0 ${subtle ? "items-start" : "items-center bg-background"}`} style={{ transform: offset ? `translateX(${offset}px)` : undefined }}>
+      <div className={`item-action-row relative flex min-w-0 ${subtle ? "items-start" : "items-center bg-background"}`} style={{ transform: offset ? `translateX(${offset}px)` : undefined }}>
         <div className="min-w-0 flex-1">{children}</div>
         <button ref={trigger} data-item-menu type="button" disabled={busy} className="icon-action text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground" aria-label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
           onClick={event => { event.stopPropagation(); if (menu) close(); else { const r = event.currentTarget.getBoundingClientRect(); open(r.right - 232, r.bottom) } }}>

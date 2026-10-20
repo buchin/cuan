@@ -507,5 +507,11 @@
   "completed": "selesai",
   "Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.": "Status koneksi, sisa kuota, dan progres pekerjaan berbeda. Akun yang tersambung tetap bisa memiliki kuota terbatas.",
   "Conversation filters": "Filter percakapan",
-  "No archived conversations.": "Belum ada percakapan yang diarsipkan."
+  "No archived conversations.": "Belum ada percakapan yang diarsipkan.",
+  "Added manually": "Ditambahkan manual",
+  "Source": "Sumber",
+  "More details": "Detail lainnya",
+  "Remove tag": "Hapus tag",
+  "What should Cuan remember about {name}?": "Apa yang perlu Cuan ingat tentang {name}?",
+  "this person": "orang ini"
 }

@@ -16,11 +16,13 @@ type Entry = {
 }
 export function ContactMemoryPanel({
   contactId,
+  contactName,
   initialQuery = '',
   matchedNoteId = '',
   onDirtyChange,
   onChanged,
 }: {
+  contactName?: string
   contactId: string
   initialQuery?: string
   matchedNoteId?: string
@@ -317,7 +319,7 @@ export function ContactMemoryPanel({
           {t(notice)}
         </p>
       )}
-      <label className="flex min-h-11 items-center gap-2 rounded-lg border px-3">
+      {(items.length > 0 || query || search) && <label className="flex min-h-11 items-center gap-2 rounded-lg border px-3">
         <Search className="h-4 w-4 text-muted-foreground" />
         <input
           aria-label={t('Search notes')}
@@ -326,7 +328,7 @@ export function ContactMemoryPanel({
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t('Search notes…')}
         />
-      </label>
+      </label>}
       {error ? (
         <div role="alert" className="text-sm">
           <p>{t(error)}</p>
@@ -349,8 +351,8 @@ export function ContactMemoryPanel({
               {search
                 ? t('No matching notes.')
                 : t(
-                    'Add a note here, or ask Cuan to remember something about this person in Inbox.',
-                  )}
+                    'What should Cuan remember about {name}?',
+                  ).replace('{name}', contactName || t('this person'))}
             </p>
           )}
           {!!facts.length && (

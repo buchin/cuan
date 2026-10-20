@@ -27,7 +27,7 @@ type Contact = {
   tags: string[]
   updated_at: string
 }
-const source = (c: Contact) => c.product.trim() || 'Live chat'
+const source = (c: Contact) => c.is_manual ? 'Added manually' : c.product.trim() || 'Live chat'
 const dateLabel = (iso: string, language: string) => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
@@ -222,10 +222,11 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
     setTagInput('')
     setSaveError('')
     setSaved(false)
+    void save(next)
   }
-  async function save() {
+  async function save(tagsToSave?: string[]) {
     if (!selected || saving) return
-    const next = append(tagInput)
+    const next = tagsToSave ?? append(tagInput)
     if (!next) return
     const id = selected.id
     setDrafts((old) => ({ ...old, [id]: next }))
@@ -272,7 +273,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                   <input
                     aria-label={t('Search contacts and notes')}
                     className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-                    placeholder={t('Search contacts and notes…')}
+                    placeholder={t('Search contacts…')}
                     maxLength={200}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -470,7 +471,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                         <span className="mt-0.5 block truncate text-sm text-muted-foreground">
                           {c.email || t('No email provided')}
                         </span>
-                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                        <span className="mt-1 inline-flex max-w-full truncate rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                           {t(source(c))}
                         </span>
                         {c.search_note && query.trim() && (
@@ -541,36 +542,30 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
             </button>
             {selected ? (
               <>
-                <h2 className="break-words text-lg font-semibold">
-                  {label(selected)}
-                </h2>
-                <p className="mt-1 break-all text-sm text-muted-foreground">
-                  {selected.email || t('No email provided')}
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {t(source(selected))} · {t('Updated')}{' '}
-                  {dateLabel(selected.updated_at, language)}
-                </p>
-                {selected.email && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {t('Email is unverified.')}
-                  </p>
-                )}
-                {selected.is_manual ? (
-                  <p className="my-3 text-xs text-muted-foreground">
-                    {t('No messaging channel connected.')}
-                  </p>
-                ) : (
-                  <Link
-                    className="action-primary my-5 w-full sm:w-auto"
-                    to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    {t('Open conversation')}
-                  </Link>
-                )}
+                <header className="flex items-start gap-3">
+                  <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium">{Array.from(label(selected)).slice(0, 2).join('').toUpperCase()}</span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="break-words text-base font-semibold">{label(selected)}</h2>
+                    {selected.email && <p className="mt-1 break-all text-sm text-muted-foreground">{selected.email}</p>}
+                    <span className="mt-2 inline-flex rounded-full bg-secondary px-2 py-1 text-xs text-muted-foreground" title={t('Source')}>{t(source(selected))}</span>
+                  </div>
+                  <ItemActions label={t('Contact details')} actions={[
+                    { label: 'Copy link', run: () => copyItemLink('/contacts?contact=' + encodeURIComponent(selected.id)) },
+                    { label: archive.isArchived(selected.id) ? 'Restore contact' : 'Archive contact', disabled: !archive.loaded, run: () => archive.archive(selected.id, !archive.isArchived(selected.id)) },
+                  ]}><span /></ItemActions>
+                </header>
+                <details className="mt-3 text-xs text-muted-foreground">
+                  <summary className="flex min-h-11 cursor-pointer items-center">{t('More details')}</summary>
+                  <div className="space-y-2 pb-3">
+                    <p>{t('Updated')} {dateLabel(selected.updated_at, language)}</p>
+                    {selected.email && <p>{t('Email is unverified.')}</p>}
+                    {selected.is_manual && <p>{t('No messaging channel connected.')}</p>}
+                  </div>
+                </details>
+                {!selected.is_manual && <Link className="action-secondary mt-2" to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}><MessageSquare className="h-4 w-4" />{t('Open conversation')}</Link>}
                 <ContactMemoryPanel
                   key={selected.id + ':' + (params.get('note_query') || '')}
+                  contactName={label(selected)}
                   contactId={selected.id}
                   initialQuery={params.get('note_query') || ''}
                   matchedNoteId={params.get('note') || ''}
@@ -582,163 +577,32 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                     noteDirty.current = dirty
                   }}
                 />
-                <details className="mt-5 border-t pt-3">
-                  <summary className="min-h-11 cursor-pointer break-words text-sm font-medium">
-                    {t('Tags')}
-                    {selected.tags.length
-                      ? ` · ${selected.tags.slice(0, 3).join(', ') + (selected.tags.length > 3 ? ` +${selected.tags.length - 3}` : '')}`
-                      : ''}
-                  </summary>
-                  <form
-                    aria-label={t('Manage tags')}
-                    className="space-y-3 border-t pt-4"
-                    onSubmit={(e) => {
-                      e.preventDefault()
-                      void save()
-                    }}
-                  >
-                    <h3 className="text-base font-semibold">{t('Tags')}</h3>
-                    <div
-                      aria-label={t('Contact tags')}
-                      className="flex flex-wrap gap-2"
-                    >
-                      {draft.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          {t('No tags yet.')}
-                        </p>
-                      ) : (
-                        draft.map((t) => (
-                          <button
-                            type="button"
-                            key={t}
-                            disabled={saving}
-                            aria-label={
-                              language === 'id'
-                                ? `Hapus tag ${t}`
-                                : `Remove tag ${t}`
-                            }
-                            className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-3 text-sm hover:bg-accent"
-                            onClick={() => {
-                              setDrafts((old) => ({
-                                ...old,
-                                [selected!.id]: draft.filter((v) => v !== t),
-                              }))
-                              setSaved(false)
-                              setSaveError('')
-                            }}
-                          >
-                            <span className="min-w-0 break-all">{t}</span>
-                            <X className="h-4 w-4 shrink-0" />
-                          </button>
-                        ))
-                      )}
-                    </div>
-                    <label
-                      className="block text-sm font-medium"
-                      htmlFor="contact-add-tag"
-                    >
-                      {t('Add tag')}
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        id="contact-add-tag"
-                        className="field-control flex-1"
-                        placeholder={t('For example: New customer')}
-                        value={tagInput}
-                        disabled={saving}
-                        onChange={(e) => {
-                          setTagInput(e.target.value)
-                          setSaved(false)
-                          setSaveError('')
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            add(tagInput)
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="action-secondary"
-                        disabled={saving || !tagInput.trim()}
-                        onClick={() => add(tagInput)}
-                      >
-                        {t('Add')}
-                      </button>
-                    </div>
-                    {suggestions.length > 0 && (
-                      <div
-                        aria-label={t('Available tags')}
-                        className="space-y-1"
-                      >
-                        <p className="text-xs text-muted-foreground">
-                          {t('Use an existing tag')}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {suggestions.map((t) => (
-                            <button
-                              type="button"
-                              key={t}
-                              disabled={saving}
-                              className="action-secondary max-w-full break-all"
-                              onClick={() => add(t)}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
+                <section aria-label={t('Contact tags')} className="mt-6 border-t pt-4">
+                  <h3 className="mb-2 text-sm font-medium">{t('Tags')}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {draft.map(tag => <button key={tag} type="button" disabled={saving}
+                      aria-label={t('Remove tag') + ' ' + tag}
+                      className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border px-3 text-xs hover:bg-accent"
+                      onClick={() => { const next = draft.filter(value => value !== tag); setDrafts(old => ({ ...old, [selected.id]: next })); void save(next) }}>
+                      <span className="break-all">{tag}</span><X className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    </button>)}
+                  </div>
+                  <details className="mt-1">
+                    <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">{t('Add tag')}</summary>
+                    <form className="max-w-md space-y-2" onSubmit={event => { event.preventDefault(); add(tagInput) }}>
+                      <div className="flex gap-2">
+                        <input id="contact-add-tag" aria-label={t('Add tag')} className="field-control min-w-0 flex-1"
+                          placeholder={t('For example: New customer')} value={tagInput} disabled={saving}
+                          onChange={event => setTagInput(event.target.value)} />
+                        <button type="submit" className="action-secondary" disabled={saving || !tagInput.trim()}>{t('Add')}</button>
                       </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {t(
-                        '{count}/20 tags · up to 40 characters each. Press Enter to add.',
-                      ).replace('{count}', String(draft.length))}
-                    </p>
-                    {saveError && (
-                      <p role="alert" className="text-sm text-destructive">
-                        {t(saveError)}
-                      </p>
-                    )}
-                    {dirty && !saving && (
-                      <p className="text-sm text-muted-foreground">
-                        {t('You have unsaved changes.')}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="submit"
-                        className="action-primary"
-                        disabled={saving || !dirty}
-                      >
-                        {saving ? t('Saving…') : t('Save tags')}
-                      </button>
-                      {dirty && (
-                        <button
-                          type="button"
-                          className="action-secondary"
-                          disabled={saving}
-                          onClick={() => {
-                            setDrafts((old) => ({
-                              ...old,
-                              [selected!.id]: selected!.tags,
-                            }))
-                            setTagInput('')
-                            setSaveError('')
-                            setSaved(false)
-                          }}
-                        >
-                          {t('Discard changes')}
-                        </button>
-                      )}
-                    </div>
-                    {saved && (
-                      <p role="status" className="text-sm">
-                        {t('Tags saved.')}
-                      </p>
-                    )}
-                  </form>
-                </details>
+                      {!!suggestions.length && <div className="flex flex-wrap gap-2">{suggestions.map(tag => <button type="button" key={tag} disabled={saving} className="action-secondary text-xs" onClick={() => add(tag)}>{tag}</button>)}</div>}
+                    </form>
+                  </details>
+                  {saving && <p role="status" className="text-xs text-muted-foreground">{t('Saving…')}</p>}
+                  {saved && !dirty && <p role="status" className="text-xs text-muted-foreground">{t('Tags saved.')}</p>}
+                  {saveError && <div role="alert" className="text-sm text-destructive">{t(saveError)} <button className="min-h-11 px-2 underline" disabled={saving} onClick={() => void save(draft)}>{t('Try again')}</button></div>}
+                </section>
               </>
             ) : (
               <>
