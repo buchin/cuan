@@ -16,12 +16,12 @@ const THEME_STORAGE_KEY = 'cuan-theme'
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null
-      if (stored === 'dark' || stored === 'light' || stored === 'system') {
-        return stored
-      }
+      try {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null
+        if (stored === 'dark' || stored === 'light' || stored === 'system') return stored
+      } catch { /* Use the device preference when storage is unavailable. */ }
     }
-    return 'light'
+    return 'system'
   })
 
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('light')

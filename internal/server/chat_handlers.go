@@ -1200,6 +1200,9 @@ func safeInboxProviderFailure(ctxErr error, raw string) string {
 	if ctxErr != nil {
 		return "Provider timed out. Your message is saved, but the result is unknown. Refresh history. The request will not be rerun automatically."
 	}
+	if strings.Contains(lower, "user location is not supported for the api use") {
+		return "The provider rejected AI execution from this environment because of a location restriction. Google sign-in may still be saved. Your message is saved; signing in again will not resolve this restriction. No automatic retry was started."
+	}
 	if strings.Contains(lower, "quota") || strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") {
 		return "Provider quota is limited. Your message is saved. Wait for the quota to reset; accounts will not be switched automatically."
 	}

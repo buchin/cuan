@@ -661,10 +661,7 @@ export function App() {
               projectsLoading || !!projectsError ||
               projects.some((p) => p.id !== 'default' || !!p.repo_url)
             }
-            onConnectAgent={() => {
-              navigate('/settings/agents?returnTo=%2Fstudio')
-              setAgentCreateRequested(true)
-            }}
+            onAgentConnected={() => void refreshContacts()}
             onCreateProject={() => setIsCreateProjectOpen(true)}
             onRetrySetup={() => void refreshContacts()}
           />

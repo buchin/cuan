@@ -43,6 +43,9 @@ func InboxRecoveryAction(q InboxRequest) string {
 		return "check_status"
 	}
 	lower := strings.ToLower(q.SafeError)
+	if strings.Contains(lower, "location restriction") {
+		return "check_status"
+	}
 	for _, unknown := range []string{"unknown", "interrupted", "timed out", "before a final result", "cannot be safely repeated", "invalid runtime", "size limit"} {
 		if strings.Contains(lower, unknown) {
 			return "check_status"

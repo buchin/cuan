@@ -17,6 +17,7 @@ func TestDecodeInboxAgyResult(t *testing.T) {
 		{"success", `{"status":"SUCCESS","response":" **Useful answer** ","usage":{"private":"never expose"}}`, "", "**Useful answer**", "success", ""},
 		{"empty stdout", "", "429 RESOURCE_EXHAUSTED private-token", "", "empty_output", "quota"},
 		{"exit zero error", `{"status":"ERROR","response":"partial private text","error":{"message":"429 RESOURCE_EXHAUSTED private-token"}}`, "", "", "provider_failure", "quota"},
+		{"location restriction", `{"status":"ERROR","message":"FAILED_PRECONDITION (code 400): User location is not supported for the API use. private-token"}`, "", "", "provider_failure", "location restriction"},
 		{"auth", `{"status":"ERROR","message":"invalid_grant private-token"}`, "", "", "provider_failure", "sign-in"},
 		{"timeout", `{"status":"TIMEOUT","response":"partial private-token"}`, "", "", "provider_timeout", "timed out"},
 		{"denied preamble", `{"status":"SUCCESS","response":"Aku cek dulu transkrip percakapan kita.","denied_actions":[{"action":"private-command"}]}`, "", "", "tool_permission_denied", "tool permission was denied"},

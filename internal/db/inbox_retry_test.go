@@ -228,3 +228,10 @@ func TestInboxReadOnlyToolRecoveryNeedsFinalProof(t *testing.T) {
 		t.Fatal("earlier proof authorized later tool activity")
 	}
 }
+
+func TestLocationRestrictionDoesNotRetryAfterNoEffectProof(t *testing.T) {
+	q := InboxRequest{State: "failed", SafeError: "The provider rejected execution because of a location restriction. Google sign-in may still be saved.", Steps: []InboxStep{{Kind: "recovery_safe"}}}
+	if got := InboxRecoveryAction(q); got != "check_status" {
+		t.Fatal("persistent provider restriction retried or treated as login failure", got)
+	}
+}

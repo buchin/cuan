@@ -1,6 +1,6 @@
-User cukup menyampaikan tujuan dan memberi persetujuan; Cuan mengurus pekerjaan
-sampai tuntas, termasuk memulihkan gangguan tanpa kehilangan konteks atau
-menggandakan pekerjaan.
+User cukup menyampaikan tujuan, menghubungkan AI tanpa form tambahan, dan memberi
+persetujuan; Cuan mengurus pekerjaan hingga tuntas serta memulihkan gangguan tanpa
+kehilangan konteks atau menggandakan pekerjaan.
 
 ## Product implications
 

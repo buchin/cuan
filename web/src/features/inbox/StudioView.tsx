@@ -4,21 +4,23 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
+import { TeamView } from '../team/TeamView'
 
 export function StudioView({
   onAccepted, agentSetup, firstGoal, hasProject,
-  onConnectAgent, onCreateProject, onRetrySetup, checkRuntime = true,
+  onAgentConnected, onCreateProject, onRetrySetup, checkRuntime = true,
 }: {
   onAccepted: () => void
   agentSetup: 'loading' | 'needed' | 'ready' | 'error'
   firstGoal: boolean
   hasProject: boolean
-  onConnectAgent: () => void
+  onAgentConnected: () => void
   onCreateProject: () => void
   checkRuntime?: boolean
   onRetrySetup: () => void
 }) {
   const { t } = useLanguage()
+  const [connectRequested, setConnectRequested] = useState(false)
 
   const [installation, setInstallation] = useState<'checking' | 'available' | 'incomplete' | 'unsupported' | 'error'>('checking')
   const [checkVersion, setCheckVersion] = useState(0)
@@ -74,7 +76,7 @@ export function StudioView({
   async function submit() {
     if (busy || uploads.busy || installation !== 'available') return
     if (agentSetup === 'needed') {
-      onConnectAgent()
+      setConnectRequested(true)
       return
     }
     if (agentSetup === 'error') {
@@ -214,7 +216,7 @@ export function StudioView({
               ) : (
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               )}
-              {busy ? t('Getting started…') : installation === 'checking' || agentSetup === 'loading' ? t('Checking setup…') : agentSetup === 'needed' ? t('Connect your AI') : t('Get it done')}
+              {busy ? t('Getting started…') : installation === 'checking' || agentSetup === 'loading' ? t('Checking setup…') : agentSetup === 'needed' ? t('Connect Google') : t('Get it done')}
             </button>
           </div>
           {firstGoal && installation === 'available' && agentSetup === 'ready' && (
@@ -239,6 +241,12 @@ export function StudioView({
           )}
         </form>
       </div>
+      {agentSetup === 'needed' && <TeamView
+        connectionOnly
+        createRequested={connectRequested}
+        onCreateHandled={() => setConnectRequested(false)}
+        onAgentConnected={onAgentConnected}
+      />}
     </section>
   )
 }

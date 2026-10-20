@@ -88,7 +88,9 @@ export function TeamView({
   onAgentAdded,
   onAgentConnected,
   focusAgentId,
+  connectionOnly = false,
 }: {
+  connectionOnly?: boolean
   showHeading?: boolean
   showCreateAction?: boolean
   createRequested?: boolean
@@ -214,7 +216,7 @@ export function TeamView({
     epoch.current++
     dialogActive.current = true
     accountScope.current = ''
-    setStep('name')
+    setStep(connectionOnly ? 'google' : 'name')
     setOpen(true)
     setAuth(null)
     setCode('')
@@ -222,7 +224,8 @@ export function TeamView({
     setNotice('')
     setBusy(false)
     let suffix = 1
-    let next = '@dev'
+    const base = connectionOnly ? '@cuan' : '@dev'
+    let next = base
     while (
       agents.some(
         (a) =>
@@ -230,8 +233,9 @@ export function TeamView({
           a.id === 'agent_' + next.slice(1),
       )
     )
-      next = `@dev${++suffix}`
+      next = `${base}${++suffix}`
     setHandle(next)
+    if (connectionOnly) void connect(next)
   }
   useEffect(() => {
     if (createRequested) {
@@ -239,8 +243,8 @@ export function TeamView({
       onCreateHandled?.()
     }
   }, [createRequested])
-  const connect = async () => {
-    if (busy || handle.length < 2) return
+  const connect = async (name = handle) => {
+    if (busy || name.length < 2) return
     const currentEpoch = epoch.current
     setBusy(true)
     setFormError('')
@@ -249,7 +253,7 @@ export function TeamView({
       await cancelSession()
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       if (!accountScope.current) {
-        const account = await accountsApi.create(`${handle} · Google`)
+        const account = await accountsApi.create(`${name} · Google`)
         if (!dialogActive.current || epoch.current !== currentEpoch) return
         accountScope.current = account.id
       }
@@ -418,7 +422,8 @@ export function TeamView({
     'inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50'
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 pb-8">
+    <div className={connectionOnly ? 'contents' : 'mx-auto max-w-4xl space-y-5 pb-8'}>
+      <div hidden={connectionOnly}>
       <div className="flex items-center justify-between gap-3">
         <div>
           {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
@@ -764,6 +769,7 @@ export function TeamView({
           })}
         </div>
       )}
+      </div>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
           <section
@@ -793,9 +799,9 @@ export function TeamView({
             <header className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 id="add-agent-title" className="font-semibold">
-                  Add agent
+                  {connectionOnly ? 'Connect Google' : 'Add agent'}
                 </h2>
-                {step !== 'save' && (
+                {!connectionOnly && step !== 'save' && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {step === 'name'
                       ? 'Step 1 of 2 · Choose a name'
@@ -863,7 +869,7 @@ export function TeamView({
                 {step === 'google' && (
                   <>
                     <p className="text-sm">
-                      Connect Google for <strong>{handle}</strong>.
+                      {connectionOnly ? 'Connect your AI account to get started.' : <>Connect Google for <strong>{handle}</strong>.</>}
                     </p>
                     {auth?.auth_url ? (
                       <>
