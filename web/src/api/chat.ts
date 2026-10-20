@@ -57,6 +57,8 @@ export interface ChatMessage {
 }
 
 export interface InboxRequest {
+  recovery_action?: 'try_again' | 'check_status' | 'check_usage' | 'check_agent'
+
   agent_id?: string
   request_id: string
   message_id: string
@@ -250,6 +252,13 @@ export async function cancelInboxRequest(
 ): Promise<void> {
   await apiFetch(
     `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/requests/${encodeURIComponent(requestId)}/cancel`,
+    { method: 'POST' },
+  )
+}
+
+export async function retryInboxRequest(conversationId: string, requestId: string) {
+  return apiFetch<{ request: InboxRequest }>(
+    `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/requests/${encodeURIComponent(requestId)}/retry`,
     { method: 'POST' },
   )
 }

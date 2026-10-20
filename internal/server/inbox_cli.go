@@ -211,6 +211,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		labels := map[string]string{"runtime_missing_result": "The runtime stopped without a final result.", "runtime_invalid": "Could not validate runtime events.", "runtime_overflow": "Runtime activity size limit reached.", "runtime_process_failure": "Runtime process failed.", "runtime_interrupted": "The process was interrupted or timed out.", "provider_failure": "The provider reported a failure.", "provider_timeout": "The provider timed out.", "tool_permission_denied": "Tool permission denied. The runtime stopped without a reply.", "empty_response": "The provider returned no reply text.", "invalid_result": "Invalid runtime final result.", "empty_output": "The runtime returned no final result."}
 		if step != nil {
 			step("result_validation", labels[reason])
+			if (reason == "provider_failure" || reason == "empty_response") && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+				step("recovery_safe", "No action was performed. A new reply attempt is available.")
+			}
 		}
 		log.Printf("inbox runtime result rejected reason=%s bytes=%d events=%d tool_failures=%d", reason, runtime.bytes, runtime.events, runtime.toolFailures)
 		return "", failure

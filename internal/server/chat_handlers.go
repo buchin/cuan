@@ -899,7 +899,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":           linked,
-		"requests":        requests,
+		"requests":        inboxRecoveryRequests(requests),
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,
 		"contact":         contact,

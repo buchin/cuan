@@ -387,5 +387,17 @@
   "Retry search": "Ulangi pencarian",
   "Search is temporarily unavailable for this category.": "Pencarian kategori ini sedang tidak tersedia.",
   "Go to Studio": "Ke Studio",
-  "↑↓ Navigate · Enter Open · Esc Close": "↑↓ Pilih · Enter Buka · Esc Tutup"
+  "↑↓ Navigate · Enter Open · Esc Close": "↑↓ Pilih · Enter Buka · Esc Tutup",
+  "Trying again…": "Mencoba lagi…",
+  "Check status": "Periksa status",
+  "Checking…": "Memeriksa…",
+  "Check usage": "Periksa kuota",
+  "Check agent": "Periksa agent",
+  "Previous attempts": "Percobaan sebelumnya",
+  "Your message is saved. You can try again.": "Pesan Anda tersimpan. Anda bisa mencoba lagi.",
+  "Usage is limited. Check account availability before trying again.": "Kuota terbatas. Periksa ketersediaan akun sebelum mencoba lagi.",
+  "Check the agent connection before trying again.": "Periksa koneksi agent sebelum mencoba lagi.",
+  "Check the previous attempt before starting anything again.": "Periksa percobaan sebelumnya sebelum menjalankan ulang.",
+  "Could not confirm recovery. Check status before trying again.": "Pemulihan belum bisa dipastikan. Periksa status sebelum mencoba lagi.",
+  "Status is up to date.": "Status sudah diperbarui."
 }

@@ -1,5 +1,6 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   CheckCircle2,
   ChevronDown,
@@ -7,16 +8,23 @@ import {
   Clock3,
   LoaderCircle,
   Square,
+  RotateCcw,
 } from 'lucide-react'
 import { InboxRequest } from '../../api/chat'
 
 export function InboxActivity({
   request: q,
   onCancel,
+  onRetry,
+  onCheckStatus,
+  previousAttempts = [],
   bubble = false,
 }: {
   request: InboxRequest
   onCancel: () => Promise<void>
+  onRetry?: () => Promise<void>
+  onCheckStatus?: () => Promise<void>
+  previousAttempts?: InboxRequest[]
   bubble?: boolean
 }) {
   const { t, language } = useLanguage()
@@ -26,6 +34,20 @@ export function InboxActivity({
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
+  const [recovering, setRecovering] = useState(false)
+  const [recoveryStatus, setRecoveryStatus] = useState('')
+  const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
+  const recovery = q.recovery_action || 'check_status'
+  const recover = async (action: () => Promise<void>) => {
+    if (recovering) return
+    setRecovering(true)
+    setError('')
+    setRecoveryStatus('')
+    try { await action(); if (action === onCheckStatus) setRecoveryStatus(t('Status is up to date.')) }
+    catch { setError(t('Could not confirm recovery. Check status before trying again.')) }
+    finally { setRecovering(false) }
+  }
+
   const latestActivity = q.steps
     ?.slice()
     .reverse()
@@ -202,6 +224,17 @@ export function InboxActivity({
                             ? 'Waiting for cancellation to be confirmed.'
                             : 'The agent could not reply. Your message is still saved.'}
               </p>
+              {previousAttempts.length > 0 && (
+                <details className="text-xs">
+                  <summary className="min-h-11 cursor-pointer py-3">{t('Previous attempts')} ({previousAttempts.length})</summary>
+                  <ol className="space-y-3">
+                    {previousAttempts.map((attempt) => <li key={attempt.request_id}>
+                      <p>{new Date(attempt.created_at).toLocaleString(language)} · {t(attempt.state === 'failed' ? 'Failed' : attempt.state === 'interrupted' ? 'Interrupted' : attempt.state)}</p>
+                      {attempt.safe_error && <p className="text-muted-foreground">{attempt.safe_error}</p>}
+                    </li>)}
+                  </ol>
+                </details>
+              )}
               {q.safe_error && (
                 <p className="text-muted-foreground">{q.safe_error}</p>
               )}
@@ -374,6 +407,43 @@ export function InboxActivity({
           </button>
         )}
       </div>
+      {failed && (
+        <div className="px-2 pb-2">
+          <p className="mb-1 max-w-prose text-muted-foreground">
+            {t(recovery === 'try_again'
+              ? 'Your message is saved. You can try again.'
+              : recovery === 'check_usage'
+                ? 'Usage is limited. Check account availability before trying again.'
+                : recovery === 'check_agent'
+                  ? 'Check the agent connection before trying again.'
+                  : 'Check the previous attempt before starting anything again.')}
+          </p>
+          {recovery === 'try_again' && onRetry ? (
+            <button type="button" disabled={recovering}
+              className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-foreground underline underline-offset-4 disabled:opacity-50"
+              onClick={() => void recover(onRetry)}>
+              {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
+              {t(recovering ? 'Trying again…' : 'Try again')}
+            </button>
+          ) : recovery === 'check_usage' || recovery === 'check_agent' ? (
+            <Link to="/settings/agents" className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4">
+              {t(recovery === 'check_usage' ? 'Check usage' : 'Check agent')}
+            </Link>
+          ) : onCheckStatus ? (
+            <button type="button" disabled={recovering}
+              className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4 disabled:opacity-50"
+              onClick={() => void recover(onCheckStatus)}>
+              {t(recovering ? 'Checking…' : 'Check status')}
+            </button>
+          ) : null}
+          {recovery === 'try_again' && error && onCheckStatus && (
+            <button type="button" disabled={recovering}
+              className="ml-4 inline-flex min-h-11 items-center text-xs underline underline-offset-4 disabled:opacity-50"
+              onClick={() => void recover(onCheckStatus)}>{t('Check status')}</button>
+          )}
+          {recoveryStatus && <p role="status" className="text-xs text-muted-foreground">{recoveryStatus}</p>}
+        </div>
+      )}
       {error && (
         <p role="alert" className="mt-1 text-destructive">
           {error}

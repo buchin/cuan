@@ -425,7 +425,7 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return false
 		}
-		data, err := json.Marshal(map[string]any{"requests": requests, "messages": messages, "tasks": linked, "room_id": resolved.RoomID})
+		data, err := json.Marshal(map[string]any{"requests": inboxRecoveryRequests(requests), "messages": messages, "tasks": linked, "room_id": resolved.RoomID})
 		if err != nil {
 			return false
 		}

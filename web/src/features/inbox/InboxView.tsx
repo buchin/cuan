@@ -27,6 +27,7 @@ import {
   AgentActionCard,
   streamConversation,
   cancelInboxRequest,
+  retryInboxRequest,
 } from '../../api/chat'
 import {
   Send,
@@ -492,10 +493,27 @@ export function InboxView({
   const visibleMessageIds = new Set(
     messages.map((message) => message.uuid).filter(Boolean),
   )
+  const requestAttempts = useMemo(() => {
+    const grouped = new Map<string, InboxRequest[]>()
+    for (const request of requests) {
+      const attempts = grouped.get(request.message_id) || []
+      attempts.push(request)
+      grouped.set(request.message_id, attempts)
+    }
+    return grouped
+  }, [requests])
   const requestsByMessage = useMemo(() => {
     const ids = new Set(messages.map((message) => message.uuid).filter(Boolean))
     const index = new Map<string, InboxRequest[]>()
+    const latest = new Map<string, InboxRequest>()
     for (const request of requests) {
+      const previous = latest.get(request.message_id)
+      if (!previous || Date.parse(request.created_at) > Date.parse(previous.created_at) ||
+          (Date.parse(request.created_at) === Date.parse(previous.created_at) && request.request_id > previous.request_id)) {
+        latest.set(request.message_id, request)
+      }
+    }
+    for (const request of latest.values()) {
       const key = ids.has(request.reply_id)
         ? request.reply_id
         : request.message_id
@@ -894,6 +912,15 @@ export function InboxView({
                         <InboxActivity
                           request={q}
                           bubble={!!placeholder}
+                          previousAttempts={(requestAttempts.get(q.message_id) || []).filter((attempt) => attempt.request_id !== q.request_id)}
+                          onRetry={async () => {
+                            const id = activeContact.conversation_id || activeContact.id
+                            await retryInboxRequest(id, q.request_id)
+                            await loadConversation(id)
+                          }}
+                          onCheckStatus={async () => {
+                            await loadConversation(activeContact.conversation_id || activeContact.id)
+                          }}
                           onCancel={async () => {
                             const id =
                               activeContact.conversation_id || activeContact.id
