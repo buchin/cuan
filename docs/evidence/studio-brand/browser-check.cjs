@@ -366,9 +366,11 @@ const writes = [],
   await page.setViewportSize({width,height:900});await page.goto(base+'/settings/appearance');await page.getByRole('button',{name:theme==='light'?'Light':'Dark',exact:true}).click();
   await page.goto(base+'/');await page.waitForURL(u=>u.pathname==='/studio');
   const goal=page.getByRole('textbox',{name:'Your goal',exact:true});const submit=page.getByRole('button',{name:'Get it done',exact:true});await goal.waitFor();
-  assert.equal(await page.getByRole('region',{name:'Studio',exact:true}).getByRole('img',{name:'Cuan logo — kepeng coin',exact:true}).count(),1);
+  assert.equal(await page.getByRole('region',{name:'Studio',exact:true}).getByRole('img',{name:'Cuan logo — kepeng coin',exact:true}).count(),0);
   const nav=page.getByRole('navigation',{name:width<768?'Bottom navigation':'Main navigation',exact:true});
   const studio=nav.getByRole('button',{name:'Studio',exact:true});assert.equal(await studio.locator('svg[aria-hidden=true]').count(),1);
+  assert.equal(await goal.evaluate(el=>getComputedStyle(el).resize),'none');
+  const inputBounds=await goal.boundingBox(),buttonBounds=await submit.boundingBox();assert(buttonBounds.y>=inputBounds.y+inputBounds.height);assert(Math.abs(buttonBounds.x+buttonBounds.width-inputBounds.x-inputBounds.width)<20);assert(buttonBounds.height>=44);
   assert(await submit.isDisabled());assert.equal(await page.getByRole('combobox').count(),0);
   assert.equal(await goal.evaluate(el=>getComputedStyle(el).fontSize),'16px');
   const text='Organize a useful goal '+width+' '+theme;await goal.fill(text);await page.reload();await goal.waitFor();assert.equal(await goal.inputValue(),text);

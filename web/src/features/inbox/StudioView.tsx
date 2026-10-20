@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
-import { CuanMark } from '../../components/brand/CuanMark'
 import { apiFetch } from '../../api/client'
 
 export function StudioView({ onAccepted }: { onAccepted: () => void }) {
@@ -71,7 +70,6 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
       aria-label="Studio"
       className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center py-8 md:py-12"
     >
-      <CuanMark className="mb-5 h-10 w-10 sm:h-12 sm:w-12" />
       <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         What would you like to get done today?
       </h2>
@@ -88,35 +86,37 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
         <label htmlFor="studio-goal" className="sr-only">
           Your goal
         </label>
-        <textarea
-          id="studio-goal"
-          className="field-control min-h-44 resize-y p-4 text-base leading-relaxed"
-          placeholder="Describe what you want to achieve…"
-          value={goal}
-          maxLength={6000}
-          disabled={busy}
-          onChange={(e) => update(e.target.value)}
-        />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            We’ll ask if anything needs clarification.
-          </p>
-          <button
-            type="submit"
-            className="action-primary"
-            disabled={busy || !goal.trim()}
-          >
-            {busy ? (
-              <LoaderCircle
-                className="h-4 w-4 animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            )}
-            {busy ? 'Getting started…' : 'Get it done'}
-          </button>
+        <div className="overflow-hidden rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+          <textarea
+            id="studio-goal"
+            className="block min-h-44 w-full resize-none border-0 bg-transparent p-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
+            placeholder="Describe what you want to achieve…"
+            value={goal}
+            maxLength={6000}
+            disabled={busy}
+            onChange={(e) => update(e.target.value)}
+          />
+          <div className="flex justify-end px-3 pb-3">
+            <button
+              type="submit"
+              className="action-primary"
+              disabled={busy || !goal.trim()}
+            >
+              {busy ? (
+                <LoaderCircle
+                  className="h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              )}
+              {busy ? 'Getting started…' : 'Get it done'}
+            </button>
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          We’ll ask if anything needs clarification.
+        </p>
         {error && (
           <div
             role="alert"
