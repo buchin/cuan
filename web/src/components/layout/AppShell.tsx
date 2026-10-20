@@ -1,6 +1,6 @@
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useNotifications } from '../../context/NotificationsContext'
-import { Bell } from 'lucide-react'
+import { ArrowLeft, Bell } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
@@ -60,6 +60,7 @@ export function AppShell({
   const { t } = useLanguage()
 
   const routerNavigate = useNavigate()
+  const location = useLocation()
   const { items: notifications } = useNotifications()
   const unreadNotifications = notifications.filter((n) => !n.read).length
   const shell = useRef<HTMLDivElement>(null)
@@ -203,7 +204,29 @@ export function AppShell({
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            <CuanMark className="h-6 w-6 md:hidden" />
+            {currentTab === 'notifications' ? (
+              <button
+                type="button"
+                className="icon-action shrink-0"
+                aria-label={t('Back')}
+                onClick={() => {
+                  const from = location.state?.notificationReturnTo
+                  if (
+                    typeof from === 'string' &&
+                    from.startsWith('/') &&
+                    !from.startsWith('//') &&
+                    !from.split(/[?#]/)[0].startsWith('/notifications')
+                  ) {
+                    if (window.history.state?.idx > 0) routerNavigate(-1)
+                    else routerNavigate(from, { replace: true })
+                  } else routerNavigate('/studio', { replace: true })
+                }}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            ) : (
+              <CuanMark className="h-6 w-6 md:hidden" />
+            )}
             {breadcrumbs.length > 0 && (
               <nav
                 aria-label={t('Breadcrumbs')}
@@ -236,7 +259,14 @@ export function AppShell({
                 type="button"
                 className={cn('icon-action relative')}
                 aria-label={t('Notifications')}
-                onClick={() => routerNavigate('/notifications')}
+                onClick={() =>
+                  routerNavigate('/notifications', {
+                    state: {
+                      notificationReturnTo:
+                        location.pathname + location.search + location.hash,
+                    },
+                  })
+                }
               >
                 <Bell className="h-5 w-5" />
                 {unreadNotifications > 0 && (

@@ -128,6 +128,8 @@ export function NotificationsNavigation() {
         <Link
           key={item.id}
           to={item.to}
+          state={location.state}
+          replace
           aria-current={filter === item.id ? 'page' : undefined}
           className={
             'inline-flex min-h-11 items-center gap-2 border-b-2 px-1 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ' +

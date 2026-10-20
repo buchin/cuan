@@ -91,6 +91,8 @@
     }
   ],
   "indonesian": true,
+  "returnToOriginAfterFilterAndReload": true,
+  "directLinkFallback": true,
   "failedMarkReadPreservesUnread": true,
   "providerInvocations": 0,
   "errors": [],
