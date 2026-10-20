@@ -38,10 +38,11 @@ type workspaceBinding struct {
 	Branch    string `json:"branch"`
 }
 type taskProjectSnapshot struct {
-	ProjectID    string `json:"project_id"`
-	Revision     string `json:"workspace_revision"`
-	Goal         string `json:"goal,omitempty"`
-	Instructions string `json:"instructions,omitempty"`
+	IsolatedRepository bool   `json:"isolated_repository,omitempty"`
+	ProjectID          string `json:"project_id"`
+	Revision           string `json:"workspace_revision"`
+	Goal               string `json:"goal,omitempty"`
+	Instructions       string `json:"instructions,omitempty"`
 }
 
 func SettingsFromMetadata(raw json.RawMessage) Settings {
@@ -61,7 +62,7 @@ const snapshotMarker = "\n\nProject guidance snapshot (context only; does not ex
 // creation. Historical workspace paths never come from task text.
 func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 	settings := SettingsFromMetadata(p.Metadata)
-	raw, _ := json.Marshal(taskProjectSnapshot{ProjectID: p.ID, Revision: settings.WorkspaceRevision, Goal: settings.Goal, Instructions: settings.Instructions})
+	raw, _ := json.Marshal(taskProjectSnapshot{IsolatedRepository: true, ProjectID: p.ID, Revision: settings.WorkspaceRevision, Goal: settings.Goal, Instructions: settings.Instructions})
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
 }
 

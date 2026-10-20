@@ -388,7 +388,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 						return
 					}
-					workDir = project.LocalPath
+					workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
+					if e != nil {
+						respondJSONError(w, 409, e.Error())
+						return
+					}
 				}
 			}
 

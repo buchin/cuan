@@ -26,3 +26,18 @@ applies to the next operation without copying credentials into projects. This is
 not an OAuth login and does not automatically commit, push, merge, or deploy.
 Agent runtime push access and the complete Git delivery workflow need separate
 verification. GitHub is optional; projects without repositories remain supported.
+
+## Task workspaces
+
+New repository tasks carry an isolation flag in their frozen project context.
+Execution prepares a stable Git worktree and branch per task and repository
+workspace revision, from the locally fetched remote default branch. Resuming
+reuses that worktree and keeps pending edits. Changing the project connection
+continues to preserve the original repository binding.
+
+Tasks created before this change retain their original project directory; the
+upgrade does not move their pending work. Existing branch changes, missing task
+workspaces and repository mismatches stop preparation with an explicit error
+rather than recreating work silently. Worktrees and task branches are retained;
+there is no automatic cleanup or merge yet. This has local real-Git verification;
+provider-runtime compatibility and automatic Git delivery remain pending.
