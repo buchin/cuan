@@ -1,0 +1,46 @@
+{
+  "release": "0eb1aea1f7e619a6cc33ca3e6a5fef8879563613",
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "noOverflow": true,
+      "oauthSetupNeeded": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "noOverflow": true,
+      "oauthSetupNeeded": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "noOverflow": true,
+      "oauthSetupNeeded": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "noOverflow": true,
+      "oauthSetupNeeded": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "noOverflow": true,
+      "oauthSetupNeeded": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "noOverflow": true,
+      "oauthSetupNeeded": true
+    }
+  ],
+  "assetsMatch": true,
+  "advancedFallbackVisible": true,
+  "realOAuthNotConfigured": true,
+  "readOnly": true,
+  "providerCalls": 0
+}

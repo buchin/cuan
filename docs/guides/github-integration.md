@@ -1,5 +1,19 @@
 # GitHub connection
 
+## Current release status
+
+Release `0eb1aea` includes integration service cards, contextual task connection
+requirements, the task-bound push tool, scoped queued continuation and OAuth
+implementation. Desktop/mobile browser tests, deterministic process/real-Git
+continuation tests and production read-only/rollback/retention checks pass.
+
+This installation has no configured OAuth App, so ordinary GitHub authorization
+is not yet available; the UI reports Setup needed. The administrator setup below
+is required once. Advanced manual token connection remains available. No real
+provider inference or live GitHub write was used in verification. Historical
+implementation checkpoints below are superseded by this release status.
+
+
 Open Settings → Integrations → GitHub. Create a fine-grained access token on
 GitHub for the repositories Cuan should access, then connect it once. The token
 is validated against GitHub and stored encrypted in a private owner-scoped file.
