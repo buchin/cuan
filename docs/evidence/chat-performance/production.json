@@ -1,0 +1,32 @@
+{
+  "routes": [
+    {
+      "route": "/studio",
+      "loaded": true
+    },
+    {
+      "route": "/inbox",
+      "loaded": true
+    },
+    {
+      "route": "/contacts",
+      "loaded": true
+    },
+    {
+      "route": "/projects",
+      "loaded": true
+    },
+    {
+      "route": "/notifications",
+      "loaded": true
+    },
+    {
+      "route": "/settings",
+      "loaded": true
+    }
+  ],
+  "mobileSettings": true,
+  "pageErrors": [],
+  "nonLoginWrites": [],
+  "providerCalls": 0
+}
