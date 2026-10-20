@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-21",
+  "applicationRelease": "98f8811f2b5c7a504aae40e01b53ff8e3ea249ce",
+  "url": "https://cuan-goal-test-dojo-dojo.fural.space",
+  "service": "cuan-goal-test",
+  "linuxUser": "cuan-goal-test",
+  "database": "cuan_goal_test",
+  "schema": 25,
+  "ownerConfigured": true,
+  "connectedAgents": 0,
+  "nativeSandboxReady": true,
+  "officialCliInstalled": true,
+  "cpuQuotaPercent": 75,
+  "memoryHighMiB": 512,
+  "memoryMaxMiB": 768,
+  "dracinServicesActive": [
+    "dracin-worker",
+    "mysql",
+    "nginx",
+    "php8.3-fpm"
+  ],
+  "productionCredentialsCopied": false,
+  "providerCalls": 0,
+  "googleConsentPending": true
+}
