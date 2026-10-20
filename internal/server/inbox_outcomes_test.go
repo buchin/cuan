@@ -17,6 +17,7 @@ func TestInboxContextContainsSafePriorOutcomes(t *testing.T) {
 	prior := db.InboxRequest{RoomID: room.ID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: "owner", AgentID: "agent_sm", State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
 	store := s.projectStudioRepo.(db.InboxLifecycleRepository)
 	store.AcceptInboxRequest(ctx, prior, &db.ProjectMessage{ID: prior.MessageID, RoomID: room.ID, AuthorType: "user", Content: "Read my project", CreatedAt: now, UpdatedAt: now})
+	prior, _, _ = store.ClaimInboxRequest(ctx, room.ID, prior.RequestID)
 	store.AppendInboxStep(ctx, room.ID, prior.RequestID, "runtime_permission_denied", "Tool permission denied")
 	store.AppendInboxStep(ctx, room.ID, prior.RequestID, "runtime_session", "private-session-do-not-include")
 	prior.State = "failed"
