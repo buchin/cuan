@@ -18,3 +18,12 @@ See browser.json, browser-check.cjs and dark-360-read.png.
 Existing CSS/bundle warnings remain unchanged. Production delivery evidence is
 recorded after activation. No provider calls or production mark-read actions are
 part of verification.
+
+## Production delivery
+
+Live in0da59d4/schema25. All eight responsive/theme production checks pass with
+GET-only verification after login. Exact released asset hashes match the tested
+clean build. Actual rollback to9f37463 and reactivation pass. All37 retained
+application tables (auth sessions excluded),878 profile files and11 notification
+read flags plus non-feed preferences remain unchanged. No migration, task launch
+or provider inference was performed. See production.json and release.json.

@@ -1,0 +1,81 @@
+{
+  "release": "0da59d49f60d0ed89fc266f0389d5ad497c98a0d",
+  "schema": 25,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "fullTitle": true,
+      "filterRowAction": true,
+      "appropriateIconText": true,
+      "correctDisabledState": true,
+      "noOverflow": true
+    }
+  ],
+  "nonLoginWrites": [],
+  "markReadActions": 0,
+  "providerCalls": 0
+}
