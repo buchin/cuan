@@ -9,7 +9,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,7 +17,8 @@ import (
 )
 
 // Same model quota RPC used by the installed Antigravity CLI and Fural.
-// Reading usage never runs a model, refreshes credentials, or changes login state.
+// Reading usage never runs a model. Expired OAuth access tokens are refreshed
+// atomically under the same exclusive lease used by execution.
 var modelUsageClient = &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 var modelUsageHosts = []string{"https://daily-cloudcode-pa.googleapis.com", "https://cloudcode-pa.googleapis.com"}
 var modelIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$`)
@@ -51,26 +51,11 @@ func FetchAccountModelUsage(ctx context.Context, owner, id string) AccountModelU
 	if err != nil || a.Legacy || !a.CredentialsPresent {
 		return result
 	}
-	home, err := ProviderAccountHome(owner, id)
+	usageCtx, cancelUsage := context.WithTimeout(ctx, 8*time.Second)
+	defer cancelUsage()
+	token, err := accountUsageAccessToken(usageCtx, owner, id, false)
 	if err != nil {
-		return result
-	}
-	token := ""
-	for _, file := range []string{AntigravityCredentialsFilePath(home), AntigravityLegacyCredentialsFilePath(home)} {
-		raw, err := os.ReadFile(file)
-		if err != nil {
-			continue
-		}
-		var v map[string]any
-		if json.Unmarshal(raw, &v) != nil {
-			continue
-		}
-		token = usageAccessToken(v)
-		if token != "" {
-			break
-		}
-	}
-	if token == "" {
+		result.Message = "Account usage could not be checked. Token refresh may be pending or require attention."
 		return result
 	}
 	hash := sha256.Sum256([]byte(token))
@@ -81,7 +66,7 @@ func FetchAccountModelUsage(ctx context.Context, owner, id string) AccountModelU
 	if ok && time.Since(cached.at) < 30*time.Second {
 		return cached.data
 	}
-	requestCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	requestCtx, cancel := context.WithTimeout(usageCtx, 3*time.Second)
 	defer cancel()
 	for _, host := range modelUsageHosts {
 		req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, host+"/v1internal:fetchAvailableModels", bytes.NewBufferString(`{}`))
@@ -97,7 +82,35 @@ func FetchAccountModelUsage(ctx context.Context, owner, id string) AccountModelU
 		}
 		raw, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 		response.Body.Close()
-		if response.StatusCode == 401 || response.StatusCode == 403 {
+		if response.StatusCode == 401 {
+			fresh, refreshErr := accountUsageAccessToken(usageCtx, owner, id, true)
+			if refreshErr != nil || fresh == token {
+				break
+			}
+			token = fresh
+			retryReq, err := http.NewRequestWithContext(usageCtx, http.MethodPost, host+"/v1internal:fetchAvailableModels", bytes.NewBufferString(`{}`))
+			if err != nil {
+				break
+			}
+			retryReq.Header = req.Header.Clone()
+			retryReq.Header.Set("Authorization", "Bearer "+token)
+			retry, err := modelUsageClient.Do(retryReq)
+			if err != nil {
+				break
+			}
+			raw, err = io.ReadAll(io.LimitReader(retry.Body, 1<<20))
+			retry.Body.Close()
+			if err != nil || retry.StatusCode != 200 {
+				break
+			}
+			result.Models = parseAccountModelUsage(raw)
+			if len(result.Models) > 0 {
+				result.Available = true
+				result.Message = ""
+			}
+			break
+		}
+		if response.StatusCode == 403 {
 			break
 		}
 		if err != nil || response.StatusCode != 200 {

@@ -93,6 +93,8 @@ func isInboxQuotaFailure(failure string) bool {
 
 // Shared preflight for new Inbox turns and task launches; no process is started here.
 func (s *Server) providerRoutes(ctx context.Context, owner string, registered *db.Agent, home string, limited bool) []inboxAccountRoute {
+	probeCtx, cancelProbes := context.WithTimeout(ctx, 8*time.Second)
+	defer cancelProbes()
 	primary, _ := agent.ProviderAccountForConnection(owner, registered.ID, registered.ConnectionID)
 	profiles, err := agent.ListProviderAccounts(owner)
 	if err != nil {
@@ -107,7 +109,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		}
 		usage := agent.AccountModelUsage{}
 		if profile != nil {
-			usage = fetchInboxModelUsage(ctx, owner, profile.ID)
+			usage = fetchInboxModelUsage(probeCtx, owner, profile.ID)
 		}
 		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited")
 		addModel := func(id string, remaining float64) {

@@ -306,10 +306,7 @@ func TestTaskProviderPreflightChoosesBackupWithoutChangingAgent(t *testing.T) {
 	}
 	for end := time.Now().Add(2 * time.Second); ; {
 		raw, err := os.ReadFile(filepath.Join(home, "task-argv"))
-		if err == nil {
-			if !strings.Contains(string(raw), "--model\nclaude-sonnet-test") {
-				t.Fatal("model argument not passed", string(raw))
-			}
+		if err == nil && strings.Contains(string(raw), "--model\nclaude-sonnet-test") {
 			break
 		}
 		if time.Now().After(end) {
