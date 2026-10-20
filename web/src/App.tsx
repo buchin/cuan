@@ -534,7 +534,7 @@ export function App() {
     : settingsDetail
       ? pathSegments[2] === 'live-chat'
         ? 'Live Chat'
-        : settingTitles[subParam]
+        : pathSegments[2] === 'github' ? 'GitHub' : settingTitles[subParam]
       : undefined
   const headerBreadcrumbs = projectDetail
     ? [
@@ -551,7 +551,7 @@ export function App() {
     : settingsDetail
       ? [
           { label: 'Settings', to: '/settings' },
-          ...(pathSegments[2] === 'live-chat'
+          ...(['live-chat', 'github'].includes(pathSegments[2])
             ? [{ label: 'Integrations', to: '/settings/integrations' }]
             : []),
         ]

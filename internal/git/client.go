@@ -3,6 +3,7 @@ package git
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,7 +54,6 @@ func NewClient() *Client {
 func (c *Client) SetAPIBaseURL(url string) {
 	c.apiBaseURL = strings.TrimRight(url, "/")
 }
-
 
 // ParseGitHubURL parses various URL formats (HTTPS, github.com shorthand, owner/repo)
 // and extracts the owner and repo name.
@@ -154,7 +154,6 @@ func (c *Client) ValidateRepository(ctx context.Context, repoInput, token string
 			}
 			return nil, ErrRepoNotFound
 		}
-
 
 		if resp.StatusCode == http.StatusOK {
 			var ghResp struct {
@@ -283,12 +282,30 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 		secretsToMask = append(secretsToMask, token, "x-access-token:"+token)
 	}
 
-	authURL := BuildAuthURL(owner, repo, token)
+	repoURL := BuildAuthURL(owner, repo, "")
+	// Authentication is scoped to this child process, never persisted in .git/config.
+	authenticate := func(cmd *exec.Cmd) {
+		environment := []string{}
+		for _, value := range os.Environ() {
+			if !strings.HasPrefix(value, "GIT_CONFIG_") {
+				environment = append(environment, value)
+			}
+		}
+		environment = append(environment, "GIT_TERMINAL_PROMPT=0")
+		if token != "" {
+			environment = append(environment, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.https://github.com/.extraheader", "GIT_CONFIG_VALUE_0=Authorization: Basic "+base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token)))
+		}
+		cmd.Env = environment
+	}
 
 	gitDir := filepath.Join(targetDir, ".git")
 	if fi, err := os.Stat(gitDir); err == nil && fi.IsDir() {
-		// Existing clone -> fetch updates
-		cmd := exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "fetch", "--all", "--prune")
+		// Remove credentials left by older clones and fetch only the intended remote.
+		if exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "remote", "set-url", "origin", repoURL).Run() != nil {
+			return errors.New("Could not update repository remote")
+		}
+		cmd := exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "fetch", "origin", "--prune")
+		authenticate(cmd)
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		if err := cmd.Run(); err != nil {
@@ -303,7 +320,8 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 		return fmt.Errorf("create parent directory: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", authURL, targetDir)
+	cmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", repoURL, targetDir)
+	authenticate(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 

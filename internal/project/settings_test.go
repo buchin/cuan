@@ -110,7 +110,7 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 	run("-C", fixture, "commit", "-m", "Create disposable repository fixture")
 	// Only clone is redirected to the local fixture. All git operations are real.
 	tools := t.TempDir()
-	wrapper := "#!/usr/bin/env python3\nimport os,sys\na=sys.argv[1:]\nif a[0]=='clone': a=['clone','--quiet'," + strconvQuote(fixture) + ",a[-1]]\nos.execv(" + strconvQuote(actualGit) + ",['git']+a)\n"
+	wrapper := "#!/usr/bin/env python3\nimport os,sys\na=sys.argv[1:]\nassert not any('shared-fixture' in value for value in a)\nif a[0]=='clone': assert os.environ.get('GIT_CONFIG_KEY_0')=='http.https://github.com/.extraheader'\nif a[0]=='clone': a=['clone','--quiet'," + strconvQuote(fixture) + ",a[-1]]\nos.execv(" + strconvQuote(actualGit) + ",['git']+a)\n"
 	os.WriteFile(filepath.Join(tools, "git"), []byte(wrapper), 0700)
 	t.Setenv("PATH", tools+":"+os.Getenv("PATH"))
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
