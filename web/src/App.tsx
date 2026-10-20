@@ -620,6 +620,7 @@ export function App() {
                   ),
               }
         }
+        contentHeader={projectDetail && !projectSettings && !!headerProject}
         projectWorkspace={currentTab === 'projects' && !projectSettings}
         sessionWorkspace={sessionRoute}
         hideBottomNav={
@@ -764,6 +765,7 @@ export function App() {
               <ProjectsWorkspace
                 projects={projects}
                 onArchiveProject={handleArchiveProject}
+                onNewTask={() => openNew('task')}
                 project={activeProject}
                 tasks={tasks}
                 taskId={

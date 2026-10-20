@@ -1,0 +1,64 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "preservesCurrentPage": true,
+      "placementCorrect": true,
+      "directMarkAllRead": true,
+      "escapeRestoresFocus": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "preservesCurrentPage": true,
+      "placementCorrect": true,
+      "directMarkAllRead": true,
+      "escapeRestoresFocus": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "preservesCurrentPage": true,
+      "placementCorrect": true,
+      "directMarkAllRead": true,
+      "escapeRestoresFocus": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "preservesCurrentPage": true,
+      "placementCorrect": true,
+      "directMarkAllRead": true,
+      "escapeRestoresFocus": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "preservesCurrentPage": true,
+      "placementCorrect": true,
+      "directMarkAllRead": true,
+      "escapeRestoresFocus": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "preservesCurrentPage": true,
+      "placementCorrect": true,
+      "directMarkAllRead": true,
+      "escapeRestoresFocus": true,
+      "noOverflow": true
+    }
+  ],
+  "markFailureRetainsUnread": true,
+  "markSuccessUpdatesBadge": true,
+  "readFailureDoesNotBlockNavigation": true,
+  "viewAllReturnsToOrigin": true,
+  "indonesianLabels": true,
+  "providerCalls": 0
+}

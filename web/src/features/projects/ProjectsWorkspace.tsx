@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Settings, Archive } from 'lucide-react'
+import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
+import { tasksForProject, workStatus } from '../tasks/task-ui'
 import { ProjectWorkView } from './ProjectWorkView'
 
 export function ProjectsWorkspace({
@@ -15,6 +16,7 @@ export function ProjectsWorkspace({
   error,
   onRetry,
   onArchiveProject,
+  onNewTask,
 }: {
   projects: Project[]
   project?: Project
@@ -25,6 +27,7 @@ export function ProjectsWorkspace({
   error: string
   onRetry: () => void
   onArchiveProject?: (id: string, archived: boolean) => Promise<void>
+  onNewTask?: () => void
 }) {
   const { t } = useLanguage()
   const [query, setQuery] = useState('')
@@ -40,6 +43,10 @@ export function ProjectsWorkspace({
       !!item.is_archived === archived &&
       item.name.toLowerCase().includes(query.toLowerCase().trim()),
   )
+  const summaries = useMemo(() => new Map(projects.map((item) => {
+    const work = tasksForProject(tasks, item.id)
+    return [item.id, { count: work.length, attention: work.filter((task) => workStatus(task) === 'Needs attention').length }]
+  })), [projects, tasks])
   async function archive() {
     if (!project || !onArchiveProject || busy) return
     if (
@@ -106,20 +113,13 @@ export function ProjectsWorkspace({
               className={`flex min-h-16 items-center gap-3 rounded-md p-3 hover:bg-accent ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
               <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {item.name}
-              </span>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {
-                  tasks.filter(
-                    (task) =>
-                      task.project_id === item.id ||
-                      task.project_ids?.includes(item.id) ||
-                      (item.id === 'default' &&
-                        !task.project_id &&
-                        !task.project_ids?.length),
-                  ).length
-                }
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{item.name}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {(summaries.get(item.id)?.count || 0)} {t((summaries.get(item.id)?.count || 0) === 1 ? 'task' : 'tasks')}
+                  {!!summaries.get(item.id)?.attention &&
+                    <span className="ml-2 text-destructive">· {summaries.get(item.id)?.attention} {t('needs attention')}</span>}
+                </span>
               </span>
             </Link>
           ))}
@@ -154,7 +154,7 @@ export function ProjectsWorkspace({
       >
         {project ? (
           <>
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2 sm:px-5">
+            {!taskId && <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2 sm:px-5">
               <div className="flex min-w-0 items-center gap-2">
                 <Link
                   to="/projects"
@@ -173,29 +173,16 @@ export function ProjectsWorkspace({
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {onArchiveProject && (
-                  <button
-                    className="icon-action"
-                    disabled={busy}
-                    aria-label={t(
-                      project.is_archived
-                        ? 'Restore project'
-                        : 'Archive project',
-                    )}
-                    onClick={() => void archive()}
-                  >
-                    <Archive className="h-4 w-4" />
-                  </button>
-                )}
-                <Link
-                  className="icon-action"
-                  aria-label={t('Project settings')}
-                  to={`/projects/${encodeURIComponent(project.id)}/settings`}
-                >
-                  <Settings className="h-4 w-4" />
-                </Link>
+                {onNewTask && !project.is_archived && <button className="action-primary min-h-11 gap-1.5 px-3 text-sm" onClick={onNewTask}><Plus className="h-4 w-4" />{t('New task')}</button>}
+                <details className="relative">
+                  <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
+                  <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
+                    <Link className="flex min-h-11 items-center gap-2 rounded-md px-3 text-sm hover:bg-accent" to={`/projects/${encodeURIComponent(project.id)}/settings`}><Settings className="h-4 w-4" />{t('Project settings')}</Link>
+                    {onArchiveProject && <button className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent" disabled={busy} onClick={() => void archive()}><Archive className="h-4 w-4" />{t(project.is_archived ? 'Restore project' : 'Archive project')}</button>}
+                  </div>
+                </details>
               </div>
-            </div>
+            </div>}
             {saveError && (
               <p role="alert" className="p-3 text-sm text-destructive">
                 {t(saveError)}

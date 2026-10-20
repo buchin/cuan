@@ -456,5 +456,14 @@
   "Cuan is trying again": "Cuan sedang mencoba lagi",
   "Your message is saved. Cuan is continuing this reply automatically.": "Pesan Anda tersimpan. Cuan melanjutkan balasan ini secara otomatis.",
   "A newer reply attempt is available in this conversation.": "Ada upaya balasan terbaru di percakapan ini.",
-  "No action needed": "Tidak perlu tindakan"
+  "No action needed": "Tidak perlu tindakan",
+  "Working": "Sedang dikerjakan",
+  "Waiting to start": "Menunggu mulai",
+  "Not started": "Belum dimulai",
+  "Ready for review": "Siap ditinjau",
+  "Project actions": "Tindakan project",
+  "needs attention": "perlu perhatian",
+  "Message the agent…": "Kirim pesan ke agen…",
+  "Close notifications": "Tutup notifikasi",
+  "View all notifications": "Lihat semua notifikasi"
 }

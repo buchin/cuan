@@ -16,7 +16,7 @@ export function CreateAction({ label, onClick, kind, id }: CreateActionProps) {
       ? SquarePen
       : kind === 'contacts'
         ? UserPlus
-        : kind === 'projects'
+        : kind === 'projects' && label === 'New project'
           ? FolderPlus
           : Plus
   return (

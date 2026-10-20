@@ -26,3 +26,6 @@
 .chat-markdown hr { margin: 1em 0; border-color: oklch(var(--border)); }
 .chat-markdown .contains-task-list { list-style: none; padding-left: .25em; }
 .chat-markdown input[type=checkbox] { margin-right: .5em; }
+
+/* Task results share one page scroll; keep reading size distinct from chat input. */
+.task-result-content .chat-markdown { font-size: .875rem; line-height: 1.65; }

@@ -142,3 +142,14 @@ The persistent project checkout was updated by fast-forward only.
 ## Work inside projects
 
 Project work lives at `/projects/PROJECT_ID/tasks`, with a320px work sidebar and detail/session panel on desktops. Tablet and phone show one panel at a time. Old `/projects/PROJECT_ID` links redirect there. Tasks are available as an advanced cross-project Work monitor from the account menu, rather than a main-navigation item. Inbox topic work cards link directly into the corresponding project.
+
+## Project work and shareable task sessions
+
+A project's task list has a contextual **New task** action; its project is already
+selected in the form. **Project actions** contains settings and archive/restore.
+Task rows show status and latest update. A session opens its result first when
+finished; expand **Your request** or **Verification** for context. **Detail** holds
+terminal/session history and technical information. **Copy link** in that panel
+copies an address that reopens the same task/session and Detail panel; recipients
+still need workspace access. The single back action returns to the task list or
+originating conversation. Running sessions retain their live terminal.

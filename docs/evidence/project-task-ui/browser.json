@@ -1,0 +1,74 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "oneContextHeader": true,
+      "resultFirst": true,
+      "requestCollapsedWithoutNestedScroll": true,
+      "statusConsistent": true,
+      "contextualCreation": true,
+      "shareableDetailSurvivesReload": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "oneContextHeader": true,
+      "resultFirst": true,
+      "requestCollapsedWithoutNestedScroll": true,
+      "statusConsistent": true,
+      "contextualCreation": true,
+      "shareableDetailSurvivesReload": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "oneContextHeader": true,
+      "resultFirst": true,
+      "requestCollapsedWithoutNestedScroll": true,
+      "statusConsistent": true,
+      "contextualCreation": true,
+      "shareableDetailSurvivesReload": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "oneContextHeader": true,
+      "resultFirst": true,
+      "requestCollapsedWithoutNestedScroll": true,
+      "statusConsistent": true,
+      "contextualCreation": true,
+      "shareableDetailSurvivesReload": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "oneContextHeader": true,
+      "resultFirst": true,
+      "requestCollapsedWithoutNestedScroll": true,
+      "statusConsistent": true,
+      "contextualCreation": true,
+      "shareableDetailSurvivesReload": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "oneContextHeader": true,
+      "resultFirst": true,
+      "requestCollapsedWithoutNestedScroll": true,
+      "statusConsistent": true,
+      "contextualCreation": true,
+      "shareableDetailSurvivesReload": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "activeTerminalPreserved": true,
+  "completionRefreshAutomatic": true,
+  "noTaskLaunches": true,
+  "providerCalls": 0
+}

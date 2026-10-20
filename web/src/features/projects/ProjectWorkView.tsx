@@ -1,10 +1,11 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Search, ChevronLeft } from 'lucide-react'
+import { Search } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
+import { relativeTime, tasksForProject, workStatus } from '../tasks/task-ui'
 
 export function ProjectWorkView({
   project,
@@ -27,12 +28,7 @@ export function ProjectWorkView({
   const [query, setQuery] = useState('')
   const location = useLocation()
   const base = '/projects/' + encodeURIComponent(project.id) + '/tasks'
-  const scoped = tasks.filter(
-    (t) =>
-      t.project_id === project.id ||
-      t.project_ids?.includes(project.id) ||
-      (project.id === 'default' && !t.project_id && !t.project_ids?.length),
-  )
+  const scoped = tasksForProject(tasks, project.id)
   const visible = scoped.filter((t) =>
     [t.title, t.status].join(' ').toLowerCase().includes(query.toLowerCase()),
   )
@@ -40,13 +36,6 @@ export function ProjectWorkView({
   if (taskId)
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <Link
-          to={base}
-          className="flex min-h-11 shrink-0 items-center gap-2 border-b px-4 text-xs text-muted-foreground hover:bg-muted"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          {t('Back to tasks')}
-        </Link>
         <div className="min-h-0 flex-1">
           {selected ? (
             sessionId === 'start' ? (
@@ -115,23 +104,15 @@ export function ProjectWorkView({
               key={item.id}
               to={base + '/' + encodeURIComponent(item.id)}
               state={{ ...location.state, taskReturnTo: base }}
-              className="flex min-h-16 items-center justify-between gap-4 border-b px-2 py-3 hover:bg-muted"
+              className="flex min-h-16 items-center gap-3 border-b px-2 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring hover:bg-muted"
             >
-              <span className="min-w-0 break-words text-sm font-medium">
-                {item.title}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {t(
-                  item.status === 'doing'
-                    ? 'In progress'
-                    : item.status === 'done'
-                      ? 'Completed'
-                      : item.status === 'blocked'
-                        ? 'Needs attention'
-                        : item.status === 'review'
-                          ? 'Result ready'
-                          : 'Ready',
-                )}
+              <span className="min-w-0 flex-1">
+                <span className="line-clamp-2 break-words text-sm font-medium leading-5">{item.title}</span>
+                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span className={workStatus(item) === 'Needs attention' ? 'text-destructive' : workStatus(item) === 'Working' ? 'text-primary' : ''}>{t(workStatus(item))}</span>
+                  <span aria-hidden="true">·</span>
+                  <time dateTime={item.updated_at} title={new Date(item.updated_at).toLocaleString()}>{t(relativeTime(item.updated_at))}</time>
+                </span>
               </span>
             </Link>
           ))

@@ -1,6 +1,6 @@
 import { workspacePath } from './workspacePath'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Info, Square, Send } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -8,7 +8,7 @@ import { TaskReadyPage } from './TaskReadyPage'
 import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
-import { attemptLabel, taskRef } from './task-ui'
+import { attemptLabel, taskRef, workStatus } from './task-ui'
 
 export function TaskSessionPage({
   taskId,
@@ -23,7 +23,7 @@ export function TaskSessionPage({
     [live, setLive] = useState<LiveTaskSession | null>(null),
     [error, setError] = useState(''),
     [runtimeError, setRuntimeError] = useState(''),
-    [showDetail, setShowDetail] = useState(false),
+    [shareState, setShareState] = useState<'idle' | 'copied' | 'failed'>('idle'),
     [terminalControls, setTerminalControls] = useState<HTMLDivElement | null>(
       null,
     ),
@@ -33,6 +33,15 @@ export function TaskSessionPage({
     [showTerminal, setShowTerminal] = useState(false),
     [accept, setAccept] = useState(false),
     [acceptNote, setAcceptNote] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const showDetail = searchParams.get('panel') === 'detail'
+  const setShowDetail = (open: boolean) => {
+    setShareState('idle')
+    const next = new URLSearchParams(searchParams)
+    if (open) next.set('panel', 'detail')
+    else next.delete('panel')
+    setSearchParams(next, { replace: true, state: location.state })
+  }
   const following = useRef(false)
   const refresh = useCallback(async () => {
     try {
@@ -100,7 +109,7 @@ export function TaskSessionPage({
 
   const reports =
     detail?.activities.filter(
-      (a) => a.attempt_id === sessionId && a.activity_type === 'agent_report',
+      (a) => a.attempt_id === attempt?.id && a.activity_type === 'agent_report',
     ) || []
   if (!detail)
     return (
@@ -190,23 +199,11 @@ export function TaskSessionPage({
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold" title={detail.title}>
+          <h2 className="line-clamp-2 break-words text-sm font-semibold leading-5" title={detail.title}>
             {detail.title}
           </h2>
           <p className="truncate text-xs text-muted-foreground">
-            {!latest
-              ? attemptLabel(attempt)
-              : active
-                ? attemptLabel(attempt)
-                : detail.status === 'done'
-                  ? 'Completed'
-                  : answer
-                    ? 'Answered'
-                    : detail.status === 'blocked'
-                      ? 'Needs attention'
-                      : 'Ready for review'}{' '}
-            · <span className="hidden sm:inline">Session </span>
-            {attempt.attempt_number}
+            {!latest ? attemptLabel(attempt) : workStatus(detail)}
           </p>
         </div>
         <div ref={setTerminalControls} className="flex shrink-0 items-center" />
@@ -266,21 +263,13 @@ export function TaskSessionPage({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
-            <section aria-label="Original request">
-              <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-                Your request
-              </h3>
-              <div className="max-h-40 overflow-y-auto">
-                <ChatMarkdown content={detail.description || detail.title} />
-              </div>
-            </section>
+          <div className="task-result-content mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
             <section aria-label="Session result">
               <h3 className="mb-2 text-sm font-semibold">
                 {answer ? 'Answer' : 'Result'}
               </h3>
               {result ? (
-                <ChatMarkdown content={result} />
+                <div className="rounded-xl rounded-tl-sm border bg-muted/20 p-3 sm:p-4"><ChatMarkdown content={result} /></div>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No result was recorded for this session. Open the terminal or
@@ -323,6 +312,14 @@ export function TaskSessionPage({
                 </button>
               )}
             </div>
+            {latest && detail.complete_note && detail.complete_note !== result && <details className="rounded-lg border px-3 py-2">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Verification</summary>
+              <div className="pb-2 pt-1"><ChatMarkdown content={detail.complete_note} /></div>
+            </details>}
+            <details className="rounded-lg border px-3 py-2">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Your request</summary>
+              <div className="pb-2 pt-1"><ChatMarkdown content={detail.description || detail.title} /></div>
+            </details>
             {!latest && (
               <p className="text-xs text-muted-foreground">
                 Earlier session · select the latest session in Detail to
@@ -377,11 +374,11 @@ export function TaskSessionPage({
                 aria-label="Follow-up instructions"
                 rows={1}
                 maxLength={24000}
-                className="field-control max-h-32 resize-y text-base md:text-sm"
+                className="field-control min-h-11 max-h-32 resize-none text-base leading-5 md:text-sm"
                 placeholder={
                   answer
                     ? 'Reply to the agent…'
-                    : 'What should change or happen next?'
+                    : 'Message the agent…'
                 }
                 value={followup}
                 onChange={(e) => setFollowup(e.target.value)}
@@ -422,14 +419,18 @@ export function TaskSessionPage({
           >
             Open terminal
           </button>
+          <button className="action-secondary" onClick={async () => {
+            try { await navigator.clipboard.writeText(window.location.href); setShareState('copied') }
+            catch { setShareState('failed') }
+          }}>Copy link</button>
+          {shareState !== 'idle' && <p role="status" className="text-xs text-muted-foreground">{shareState === 'copied' ? 'Link copied. Access to this workspace is still required.' : 'Could not copy the link. Copy it from your browser’s address bar.'}</p>}
           <label className="block text-xs text-muted-foreground">
-            Session
+            Session {attempt.attempt_number}
             <select
               aria-label="Select session"
               className="field-control mt-1 text-sm"
               value={sessionId}
               onChange={(e) => {
-                setShowDetail(false)
                 navigate(
                   basePath +
                     '/sessions/' +

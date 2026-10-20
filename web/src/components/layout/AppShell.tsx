@@ -1,7 +1,7 @@
 import { UniversalSearch } from './UniversalSearch'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useNotifications } from '../../context/NotificationsContext'
-import { ArrowLeft, Bell } from 'lucide-react'
+import { NotificationsPopover } from '../../features/notifications/NotificationsPopover'
+import { ArrowLeft } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
@@ -29,6 +29,7 @@ interface AppShellProps {
   hideBottomNav?: boolean
   sessionWorkspace?: boolean
   projectWorkspace?: boolean
+  contentHeader?: boolean
   inboxSubPanel?: React.ReactNode
   inboxUnread?: number
   pageTitleIsContent?: boolean
@@ -52,6 +53,7 @@ export function AppShell({
   hideBottomNav = false,
   sessionWorkspace = false,
   projectWorkspace = false,
+  contentHeader = false,
   inboxSubPanel,
   inboxUnread = 0,
   pageTitleIsContent = false,
@@ -62,8 +64,6 @@ export function AppShell({
 
   const routerNavigate = useNavigate()
   const location = useLocation()
-  const { items: notifications } = useNotifications()
-  const unreadNotifications = notifications.filter((n) => !n.read && !n.resolved).length
   const shell = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -207,7 +207,7 @@ export function AppShell({
           className={cn(
             'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
             'app-page-header h-14 md:h-16',
-            sessionWorkspace ? 'hidden' : hideBottomNav && 'hidden md:flex',
+            sessionWorkspace || contentHeader ? 'hidden' : hideBottomNav && 'hidden md:flex',
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
@@ -268,31 +268,7 @@ export function AppShell({
           <div className="flex shrink-0 items-center gap-1">
             <UniversalSearch />
             {headerActions}
-            {currentTab !== 'notifications' && (
-              <button
-                type="button"
-                className={cn('icon-action relative')}
-                aria-label={t('Notifications')}
-                onClick={() =>
-                  routerNavigate('/notifications', {
-                    state: {
-                      notificationReturnTo:
-                        location.pathname + location.search + location.hash,
-                    },
-                  })
-                }
-              >
-                <Bell className="h-5 w-5" />
-                {unreadNotifications > 0 && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute right-0 top-0 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground"
-                  >
-                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                  </span>
-                )}
-              </button>
-            )}
+            {currentTab !== 'notifications' && <NotificationsPopover />}
             {currentTab === 'inbox' && (
               <button
                 className="icon-action hidden min-[1200px]:inline-flex"

@@ -2,10 +2,11 @@ import { InstallNudge } from '../settings/InstallNudge'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Bell, CheckCheck, MoreHorizontal, Settings, ArrowUpRight, CircleAlert, CircleCheck, ClipboardCheck, MessageCircle } from 'lucide-react'
+import type { AppNotification } from '../../context/NotificationsContext'
 import { useNotifications } from '../../context/NotificationsContext'
 import { useLanguage } from '../../context/LanguageContext'
 export function NotificationsView() {
-  const { items, loading, error, refresh, markRead } = useNotifications(),
+  const { items, loading, error, refresh } = useNotifications(),
     { t, language } = useLanguage()
   const location = useLocation()
   const filter = new URLSearchParams(location.search).get('filter') === 'unread' ? 'unread' : 'all'
@@ -45,8 +46,18 @@ export function NotificationsView() {
         <section key={group.label} aria-label={t(group.label)}>
           <h2 className="mb-2 px-2 text-xs font-medium text-muted-foreground">{t(group.label)}</h2>
           <ul className="divide-y divide-border/60">
-            {group.items.map(item => {
-              const unread = !item.read && !item.resolved
+            {group.items.map(item => <NotificationRow key={item.id} item={item} timeLabel={timeLabel(item.created_at)} absoluteLabel={Number.isFinite(Date.parse(item.created_at)) ? absolute.format(new Date(item.created_at)) : undefined} />)}
+          </ul>
+        </section>
+      ))}
+    </section>
+  )
+}
+
+
+export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNotification; timeLabel: string; absoluteLabel?: string}) {
+  const {markRead} = useNotifications(), {t} = useLanguage()
+  const unread = !item.read && !item.resolved
               const Icon = item.resolved || item.kind === 'completed' ? CircleCheck : item.kind === 'approval' ? ClipboardCheck : item.kind === 'customer' ? MessageCircle : CircleAlert
               const status = item.status || ({approval:'Needs approval',blocker:'Needs attention',completed:'Completed',customer:'Customer message'}[item.kind])
               const action = item.action_label || (item.href.startsWith('/inbox/') ? 'Open conversation' : 'View work')
@@ -57,7 +68,7 @@ export function NotificationsView() {
                   <span className="min-w-0 flex-1">
                     <span className="flex min-h-4 items-center gap-2 text-xs text-muted-foreground">
                       <span className="min-w-0 flex-1 truncate">{item.context && item.context !== item.title ? item.context : t(item.kind === 'customer' ? 'Live chat' : item.href.startsWith('/inbox/') ? 'Conversation' : 'Project work')}</span>
-                      <time className="shrink-0 whitespace-nowrap tabular-nums" dateTime={item.created_at} title={Number.isFinite(Date.parse(item.created_at)) ? absolute.format(new Date(item.created_at)) : undefined}>{timeLabel(item.created_at)}</time>
+                      <time className="shrink-0 whitespace-nowrap tabular-nums" dateTime={item.created_at} title={absoluteLabel}>{timeLabel}</time>
                       <span aria-label={item.resolved ? t('No action needed') : item.read ? t('Read') : t('Unread')} className={'h-1.5 w-1.5 shrink-0 rounded-full '+(unread ? 'bg-primary' : 'bg-transparent')} />
                     </span>
                     <span title={item.title} className={'mt-1 line-clamp-2 break-words text-sm leading-5 '+(unread ? 'font-semibold' : 'font-medium')}>{t(item.title)}</span>
@@ -69,12 +80,6 @@ export function NotificationsView() {
                   </span>
                 </Link>
               </li>
-            })}
-          </ul>
-        </section>
-      ))}
-    </section>
-  )
 }
 
 export function NotificationsNavigation() {
@@ -146,7 +151,7 @@ export function NotificationsActions() {
   return (
     <div
       ref={root}
-      className="relative"
+      className="relative flex items-center gap-1"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault()
@@ -183,6 +188,27 @@ export function NotificationsActions() {
         }
       }}
     >
+          <button
+            type="button"
+            disabled={busy || !items.some((item) => !item.read && !item.resolved)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-xs font-medium text-primary hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+            onClick={async () => {
+              if (busy) return
+              setBusy(true)
+              setError('')
+              try {
+                await markRead()
+                close()
+              } catch {
+                setError('Could not mark notifications as read. Try again.')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            <CheckCheck className="h-4 w-4 shrink-0" />
+            {t('Mark all as read')}
+          </button>
       <button
         type="button"
         ref={trigger}
@@ -203,29 +229,6 @@ export function NotificationsActions() {
           aria-label={t('Notification actions')}
           className="absolute right-0 top-full z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg"
         >
-          <button
-            type="button"
-            role="menuitem"
-            tabIndex={-1}
-            disabled={busy || !items.some((item) => !item.read && !item.resolved)}
-            className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-50"
-            onClick={async () => {
-              if (busy) return
-              setBusy(true)
-              setError('')
-              try {
-                await markRead()
-                close()
-              } catch {
-                setError('Could not mark notifications as read. Try again.')
-              } finally {
-                setBusy(false)
-              }
-            }}
-          >
-            <CheckCheck className="h-4 w-4 shrink-0" />
-            {t('Mark all as read')}
-          </button>
           <button
             type="button"
             role="menuitem"

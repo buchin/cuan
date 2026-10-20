@@ -19,3 +19,12 @@ actions remain in the relevant conversation.
 The top-right menu offers **Mark all as read** and **Notification settings**.
 Settings controls categories, quiet hours and browser push. Push text on a locked
 device is generic; project and conversation context is shown inside Cuan.
+
+## Quick view
+
+Select the bell to preview recent notifications without leaving the current page.
+The panel sits near the bell on desktop and opens from the bottom on mobile.
+Use **Mark all as read** directly in its header, or **View all notifications** for
+the full page. Escape, the close button or clicking outside dismisses the panel.
+The full page also exposes **Mark all as read** directly. If saving read state
+fails, retry; opening the related conversation or task still works.
