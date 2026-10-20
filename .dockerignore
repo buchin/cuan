@@ -1,0 +1,15 @@
+.git
+**/node_modules
+web/dist
+bin
+data
+backups
+tmp
+.env
+.env.*
+!.env.example
+*.test
+*.dump
+*.bundle
+*.log
+**/__pycache__

@@ -47,3 +47,14 @@ Network egress and a native provider-session resume are separate implementation
 choices; neither should be advertised as already delivered. The acceptance
 invariants remain context preservation, verified process ownership, approved
 scope, no duplicated work, and a useful final result.
+
+## Fresh-install documentation checkpoint
+
+Public onboarding, usage, message lifecycle and troubleshooting now describe the
+current Studio/Inbox workflow, optional choices, durable launch waiting, persistent
+HOME/data and native sandbox prerequisites in English. Seven isolated installer
+contracts pass (see `docs/evidence/install-readiness/README.md`). Docker runtime
+validation remains open: this environment lacks Compose and a reachable daemon;
+no image build or container recreation has been established by these checks.
+The complete goal remains open until fresh-install execution prerequisites are
+verified on a supported host.

@@ -1,108 +1,115 @@
-# Onboarding & Self-Hosting Guide for Cuan
+# Install and start using Cuan
 
-Selamat datang di **Cuan** — platform manajemen proyek agentic mandiri (*self-hosted*) untuk developer dan tim kecil yang memadukan coding agent langsung ke repositori Git Anda.
+Cuan is a self-hosted, single-owner project manager. Start in Studio with what you
+want done. The coordinator keeps the conversation in Inbox and creates execution
+work when needed. You do not need to choose an agent or fill in a task form.
 
-Panduan ini ditujukan bagi solo developer dan tim teknis untuk memulai instalasi mandiri, mengonfigurasi akses single-owner, menghubungkan repositori GitHub pertama, dan menjalankan coding agent headless (`agy`) dalam waktu kurang dari 5 menit.
+## Choose a deployment path
 
----
+Native Linux is the verified path for AGY chat and task execution. Docker Compose
+starts the web application and PostgreSQL; the stock image does **not** include
+an authenticated AI CLI or a verified nested AGY sandbox. Application health does
+not prove agent readiness. See [sandbox prerequisites](chat-sandbox.md).
 
-## 1. Persyaratan Sistem & Arsitektur
+Allow at least 2 GB RAM for the application/build, with additional capacity for
+concurrent AI processes. Use persistent storage, Git, PostgreSQL 16, and HTTPS for
+remote access. Source builds require the Go version in `go.mod` (currently 1.27)
+and Node.js 24 with npm. Check tool/image availability before choosing a build host.
 
-Cuan dirancang sangat ringan, efisien, dan mandiri (*zero-friction*).
+## Docker application installation
 
-### Spesifikasi Minimum Host (VPS / Bare Metal):
-- **Sistem Operasi**: Linux Ubuntu 22.04 LTS / 24.04 LTS x86_64.
-- **CPU & RAM**: Minimum 2 vCPU, 2 GB RAM (Rekomendasi: 4 GB RAM untuk menangani kompilasi frontend dan eksekusi subprocess agent bersamaan).
-- **Disk**: 20 GB SSD/NVMe luang.
-- **Akses Jaringan**: Port `80` (HTTP) dan `443` (HTTPS) terbuka untuk otomatisasi sertifikat TLS Caddy.
-- **Dependensi Utama**:
-  - Docker Engine 24+ & Docker Compose v2 (untuk mode container).
-  - *Atau* Go 1.22+ dan Node.js 20+ (untuk mode native binary tanpa container).
-  - Git 2.34+.
-  - Coding Agent CLI: `agy` v1.4.0+ terpasang pada `$PATH`.
+Install Docker Engine and Compose v2 first. Clone the repository, then inspect the
+plan before applying it:
 
----
-
-## 2. Pemasangan Kilat 5 Menit (Docker Compose)
-
-### Langkah 1: Clone Repositori
-```bash
+```sh
 git clone https://github.com/buchin/cuan.git
 cd cuan
+./scripts/install.sh --dry-run
+./scripts/install.sh --existing-proxy
 ```
 
-### Langkah 2: Otomatisasi Instalasi & Preflight
-Jalankan skrip instalasi interaktif Cuan:
-```bash
-./scripts/install.sh --domain cuan.example.com --email admin@example.com
+For Caddy-managed HTTPS, point DNS to the host and make ports 80/443 available:
+
+```sh
+./scripts/install.sh --standalone --domain cuan.example.com --email admin@example.com
 ```
 
-Skrip ini secara otomatis:
-1. Memeriksa ketersediaan disk space, memory, dan Docker runtime.
-2. Mendeteksi port `80`/`443` serta proxy existing (Nginx / Traefik / Caddy).
-3. Membuat file `.env` aman dengan kunci enkripsi acak 32-karakter.
-4. Menjalankan container PostgreSQL, Cuan Server, dan Caddy reverse proxy.
+The installer creates a private `.env` with random secrets, preserves existing
+credentials, builds services, and checks both health and database readiness.
+`--skip-preflight` skips hardware/port detection, not Docker/readiness validation.
+Use `--port 9080` for a different host application port. An existing proxy should
+forward to that port and support streaming responses. Compose publishes the app
+port on host interfaces; restrict access using your host firewall when placing it
+behind a proxy. PostgreSQL is not published.
 
-*Alternatif Manual via Compose:*
-```bash
-cp .env.example .env
-# Edit .env dan atur CUAN_DOMAIN, POSTGRES_PASSWORD, dan CUAN_AUTH_SECRET
-docker compose --profile proxy up -d
+For an isolated staging application, use `--staging --existing-proxy --port 9081`.
+Staging Caddy uses host ports 8082/8443 by default rather than production 80/443;
+set `STAGING_HTTP_PORT` and `STAGING_HTTPS_PORT` in `.env.staging` if needed.
+
+The database, `/app/data`, and `/home/cuan` use named volumes. Keep all three:
+HOME contains account profiles, while data contains application files/workspaces.
+Do not use `docker compose down -v` on an installation you want to retain. Before
+upgrading an older container without these mounts, stop work and export its data
+and HOME first; adding an empty volume does not recover a removed container.
+
+## Native application setup
+
+Run the application under a dedicated Linux user with a persistent HOME and a
+writable working directory. Build from a trusted checkout:
+
+```sh
+npm --prefix web ci
+npm --prefix web run build
+mkdir -p bin data
+go build -o bin/cuan-server ./cmd/server
+go build -o bin/cuan-migrate ./cmd/migrate
 ```
 
----
+Provision PostgreSQL and configure the service environment privately:
 
-## 3. Inisialisasi Akses Single-Owner (First-Time Setup)
+```sh
+export DATABASE_URL='postgres://USER:PASSWORD@127.0.0.1:5432/cuan?sslmode=disable'
+export CUAN_AUTH_SECRET='REPLACE_WITH_A_RANDOM_SECRET_OF_AT_LEAST_32_CHARACTERS'
+export CUAN_STATIC_DIR="$PWD/web/dist"
+export CUAN_AUTO_MIGRATE=true
+export PORT=8080
+./bin/cuan-server
+```
 
-Keamanan Cuan mengusung prinsip **Single-Owner Protected**:
-1. Buka browser ke alamat domain Anda (misal `https://cuan.example.com` atau `http://localhost:8080`).
-2. Antarmuka Cuan akan secara otomatis menampilkan **First-Time Owner Setup Wizard**.
-3. Masukkan alamat email admin dan kata sandi yang kuat (minimal 8 karakter).
-4. Klik tombol **Inisialisasi & Amankan Instance**.
-5. Cuan membuat kredensial akun owner dan sesi terenkripsi via cookie `HttpOnly`.
+Replace both examples with real values; generate the auth secret with
+`openssl rand -hex 32`. Use a protected service environment file for persistent
+operation, not shell history. The binary does not automatically load `.env`.
+Keep a stable service HOME, working directory, and PATH across restarts. Put the
+process under your host's service manager and reverse proxy before unattended use.
+For controlled production upgrades, run migrations separately, then start with
+`CUAN_AUTO_MIGRATE=false`; follow the [deployment and rollback guide](deployment_recovery_guide.md).
 
-> [!IMPORTANT]
-> **Takeover Lockout**: Setelah akun owner pertama dibuat, endpoint pendaftaran publik `/api/v1/auth/setup` **terkunci permanen**. Setiap percobaan pendaftaran ulang oleh pihak ketiga atau publik akan ditolak dengan respons `403 Forbidden`.
+## Connect an agent and verify readiness
 
----
+1. Open Cuan and create the initial owner account. Protect first setup from public
+   access until the owner exists.
+2. Install the supported provider CLI on the execution host and authenticate it
+   under the same Linux user/HOME that runs Cuan. Configure the account in
+   **Settings → Agents**. Retain its profile directory with application backups.
+3. For native AGY, run `sudo python3 scripts/setup-inbox-sandbox.py --user cuan`,
+   replacing `cuan` with the service user. Run it again with `--check`. See the
+   [sandbox guide](chat-sandbox.md) for PATH, isolation, and container limits.
+4. Check `/healthz` and `/readyz`. Then send one harmless informational message in
+   Studio and inspect **Detail** to confirm the provider can return a response.
+5. Give a small, reversible work instruction. Confirm progress, evidence, and the
+   final result in Inbox. A successful chat alone does not prove task execution.
 
-## 4. Menghubungkan Repositori GitHub Pertama
+A separate legacy runner is not required for the integrated local-session path.
+Repository and deployment access are separate prerequisites for work that needs
+them. Configure those for the intended project rather than granting broad access.
 
-Untuk mengizinkan agent membuat branch dan Pull Request pada repositori Anda:
-1. Buka tab **Projects** di navigasi kiri atas.
-2. Klik **Connect Repository**.
-3. Masukkan URL repositori GitHub Anda (contoh: `https://github.com/buchin/cuan`).
-4. Masukkan **GitHub Personal Access Token (PAT)** milik Anda.
-   - Hak akses token yang dibutuhkan: `repo` (atau `contents:write` dan `pull_requests:write` untuk fine-grained token).
-   - Panduan membuat token: lihat [github_token_guide.md](github_token_guide.md).
-5. Klik **Hubungkan Repositori**.
+## First daily workflow
 
-> [!NOTE]
-> **Keamanan Kredensial**: Token GitHub Anda dienkripsi saat istirahat (*at-rest*) menggunakan **AES-256-GCM**. Nilai token mentah tidak pernah dicatat di log server maupun dikirim kembali ke browser. Tampilan UI hanya menampilkan masked preview (misal `ghp_***5544`).
+Write your desired outcome in Studio. Cuan routes the conversation and organizes
+project/task details. Clear instructions can start directly. When a material choice
+is unresolved, the agent asks for that choice; an exact-scope proposal can show
+**Approve and start**. Planning is not a mandatory extra step.
 
----
-
-## 5. Menjalankan Task Runner Daemon (`cuan-runner`)
-
-Cuan memisahkan API server dari worker eksekusi agent melalui arsitektur antrean outbound:
-1. Jalankan daemon runner pada host (atau VM terpisah):
-   ```bash
-   ./bin/cuan-runner \
-     --server-url http://localhost:8080 \
-     --runner-id runner-vps-01 \
-     --runner-token your-configured-runner-token
-   ```
-2. Daemon akan mengirimkan heartbeat berkala (setiap 3 detik) dan memantau CPU, RAM, serta disk host.
-3. Runner siap mengambil tugas dari task board secara bergantian (satu task aktif per runner untuk memastikan stabilitas memori).
-
----
-
-## 6. Membuat Task Pertama Anda
-
-1. Masuk ke halaman **Tasks** dan klik **Buat Task Baru**.
-2. Pilih project repository yang telah terhubung.
-3. Tulis judul task yang ringkas dan instruksi perbaikan yang jelas.
-4. Pilih agen eksekutor (`agy`).
-5. Klik **Simpan Task**.
-6. Jadwalkan eksekusi (klik **Jalankan Attempt**).
-7. Runner akan mengklaim task, mengisolasi repositori ke workspace branch baru (`task/<task_id>`), menjalankan instruksi agent, menjalankan targeted tests, melakukan commit Git atas nama Anda, dan membuka Pull Request di GitHub secara otomatis!
+Follow progress in Inbox and open the task/session from its message when needed.
+See the [workspace guide](user_guide.md), [recovery behavior](message_task_lifecycle.md),
+and [troubleshooting](troubleshooting.md).

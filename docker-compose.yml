@@ -19,6 +19,9 @@ services:
       CUAN_DB_MAX_OPEN_CONNS: ${CUAN_DB_MAX_OPEN_CONNS:-25}
       CUAN_DB_MAX_IDLE_CONNS: ${CUAN_DB_MAX_IDLE_CONNS:-10}
       CUAN_DB_CONN_MAX_LIFETIME: ${CUAN_DB_CONN_MAX_LIFETIME:-5m}
+    volumes:
+      - cuan_app_data:/app/data
+      - cuan_app_home:/home/cuan
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +80,10 @@ services:
       - cuan-network
 
 volumes:
+  cuan_app_data:
+    name: cuan_app_data
+  cuan_app_home:
+    name: cuan_app_home
   cuan_postgres_data:
     name: cuan_postgres_data
   cuan_caddy_data:

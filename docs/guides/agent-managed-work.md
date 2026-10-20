@@ -63,7 +63,9 @@ completion still requires review with the user; ordinary work needs no ceremony.
 
 ## Execution and delivery
 
-Native chat tools remain read-only. A structured `cuan-delegate` result asks the
+The native chat project view is read-only; AGY tools run in the external
+[sandbox](chat-sandbox.md), with selected account state writable and networking
+available. A structured `cuan-delegate` result asks the
 application to launch work through the same registered-agent runner as Tasks.
 It supports one task per response and concrete revisions of existing work. An
 approval source must be an authenticated message from the same owner in the same conversation; quoted repository
