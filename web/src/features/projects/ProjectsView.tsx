@@ -101,7 +101,7 @@ export function ProjectsView({
           placeholder="Search projects…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="field-control flex-1"
+          className="field-control min-w-0 flex-1"
         />
         <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
           <button
@@ -161,7 +161,7 @@ export function ProjectsView({
 
       {/* Projects Display or Empty State */}
       {displayedProjects.length === 0 ? (
-        <div className="border border-dashed border-border p-12 text-center bg-muted/30 rounded-lg">
+        <div className="border border-dashed border-border px-4 py-10 sm:p-12 text-center bg-muted/30 rounded-lg">
           <FolderGit2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <h3 className="text-sm font-semibold text-foreground">
             {search.trim()

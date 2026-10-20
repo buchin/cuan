@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search,
+  Archive,
   SlidersHorizontal,
   Users,
   MessageSquare,
@@ -264,8 +265,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
         className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
         <div className="shrink-0 border-b p-3">
-          {contacts.length > 0 && (
-            <div className="space-y-2">
+          <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
                   <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -286,13 +286,18 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                   aria-controls="contact-filters"
                   onClick={() => setFiltersOpen(!filtersOpen)}
                 >
-                  <SlidersHorizontal className="h-5 w-5" />
+                  <SlidersHorizontal className="h-4 w-4" />
                   {(tag || product) && (
                     <span
                       aria-hidden="true"
                       className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary"
                     />
                   )}
+                </button>
+                <button type="button" className={`icon-action shrink-0 ${showArchived ? 'bg-accent text-primary' : 'text-muted-foreground'}`}
+                  aria-label={t(showArchived ? 'Active contacts' : 'Archived contacts')} title={t(showArchived ? 'Active contacts' : 'Archived contacts')}
+                  aria-pressed={showArchived} onClick={() => setShowArchived(value => !value)}>
+                  <Archive className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
               {(tag || product) && !filtersOpen && (
@@ -339,13 +344,9 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                 </div>
               )}
             </div>
-          )}
-        </div>
-        <div className="flex items-center justify-between px-3">
-          <button type="button" className="min-h-11 text-xs text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{t(showArchived ? 'Active contacts' : 'Archived contacts')}</button>
         </div>
         {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-1 py-2">
           {loading ? (
             <p role="status" className="py-6 text-sm text-muted-foreground">
               {t('Loading contacts\u2026')}
@@ -463,7 +464,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                           .toUpperCase()}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">
+                        <span className="block truncate text-sm font-medium">
                           {label(c)}
                         </span>
                         <span className="mt-0.5 block truncate text-sm text-muted-foreground">

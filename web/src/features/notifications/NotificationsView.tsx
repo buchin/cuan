@@ -79,7 +79,7 @@ export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNoti
                       <time className="shrink-0 whitespace-nowrap tabular-nums" dateTime={item.created_at} title={absoluteLabel}>{timeLabel}</time>
                       <span aria-label={item.resolved ? t('No action needed') : item.read ? t('Read') : t('Unread')} className={'h-1.5 w-1.5 shrink-0 rounded-full '+(unread ? 'bg-primary' : 'bg-transparent')} />
                     </span>
-                    <span title={item.title} className={'mt-1 line-clamp-2 break-words text-sm leading-5 '+(unread ? 'font-semibold' : 'font-medium')}>{t(item.title)}</span>
+                    <span title={item.title} className={'mt-1 line-clamp-2 break-words text-sm leading-5 '+(unread ? 'font-semibold' : 'font-normal')}>{t(item.title)}</span>
                     {item.summary && <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{t(item.summary)}</span>}
                     <span className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
                       <span className={item.resolved ? 'text-muted-foreground' : item.kind === 'blocker' ? 'text-amber-700 dark:text-amber-400' : item.kind === 'approval' ? 'text-primary' : 'text-muted-foreground'}>{t(status)}</span>
