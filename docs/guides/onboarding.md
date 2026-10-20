@@ -84,6 +84,32 @@ process under your host's service manager and reverse proxy before unattended us
 For controlled production upgrades, run migrations separately, then start with
 `CUAN_AUTO_MIGRATE=false`; follow the [deployment and rollback guide](deployment_recovery_guide.md).
 
+## Keep a native installation running
+
+For an installation created by `scripts/install-native.py`, install a managed
+systemd service instead of leaving a terminal running. Replace the account and
+installation path with the ones used during installation:
+
+```sh
+sudo python3 scripts/setup-native-service.py --user cuan --directory /home/cuan/cuan --dry-run
+sudo python3 scripts/setup-native-service.py --user cuan --directory /home/cuan/cuan --start
+sudo python3 scripts/setup-native-service.py --user cuan --directory /home/cuan/cuan --check
+```
+
+The service starts at boot and restarts after process failure. It runs as the
+installation owner, keeps the saved configuration and HOME, and stops descendant
+processes with the service. Readiness verifies the installed server process and
+database, not AI authentication or execution. Existing unrelated units are never
+overwritten; use `--name cuan-personal` when another service already uses `cuan`.
+Customized managed units require explicit `--replace-managed-unit`.
+
+After a controlled native release upgrade, use the same command with `--restart`
+and verify readiness. For diagnosis, use `systemctl status cuan` and
+`journalctl -u cuan`; inspect logs privately before sharing them. To stop or remove
+boot startup, use `sudo systemctl disable --now cuan`. This retains application
+files, account profiles, and the database. Follow the deployment guide for release
+rollback; service installation does not migrate or reset data.
+
 ## First visit: account, AI, goal
 
 1. **Create your account.** This becomes the owner of this installation.
