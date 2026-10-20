@@ -2,12 +2,21 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/task"
 	"strings"
 	"time"
 )
+
+func githubRecoveryRequestID(eventID string) string {
+	digest := sha256.Sum256([]byte("cuan-github-recovery:" + eventID))
+	digest[6] = (digest[6] & 0x0f) | 0x50
+	digest[8] = (digest[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", digest[:4], digest[4:6], digest[6:8], digest[8:10], digest[10:16])
+}
 
 const githubContinuation = "GitHub access is now connected. Continue the original approved task from its retained workspace and previous progress. Do not repeat implementation or recreate artifacts. Inspect the current branch and commits, run the task push command to save the existing task branch, verify the result, and report the actual outcome. Do not merge, deploy, or expand scope unless the original instructions already authorize it."
 
@@ -45,7 +54,7 @@ func (s *Server) queueGitHubRecovery(ctx context.Context, detail *task.TaskDetai
 			continue
 		}
 		now := time.Now().UTC()
-		_, err = s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: detail.ID, ProjectID: detail.ProjectID, RequestID: "github-" + event.ID, OwnerID: owner, RoomID: detail.SourceRoomID, SourceRequestID: request.RequestID, AgentID: detail.AssignedAgent, Revision: githubContinuation, InstructionsHash: task.LaunchInstructionsHash(detail.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
+		_, err = s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: detail.ID, ProjectID: detail.ProjectID, RequestID: githubRecoveryRequestID(event.ID), OwnerID: owner, RoomID: detail.SourceRoomID, SourceRequestID: request.RequestID, AgentID: detail.AssignedAgent, Revision: githubContinuation, InstructionsHash: task.LaunchInstructionsHash(detail.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
 		return err
 	}
 	return nil

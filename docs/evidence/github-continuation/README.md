@@ -16,3 +16,5 @@ owner/scope checks, instruction fingerprint, durable launch reuse and service
 reconstruction. Existing launch queue tests cover route availability and process
 launch. These checks do not yet combine a real model-provider continuation with
 GitHub push, and no live GitHub writes or production AI inference were performed.
+
+`TestGitHubQueuedProcessContinuationRealGit` now passes the combined path: missing connection → retained local commit → connected owner credential → deduplicated durable launch → actual PTY/supervised deterministic agent → task push → final done report, with one continuation and exactly one implementation commit. It exposed a recovery request ID validation bug, fixed by deriving a stable UUID from the prerequisite event. No real model inference or live GitHub write is claimed.
