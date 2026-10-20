@@ -41,3 +41,16 @@ workspaces and repository mismatches stop preparation with an explicit error
 rather than recreating work silently. Worktrees and task branches are retained;
 there is no automatic cleanup or merge yet. This has local real-Git verification;
 provider-runtime compatibility and automatic Git delivery remain pending.
+
+## Storage retention safeguards
+
+The retention inspector considers only completed tasks after seven days, with no
+active execution and an independently confirmed remote commit matching local HEAD.
+Tracked changes, untracked files and ignored files all prevent eligibility. It
+never treats a folder named node_modules, dist or cache as proof that its contents
+are disposable. Active, blocked, review and recently completed tasks are retained.
+
+The inspector is a prerequisite, not an enabled cleanup scheduler. Automatic
+removal still requires an execution lock, remote verification, a durable retirement
+record and tested restoration for reopened tasks. Until those are implemented,
+workspaces are retained and this feature must not be described as automatic cleanup.
