@@ -105,6 +105,26 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	profileEnv := agent.AntigravityProfileEnvironment(home)
 	if binary == "agy" {
 		path, args, err = sandboxInboxCommand(path, args, profileEnv, home, workspace, attachmentPaths)
+		if err == nil {
+			// Probe the same namespace/mount setup before starting paid inference.
+			// A blocked kernel policy must produce a setup error, not a fake
+			// provider failure or an unrestricted fallback.
+			separator := -1
+			for i, value := range args {
+				if value == "--" {
+					separator = i
+					break
+				}
+			}
+			if separator < 0 {
+				err = fmt.Errorf("sandbox command separator missing")
+			} else {
+				probeArgs := append(append([]string{}, args[:separator+1]...), "/bin/true")
+				probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+				err = exec.CommandContext(probeCtx, path, probeArgs...).Run()
+				cancel()
+			}
+		}
 		if err != nil {
 			return "", "The chat sandbox is unavailable. Your message is saved. Check the server sandbox setup; unrestricted execution was not attempted."
 		}

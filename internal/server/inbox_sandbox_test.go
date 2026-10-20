@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"github.com/buchin/cuan/internal/config"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,5 +107,26 @@ func TestInboxExternalSandboxCLIHelp(t *testing.T) {
 	out, err := exec.Command(path, args...).CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "--dangerously-skip-permissions") {
 		t.Fatalf("sandbox CLI startup failed: %v %s", err, out)
+	}
+}
+
+func TestInboxExternalSandboxBlockedBeforeProvider(t *testing.T) {
+	home, bin := t.TempDir(), t.TempDir()
+	for name, script := range map[string]string{
+		"bwrap": "#!/bin/sh\nexit 1\n",
+		"agy":   "#!/bin/sh\ntouch \"$HOME/provider-started\"\n",
+	} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	out, failure := s.executeInboxCLI(context.Background(), "fixture", "agy", "Inspect README", home, t.TempDir(), nil)
+	if out != "" || !strings.Contains(failure, "sandbox is unavailable") {
+		t.Fatal(out, failure)
+	}
+	if _, err := os.Stat(filepath.Join(home, "provider-started")); !os.IsNotExist(err) {
+		t.Fatal("provider launched before sandbox check")
 	}
 }
