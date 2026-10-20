@@ -94,7 +94,7 @@ export function NotificationsNavigation() {
   return (
     <nav
       aria-label={t('Notification filters')}
-      className="flex shrink-0 gap-5 border-b border-border bg-background px-4 md:px-6"
+      className="flex shrink-0 items-center gap-4 border-b border-border bg-background px-4 md:px-6"
     >
       {[
         { id: 'all', label: 'All', to: '/notifications' },
@@ -121,16 +121,38 @@ export function NotificationsNavigation() {
           )}
         </Link>
       ))}
+      <div className="ml-auto shrink-0"><MarkAllReadButton /></div>
     </nav>
   )
 }
+function MarkAllReadButton() {
+  const { items, markRead } = useNotifications(), { t } = useLanguage()
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      aria-label={t('Mark all as read')}
+      title={t('Mark all as read')}
+      aria-busy={busy}
+      disabled={busy || !items.some(item => !item.read && !item.resolved)}
+      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium text-primary hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:text-muted-foreground disabled:opacity-50"
+      onClick={async () => {
+        if (busy) return
+        setBusy(true)
+        try { await markRead() } catch { /* Shared context displays the error; unread state is retained. */ }
+        finally { setBusy(false) }
+      }}
+    >
+      <CheckCheck className="h-5 w-5 shrink-0 md:h-4 md:w-4" aria-hidden="true" />
+      <span className="hidden md:inline">{t(busy ? 'Saving…' : 'Mark all as read')}</span>
+    </button>
+  )
+}
+
 export function NotificationsActions() {
-  const { items, markRead } = useNotifications(),
-    { t } = useLanguage(),
+  const { t } = useLanguage(),
     navigate = useNavigate()
-  const [open, setOpen] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState('')
+  const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null),
     trigger = useRef<HTMLButtonElement>(null)
   function close() {
@@ -188,27 +210,6 @@ export function NotificationsActions() {
         }
       }}
     >
-          <button
-            type="button"
-            disabled={busy || !items.some((item) => !item.read && !item.resolved)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-xs font-medium text-primary hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
-            onClick={async () => {
-              if (busy) return
-              setBusy(true)
-              setError('')
-              try {
-                await markRead()
-                close()
-              } catch {
-                setError('Could not mark notifications as read. Try again.')
-              } finally {
-                setBusy(false)
-              }
-            }}
-          >
-            <CheckCheck className="h-4 w-4 shrink-0" />
-            {t('Mark all as read')}
-          </button>
       <button
         type="button"
         ref={trigger}
@@ -217,7 +218,6 @@ export function NotificationsActions() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => {
-          setError('')
           setOpen((value) => !value)
         }}
       >
@@ -242,11 +242,7 @@ export function NotificationsActions() {
             <Settings className="h-4 w-4 shrink-0" />
             {t('Notification settings')}
           </button>
-          {error && (
-            <p role="alert" className="px-3 py-2 text-xs text-destructive">
-              {t(error)}
-            </p>
-          )}
+
         </div>
       )}
     </div>

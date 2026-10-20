@@ -27,5 +27,7 @@ leaving the current page. On mobile, the bell opens the full notification page
 directly; use Back to return to the page you came from.
 Use **Mark all as read** directly in its header, or **View all notifications** for
 the full page. Escape, the close button or clicking outside dismisses the panel.
-The full page also exposes **Mark all as read** directly. If saving read state
+On the full page, **Mark all as read** sits on the right of **All / Unread**.
+Phones show the ✓✓ icon; desktop also shows its label. It is disabled when no
+unread items need attention. If saving read state
 fails, retry; opening the related conversation or task still works.

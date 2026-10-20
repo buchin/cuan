@@ -1,0 +1,84 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "contextVisible": true,
+      "relativeTimeWithFullTooltip": true,
+      "dayGroups": true,
+      "resolvedExcludedFromUnread": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "navigationSurvivesReadWriteFailure": true,
+  "readStateUpdatesOnSuccess": true,
+  "indonesianCopy": true,
+  "markAllRead": true,
+  "filterRowPlacement": true,
+  "fullHeaderTitle": true,
+  "zeroUnreadDisablesAction": true,
+  "providerCalls": 0
+}
