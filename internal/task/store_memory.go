@@ -10,6 +10,7 @@ import (
 )
 
 type MemoryStore struct {
+	launches     map[string]*TaskLaunch
 	mu           sync.RWMutex
 	tasks        map[string]*Task
 	attempts     map[string]*TaskAttempt
@@ -21,6 +22,7 @@ type MemoryStore struct {
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
+		launches:     make(map[string]*TaskLaunch),
 		tasks:        make(map[string]*Task),
 		attempts:     make(map[string]*TaskAttempt),
 		activities:   make(map[string]*TaskActivity),
@@ -191,6 +193,12 @@ func (m *MemoryStore) DeleteTask(ctx context.Context, id string) error {
 	}
 	delete(m.tasks, id)
 	delete(m.taskProjects, id)
+
+	for launchID, j := range m.launches {
+		if j.TaskID == id {
+			delete(m.launches, launchID)
+		}
+	}
 
 	// Cascade delete attempts and activities
 	for attID, att := range m.attempts {
