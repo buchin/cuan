@@ -1537,6 +1537,10 @@ func (s *Server) routes() {
 
 			pr.Get("/auth/me", s.handleAuthMe)
 			pr.Patch("/auth/username", s.handleUsername)
+			pr.Get("/integrations/github", s.handleGitHubConnection)
+			pr.Put("/integrations/github", s.handleGitHubConnection)
+			pr.Delete("/integrations/github", s.handleGitHubConnection)
+			pr.Get("/integrations/github/repositories", s.handleGitHubRepositories)
 			pr.Get("/profile", s.handleProfile)
 			pr.Patch("/profile", s.handleProfile)
 			pr.Get("/notifications", s.handleNotifications)
