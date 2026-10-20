@@ -9,9 +9,11 @@ export function GitHubIntegration() {
 
  const [connection, setConnection] = useState<Connection>(), [token, setToken] = useState('')
  const [oauth, setOAuth] = useState<boolean | null>(null)
+ const [oauthError, setOAuthError] = useState(false)
  const [busy, setBusy] = useState(false), [error, setError] = useState('')
  const load = () => { setError(''); return apiFetch<Connection>('/api/v1/integrations/github').then(setConnection).catch(() => setError('Could not load GitHub connection. Try again.')) }
- useEffect(() => { void load(); apiFetch<{ configured: boolean }>('/api/v1/integrations/github/oauth').then(result => setOAuth(result.configured)).catch(() => setOAuth(null)) }, [])
+ const checkOAuth = () => { setOAuthError(false); setOAuth(null); return apiFetch<{ configured: boolean }>('/api/v1/integrations/github/oauth').then(result => setOAuth(result.configured)).catch(() => setOAuthError(true)) }
+ useEffect(() => { void load(); void checkOAuth() }, [])
  return <section className="mx-auto w-full max-w-2xl space-y-5" aria-label="GitHub integration">
   <Link to="/settings/integrations" className="action-secondary">← Integrations</Link>
   <p className="text-sm text-muted-foreground">Connect GitHub to choose repositories for your projects. Projects can also work without a repository.</p>
@@ -34,7 +36,8 @@ export function GitHubIntegration() {
     catch { setError('Could not start GitHub connection. Try again.'); setBusy(false) }
    }}>{busy ? 'Connecting…' : 'Connect GitHub'}</button>
    {oauth === false && <p className="text-sm text-muted-foreground">GitHub sign-in needs to be configured by this installation’s administrator.</p>}
-   {oauth === null && <p className="text-sm text-muted-foreground">Checking GitHub sign-in availability. Refresh if this takes too long.</p>}
+   {oauth === null && !oauthError && <p role="status" className="text-sm text-muted-foreground">Checking GitHub sign-in availability…</p>}
+   {oauthError && <div role="alert" className="space-y-2 text-sm"><p>Could not check GitHub sign-in availability.</p><button type="button" className="action-secondary" onClick={() => void checkOAuth()}>Check again</button></div>}
   </section>}
   {params.get('github_status') && params.get('github_status') !== 'connected' && <p role="status" className="text-sm text-muted-foreground">GitHub connection was not completed. Your work is saved. Try connecting again.</p>}
   {connection && !connection.connected && <details className="rounded-lg border bg-card p-4"><summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">Advanced</summary><form className="space-y-3 rounded-lg border bg-card p-4" onSubmit={async event => {
