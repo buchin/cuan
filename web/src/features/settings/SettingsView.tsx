@@ -5,7 +5,7 @@ import {
   useLanguage,
   type LanguagePreference,
 } from '../../context/LanguageContext'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
@@ -35,6 +35,12 @@ export function SettingsView({
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const section = location.pathname.split('/')[2] || 'general'
+  useEffect(() => {
+    if (location.hash === '#install-cuan' && section === 'general')
+      document
+        .getElementById('install-cuan')
+        ?.scrollIntoView({ block: 'start' })
+  }, [location.hash, section])
   const query = new URLSearchParams(location.search)
   const returnTo = query.get('returnTo') || ''
   const safeReturn = /^\/(inbox)(\/[^?#]*)?$/.test(returnTo) ? returnTo : ''

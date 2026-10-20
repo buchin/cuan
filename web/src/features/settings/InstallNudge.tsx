@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Download, X } from 'lucide-react'
 import { usePWA } from '../../context/PWAContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -65,6 +66,14 @@ export function InstallNudge() {
         {t('Install Cuan')}
         <Download className="h-4 w-4" />
       </button>
+      <p className="mt-3 text-xs text-muted-foreground">
+        <Link
+          className="underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          to="/settings#install-cuan"
+        >
+          {t('Find this later in Settings → General.')}
+        </Link>
+      </p>
       {error && (
         <p role="alert" className="mt-2 text-xs text-destructive">
           {t(error)}

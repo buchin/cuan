@@ -7,3 +7,5 @@ TypeScript/Vite production build passed. The isolated browser fixture passed 360
 Install prompts and physical home-screen installation remain browser/device controlled; native installation was simulated without installing an app on a real device.
 
 Production release c5396f6 passed eight viewport/theme checks, anonymous CTA, authenticated root/login redirects, /about preview and exact JS/CSS asset hashes. Readiness healthy, schema23 unchanged; 35 retained application tables and 722 profile files matched backup. No goal submissions or provider calls.
+
+Permanent installation settings: the named Install Cuan section remains visible after Studio dismissal. Targeted browser checks cover the direct Studio link, iOS ordered steps, native prompt invocation, installed state, mobile/desktop overflow, and zero permission requests. See settings-install.json and settings-install screenshots.

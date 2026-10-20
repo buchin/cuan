@@ -1,0 +1,9 @@
+{
+  "permanentAfterDismissal": true,
+  "studioLink": true,
+  "iosSteps": true,
+  "nativePrompt": true,
+  "installedState": true,
+  "mobileAndDesktop": true,
+  "permissionRequests": 0
+}
