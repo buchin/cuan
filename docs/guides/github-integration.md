@@ -128,3 +128,31 @@ Tests prove changed scope/wrong owner do not queue and repeated observations kee
 one durable launch. This is queue-level verification, not proof of a live provider
 completing the subsequent push. Browser and combined continuation verification,
 plus deployment, remain pending.
+
+## GitHub authorization without manual user tokens
+
+The main connection action now opens GitHub's authorization page. Manual access
+tokens are available under Advanced. A self-hosting administrator must register
+one GitHub OAuth App and configure these private service environment variables:
+
+- `CUAN_GITHUB_CLIENT_ID`: the registered OAuth App client ID.
+- `CUAN_GITHUB_CLIENT_SECRET`: its private client secret.
+- `CUAN_GITHUB_REDIRECT_URL`: the exact callback URL registered on GitHub,
+  e.g. `https://cuan.example/api/v1/integrations/github/oauth/callback`.
+
+Register the OAuth App under GitHub Settings → Developer settings → OAuth Apps.
+Use the public Cuan origin as Homepage URL and the exact callback above. Restart
+the Cuan service after configuring its protected environment. Ordinary users then
+click Connect GitHub and review GitHub's permission page, without copying tokens.
+The OAuth App requests GitHub's `repo` scope, which includes private repository
+access; it is not the repository-selective GitHub App installation flow. Fine-
+grained manual tokens remain an Advanced option for narrower repository grants.
+
+Authorization is owner/browser-bound, expires after ten minutes and is consumed
+once. Service restart expires an in-flight authorization; retry connection without
+recreating the saved task. Cancellation/failure returns to Settings without
+changing the task. Tokens and provider error bodies never enter redirects.
+
+OAuth App environment is currently absent in this installation. The implementation
+and fixture callback tests pass; real GitHub authorization and browser verification
+of the updated primary/Advanced UI remain pending. It is not yet deployed.

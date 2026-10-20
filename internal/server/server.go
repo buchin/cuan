@@ -1350,6 +1350,7 @@ func (s *Server) routes() {
 
 	s.router.Route("/api/v1", func(r chi.Router) {
 		// Public endpoints
+		r.Get("/integrations/github/oauth/callback", s.handleGitHubOAuthCallback)
 		r.Get("/info", s.handleInfo)
 		r.Get("/system/mode", s.handleGetSystemMode)
 		r.Get("/auth/status", s.handleAuthStatus)
@@ -1540,6 +1541,8 @@ func (s *Server) routes() {
 
 			pr.Get("/auth/me", s.handleAuthMe)
 			pr.Patch("/auth/username", s.handleUsername)
+			pr.Get("/integrations/github/oauth", s.handleGitHubOAuth)
+			pr.Post("/integrations/github/oauth", s.handleGitHubOAuth)
 			pr.Get("/integrations/github", s.handleGitHubConnection)
 			pr.Put("/integrations/github", s.handleGitHubConnection)
 			pr.Delete("/integrations/github", s.handleGitHubConnection)

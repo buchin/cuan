@@ -8,9 +8,10 @@ export function GitHubIntegration() {
  const returnTo = /^\/tasks\/[A-Za-z0-9_-]+(?:\/sessions\/[A-Za-z0-9_-]+)?$/.test(requestedReturn) ? requestedReturn : ''
 
  const [connection, setConnection] = useState<Connection>(), [token, setToken] = useState('')
+ const [oauth, setOAuth] = useState<boolean | null>(null)
  const [busy, setBusy] = useState(false), [error, setError] = useState('')
  const load = () => { setError(''); return apiFetch<Connection>('/api/v1/integrations/github').then(setConnection).catch(() => setError('Could not load GitHub connection. Try again.')) }
- useEffect(() => { void load() }, [])
+ useEffect(() => { void load(); apiFetch<{ configured: boolean }>('/api/v1/integrations/github/oauth').then(result => setOAuth(result.configured)).catch(() => setOAuth(null)) }, [])
  return <section className="mx-auto w-full max-w-2xl space-y-5" aria-label="GitHub integration">
   <Link to="/settings/integrations" className="action-secondary">← Integrations</Link>
   <p className="text-sm text-muted-foreground">Connect GitHub to choose repositories for your projects. Projects can also work without a repository.</p>
@@ -25,7 +26,18 @@ export function GitHubIntegration() {
     catch { setError('Could not disconnect GitHub. Try again.') } finally { setBusy(false) }
    }}>Disconnect</button>
   </section>}
-  {connection && !connection.connected && <form className="space-y-3 rounded-lg border bg-card p-4" onSubmit={async event => {
+  {connection && !connection.connected && <section className="space-y-3 rounded-lg border bg-card p-4">
+   <p className="text-sm">Authorize Cuan on GitHub. Review access there, then return to your work.</p>
+   <button type="button" className="action-primary" disabled={busy || oauth !== true} onClick={async () => {
+    setBusy(true); setError('')
+    try { const result = await apiFetch<{ authorize_url: string }>('/api/v1/integrations/github/oauth', { method: 'POST', body: JSON.stringify({ return_to: returnTo }) }); const url = new URL(result.authorize_url); if (url.origin !== 'https://github.com' || url.pathname !== '/login/oauth/authorize') throw new Error('Invalid authorization URL'); window.location.assign(url.href) }
+    catch { setError('Could not start GitHub connection. Try again.'); setBusy(false) }
+   }}>{busy ? 'Connecting…' : 'Connect GitHub'}</button>
+   {oauth === false && <p className="text-sm text-muted-foreground">GitHub sign-in needs to be configured by this installation’s administrator.</p>}
+   {oauth === null && <p className="text-sm text-muted-foreground">Checking GitHub sign-in availability. Refresh if this takes too long.</p>}
+  </section>}
+  {params.get('github_status') && params.get('github_status') !== 'connected' && <p role="status" className="text-sm text-muted-foreground">GitHub connection was not completed. Your work is saved. Try connecting again.</p>}
+  {connection && !connection.connected && <details className="rounded-lg border bg-card p-4"><summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">Advanced</summary><form className="space-y-3 rounded-lg border bg-card p-4" onSubmit={async event => {
    event.preventDefault(); setBusy(true); setError('')
    try { setConnection(await apiFetch<Connection>('/api/v1/integrations/github', { method: 'PUT', body: JSON.stringify({ token }) })); setToken('') }
    catch { setError('Could not connect. Check your token and try again.') } finally { setBusy(false) }
@@ -34,8 +46,8 @@ export function GitHubIntegration() {
    <input id="github-token" type="password" autoComplete="off" className="field-control" required maxLength={4096} value={token} disabled={busy} onChange={e => setToken(e.target.value)} />
    <p className="text-xs leading-5 text-muted-foreground">Create a fine-grained token for the repositories you want Cuan to access. Use Contents read access for cloning, or read and write for pushing. Your token is encrypted and is never displayed again.</p>
    <a className="inline-flex min-h-11 items-center text-sm underline" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create token on GitHub ↗</a>
-   <div><button className="action-primary" disabled={busy || !token.trim()}>{busy ? 'Connecting…' : 'Connect GitHub'}</button></div>
-  </form>}
+   <div><button className="action-primary" disabled={busy || !token.trim()}>{busy ? 'Connecting…' : 'Connect with token'}</button></div>
+  </form></details>}
   {error && <div role="alert" className="space-y-2 text-sm text-destructive"><p>{error}</p>{!connection && <button className="action-secondary" onClick={() => void load()}>Try again</button>}</div>}
  </section>
 }
