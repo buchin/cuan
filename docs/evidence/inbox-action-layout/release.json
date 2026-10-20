@@ -1,0 +1,16 @@
+{
+  "release": "19d3e79bac9fb3f1af84d46c500bb058f2d5e1db",
+  "healthy": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "rollbackDrill": "deferred_active_inbox",
+  "retainedApplicationTables": 37,
+  "originalRowsUnchanged": true,
+  "additionalRequests": 1,
+  "additionalMessages": 2,
+  "profileFilesPresent": 913,
+  "profileFilesByteChanged": 4,
+  "itemReadStatesChanged": 1,
+  "notificationReadFlagsRetained": 11,
+  "verifierProviderCalls": 0
+}
