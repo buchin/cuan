@@ -133,7 +133,7 @@ export function ProjectsWorkspace({
               key={item.id}
               to={`/projects/${encodeURIComponent(item.id)}/tasks`}
               aria-current={project?.id === item.id ? 'page' : undefined}
-              className={`group flex min-h-16 items-center gap-2 rounded-[6px] px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
+              className={`project-list-row group flex min-h-[4.5rem] items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Folder className="h-4 w-4" /></span>
               <span className="min-w-0 flex-1">

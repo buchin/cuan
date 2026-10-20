@@ -453,11 +453,11 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                         select(c.id)
                       }}
                       aria-pressed={selectedId === c.id}
-                      className={`flex min-h-20 w-full items-start gap-3 p-3 text-left hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 ${selectedId === c.id ? 'bg-accent' : ''}`}
+                      className={`contact-list-row flex min-h-[4.5rem] w-full items-start gap-3 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 ${selectedId === c.id ? 'bg-accent' : ''}`}
                     >
                       <span
                         aria-hidden="true"
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold"
                       >
                         {Array.from(label(c))
                           .slice(0, 2)
@@ -468,7 +468,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                         <span className="block truncate text-sm font-medium">
                           {label(c)}
                         </span>
-                        <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                           {c.email || t('No email provided')}
                         </span>
                         <span className="mt-1 inline-flex max-w-full truncate rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
@@ -481,7 +481,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                           </span>
                         )}
                         {c.tags.length > 0 && (
-                          <span className="mt-2 flex min-w-0 flex-wrap gap-1">
+                          <span className="mt-1.5 flex min-w-0 flex-wrap gap-1">
                             {c.tags.slice(0, 2).map((t) => (
                               <span
                                 key={t}

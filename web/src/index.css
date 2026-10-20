@@ -336,8 +336,16 @@ body {
 }
 
 /* Keep conversation actions within the same selected row, without a separate pill. */
-.item-action-row:has(.inbox-contact-row) > [data-item-menu] {
+.item-action-row:has(:is(.inbox-contact-row, .project-list-row, .contact-list-row)) > [data-item-menu] {
   margin-inline-end: 0.25rem;
   border-radius: 0.375rem;
   background: transparent;
+}
+
+.item-action-row:has(:is(.project-list-row, .contact-list-row)):hover {
+  background: oklch(var(--accent) / 0.4);
+}
+.item-action-row:has(:is(.project-list-row, .contact-list-row)[aria-current="page"]),
+.item-action-row:has(.contact-list-row[aria-pressed="true"]) {
+  background: oklch(var(--accent));
 }
