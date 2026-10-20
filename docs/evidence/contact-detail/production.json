@@ -1,0 +1,58 @@
+{
+  "release": "7faa35cb950236957f6cb551f91237ab566b04ff",
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "inboxProjectsContactsNotificationsMenu": true,
+      "noOverflow": true
+    }
+  ],
+  "readableSwipePreviewVerifiedWithoutCommit": true,
+  "unchangedProfileSaveDisabled": true,
+  "productionActionWrites": 0,
+  "blockedAutomaticReadReceiptWrites": 2,
+  "providerCalls": 0
+}

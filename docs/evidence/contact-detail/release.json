@@ -1,0 +1,14 @@
+{
+  "release": "7faa35cb950236957f6cb551f91237ab566b04ff",
+  "healthy": true,
+  "schema": 25,
+  "rollbackReactivationPassed": true,
+  "testedReleasedAssetsMatch": {
+    "index-tYrW0cch.css": "965321ade2be102ad888a8acc98e052fe9c9715e46d4a1f7c17bb789da7b3afd",
+    "index-6XkHDiXp.js": "ae54ce2244b51947e987a2ef24b4d52ae08ee605b9f3127204f1897480fe678f"
+  },
+  "retainedTables": 37,
+  "unchangedProfileFiles": 896,
+  "retainedItemEntries": 6,
+  "notificationReadFlags": 11
+}
