@@ -47,7 +47,10 @@ manual Start, durable cancel action and no horizontal overflow. Build passes wit
 existing warnings. See browser.json and waiting screenshots. This is test evidence,
 not a production launch or provider-inference claim.
 
-Still required before release: clean-tree verification without extension WIP;
-full PostgreSQL-backed server reconstruction scenario; exact schema25 activation
+Clean-tree targeted memory/server checks pass (2.829s server) and the clean
+TypeScript/Vite build passes without extension WIP. The latest PostgreSQL
+admission contract passes in0.66s.
+
+Still required before release: full PostgreSQL-backed server reconstruction scenario; exact schema25 activation
 and rollback gates; private backup/migration/retention and read-only production
 smoke. Production remains d1a313d/schema24 until those gates pass.
