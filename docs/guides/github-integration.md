@@ -79,3 +79,5 @@ restoration for review. The worker and worktree isolation have not yet been
 released to production; runtime compatibility and combined worker verification
 remain prerequisites. Earlier implementation notes above describe the stages
 leading to this wiring, not separate active cleanup mechanisms.
+
+Combined worker verification now passes with real worktrees and fixture GitHub refs: an active execution lease prevents even a remote query; remote failure retains files; eligible completion removes its checkout; reopening restores the result; task records remain unchanged. Provider-runtime compatibility is still unverified, so the changes remain unreleased.
