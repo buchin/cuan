@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -47,14 +48,14 @@ func (b *boundedInboxOutput) Write(p []byte) (int, error) {
 }
 func (b *boundedInboxOutput) String() string { b.mu.Lock(); defer b.mu.Unlock(); return string(b.data) }
 
-func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string)) (string, string) {
+func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), attachmentPaths ...string) (string, string) {
 	if s.cfg != nil && s.cfg.Environment == "testing" {
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
 	if home == "" {
 		home, _ = os.UserHomeDir()
 	}
-	system := fmt.Sprintf("You are %s, a colleague in Cuan. Respond to the message appropriately: a brief greeting, a useful substantive answer, or a clarification when ambiguous. Use the user's language. Do not turn every message into a greeting. Do not claim actions, file changes, tasks, or deployments that have not happened. You have project context and may use read-only tools to analyze repositories, backlogs, and sprint recommendations without creating a task. For analysis use view_file, list_dir, grep_search, find_by_name, view_file_outline, or view_code_item. Do not use run_command or the terminal because chat does not offer interactive approvals. If a tool is denied, explain the limitation and answer from available information; do not claim the command succeeded. Use only the provided project workspace; do not read credentials, sign-in profiles, or other projects. Do not change files, commit, run tests/builds, or deploy during chat analysis. Use application-managed delegation for approved execution; native tools in chat remain read-only. If the snapshot says the repository is not connected or the project is ambiguous, explain and ask for the correct project; do not claim tools are generally unavailable. Do not expose private reasoning, tokens, credentials, or runtime diagnostics.\n\n%s", name, prompt)
+	system := fmt.Sprintf("You are %s, a colleague in Cuan. Respond to the message appropriately: a brief greeting, a useful substantive answer, or a clarification when ambiguous. Use the user's language. Do not turn every message into a greeting. Do not claim actions, file changes, tasks, or deployments that have not happened. You have project context and may use read-only tools to analyze repositories, backlogs, and sprint recommendations without creating a task. For analysis use view_file, list_dir, grep_search, find_by_name, view_file_outline, or view_code_item. Do not use run_command or the terminal because chat does not offer interactive approvals. If a tool is denied, explain the limitation and answer from available information; do not claim the command succeeded. Use only the provided project workspace and the explicitly listed user attachment paths; do not read credentials, sign-in profiles, or other projects. Do not change files, commit, run tests/builds, or deploy during chat analysis. Use application-managed delegation for approved execution; native tools in chat remain read-only. If the snapshot says the repository is not connected or the project is ambiguous, explain and ask for the correct project; do not claim tools are generally unavailable. Do not expose private reasoning, tokens, credentials, or runtime diagnostics.\n\n%s", name, prompt)
 	system = workflow.Coordinator + "\n\n" + inboxDelegationInstruction + "\n\n" + inboxTaskDraftInstruction + "\n\n" + system
 	binary := "agy"
 	var args []string
@@ -69,6 +70,16 @@ func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, hom
 		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 	default:
 		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, or Codex agent."
+	}
+	for _, file := range attachmentPaths {
+		if binary == "codex" {
+			ext := strings.ToLower(filepath.Ext(file))
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" {
+				args = append(args, "--image", file)
+			}
+		} else {
+			args = append(args, "--add-dir", filepath.Dir(file))
+		}
 	}
 	path, err := exec.LookPath(binary)
 	if err != nil && binary == "agy" {

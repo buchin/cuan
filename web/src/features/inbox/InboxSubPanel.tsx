@@ -1,3 +1,4 @@
+import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState } from 'react'
@@ -57,6 +58,8 @@ export function InboxSubPanel({
   searchQuery = '',
   onSearchChange,
 }: InboxSubPanelProps) {
+  const { t, language } = useLanguage()
+
   const [internalTab, setInternalTab] = useState<ContactFilterTab>(selectedTab)
   const [internalQuery, setInternalQuery] = useState(searchQuery)
 
@@ -99,13 +102,13 @@ export function InboxSubPanel({
     const yesterday = new Date()
     yesterday.setDate(today.getDate() - 1)
     if (date.toDateString() === today.toDateString())
-      return date.toLocaleTimeString('en-US', {
+      return date.toLocaleTimeString(language, {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
       })
     if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
+    return date.toLocaleDateString(language, { day: 'numeric', month: 'short' })
   }
 
   return (
@@ -118,7 +121,7 @@ export function InboxSubPanel({
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            aria-label="Search conversations"
+            aria-label={t('Search conversations')}
             placeholder="Search conversations…"
             className="w-full min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search border border-transparent text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
@@ -136,7 +139,7 @@ export function InboxSubPanel({
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            All
+            {t('All')}
           </button>
           <button
             aria-pressed={activeTab === 'agents'}
@@ -148,7 +151,7 @@ export function InboxSubPanel({
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            <span>Agents</span>
+            <span>{t('Agents')}</span>
             <span className="sr-only">({agentCount})</span>
           </button>
           <button
@@ -161,7 +164,7 @@ export function InboxSubPanel({
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
-            <span>Customers</span>
+            <span>{t('Customers')}</span>
             <span className="sr-only">({customerCount})</span>
           </button>
         </div>

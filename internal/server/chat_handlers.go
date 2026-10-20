@@ -51,24 +51,25 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
-	ID              int64            `json:"id"`
-	UUID            string           `json:"uuid,omitempty"`
-	ChatSessionUUID string           `json:"chat_session_uuid,omitempty"`
-	RoomID          string           `json:"room_id,omitempty"`
-	SenderType      string           `json:"sender_type"` // "visitor" or "operator"
-	AuthorType      string           `json:"author_type"` // "user", "agent", "system"
-	AuthorName      string           `json:"author_name"`
-	Message         string           `json:"message"`
-	Content         string           `json:"content"`
-	Product         string           `json:"product,omitempty"`
-	AttachmentURL   string           `json:"attachment_url,omitempty"`
-	AttachmentType  string           `json:"attachment_type,omitempty"`
-	AttachmentName  string           `json:"attachment_name,omitempty"`
-	AttachmentSize  int64            `json:"attachment_size,omitempty"`
-	HasAttachment   bool             `json:"has_attachment,omitempty"`
-	ActionCard      *AgentActionCard `json:"action_card,omitempty"`
-	TaskDraft       *InboxTaskDraft  `json:"task_draft,omitempty"`
-	CreatedAt       time.Time        `json:"created_at"`
+	Attachments     []conversationAttachment `json:"attachments,omitempty"`
+	ID              int64                    `json:"id"`
+	UUID            string                   `json:"uuid,omitempty"`
+	ChatSessionUUID string                   `json:"chat_session_uuid,omitempty"`
+	RoomID          string                   `json:"room_id,omitempty"`
+	SenderType      string                   `json:"sender_type"` // "visitor" or "operator"
+	AuthorType      string                   `json:"author_type"` // "user", "agent", "system"
+	AuthorName      string                   `json:"author_name"`
+	Message         string                   `json:"message"`
+	Content         string                   `json:"content"`
+	Product         string                   `json:"product,omitempty"`
+	AttachmentURL   string                   `json:"attachment_url,omitempty"`
+	AttachmentType  string                   `json:"attachment_type,omitempty"`
+	AttachmentName  string                   `json:"attachment_name,omitempty"`
+	AttachmentSize  int64                    `json:"attachment_size,omitempty"`
+	HasAttachment   bool                     `json:"has_attachment,omitempty"`
+	ActionCard      *AgentActionCard         `json:"action_card,omitempty"`
+	TaskDraft       *InboxTaskDraft          `json:"task_draft,omitempty"`
+	CreatedAt       time.Time                `json:"created_at"`
 }
 
 // LiveChatSession stores visitor session metadata for the Dojo live chat widget.
@@ -530,7 +531,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						Status:         "idle",
 						ConversationID: roomID,
 						UnreadCount:    0,
-						LastMessage:    lastMsg,
+						LastMessage:    attachmentPreview(lastMsg),
 						LastMessageAt:  lastAt,
 						UpdatedAt:      lastAt,
 					}
@@ -556,7 +557,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					last = messages[len(messages)-1].Content
 					at = messages[len(messages)-1].CreatedAt
 				}
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, LastMessage: last, LastMessageAt: at, UpdatedAt: at})
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at})
 			}
 		}
 	}
@@ -625,7 +626,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				GuestUUID:      sess.GuestUUID,
 				ConversationID: sess.UUID,
 				UnreadCount:    unread,
-				LastMessage:    lastMsg,
+				LastMessage:    attachmentPreview(lastMsg),
 				LastMessageAt:  lastAt,
 				UpdatedAt:      lastAt,
 			}
@@ -912,11 +913,12 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	var payload struct {
-		AuthorType string `json:"author_type"`
-		AuthorName string `json:"author_name"`
-		Message    string `json:"message"`
-		Content    string `json:"content"`
-		RequestID  string `json:"request_id"`
+		AttachmentIDs []string `json:"attachment_ids"`
+		AuthorType    string   `json:"author_type"`
+		AuthorName    string   `json:"author_name"`
+		Message       string   `json:"message"`
+		Content       string   `json:"content"`
+		RequestID     string   `json:"request_id"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload) != nil {
 		respondJSONError(w, 400, "Invalid request")
@@ -926,10 +928,19 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	if text == "" {
 		text = strings.TrimSpace(payload.Content)
 	}
-	if text == "" {
+	if text == "" && len(payload.AttachmentIDs) == 0 {
 		respondJSONError(w, 400, "Message cannot be empty")
 		return
 	}
+	if len([]rune(text)) > 6000 || strings.HasPrefix(text, attachmentEnvelope) {
+		respondJSONError(w, 400, "Use a message up to 6000 characters")
+		return
+	}
+	if err := validateAttachmentIDs(ownerID, payload.AttachmentIDs); err != nil {
+		respondJSONError(w, 400, err.Error())
+		return
+	}
+	text = encodeAttachmentMessage(text, payload.AttachmentIDs)
 	legacy := payload.RequestID == ""
 	if legacy {
 		payload.RequestID = db.GenerateUUID()
@@ -944,6 +955,10 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
+	if len(payload.AttachmentIDs) > 0 && !resolved.IsAgent {
+		respondJSONError(w, 400, "Attachments are currently supported in agent conversations")
+		return
+	}
 	now := time.Now().UTC()
 	q := db.InboxRequest{RoomID: resolved.RoomID, RequestID: payload.RequestID, PayloadHash: fmt.Sprintf("%x", sha256.Sum256([]byte(text))), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: ownerID, AgentID: resolved.TargetAgentID, State: "queued", CreatedAt: now, Deadline: now.Add(24 * time.Hour)}
 	user := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", AuthorID: "operator_user", AuthorName: "Owner", Content: text, CreatedAt: now, UpdatedAt: now}
@@ -1169,6 +1184,18 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 
 		var actionCard *AgentActionCard
 		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
+		var attached []conversationAttachment
+		if m.AuthorType == "user" {
+			var ids []string
+			content, ids = decodeAttachmentMessage(content)
+			for _, id := range ids {
+				// Owner-only APIs share the account context; files remain private.
+				a, _, err := loadAttachmentForMessage(ctx, s, roomID, m.ID, id)
+				if err == nil {
+					attached = append(attached, a)
+				}
+			}
+		}
 		if m.AuthorType == "system" && m.AuthorID == "cuan_work_review" {
 			content = "I’m checking the latest work update. " + strings.TrimPrefix(strings.SplitN(m.Content, "\n", 2)[0], "Review the result for ")
 		}
@@ -1186,6 +1213,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			Product:         product,
 			ActionCard:      actionCard,
 			TaskDraft:       draft,
+			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
 		}
 	}

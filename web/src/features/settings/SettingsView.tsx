@@ -1,3 +1,7 @@
+import {
+  useLanguage,
+  type LanguagePreference,
+} from '../../context/LanguageContext'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import type { Project } from '../../api/types'
@@ -21,6 +25,7 @@ export function SettingsView({
   onAgentAdded,
   onDeleteProject,
 }: SettingsViewProps) {
+  const { t, preference, setPreference } = useLanguage()
   const location = useLocation()
   const { theme, setTheme } = useTheme()
   const [busy, setBusy] = useState(false)
@@ -37,7 +42,7 @@ export function SettingsView({
           to={`/projects/${encodeURIComponent(activeProject.id)}`}
           className="action-secondary md:hidden"
         >
-          ← Back to project
+          {t('← Back to project')}
         </Link>
         <header>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -55,18 +60,18 @@ export function SettingsView({
           </p>
         )}
         <section className="space-y-4 rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold">Repository</h2>
+          <h2 className="text-lg font-semibold">{t('Repository')}</h2>
           <dl className="space-y-3 text-sm">
             <div>
-              <dt className="font-medium">Repository URL</dt>
+              <dt className="font-medium">{t('Repository URL')}</dt>
               <dd className="mt-1 break-all text-muted-foreground">
-                {activeProject.repo_url || 'Not connected'}
+                {activeProject.repo_url || t('Not connected')}
               </dd>
             </div>
             <div>
-              <dt className="font-medium">Default branch</dt>
+              <dt className="font-medium">{t('Default branch')}</dt>
               <dd className="mt-1 text-muted-foreground">
-                {activeProject.default_branch || 'Not available'}
+                {activeProject.default_branch || t('Not available')}
               </dd>
             </div>
           </dl>
@@ -77,7 +82,7 @@ export function SettingsView({
         </section>
         {onDeleteProject && !activeProject.is_archived && (
           <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">Archive project</h2>
+            <h2 className="text-lg font-semibold">{t('Archive project')}</h2>
             <p className="my-3 text-sm text-muted-foreground">
               Move this project to the archive. You can restore it from
               Projects. Your repository and data are preserved.
@@ -99,7 +104,7 @@ export function SettingsView({
                 }
               }}
             >
-              Archive project
+              {t('Archive project')}
             </button>
           </section>
         )}
@@ -109,18 +114,18 @@ export function SettingsView({
     <section className="page-content space-y-5">
       <header>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage your workspace and agent connections.
+          {t('Manage your workspace and agent connections.')}
         </p>
       </header>
       <nav
-        aria-label="Settings sections"
+        aria-label={t('Settings sections')}
         className="flex gap-1 overflow-x-auto border-b border-border"
       >
         {[
-          ['general', 'General'],
-          ['agents', 'Agents'],
-          ['integrations', 'Integrations'],
-          ['appearance', 'Appearance'],
+          ['general', t('General')],
+          ['agents', t('Agents')],
+          ['integrations', t('Integrations')],
+          ['appearance', t('Appearance')],
         ].map(([id, label]) => (
           <Link
             key={id}
@@ -128,7 +133,7 @@ export function SettingsView({
             aria-current={section === id ? 'page' : undefined}
             className={`inline-flex min-h-11 shrink-0 items-center border-b-2 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${section === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
-            {label}
+            {t(label)}
           </Link>
         ))}
       </nav>
@@ -136,7 +141,7 @@ export function SettingsView({
         <>
           {safeReturn && (
             <Link to={safeReturn} className="action-secondary">
-              ← Back to conversation
+              {t('← Back to conversation')}
             </Link>
           )}
           <TeamView
@@ -152,9 +157,34 @@ export function SettingsView({
         <IntegrationsView />
       ) : section === 'appearance' ? (
         <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold">Appearance</h2>
+          <label
+            htmlFor="interface-language"
+            className="block text-sm font-medium"
+          >
+            {t('Language')}
+          </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Cuan follows your preference. Your choice is saved in this browser.
+            {t(
+              'Choose your interface language. Conversation content stays unchanged.',
+            )}
+          </p>
+          <select
+            id="interface-language"
+            className="field-control mt-3 mb-6 max-w-sm"
+            value={preference}
+            onChange={(e) =>
+              setPreference(e.target.value as LanguagePreference)
+            }
+          >
+            <option value="auto">{t('Auto (browser language)')}</option>
+            <option value="en">{t('English')}</option>
+            <option value="id">Bahasa Indonesia</option>
+          </select>
+          <h2 className="text-lg font-semibold">{t('Appearance')}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t(
+              'Cuan follows your preference. Your choice is saved in this browser.',
+            )}
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             {(['light', 'dark', 'system'] as const).map((id) => (
@@ -165,7 +195,11 @@ export function SettingsView({
                 onClick={() => setTheme(id)}
                 className={`action-secondary ${theme === id ? 'bg-accent font-semibold ring-2 ring-ring' : ''}`}
               >
-                {{ light: 'Light', dark: 'Dark', system: 'System' }[id]}
+                {
+                  { light: t('Light'), dark: t('Dark'), system: t('System') }[
+                    id
+                  ]
+                }
               </button>
             ))}
           </div>
@@ -173,18 +207,18 @@ export function SettingsView({
       ) : (
         <div className="space-y-4">
           <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">Agents</h2>
+            <h2 className="text-lg font-semibold">{t('Agents')}</h2>
             <p className="my-3 text-sm text-muted-foreground">
-              Add agents or check existing account connections.
+              {t('Add agents or check existing account connections.')}
             </p>
             <Link to="/settings/agents" className="action-primary">
-              Manage agents
+              {t('Manage agents')}
             </Link>
           </section>
           <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">Project settings</h2>
+            <h2 className="text-lg font-semibold">{t('Project settings')}</h2>
             <p className="my-3 text-sm text-muted-foreground">
-              Select a project to view its repository configuration.
+              {t('Select a project to view its repository configuration.')}
             </p>
             <ul className="space-y-2">
               {projects
@@ -202,7 +236,7 @@ export function SettingsView({
             </ul>
             {!projects.some((p) => !p.is_archived) && (
               <Link to="/projects" className="action-secondary">
-                Open Projects
+                {t('Open Projects')}
               </Link>
             )}
           </section>

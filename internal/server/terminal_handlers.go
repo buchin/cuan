@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/db"
 	"net/http"
 	"os"
 	"strings"
@@ -275,6 +276,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	taskPrompt := strings.TrimSpace(payload.Prompt)
 	workDir := ""
 	sessionContext := ""
+	var attachmentPaths []string
 	taskFound := false
 	sourceRoom := ""
 
@@ -309,6 +311,18 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 			sourceRoom = detail.SourceRoomID
+			if detail.SourceRoomID != "" {
+				if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+					if requests, e := store.ListInboxRequests(r.Context(), detail.SourceRoomID); e == nil {
+						for _, q := range requests {
+							if q.MessageID == detail.SourceMessageID && q.OwnerID == ownerID {
+								attachmentPaths = s.inboxAttachmentPaths(r.Context(), q)
+								break
+							}
+						}
+					}
+				}
+			}
 			if detail.ProjectID != "" && s.projectSvc != nil {
 				project, e := s.projectSvc.Get(r.Context(), detail.ProjectID)
 				if e != nil || project == nil {
@@ -434,15 +448,16 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	}
 	// 3. Spawn PTY process via Manager
 	runCfg := terminal.TaskAgentRunConfig{
-		TaskID:    taskID,
-		AgentID:   agentID,
-		AgentName: agentName,
-		Command:   payload.Binary,
-		Prompt:    taskPrompt,
-		WorkDir:   workDir,
-		Cols:      payload.Cols,
-		Rows:      payload.Rows,
-		Mode:      terminal.ModeInteractive,
+		AttachmentPaths: attachmentPaths,
+		TaskID:          taskID,
+		AgentID:         agentID,
+		AgentName:       agentName,
+		Command:         payload.Binary,
+		Prompt:          taskPrompt,
+		WorkDir:         workDir,
+		Cols:            payload.Cols,
+		Rows:            payload.Rows,
+		Mode:            terminal.ModeInteractive,
 		OnOutput: func(chunk []byte) {
 			if output != nil {
 				output.append(chunk)

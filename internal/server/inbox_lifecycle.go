@@ -202,7 +202,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						workspace, projectContext := s.inboxProjectContext(ctx, q)
 						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + prompt
 						step("context", "Project context checked for analysis.")
-						output, failure := s.executeInboxCLI(ctx, registered.Name, registered.Harness, prompt, home, workspace, step)
+						output, failure := s.executeInboxCLI(ctx, registered.Name, registered.Harness, prompt, home, workspace, step, s.inboxAttachmentPaths(ctx, q)...)
 						if output == "" {
 							log.Printf("inbox provider failed room=%s request=%s agent=%s", q.RoomID, q.RequestID, registered.ID)
 							q.SafeError = failure
@@ -268,7 +268,8 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest) (string, e
 	lines := []string{}
 	for i := len(selected) - 1; i >= 0; i-- {
 		m := selected[i]
-		text := []rune(m.Content)
+		display, _ := decodeAttachmentMessage(m.Content)
+		text := []rune(display)
 		if m.ID != q.MessageID && len(text) > 4000 {
 			text = append(text[:4000], []rune("… [truncated]")...)
 		}
@@ -297,6 +298,7 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest) (string, e
 			}
 		}
 	}
+	b.WriteString(attachmentContext(q.OwnerID, s.inboxAttachmentIDs(ctx, q)))
 	fmt.Fprintf(&b, "\nTarget message ID: %s", q.MessageID)
 	return b.String(), nil
 }

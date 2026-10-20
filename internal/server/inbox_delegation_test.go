@@ -44,7 +44,7 @@ func TestInboxDelegationRunsAndReturnsResult(t *testing.T) {
 func TestInboxDelegationManagedProject(t *testing.T) { runInboxDelegation(t, true, true) }
 
 func runInboxDelegation(t *testing.T, topic, managed bool) {
-	s, _, call, home := inboxFixture(t)
+	s, token, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
 	if err := projects.CreateProject(ctx, &project.Project{ID: "delegate-project", Name: "Delegate project"}); err != nil {
@@ -62,6 +62,7 @@ func runInboxDelegation(t *testing.T, topic, managed bool) {
 	verified, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": "Audit finished. Evidence checked against the approved request; no changes or deployment."}})
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
+ if [ -f "$HOME/attachment-fixture-path" ]; then p=$(cat "$HOME/attachment-fixture-path"); grep -q APPROVED_FILE_SENTINEL "$p" || exit 22; fi
  "$CUAN_TASK_EXECUTABLE" task report --progress 'Checking the approved scope' >/dev/null || exit 20
  "$CUAN_TASK_EXECUTABLE" task report --state done --summary 'Audit fixture complete' --complete-note 'Verified deterministic audit evidence; no code changes' >/dev/null || exit 21
  pwd > "$HOME/task-working-directory"
@@ -88,8 +89,28 @@ esac
 		json.Unmarshal(response.Body.Bytes(), &c)
 		conversation = c.ConversationID
 	}
+	var attachmentIDs []string
+	var fixturePath string
+	if managed {
+		owner, e := s.authSvc.ValidateToken(ctx, token)
+		if e != nil {
+			t.Fatal(e)
+		}
+		a := conversationAttachment{ID: db.GenerateUUID(), Name: "approved-notes.txt", Type: "text/plain", Size: 22}
+		a.URL = "/api/v1/chat/attachments/" + a.ID
+		dir, _ := attachmentDirectory(owner.ID, a.ID)
+		if e := os.MkdirAll(dir, 0700); e != nil {
+			t.Fatal(e)
+		}
+		fixturePath = filepath.Join(dir, "content.txt")
+		os.WriteFile(fixturePath, []byte("APPROVED_FILE_SENTINEL"), 0600)
+		raw, _ := json.Marshal(a)
+		os.WriteFile(filepath.Join(dir, "metadata.json"), raw, 0600)
+		attachmentIDs = []string{a.ID}
+		os.WriteFile(filepath.Join(home, "attachment-fixture-path"), []byte(fixturePath), 0600)
+	}
 	requestID := db.GenerateUUID()
-	body, _ := json.Marshal(map[string]string{"request_id": requestID, "message": "Create a read-only security audit task and run it. Report here; do not deploy."})
+	body, _ := json.Marshal(map[string]any{"attachment_ids": attachmentIDs, "request_id": requestID, "message": "Create a read-only security audit task and run it. Report here; do not deploy."})
 	w := call("POST", "/api/v1/chat/conversations/"+conversation+"/messages", string(body))
 	if w.Code != 202 && w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
@@ -121,6 +142,9 @@ esac
 		}
 	}
 
+	if managed && !strings.Contains(result.Instructions, fixturePath) {
+		t.Fatal("delegated task lost its attachment")
+	}
 	if result.Status != "done" || !strings.Contains(result.Instructions, "do not deploy") {
 		t.Fatal(result)
 	}

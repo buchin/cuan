@@ -21,11 +21,16 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Goal      string `json:"goal"`
-		RequestID string `json:"request_id"`
+		AttachmentIDs []string `json:"attachment_ids"`
+		Goal          string   `json:"goal"`
+		RequestID     string   `json:"request_id"`
 	}
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 32000)).Decode(&req) != nil || !db.IsValidUUID(req.RequestID) || strings.TrimSpace(req.Goal) == "" || len([]rune(req.Goal)) > 6000 {
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 32000)).Decode(&req) != nil || !db.IsValidUUID(req.RequestID) || (strings.TrimSpace(req.Goal) == "" && len(req.AttachmentIDs) == 0) || len([]rune(req.Goal)) > 6000 {
 		respondJSONError(w, 400, "Describe your goal in up to 6000 characters.")
+		return
+	}
+	if err := validateAttachmentIDs(owner, req.AttachmentIDs); err != nil {
+		respondJSONError(w, 400, err.Error())
 		return
 	}
 	if s.agentRepo == nil {
@@ -87,7 +92,7 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(topicResponse.body.Bytes())
 		return
 	}
-	message := internal("/api/v1/chat/conversations/"+topicID+"/messages", map[string]string{"message": strings.TrimSpace(req.Goal), "request_id": req.RequestID})
+	message := internal("/api/v1/chat/conversations/"+topicID+"/messages", map[string]any{"message": strings.TrimSpace(req.Goal), "request_id": req.RequestID, "attachment_ids": req.AttachmentIDs})
 	routing := chi.NewRouteContext()
 	routing.URLParams.Add("id", topicID)
 	message = message.WithContext(context.WithValue(message.Context(), chi.RouteCtxKey, routing))

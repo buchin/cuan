@@ -172,7 +172,8 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		}
 	} else {
 		// At most one task per user-approved scope. Repeated responses reuse it.
-		instructions := "Cuan managed delegation v1.\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + authorization.Content + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
+		approvalText, _ := decodeAttachmentMessage(authorization.Content)
+		instructions := "Cuan managed delegation v1.\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
 		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, q.MessageID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: d.Title, Instructions: instructions, AssignedAgent: q.AgentID})
 		if e != nil {
 			return fail("the task could not be saved")

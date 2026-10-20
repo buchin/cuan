@@ -1,3 +1,4 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
@@ -16,6 +17,8 @@ export function InboxTaskAction({
   draft?: InboxTaskDraft
   linkedTask?: Task
 }) {
+  const { t } = useLanguage()
+
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState(draft?.project_id || '')
   const [title, setTitle] = useState(draft?.title || '')
@@ -95,8 +98,8 @@ export function InboxTaskAction({
         >
           {existing.latest_attempt
             ? ['running', 'queued'].includes(existing.latest_attempt.status)
-              ? 'View progress'
-              : 'View result'
+              ? t('View progress')
+              : t('View result')
             : 'View details'}
         </Link>
       </div>
@@ -186,7 +189,7 @@ export function InboxTaskAction({
         <p>
           Add a project from{' '}
           <Link className="underline" to="/projects">
-            Projects
+            {t('Projects')}
           </Link>
           .
         </p>

@@ -1,3 +1,4 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
@@ -23,6 +24,7 @@ interface AppShellProps {
   projectWorkspace?: boolean
   inboxSubPanel?: React.ReactNode
   inboxUnread?: number
+  pageTitleIsContent?: boolean
   pageTitle?: string
   breadcrumbs?: { label: string; to: string }[]
 }
@@ -43,9 +45,12 @@ export function AppShell({
   projectWorkspace = false,
   inboxSubPanel,
   inboxUnread = 0,
+  pageTitleIsContent = false,
   pageTitle,
   breadcrumbs = [],
 }: AppShellProps) {
+  const { t } = useLanguage()
+
   const shell = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -81,9 +86,9 @@ export function AppShell({
   }, [])
   const label =
     currentTab === 'tasks'
-      ? 'Work monitor'
+      ? t('Work monitor')
       : currentTab === 'settings'
-        ? 'Settings'
+        ? t('Settings')
         : NAV_ITEMS.find((n) => n.id === currentTab)?.label
   const navigate = (id: AppTab) => {
     onSelectTab(id)
@@ -95,8 +100,8 @@ export function AppShell({
   ) => (
     <button
       key={id}
-      title={text}
-      aria-label={text}
+      title={t(text)}
+      aria-label={t(text)}
       aria-current={currentTab === id ? 'page' : undefined}
       onClick={() => navigate(id)}
       className={cn(
@@ -110,7 +115,7 @@ export function AppShell({
       ) : (
         <Icon className="h-5 w-5 shrink-0" />
       )}
-      <span className="nav-label">{text}</span>
+      <span className="nav-label">{t(text)}</span>
     </button>
   )
   return (
@@ -122,7 +127,7 @@ export function AppShell({
       )}
     >
       <nav
-        aria-label="Main navigation"
+        aria-label={t('Main navigation')}
         className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"
       >
         <div className="sidebar-brand flex h-16 shrink-0 items-center gap-2 border-b border-border px-2.5">
@@ -132,9 +137,11 @@ export function AppShell({
           </span>
           <button
             className="sidebar-collapse icon-action hidden min-[1200px]:inline-flex"
-            title={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={
+              effectiveCollapsed ? t('Expand sidebar') : t('Collapse sidebar')
+            }
             aria-label={
-              effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+              effectiveCollapsed ? t('Expand sidebar') : t('Collapse sidebar')
             }
             onClick={() =>
               sessionWorkspace
@@ -155,7 +162,7 @@ export function AppShell({
           {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon))}
         </div>
         <div className="space-y-2 border-t border-border p-2.5">
-          {navButton('settings', 'Settings', Settings)}
+          {navButton('settings', t('Settings'), Settings)}
           <NavUser
             sidebar
             collapsed={effectiveCollapsed}
@@ -165,11 +172,11 @@ export function AppShell({
       </nav>
       {currentTab === 'inbox' && listOpen && (
         <section
-          aria-label="Conversations"
+          aria-label={t('Conversations')}
           className="conversation-sidebar hidden h-full w-[280px] shrink-0 flex-col border-r border-border min-[1200px]:flex"
         >
           <div className="flex h-16 shrink-0 items-center border-b border-border px-4 text-base font-semibold">
-            Conversations
+            {t('Conversations')}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">{inboxSubPanel}</div>
         </section>
@@ -186,7 +193,7 @@ export function AppShell({
             <CuanMark className="h-6 w-6 md:hidden" />
             {breadcrumbs.length > 0 && (
               <nav
-                aria-label="Breadcrumbs"
+                aria-label={t('Breadcrumbs')}
                 className="hidden min-w-0 items-center gap-2 text-sm text-muted-foreground md:flex"
               >
                 {breadcrumbs.map((crumb) => (
@@ -206,7 +213,7 @@ export function AppShell({
               </nav>
             )}
             <h1 className="page-title min-w-0 truncate text-xl font-semibold tracking-tight">
-              {pageTitle || label}
+              {pageTitleIsContent ? pageTitle : t(pageTitle || label || '')}
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -214,7 +221,7 @@ export function AppShell({
               <button
                 className="icon-action hidden min-[1200px]:inline-flex"
                 aria-label={
-                  listOpen ? 'Hide conversations' : 'Show conversations'
+                  listOpen ? t('Hide conversations') : t('Show conversations')
                 }
                 onClick={() => setListOpen((v) => !v)}
               >
@@ -248,7 +255,7 @@ export function AppShell({
       </main>
       {!hideBottomNav && (
         <nav
-          aria-label="Bottom navigation"
+          aria-label={t('Bottom navigation')}
           className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
         >
           {NAV_ITEMS.map(({ id, label: text, icon: Icon }) => (
@@ -278,7 +285,7 @@ export function AppShell({
                   </span>
                 )}
               </span>
-              {text}
+              {t(text)}
             </button>
           ))}
           <div className="min-w-0 flex-1">

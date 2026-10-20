@@ -64,6 +64,10 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) nameAgentTopic(ctx context.Context, roomID, text string) {
+	text, ids := decodeAttachmentMessage(text)
+	if text == "" && len(ids) > 0 {
+		text = "Shared files"
+	}
 	inboxRoomResolutionMu.Lock()
 	defer inboxRoomResolutionMu.Unlock()
 	room, err := s.projectStudioRepo.GetRoomByID(ctx, roomID)

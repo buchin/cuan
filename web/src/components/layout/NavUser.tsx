@@ -1,3 +1,4 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ChangePasswordModal } from '../auth/ChangePasswordModal'
@@ -31,6 +32,8 @@ export function NavUser({
   bottomNavigation = false,
   active = false,
 }: NavUserProps) {
+  const { t } = useLanguage()
+
   const compact = isCollapsed || (sidebar && collapsed)
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -87,7 +90,7 @@ export function NavUser({
         <button
           type="button"
           ref={triggerRef}
-          aria-label="Account menu"
+          aria-label={t('Account menu')}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
@@ -113,7 +116,7 @@ export function NavUser({
             {initials}
           </div>
 
-          {bottomNavigation && <span>Account</span>}
+          {bottomNavigation && <span>{t('Account')}</span>}
 
           {!compact && !bottomNavigation && (
             <div className="account-label grid min-w-0 flex-1 text-left leading-tight truncate">
@@ -133,7 +136,7 @@ export function NavUser({
           <div
             data-account-popover
             role="region"
-            aria-label="Account menu"
+            aria-label={t('Account menu')}
             className={cn(
               'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1 rounded-lg',
               dropdownPosition === 'top-right'
@@ -175,7 +178,7 @@ export function NavUser({
                 }}
               >
                 <Activity className="h-4 w-4" />
-                <span>Work monitor</span>
+                <span>{t('Work monitor')}</span>
               </button>
             )}
             {onSettings && (
@@ -188,7 +191,7 @@ export function NavUser({
                 }}
               >
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <span>{t('Settings')}</span>
               </button>
             )}
             {/* Menu Actions */}
@@ -209,7 +212,7 @@ export function NavUser({
               className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors text-left rounded-md"
             >
               <LogOut className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">Sign out</span>
+              <span className="font-semibold">{t('Sign out')}</span>
             </button>
           </div>
         )}

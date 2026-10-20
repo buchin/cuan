@@ -1,3 +1,5 @@
+import { useLanguage } from '../../context/LanguageContext'
+import { AttachmentPicker, AttachmentFile, useAttachments } from './Attachments'
 import { Link } from 'react-router-dom'
 import { CreateAction } from '../../components/layout/CreateAction'
 import type { Agent } from '../../api/agents'
@@ -71,6 +73,8 @@ export function InboxView({
   onBackToContacts,
   onMobileChatActiveChange,
 }: InboxViewProps) {
+  const { t, language } = useLanguage()
+
   const unsentDrafts = useRef<Record<string, string>>({})
   const loadVersion = useRef(0)
   const followTail = useRef(true)
@@ -84,12 +88,17 @@ export function InboxView({
     convId: string
     text: string
     id: string
+    attachmentIds?: string[]
   } | null>(null)
   const activeConvRef = useRef('')
   activeConvRef.current =
     activeContact?.conversation_id || activeContact?.id || ''
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
+  const uploads = useAttachments(
+    'cuan-inbox-attachments:' +
+      (activeContact?.conversation_id || activeContact?.id || ''),
+  )
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [approving, setApproving] = useState<string | null>(null)
@@ -132,6 +141,10 @@ export function InboxView({
           data.requests?.some((q) => q.request_id === pending.id)
         ) {
           localStorage.removeItem('cuan_inbox_pending:' + convId)
+          uploads.acknowledge(
+            pending.attachmentIds || [],
+            'cuan-inbox-attachments:' + convId,
+          )
           pendingRef.current = null
           setSendError('')
           if (unsentDrafts.current[convId]?.trim() === pending.text)
@@ -145,13 +158,13 @@ export function InboxView({
         if (activeConvRef.current !== convId || version !== loadVersion.current)
           return
         setSendError(
-          'Could not load history. Refresh to check your message status.',
+          t('Could not load history. Refresh to check your message status.'),
         )
       } finally {
         if (showSpinner) setLoading(false)
       }
     },
-    [],
+    [t],
   )
 
   // Auto-resize textarea
@@ -181,12 +194,16 @@ export function InboxView({
         if (saved) {
           pendingRef.current = JSON.parse(saved)
           setSendError(
-            'Your previous message is not confirmed. Refresh or check again using the same ID.',
+            t(
+              'Your previous message is not confirmed. Refresh or check again using the same ID.',
+            ),
           )
         }
       } catch {
         setSendError(
-          'Browser storage is unavailable. Refresh history before sending again.',
+          t(
+            'Browser storage is unavailable. Refresh history before sending again.',
+          ),
         )
       }
       loadConversation(convId, true)
@@ -219,6 +236,10 @@ export function InboxView({
             data.requests?.some((q) => q.request_id === pending.id)
           ) {
             localStorage.removeItem('cuan_inbox_pending:' + convId)
+            uploads.acknowledge(
+              pending.attachmentIds || [],
+              'cuan-inbox-attachments:' + convId,
+            )
             pendingRef.current = null
             setSendError('')
             setRetryCount(0)
@@ -279,15 +300,21 @@ export function InboxView({
   ])
 
   const handleSendMessage = async () => {
-    if (!activeContact || sending || retryCount >= 3) return
+    if (!activeContact || sending || uploads.busy || retryCount >= 3) return
     const convId = activeContact.conversation_id || activeContact.id
     const pending = pendingRef.current
     const text = pending?.convId === convId ? pending.text : inputMessage.trim()
-    if (!text) return
+    if (!text && !uploads.items.length && !pending?.attachmentIds?.length)
+      return
     const request =
       pending?.convId === convId
         ? pending
-        : { convId, text, id: crypto.randomUUID() }
+        : {
+            convId,
+            text,
+            id: crypto.randomUUID(),
+            attachmentIds: uploads.items.map((a) => a.id),
+          }
     // Save before the first network byte; reload/retry reuses the same key.
     try {
       localStorage.setItem(
@@ -296,7 +323,9 @@ export function InboxView({
       )
     } catch {
       setSendError(
-        'Could not save the message ID. Enable browser storage and try again.',
+        t(
+          'Could not save the message ID. Enable browser storage and try again.',
+        ),
       )
       return
     }
@@ -305,7 +334,14 @@ export function InboxView({
     setSending(true)
     setRetryCount((n) => n + 1)
     try {
-      await chatApi.sendMessage(convId, text, 'You', request.id)
+      await chatApi.sendMessage(
+        convId,
+        text,
+        'You',
+        request.id,
+        request.attachmentIds,
+      )
+      uploads.clear()
       if (unsentDrafts.current[convId]?.trim() === request.text)
         delete unsentDrafts.current[convId]
       if (activeConvRef.current === convId) {
@@ -320,7 +356,9 @@ export function InboxView({
     } catch {
       if (activeConvRef.current === convId)
         setSendError(
-          'Delivery is not confirmed. Your message may have been received. Refresh or check again using the same ID to avoid a duplicate run.',
+          t(
+            'Delivery is not confirmed. Your message may have been received. Refresh or check again using the same ID to avoid a duplicate run.',
+          ),
         )
     } finally {
       setSending(false)
@@ -357,7 +395,7 @@ export function InboxView({
     if (!iso) return ''
     try {
       const d = new Date(iso)
-      return d.toLocaleTimeString('en-US', {
+      return d.toLocaleTimeString(language, {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
@@ -503,7 +541,7 @@ export function InboxView({
                       false,
                     )
                   }
-                  title="Refresh messages"
+                  title={t('Refresh messages')}
                   className="icon-action text-muted-foreground"
                 >
                   <RefreshCw
@@ -513,7 +551,7 @@ export function InboxView({
                 <div className="flex items-center gap-1 md:hidden">
                   {onNewMessage && (
                     <CreateAction
-                      label="New message"
+                      label={t('New message')}
                       onClick={onNewMessage}
                       kind="inbox"
                     />
@@ -536,9 +574,11 @@ export function InboxView({
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
                   <Bot className="h-8 w-8 text-muted-foreground/60" />
-                  <p className="text-xs">No messages with this contact yet.</p>
+                  <p className="text-xs">
+                    {t('No messages with this contact yet.')}
+                  </p>
                   <p className="text-[11px] text-muted-foreground/80">
-                    Type a message below to start a conversation.
+                    {t('Type a message below to start a conversation.')}
                   </p>
                 </div>
               )}
@@ -568,7 +608,7 @@ export function InboxView({
                     ? 'Today'
                     : date.toDateString() === yesterday.toDateString()
                       ? 'Yesterday'
-                      : date.toLocaleDateString('en-US', {
+                      : date.toLocaleDateString(language, {
                           day: 'numeric',
                           month: 'long',
                           year: 'numeric',
@@ -610,6 +650,9 @@ export function InboxView({
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
+                      {msg.attachments?.map((a) => (
+                        <AttachmentFile key={a.id} attachment={a} />
+                      ))}
                       {msg.product && (
                         <p className="mb-1 text-xs font-medium opacity-80">
                           {msg.product}
@@ -840,7 +883,7 @@ export function InboxView({
                   })
                 }}
               >
-                Latest messages ↓
+                {t('Latest messages ↓')}
               </button>
             )}
             {streamState !== 'live' && (
@@ -849,16 +892,38 @@ export function InboxView({
                 role="status"
               >
                 {streamState === 'login'
-                  ? 'Your session has expired. Sign in again to continue.'
-                  : 'Connecting… Your conversation history is saved.'}
+                  ? t('Your session has expired. Sign in again to continue.')
+                  : t('Connecting… Your conversation history is saved.')}
               </p>
             )}
             {/* ── Modern Composer (Bottom) ── */}
-            <div data-inbox-composer className="wa-composer shrink-0 z-20">
+            <div
+              data-inbox-composer
+              className="wa-composer shrink-0 z-20"
+              onPaste={(e) => {
+                if (!sending && activeContact.type === 'agent')
+                  uploads.onPaste(e)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (!sending && activeContact.type === 'agent')
+                  uploads.onDrop(e)
+              }}
+              onDragOver={uploads.onDragOver}
+            >
+              <div className="mx-auto max-w-4xl">
+                {activeContact.type === 'agent' && (
+                  <AttachmentPicker
+                    key={activeContact.conversation_id}
+                    uploads={uploads}
+                    disabled={sending}
+                  />
+                )}
+              </div>
               <div className="flex items-end gap-2 max-w-4xl mx-auto">
                 <textarea
                   ref={textareaRef}
-                  aria-label="Message"
+                  aria-label={t('Message')}
                   rows={1}
                   value={inputMessage}
                   onChange={(e) => {
@@ -869,7 +934,7 @@ export function InboxView({
                   onKeyDown={handleKeyDown}
                   placeholder={
                     activeContact.type === 'agent'
-                      ? 'Write a message…'
+                      ? t('Write a message…')
                       : `Reply to ${activeContact.name}…`
                   }
                   className="wa-input min-w-0 flex-1 min-h-12 max-h-[140px] resize-none overflow-hidden rounded-[24px] px-4 py-3 text-base leading-6"
@@ -878,10 +943,14 @@ export function InboxView({
                 <button
                   type="button"
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || sending}
+                  disabled={
+                    (!inputMessage.trim() && !uploads.items.length) ||
+                    sending ||
+                    uploads.busy
+                  }
                   className="wa-send h-12 w-12 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0"
-                  title="Send message (Enter)"
-                  aria-label="Send message"
+                  title={t('Send message (Enter)')}
+                  aria-label={t('Send message')}
                 >
                   <Send className="h-5 w-5" />
                 </button>

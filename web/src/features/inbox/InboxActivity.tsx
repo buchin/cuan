@@ -1,3 +1,4 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
 import {
   CheckCircle2,
@@ -18,6 +19,8 @@ export function InboxActivity({
   onCancel: () => Promise<void>
   bubble?: boolean
 }) {
+  const { t, language } = useLanguage()
+
   const [now, setNow] = useState(Date.now())
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
@@ -114,7 +117,7 @@ export function InboxActivity({
               </span>
             )}
             <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
-              Detail
+              {t('Detail')}
             </span>
             <ChevronDown
               className="h-4 w-4 shrink-0 transition-transform group-open/response:rotate-180"
@@ -173,7 +176,7 @@ export function InboxActivity({
                         dateTime={step.at}
                         className="block text-xs tabular-nums text-muted-foreground"
                       >
-                        {new Date(step.at).toLocaleTimeString('en-US')}
+                        {new Date(step.at).toLocaleTimeString(language)}
                       </time>
                     )}
                   </li>
@@ -209,12 +212,12 @@ export function InboxActivity({
                 )}
                 <div>
                   <dt className="font-medium">Received</dt>
-                  <dd>{new Date(q.created_at).toLocaleString('en-US')}</dd>
+                  <dd>{new Date(q.created_at).toLocaleString(language)}</dd>
                 </div>
                 {q.started_at && (
                   <div>
                     <dt className="font-medium">Started</dt>
-                    <dd>{new Date(q.started_at).toLocaleString('en-US')}</dd>
+                    <dd>{new Date(q.started_at).toLocaleString(language)}</dd>
                   </div>
                 )}
                 {q.steps
@@ -306,7 +309,7 @@ export function InboxActivity({
             }}
           >
             <Square className="h-3 w-3" />
-            Cancel
+            {t('Cancel')}
           </button>
         )}
       </div>

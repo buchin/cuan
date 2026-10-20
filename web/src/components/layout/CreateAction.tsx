@@ -1,3 +1,4 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { FolderPlus, Plus, SquarePen, UserPlus } from 'lucide-react'
 
 type CreateActionProps = {
@@ -8,6 +9,8 @@ type CreateActionProps = {
 }
 
 export function CreateAction({ label, onClick, kind, id }: CreateActionProps) {
+  const { t } = useLanguage()
+
   const Icon =
     kind === 'inbox'
       ? SquarePen
@@ -21,13 +24,13 @@ export function CreateAction({ label, onClick, kind, id }: CreateActionProps) {
       id={id}
       type="button"
       className="action-primary h-11 w-11 shrink-0 p-0 md:w-auto md:px-3"
-      aria-label={label}
-      title={label}
+      aria-label={t(label)}
+      title={t(label)}
       onClick={onClick}
     >
       <Icon className="h-5 w-5 md:hidden" aria-hidden="true" />
       <Plus className="hidden h-4 w-4 md:block" aria-hidden="true" />
-      <span className="hidden md:inline">{label}</span>
+      <span className="hidden md:inline">{t(label)}</span>
     </button>
   )
 }

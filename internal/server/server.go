@@ -1591,6 +1591,8 @@ func (s *Server) routes() {
 			pr.Get("/chat/contacts", s.handleInternalListContacts)
 			pr.Post("/chat/conversations", s.handleCreateAgentTopic)
 			pr.Post("/studio/goals", s.handleStudioGoal)
+			pr.Post("/chat/attachments", s.handleUploadConversationAttachment)
+			pr.Get("/chat/attachments/{id}", s.handleDownloadConversationAttachment)
 			pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 			pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)
 			pr.Get("/chat/conversations/{id}/events", s.handleInboxStream)

@@ -41,20 +41,21 @@ type TaskRunHistory struct {
 
 // TaskAgentRunConfig specifies parameters for launching an agent process in a task workspace.
 type TaskAgentRunConfig struct {
-	AttemptID string
-	TaskID    string
-	AgentID   string
-	AgentName string
-	Command   string // "agy", "claude", "shell", or auto
-	Args      []string
-	Prompt    string
-	WorkDir   string
-	Env       []string
-	Cols      uint16
-	Rows      uint16
-	Mode      Mode
-	OnOutput  func([]byte)
-	OnExit    func(history *TaskRunHistory)
+	AttachmentPaths []string
+	AttemptID       string
+	TaskID          string
+	AgentID         string
+	AgentName       string
+	Command         string // "agy", "claude", "shell", or auto
+	Args            []string
+	Prompt          string
+	WorkDir         string
+	Env             []string
+	Cols            uint16
+	Rows            uint16
+	Mode            Mode
+	OnOutput        func([]byte)
+	OnExit          func(history *TaskRunHistory)
 }
 
 // ManagerConfig defines configuration parameters for the terminal session manager.
@@ -376,6 +377,17 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		ptyArgs = []string{"-i"}
 	default:
 		return nil, fmt.Errorf("unsupported task harness %q", commandLabel)
+	}
+	for _, file := range cfg.AttachmentPaths {
+		if commandLabel == "agy" || commandLabel == "claude" {
+			ptyArgs = append(ptyArgs, "--add-dir", filepath.Dir(file))
+		}
+		if commandLabel == "codex" {
+			ext := strings.ToLower(filepath.Ext(file))
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" {
+				ptyArgs = append(ptyArgs, "--image", file)
+			}
+		}
 	}
 	if err != nil || executable == "" {
 		return nil, fmt.Errorf("task harness %s is not installed", commandLabel)

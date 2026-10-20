@@ -525,6 +525,9 @@ export function App() {
       <AppShell
         currentTab={currentTab}
         pageTitle={sessionRoute ? 'Task session' : headerTitle}
+        pageTitleIsContent={
+          projectDetail && !projectSettings && !!headerProject
+        }
         breadcrumbs={headerBreadcrumbs}
         inboxUnread={contacts.reduce(
           (sum, contact) => sum + Math.max(0, contact.unread_count || 0),

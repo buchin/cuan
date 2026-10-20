@@ -34,6 +34,7 @@ export interface InboxTaskDraft {
 }
 
 export interface ChatMessage {
+  attachments?: import('../features/inbox/Attachments').Attachment[]
   task_draft?: InboxTaskDraft
   id: number
   uuid?: string
@@ -124,6 +125,7 @@ export const chatApi = {
     message: string,
     authorName = 'You',
     requestId?: string,
+    attachmentIds?: string[],
   ): Promise<{ message: ChatMessage; agent_reply?: ChatMessage }> => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15000)
@@ -136,6 +138,7 @@ export const chatApi = {
         signal: controller.signal,
         body: JSON.stringify({
           request_id: requestId,
+          attachment_ids: attachmentIds,
           message,
           content: message,
           author_type: 'user',
