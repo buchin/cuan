@@ -1,5 +1,8 @@
 ## Approve a plan in Inbox
 
+Cuan defaults to English. Settings can explicitly select another supported
+language or Auto; saved preferences are preserved.
+
 Describe your goal in Studio or an agent conversation. When the agent proposes
 work, read the scope and limits displayed below its reply, then choose **Approve
 and start**. The button changes to **Approved** when the approval is accepted.

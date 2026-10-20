@@ -18,7 +18,7 @@ Approved delegated work retains attachment references in its instructions and re
 
 ## Interface language
 
-Open **Settings → Appearance → Language**. Choose **Auto**, **English**, or **Bahasa Indonesia**. Auto uses the first supported browser language, with English fallback. The choice is saved in this browser; switching language preserves the goal draft and selected attachments. The document language and Inbox date formatting follow the selected locale.
+Open **Settings → Appearance → Language**. New browsers default to **English**, regardless of browser language. Choose **Auto**, **English**, or **Bahasa Indonesia**; existing explicit choices are preserved. Auto uses the first supported browser language, with English fallback. The choice is saved in this browser; switching language preserves the goal draft and selected attachments. The document language and Inbox date formatting follow the selected locale.
 
 This initial dictionary covers navigation, Studio, the main conversation and attachment flows, and language/appearance settings. Untranslated administrative, task/project detail labels and server diagnostics fall back to English. Conversation content, filenames and project names keep their original language. Agent response language follows the conversation independently.
 

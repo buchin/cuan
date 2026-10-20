@@ -10,6 +10,11 @@ data.messages=[{id:1,uuid:'plan-message',author_type:'agent',sender_type:'operat
 data.requests=planAccepted?[{request_id:'91000000-0000-4000-8000-000000000011',state:'completed',message_id:'approved-input',reply_id:'approval-reply',created_at:now,steps:[]}]:[];`);
 setup+=`
 const checks=[];
+await page.addInitScript(()=>{Object.defineProperty(navigator,'languages',{get:()=>['id-ID','en-US']})});
+await page.goto(base+'/inbox/room0');assert.equal(await page.evaluate(()=>document.documentElement.lang),'en');
+await page.evaluate(()=>localStorage.setItem('cuan-language','id'));await page.reload();assert.equal(await page.evaluate(()=>document.documentElement.lang),'id');
+await page.evaluate(()=>localStorage.setItem('cuan-language','auto'));await page.reload();assert.equal(await page.evaluate(()=>document.documentElement.lang),'id');
+await page.evaluate(()=>localStorage.setItem('cuan-language','en'));await page.reload();
 for(const width of [390,820,1440]){
  planAccepted=false;await page.setViewportSize({width,height:844});await page.goto(base+'/inbox/room0');
  const approve=page.getByRole('button',{name:'Approve and start',exact:true});await approve.waitFor();
@@ -25,7 +30,7 @@ for(const width of [390,820,1440]){
  checks.push({width,exactScopeVisible:true,approveAction:true,stableRequestId:true,approvedButtonDisabled:true,draftPreserved:true,noHorizontalOverflow:true});
 }
 assert.deepEqual(errors,[]);
-fs.writeFileSync('docs/evidence/plan-approval/browser.json',JSON.stringify({checks,providerCalls:0},null,2));
+fs.writeFileSync('docs/evidence/plan-approval/browser.json',JSON.stringify({checks,englishDefaultOnIndonesianBrowser:true,explicitLanguageAndAutoPreserved:true,providerCalls:0},null,2));
 console.log('Plan approval browser fixtures passed.');
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{if(browser)await browser.close();if(server)await new Promise(r=>server.close(r))});
 `;

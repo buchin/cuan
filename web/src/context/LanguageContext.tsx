@@ -16,7 +16,7 @@ export function resolveLanguage(
   return 'en'
 }
 const LanguageContext = createContext({
-  preference: 'auto' as LanguagePreference,
+  preference: 'en' as LanguagePreference,
   language: 'en' as 'en' | 'id',
   setPreference: (_value: LanguagePreference) => {},
   t: (text: string) => text,
@@ -25,9 +25,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [preference, setValue] = useState<LanguagePreference>(() => {
     try {
       const value = localStorage.getItem('cuan-language')
-      return value === 'en' || value === 'id' ? value : 'auto'
+      return value === 'en' || value === 'id' || value === 'auto' ? value : 'en'
     } catch {
-      return 'auto'
+      return 'en'
     }
   })
   const [languages, setLanguages] = useState(

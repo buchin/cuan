@@ -28,5 +28,7 @@
       "noHorizontalOverflow": true
     }
   ],
+  "englishDefaultOnIndonesianBrowser": true,
+  "explicitLanguageAndAutoPreserved": true,
   "providerCalls": 0
 }
