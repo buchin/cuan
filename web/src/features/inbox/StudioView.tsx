@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
+import { CuanMark } from '../../components/brand/CuanMark'
 import { apiFetch } from '../../api/client'
 
 export function StudioView({ onAccepted }: { onAccepted: () => void }) {
@@ -70,6 +71,7 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
       aria-label="Studio"
       className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center py-8 md:py-12"
     >
+      <CuanMark className="mb-5 h-10 w-10 sm:h-12 sm:w-12" />
       <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         What would you like to get done today?
       </h2>

@@ -1,13 +1,20 @@
 import { cn } from '../../lib/utils'
 
 // Kepeng: an outer rim, circular coin and square opening. Uses the theme foreground.
-export function CuanMark({ className }: { className?: string }) {
+export function CuanMark({
+  className,
+  decorative = false,
+}: {
+  className?: string
+  decorative?: boolean
+}) {
   return (
     <svg
       viewBox="0 0 64 64"
       fill="currentColor"
-      role="img"
-      aria-label="Cuan logo — kepeng coin"
+      role={decorative ? undefined : 'img'}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : 'Cuan logo — kepeng coin'}
       className={cn('shrink-0 text-foreground', className)}
     >
       <circle

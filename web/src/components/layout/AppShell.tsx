@@ -1,16 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
-import {
-  Inbox,
-  Users,
-  FolderGit2,
-  PanelLeft,
-  Settings,
-  Sparkles,
-} from 'lucide-react'
+import { Inbox, Users, FolderGit2, PanelLeft, Settings } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export type AppTab =
@@ -34,7 +27,7 @@ interface AppShellProps {
   breadcrumbs?: { label: string; to: string }[]
 }
 const NAV_ITEMS = [
-  { id: 'studio', label: 'Studio', icon: Sparkles },
+  { id: 'studio', label: 'Studio', icon: CuanMark },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
   { id: 'contacts', label: 'Contacts', icon: Users },
@@ -95,7 +88,11 @@ export function AppShell({
   const navigate = (id: AppTab) => {
     onSelectTab(id)
   }
-  const navButton = (id: AppTab, text: string, Icon: typeof Inbox) => (
+  const navButton = (
+    id: AppTab,
+    text: string,
+    Icon: ComponentType<{ className?: string }>,
+  ) => (
     <button
       key={id}
       title={text}
@@ -108,7 +105,11 @@ export function AppShell({
           'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
       )}
     >
-      <Icon className="h-5 w-5 shrink-0" />
+      {id === 'studio' ? (
+        <CuanMark decorative className="h-5 w-5 text-inherit" />
+      ) : (
+        <Icon className="h-5 w-5 shrink-0" />
+      )}
       <span className="nav-label">{text}</span>
     </button>
   )
@@ -263,7 +264,11 @@ export function AppShell({
               )}
             >
               <span className="relative">
-                <Icon className="h-5 w-5" />
+                {id === 'studio' ? (
+                  <CuanMark decorative className="h-5 w-5 text-inherit" />
+                ) : (
+                  <Icon className="h-5 w-5" />
+                )}
                 {id === 'inbox' && inboxUnread > 0 && (
                   <span
                     aria-label={`${inboxUnread} unread messages`}

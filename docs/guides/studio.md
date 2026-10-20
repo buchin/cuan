@@ -17,3 +17,7 @@ Once work starts, use the work card in the conversation to inspect progress or t
 Studio chooses an enabled agent with an owned profile, preferring coordinator roles. Eligibility does not guarantee provider connectivity; connection/runtime failures remain visible through Inbox response details. No provider availability probe is billed during selection.
 
 Named projects use application-generated IDs and controlled local workspace paths. Existing projects and Default are preserved. Project creation follows authenticated conversation approval checks. No schema migration is needed for this release; deploy and rollback follow the existing native release procedure.
+
+## Visual identity
+
+Studio uses Cuan’s kepeng mark in navigation and above the greeting. The navigation label remains **Studio**, including on mobile. The mark follows the current theme; the navigation mark inherits the active item color. Navigation marks are decorative for assistive technology because the button already has a readable label.
