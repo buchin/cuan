@@ -332,4 +332,4 @@ Targeted tests cover cancelled-task delegation, queued-launch rejection, unchang
 attempt count, fresh authenticated user turns and rejected unaccepted triggers.
 Existing direct/approved process-loss recovery and queued reconstruction tests
 remain passing. This changes application behavior; it does not establish actual
-provider end-to-end recovery. Deployment of this guard remains pending.
+provider end-to-end recovery. The guard is deployed as 98f8811; clean-checkout tests, actual rollback/reactivation, read-only production UI/asset checks and retained-data verification pass. See docs/evidence/cancel-recovery.
