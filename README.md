@@ -23,6 +23,8 @@ application health alone does not prove chat readiness.
 
 ## Documentation & Guides
 
+- [Notifications](docs/guides/notifications.md) — Context, read state, handled updates, and notification settings.
+
 - [Navigation & Responsive UI](docs/guides/navigation.md) — Inbox, Settings → Agents, project settings, keyboard controls, and device layouts.
 - [Messages & Tasks Guide](docs/guides/message_task_lifecycle.md) — Durable chat, follow-up queue, live activity, message-to-task capture, execution attempts, and recovery.
 - [Onboarding & Self-Hosting Guide](docs/guides/onboarding.md) — deployment prerequisites, persistent storage, and agent readiness.

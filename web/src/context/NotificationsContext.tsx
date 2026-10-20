@@ -11,6 +11,11 @@ export interface AppNotification {
   id: string
   kind: 'approval' | 'blocker' | 'completed' | 'customer'
   title: string
+  context?: string
+  summary?: string
+  status?: string
+  action_label?: string
+  resolved?: boolean
   href: string
   created_at: string
   read: boolean
@@ -67,11 +72,19 @@ export function NotificationsProvider({
     }
   }, [isAuthenticated, refresh])
   async function markRead(ids?: string[]) {
-    const result = await apiFetch<{ items: AppNotification[] }>(
-      '/api/v1/notifications',
-      { method: 'PATCH', body: JSON.stringify(ids ? { ids } : { all: true }) },
-    )
-    setItems(result.items || [])
+    try {
+      const result = await apiFetch<{ items: AppNotification[] }>(
+        '/api/v1/notifications',
+        { method: 'PATCH', body: JSON.stringify(ids ? { ids } : { all: true }) },
+      )
+      setItems((previous) => (result.items || []).map((item) => ({
+        ...item, read: item.read || previous.some((old) => old.id === item.id && old.read),
+      })))
+      setError('')
+    } catch (e) {
+      setError('Could not mark notifications as read. Try again.')
+      throw e
+    }
   }
   return (
     <NotificationsContext.Provider

@@ -63,7 +63,7 @@ export function AppShell({
   const routerNavigate = useNavigate()
   const location = useLocation()
   const { items: notifications } = useNotifications()
-  const unreadNotifications = notifications.filter((n) => !n.read).length
+  const unreadNotifications = notifications.filter((n) => !n.read && !n.resolved).length
   const shell = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
     try {
