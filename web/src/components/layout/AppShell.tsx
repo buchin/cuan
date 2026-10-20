@@ -22,6 +22,8 @@ interface AppShellProps {
   currentTab: AppTab
   onSelectTab: (tab: AppTab) => void
   children: React.ReactNode
+  headerActions?: React.ReactNode
+  secondaryNavigation?: React.ReactNode
   newAction?: { label: string; onClick: () => void }
   hideBottomNav?: boolean
   sessionWorkspace?: boolean
@@ -43,6 +45,8 @@ export function AppShell({
   currentTab,
   onSelectTab,
   children,
+  headerActions,
+  secondaryNavigation,
   newAction,
   hideBottomNav = false,
   sessionWorkspace = false,
@@ -226,26 +230,25 @@ export function AppShell({
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              className={cn(
-                'icon-action relative',
-                currentTab === 'notifications' && 'text-primary',
-              )}
-              aria-label={t('Notifications')}
-              aria-current={currentTab === 'notifications' ? 'page' : undefined}
-              onClick={() => routerNavigate('/notifications')}
-            >
-              <Bell className="h-5 w-5" />
-              {unreadNotifications > 0 && (
-                <span
-                  aria-hidden="true"
-                  className="absolute right-0 top-0 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground"
-                >
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </span>
-              )}
-            </button>
+            {headerActions}
+            {currentTab !== 'notifications' && (
+              <button
+                type="button"
+                className={cn('icon-action relative')}
+                aria-label={t('Notifications')}
+                onClick={() => routerNavigate('/notifications')}
+              >
+                <Bell className="h-5 w-5" />
+                {unreadNotifications > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-0 top-0 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground"
+                  >
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
+              </button>
+            )}
             {currentTab === 'inbox' && (
               <button
                 className="icon-action hidden min-[1200px]:inline-flex"
@@ -267,6 +270,7 @@ export function AppShell({
             )}
           </div>
         </header>
+        {secondaryNavigation}
         <div
           className={cn(
             'min-h-0 min-w-0 flex-1',

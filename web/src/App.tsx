@@ -1,4 +1,8 @@
-import { NotificationsView } from './features/notifications/NotificationsView'
+import {
+  NotificationsView,
+  NotificationsNavigation,
+  NotificationsActions,
+} from './features/notifications/NotificationsView'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
@@ -529,6 +533,14 @@ export function App() {
     <>
       <AppShell
         currentTab={currentTab}
+        headerActions={
+          currentTab === 'notifications' ? <NotificationsActions /> : undefined
+        }
+        secondaryNavigation={
+          currentTab === 'notifications' ? (
+            <NotificationsNavigation />
+          ) : undefined
+        }
         pageTitle={sessionRoute ? 'Task session' : headerTitle}
         pageTitleIsContent={
           projectDetail && !projectSettings && !!headerProject

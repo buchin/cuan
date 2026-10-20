@@ -18,7 +18,7 @@ Cuan is currently a single-owner application. Username edits update that owner r
 
 ## Notifications inside Cuan
 
-The bell in the page header opens **Notifications**. It shows up to 100 recent notifications with unread state, **All/Unread**, **Mark all as read**, and links to the originating conversation or work page. Read state is saved on the server and shared across your browsers.
+The bell in the page header opens **Notifications**. It shows up to 100 recent notifications and links to the originating conversation or work page. The secondary navigation below the header provides **All** and **Unread**, including the unread count. The **⋯** header menu contains **Mark all as read** and **Notification settings**. Filter selection survives reload through the URL. Read state is saved on the server and shared across your browsers.
 
 Notifications cover concrete approval requests, work ready for review, blockers/failed agent responses, completed work, and incoming customer messages. Owner replies are excluded from customer-message notifications. Routine progress does not create notifications. The center refreshes every 30 seconds while visible and when the page becomes visible. History reflects states observed by the notification collector, not a full audit log of every transient status.
 
