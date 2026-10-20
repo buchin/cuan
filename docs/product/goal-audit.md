@@ -243,3 +243,15 @@ is unchanged and healthy. Actual Cuan command/filter integration, broad syscall
 regression coverage, full container execution/recovery and supported host setup
 are still open. The goal remains active; the earlier experimental policy must
 not be promoted as a supported configuration on the strength of path tests.
+
+## Native release installer actual-binary follow-up
+
+Actual installer/migrator/launcher with the current production server binary now
+passes a fresh disposable PostgreSQL installation, initial owner setup, static
+asset readiness, reinstall and process restart. Private configuration, auth
+session, renamed project, previous release and workspace are retained.
+See docs/evidence/native-release-installer/actual-install.json and the reproducible
+scripts/test-native-installer-live.py harness. No production DB writes or AI calls.
+This closes the application-install verification gap, not service-manager
+provisioning or authenticated AI runtime/container execution. The full goal stays
+active and unproven.
