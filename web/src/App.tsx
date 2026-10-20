@@ -589,6 +589,7 @@ export function App() {
         newAction={
           currentTab === 'studio' ||
           currentTab === 'notifications' ||
+          projectSettings ||
           (currentTab === 'settings' && subParam !== 'agents')
             ? undefined
             : {
@@ -760,6 +761,7 @@ export function App() {
               <SettingsView
                 key={activeProject.id}
                 activeProject={activeProject}
+                onProjectUpdated={refreshProjects}
                 onDeleteProject={async (id) => {
                   await projectsApi.archive(id, true)
                   await refreshProjects()

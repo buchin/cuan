@@ -373,7 +373,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				}
 			}
 			if detail.ProjectID != "" && s.projectSvc != nil {
-				project, e := s.projectSvc.Get(r.Context(), detail.ProjectID)
+				project, e := s.projectSvc.TaskWorkspace(r.Context(), detail.ProjectID, detail.Instructions)
 				if e != nil || project == nil {
 					respondJSONError(w, 409, "Task project is unavailable")
 					return

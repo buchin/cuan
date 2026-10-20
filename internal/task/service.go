@@ -181,6 +181,17 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		}
 		initialStatus = req.Status
 	}
+	instructions := strings.TrimSpace(req.Instructions)
+	if s.projectFinder != nil && projectID != "" {
+		p, err := s.projectFinder.Get(ctx, projectID)
+		if err != nil || p == nil {
+			return nil, fmt.Errorf("%w: project is unavailable", ErrInvalidTaskInput)
+		}
+		instructions = project.SnapshotProjectGuidance(instructions, p)
+		if len([]rune(instructions)) > 24000 {
+			return nil, fmt.Errorf("%w: instructions and project guidance exceed 24000 characters", ErrInvalidTaskInput)
+		}
+	}
 	t := &Task{
 		CreationHash: taskCreationHash(req),
 		DoDChecklist: append([]DoDItem{}, req.DoDChecklist...),
@@ -189,7 +200,7 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		ProjectID:     projectID,
 		ProjectIDs:    projectIDs,
 		Title:         title,
-		Instructions:  strings.TrimSpace(req.Instructions),
+		Instructions:  instructions,
 		Status:        initialStatus,
 		Priority:      priority,
 		AssignedAgent: assignedAgent,
@@ -337,7 +348,10 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 		if len([]rune(*req.Instructions)) > 24000 {
 			return nil, fmt.Errorf("%w: instructions may contain up to 24000 characters", ErrInvalidTaskInput)
 		}
-		t.Instructions = strings.TrimSpace(*req.Instructions)
+		t.Instructions = project.PreserveProjectGuidance(t.Instructions, *req.Instructions)
+		if len([]rune(t.Instructions)) > 24000 {
+			return nil, fmt.Errorf("%w: instructions and saved project guidance exceed 24000 characters", ErrInvalidTaskInput)
+		}
 	}
 
 	if req.Summary != nil {

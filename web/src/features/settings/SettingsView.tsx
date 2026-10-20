@@ -1,3 +1,4 @@
+import { ProjectSettings } from './ProjectSettings'
 import { ProfileSettings } from './ProfileSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { InstallAppCard } from './InstallAppCard'
@@ -5,7 +6,7 @@ import {
   useLanguage,
   type LanguagePreference,
 } from '../../context/LanguageContext'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
@@ -18,6 +19,7 @@ interface SettingsViewProps {
   activeProject?: Project
   projects?: Project[]
   onAgentAdded?: () => void
+  onProjectUpdated?: () => Promise<void>
   onDeleteProject?: (id: string) => Promise<void>
 }
 export function SettingsView({
@@ -27,14 +29,12 @@ export function SettingsView({
   projects = [],
   onAgentAdded,
   onDeleteProject,
+  onProjectUpdated,
 }: SettingsViewProps) {
   const { t, preference, setPreference } = useLanguage()
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
   const section = location.pathname.split('/')[2] || 'general'
   useEffect(() => {
     if (location.hash === '#install-cuan' && section === 'general')
@@ -47,81 +47,7 @@ export function SettingsView({
   const safeReturn =
     returnTo === '/studio' || /^\/(inbox)(\/[^?#]*)?$/.test(returnTo)
       ? returnTo : ''
-  if (activeProject)
-    return (
-      <section className="page-content max-w-3xl space-y-6">
-        <Link
-          to={`/projects/${encodeURIComponent(activeProject.id)}`}
-          className="action-secondary md:hidden"
-        >
-          {t('← Back to project')}
-        </Link>
-        <header>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Settings for project {activeProject.name}.
-          </p>
-        </header>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p role="status" className="text-sm">
-            {notice}
-          </p>
-        )}
-        <section className="space-y-4 rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold">{t('Repository')}</h2>
-          <dl className="space-y-3 text-sm">
-            <div>
-              <dt className="font-medium">{t('Repository URL')}</dt>
-              <dd className="mt-1 break-all text-muted-foreground">
-                {activeProject.repo_url || t('Not connected')}
-              </dd>
-            </div>
-            <div>
-              <dt className="font-medium">{t('Default branch')}</dt>
-              <dd className="mt-1 text-muted-foreground">
-                {activeProject.default_branch || t('Not available')}
-              </dd>
-            </div>
-          </dl>
-          <p className="text-sm text-muted-foreground">
-            These details reflect the saved project configuration. Editing
-            repository connections is not available here yet.
-          </p>
-        </section>
-        {onDeleteProject && !activeProject.is_archived && (
-          <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t('Archive project')}</h2>
-            <p className="my-3 text-sm text-muted-foreground">
-              Move this project to the archive. You can restore it from
-              Projects. Your repository and data are preserved.
-            </p>
-            <button
-              disabled={busy}
-              className="action-secondary"
-              onClick={async () => {
-                if (!confirm(`Archive project "${activeProject.name}"?`)) return
-                setBusy(true)
-                setError('')
-                try {
-                  await onDeleteProject(activeProject.id)
-                  setNotice('Project archived.')
-                } catch {
-                  setError('Could not archive the project. Try again.')
-                } finally {
-                  setBusy(false)
-                }
-              }}
-            >
-              {t('Archive project')}
-            </button>
-          </section>
-        )}
-      </section>
-    )
+  if (activeProject) return <ProjectSettings key={activeProject.id} project={activeProject} onUpdated={onProjectUpdated} onArchive={onDeleteProject} />
   return (
     <section className="page-content space-y-5">
       <header>

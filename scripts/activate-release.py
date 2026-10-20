@@ -81,6 +81,17 @@ def assert_idle_work():
             raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
 
 
+def assert_project_workspace_support(manifest, retained_environment=None):
+    if manifest.get('features', {}).get('project_workspace_revisions') == 1:
+        return
+    env = retained_environment if retained_environment is not None else database_environment()
+    if database_scalar("SELECT to_regclass('public.projects') IS NOT NULL", env) != 't':
+        return
+    changed = database_scalar("SELECT count(*) FROM projects WHERE COALESCE(source_metadata::jsonb->'cuan_workspace_versions','{}'::jsonb) <> '{}'::jsonb", env)
+    if int(changed):
+        raise RuntimeError('This release cannot resume tasks with retained project workspaces. Activate a workspace-aware release; no data was changed.')
+
+
 def backup_database(release):
     backups=BASE/'backups'
     backups.mkdir(exist_ok=True,mode=0o700)
@@ -157,6 +168,7 @@ def main():
         if not (target / 'bin/cuan-server').is_file() or not (target / 'web/dist/index.html').is_file():
             parser.error('Incomplete release')
         assert_idle_work()
+        assert_project_workspace_support(manifest)
         if args.release:
             backup_database(args.release)
         for release in (old, target):
@@ -177,8 +189,10 @@ def main():
             f'Environment=CUAN_STATIC_DIR={BASE}/current/web/dist\n'
             'Environment=CUAN_AUTO_MIGRATE=false\n')
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
+        retained_environment = database_environment()
         switch(current, target)
         if not restart_and_check():
+            assert_project_workspace_support(json.loads((old / 'release.json').read_text()), retained_environment)
             switch(current, old)
             recovered = restart_and_check()
             raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))

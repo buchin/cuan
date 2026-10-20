@@ -506,6 +506,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		router:                 r,
 	}
 
+	tSvc.SetProjectFinder(liveProjectFinder{server: s})
 	s.routes()
 	s.setupStaticRoutes()
 	return s
@@ -1569,6 +1570,7 @@ func (s *Server) routes() {
 			pr.Get("/projects", s.handleListProjects)
 			pr.Post("/projects", s.handleConnectProject)
 			pr.Get("/projects/{id}", s.handleGetProject)
+			pr.Patch("/projects/{id}/settings", s.handleProjectSettings)
 			pr.Post("/projects/{id}/sync", s.handleSyncProject)
 			pr.Delete("/projects/{id}", s.handleDeleteProject)
 			pr.Get("/projects/{id}/branches", s.handleGetProjectBranches)

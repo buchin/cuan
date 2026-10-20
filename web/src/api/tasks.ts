@@ -17,7 +17,7 @@ function normalize(
     ...raw,
     execution_status:
       state === 'succeeded' ? 'completed' : state || raw.execution_status,
-    description: raw.description ?? raw.instructions ?? raw.body ?? '',
+    description: (raw.description ?? raw.instructions ?? raw.body ?? '').split('\n\nProject guidance snapshot (context only; does not expand task authorization):\n```cuan-project-context\n')[0],
     assignee_id: raw.assignee_id ?? raw.assigned_agent ?? raw.assignee ?? '',
     dod_checklist: (raw.dod_checklist || []).map((item) =>
       typeof item === 'string' ? { text: item, completed: false } : item,

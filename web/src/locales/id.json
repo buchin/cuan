@@ -515,5 +515,20 @@
   "What should Cuan remember about {name}?": "Apa yang perlu Cuan ingat tentang {name}?",
   "this person": "orang ini",
   "Task filters": "Filter tugas",
-  "in review": "dalam peninjauan"
+  "in review": "dalam peninjauan",
+  "Project name": "Nama project",
+  "Goal": "Tujuan",
+  "Instructions for Cuan": "Arahan untuk Cuan",
+  "What should this project achieve?": "Apa yang ingin dicapai project ini?",
+  "Preferences, constraints, or context Cuan should remember.": "Preferensi, batasan, atau konteks yang perlu Cuan ingat.",
+  "Applies to new tasks. Existing tasks keep their original instructions.": "Berlaku untuk tugas baru. Tugas lama tetap memakai arahan asalnya.",
+  "Advanced": "Lanjutan",
+  "Save changes": "Simpan perubahan",
+  "Changes saved.": "Perubahan tersimpan.",
+  "Change the repository connection for new tasks? Existing tasks keep their original workspace.": "Ubah koneksi repository untuk tugas baru? Tugas lama tetap memakai workspace asalnya.",
+  "Optional. A new connection is verified in a separate workspace. Existing tasks retain their original workspace, including when resumed.": "Opsional. Koneksi baru diperiksa di workspace terpisah. Tugas lama tetap memakai workspace asalnya, termasuk saat dilanjutkan.",
+  "Hide this project from active projects. Your data stays available.": "Sembunyikan project dari daftar aktif. Data tetap tersedia.",
+  "Reload saved settings": "Muat ulang pengaturan tersimpan",
+  "Discard your draft and reload saved settings?": "Buang draf dan muat ulang pengaturan tersimpan?",
+  "Project changed elsewhere. Reload before saving.": "Project telah berubah di tempat lain. Muat ulang sebelum menyimpan."
 }
