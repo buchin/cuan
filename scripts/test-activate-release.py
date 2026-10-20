@@ -49,6 +49,16 @@ class Gates(unittest.TestCase):
             self.assertEqual((root/'current').resolve(), new)
             self.assertEqual((root/'previous').resolve(), old)
             self.assertFalse((root/'current.next').exists())
+    def test_waiting_launch_blocks_release_and_rollback(self):
+        with patch.object(a,'database_environment',return_value={}), patch.object(a,'database_scalar',side_effect=['t','0','t','0','t','1']):
+            with self.assertRaisesRegex(RuntimeError,'Active or waiting work'):
+                a.assert_idle_work()
+    def test_schema24_without_launch_table_can_upgrade(self):
+        with patch.object(a,'database_environment',return_value={}), patch.object(a,'database_scalar',side_effect=['t','0','t','0','f']):
+            a.assert_idle_work()
+    def test_database_gate_fails_closed(self):
+        with patch.object(a,'database_environment',return_value={}), patch.object(a,'database_scalar',side_effect=RuntimeError('unavailable')):
+            with self.assertRaises(RuntimeError): a.assert_idle_work()
     def test_empty_or_public_existing_backup_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             a.BASE = Path(directory)

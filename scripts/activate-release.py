@@ -15,7 +15,7 @@ import urllib.parse
 BASE = Path('/opt/cuan')
 SERVICE = 'cuan'
 PORT = 8080
-SCHEMA_COUNT = 24
+SCHEMA_COUNT = 25
 
 
 def switch(link, target):
@@ -52,6 +52,35 @@ def restart_and_check():
     return False
 
 
+
+def database_environment():
+    pid=subprocess.check_output(['systemctl','show',SERVICE,'-p','MainPID','--value'],text=True).strip()
+    config=dict(entry.decode().split('=',1) for entry in Path('/proc/'+pid+'/environ').read_bytes().split(b'\0') if b'=' in entry)
+    url=urllib.parse.urlparse(config['DATABASE_URL'])
+    env=os.environ.copy()
+    env.update(PGHOST=url.hostname or 'localhost',PGPORT=str(url.port or 5432),PGUSER=urllib.parse.unquote(url.username or ''),PGPASSWORD=urllib.parse.unquote(url.password or ''),PGDATABASE=url.path.lstrip('/'),PGCONNECT_TIMEOUT='5')
+    return env
+
+
+def database_scalar(query, env):
+    result=subprocess.run(['psql','-XAt','-v','ON_ERROR_STOP=1','-c',query],env=env,capture_output=True,text=True,timeout=10)
+    if result.returncode:
+        raise RuntimeError('Could not verify deployment work state; release was not switched')
+    return result.stdout.strip()
+
+
+def assert_idle_work():
+    # A pre-switch gate, not a lock on HTTP admission. Queued requests that arrive
+    # after this check retain their normal durable restart/recovery semantics.
+    env=database_environment()
+    for table, states in [('inbox_requests',"'running','queued','cancelling'"),('task_attempts',"'running','queued'"),('task_launches',"'queued','claimed'")]:
+        if database_scalar("SELECT to_regclass('public."+table+"') IS NOT NULL",env) != 't':
+            continue
+        column='state' if table!='task_attempts' else 'status'
+        if int(database_scalar('SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')',env)):
+            raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
+
+
 def backup_database(release):
     backups=BASE/'backups'
     backups.mkdir(exist_ok=True,mode=0o700)
@@ -61,12 +90,7 @@ def backup_database(release):
             raise RuntimeError('Existing backup is empty or not private')
         subprocess.run(['pg_restore', '--list', str(target)], stdout=subprocess.DEVNULL, check=True)
         return
-    pid=subprocess.check_output(['systemctl','show',SERVICE,'-p','MainPID','--value'],text=True).strip()
-    entries=Path('/proc/'+pid+'/environ').read_bytes().split(b'\0')
-    config=dict(entry.decode().split('=',1) for entry in entries if b'=' in entry)
-    url=urllib.parse.urlparse(config['DATABASE_URL'])
-    env=os.environ.copy()
-    env.update(PGHOST=url.hostname or 'localhost',PGPORT=str(url.port or 5432),PGUSER=urllib.parse.unquote(url.username or ''),PGPASSWORD=urllib.parse.unquote(url.password or ''),PGDATABASE=url.path.lstrip('/'))
+    env=database_environment()
     staged=target.with_suffix('.pending')
     descriptor=os.open(staged,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
     with os.fdopen(descriptor,'wb') as output:
@@ -85,7 +109,7 @@ def main():
     parser.add_argument('--base', type=Path, default=BASE, help='Native installation directory (isolated drill uses its own base)')
     parser.add_argument('--service', default=SERVICE, help='Existing systemd service')
     parser.add_argument('--port', type=int, default=PORT, help='Loopback health port')
-    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22, 23, 24), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
+    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22, 23, 24, 25), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
     args = parser.parse_args()
     BASE, SERVICE, PORT, SCHEMA_COUNT = args.base.resolve(), args.service, args.port, args.schema_count
     if not re.fullmatch(r'[a-zA-Z0-9_-]+', SERVICE) or not 1 <= PORT <= 65535:
@@ -132,6 +156,7 @@ def main():
                 parser.error('Release payload checksum mismatch')
         if not (target / 'bin/cuan-server').is_file() or not (target / 'web/dist/index.html').is_file():
             parser.error('Incomplete release')
+        assert_idle_work()
         if args.release:
             backup_database(args.release)
         for release in (old, target):

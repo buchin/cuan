@@ -54,3 +54,19 @@ admission contract passes in0.66s.
 Still required before release: full PostgreSQL-backed server reconstruction scenario; exact schema25 activation
 and rollback gates; private backup/migration/retention and read-only production
 smoke. Production remains d1a313d/schema24 until those gates pass.
+
+## PostgreSQL server and activation gates
+
+The full server reconstruction fixture passes against a dedicated disposable
+PostgreSQL database (5.90s): unavailable route retains one launch, reconstructed
+repositories/service/manager start one attempt when the route returns, cancellation
+remains terminal, and edited instructions do not execute. Three cases use real
+PostgreSQL tasks/messages/launch rows plus a fake native provider. The dedicated
+database is dropped afterward; production database writes are zero.
+
+The native activator now targets exact schema25 and checks persisted Inbox,
+attempt and launch state before release/rollback. Unknown database state fails
+closed. Seven targeted Python tests pass, including a pending-launch block and
+schema24 upgrade without a launch table. This is a pre-switch state check, not
+an HTTP admission lock; incoming requests keep normal durable restart semantics.
+Production backup/migration, activation and rollback verification remain pending.

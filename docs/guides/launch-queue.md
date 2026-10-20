@@ -27,10 +27,8 @@ accepted work, not blindly repeating already-started execution.
 
 ## Deployment gate
 
-This implementation needs additive migration25 (task_launches). It is not yet
-released. Back up the database and private provider profiles, verify the archive,
-and quiesce both active attempts and pending launches before migrating. Update
-the atomic activator's exact schema-count gate only with a verified release.
+This implementation needs additive migration25 (task_launches). The release requires the gates below. Back up the database and private provider profiles, verify the archive,
+and quiesce both active attempts and pending launches before migrating. The atomic activator targets exact schema25 and rejects active/waiting work.
 
 Application rollback must keep schema25 and must not start an old application
 while pending launches or active attempts remain. Older releases ignore the launch
