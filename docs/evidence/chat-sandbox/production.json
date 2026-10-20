@@ -1,0 +1,27 @@
+{
+  "release": "960bd65116cbd8fa3fd890fef40081d0dc33aea9",
+  "publicURL": "https://cuan.dojo.cc",
+  "schema": 24,
+  "autoMigrate": false,
+  "health": "ready",
+  "realLocalAndServiceUserSandboxTests": true,
+  "actualAgyHelpInsideSandbox": true,
+  "readonlyProjectAndAttachments": true,
+  "projectWritesRejected": true,
+  "hostFilesAndProcHidden": true,
+  "selectedProviderStateWritable": true,
+  "sandboxProbeBeforeInference": true,
+  "blockedSandboxPreventsProviderLaunch": true,
+  "retainedApplicationTables": 36,
+  "retainedProfileFiles": 809,
+  "changedApplicationTables": 0,
+  "changedProfileFiles": 0,
+  "providerInvocations": 0,
+  "smoke": "Authenticated read-only search, owner access and mobile/desktop dialog passed.",
+  "limitations": [
+    "No live model/tool turn was sent.",
+    "Docker fresh-install AGY runtime remains unverified.",
+    "Selected provider tools can access that provider auth directory; network remains available.",
+    "Task execution and Claude/Codex adapters retain their previous behavior."
+  ]
+}
