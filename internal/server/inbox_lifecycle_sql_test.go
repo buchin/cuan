@@ -112,7 +112,7 @@ func TestInboxLifecyclePostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	all, e := repo.ListInboxRequests(ctx, room)
-	if e != nil || len(all) != 2 || all[0].State != "cancelled" || len(all[0].Steps) != 1 || all[0].OwnerID != "owner_fixture" {
+	if e != nil || len(all) != 2 || all[0].State != "cancelled" || len(all[0].Steps) != 2 || all[0].Steps[1].Kind != "finished" || all[0].OwnerID != "owner_fixture" {
 		t.Fatal("SQL terminal snapshot", all, e)
 	}
 	messages, e := repo.ListMessagesByRoomID(ctx, room)

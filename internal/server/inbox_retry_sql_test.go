@@ -130,5 +130,31 @@ func TestInboxRetryPostgres(t *testing.T) {
 	if _, _, err := repo.RetryInboxRequest(ctx, room, child.RequestID, source.OwnerID); err == nil {
 		t.Fatal("unknown result retried")
 	}
+	capped := accept(3 * time.Millisecond)
+	if _, ok, err := repo.ClaimInboxRequest(ctx, room, capped.RequestID); err != nil || !ok {
+		t.Fatal("claim capped fixture", err)
+	}
+	for i := 0; i < 120; i++ {
+		if err := repo.AppendInboxStep(ctx, room, capped.RequestID, "runtime_tool_started", "Fixture"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capped.State = "interrupted"
+	if err := repo.FinishInboxRequest(ctx, capped, nil); err != nil {
+		t.Fatal(err)
+	}
+	finalRows, err := repo.ListInboxRequests(ctx, room)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finalFound := false
+	for _, row := range finalRows {
+		if row.RequestID == capped.RequestID {
+			finalFound = len(row.Steps) == 101 && row.Steps[100].Kind == "finished"
+		}
+	}
+	if !finalFound {
+		t.Fatal("SQL final timestamp lost at timeline cap")
+	}
 	t.Log("SQL retry: twelve simultaneous clicks, one new attempt, original user message retained; ownership and unknown outcome enforced; no inference")
 }
