@@ -11,7 +11,7 @@ import (
 	"github.com/buchin/cuan/internal/db"
 )
 
-const inboxApprovalInstruction = "When a concrete plan is ready and you need the user's approval before starting work, present its outcome, scope, limits and acceptance criteria in plain language, then end the reply with exactly one cuan-approval fenced JSON block, for example:\n```cuan-approval\n{\"title\":\"Navigation audit\",\"description\":\"Read-only navigation audit. Report findings; do not modify or deploy.\",\"project_id\":\"registered project ID\"}\n```\nFor an executable plan include description (the exact scope, limits and acceptance criteria, up to 6000 characters), and either project_id or project_name in the same JSON. The application displays that description and a button to approve that exact plan. Never hide extra scope in the description. The title is at most 200 characters. This marker creates a proposal and approval notification; it does not authorize or run anything until the user approves. Do not use it for greetings, ordinary questions, clarification, already approved work or a completed result. Do not combine it with cuan-delegate or cuan-task blocks."
+const inboxApprovalInstruction = "When a concrete plan is ready and you need the user's approval before starting work, present its outcome, scope, limits and acceptance criteria in plain language, then end the reply with exactly one cuan-approval fenced JSON block, for example:\n```cuan-approval\n{\"title\":\"Navigation audit\",\"description\":\"Read-only navigation audit. Report findings; do not modify or deploy.\",\"project_id\":\"registered project ID\"}\n```\nFor an executable plan include description (the exact scope, limits and acceptance criteria, up to 6000 characters), and either project_id or project_name in the same JSON. Use only title, description, and either project_id or project_name. Do not include authorization_message_id, action, task_id or revision: user approval is recorded separately after this proposal. The application displays that description and a button to approve that exact plan. Never hide extra scope in the description. The title is at most 200 characters. This marker creates a proposal and approval notification; it does not authorize or run anything until the user approves. Do not use it for greetings, ordinary questions, clarification, already approved work or a completed result. Do not combine it with cuan-delegate or cuan-task blocks."
 
 func splitInboxApproval(author, content string) (string, string) {
 	if author != "agent" {
@@ -27,10 +27,19 @@ func splitInboxApproval(author, content string) (string, string) {
 	if len(raw) > 32000 {
 		return content, ""
 	}
-	var value inboxApprovalPlan
+	// Some native providers echo delegation bookkeeping into a proposal. Accept
+	// this one known non-executable field, but discard it: it can never authorize
+	// work, select an owner, or enter the immutable approval snapshot.
+	var value struct {
+		inboxApprovalPlan
+		AuthorizationMessageID string `json:"authorization_message_id,omitempty"`
+	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&value) != nil || json.Valid(raw) == false {
+		return content, ""
+	}
+	if len(value.AuthorizationMessageID) > 200 {
 		return content, ""
 	}
 	value.Title = strings.TrimSpace(value.Title)
