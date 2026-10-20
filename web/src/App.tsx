@@ -567,8 +567,7 @@ export function App() {
         newAction={
           currentTab === 'studio' ||
           currentTab === 'notifications' ||
-          (currentTab === 'settings' &&
-            ['profile', 'notifications'].includes(subParam))
+          (currentTab === 'settings' && subParam !== 'agents')
             ? undefined
             : {
                 label:
