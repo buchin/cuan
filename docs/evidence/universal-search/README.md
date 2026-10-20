@@ -13,3 +13,7 @@ Verified:
 Browser reproduction: build, then `node docs/evidence/universal-search/browser-check.cjs`. All fixtures are synthetic, with zero provider calls or production writes. No Lighthouse/Core Web Vitals claim is made.
 
 Limits and API details are in `docs/guides/search.md`. Credential storage/masking and whole-contact/conversation archive/delete remain outside this release; those ideas were discussed and recorded without claiming them implemented.
+
+## Production
+
+Application release `963333363343991cbf8bb138b92760121b20d183` is live at https://cuan.dojo.cc. Read-only smoke passed for all five SQL categories, sidebar search, rejection of unauthenticated requests, and dialog behavior at 390/1440px. The first production smoke found native search-input Escape clearing instead of closing; the explicit input handler was fixed, fixture regression added, and production smoke rerun successfully. No agent/provider calls or application data writes were performed. All 36 existing application tables and 742 account/profile files retained unchanged; schema24, automatic migrations disabled. See production.json.
