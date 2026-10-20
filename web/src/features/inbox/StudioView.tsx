@@ -68,7 +68,7 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
   return (
     <section
       aria-label="Studio"
-      className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center py-8 md:py-12"
+      className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-start py-6 md:justify-center md:py-12"
     >
       <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         What would you like to get done today?
@@ -77,7 +77,7 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
         Tell Cuan the outcome. We’ll organize the work and keep you updated.
       </p>
       <form
-        className="mt-7 space-y-4"
+        className="mt-6 space-y-3"
         onSubmit={(e) => {
           e.preventDefault()
           void submit()
@@ -97,13 +97,13 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
             onChange={(e) => update(e.target.value)}
           />
         </div>
-        <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="w-full text-xs text-muted-foreground sm:w-auto">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="order-2 w-full text-center text-xs text-muted-foreground sm:order-none sm:w-auto sm:text-left">
             We’ll ask if anything needs clarification.
           </p>
           <button
             type="submit"
-            className="action-primary"
+            className="action-primary w-full sm:w-auto"
             disabled={busy || !goal.trim()}
           >
             {busy ? (
