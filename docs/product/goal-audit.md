@@ -26,7 +26,7 @@ does not establish the whole goal.
 ## Remaining completion work
 
 Clear instructions remain direct. Optional scope decisions use exact approval
-snapshots and choice actions. The current production application is49f89ec/schema25.
+snapshots and choice actions. The current production application is5961b4a/schema25.
 
 1. Supported native first-run and public documentation are now verified/reconciled.
    Actual binary startup, owner setup, neutral Default, process restart retention,
@@ -84,3 +84,16 @@ companion direct-goal SQL lifecycle also passes after refactoring. The goal stay
 open while Docker installation/runtime verification remains unresolved. The
 native production application remains49f89ec/schema25; this final checkpoint
 adds only tests and evidence and needs no application redeployment.
+
+## Notification follow-up
+
+User-requested notification improvements are deployed in5961b4a/schema25. Context,
+relative times and explicit destination labels replace generic repeated titles.
+Known handled proposals/retries/task states stop contributing to attention badges;
+read flags persist and read-write failures do not block opening the destination.
+Memory, real PostgreSQL (including a retained alert beyond100 newer recovered
+attempts), responsive theme fixtures, read-only production checks and actual
+rollback/reactivation pass. Existing tables/profiles, all11 read flags and non-feed
+preferences are preserved. Evidence: `docs/evidence/notifications-refresh/`.
+Docker build/runtime verification remains open; its uncommitted validation work
+is separate from this native application release.

@@ -39,3 +39,24 @@ Context/title masking covers the existing known credential patterns.
 
 The source for the SQL test is notifications_context_test.go. It requires an empty
 `cuan_notification_feed_*` database via CUAN_NOTIFICATION_TEST_DATABASE_URL.
+
+## Production delivery
+
+Release5961b4a94f7e7deb07ddd589bb70f993bd8ad8ef is active at
+https://cuan.dojo.cc, schema25, auto-migration disabled. Private backup:
+`/opt/cuan/backups/notifications-context-release-20261020`.
+
+Read-only production API and browser checks pass at390/820/1440 in both themes:
+contextual metadata, no old generic reply-failure title, relative times/full-date
+tooltip, unread filtering and no horizontal overflow. The feed contains11 items,
+9 with refreshed contextual metadata; older unknown records retain fallback UI.
+No notification was clicked, marked read, retried or approved in production.
+No model call or non-login API write was made. Reading the feed refreshes derived
+notification metadata in its existing preference file.
+
+Actual rollback to49f89ec and reactivation of5961b4a both passed without schema
+changes. All37 application tables (auth sessions excluded) and878 provider profile
+files remain unchanged. All11 existing notification read flags and non-feed
+preferences are preserved; IDs are unique and retention remains100. Production
+screenshots containing actual work titles remain private; published screenshots
+use fixtures only. See production.json.
