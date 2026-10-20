@@ -168,6 +168,12 @@ export function UniversalSearch() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setOpen(false)
+                    return
+                  }
                   if (event.key === 'Enter') {
                     const first =
                       body.current?.querySelector<HTMLAnchorElement>(
