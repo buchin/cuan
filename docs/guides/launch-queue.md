@@ -35,3 +35,9 @@ while pending launches or active attempts remain. Older releases ignore the laun
 table and cannot drain it. Do not down-migrate as a routine rollback: that would
 discard saved execution intent. Verify targeted memory/real PostgreSQL concurrency,
 restart, cancellation admission, scope-change and UI checks before deployment.
+
+
+Schema25 is deployed in application release e828d1f. Native rollback/reactivation
+was verified with `scripts/activate-release.py --schema-count 25`; always quiesce
+work and keep the additive schema in place. A rollback changes application code,
+not the database or provider profiles.

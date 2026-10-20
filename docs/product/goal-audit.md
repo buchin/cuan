@@ -32,9 +32,11 @@ application release is 3f98a03, with detailed evidence in plan-approval.
 1. Reconcile public onboarding and legacy message/task guides with current
    coordinator-managed execution, sandbox prerequisites and persistent profiles.
    The old Docker quickstart still does not establish a turnkey AGY runtime.
-2. Inspect accepted-work launch failures (quota/account temporarily unavailable):
-   prove approved saved work can resume when its route becomes available without
-   creating duplicate tasks or requiring the user to operate the task board.
+2. Launch recovery is now deployed in e828d1f/schema25: memory and real PostgreSQL
+   contracts plus SQL-backed reconstructed-server cases prove one launch after
+   route release, durable cancellation and scope-change rejection. Production
+   backup/migration/retention and actual app rollback/reactivation pass. Preserve
+   its24-hour waiting bound and explicit external-blocker outcomes.
 3. Audit native fresh-install prerequisites and the actual supported deployment
    path; application/database health alone is not provider readiness.
 4. Preserve documented boundaries: model intent interpretation for direct natural

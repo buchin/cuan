@@ -1,72 +1,61 @@
-## Durable launch storage checkpoint
+## Durable authorized launch recovery
 
-Storage foundation only. Not connected to the dispatcher and not deployed.
-Production remains on schema24; the schema25 migration is unshipped.
+Production application release: e828d1fcb1248401155404c3fcfdcaa518ae3c58, schema25.
 
-A launch intent stores the authorized task, owner, conversation, source request,
-agent, revision, immutable instruction hash and original launch request identity.
-Re-acceptance returns the same record and cannot change its scope. Claims use a
-lease token, one-minute lease and bounded available/expiry timestamps. A stale
-worker cannot finish another worker's claim. Cancellation and expiry are terminal
-and cannot be undone by replaying the original acceptance.
+Accepted delegation records a durable launch intent before attempting execution.
+Temporary account/model unavailability or full session slots reschedule the same
+launch request after30 seconds. A dispatcher resumes waiting launches independently
+of browser state and after server reconstruction. The original task, owner,
+conversation, agent, project, revision and instruction hash remain bound.
 
-The same contract passes against memory and an actual disposable PostgreSQL
-instance: twelve concurrent accepts, twelve competing claims with one winner,
-lease-loss reclamation, stale-token rejection, backoff, cancellation, replay and
-expiry. PostgreSQL applies all embedded migrations including additive25 in a
-new dedicated cuan_launch_queue_* database. The database is dropped afterward;
-production database writes are zero. SQL check passed in 0.74 seconds.
+Workers revalidate the persisted authorization and scope. Attempt admission also
+checks cancellation, lease, agent, project and instruction hash under the task's
+transaction lock. Deterministic request/attempt identity and OS task ownership
+prevent replay from starting replacement work twice. Cancel/expiry are terminal;
+non-transient errors stop instead of looping. The wait window is24 hours.
 
-No provider was called. These checks prove storage transitions, not an automatic
-launch workflow. Remaining implementation: persist intent before launch; worker
-scope/authorization revalidation and request dedup; typed temporary-route failures;
-cancellation admission guards and UI state; restart/route-release integration
-fixtures; notification delivery; documented migration/rollback and clean release.
-The queue must not be shipped before those requirements pass.
+Task detail exposes only public launch state. Waiting UI removes the agent picker
+and manual Start and offers Cancel waiting work. Start/stop messages use stable
+receipt IDs in the original conversation. The queue starts accepted work; existing
+attempt failures still use their separate evidence review and recovery workflow.
 
-## Dispatcher integration checkpoint (not deployed)
+## Verification
 
-Authorized delegation now records durable intent before attempting launch. Known
-route/capacity failures reschedule the same request with 30-second backoff; the
-Inbox dispatcher resumes it independently of the browser. Scope/project/agent
-and original accepted authorization are checked before launch. Store admission
-also rejects cancelled/stopped/expired or changed-scope intent under the task's
-transaction lock. Backend DTO exposes only public launch state, never lease tokens
-or stored owner metadata.
+- Memory and real disposable PostgreSQL storage contracts: twelve-way accepts and
+  claims, immutable intent, lease reclaim, stale worker rejection, backoff, expiry,
+  cancellation replay, cancelled-attempt rejection and valid admission. Latest
+  SQL contract passed in0.66s.
+- Full PostgreSQL-backed server reconstruction: route release starts one task,
+  attempt, native fake process and notification; cancel stays cancelled; changed
+  instructions do not execute. Three cases passed in5.90s. The isolated database
+  was dropped. No production data or provider inference was used for these tests.
+- Clean-tree targeted queue, direct delegation, structured approval and process-loss
+  checks passed (36.873s server); embedded migration loading passed. Seven Python
+  activation tests passed, including pending-launch block, schema24 upgrade and
+  fail-closed database gate.
+- Clean TypeScript/Vite build and browser fixtures at390/820/1440 passed: automatic
+  wait, no agent selection/manual start, cancel and no horizontal overflow.
+  Existing CSS/chunk build warnings remain. See browser.json and screenshots.
 
-Integrated fake-provider tests reconstruct service and terminal manager over the
-same stores, release the route, and use the actual queue drainer: one task, one
-attempt, one native fake process and one start notification. Cancellation and
-changed instructions prevent execution. The existing direct/structured approval,
-process-loss recovery and launch identity tests pass (36.778s server checks).
-Updated real PostgreSQL contract including cancellation-at-attempt-admission and
-valid admission passes in0.79s; its isolated database is dropped afterward.
+## Native production release
 
-Browser fixtures at390/820/1440 show automatic waiting, no agent selector or
-manual Start, durable cancel action and no horizontal overflow. Build passes with
-existing warnings. See browser.json and waiting screenshots. This is test evidence,
-not a production launch or provider-inference claim.
+The pre-migration backup at /opt/cuan/backups/launch-queue-release contains a
+validated private pg_dump, provider profiles and exact table snapshots. No Inbox
+or task work was active. The checksummed candidate migrator applied additive25
+with automatic migration disabled. The old d1a313d application remained healthy
+on schema25 before the application switch.
 
-Clean-tree targeted memory/server checks pass (2.829s server) and the clean
-TypeScript/Vite build passes without extension WIP. The latest PostgreSQL
-admission contract passes in0.66s.
+Atomic activation/readiness passed. Actual rollback to d1a313d and reactivation
+of e828d1f both passed while retaining schema25, with no down migration. The native
+activator targets exact25 and checks active Inbox/attempt/pending-launch state
+before switching. This is a pre-switch gate, not an HTTP admission lock; requests
+arriving afterward retain their normal durable restart/recovery behavior.
 
-Still required before release: full PostgreSQL-backed server reconstruction scenario; exact schema25 activation
-and rollback gates; private backup/migration/retention and read-only production
-smoke. Production remains d1a313d/schema24 until those gates pass.
+Read-only production mobile/desktop recovery, English default and served waiting
+assets passed. No production message, retry, task or paid provider call was made.
+All36 pre-existing application tables (auth sessions excluded) and878 profile
+files matched the backup afterward; the new launch table was empty. See
+production.json. This release does not claim a live production queued model run.
 
-## PostgreSQL server and activation gates
-
-The full server reconstruction fixture passes against a dedicated disposable
-PostgreSQL database (5.90s): unavailable route retains one launch, reconstructed
-repositories/service/manager start one attempt when the route returns, cancellation
-remains terminal, and edited instructions do not execute. Three cases use real
-PostgreSQL tasks/messages/launch rows plus a fake native provider. The dedicated
-database is dropped afterward; production database writes are zero.
-
-The native activator now targets exact schema25 and checks persisted Inbox,
-attempt and launch state before release/rollback. Unknown database state fails
-closed. Seven targeted Python tests pass, including a pending-launch block and
-schema24 upgrade without a launch table. This is a pre-switch state check, not
-an HTTP admission lock; incoming requests keep normal durable restart semantics.
-Production backup/migration, activation and rollback verification remain pending.
+Usage, cancellation and migration/rollback guidance: docs/guides/launch-queue.md.
+The full product goal still requires the remaining onboarding/documentation audit.
