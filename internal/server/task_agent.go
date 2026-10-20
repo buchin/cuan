@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
 	"github.com/buchin/cuan/internal/workflow"
@@ -155,9 +156,18 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		commit, err := s.projectSvc.PushTaskBranch(ctx, g.TaskID, latest.ProjectID, latest.Instructions)
 		if err != nil {
+			if errors.Is(err, project.ErrGitHubConnectionRequired) {
+				if e := s.taskSvc.RecordGitHubPrerequisite(ctx, g.TaskID, g.AttemptID, false); e != nil {
+					respondJSONError(w, 503, "Could not retain the GitHub connection requirement. Local work is unchanged.")
+					return
+				}
+				respondJSON(w, 409, map[string]any{"error": err.Error(), "code": "github_connection_required", "connect_url": "/settings/integrations/github?return_to=/tasks/" + g.TaskID})
+				return
+			}
 			respondJSONError(w, 409, err.Error())
 			return
 		}
+		_ = s.taskSvc.RecordGitHubPrerequisite(ctx, g.TaskID, g.AttemptID, true)
 		respondJSON(w, 200, map[string]any{"commit_sha": commit, "pushed": true, "scope": "bound task branch", "uncommitted_files_saved": false})
 		return
 	}

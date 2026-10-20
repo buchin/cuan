@@ -100,3 +100,18 @@ returns an actionable connection message; contextual connection/resume UI is sti
 pending. Legacy tasks on shared project branches cannot use this managed-branch
 push until explicitly migrated. Tests use real local Git remotes; no live GitHub
 write has been made. This command is not yet deployed.
+
+## Missing connection in an agent task
+
+A task push without stored GitHub access now records a system prerequisite event
+and returns `github_connection_required` with a connection URL. Task details and
+session pages display **Connect GitHub** while that event is unresolved. Human
+instructions, current task state and local files stay unchanged. The connection
+page accepts a validated local task return path and offers **Back to task** after
+connection. Arbitrary/external return URLs are rejected.
+
+A subsequent successful task push records a resolution event and hides the CTA.
+This checkpoint preserves context and navigation, but does not yet automatically
+restart the agent or retry the push after connection. That continuation remains
+pending; connecting GitHub must not be described as completing the task. These
+changes are not yet deployed or browser-verified.

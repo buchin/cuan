@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 )
 
+var ErrGitHubConnectionRequired = errors.New("Connect GitHub in Settings to save this task branch")
+
 func (s *Service) PushTaskBranch(ctx context.Context, taskID, projectID, instructions string) (string, error) {
 	p, err := s.TaskWorkspace(ctx, projectID, instructions)
 	if err != nil {
@@ -35,7 +37,7 @@ func (s *Service) PushTaskBranch(ctx context.Context, taskID, projectID, instruc
 		return "", err
 	}
 	if token == "" {
-		return "", errors.New("Connect GitHub in Settings to save this task branch")
+		return "", ErrGitHubConnectionRequired
 	}
 	return s.gitClient.PushBoundBranch(ctx, workspace, p.RepoURL, branch, token)
 }

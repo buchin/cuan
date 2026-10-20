@@ -1,3 +1,4 @@
+import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import {
@@ -392,6 +393,7 @@ function TaskDetailView({
         full ? 'w-full' : 'w-full sm:w-[min(760px,94vw)]',
       )}
     >
+      <GitHubPrerequisite task={detail} />
       <header className="shrink-0 border-b px-4 pb-3 pt-2 sm:px-6">
         <div className="flex min-h-11 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">

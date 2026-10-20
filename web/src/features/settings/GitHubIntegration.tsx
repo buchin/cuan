@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
 type Connection = { connected: boolean; account?: { login: string; name: string } }
 export function GitHubIntegration() {
+ const [params] = useSearchParams()
+ const requestedReturn = params.get('return_to') || ''
+ const returnTo = /^\/tasks\/[A-Za-z0-9_-]+(?:\/sessions\/[A-Za-z0-9_-]+)?$/.test(requestedReturn) ? requestedReturn : ''
+
  const [connection, setConnection] = useState<Connection>(), [token, setToken] = useState('')
  const [busy, setBusy] = useState(false), [error, setError] = useState('')
  const load = () => { setError(''); return apiFetch<Connection>('/api/v1/integrations/github').then(setConnection).catch(() => setError('Could not load GitHub connection. Try again.')) }
@@ -13,6 +17,7 @@ export function GitHubIntegration() {
   {!connection && !error && <p role="status">Loading GitHub connection…</p>}
   {connection?.connected && <section className="space-y-3 rounded-lg border bg-card p-4">
    <p className="text-sm">Connected as <strong>{connection.account?.login}</strong></p>
+   {returnTo && <Link className="action-primary" to={returnTo}>Back to task</Link>}
    <button className="action-secondary" disabled={busy} onClick={async () => {
     if (!confirm('Disconnect GitHub? Future repository access may require reconnecting. This does not revoke the token on GitHub.')) return
     setBusy(true); setError('')
