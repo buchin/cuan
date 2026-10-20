@@ -115,3 +115,16 @@ This checkpoint preserves context and navigation, but does not yet automatically
 restart the agent or retry the push after connection. That continuation remains
 pending; connecting GitHub must not be described as completing the task. These
 changes are not yet deployed or browser-verified.
+
+A recovery worker now scans up to twenty blocked tasks per thirty-second pass
+when a saved GitHub connection exists. It queues a scoped continuation through
+the durable launch system only when the latest prerequisite belongs to the latest
+finished attempt, original Inbox authorization still matches, and the task's
+instruction fingerprint is unchanged. The prerequisite event ID deduplicates
+launches across scans/reconstruction. Cancelled attempts are excluded; manual
+tasks without original Inbox authorization are retained for explicit continuation.
+
+Tests prove changed scope/wrong owner do not queue and repeated observations keep
+one durable launch. This is queue-level verification, not proof of a live provider
+completing the subsequent push. Browser and combined continuation verification,
+plus deployment, remain pending.

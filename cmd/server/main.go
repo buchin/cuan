@@ -200,6 +200,7 @@ func main() {
 	srv.StartInboxDispatcher(inboxCtx)
 	srv.StartNotificationDispatcher(inboxCtx)
 	srv.StartWorkspaceRetention(inboxCtx)
+	srv.StartGitHubRecovery(inboxCtx)
 
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{

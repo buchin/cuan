@@ -1,0 +1,103 @@
+package server
+
+import (
+	"context"
+	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/task"
+	"strings"
+	"time"
+)
+
+const githubContinuation = "GitHub access is now connected. Continue the original approved task from its retained workspace and previous progress. Do not repeat implementation or recreate artifacts. Inspect the current branch and commits, run the task push command to save the existing task branch, verify the result, and report the actual outcome. Do not merge, deploy, or expand scope unless the original instructions already authorize it."
+
+// QueueGitHubRecovery records continuation only for a waiting task with its
+// original Inbox authorization, latest attempt, and unchanged task instructions.
+func (s *Server) queueGitHubRecovery(ctx context.Context, detail *task.TaskDetailResponse, owner string) error {
+	if detail.Status != "blocked" || detail.SourceRoomID == "" || detail.LatestAttempt == nil {
+		return nil
+	}
+	var event *task.TaskActivity
+	for _, a := range detail.Activities {
+		if (a.ActivityType == "github_connection_required" || a.ActivityType == "github_connection_resolved") && (event == nil || a.CreatedAt.After(event.CreatedAt)) {
+			event = a
+		}
+	}
+	if event == nil || event.ActivityType != "github_connection_required" || event.AttemptID == nil || *event.AttemptID != detail.LatestAttempt.ID {
+		return nil
+	}
+	if detail.LatestAttempt.Status != task.AttemptStatusFailed && detail.LatestAttempt.Status != task.AttemptStatusSucceeded && detail.LatestAttempt.Status != task.AttemptStatusInterrupted {
+		return nil
+	}
+	if !strings.HasSuffix(event.Message, "\nContext fingerprint: "+task.LaunchInstructionsHash(detail.Instructions)) {
+		return nil
+	}
+	reader, ok := s.projectStudioRepo.(db.InboxRequestRepository)
+	if !ok {
+		return nil
+	}
+	requests, err := reader.ListInboxRequests(ctx, detail.SourceRoomID)
+	if err != nil {
+		return err
+	}
+	for _, request := range requests {
+		if request.OwnerID != owner || request.MessageID != detail.SourceMessageID || request.AgentID != detail.AssignedAgent || request.State == "cancelled" || request.State == "canceled" || request.State == "cancelling" {
+			continue
+		}
+		now := time.Now().UTC()
+		_, err = s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: detail.ID, ProjectID: detail.ProjectID, RequestID: "github-" + event.ID, OwnerID: owner, RoomID: detail.SourceRoomID, SourceRequestID: request.RequestID, AgentID: detail.AssignedAgent, Revision: githubContinuation, InstructionsHash: task.LaunchInstructionsHash(detail.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
+		return err
+	}
+	return nil
+}
+func (s *Server) StartGitHubRecovery(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		cursor := 0
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			if s.authSvc == nil || s.taskSvc == nil {
+				continue
+			}
+			owner, err := s.authSvc.OwnerID(ctx)
+			if err != nil {
+				continue
+			}
+			path, err := githubConnectionPath(owner)
+			if err != nil {
+				continue
+			}
+			githubConnectionMu.Lock()
+			_, _, err = git.LoadConnection(path, s.cfg.AuthSecret)
+			githubConnectionMu.Unlock()
+			if err != nil {
+				continue
+			}
+			items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: "blocked"})
+			if err != nil || len(items) == 0 {
+				continue
+			}
+			count := len(items)
+			if count > 20 {
+				count = 20
+			}
+			for i := 0; i < count; i++ {
+				item := items[cursor%len(items)]
+				cursor++
+				if item.SourceRoomID == "" {
+					continue
+				}
+				detail, e := s.taskSvc.GetTaskDetail(ctx, item.ID)
+				if e == nil {
+					_ = s.queueGitHubRecovery(ctx, detail, owner)
+				}
+			}
+			s.kickTaskLaunches()
+		}
+	}()
+}

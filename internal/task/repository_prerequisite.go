@@ -7,11 +7,12 @@ import (
 
 // RecordGitHubPrerequisite persists a system event, separate from human instructions.
 func (s *Service) RecordGitHubPrerequisite(ctx context.Context, taskID, attemptID string, resolved bool) error {
-	if _, err := s.store.GetTask(ctx, taskID); err != nil {
+	current, err := s.store.GetTask(ctx, taskID)
+	if err != nil {
 		return err
 	}
 	kind := "github_connection_required"
-	message := "Connect GitHub to save this task branch. Your local work is retained."
+	message := "Connect GitHub to save this task branch. Your local work is retained.\nContext fingerprint: " + LaunchInstructionsHash(current.Instructions)
 	if resolved {
 		kind = "github_connection_resolved"
 		message = "The task branch was saved to GitHub."
