@@ -7,23 +7,20 @@ menggandakan pekerjaan.
 This audit preserves that end state. A successful retry or green unit test alone
 does not establish the whole goal.
 
-## Latest checkpoint — 2026-10-20
+## Latest checkpoint — 2026-10-21
 
-Current production release is d1c7853/schema25; release numbers in older sections
-below describe historical checkpoints. The full goal remains active and unproven.
-Projects now expose compact project summaries, task-state filters and saved
-progress/results; established agent conversation topics may receive stable
-contextual display titles without extra model calls or changing room/task identity.
-Deterministic topic-title/recovery tests and read-only production UI/retention/
-rollback checks pass. See docs/evidence/project-summary and topic-titles.
+Production is `98f8811`/schema25. Native installation/service supervision, isolated
+task worktrees, scoped push and missing-GitHub continuation have targeted actual
+process/Git/SQL evidence. Cancellation-aware recovery is deployed: old approvals
+and synthetic result reviews cannot undo a user cancellation. Actual rollback,
+read-only browser/assets and retained-data checks pass.
 
-Native application installation now has a repeatable release/configuration wrapper
-with six targeted file/executable contracts. This is progress on self-contained
-setup, not proof of a real fresh native installation, service supervision or AI
-authentication. Actual binary/database validation remains next. Stock Docker AI
-runtime remains unsupported; no additional experimental isolation-policy probes
-were performed. The separate runtime/setup and deployment support questions are
-not silently removed from the goal.
+The full objective remains unproven. Local Cuan has no connected AI account for
+isolated real-provider verification, and production GitHub OAuth App registration
+is absent. Fixture inference is not a substitute for actual authenticated goal →
+approval → implementation → interruption → continuation → verified Git delivery.
+Do not resume the stopped experimental Docker/security probes. Historical sections
+below describe earlier releases and their findings at the time.
 
 ## Current requirement audit
 
@@ -333,3 +330,20 @@ attempt count, fresh authenticated user turns and rejected unaccepted triggers.
 Existing direct/approved process-loss recovery and queued reconstruction tests
 remain passing. This changes application behavior; it does not establish actual
 provider end-to-end recovery. The guard is deployed as 98f8811; clean-checkout tests, actual rollback/reactivation, read-only production UI/asset checks and retained-data verification pass. See docs/evidence/cancel-recovery.
+
+
+## Approved repository interruption with pending Git state
+
+`TestApprovedRepositoryRecoveryPreservesPendingGitWork` extends the approved
+Inbox process-loss flow with a real repository and task-bound isolated worktree.
+Before SIGKILL, the child stages a tracked edit and writes both untracked and
+ignored files. The scoped continuation verifies the same workspace path, index
+and file contents before finishing. Assertions prove one task, two attempts,
+one artifact creation, no duplicate appended edit, unchanged main workspace,
+and no extra commit. Existing direct/approved recovery and cancellation tests
+pass together (6.992s).
+
+This closes a combined process/worktree pending-state fixture gap, not actual
+model reasoning, database reconstruction in this particular test, or real GitHub
+delivery. The authenticated provider prerequisite was requested explicitly;
+profiles from Fural or production must not be silently reused for testing.
