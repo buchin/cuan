@@ -61,7 +61,7 @@ func accountUsageAccessToken(ctx context.Context, owner, id string, force bool) 
 	if !needsRefresh {
 		return token, nil
 	}
-	release, err := TryLeaseProviderAccount(owner, id)
+	release, err := TryLeaseProviderAccountRefresh(owner, id)
 	if err != nil {
 		return "", errors.New("Account is busy; token refresh deferred")
 	}

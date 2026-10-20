@@ -305,7 +305,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 		if selected == nil {
-			respondJSONError(w, 409, "Allowed AI accounts are busy. The task has not started. Try again when an account is available.")
+			respondJSONError(w, 409, "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.")
 			return
 		}
 		profileHome = selected.home

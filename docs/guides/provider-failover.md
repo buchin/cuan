@@ -18,7 +18,7 @@ A new Inbox turn or task launch performs the same provider preflight automatical
 
 Cuan ranks allowed account/model pairs by reported remaining percentage, preferring the primary account on ties. A Gemini limit does not block a different model with reported available quota on the same account when model fallback is enabled. Unknown quota is never treated as 100%. If usage is unavailable, Cuan can still attempt the configured/default model on an account that is not known to be limited; it does not invent a different model or quota percentage. Legacy profiles retain their existing default behavior but are not shared as backups.
 
-An account is leased for the entire Inbox attempt or task session, so another Cuan operation skips it while busy. Provider or account/model changes are visible in Inbox **Detail** and task activity. Account labels, credentials and raw provider diagnostics are not included in these activity messages.
+Each connected account profile supports independent concurrent sessions. By default up to **4** Inbox/task sessions can share that profile; they still share provider quota. A long task does not reserve the account exclusively. Set `CUAN_ACCOUNT_MAX_SESSIONS` on the service to 1–16 if needed (invalid/unset values use 4), and apply the same setting to all server processes. Each running session holds one OS-backed slot until it ends. Slots release on process death. An account is skipped only when all of its configured slots are occupied. Provider or account/model changes are visible in Inbox **Detail** and task activity. Account labels, credentials and raw provider diagnostics are not included in these activity messages.
 
 ## Recovery and limits
 
@@ -32,8 +32,16 @@ A runtime limit sets a five-minute cooldown on the selected model, or on the acc
 
 ## Operations
 
-The usage lookup reads provider OAuth access tokens from the selected private profile and queries the same Cloud Code model-quota RPC used by Fural. It does not run a model, copy credentials between profiles or expose provider responses. A still-valid access token is reused. Near-expiry tokens (within one minute) are refreshed through Google OAuth; a 401 can trigger one bounded recovery attempt. Refresh uses the same exclusive account lease as execution, so active sessions are not disturbed. Refresh attempts are limited to one per account per minute, including rejected grants. Busy accounts defer refresh. Expired/unsupported credentials that cannot be refreshed produce unavailable usage rather than an inferred quota. Refreshed credentials are saved atomically with mode0600, retaining the original token container, account identity and existing refresh token when no replacement is returned. Other credential fields are preserved. Redirects are disabled and network responses are bounded.
+The usage lookup reads provider OAuth access tokens from the selected private profile and queries the same Cloud Code model-quota RPC used by Fural. It does not run a model, copy credentials between profiles or expose provider responses. A still-valid access token is reused. Near-expiry tokens (within one minute) are refreshed through Google OAuth; a 401 can trigger one bounded recovery attempt. Backend refresh takes an exclusive profile gate; session leases share that gate and claim separate slots. Refresh therefore waits while any session is active, and new sessions do not overlap a backend credential rewrite. Native CLI credential/state handling still follows the provider CLI’s own concurrency behavior. Refresh attempts are limited to one per account per minute, including rejected grants. Busy accounts defer refresh. Expired/unsupported credentials that cannot be refreshed produce unavailable usage rather than an inferred quota. Refreshed credentials are saved atomically with mode0600, retaining the original token container, account identity and existing refresh token when no replacement is returned. Other credential fields are preserved. Redirects are disabled and network responses are bounded.
 
 Preferences and cooldowns are additive fields in private account metadata under the existing accounts directory; no database migration is required. Existing account files remain compatible. Backup that directory with existing credentials and keep it private. Native atomic deployment, idle gate, health check and rollback apply. Rolling back the application preserves account credentials and primary bindings; older releases ignore the additional fields. In-process usage cache is disposable; persistent cooldowns and account leases survive or release appropriately across process restart.
 
 On the current production owner, both connected private accounts have backup and alternative-model permissions enabled as requested. New installations keep those permissions off until their owner enables them.
+
+## Capacity versus quota
+
+A full session-slot limit is local concurrency, not exhausted provider usage.
+Inbox now reports that distinction and records that no provider was started,
+allowing the existing bounded safe recovery path. Actual provider quota responses
+still use account/model cooldowns and allowed fallback routes. Parallel sessions
+do not multiply an account’s allowance or bypass provider rate limits.

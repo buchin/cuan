@@ -327,3 +327,42 @@ func TestTaskProviderPreflightChoosesBackupWithoutChangingAgent(t *testing.T) {
 	}
 }
 func mustJSON(value any) string { raw, _ := json.Marshal(value); return string(raw) }
+
+func TestInboxUsesSameAccountWhileAnotherSessionRuns(t *testing.T) {
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "2")
+	s, _, registered, p, _, home, backupHome := setupFailoverFixture(t)
+	runningTask, e := agent.TryLeaseProviderAccount(p.OwnerID, p.ID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer runningTask()
+	output, failure := s.executeInboxWithFailover(context.Background(), p.OwnerID, registered, "Read this project", home, t.TempDir(), false, nil)
+	if output != "Same agent backup answer" || failure != "" {
+		t.Fatal("chat blocked by existing account session", output, failure)
+	}
+	if _, e := os.Stat(filepath.Join(backupHome, "calls")); !os.IsNotExist(e) {
+		t.Fatal("unnecessary account switch")
+	}
+	second, e := agent.TryLeaseProviderAccount(p.OwnerID, p.ID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	proof := false
+	output, failure = s.executeInboxWithFailover(context.Background(), p.OwnerID, registered, "Read this project", home, t.TempDir(), false, func(k, v string) {
+		if k == "recovery_safe" {
+			proof = true
+		}
+	})
+	if output != "" || !strings.Contains(failure, "session slots") || strings.Contains(failure, "quota") || !proof {
+		t.Fatal("capacity misreported as quota", output, failure, proof)
+	}
+	second()
+	output, failure = s.executeInboxWithFailover(context.Background(), p.OwnerID, registered, "Read this project", home, t.TempDir(), false, nil)
+	if output == "" || failure != "" {
+		t.Fatal("released slot not reusable", failure)
+	}
+	calls, _ := os.ReadFile(filepath.Join(home, "calls"))
+	if string(calls) != "xx" {
+		t.Fatal("provider invoked while full", string(calls))
+	}
+}

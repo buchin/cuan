@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -32,6 +33,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 	}
 	routes := s.providerRoutes(ctx, owner, registered, home, limited)
 	attempts := 0
+	busyRoutes := 0
 	seen := map[string]bool{}
 	for _, route := range routes {
 		if attempts >= 3 || ctx.Err() != nil {
@@ -44,6 +46,9 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		seen[key] = true
 		release, leaseErr := s.leaseProviderRoute(ctx, owner, registered, route)
 		if leaseErr != nil {
+			if errors.Is(leaseErr, agent.ErrAccountBusy) {
+				busyRoutes++
+			}
 			continue
 		}
 		attempts++
@@ -84,6 +89,12 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 	}
 	if ctx.Err() != nil {
 		return "", safeInboxProviderFailure(ctx.Err(), "")
+	}
+	if attempts == 0 && busyRoutes > 0 {
+		if step != nil {
+			step("recovery_safe", "No provider execution was started; account session slots are full.")
+		}
+		return "", "All available AI session slots are in use. Your message is saved. Try again when a session finishes."
 	}
 	return "", inboxQuotaNoBackup
 }

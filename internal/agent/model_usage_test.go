@@ -82,6 +82,7 @@ func TestAccountModelCooldownAndPolicies(t *testing.T) {
 }
 
 func TestAccountLeaseAndOwnerIsolation(t *testing.T) {
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "1")
 	t.Setenv("HOME", t.TempDir())
 	a, _ := CreateProviderAccount("owner", "fixture")
 	release, err := TryLeaseProviderAccount("owner", a.ID)
