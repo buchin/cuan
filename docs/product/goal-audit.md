@@ -347,3 +347,27 @@ This closes a combined process/worktree pending-state fixture gap, not actual
 model reasoning, database reconstruction in this particular test, or real GitHub
 delivery. The authenticated provider prerequisite was requested explicitly;
 profiles from Fural or production must not be silently reused for testing.
+
+
+## Actual-provider completion gate blocked — 2026-10-21
+
+Revalidated after `ad1f5dc`: this sandbox has no Cuan accounts directory and zero
+connected Cuan test accounts. GitHub OAuth App configuration is also absent from
+the sandbox; production already reports Setup needed. Read-only production
+aggregates remain 22 completed chats, five succeeded attempts, five reports and
+zero done tasks with a recorded commit. No new actual-provider delivery or
+recovery proof has appeared.
+
+The dedicated test-account prerequisite has remained unresolved across the last
+three goal checkpoints. Deterministic coverage and production delivery have been
+advanced independently; further fixtures cannot close this external evidence gap.
+Completion is not established. Do not run production tasks or borrow another
+application's account/profile to manufacture proof.
+
+Unblock by connecting a dedicated AI account to an isolated Cuan installation.
+Then verify an actual goal and approval, scoped implementation and verification,
+controlled process interruption, continuation of the same task/workspace, exactly
+one implementation effect, and a final user-visible result. GitHub authorization
+must additionally be configured if that scenario includes remote delivery. The
+pending user question requests this account prerequisite; no secrets should be
+printed or committed.
