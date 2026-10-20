@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { useState, FormEvent } from 'react'
 import {
@@ -69,12 +70,16 @@ export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
     <div className="min-h-screen bg-background text-foreground flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
       {/* Top Bar with Brand & Theme Toggle */}
       <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
-        <div className="flex items-center gap-2.5">
+        <Link
+          to="/"
+          className="flex min-h-11 items-center gap-2.5"
+          aria-label="Cuan home"
+        >
           <CuanMark className="h-9 w-9" />
           <span className="font-bold text-lg tracking-tight text-foreground">
             cuan
           </span>
-        </div>
+        </Link>
       </header>
 
       {/* Main Login Card */}

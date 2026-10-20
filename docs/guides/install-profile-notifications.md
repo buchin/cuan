@@ -47,3 +47,9 @@ Back up the database, persistent attachments, and the service user's private `$H
 Routes require owner authentication: `GET/PATCH /api/v1/profile`, `PATCH /api/v1/auth/username`, `GET/PATCH /api/v1/notifications`, `GET/PATCH /api/v1/notifications/preferences`, and `GET/POST/DELETE /api/v1/notifications/push`. Sign-in identity changes require the current password. Public assets are `/manifest.webmanifest`, `/sw.js` and `/icons/cuan-*.png`; the service worker is served with no-store and root scope.
 
 Deploy through the native atomic release script with idle checks, private backups, checksums and readiness validation. No database migration is introduced. Rolling back the binary preserves usernames and preference files, although older binaries do not expose the new settings or push worker. To fully retire an installed service worker during an emergency rollback, serve a compatible replacement at `/sw.js` that unregisters itself; keep this path available until clients update. Never delete private preferences or rotate VAPID keys merely to roll back application code.
+
+## Homepage and install suggestion
+
+Anonymous visitors see the public homepage at `/`; Get started opens sign-in. Signed-in visitors to `/` or `/login` go to Studio. `/about` previews the homepage while signed in.
+
+Studio offers a small Install Cuan suggestion when the browser exposes an install prompt, or on iPhone/iPad with manual instructions. The button opens the native install dialog where supported. On iOS, follow Safari → Share → Add to Home Screen → Add. Dismissing the suggestion hides it for seven days in that browser. Standalone installations hide it; browser detection cannot reliably identify an app installed in a different browser. Installation remains available in Settings. Loading Studio never requests permissions automatically.

@@ -1,3 +1,4 @@
+import { InstallNudge } from '../settings/InstallNudge'
 import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, useAttachments } from './Attachments'
 import { useState } from 'react'
@@ -161,6 +162,7 @@ export function StudioView({ onAccepted }: { onAccepted: () => void }) {
           </div>
         )}
       </form>
+      <InstallNudge />
     </section>
   )
 }

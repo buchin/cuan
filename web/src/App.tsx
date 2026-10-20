@@ -1,3 +1,4 @@
+import { LandingPage } from './features/landing/LandingPage'
 import {
   NotificationsView,
   NotificationsNavigation,
@@ -32,7 +33,7 @@ import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
 
 export function App() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, token } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -133,10 +134,15 @@ export function App() {
 
   // Studio is the default entry point.
   useEffect(() => {
-    if (location.pathname === '/' || location.pathname === '') {
+    if (
+      isAuthenticated &&
+      (location.pathname === '/' ||
+        location.pathname === '' ||
+        location.pathname === '/login')
+    ) {
       navigate('/studio', { replace: true })
     }
-  }, [location.pathname, navigate])
+  }, [location.pathname, navigate, isAuthenticated])
 
   // Fetch Projects and Tasks
   const refreshProjects = useCallback(async () => {
@@ -466,6 +472,12 @@ export function App() {
     await refreshTasks()
   }
 
+  if (
+    rootSegment === 'about' ||
+    (location.pathname === '/' && !token && !isAuthenticated)
+  )
+    return <LandingPage />
+
   if (authLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background text-primary font-mono">
@@ -525,6 +537,7 @@ export function App() {
 
   // 2. Unauthenticated: Auth Gatekeeper
   if (!isAuthenticated) {
+    if (location.pathname === '/') return <LandingPage />
     return <LoginScreen />
   }
 
