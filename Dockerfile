@@ -4,11 +4,15 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
-RUN npm run build
+ARG NODE_BUILD_MEMORY=512
+RUN NODE_OPTIONS="--max-old-space-size=${NODE_BUILD_MEMORY}" npm run build
 
 # Stage 2: Build Go Backend Binaries
 FROM golang:1.27-alpine AS backend-builder
 WORKDIR /app
+ARG GO_BUILD_PARALLELISM=2
+ARG GO_BUILD_MEMORY=512MiB
+ENV GOMAXPROCS=${GO_BUILD_PARALLELISM} GOMEMLIMIT=${GO_BUILD_MEMORY} GOFLAGS="-p=${GO_BUILD_PARALLELISM}"
 RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./
 RUN go mod download

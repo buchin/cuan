@@ -12,8 +12,8 @@ services:
       CUAN_ENV: production
       CUAN_APP_VERSION: ${CUAN_APP_VERSION:-0.1.0}
       PORT: 8080
-      DATABASE_URL: postgres://${POSTGRES_USER:-cuan}:${POSTGRES_PASSWORD:-cuan_secret_change_me}@db:5432/${POSTGRES_DB:-cuan}?sslmode=disable
-      CUAN_AUTH_SECRET: ${CUAN_AUTH_SECRET:-default_auth_secret_change_me_in_production}
+      DATABASE_URL: postgres://${POSTGRES_USER:-cuan}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}@db:5432/${POSTGRES_DB:-cuan}?sslmode=disable
+      CUAN_AUTH_SECRET: ${CUAN_AUTH_SECRET:?Set CUAN_AUTH_SECRET in your environment file}
       CUAN_STATIC_DIR: /app/web/dist
       CUAN_AUTO_MIGRATE: "true"
       CUAN_DB_MAX_OPEN_CONNS: ${CUAN_DB_MAX_OPEN_CONNS:-25}
@@ -44,7 +44,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-cuan}
       POSTGRES_USER: ${POSTGRES_USER:-cuan}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cuan_secret_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - cuan_postgres_data:/var/lib/postgresql/data

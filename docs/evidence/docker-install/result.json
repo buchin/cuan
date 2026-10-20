@@ -1,0 +1,62 @@
+{
+  "sourceCommit": "8bc841e2c1852dad21456a854a56c6f73b013d6b",
+  "sourceSha256": {
+    "Dockerfile": "6409d069c8d77c7f34dfc7aa66907f9ce00b84473633c023780207941954fa4f",
+    "docker-compose.yml": "a11ee532eec9c8eaa94649fed36da2aa4ee04370ba8783ff2b6d5025f3ab41a1",
+    "docker-compose.staging.yml": "7efaf6f592d230c21fa01f669c16b9c699c7d88cbb53efefb12180cb9e46166c",
+    "scripts/test-docker-install.py": "ae95fe30de12e1584c115e7ff46d24858951714527a1c6c2da21dc736c209ca9"
+  },
+  "runtime": {
+    "phase": "passed",
+    "lifecycleExit": 0,
+    "elapsedSeconds": 466.4,
+    "freeDiskGiB": 4.37
+  },
+  "result": {
+    "checks": [
+      {
+        "environment": "production",
+        "nonRootUser": true,
+        "writablePersistentHomeAndData": true,
+        "neutralDefaultProject": true,
+        "ownerAndSessionSurviveContainerRecreation": true
+      },
+      {
+        "environment": "staging",
+        "nonRootUser": true,
+        "writablePersistentHomeAndData": true,
+        "neutralDefaultProject": true,
+        "ownerAndSessionSurviveContainerRecreation": true
+      }
+    ],
+    "productionStagingStorageIsolated": true,
+    "providerCalls": 0,
+    "testImage": "cuan:install-audit"
+  },
+  "cleanup": {
+    "privateCachesRemoved": [
+      "e2"
+    ],
+    "freeBytes": 6495371264,
+    "note": "All dedicated daemon image/build caches removed after terminal unit and process/mount checks; no production Docker daemon was installed."
+  },
+  "productionHealthExit": 0,
+  "diskCleanup": {
+    "freeBeforeBytes": 3526791168,
+    "freeAfterBytes": 6814060544,
+    "reclaimedBytes": 3287269376,
+    "duplicateUploadsRemoved": 91,
+    "skipped": [],
+    "serviceActive": "active",
+    "healthExit": 0,
+    "current": "5961b4a94f7e7deb07ddd589bb70f993bd8ad8ef",
+    "previous": "49f89ec68d8ca35e8fe61ca247ac251f526336a1",
+    "preserved": [
+      "all permanent releases",
+      "backups",
+      "workspaces",
+      "test binaries",
+      "logs"
+    ]
+  }
+}

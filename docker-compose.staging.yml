@@ -13,8 +13,8 @@ services:
       CUAN_ENV: staging
       CUAN_APP_VERSION: ${CUAN_APP_VERSION:-0.1.0-staging}
       PORT: 8080
-      DATABASE_URL: postgres://${POSTGRES_USER:-cuan_staging}:${POSTGRES_PASSWORD:-cuan_staging_secret_change_me}@db:5432/${POSTGRES_DB:-cuan_staging}?sslmode=disable
-      CUAN_AUTH_SECRET: ${CUAN_AUTH_SECRET:-default_staging_secret_change_me}
+      DATABASE_URL: postgres://${POSTGRES_USER:-cuan_staging}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}@db:5432/${POSTGRES_DB:-cuan_staging}?sslmode=disable
+      CUAN_AUTH_SECRET: ${CUAN_AUTH_SECRET:?Set CUAN_AUTH_SECRET in your environment file}
       CUAN_STATIC_DIR: /app/web/dist
       CUAN_AUTO_MIGRATE: "true"
       CUAN_DB_MAX_OPEN_CONNS: ${CUAN_DB_MAX_OPEN_CONNS:-15}
@@ -45,7 +45,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-cuan_staging}
       POSTGRES_USER: ${POSTGRES_USER:-cuan_staging}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cuan_staging_secret_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - cuan_staging_postgres_data:/var/lib/postgresql/data

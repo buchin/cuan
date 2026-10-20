@@ -30,8 +30,9 @@ snapshots and choice actions. The current production application is5961b4a/schem
 
 1. Supported native first-run and public documentation are now verified/reconciled.
    Actual binary startup, owner setup, neutral Default, process restart retention,
-   browser onboarding and SQL-backed first goal all pass. Docker remains a separate
-   unverified distribution/runtime path; do not advertise turnkey AGY containers.
+   browser onboarding and SQL-backed first goal all pass. Docker application build and persistent production/staging lifecycle now pass
+   (docker-install evidence); AGY runtime remains unverified. Do not advertise
+   turnkey AGY containers.
 2. Combined SQL-backed proof now passes: Studio goal → exact proposal → owner
    approval → real agent SIGKILL with progress-only evidence → entirely new server
    instances → automatic scoped continuation → automatically delivered verified
@@ -97,3 +98,15 @@ rollback/reactivation pass. Existing tables/profiles, all11 read flags and non-f
 preferences are preserved. Evidence: `docs/evidence/notifications-refresh/`.
 Docker build/runtime verification remains open; its uncommitted validation work
 is separate from this native application release.
+
+## Docker application lifecycle follow-up
+
+Actual isolated Docker build and production/staging container recreation now pass
+with the exact input hashes in `docs/evidence/docker-install/result.json`. Owner,
+session, neutral Default, UID1000, HOME/data persistence and environment isolation
+are verified; Compose missing-secret checks and seven installer tests pass.
+Earlier statements that no Docker build/container recreation was established are
+historical and superseded by this evidence. AGY execution in the stock image
+remains unsupported/unverified, so this does not close the whole goal. Native
+production remains5961b4a/schema25. Test daemons and image caches were stopped/removed;
+production health passed. See `docs/evidence/docker-install/README.md`.
