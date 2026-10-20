@@ -25,6 +25,7 @@ export function InboxActivity({
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
+  const compact = q.state === 'completed' && !bubble
   const active = ['queued', 'running', 'cancelling'].includes(q.state)
   useEffect(() => {
     if (!active) return
@@ -64,11 +65,12 @@ export function InboxActivity({
   return (
     <div
       className={
-        bubble
+        bubble || compact
           ? 'max-w-full min-w-0 text-xs break-words'
           : 'mt-2 max-w-full min-w-0 text-xs break-words'
       }
-      aria-label="Response status"
+      aria-label={t('Response status')}
+      data-response-state={q.state}
     >
       {bubble && (
         <div className="flex items-center gap-2 px-2 pt-2 text-sm">
@@ -99,30 +101,53 @@ export function InboxActivity({
       )}
       <div className="flex items-start gap-2">
         <details className="group/response min-w-0 flex-1">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-            {!bubble && (
+          <summary
+            className={
+              compact
+                ? 'inline-flex min-h-11 cursor-pointer list-none items-center gap-1 px-1 text-xs text-muted-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
+                : 'flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
+            }
+          >
+            {compact && (
+              <>
+                <span>{t('Detail')}</span>
+                {seconds !== null && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="tabular-nums">
+                      {seconds} {language === 'id' ? 'dtk' : 's'}
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+            {!bubble && !compact && (
               <Icon
                 className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
                 aria-hidden="true"
               />
             )}
-            {!bubble && (
+            {!bubble && !compact && (
               <span className="font-medium" role="status">
                 {label}
               </span>
             )}
-            {!bubble && seconds !== null && (
+            {!bubble && !compact && seconds !== null && (
               <span className="tabular-nums">
                 {seconds} s{!active && ' recorded'}
               </span>
             )}
-            <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
-              {t('Detail')}
-            </span>
-            <ChevronDown
-              className="h-4 w-4 shrink-0 transition-transform group-open/response:rotate-180"
-              aria-hidden="true"
-            />
+            {!compact && (
+              <>
+                <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
+                  {t('Detail')}
+                </span>
+                <ChevronDown
+                  className="h-4 w-4 shrink-0 transition-transform group-open/response:rotate-180"
+                  aria-hidden="true"
+                />
+              </>
+            )}
           </summary>
           <div className="mt-1 space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
             <p className="font-medium">

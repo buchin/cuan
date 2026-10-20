@@ -69,3 +69,5 @@ The install suggestion is an independent dismissible card at the top of Notifica
 ## Chat input
 
 Inbox uses a capsule composer with a growing text field and a circular Send button inside the right edge. Agent conversations have the attachment + button on the left; previews, upload progress and errors appear above the capsule. Existing attachment formats/limits and Camera/Photos/Files choices are preserved. No emoji button is included. Empty/whitespace-only messages cannot be sent unless an attachment is present. Enter sends, Shift+Enter adds a line, and IME composition is not treated as submission. Short viewports keep the input height bounded; OS keyboard behavior remains browser controlled. Customer chat uses the same input shape and retains its existing attachment capabilities.
+
+After a successful chat reply, use the small **Detail · duration** link below the reply to inspect recorded activity. Ongoing and failed responses retain their visible status. The link keeps a44px minimum touch target despite its small text; Enter or Space toggles the details panel when focused.
