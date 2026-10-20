@@ -1,0 +1,10 @@
+{
+  "notesAPI": true,
+  "notesUI": true,
+  "notesRequireAuthentication": true,
+  "responsiveContactDetails": true,
+  "projectPickerAndScopedTasks": true,
+  "pageErrors": [],
+  "nonLoginWrites": [],
+  "providerCalls": 0
+}

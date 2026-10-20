@@ -12,3 +12,7 @@ Implementation: persistent contact notes/facts/birthdays, read-first contact det
 Browser fixture: `node docs/evidence/contact-memory/browser-check.cjs` after building. Server: `go test ./internal/server -run '^(TestContactMemory|TestInboxContactMemory|TestInboxMemorySearchRound|TestCRMManualContact|TestInboxLifecycleContext)' -count=1`. SQL test additionally needs the documented isolated database environment. See the user/API/deployment guide at `docs/guides/contact-memory.md`.
 
 Limitations: lexical retrieval (no embeddings/typo tolerance), result/context limits, one extra search response stage, no automatic memory extraction without an explicit save instruction, and no agent edit/delete. Whole-contact/conversation archive and bubble actions remain follow-up scope. Synthetic/fake-provider tests do not establish the answer quality of a live language model.
+
+## Production
+
+Native atomic release `5004f6d4884adb26c3ad3526aec4062b6a9ebff7` activated successfully at https://cuan.dojo.cc with schema24 and automatic migrations disabled. Private database/profile backup validated; old application readiness passed after additive migration24. Read-only smoke confirmed authenticated note API (unauthenticated access rejected), contact details at 390/1440px, and project picker/scoped tasks, without chat/task writes or provider calls. All 35 pre-existing application tables and 742 account/profile files retained unchanged. See production.json.

@@ -87,7 +87,13 @@ func (s *Server) applyInboxContactMemory(ctx context.Context, q db.InboxRequest,
 	if listErr != nil {
 		return fail("contacts are unavailable.")
 	}
-	matched := matchingMemoryContacts(contacts, q.MessageID, messages)
+	eligible := make([]db.ProjectMessage, 0, len(messages))
+	for _, message := range messages {
+		if !message.CreatedAt.After(q.CreatedAt) {
+			eligible = append(eligible, message)
+		}
+	}
+	matched := matchingMemoryContacts(contacts, q.MessageID, eligible)
 	if len(matched) != 1 || matched[0].ID != action.ContactID {
 		return fail("the contact is ambiguous. Please provide the exact name or email.")
 	}
