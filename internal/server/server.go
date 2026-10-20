@@ -2644,7 +2644,21 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		author = owner.Email
 	}
 
+	cancelledLaunches, launchErr := s.taskSvc.CancelLaunches(r.Context(), taskID, time.Now().UTC())
+	if launchErr != nil {
+		respondJSONError(w, 503, "Could not save cancellation. Check the launch status before retrying.")
+		return
+	}
 	att, err := s.taskSvc.CancelTask(r.Context(), taskID, author)
+	if cancelledLaunches > 0 && (errors.Is(err, task.ErrAttemptNotFound) || errors.Is(err, task.ErrInvalidTaskInput)) {
+		blocked := task.TaskStatusBlocked
+		_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, author, task.UpdateTaskRequest{Status: &blocked})
+		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil {
+			s.publishInbox(detail.SourceRoomID)
+		}
+		respondJSON(w, 200, map[string]string{"status": "cancelled"})
+		return
+	}
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
 			respondJSONError(w, http.StatusNotFound, "Task not found")

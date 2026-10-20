@@ -384,6 +384,16 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 		if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "task:"+a.TaskID); err != nil {
 			return err
 		}
+		if _, err = tx.ExecContext(ctx, `SELECT id FROM tasks WHERE id=$1 FOR UPDATE`, a.TaskID); err != nil {
+			return err
+		}
+		var withdrawn bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM task_launches j JOIN tasks t ON t.id=j.task_id WHERE j.attempt_id=$1 AND (j.state<>'claimed' OR j.lease_until IS NULL OR j.lease_until<=NOW() OR j.project_id<>COALESCE(t.project_id,'') OR j.agent_id<>$2 OR j.instructions_hash<>encode(digest(t.instructions,'sha256'),'hex')))`, a.ID, a.AgentName).Scan(&withdrawn); err != nil {
+			return err
+		}
+		if withdrawn {
+			return ErrInvalidTaskInput
+		}
 		var count, maxAttempt int
 		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FILTER(WHERE status IN ('running','queued')),COALESCE(MAX(attempt_number),0) FROM task_attempts WHERE task_id=$1`, a.TaskID).Scan(&count, &maxAttempt); err != nil {
 			return err

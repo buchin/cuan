@@ -219,6 +219,17 @@ func (m *MemoryStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, exists := m.attempts[a.ID]; exists {
+		return ErrTaskDuplicate
+	}
+	for _, j := range m.launches {
+		if attemptRequestID(j.TaskID, j.RequestID) == a.ID {
+			t := m.tasks[a.TaskID]
+			if j.State != "claimed" || j.LeaseUntil == nil || !j.LeaseUntil.After(time.Now()) || t == nil || j.ProjectID != t.ProjectID || j.AgentID != a.AgentName || j.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
+				return ErrInvalidTaskInput
+			}
+		}
+	}
 	if a.AttemptNumber <= 0 {
 		a.AttemptNumber = 1
 	}

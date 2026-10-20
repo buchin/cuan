@@ -94,6 +94,7 @@ export interface TaskDetail extends Task {
   activities: TaskActivity[]
 }
 export interface Task {
+  launch?: { state: 'queued' | 'claimed' | 'started' | 'stopped' | 'cancelled'; safe_error?: string; available_at: string }
   latest_attempt?: TaskAttempt
   source_room_id?: string
   source_message_id?: string

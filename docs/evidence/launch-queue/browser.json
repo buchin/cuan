@@ -1,0 +1,29 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "automaticWaiting": true,
+      "cancelWaitingWork": true,
+      "noAgentSelection": true,
+      "noManualLaunch": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "automaticWaiting": true,
+      "cancelWaitingWork": true,
+      "noAgentSelection": true,
+      "noManualLaunch": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "automaticWaiting": true,
+      "cancelWaitingWork": true,
+      "noAgentSelection": true,
+      "noManualLaunch": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "providerCalls": 0
+}

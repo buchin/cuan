@@ -1,3 +1,4 @@
+import { tasksApi } from '../../api/tasks'
 import { workspacePath } from './workspacePath'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -16,6 +17,8 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
     [agentError, setAgentError] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
+  const [cancelled, setCancelled] = useState(false)
+  const waiting = task.launch?.state === 'queued' || task.launch?.state === 'claimed'
   const starting = useRef(false)
   const basePath = workspacePath(task.id, location.pathname)
   const search = new URLSearchParams(location.search)
@@ -34,7 +37,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
         : '/tasks' + suffix
   useEffect(() => {
     let alive = true
-    if (task.status === 'done') {
+    if (task.status === 'done' || waiting) {
       setLoading(false)
       return
     }
@@ -72,7 +75,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
     return () => {
       alive = false
     }
-  }, [revision, task.status])
+  }, [revision, task.status, waiting])
   return (
     <section
       aria-label="Task workspace"
@@ -120,11 +123,15 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
             <ChatMarkdown content={task.description || task.title} />
           </section>
           <p className="text-sm text-muted-foreground">
-            {task.status === 'done'
+            {waiting ? (cancelled ? 'The waiting work was cancelled.' : 'Waiting for an available AI session. Cuan will start this work automatically.') : task.launch?.state === 'stopped' ? (task.launch.safe_error || 'The pending launch stopped. Check its details before continuing.') : task.launch?.state === 'cancelled' ? 'The waiting work was cancelled.' : task.status === 'done'
               ? 'This task is complete. Reopen it in Detail to continue.'
               : 'This task has not started yet.'}
           </p>
-          {task.status !== 'done' && (
+          {waiting && <button className="action-secondary" disabled={busy || cancelled} onClick={async () => {
+            setBusy(true);setError('')
+            try {await tasksApi.cancel(task.id);setCancelled(true)} catch(e) {setError(e instanceof Error ? e.message : 'Could not cancel waiting work.')} finally {setBusy(false)}
+          }}>{cancelled ? 'Cancelled' : 'Cancel waiting work'}</button>}
+          {task.status !== 'done' && !waiting && (
             <form
               className="flex flex-wrap items-center gap-2"
               onSubmit={(e) => {
@@ -183,7 +190,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
               </button>
             </form>
           )}
-          {task.status !== 'done' && !loading && !agents.length && (
+          {task.status !== 'done' && !waiting && !loading && !agents.length && (
             <Link
               to="/settings/agents"
               className="inline-block text-sm underline"

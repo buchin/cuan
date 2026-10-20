@@ -61,6 +61,7 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 			if s.projectStudioRepo == nil {
 				return
 			}
+			s.kickTaskLaunches()
 			s.deliverInboxTaskUpdates(ctx)
 			rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
 			if err != nil {

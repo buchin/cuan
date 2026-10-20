@@ -251,6 +251,7 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 	}
 
 	return &TaskDetailResponse{
+		Launch:        s.launchInfo(ctx, id),
 		Task:          *t,
 		ProjectName:   projectName,
 		ProjectNames:  projectNamesList,

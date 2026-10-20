@@ -124,11 +124,13 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	// Only an authenticated owner's accepted message can authorize execution;
 	// a visitor message or an injected author label cannot grant that authority.
 	authenticatedApproval := false
+	authorizationRequestID := ""
 	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 		if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
 			for _, request := range requests {
 				if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
 					authenticatedApproval = true
+					authorizationRequestID = request.RequestID
 				}
 			}
 		}
@@ -205,28 +207,8 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if d.TaskID == "" {
 		launchID = delegationMessageID("task-run:" + q.RoomID + ":" + d.AuthorizationID)
 	}
-	payload := runTaskAgentPayload{RequestID: launchID, AgentID: q.AgentID, Revision: d.Revision}
-	response := &delegationResponse{header: make(http.Header)}
-	request, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-delegation", nil)
-	s.runTaskAgent(response, request, t.ID, payload, q.OwnerID)
-	link := fmt.Sprintf("[View work](/tasks/%s)", t.ID)
-	if response.code != 200 {
-		var problem struct {
-			Error string `json:"error"`
-		}
-		_ = json.Unmarshal(response.body.Bytes(), &problem)
-		return "The work is saved, but could not start. " + problem.Error + "\n\n" + link
-	}
-	var result struct {
-		Status string `json:"status"`
-	}
-	_ = json.Unmarshal(response.body.Bytes(), &result)
-	if result.Status != "running" && result.Status != "queued" {
-		return "This request was already handled; I have not started it again.\n\n" + link
-	}
-	s.publishInbox(q.RoomID)
-	// Application-owned truth, rather than an unverified provider claim.
-	return "Work started. I’ll report progress and the result here.\n\n" + link
+	return s.startAuthorizedLaunch(ctx, q, t, launchID, authorizationRequestID, d.Revision)
+
 }
 
 func delegationMessageID(key string) string {
@@ -249,6 +231,15 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 			continue
 		}
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		if err == nil {
+			if launch, e := s.taskSvc.LatestLaunch(ctx, item.ID); e == nil && launch != nil && (launch.State == "stopped" || launch.State == "cancelled") {
+				text := "This pending launch has stopped. " + launch.SafeError + "\n\n[View work](/tasks/" + item.ID + ")"
+				if launch.State == "cancelled" {
+					text = "The waiting work was cancelled. No queued execution will be started.\n\n[View work](/tasks/" + item.ID + ")"
+				}
+				s.publishTaskLaunchOutcome(ctx, *launch, launch.State, text)
+			}
+		}
 		if err != nil || detail.LatestAttempt == nil {
 			continue
 		}

@@ -63,6 +63,7 @@ export function TaskSessionPage({
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
+  const waitingLaunch = detail?.launch?.state === 'queued' || detail?.launch?.state === 'claimed'
   const basePath = workspacePath(taskId, location.pathname)
   const suffix = location.search,
     state = location.state
@@ -84,12 +85,12 @@ export function TaskSessionPage({
     workspaceReturnTo: location.pathname + location.search,
   }
   useEffect(() => {
-    if (sessionId === 'latest' && attempt)
+    if (sessionId === 'latest' && attempt && !waitingLaunch)
       navigate(
         basePath + '/sessions/' + encodeURIComponent(attempt.id) + suffix,
         { replace: true, state },
       )
-  }, [sessionId, attempt?.id, taskId, suffix, navigate, state, basePath])
+  }, [sessionId, attempt?.id, taskId, suffix, navigate, state, basePath, waitingLaunch])
   useEffect(() => {
     setShowTerminal(false)
     setAccept(false)
@@ -118,7 +119,7 @@ export function TaskSessionPage({
         </Link>
       </div>
     )
-  if (!attempt && sessionId === 'latest') return <TaskReadyPage task={detail} />
+  if ((!attempt || waitingLaunch) && sessionId === 'latest') return <TaskReadyPage task={detail} />
   if (!attempt)
     return (
       <div className="p-4 text-sm">

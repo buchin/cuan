@@ -138,6 +138,7 @@ type TaskItemResponse struct {
 
 // TaskDetailResponse contains full detail including history and attempts.
 type TaskDetailResponse struct {
+	Launch *LaunchInfo `json:"launch,omitempty"`
 	Task
 	ProjectName   string          `json:"project_name,omitempty"`
 	ProjectNames  []string        `json:"project_names,omitempty"`

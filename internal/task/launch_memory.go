@@ -36,7 +36,7 @@ func (m *MemoryStore) SaveLaunch(_ context.Context, j TaskLaunch) (*TaskLaunch, 
 	m.launches[j.ID] = copyLaunch(&j)
 	return copyLaunch(&j), nil
 }
-func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string) (*TaskLaunch, error) {
+func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string, wanted ...string) (*TaskLaunch, error) {
 	if token == "" {
 		return nil, ErrInvalidTaskInput
 	}
@@ -44,6 +44,9 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 	defer m.mu.Unlock()
 	ids := []string{}
 	for id, j := range m.launches {
+		if len(wanted) > 0 && wanted[0] != "" && id != wanted[0] {
+			continue
+		}
 		if (j.State == "queued" || j.State == "claimed") && !j.ExpiresAt.After(now) {
 			j.State = "stopped"
 			j.SafeError = "The launch window expired before execution could start."
@@ -116,4 +119,16 @@ func (m *MemoryStore) GetLaunch(_ context.Context, id string) (*TaskLaunch, erro
 		return nil, ErrTaskNotFound
 	}
 	return copyLaunch(j), nil
+}
+
+func (m *MemoryStore) LatestLaunch(_ context.Context, taskID string) (*TaskLaunch, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var latest *TaskLaunch
+	for _, j := range m.launches {
+		if j.TaskID == taskID && (latest == nil || j.CreatedAt.After(latest.CreatedAt) || (j.CreatedAt.Equal(latest.CreatedAt) && j.ID > latest.ID)) {
+			latest = j
+		}
+	}
+	return copyLaunch(latest), nil
 }

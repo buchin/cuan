@@ -292,7 +292,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		limited := primary != nil && primary.State == "quota_limited"
 		routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
 		if len(routes) == 0 {
-			respondJSONError(w, 409, "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started.")
+			respondJSON(w, 409, map[string]string{"error": "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started.", "code": "provider_unavailable"})
 			return
 		}
 		var selected *inboxAccountRoute
@@ -305,7 +305,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 		if selected == nil {
-			respondJSONError(w, 409, "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.")
+			respondJSON(w, 409, map[string]string{"error": "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.", "code": "provider_capacity"})
 			return
 		}
 		profileHome = selected.home

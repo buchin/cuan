@@ -2,7 +2,9 @@
 CREATE TABLE task_launches (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
     request_id TEXT NOT NULL,
+    attempt_id TEXT NOT NULL,
     owner_id TEXT NOT NULL,
     room_id UUID NOT NULL REFERENCES project_rooms(id) ON DELETE CASCADE,
     source_request_id TEXT NOT NULL,
@@ -21,3 +23,5 @@ CREATE TABLE task_launches (
     UNIQUE(task_id,request_id)
 );
 CREATE INDEX task_launches_due ON task_launches(available_at,id) WHERE state IN ('queued','claimed');
+
+CREATE INDEX task_launches_attempt ON task_launches(attempt_id);

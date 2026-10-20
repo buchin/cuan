@@ -22,7 +22,7 @@ func launchContract(t *testing.T, store LaunchStore, taskID, roomID string) {
 	t.Helper()
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	job := TaskLaunch{TaskID: taskID, RequestID: "stable-launch", OwnerID: "owner", RoomID: roomID, SourceRequestID: "accepted-user-request", AgentID: "agent", InstructionsHash: "immutable-scope", CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
+	job := TaskLaunch{TaskID: taskID, ProjectID: "launch-project", RequestID: "stable-launch", OwnerID: "owner", RoomID: roomID, SourceRequestID: "accepted-user-request", AgentID: "agent", InstructionsHash: "immutable-scope", CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
 	// Concurrent re-acceptance must retain the same durable intent.
 	var wg sync.WaitGroup
 	for i := 0; i < 12; i++ {
@@ -89,6 +89,12 @@ func launchContract(t *testing.T, store LaunchStore, taskID, roomID string) {
 	if e = store.FinishLaunch(ctx, due.ID, due.LeaseToken, "started", later, ""); !errors.Is(e, ErrLaunchLease) {
 		t.Fatal("cancel overwritten", e)
 	}
+	if attempts, ok := store.(Store); ok {
+		e := attempts.CreateAttempt(ctx, &TaskAttempt{ID: attemptRequestID(taskID, job.RequestID), TaskID: taskID, RunnerID: "local_terminal", AgentName: "agent", Status: AttemptStatusQueued, CreatedAt: now})
+		if !errors.Is(e, ErrInvalidTaskInput) {
+			t.Fatal("cancelled launch admitted a late attempt", e)
+		}
+	}
 	saved, e := store.SaveLaunch(ctx, job)
 	if e != nil || saved.State != "cancelled" {
 		t.Fatal("cancel resurrected by replay", saved, e)
@@ -109,4 +115,37 @@ func launchContract(t *testing.T, store LaunchStore, taskID, roomID string) {
 	if e != nil || actual.State != "stopped" || actual.SafeError == "" {
 		t.Fatal("expiry not recorded", actual, e)
 	}
+	if attempts, ok := store.(Store); ok {
+		current, e := attempts.GetTask(ctx, taskID)
+		if e != nil {
+			t.Fatal(e)
+		}
+		job.RequestID = "valid-start"
+		job.ProjectID = current.ProjectID
+		if job.ProjectID == "" {
+			current.ProjectID = "launch-project"
+			if e = attempts.UpdateTask(ctx, current); e != nil {
+				t.Fatal(e)
+			}
+			job.ProjectID = current.ProjectID
+		}
+		job.InstructionsHash = LaunchInstructionsHash(current.Instructions)
+		job.ExpiresAt = now.Add(time.Hour)
+		saved, e := store.SaveLaunch(ctx, job)
+		if e != nil {
+			t.Fatal(e)
+		}
+		owned, e := store.ClaimLaunch(ctx, now, "admit-worker", saved.ID)
+		if e != nil || owned == nil {
+			t.Fatal(owned, e)
+		}
+		attempt := &TaskAttempt{ID: attemptRequestID(taskID, job.RequestID), TaskID: taskID, RunnerID: "local_terminal", AgentName: "agent", Status: AttemptStatusQueued, CreatedAt: now}
+		if e = attempts.CreateAttempt(ctx, attempt); e != nil {
+			t.Fatal("valid claimed intent rejected", e)
+		}
+		if e = store.FinishLaunch(ctx, owned.ID, owned.LeaseToken, "started", now, ""); e != nil {
+			t.Fatal(e)
+		}
+	}
+
 }
