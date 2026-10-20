@@ -186,6 +186,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	step("accepted", "Message received.")
 	step("recovery_policy", "safe-reply-v1")
 	q.State = "completed"
+	var topicTitle string
 	var reply *db.ProjectMessage
 	if q.AgentID != "" {
 		if q.OwnerID == "" {
@@ -214,7 +215,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						q.SafeError = "Could not read conversation context. Your message is saved."
 					} else {
 						workspace, projectContext := s.inboxProjectContext(ctx, q)
-						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + prompt
+						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + prompt + s.inboxTopicTitleContext(ctx, q)
 						step("context", "Project context checked for analysis.")
 						var output, failure string
 						plan, planErr := s.inboxApprovedPlan(ctx, q)
@@ -232,6 +233,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						} else {
 							output, failure = s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
 						}
+						output, topicTitle = extractTopicTitle(output)
 						if results, searched, searchErr := s.inboxMemorySearchResults(ctx, q, output); searched {
 							if searchErr != nil {
 								output = searchErr.Error()
@@ -261,7 +263,15 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 							}
 						}
+						if clean, suggestion := extractTopicTitle(output); suggestion != "" {
+							output, topicTitle = clean, suggestion
+						} else {
+							output = clean
+						}
 						if output == "" {
+							if failure == "" {
+								failure = "Provider did not return a useful reply. Your message is saved."
+							}
 							log.Printf("inbox provider failed room=%s request=%s agent=%s", q.RoomID, q.RequestID, registered.ID)
 							q.SafeError = failure
 						} else {
@@ -291,6 +301,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	defer c()
 	if err := store.FinishInboxRequest(save, q, reply); err != nil {
 		log.Printf("inbox terminal persistence failed room=%s request=%s", q.RoomID, q.RequestID)
+	} else if reply != nil && q.SafeError == "" && q.State == "completed" {
+		s.updateAgentTopicTitle(save, q, topicTitle)
 	}
 	s.publishInbox(q.RoomID)
 }

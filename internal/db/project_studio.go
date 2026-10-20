@@ -2000,3 +2000,31 @@ func (m *MemoryProjectStudioRepository) DeleteTask(ctx context.Context, id strin
 	}
 	return nil
 }
+
+// UpdateRoomDisplayTitle changes only a display label, with a compare-and-swap
+// guard. It never changes message activity time, topic binding or project.
+func (r *SQLProjectStudioRepository) UpdateRoomDisplayTitle(ctx context.Context, id, topic, previous, title string) (bool, error) {
+	if !IsValidUUID(id) || strings.TrimSpace(title) == "" {
+		return false, ErrEmptyRoomTitle
+	}
+	result, err := r.db.ExecContext(ctx, "UPDATE project_rooms SET title=$4 WHERE id=$1 AND topic=$2 AND title=$3", id, topic, previous, title)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count == 1, err
+}
+
+func (m *MemoryProjectStudioRepository) UpdateRoomDisplayTitle(ctx context.Context, id, topic, previous, title string) (bool, error) {
+	if !IsValidUUID(id) || strings.TrimSpace(title) == "" {
+		return false, ErrEmptyRoomTitle
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	room := m.rooms[id]
+	if room == nil || room.Topic != topic || room.Title != previous {
+		return false, nil
+	}
+	room.Title = title
+	return true, nil
+}

@@ -71,3 +71,12 @@ This prevents the summary stage from repeating the original repository analysis.
 Final timing is recorded atomically with the saved outcome, even when the activity
 timeline has reached its normal size limit. An earlier provider-stage duration
 is not shown as the total for a historical interrupted reply.
+
+## Conversation titles
+
+Agent conversations can update their title when the recent discussion establishes
+an ongoing new topic. The ID, URL, messages and linked work remain unchanged.
+Titles stay stable during brief tangents and approvals. A manually chosen title
+is retained. Customer conversation names are not rewritten. This uses the normal
+reply rather than an additional AI request, and does not start work or change an
+approval. If a reply fails, the existing title stays in place.
