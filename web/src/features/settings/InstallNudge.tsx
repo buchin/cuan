@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, X } from 'lucide-react'
+import { Download, Pin, X } from 'lucide-react'
 import { usePWA } from '../../context/PWAContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
@@ -11,8 +11,10 @@ export function InstallNudge() {
   const [dismissed, setDismissed] = useState(() => {
       try {
         return (
+          localStorage.getItem('cuan-install-suggestion-dismissed') ===
+            'true' ||
           Number(localStorage.getItem('cuan-install-dismissed-until') || 0) >
-          Date.now()
+            Date.now()
         )
       } catch {
         return false
@@ -26,14 +28,18 @@ export function InstallNudge() {
   return (
     <aside
       aria-label={t('Install Cuan')}
-      className="mt-6 rounded-xl border border-border p-3"
+      className="rounded-xl border border-border p-3"
     >
       <div className="flex items-start gap-2">
         <Download className="mt-3 h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1 pt-2">
-          <p className="text-sm font-medium">{t('Keep Cuan one tap away.')}</p>
+          <p className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <Pin className="h-3 w-3" aria-hidden="true" />
+            {t('Pinned')}
+          </p>
+          <p className="text-sm font-medium">{t('Install Cuan')}</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {t('Add Cuan to your home screen for quick access.')}
+            {t('Access Cuan directly from your home screen.')}
           </p>
         </div>
         <button
@@ -42,10 +48,7 @@ export function InstallNudge() {
           aria-label={t('Dismiss install suggestion')}
           onClick={() => {
             try {
-              localStorage.setItem(
-                'cuan-install-dismissed-until',
-                String(Date.now() + 7 * 24 * 60 * 60 * 1000),
-              )
+              localStorage.setItem('cuan-install-suggestion-dismissed', 'true')
             } catch {
               /* Dismiss for this visit when storage is unavailable. */
             }

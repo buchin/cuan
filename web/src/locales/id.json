@@ -303,5 +303,7 @@
   "Email (optional)": "Email (opsional)",
   "Save contact": "Simpan kontak",
   "Could not save this contact. Try again.": "Kontak gagal disimpan. Coba lagi.",
-  "Add a manual contact to your CRM. This does not send a message or email or connect a messaging channel.": "Tambahkan kontak manual ke CRM Anda. Tindakan ini tidak mengirim pesan atau email maupun menghubungkan saluran pesan."
+  "Add a manual contact to your CRM. This does not send a message or email or connect a messaging channel.": "Tambahkan kontak manual ke CRM Anda. Tindakan ini tidak mengirim pesan atau email maupun menghubungkan saluran pesan.",
+  "Pinned": "Disematkan",
+  "Access Cuan directly from your home screen.": "Akses Cuan langsung dari layar utama."
 }

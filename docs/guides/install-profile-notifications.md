@@ -2,7 +2,7 @@
 
 ## Install on your home screen
 
-Open **Settings → General → Install Cuan**. Supported browsers show **Install app** when ready. Otherwise use the browser's Install app/Add to Home Screen menu. On iPhone/iPad, use Safari → Share → Add to Home Screen → Add, then open Cuan from that icon. Installation requires HTTPS (localhost is allowed for development). The installed app opens Studio in its own window with the Cuan kepeng icon.
+Open **Settings → General → Install Cuan**. Supported browsers show **Install Cuan** when ready. Otherwise use the browser's Install app/Add to Home Screen menu. On iPhone/iPad, use Safari → Share → Add to Home Screen → Add, then open Cuan from that icon. Installation requires HTTPS (localhost is allowed for development). The installed app opens Studio in its own window with the Cuan kepeng icon.
 
 Cuan needs a network connection. Its service worker does not cache account pages, APIs, messages, attachments or tokens. If the server cannot be reached, navigation shows a generic offline page with a retry link. Browser support and the actual system installation dialog depend on the device. New service-worker versions activate without reloading an unsaved form; there is no custom offline data cache.
 
@@ -52,12 +52,16 @@ Deploy through the native atomic release script with idle checks, private backup
 
 Anonymous visitors see the public homepage at `/`; Get started opens sign-in. Signed-in visitors to `/` or `/login` go to Studio. `/about` previews the homepage while signed in.
 
-Studio offers a small Install Cuan suggestion when the browser exposes an install prompt, or on iPhone/iPad with manual instructions. The button opens the native install dialog where supported. On iOS, follow Safari → Share → Add to Home Screen → Add. Dismissing the suggestion hides it for seven days in that browser. Standalone installations hide it; browser detection cannot reliably identify an app installed in a different browser. Installation remains available in Settings. Loading Studio never requests permissions automatically.
+Notifications offers a pinned Install Cuan suggestion when the browser exposes an install prompt, or on iPhone/iPad with manual instructions. The button opens the native install dialog where supported. On iOS, follow Safari → Share → Add to Home Screen → Add. Dismissing the suggestion hides it persistently in that browser. Existing seven-day dismissals from the previous Studio suggestion are respected until they expire. Standalone installations hide it; browser detection cannot reliably identify an app installed in a different browser. Installation remains available in Settings. Loading Studio or Notifications never requests permissions automatically.
 
-The permanent **Settings → General → Install Cuan** section remains available after the Studio suggestion is dismissed. The Studio suggestion also links directly to `/settings#install-cuan`. Settings provides ordered instructions for iPhone/iPad, Android, Safari on Mac, and other desktop browsers, or a native Install Cuan button when available. Standalone mode displays Cuan is installed.
+The permanent **Settings → General → Install Cuan** section remains available after the pinned suggestion is dismissed. The pinned suggestion also links directly to `/settings#install-cuan`. Settings provides ordered instructions for iPhone/iPad, Android, Safari on Mac, and other desktop browsers, or a native Install Cuan button when available. Standalone mode displays Cuan is installed.
 
-Studio uses compact mobile spacing and a 144px initial goal field (176px on desktop). The field grows with text up to 320px, then scrolls internally. The submission button stays immediately below the attachment area; no extra helper footer separates it from the rest of the page. The complete goal block is vertically centered when space permits; the optional installation suggestion follows below the first viewport. Short viewports and the on-screen keyboard can scroll the content.
+Studio uses compact mobile spacing and a 144px initial goal field (176px on desktop). The field grows with text up to 320px, then scrolls internally. The submission button stays immediately below the attachment area; no extra helper footer separates it from the rest of the page. The complete goal block is vertically centered when space permits; installation suggestions appear only in Notifications, leaving Studio focused on the goal. Short viewports and the on-screen keyboard can scroll the content.
 
 ## Contacts directory
 
 Search contacts by name, email, source or tag. Open **Filters** beside search to select a tag/source; an indicator remains when collapsed filters are active. Clear filters to restore all results. Contact rows show name, email, source and a short tag summary; the update date lives in the detail panel. Select a contact to manage tags or open its connected conversation. English and Indonesian labels follow Settings → Appearance. Contact names, emails, product names and tags keep their original content.
+
+## Pinned installation suggestion
+
+The install suggestion is an independent dismissible card at the top of Notifications, visible in both All and Unread when installation is supported. It is not part of the notification feed: it never increases unread counts, is unaffected by Mark all as read, and never triggers push. It hides after dismissal or detected installation. Settings → General → Install Cuan remains available. Dismissal is stored locally, so another browser/device may still offer installation.

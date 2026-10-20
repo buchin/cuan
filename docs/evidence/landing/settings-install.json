@@ -1,6 +1,6 @@
 {
   "permanentAfterDismissal": true,
-  "studioLink": true,
+  "notificationsLink": true,
   "iosSteps": true,
   "nativePrompt": true,
   "installedState": true,

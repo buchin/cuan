@@ -1,3 +1,4 @@
+import { InstallNudge } from '../settings/InstallNudge'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Bell, CheckCheck, MoreHorizontal, Settings } from 'lucide-react'
@@ -17,6 +18,7 @@ export function NotificationsView() {
   const visible = items.filter((x) => filter === 'all' || !x.read)
   return (
     <section className="mx-auto max-w-3xl space-y-4">
+      <InstallNudge />
       {(error || actionError) && (
         <div role="alert" className="text-sm text-destructive">
           {t(error || actionError)}{' '}
