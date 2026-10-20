@@ -1,5 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { NavUser } from '../../components/layout/NavUser'
+import { Link } from 'react-router-dom'
 import type { Agent } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
@@ -72,7 +71,6 @@ export function InboxView({
   onBackToContacts,
   onMobileChatActiveChange,
 }: InboxViewProps) {
-  const navigate = useNavigate()
   const unsentDrafts = useRef<Record<string, string>>({})
   const loadVersion = useRef(0)
   const followTail = useRef(true)
@@ -523,13 +521,7 @@ export function InboxView({
                       <span>New message</span>
                     </button>
                   )}
-                  <div className="w-11">
-                    <NavUser
-                      isCollapsed
-                      dropdownPosition="bottom-right"
-                      onSettings={() => navigate('/settings')}
-                    />
-                  </div>
+
                 </div>
               </div>
             </div>

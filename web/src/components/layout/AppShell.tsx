@@ -218,13 +218,6 @@ export function AppShell({
                 <span>{newAction.label}</span>
               </button>
             )}
-            <div className="w-11 md:hidden">
-              <NavUser
-                isCollapsed
-                dropdownPosition="bottom-right"
-                onSettings={() => navigate('settings')}
-              />
-            </div>
           </div>
         </header>
         <div
@@ -270,6 +263,14 @@ export function AppShell({
               {text}
             </button>
           ))}
+          <div className="min-w-0 flex-1">
+            <NavUser
+              bottomNavigation
+              active={currentTab === 'settings'}
+              dropdownPosition="top-right"
+              onSettings={() => navigate('settings')}
+            />
+          </div>
         </nav>
       )}
     </div>

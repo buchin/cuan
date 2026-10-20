@@ -58,8 +58,9 @@ or focusing the logo area reveals Expand sidebar; it remains keyboard accessible
 Your expanded/collapsed preference is saved in this browser. Tablets use a compact
 icon sidebar; the account menu remains available from the avatar.
 
-Phones have no duplicate sidebar drawer. The avatar beside the creation button
-opens the account menu, including Settings. In a phone conversation, Back returns
+Phones have no duplicate sidebar drawer. **Account** is the last item in bottom
+navigation and opens upward with Settings, Profile & password, and Sign out.
+The mobile header contains no account avatar. In a phone conversation, Back returns
 to the conversation list and restores the bottom navigation.
 
 ## Settings
@@ -90,8 +91,8 @@ restore from Projects → Archived. Both operations require confirmation.
 - **1200px and above:** 200px sidebar, collapsible to 64px. Inbox has an optional
   280px conversation list beside the chat.
 - **768–1199px:** 64px sidebar. Inbox uses a single list/conversation view.
-- **Below 768px:** four bottom tabs; no hamburger drawer. The header contains a
-  24px kepeng logo, a 20px title, a contextual creation button, and an avatar.
+- **Below 768px:** five bottom items: Inbox, Tasks, Projects, Contacts, Account; no hamburger drawer. The header contains a
+  24px kepeng logo, a 20px title, and a contextual creation button.
 - App headers are 56px on phones and 64px on larger screens. Main pages use one
   H1 and no redundant breadcrumb. Project/settings details provide parent links.
 - Chat body text is 16px on phones and 15px on larger screens, with line height

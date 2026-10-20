@@ -8,7 +8,9 @@ interface NavUserProps {
   isCollapsed?: boolean
   sidebar?: boolean
   collapsed?: boolean
-  dropdownPosition?: 'side' | 'bottom-right' | 'bottom-left'
+  dropdownPosition?: 'side' | 'bottom-right' | 'bottom-left' | 'top-right'
+  bottomNavigation?: boolean
+  active?: boolean
   onSettings?: () => void
 }
 
@@ -18,6 +20,8 @@ export function NavUser({
   collapsed = false,
   dropdownPosition,
   onSettings,
+  bottomNavigation = false,
+  active = false,
 }: NavUserProps) {
   const compact = isCollapsed || (sidebar && collapsed)
   const { user, logout } = useAuth()
@@ -82,15 +86,28 @@ export function NavUser({
             'flex min-h-11 w-full items-center gap-2 p-2 text-left hover:bg-accent hover:text-accent-foreground transition-colors rounded-md',
             compact && 'justify-center p-2',
             sidebar && 'sidebar-account',
+            bottomNavigation &&
+              'min-h-14 flex-col justify-center gap-1 rounded-none p-0 text-xs',
+            bottomNavigation &&
+              (active || menuOpen
+                ? 'text-primary font-semibold'
+                : 'text-muted-foreground'),
           )}
           title={compact ? username : undefined}
         >
           {/* Avatar */}
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full">
+          <div
+            className={cn(
+              'flex h-7 w-7 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full',
+              bottomNavigation && 'h-5 w-5 text-[9px]',
+            )}
+          >
             {initials}
           </div>
 
-          {!compact && (
+          {bottomNavigation && <span>Account</span>}
+
+          {!compact && !bottomNavigation && (
             <div className="account-label grid min-w-0 flex-1 text-left leading-tight truncate">
               <span className="truncate font-semibold text-sm text-foreground">
                 {username}
@@ -98,7 +115,7 @@ export function NavUser({
             </div>
           )}
 
-          {!compact && (
+          {!compact && !bottomNavigation && (
             <MoreHorizontal className="account-label h-4 w-4 text-muted-foreground shrink-0" />
           )}
         </button>
@@ -111,7 +128,9 @@ export function NavUser({
             aria-label="Account menu"
             className={cn(
               'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1 rounded-lg',
-              dropdownPosition === 'bottom-right'
+              dropdownPosition === 'top-right'
+                ? 'bottom-full right-2 mb-2 w-64 max-w-[calc(100vw-1rem)]'
+                : dropdownPosition === 'bottom-right'
                 ? 'right-0 top-full mt-1.5'
                 : dropdownPosition === 'bottom-left'
                   ? 'left-0 top-full mt-1.5'
