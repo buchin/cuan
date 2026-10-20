@@ -1,6 +1,6 @@
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useLanguage } from '../../context/LanguageContext'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
@@ -47,6 +47,13 @@ export function ProjectWorkView({
       .join(' ').toLowerCase().includes(query.toLowerCase().trim()))
   const visible = searched.filter(task => (filters.find(item => item.id === filter) || filters[0]).matches(task))
   const selected = scoped.find((t) => t.id === taskId)
+  const relocated = taskId && !selected ? tasks.find(task => task.id === taskId && task.project_id && task.project_id !== project.id) : undefined
+  useEffect(() => {
+    if (loading || error || !relocated) return
+    const target = '/projects/' + encodeURIComponent(relocated.project_id!) + '/tasks/' + encodeURIComponent(relocated.id)
+    navigate(target + (sessionId ? '/sessions/' + encodeURIComponent(sessionId) : '') + location.search, { replace: true, state: location.state })
+  }, [loading, error, relocated?.id, relocated?.project_id, sessionId, location.search, location.state, navigate])
+
   if (taskId)
     return (
       <div className="flex h-full min-h-0 flex-col">
@@ -63,7 +70,7 @@ export function ProjectWorkView({
             )
           ) : (
             <p className="p-5 text-sm" role={loading ? 'status' : 'alert'}>
-              {t(loading ? 'Loading work…' : 'Work not found in this project.')}
+              {t(loading || relocated ? 'Loading work…' : 'Work not found in this project.')}
             </p>
           )}
         </div>

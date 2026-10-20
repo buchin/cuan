@@ -47,5 +47,6 @@
   "answeredNotReviewRequired": true,
   "liveChatEmptyState": true,
   "liveChatMenu": true,
-  "noTaskLaunches": true
+  "noTaskLaunches": true,
+  "relocatedTaskLinkPreserved": true
 }
