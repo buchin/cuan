@@ -31,7 +31,6 @@ export function ContactMemoryPanel({
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
   const [editing, setEditing] = useState<string | null>(null)
-  const [kind, setKind] = useState<Entry['kind']>('note')
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -87,8 +86,11 @@ export function ContactMemoryPanel({
     if (editing && body.trim() && !confirm(t('Discard this unsaved note?')))
       return
     setEditing(entry?.id || 'new')
-    setKind(entry?.kind || 'note')
-    setBody(entry?.body || '')
+    setBody(
+      entry?.kind === 'birthday'
+        ? `${t('Birthday')}: ${entry.body}`
+        : entry?.body || '',
+    )
     setSaveError('')
     setNotice('')
     setDeleting(null)
@@ -107,7 +109,7 @@ export function ContactMemoryPanel({
         method: editing === 'new' ? 'POST' : 'PATCH',
         body: JSON.stringify({
           ...(editing === 'new' ? { request_id: requestId.current } : {}),
-          kind,
+          kind: 'note',
           body: body.trim(),
         }),
       })
@@ -254,8 +256,8 @@ export function ContactMemoryPanel({
           }}
         >
           <div className="flex items-center justify-between gap-2">
-            <label className="text-xs font-medium" htmlFor="memory-kind">
-              {t('Type')}
+            <label className="text-xs font-medium" htmlFor="memory-body">
+              {t('What would you like to remember?')}
             </label>
             <button
               type="button"
@@ -270,37 +272,19 @@ export function ContactMemoryPanel({
               <X className="h-4 w-4" />
             </button>
           </div>
-          <select
-            id="memory-kind"
-            className="min-h-11 w-full rounded-md border bg-background px-3 text-sm"
-            value={kind}
-            disabled={busy}
-            onChange={(event) => setKind(event.target.value as Entry['kind'])}
-          >
-            <option value="note">{t('Note')}</option>
-            <option value="fact">{t('Fact')}</option>
-            <option value="birthday">{t('Birthday')}</option>
-          </select>
-          <label htmlFor="memory-body" className="block text-xs font-medium">
-            {kind === 'birthday'
-              ? t('Date (MM-DD or YYYY-MM-DD)')
-              : t('What would you like to remember?')}
-          </label>
           <textarea
             id="memory-body"
             autoFocus
             required
             maxLength={6000}
-            rows={kind === 'birthday' ? 2 : 4}
+            rows={4}
             disabled={busy}
             className="w-full resize-y rounded-md border bg-background p-3 text-base sm:text-sm"
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            placeholder={
-              kind === 'birthday'
-                ? '05-21'
-                : t('Meeting notes, interests, preferences, or a follow-up…')
-            }
+            placeholder={t(
+              'Meeting notes, interests, preferences, or a follow-up…',
+            )}
           />
           <button
             className="action-primary"

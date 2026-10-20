@@ -16,3 +16,5 @@ Limitations: lexical retrieval (no embeddings/typo tolerance), result/context li
 ## Production
 
 Native atomic release `5004f6d4884adb26c3ad3526aec4062b6a9ebff7` activated successfully at https://cuan.dojo.cc with schema24 and automatic migrations disabled. Private database/profile backup validated; old application readiness passed after additive migration24. Read-only smoke confirmed authenticated note API (unauthenticated access rejected), contact details at 390/1440px, and project picker/scoped tasks, without chat/task writes or provider calls. All 35 pre-existing application tables and 742 account/profile files retained unchanged. See production.json.
+
+The manual editor was subsequently simplified to a single plain-language field and Save; it no longer exposes a storage-kind picker or date-format field. The browser CRUD/error recovery scenario also asserts that the picker is absent. Agent chat saves may still organize information internally, while manual notes preserve the owner's wording.

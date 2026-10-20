@@ -1,10 +1,8 @@
 ## Relationship notes and recall
 
-Open **Contacts**, select a person, and choose **Add note**. Choose:
+Open **Contacts**, select a person, and choose **Add note**. Write what you want to remember in plain language and press **Save**. There is no category picker or date-format form. For example: “Budi’s birthday is May 21. His child likes dinosaurs.”
 
-- **Note** for a meeting summary or follow-up.
-- **Fact** for an interest, preference, or relationship detail.
-- **Birthday** using `MM-DD`, or `YYYY-MM-DD` if the year is known. Do not guess missing years.
+Manual entries retain your words as a note. In chat, the agent can organize an explicit save into an internal note, fact or birthday without asking you to choose the storage type. Existing structured birthdays remain readable; manual edits retain their meaning as plain text. Never guess a missing birth year.
 
 Saved entries show their recording date and whether they came from you or an agent. Agent-saved entries link to the source conversation. Edit entries when information changes. Delete asks for confirmation; deleted content is removed from live storage and excluded from recall. A minimal ID tombstone prevents a retried save from recreating it. Existing private backups are subject to the installation's backup retention policy.
 
