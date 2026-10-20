@@ -24,3 +24,14 @@ press, all gestures have visible/keyboard alternatives, and no gesture approves
 or executes work, deploys, or permanently deletes data. Archive is reversible
 and must survive reload and use from another device. Test actual interactions,
 not only screenshots. Keep production data and connected AI profiles intact.
+
+## Shipped interaction pass
+
+Release0e3e3c0 ships the Inbox/message/contact/project/task/notification actions,
+persistent archive/read state, truthful idle-task labels, connection/quota copy
+and settings save indicators. See docs/evidence/item-actions/ for exact-build,
+touch/keyboard, failure and production evidence.
+
+The latest screenshot review identifies the next visual refinements: archive
+control in the filter row, quieter per-row menu buttons, and a transient compact
+Undo notice. Preserve discoverable keyboard/touch alternatives.

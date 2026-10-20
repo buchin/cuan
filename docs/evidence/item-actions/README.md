@@ -41,3 +41,23 @@ Targeted Go tests exercise authenticated persistent read/archive updates,
 separate owners, private files, malformed-data preservation and a new message
 arriving after the last seen timestamp. Existing complete chat-flow regression
 also passes. Unrelated extension work is excluded from the release.
+
+## Production
+
+Release0e3e3c0 is live. Tested and deployed frontend hashes match exactly.
+Authenticated read-only checks pass at360/390/820/1440 in both themes for Inbox,
+contacts, projects and notification menus. A real touch swipe previews Archive
+and is cancelled before committing. The verification browser blocks service
+workers and all non-GET application actions; it does not archive/read real items
+or start provider work. Profile unchanged-save is disabled.
+
+Actual rollback/reactivation passes.37 application tables and896 account profile
+files match the backup;11 notification read flags remain intact. At the retention
+checkpoint, all3 pre-existing item-state records remain unchanged and2 additional
+read receipts are present. Their source is not attributed; those additive receipts
+were retained. Ordinary owner activity may continue changing read/archive state
+after this checkpoint. No data is reverted to make a verification comparison pass.
+
+Follow-up from the owner's screenshot: reduce the archive control's vertical
+space, make row action buttons quieter, and use a compact transient Undo notice.
+These are layout refinements, not missing archive/read persistence.
