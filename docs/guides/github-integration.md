@@ -2,7 +2,7 @@
 
 ## Current release status
 
-Release `0eb1aea` includes integration service cards, contextual task connection
+Release `f40909a` includes integration service cards, contextual task connection
 requirements, the task-bound push tool, scoped queued continuation and OAuth
 implementation. Desktop/mobile browser tests, deterministic process/real-Git
 continuation tests and production read-only/rollback/retention checks pass.
@@ -180,4 +180,4 @@ Set `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` in the service environment to overr
 this explicitly (for example with another verified no-reply address). Identity
 is passed only to the task process; no global Git config is overwritten.
 Legacy standalone runners require explicit identity configuration. This automatic
-identity change is pending deployment after release 0eb1aea.
+identity change is deployed in release f40909a.

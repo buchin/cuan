@@ -289,3 +289,5 @@ the fix is not yet deployed. See task-git-identity evidence. This demonstrates w
 passing developer-environment tests alone cannot prove fresh-install delivery.
 The full objective is still unproven; no actual-provider/GitHub end-to-end success
 is claimed. Experimental Docker isolation work remains stopped.
+
+Production f40909a now includes the human Git identity fix. Actual rollback/reactivation and read-only asset/retention checks pass; all 37 application tables, 930 profile files, seven item states and eleven notification read flags are unchanged. No production inference or commit was used to verify this release. OAuth App registration and actual-provider end-to-end proof remain open.
