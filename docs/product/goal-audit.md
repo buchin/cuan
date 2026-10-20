@@ -208,3 +208,20 @@ healthy. Exact worker, result and limits: docs/evidence/docker-cli-startup/.
 This closes the CLI startup uncertainty, not actual Cuan container execution,
 provider tool execution, policy alias/bypass review or supported host setup.
 The full goal remains active.
+
+## Experimental Docker path-policy review and payload filter
+
+A real alternate bind-mount probe disproves sufficient isolation from the
+experimental AppArmor path denies alone: after a new user/mount namespace,
+the payload can open the alias of /proc/keys. No contents were read. Denials of
+fresh procfs and nested Bubblewrap had not covered this distinct case.
+
+A post-setup Bubblewrap seccomp filter blocks the exact reproduction at unshare
+with EPERM while retaining official CLI startup/help, the boundary fixture and
+real parent-loss cleanup. Raw amd64 filter, before/after workers, hashes and
+limits: docs/evidence/docker-policy-review/. No profile/no_new_privs guard was
+disabled, and all diagnostic resources were cleaned. Native production491b2dd
+is unchanged and healthy. Actual Cuan command/filter integration, broad syscall
+regression coverage, full container execution/recovery and supported host setup
+are still open. The goal remains active; the earlier experimental policy must
+not be promoted as a supported configuration on the strength of path tests.
