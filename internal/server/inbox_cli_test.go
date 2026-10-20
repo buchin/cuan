@@ -43,6 +43,7 @@ func TestInboxCLIExitZeroFailureAndTrace(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '%s' '{\"event\":\"result\",\"result\":{\"status\":\"ERROR\",\"message\":\"RESOURCE_EXHAUSTED private-token\"}}'\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
+	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	steps := map[string]string{}
@@ -101,6 +102,7 @@ echo private-stderr >&2
 	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
+	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	var trace []string

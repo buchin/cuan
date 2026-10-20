@@ -15,17 +15,24 @@ Fural source comparison confirmed its Antigravity ACP adapter passes
 and its AgentSession manager supplies the same flag with an external bwrap
 boundary. Cuan's task adapter already passed this flag; Inbox did not.
 
-Inbox now passes `--dangerously-skip-permissions --sandbox` instead of
-`--mode plan --sandbox`. Its instructions allow read-only terminal inspection
-inside the selected project, retain the prohibition on mutations/deployment,
-and keep approved execution in application-managed tasks. No interactive tool
-approval is expected. The CLI sandbox flag is retained; it must not be described
-as an OS-enforced read-only filesystem or as equivalent to Fural's external
-sandbox. Prompt instructions are not an access-control boundary. This change
-does not add such an external sandbox.
+Inbox now passes `--dangerously-skip-permissions` without the CLI's plan/internal
+sandbox mode, wrapped in an external Bubblewrap filesystem/process sandbox.
+The project and explicit attachment files are read-only. Host root and process
+metadata are absent; only the selected provider authentication/state directory
+is writable and persistent. Missing/blocked Bubblewrap fails closed.
 
-Fake-provider tests verify the exact flags, selected project CWD, account HOME,
-read-only instructions, and that an unexpected denied result still fails safely
-without replay or leaking raw diagnostics. These tests do not prove every
-command is accepted by the real provider. No paid inference or original user
-message was replayed for verification.
+Real local Bubblewrap tests verify file reads, denied project writes/creation,
+hidden host files and process metadata, explicit attachment reads, and persistent
+authentication-state writes. Installed AGY `--help` starts inside the sandbox
+without inference. Protocol fixtures use an explicit test-only Bubblewrap stub;
+they verify flags, workspace, account HOME, denied-result handling, FIFO,
+cancellation, retry correlation and quota failover separately from OS isolation.
+
+The native VPS initially lacked Bubblewrap; its default Ubuntu AppArmor policy
+then denied UID mapping. The distribution binary is now root-owned under
+`/opt/cuan/runtime`, with an exact-path AppArmor userns allowance. The actual
+service-user sandbox preflight passes. Global AppArmor/sysctl restrictions were
+not disabled. See the [setup and limitations guide](../../guides/chat-sandbox.md).
+Network remains available; selected provider credentials are accessible to that
+provider/tools. Tasks and other harnesses retain their previous execution model.
+No paid inference or original user message was replayed.

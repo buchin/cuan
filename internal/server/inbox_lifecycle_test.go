@@ -27,6 +27,7 @@ func inboxFixture(t *testing.T) (*Server, string, func(string, string, string) *
 	if e := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); e != nil {
 		t.Fatal(e)
 	}
+	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s, token := setupTestChatServer(t)
 	s.cfg.Environment = "staging"
@@ -313,7 +314,7 @@ func TestInboxLifecycleNegativeCasesAndRetainedTaskOutput(t *testing.T) {
 	s.taskSvc.CancelTask(ctx, created.ID, "fixture")
 	// A missing local CLI produces a failed attempt and blocked task, not doing.
 	os.Remove(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"))
-	w = call("POST", "/api/v1/tasks/"+created.ID+"/run-agent", `{"agent_id":"agent_lifecycle","binary":"unknown-fixture"}`)
+	w = call("POST", "/api/v1/tasks/"+created.ID+"/run-agent", `{"agent_id":"agent_lifecycle","binary":"agy"}`)
 	if w.Code != 500 {
 		t.Fatal(w.Code, w.Body.String())
 	}

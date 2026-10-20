@@ -57,6 +57,7 @@ fi
 printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"Same agent backup answer"}}'
 `
 	os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700)
+	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s.cfg.Environment = "staging"
 	for _, item := range []*agent.ProviderAccount{primary, backup} {

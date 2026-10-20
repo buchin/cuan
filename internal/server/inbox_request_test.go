@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,8 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 	}
 	bin := t.TempDir()
 	counter := filepath.Join(profileHome, "execution-count")
-	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\necho run >> \"$HOME/execution-count\"\nsleep 0.2\nprintf 'fixture-reply'\n"), 0700)
+	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\necho run >> \"$HOME/execution-count\"\nsleep 0.2\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"fixture-reply\"}}'\n"), 0700)
+	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s.cfg.Environment = "staging"
 	path := "/api/v1/chat/conversations/agent_fixture/messages"
@@ -119,7 +121,22 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 	}
 	t.Log("FIXTURE: HTTP timeout after committed acceptance; three concurrent-lifetime retries, refresh and handler restart preserve one user, one reply, one CLI execution and original correlation")
 	// Quota/login/unknown CLI failures must never expose stderr secrets or paths.
-	for _, item := range []struct{ raw, want string }{{"429 quota SECRET /private/profile", "Kuota"}, {"401 invalid_grant SECRET /private/profile", "Login"}, {"unknown SECRET /private/profile", "Provider"}} {
+	for index, item := range []struct{ raw, want string }{{"unknown SECRET /private/profile", "before a final result"}, {"401 invalid_grant SECRET /private/profile", "sign-in"}, {"429 quota SECRET /private/profile", "No allowed account/model route"}} {
+		// Each failure gets an independent account: quota/auth observations
+		// intentionally exclude a used account from subsequent routing.
+		account, err := agent.CreateProviderAccount(owner.ID, fmt.Sprintf("failure-%d", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+		accountHome, _ := agent.ProviderAccountHome(owner.ID, account.ID)
+		os.MkdirAll(agent.AntigravityConfigDirPath(accountHome), 0700)
+		os.WriteFile(agent.AntigravityCredentialsFilePath(accountHome), []byte("fixture-not-real-provider-credential"), 0600)
+		handle := fmt.Sprintf("@failure%d", index)
+		connected := call("POST", "/api/v1/agents/connect-cli", fmt.Sprintf(`{"name":%q,"handle":%q,"provider":"agy","account_id":%q}`, handle, handle, account.ID))
+		if connected.Code != 201 {
+			t.Fatal(connected.Body.String())
+		}
+		path := fmt.Sprintf("/api/v1/chat/conversations/agent_failure%d/messages", index)
 		os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '"+item.raw+"' >&2\nexit 1\n"), 0700)
 		key := db.GenerateUUID()
 		w = call("POST", path, `{"message":"fixture failure","request_id":"`+key+`"}`)
@@ -156,7 +173,7 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 			t.Fatal(w.Body.String())
 		}
 	}
-	if text := safeInboxProviderFailure(context.DeadlineExceeded, "SECRET"); !strings.Contains(text, "Batas waktu") || strings.Contains(text, "SECRET") {
+	if text := safeInboxProviderFailure(context.DeadlineExceeded, "SECRET"); !strings.Contains(text, "timed out") || strings.Contains(text, "SECRET") {
 		t.Fatal(text)
 	}
 	t.Log("FIXTURE: quota, expired login, unknown provider error and deadline map to safe durable failure text; no failed request replay")

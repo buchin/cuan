@@ -13,7 +13,15 @@ Start with the [English workspace guide](docs/guides/navigation.md) and
 release evidence remain under `docs/sprints/` and `docs/evidence/` and may use
 Indonesian. They describe earlier releases rather than current product behavior.
 
-### Documentation & Guides
+### AGY chat sandbox prerequisite
+
+Native Linux AGY chat analysis now requires an external Bubblewrap sandbox.
+Run `sudo python3 scripts/setup-inbox-sandbox.py --user cuan` with the actual
+Linux service user before enabling chat. See [setup, checks, container limitations,
+and rollback](docs/guides/chat-sandbox.md). Docker AGY readiness is not yet verified;
+application health alone does not prove chat readiness.
+
+## Documentation & Guides
 
 - [Navigation & Responsive UI](docs/guides/navigation.md) — Inbox, Settings → Agents, project settings, keyboard controls, and device layouts.
 - [Messages & Tasks Guide](docs/guides/message_task_lifecycle.md) — Durable chat, follow-up queue, live activity, message-to-task capture, execution attempts, and recovery.

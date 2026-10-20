@@ -74,7 +74,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "170s", "--dangerously-skip-permissions", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+		args = []string{"-p", system, "--print-timeout", "170s", "--dangerously-skip-permissions", "--disable-slash-commands", "--output-format", "stream-json"}
 		if model, _ := ctx.Value(inboxModelKey{}).(string); agent.IsTextModel(model) {
 			args = append(args, "--model", model)
 		}
@@ -102,12 +102,19 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if err != nil {
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
+	profileEnv := agent.AntigravityProfileEnvironment(home)
+	if binary == "agy" {
+		path, args, err = sandboxInboxCommand(path, args, profileEnv, home, workspace, attachmentPaths)
+		if err != nil {
+			return "", "The chat sandbox is unavailable. Your message is saved. Check the server sandbox setup; unrestricted execution was not attempted."
+		}
+	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = home
 	if workspace != "" {
 		cmd.Dir = workspace
 	}
-	cmd.Env = agent.AntigravityProfileEnvironment(home)
+	cmd.Env = profileEnv
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
