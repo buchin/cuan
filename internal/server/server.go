@@ -1034,6 +1034,7 @@ func (s *Server) routes() {
 		cr.Get("/conversations/{id}/events", s.handleInboxStream)
 		cr.Post("/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
 		cr.Post("/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
+		cr.Post("/conversations/{id}/requests/{requestID}/retry", s.handleRetryInboxRequest)
 	})
 
 	// Project Tasks
@@ -1617,6 +1618,7 @@ func (s *Server) routes() {
 			pr.Get("/chat/conversations/{id}/events", s.handleInboxStream)
 			pr.Post("/chat/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
 			pr.Post("/chat/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
+			pr.Post("/chat/conversations/{id}/requests/{requestID}/retry", s.handleRetryInboxRequest)
 		})
 	})
 }
