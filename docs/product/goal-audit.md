@@ -160,3 +160,15 @@ absent, caches/mounts/daemon cleaned, production health passed. A different
 execution boundary or explicitly designed replacement for container path
 protections would need review and full isolation verification. The deployment
 support choice remains unanswered and the goal remains active.
+
+## Project/task UI and notification follow-up
+
+Separate user-approved UI work is deployed in9f37463/schema25: compact contextual
+project/task headers, result-first single-scroll sessions, shareable session and
+Detail URLs, contextual creation, desktop/tablet notification quick view and direct
+mobile notification navigation with return-to-origin. Clean fixture tests, exact
+asset hash comparison, production read-only responsive/theme checks, actual
+rollback/reactivation and retained data/profile/preference checks pass. See
+`docs/evidence/project-task-ui/` and `docs/evidence/notification-popover/`.
+This does not resolve or silently change the outstanding container AI support
+decision; no real task execution/provider inference was performed in this release.

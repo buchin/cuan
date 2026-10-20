@@ -40,3 +40,9 @@ directly rather than a bottom sheet. The updated390px light/dark fixtures verify
 one-tap navigation, directly visible Mark all as read, no overflow and Back to the
 originating page. Tablet/desktop quick-view behavior and failure/read-state
 checks continue to pass. This is a follow-up to the initiale70ade0 release.
+
+The mobile follow-up is deployed in `9f37463` and passes read-only production
+checks in both themes at all three widths. Exact released assets match the
+clean tested build; rollback toe70ade0/reactivation pass and retained tables,
+profiles and notification preferences remain unchanged. See mobile-release.json
+and ../project-task-ui/production.json for the current deployed behavior.

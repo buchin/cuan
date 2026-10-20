@@ -1,0 +1,16 @@
+{
+  "applicationRelease": "9f37463fba91f2f88e9c0822a20a1bf2643a05ac",
+  "previousRelease": "e70ade0ce6e41e7f93b62dfac4419636f220498b",
+  "mobileBellOpensFullPage": true,
+  "desktopTabletPopover": true,
+  "testedAndReleasedAssetsIdentical": true,
+  "rollbackReactivationVerified": true,
+  "retainedTablesVerified": 37,
+  "profileFilesVerified": 878,
+  "existingReadFlagsVerified": 11,
+  "nonFeedPreferencesPreserved": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "providerCalls": 0,
+  "productionMarkReadActions": 0
+}
