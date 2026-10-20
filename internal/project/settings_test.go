@@ -104,7 +104,7 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 			t.Fatal(string(output), err)
 		}
 	}
-	run("init", "--initial-branch=main", fixture)
+	run("init", "--initial-branch=trunk", fixture)
 	os.WriteFile(filepath.Join(fixture, "README.md"), []byte("Fixture repository"), 0600)
 	run("-C", fixture, "add", "README.md")
 	run("-C", fixture, "commit", "-m", "Create disposable repository fixture")
@@ -119,7 +119,7 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"name":"fixture","full_name":"owner/fixture","default_branch":"main","owner":{"login":"owner"}}`))
+		w.Write([]byte(`{"name":"fixture","full_name":"owner/fixture","default_branch":"trunk","owner":{"login":"owner"}}`))
 	}))
 	defer api.Close()
 	client := cuangit.NewClient()
@@ -129,7 +129,7 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 	store.CreateProject(ctx, p)
 	service := NewService(store, client, "fixture-secret", t.TempDir())
 	original, _ := service.Get(ctx, p.ID)
-	req := UpdateSettingsRequest{Name: "Connected", RepoURL: "owner/fixture", DefaultBranch: "main", ExpectedUpdatedAt: original.UpdatedAt}
+	req := UpdateSettingsRequest{Name: "Connected", RepoURL: "owner/fixture", ExpectedUpdatedAt: original.UpdatedAt}
 	connected, err := service.UpdateSettings(ctx, p.ID, req)
 	if err != nil {
 		t.Fatal(err)
@@ -137,6 +137,14 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 	if data, err := os.ReadFile(filepath.Join(connected.LocalPath, "README.md")); err != nil || string(data) != "Fixture repository" {
 		t.Fatal("repository not prepared")
 	}
+	if connected.DefaultBranch != "trunk" {
+		t.Fatalf("expected GitHub default trunk, got %q", connected.DefaultBranch)
+	}
+	preserved, err := service.UpdateSettings(ctx, p.ID, UpdateSettingsRequest{Name: "Renamed", RepoURL: "owner/fixture", ExpectedUpdatedAt: connected.UpdatedAt})
+	if err != nil || preserved.DefaultBranch != "trunk" || preserved.LocalPath != connected.LocalPath {
+		t.Fatal("omitted branch changed existing repository workspace", err)
+	}
+	connected = preserved
 	oldPath := connected.LocalPath
 	req.Name = "Must not save"
 	req.RepoURL = "owner/missing"
@@ -145,7 +153,7 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 		t.Fatal("inaccessible repository accepted")
 	}
 	retained, _ := service.Get(ctx, p.ID)
-	if retained.Name != "Connected" || retained.LocalPath != oldPath {
+	if retained.Name != "Renamed" || retained.LocalPath != oldPath {
 		t.Fatal("failed connection changed saved state")
 	}
 	req.RepoURL = "owner/fixture"

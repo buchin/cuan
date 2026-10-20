@@ -63,10 +63,10 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{t('Advanced')}</summary>
         <div className="space-y-4 pb-3 pt-2">
           <div className="space-y-2"><label htmlFor="project-repository" className="text-sm font-medium">{t('Repository URL')}</label>
-            <input id="project-repository" className="field-control" disabled={busy} maxLength={500} value={form.repo_url} onChange={event => change('repo_url', event.target.value)} placeholder="https://github.com/owner/repository" /></div>
+            <input id="project-repository" className="field-control" disabled={busy} maxLength={500} value={form.repo_url} onChange={event => { setForm(old => ({ ...old, repo_url: event.target.value, default_branch: event.target.value === baseline.repo_url ? baseline.default_branch : '' })); setNotice(''); setError('') }} placeholder="https://github.com/owner/repository" /></div>
           <div className="space-y-2"><label htmlFor="project-branch" className="text-sm font-medium">{t('Default branch')}</label>
-            <input id="project-branch" className="field-control" disabled={busy} maxLength={200} value={form.default_branch} onChange={event => change('default_branch', event.target.value)} /></div>
-          <p className="text-xs leading-5 text-muted-foreground">{t('Optional. A new connection is verified in a separate workspace. Existing tasks retain their original workspace, including when resumed.')}</p>
+            <input id="project-branch" className="field-control" disabled={busy} maxLength={200} value={form.default_branch} placeholder={t('Use repository default')} onChange={event => change('default_branch', event.target.value)} /></div>
+          <p className="text-xs leading-5 text-muted-foreground">{t('Leave the branch empty to use the repository default when connecting. A new connection is verified in a separate workspace. Existing tasks retain their original workspace, including when resumed.')}</p>
         </div>
       </details>
       {error && <div role="alert" className="text-sm text-destructive">{t(error)}

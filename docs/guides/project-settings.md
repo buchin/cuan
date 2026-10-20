@@ -46,3 +46,5 @@ without that feature. Roll forward to a compatible release to retain task
 workspace guarantees. This gate does not run a down migration or rewrite project
 data. The standalone native installer does not provide a rollback command;
 administrators must apply the same compatibility constraint to manual switches.
+
+When connecting a different repository, an empty branch uses the default returned by GitHub (including names other than `main`). For the same repository, an omitted branch preserves the existing branch and workspace. An explicit branch remains an override. Changing the repository in the form clears the previous branch so it is not accidentally reused.

@@ -131,10 +131,7 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 		return nil, errors.New("Goal or instructions exceed the allowed length.")
 	}
 	branch := strings.TrimSpace(req.DefaultBranch)
-	if branch == "" {
-		branch = "main"
-	}
-	if len(branch) > 200 || strings.HasPrefix(branch, "-") || exec.CommandContext(ctx, "git", "check-ref-format", "--branch", branch).Run() != nil {
+	if branch != "" && (len(branch) > 200 || strings.HasPrefix(branch, "-") || exec.CommandContext(ctx, "git", "check-ref-format", "--branch", branch).Run() != nil) {
 		return nil, errors.New("Enter a valid branch name.")
 	}
 	repo := strings.TrimSpace(req.RepoURL)
@@ -148,6 +145,29 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 			return nil, errors.New("Enter a GitHub repository URL, or leave it empty.")
 		}
 		repo = "https://github.com/" + owner + "/" + repoName
+	}
+	// An omitted branch preserves the current choice for the same repository.
+	// A newly selected repository uses GitHub's default rather than assuming main.
+	if branch == "" {
+		if repo == strings.TrimSuffix(current.RepoURL, ".git") {
+			branch = current.DefaultBranch
+		} else if repo != "" {
+			token := ""
+			if current.EncryptedToken != "" {
+				token, err = crypto.Decrypt(current.EncryptedToken, s.authSecret)
+				if err != nil {
+					return nil, errors.New("Saved repository access could not be read.")
+				}
+			}
+			info, lookupErr := s.gitClient.ValidateRepository(ctx, owner+"/"+repoName, token)
+			if lookupErr != nil {
+				return nil, errors.New("Could not access this repository. No changes were saved.")
+			}
+			branch = info.DefaultBranch
+		}
+		if branch == "" {
+			branch = "main"
+		}
 	}
 	metadata := map[string]json.RawMessage{}
 	if len(current.Metadata) > 0 && json.Unmarshal(current.Metadata, &metadata) != nil || metadata == nil {
