@@ -1,3 +1,4 @@
+import { ContactMemoryPanel } from './ContactMemoryPanel'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -48,6 +49,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
     [saveError, setSaveError] = useState(''),
     [saved, setSaved] = useState(false),
     [saving, setSaving] = useState(false)
+  const noteDirty = useRef(false)
   const detailRef = useRef<HTMLElement>(null),
     lastOpened = useRef<HTMLButtonElement | null>(null)
   const selectedIdRef = useRef(selectedId)
@@ -101,6 +103,13 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
     else lastOpened.current?.focus({ preventScroll: true })
   }, [selectedId, loading])
   function select(id: string) {
+    if (
+      id !== selectedId &&
+      noteDirty.current &&
+      !confirm(t('Discard this unsaved note?'))
+    )
+      return
+    noteDirty.current = false
     const next = new URLSearchParams(params)
     if (id) next.set('contact', id)
     else next.delete('contact')
@@ -391,7 +400,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
             </button>
             {selected ? (
               <>
-                <h2 className="break-words text-xl font-semibold">
+                <h2 className="break-words text-lg font-semibold">
                   {label(selected)}
                 </h2>
                 <p className="mt-1 break-all text-sm text-muted-foreground">
@@ -407,10 +416,8 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                   </p>
                 )}
                 {selected.is_manual ? (
-                  <p className="my-5 rounded-lg border p-3 text-sm text-muted-foreground">
-                    {t(
-                      'This manual contact has no connected messaging channel. Saving a contact does not send a message or email.',
-                    )}
+                  <p className="my-3 text-xs text-muted-foreground">
+                    {t('No messaging channel connected.')}
                   </p>
                 ) : (
                   <Link
@@ -421,152 +428,170 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                     {t('Open conversation')}
                   </Link>
                 )}
-                <form
-                  aria-label={t('Manage tags')}
-                  className="space-y-3 border-t pt-4"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    void save()
+                <ContactMemoryPanel
+                  key={selected.id}
+                  contactId={selected.id}
+                  onDirtyChange={(dirty) => {
+                    noteDirty.current = dirty
                   }}
-                >
-                  <h3 className="text-base font-semibold">{t('Tags')}</h3>
-                  <div
-                    aria-label={t('Contact tags')}
-                    className="flex flex-wrap gap-2"
+                />
+                <details className="mt-5 border-t pt-3">
+                  <summary className="min-h-11 cursor-pointer break-words text-sm font-medium">
+                    {t('Tags')}
+                    {selected.tags.length
+                      ? ` · ${selected.tags.slice(0, 3).join(', ') + (selected.tags.length > 3 ? ` +${selected.tags.length - 3}` : '')}`
+                      : ''}
+                  </summary>
+                  <form
+                    aria-label={t('Manage tags')}
+                    className="space-y-3 border-t pt-4"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      void save()
+                    }}
                   >
-                    {draft.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        {t('No tags yet.')}
-                      </p>
-                    ) : (
-                      draft.map((t) => (
-                        <button
-                          type="button"
-                          key={t}
-                          disabled={saving}
-                          aria-label={
-                            language === 'id'
-                              ? `Hapus tag ${t}`
-                              : `Remove tag ${t}`
-                          }
-                          className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-3 text-sm hover:bg-accent"
-                          onClick={() => {
-                            setDrafts((old) => ({
-                              ...old,
-                              [selected!.id]: draft.filter((v) => v !== t),
-                            }))
-                            setSaved(false)
-                            setSaveError('')
-                          }}
-                        >
-                          <span className="min-w-0 break-all">{t}</span>
-                          <X className="h-4 w-4 shrink-0" />
-                        </button>
-                      ))
-                    )}
-                  </div>
-                  <label
-                    className="block text-sm font-medium"
-                    htmlFor="contact-add-tag"
-                  >
-                    {t('Add tag')}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      id="contact-add-tag"
-                      className="field-control flex-1"
-                      placeholder={t('For example: New customer')}
-                      value={tagInput}
-                      disabled={saving}
-                      onChange={(e) => {
-                        setTagInput(e.target.value)
-                        setSaved(false)
-                        setSaveError('')
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          add(tagInput)
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="action-secondary"
-                      disabled={saving || !tagInput.trim()}
-                      onClick={() => add(tagInput)}
+                    <h3 className="text-base font-semibold">{t('Tags')}</h3>
+                    <div
+                      aria-label={t('Contact tags')}
+                      className="flex flex-wrap gap-2"
                     >
-                      {t('Add')}
-                    </button>
-                  </div>
-                  {suggestions.length > 0 && (
-                    <div aria-label={t('Available tags')} className="space-y-1">
-                      <p className="text-xs text-muted-foreground">
-                        {t('Use an existing tag')}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {suggestions.map((t) => (
+                      {draft.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          {t('No tags yet.')}
+                        </p>
+                      ) : (
+                        draft.map((t) => (
                           <button
                             type="button"
                             key={t}
                             disabled={saving}
-                            className="action-secondary max-w-full break-all"
-                            onClick={() => add(t)}
+                            aria-label={
+                              language === 'id'
+                                ? `Hapus tag ${t}`
+                                : `Remove tag ${t}`
+                            }
+                            className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-3 text-sm hover:bg-accent"
+                            onClick={() => {
+                              setDrafts((old) => ({
+                                ...old,
+                                [selected!.id]: draft.filter((v) => v !== t),
+                              }))
+                              setSaved(false)
+                              setSaveError('')
+                            }}
                           >
-                            {t}
+                            <span className="min-w-0 break-all">{t}</span>
+                            <X className="h-4 w-4 shrink-0" />
                           </button>
-                        ))}
-                      </div>
+                        ))
+                      )}
                     </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {t(
-                      '{count}/20 tags · up to 40 characters each. Press Enter to add.',
-                    ).replace('{count}', String(draft.length))}
-                  </p>
-                  {saveError && (
-                    <p role="alert" className="text-sm text-destructive">
-                      {t(saveError)}
-                    </p>
-                  )}
-                  {dirty && !saving && (
-                    <p className="text-sm text-muted-foreground">
-                      {t('You have unsaved changes.')}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="submit"
-                      className="action-primary"
-                      disabled={saving || !dirty}
+                    <label
+                      className="block text-sm font-medium"
+                      htmlFor="contact-add-tag"
                     >
-                      {saving ? t('Saving…') : t('Save tags')}
-                    </button>
-                    {dirty && (
+                      {t('Add tag')}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        id="contact-add-tag"
+                        className="field-control flex-1"
+                        placeholder={t('For example: New customer')}
+                        value={tagInput}
+                        disabled={saving}
+                        onChange={(e) => {
+                          setTagInput(e.target.value)
+                          setSaved(false)
+                          setSaveError('')
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            add(tagInput)
+                          }
+                        }}
+                      />
                       <button
                         type="button"
                         className="action-secondary"
-                        disabled={saving}
-                        onClick={() => {
-                          setDrafts((old) => ({
-                            ...old,
-                            [selected!.id]: selected!.tags,
-                          }))
-                          setTagInput('')
-                          setSaveError('')
-                          setSaved(false)
-                        }}
+                        disabled={saving || !tagInput.trim()}
+                        onClick={() => add(tagInput)}
                       >
-                        {t('Discard changes')}
+                        {t('Add')}
                       </button>
+                    </div>
+                    {suggestions.length > 0 && (
+                      <div
+                        aria-label={t('Available tags')}
+                        className="space-y-1"
+                      >
+                        <p className="text-xs text-muted-foreground">
+                          {t('Use an existing tag')}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {suggestions.map((t) => (
+                            <button
+                              type="button"
+                              key={t}
+                              disabled={saving}
+                              className="action-secondary max-w-full break-all"
+                              onClick={() => add(t)}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  {saved && (
-                    <p role="status" className="text-sm">
-                      {t('Tags saved.')}
+                    <p className="text-xs text-muted-foreground">
+                      {t(
+                        '{count}/20 tags · up to 40 characters each. Press Enter to add.',
+                      ).replace('{count}', String(draft.length))}
                     </p>
-                  )}
-                </form>
+                    {saveError && (
+                      <p role="alert" className="text-sm text-destructive">
+                        {t(saveError)}
+                      </p>
+                    )}
+                    {dirty && !saving && (
+                      <p className="text-sm text-muted-foreground">
+                        {t('You have unsaved changes.')}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="submit"
+                        className="action-primary"
+                        disabled={saving || !dirty}
+                      >
+                        {saving ? t('Saving…') : t('Save tags')}
+                      </button>
+                      {dirty && (
+                        <button
+                          type="button"
+                          className="action-secondary"
+                          disabled={saving}
+                          onClick={() => {
+                            setDrafts((old) => ({
+                              ...old,
+                              [selected!.id]: selected!.tags,
+                            }))
+                            setTagInput('')
+                            setSaveError('')
+                            setSaved(false)
+                          }}
+                        >
+                          {t('Discard changes')}
+                        </button>
+                      )}
+                    </div>
+                    {saved && (
+                      <p role="status" className="text-sm">
+                        {t('Tags saved.')}
+                      </p>
+                    )}
+                  </form>
+                </details>
               </>
             ) : (
               <>

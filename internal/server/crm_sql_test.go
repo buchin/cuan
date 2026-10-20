@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/migrations"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -46,6 +47,10 @@ func TestCRMSQLPersistence(t *testing.T) {
 	if _, err = isolated.ExecContext(ctx, string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	memoryMigration, _ := migrations.FS.ReadFile("000024_contact_memory.up.sql")
+	if _, err = isolated.ExecContext(ctx, string(memoryMigration)); err != nil {
+		t.Fatal(err)
+	}
 	s := &Server{db: isolated}
 	c, err := s.crmUpsert(ctx, "short", "one", "Test", "test@example.invalid")
 	if err != nil {
@@ -79,6 +84,32 @@ func TestCRMSQLPersistence(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("tag persistence failed")
+	}
+	now := time.Now().UTC()
+	note := ContactMemory{ID: db.GenerateUUID(), ContactID: c.ID, Kind: "fact", Body: "Child likes dinosaurs", RecordedBy: "You", CreatedAt: now, UpdatedAt: now}
+	if _, err = s.memorySave(ctx, note); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = restarted.memorySave(ctx, note); err != nil {
+		t.Fatal("idempotent restart", err)
+	}
+	hits, err := restarted.searchContactMemory(ctx, "", "dinosaur")
+	if err != nil || len(hits) != 1 || hits[0].ContactID != c.ID {
+		t.Fatal("persisted search", hits, err)
+	}
+	scoped, err := restarted.memoryList(ctx, c.ID, "dinosaur", 0)
+	if err != nil || len(scoped) != 1 {
+		t.Fatal("persisted notes", err)
+	}
+	if _, err = isolated.ExecContext(ctx, `UPDATE contact_memory SET deleted_at=NOW(),body='[deleted]' WHERE id=$1`, note.ID); err != nil {
+		t.Fatal(err)
+	}
+	hits, err = restarted.searchContactMemory(ctx, "", "dinosaur")
+	if err != nil || len(hits) != 0 {
+		t.Fatal("deleted note recall", err)
+	}
+	if _, err = restarted.memorySave(ctx, note); err == nil {
+		t.Fatal("deleted note resurrected")
 	}
 	t.Log("Actual PostgreSQL: additive schema, reconnect, separate email identities, fresh server lookup, tags; isolated schema removed")
 }

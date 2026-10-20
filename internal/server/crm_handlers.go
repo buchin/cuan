@@ -33,6 +33,7 @@ type CRMContact struct {
 type crmStore struct {
 	sync.Mutex
 	contacts map[string]CRMContact
+	memory   map[string]ContactMemory
 }
 
 func scanCRM(row interface{ Scan(...any) error }) (CRMContact, error) {

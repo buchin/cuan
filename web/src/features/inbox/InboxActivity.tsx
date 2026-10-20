@@ -34,7 +34,7 @@ export function InboxActivity({
     return () => clearInterval(timer)
   }, [active])
   const start = Date.parse(q.started_at || q.created_at)
-  const finished = q.steps?.find((step) => step.kind === 'provider_result')
+  const finished = q.steps?.slice().reverse().find((step) => step.kind === 'provider_result')
   const end = finished ? Date.parse(finished.at) : NaN
   const duration = active ? now - start : end - start
   const seconds =

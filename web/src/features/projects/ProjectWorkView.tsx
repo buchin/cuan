@@ -1,6 +1,7 @@
+import { useLanguage } from '../../context/LanguageContext'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Search, Settings, CheckSquare } from 'lucide-react'
+import { Search, ChevronLeft } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
@@ -22,6 +23,7 @@ export function ProjectWorkView({
   error: string
   onRetry: () => void
 }) {
+  const { t } = useLanguage()
   const [query, setQuery] = useState('')
   const location = useLocation()
   const base = '/projects/' + encodeURIComponent(project.id) + '/tasks'
@@ -35,86 +37,18 @@ export function ProjectWorkView({
     [t.title, t.status].join(' ').toLowerCase().includes(query.toLowerCase()),
   )
   const selected = scoped.find((t) => t.id === taskId)
-  return (
-    <section
-      aria-label="Project work"
-      className="flex h-full min-h-0 min-w-0 overflow-hidden"
-    >
-      <aside
-        aria-label="Project task list"
-        className={`min-h-0 w-full min-w-0 flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r ${taskId ? 'hidden min-[1200px]:flex' : 'flex'}`}
-      >
-        <div className="shrink-0 space-y-3 border-b p-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold">Work · {scoped.length}</p>
-            <Link
-              className="icon-action"
-              aria-label="Project settings"
-              to={'/projects/' + encodeURIComponent(project.id) + '/settings'}
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
-          </div>
-          <label className="flex min-h-11 items-center gap-2 rounded-lg border px-3">
-            <Search className="h-4 w-4" />
-            <input
-              className="min-w-0 flex-1 bg-transparent text-base outline-none"
-              aria-label="Search project work"
-              placeholder="Search work…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {loading && !scoped.length ? (
-            <p role="status" className="p-3 text-sm">
-              Loading work…
-            </p>
-          ) : error ? (
-            <div role="alert" className="p-3 text-sm">
-              <p>{error}</p>
-              <button className="action-secondary mt-3" onClick={onRetry}>
-                Try again
-              </button>
-            </div>
-          ) : visible.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">
-              {query
-                ? 'No matching work.'
-                : 'No work yet. Ask an agent in Inbox or create a task.'}
-            </p>
-          ) : (
-            visible.map((t) => (
-              <Link
-                key={t.id}
-                to={base + '/' + encodeURIComponent(t.id)}
-                state={{ ...location.state, taskReturnTo: base }}
-                aria-current={t.id === taskId ? 'page' : undefined}
-                className={`block min-h-20 border-b p-3 hover:bg-accent ${t.id === taskId ? 'bg-accent' : ''}`}
-              >
-                <p className="truncate text-sm font-semibold">{t.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t.status === 'doing'
-                    ? 'In progress'
-                    : t.status === 'done'
-                      ? 'Completed'
-                      : t.status === 'blocked'
-                        ? 'Needs attention'
-                        : t.status === 'review'
-                          ? 'Result ready'
-                          : 'Ready'}
-                </p>
-              </Link>
-            ))
-          )}
-        </div>
-      </aside>
-      <div
-        className={`min-h-0 min-w-0 flex-1 overflow-hidden ${taskId ? '' : 'hidden min-[1200px]:block'}`}
-      >
-        {taskId ? (
-          selected ? (
+  if (taskId)
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <Link
+          to={base}
+          className="flex min-h-11 shrink-0 items-center gap-2 border-b px-4 text-xs text-muted-foreground hover:bg-muted"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          {t('Back to tasks')}
+        </Link>
+        <div className="min-h-0 flex-1">
+          {selected ? (
             sessionId === 'start' ? (
               <TaskStartingPage key={taskId} taskId={taskId} />
             ) : (
@@ -124,26 +58,83 @@ export function ProjectWorkView({
                 sessionId={sessionId || 'latest'}
               />
             )
-          ) : loading ? (
-            <p className="p-6" role="status">
-              Loading work…
-            </p>
           ) : (
-            <div className="p-6">
-              <p role="alert">Work not found in this project.</p>
-              <Link className="action-secondary mt-3" to={base}>
-                Back to project work
-              </Link>
-            </div>
-          )
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
-            <CheckSquare className="h-8 w-8" />
-            <p>Select work to view its progress and result.</p>
-            <Link className="action-secondary" to="/inbox">
-              Open Inbox
-            </Link>
+            <p className="p-5 text-sm" role={loading ? 'status' : 'alert'}>
+              {t(loading ? 'Loading work…' : 'Work not found in this project.')}
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  return (
+    <section
+      className="flex h-full min-h-0 flex-col"
+      aria-label={t('Project tasks')}
+    >
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 p-3 sm:p-5">
+        <h3 className="text-sm font-semibold">
+          {t('Tasks')}{' '}
+          <span className="ml-1 text-xs font-normal text-muted-foreground">
+            {scoped.length}
+          </span>
+        </h3>
+        <label className="flex min-h-11 w-full items-center gap-2 rounded-md border px-3 sm:w-64">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            className="w-full min-w-0 bg-transparent text-base outline-none sm:text-sm"
+            aria-label={t('Search project work')}
+            placeholder={t('Search tasks…')}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-5">
+        {error ? (
+          <div role="alert" className="p-3 text-sm">
+            <p>{t(error)}</p>
+            <button className="action-secondary mt-3" onClick={onRetry}>
+              {t('Try again')}
+            </button>
           </div>
+        ) : loading && !scoped.length ? (
+          <p className="p-3 text-sm" role="status">
+            {t('Loading work…')}
+          </p>
+        ) : !visible.length ? (
+          <p className="p-5 text-sm text-muted-foreground">
+            {t(
+              query
+                ? 'No matching work.'
+                : 'No work yet. Ask an agent in Inbox or create a task.',
+            )}
+          </p>
+        ) : (
+          visible.map((item) => (
+            <Link
+              key={item.id}
+              to={base + '/' + encodeURIComponent(item.id)}
+              state={{ ...location.state, taskReturnTo: base }}
+              className="flex min-h-16 items-center justify-between gap-4 border-b px-2 py-3 hover:bg-muted"
+            >
+              <span className="min-w-0 break-words text-sm font-medium">
+                {item.title}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {t(
+                  item.status === 'doing'
+                    ? 'In progress'
+                    : item.status === 'done'
+                      ? 'Completed'
+                      : item.status === 'blocked'
+                        ? 'Needs attention'
+                        : item.status === 'review'
+                          ? 'Result ready'
+                          : 'Ready',
+                )}
+              </span>
+            </Link>
+          ))
         )}
       </div>
     </section>

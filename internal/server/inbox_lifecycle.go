@@ -202,11 +202,26 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + prompt
 						step("context", "Project context checked for analysis.")
 						output, failure := s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
+						if results, searched, searchErr := s.inboxMemorySearchResults(ctx, q, output); searched {
+							if searchErr != nil {
+								output = searchErr.Error()
+							} else {
+								step("contact_search", "Searching saved contact notes.")
+								output, failure = s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt+results, home, workspace, false, step, s.inboxAttachmentPaths(ctx, q)...)
+								if strings.Contains(output, "```cuan-search") {
+									output = "I need a more specific name or keyword to narrow down the contact search. No data was changed."
+								}
+							}
+						}
 						if output == "" {
 							log.Printf("inbox provider failed room=%s request=%s agent=%s", q.RoomID, q.RequestID, registered.ID)
 							q.SafeError = failure
 						} else {
-							output = s.applyInboxDelegation(ctx, q, output)
+							if strings.Contains(output, "```cuan-memory") {
+								output = s.applyInboxContactMemory(ctx, q, output)
+							} else {
+								output = s.applyInboxDelegation(ctx, q, output)
+							}
 							now := time.Now().UTC()
 							reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
 						}
@@ -297,6 +312,7 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest) (string, e
 			}
 		}
 	}
+	b.WriteString(s.inboxContactMemoryContext(ctx, q, selected))
 	b.WriteString(attachmentContext(q.OwnerID, s.inboxAttachmentIDs(ctx, q)))
 	fmt.Fprintf(&b, "\nTarget message ID: %s", q.MessageID)
 	return b.String(), nil

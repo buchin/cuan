@@ -9,7 +9,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { AppShell, AppTab } from './components/layout/AppShell'
-import { ProjectsView } from './features/projects/ProjectsView'
+import { ProjectsWorkspace } from './features/projects/ProjectsWorkspace'
 import { CreateProjectModal } from './features/projects/CreateProjectModal'
 import { CreateTaskModal } from './features/tasks/CreateTaskModal'
 import { ActionDialog } from './components/dialogs/ActionDialog'
@@ -27,7 +27,6 @@ import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { InboxView } from './features/inbox/InboxView'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
-import { ProjectWorkView } from './features/projects/ProjectWorkView'
 import { StudioView } from './features/inbox/StudioView'
 import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
@@ -179,13 +178,22 @@ export function App() {
       agentsApi.list(),
     ])
     if (list.status === 'fulfilled') {
-      setContacts(previous => JSON.stringify(previous) === JSON.stringify(list.value) ? previous : list.value)
+      setContacts((previous) =>
+        JSON.stringify(previous) === JSON.stringify(list.value)
+          ? previous
+          : list.value,
+      )
       setContactsError('')
     } else
       setContactsError(
         'Could not load contacts. Check your connection and try again.',
       )
-    if (agents.status === 'fulfilled') setDirectoryAgents(previous => JSON.stringify(previous) === JSON.stringify(agents.value) ? previous : agents.value)
+    if (agents.status === 'fulfilled')
+      setDirectoryAgents((previous) =>
+        JSON.stringify(previous) === JSON.stringify(agents.value)
+          ? previous
+          : agents.value,
+      )
     setContactsLoading(false)
   }, [])
 
@@ -196,11 +204,18 @@ export function App() {
       const refresh = async () => {
         if (document.hidden || refreshing) return
         refreshing = true
-        try { await refreshContacts() } finally { refreshing = false }
+        try {
+          await refreshContacts()
+        } finally {
+          refreshing = false
+        }
       }
       const interval = setInterval(() => void refresh(), 5000)
       document.addEventListener('visibilitychange', refresh)
-      return () => { clearInterval(interval); document.removeEventListener('visibilitychange', refresh) }
+      return () => {
+        clearInterval(interval)
+        document.removeEventListener('visibilitychange', refresh)
+      }
     }
   }, [isAuthenticated, refreshProjects, refreshTasks, refreshContacts])
 
@@ -600,7 +615,7 @@ export function App() {
                   ),
               }
         }
-        projectWorkspace={projectDetail && !projectSettings}
+        projectWorkspace={currentTab === 'projects' && !projectSettings}
         sessionWorkspace={sessionRoute}
         hideBottomNav={
           sessionRoute || (currentTab === 'inbox' && isMobileChatActive)
@@ -723,7 +738,9 @@ export function App() {
                 }}
               />
             ) : (
-              <ProjectWorkView
+              <ProjectsWorkspace
+                projects={projects}
+                onArchiveProject={handleArchiveProject}
                 project={activeProject}
                 tasks={tasks}
                 taskId={
@@ -738,10 +755,15 @@ export function App() {
               />
             )
           ) : (
-            <ProjectsView
+            <ProjectsWorkspace
               projects={projects}
               tasks={tasks}
-              onSelectProject={handleSelectProject}
+              loading={projectsLoading || tasksLoading}
+              error={projectsError || tasksError}
+              onRetry={() => {
+                void refreshProjects()
+                void refreshTasks()
+              }}
               onArchiveProject={handleArchiveProject}
             />
           ))}

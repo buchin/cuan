@@ -1,0 +1,68 @@
+{
+  "results": [
+    {
+      "width": 360,
+      "theme": "light",
+      "projectScopedTasks": true,
+      "responsiveProjectPicker": true,
+      "contactReadFirst": true,
+      "olderNotes": true,
+      "search": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "projectScopedTasks": true,
+      "responsiveProjectPicker": true,
+      "contactReadFirst": true,
+      "olderNotes": true,
+      "search": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "projectScopedTasks": true,
+      "responsiveProjectPicker": true,
+      "contactReadFirst": true,
+      "olderNotes": true,
+      "search": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "projectScopedTasks": true,
+      "responsiveProjectPicker": true,
+      "contactReadFirst": true,
+      "olderNotes": true,
+      "search": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "projectScopedTasks": true,
+      "responsiveProjectPicker": true,
+      "contactReadFirst": true,
+      "olderNotes": true,
+      "search": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "projectScopedTasks": true,
+      "responsiveProjectPicker": true,
+      "contactReadFirst": true,
+      "olderNotes": true,
+      "search": true,
+      "noOverflow": true
+    }
+  ],
+  "createEditDelete": true,
+  "failedSaveRetainsDraft": true,
+  "pageErrors": [],
+  "providerCalls": 0
+}

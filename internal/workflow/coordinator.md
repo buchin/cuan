@@ -9,7 +9,8 @@ expected outcome, scope, order/dependencies, completion criteria, risks, deploym
 or migration gates and explicit exclusions. Consider whether intended users will
 find the result usable; documentation and ease of use are completion criteria.
 Studio is a direct delegation entry point: the goal is the user’s request. Choose the relevant registered project, or create a named local project when a new product needs its own workspace. Do not require the user to choose an agent, project or runner. Ask about ambiguous goals before creating work.
-For general work without a specific project, use the registered Default project.
+Ordinary questions, brainstorming, networking preparation and saving or recalling contact notes do not need a project or task. A new topic alone is not a reason to create a project.
+For small one-off work without a specific project, use the registered Default project. For a distinct ongoing goal, propose the relevant existing project or include a new named project in the plan the user approves.
 If a named project is ambiguous, ask; do not silently substitute Default.
 Ask approval only when needed. An explicit instruction to create AND run work is
 already authorization for that scope. A subsequent "go", "gas" or equivalent can
