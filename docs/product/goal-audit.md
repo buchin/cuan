@@ -172,3 +172,23 @@ rollback/reactivation and retained data/profile/preference checks pass. See
 `docs/evidence/project-task-ui/` and `docs/evidence/notification-popover/`.
 This does not resolve or silently change the outstanding container AI support
 decision; no real task execution/provider inference was performed in this release.
+
+## Resumed Docker private-proc investigation
+
+On resumed goal work, an experimental explicit replacement of OCI masked/readonly
+path mounts with confined AppArmor path denies permits private procfs on this host.
+The boundary fixture exits0: read-only project/attachment, writable selected
+profile, hidden unrelated file and outer process environment, self-executable
+terminal helper, denied application namespace creation and11 kernel-path denials.
+A real parent SIGKILL leaves no sentinel descendants; `--die-with-parent` remains.
+Exact policies, worker hashes, fixture issues and limits are in
+`docs/evidence/docker-private-proc/`. All temporary profiles, daemons, mounts and
+caches were stopped/cleaned; native production0da59d4 stayed healthy.
+
+This supersedes an assumption that private procfs is necessarily unavailable in
+all Docker configurations. It does not establish a supported or fully reviewed
+replacement policy, actual AGY startup, Cuan container execution/recovery or
+cross-host compatibility. There is now a concrete technical path to investigate
+without reducing release scope; the earlier deployment-support question is not
+being treated as an immediate impediment to this investigation. The original
+full goal remains active and unproven.
