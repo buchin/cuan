@@ -82,3 +82,24 @@ Installing additional packages alone is therefore insufficient to close the
 Docker AI gap. The release needs an explicit choice between a native execution
 path and designing/verifying a separate supported container execution boundary.
 Neither unrestricted fallback nor privileged containers were used.
+
+## Constrained syscall feasibility follow-up
+
+A diagnostic trace narrowed the first denial to Bubblewrap's exact `clone` flags
+(`CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWUSER|CLONE_NEWPID|SIGCHLD`).
+A disposable per-container seccomp profile based on upstream Moby defaults was
+extended for the relevant unshare mask and that exact clone combination. Clone
+then succeeded, but mount propagation failed with EPERM. Allowing the mount,
+umount2 and pivot_root syscalls in this experimental container changed the denial
+to EACCES. The final trace is in [sandbox-seccomp-probe.json](sandbox-seccomp-probe.json).
+This rules out a seccomp-only adjustment as sufficient on this host. A further
+confinement layer is implicated; no kernel audit event was available to attribute
+it conclusively to a particular AppArmor rule. No host AppArmor profile or sysctl
+was changed, no capabilities added, and no privileged/unconfined container used.
+
+These rules were temporary diagnostics, not a shipped or security-reviewed
+runtime profile. A successful startup would still need full boundary, persistence
+and AI execution verification. A supported specialized policy or separate runtime
+remains a design option; the data does not establish that a separate service is
+the only possible solution. The temporary profile, daemon caches and namespace
+mount were removed after the unit stopped; final production health passed.

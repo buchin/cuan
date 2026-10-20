@@ -134,3 +134,16 @@ AI execution must be turnkey through Docker or native Linux is the official
 execution path while container AI follows later. This deployment support decision
 is pending; it has not been inferred from elapsed time. No scope was removed and
 the full goal remains active.
+
+## Docker feasibility diagnosis checkpoint
+
+The next diagnostic established the exact clone denial and proved that a scoped
+seccomp clone exception permits namespace creation. Mount propagation then fails
+with EPERM, changing to EACCES when that syscall is permitted in the temporary
+profile. A seccomp-only adjustment is therefore insufficient on this host; the
+additional confinement rule is not conclusively attributed without audit events.
+See `docs/evidence/docker-install/sandbox-seccomp-probe.json`. No experimental
+policy is shipped; all resources were stopped/cleaned and production health passed.
+A separate runtime or a fully verified specialized isolation policy are both
+possible design directions. The first-release deployment support question remains
+unanswered; neither path has been silently selected or removed from scope.
