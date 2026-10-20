@@ -192,3 +192,19 @@ cross-host compatibility. There is now a concrete technical path to investigate
 without reducing release scope; the earlier deployment-support question is not
 being treated as an immediate impediment to this investigation. The original
 full goal remains active and unproven.
+
+## Official musl CLI startup in the experimental container boundary
+
+Official AGY1.4.3 installs with SHA-512 verification and runs version/help inside
+the private-proc Bubblewrap boundary as non-root, without accounts or inference.
+All six Cuan-required flags are present (help writes to stderr). Reinstallation
+validates the existing executable. Installer executable hashing now streams1MiB
+chunks; a100,662,912-byte fixture matches SHA-512 under64MiB address-space limit.
+Container installation and validation pass at128MiB memory limit.
+
+The boundary and real parent-loss checks still pass. All temporary profiles,
+daemons, caches and private mounts were cleaned; native production0da59d4 remains
+healthy. Exact worker, result and limits: docs/evidence/docker-cli-startup/.
+This closes the CLI startup uncertainty, not actual Cuan container execution,
+provider tool execution, policy alias/bypass review or supported host setup.
+The full goal remains active.

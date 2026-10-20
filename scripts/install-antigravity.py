@@ -13,6 +13,14 @@ import urllib.parse
 import urllib.request
 
 
+def file_sha512(path):
+    checksum = hashlib.sha512()
+    with path.open('rb') as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b''):
+            checksum.update(chunk)
+    return checksum.hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prefix', type=Path, default=Path.home() / '.local')
@@ -36,7 +44,7 @@ def main():
     if target.is_file() and receipt.is_file():
         previous = json.loads(receipt.read_text())
         if (previous.get('sha512') == digest and
-                hashlib.sha512(target.read_bytes()).hexdigest() == previous.get('installed_sha512')):
+                file_sha512(target) == previous.get('installed_sha512')):
             print('Antigravity already installed:', manifest['version'])
             return
     with tempfile.TemporaryDirectory(dir=target_dir) as stage:
@@ -62,7 +70,7 @@ def main():
                     raise ValueError('Release must contain one agy executable')
                 with archive.extractfile(candidates[0]) as source, binary.open('wb') as output:
                     shutil.copyfileobj(source, output)
-        installed_digest = hashlib.sha512(binary.read_bytes()).hexdigest()
+        installed_digest = file_sha512(binary)
         binary.chmod(0o755)
         os.replace(binary, target)
         receipt.write_text(json.dumps({**manifest, 'installed_sha512': installed_digest}) + '\n')
