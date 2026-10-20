@@ -25,23 +25,24 @@ does not establish the whole goal.
 
 ## Remaining completion work
 
-The latest verified behavior keeps clear instructions direct. Optional decisions
-use exact scope snapshots and choice actions; planning is not mandatory. The
-application release is e828d1f/schema25, with detailed evidence in launch-queue.
+Clear instructions remain direct. Optional scope decisions use exact approval
+snapshots and choice actions. The current production application is49f89ec/schema25.
 
-1. Reconcile public onboarding and legacy message/task guides with current
-   coordinator-managed execution, sandbox prerequisites and persistent profiles.
-   The old Docker quickstart still does not establish a turnkey AGY runtime.
-2. Launch recovery is now deployed in e828d1f/schema25: memory and real PostgreSQL
-   contracts plus SQL-backed reconstructed-server cases prove one launch after
-   route release, durable cancellation and scope-change rejection. Production
-   backup/migration/retention and actual app rollback/reactivation pass. Preserve
-   its24-hour waiting bound and explicit external-blocker outcomes.
-3. Audit native fresh-install prerequisites and the actual supported deployment
-   path; application/database health alone is not provider readiness.
-4. Preserve documented boundaries: model intent interpretation for direct natural
-   instructions, unknown external side effects, cancellation, and external access
-   blockers must not be advertised as guarantees beyond actual evidence.
+1. Supported native first-run and public documentation are now verified/reconciled.
+   Actual binary startup, owner setup, neutral Default, process restart retention,
+   browser onboarding and SQL-backed first goal all pass. Docker remains a separate
+   unverified distribution/runtime path; do not advertise turnkey AGY containers.
+2. Strengthen the combined durable recovery proof: process-loss → scoped revision
+   → verified result is covered with a real fake-provider process and memory stores;
+   SQL fresh-install/one-result and SQL launch reconstruction are covered separately.
+   A single SQL-backed approved-goal interruption/server-reconstruction scenario is
+   still required before claiming that entire path from one integrated execution.
+3. Preserve scope, context, authorization and no-overlap invariants during that
+   reconstruction. A native provider-session resume and arbitrary external effects
+   remain distinct from application-level progress recovery.
+4. Keep model interpretation, unknown external side effects, cancellation and
+   missing external access explicit. Do not substitute passing local fixtures for
+   proof that every provider/environment can always finish a goal.
 
 Network egress and a native provider-session resume are separate implementation
 choices; neither should be advertised as already delivered. The acceptance
@@ -69,7 +70,7 @@ no longer overwrites Default. Existing applied migrations/owners/projects remain
 preserved. A real PostgreSQL full-server lifecycle and an actual native binary
 process-restart check pass with disposable databases; evidence is in
 `docs/evidence/onboarding/`. Provider inference and Docker execution were not part
-of those tests. Production delivery of this change is pending.
+of those tests. Production delivery is verified in49f89ec/schema25, including read-only smoke, actual rollback/reactivation and unchanged retained data.
 
 The first-owner frontend gap found during the follow-up audit is now fixed and
 verified: initial root/login has a two-field owner form, configured installations

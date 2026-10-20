@@ -65,3 +65,18 @@ setup into AI onboarding, reload session retention, stale setup conflict and
 setup-status retry. See owner-browser.json. OAuth and owner-account creation in
 these browser fixtures are simulated; separate SQL/native tests use real local
 storage and APIs with temporary credentials.
+
+## Production delivery
+
+Application release49f89ec68d8ca35e8fe61ca247ac251f526336a1 is active at
+https://cuan.dojo.cc with schema25 and auto-migration disabled. The checksummed
+native release passed health/readiness. A real rollback to0cd57b8 and reactivation
+of49f89ec both passed without a down migration. Private pre-release backup:
+`/opt/cuan/backups/onboarding-owner-release-20261020`.
+
+Read-only production browser verification passed existing-owner sign-in, Studio,
+English default, explicit Indonesian selection, recovery controls and new served
+onboarding strings. It created no owner/agent/task/message and invoked no provider.
+All37 retained application tables (auth sessions excluded) and878 profile files
+match the backup. New-owner UI is tested with fixtures and disposable PostgreSQL,
+not by resetting production owner state. See production.json.

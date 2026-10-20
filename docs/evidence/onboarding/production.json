@@ -1,11 +1,13 @@
 {
-  "release": "0cd57b8bb37533538dbac42b61f4210e13e842b5",
+  "release": "49f89ec68d8ca35e8fe61ca247ac251f526336a1",
   "schema": 25,
   "englishDefaultOnIndonesianBrowser": true,
   "explicitIndonesianPreferencePreserved": true,
   "approvalClicks": 0,
   "optionalActionAssetsVerified": true,
   "waitingLaunchAssetsVerified": true,
+  "onboardingAssetsVerified": true,
+  "existingOwnerSignsIn": true,
   "rollbackReactivationVerified": true,
   "checkedAgentConversations": 7,
   "recoveryActions": {
@@ -20,5 +22,7 @@
   "nonLoginWrites": [],
   "limitations": [
     "Native provider checkpoint resume is not implemented."
-  ]
+  ],
+  "newOwnerSetupPerformedInProduction": false,
+  "productionProviderCalls": 0
 }
