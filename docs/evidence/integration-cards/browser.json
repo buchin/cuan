@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "noOverflow": true,
+      "responsiveCards": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "noOverflow": true,
+      "responsiveCards": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "noOverflow": true,
+      "responsiveCards": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "noOverflow": true,
+      "responsiveCards": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "noOverflow": true,
+      "responsiveCards": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "noOverflow": true,
+      "responsiveCards": true
+    }
+  ],
+  "connectedManage": true,
+  "unconfiguredSetup": true,
+  "statusRetry": true,
+  "liveChatDoesNotClaimConnected": true,
+  "detailNavigation": true,
+  "providerCalls": 0
+}
