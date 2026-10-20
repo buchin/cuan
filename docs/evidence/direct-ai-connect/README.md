@@ -55,3 +55,37 @@ settings/login contract checks passed in0.117s. This is not proof that the actua
 first-run wizard has completed. Metrics telemetry is distinct from provider
 interaction-data consent; no terms acceptance or interaction-sharing preference
 is inferred or written. Live wizard completion still awaits owner confirmation.
+
+
+## Consent resolved and actual provider diagnosis
+
+The owner explicitly approved provider terms with interaction sharing OFF. On the
+same live task, the checkbox was deselected, focus moved Previous → Done, then
+Done was confirmed. CLI persisted onboardingComplete=true and identified Google
+AI Pro. The existing initial task prompt then returned the same Gemini location
+restriction. Its exact attempt was closed and recorded blocked with evidence;
+no duplicate attempt or user-message replay occurred.
+
+The saved account's usage API succeeded: Sonnet/Opus had32.6486% remaining and
+Gemini models approximately0.14947%. A separate minimal Sonnet check using that
+same profile returned structured SUCCESS with exactly CUAN_ACCOUNT_CHECK_OK,
+exit0 and no tool events. This proves this account works on Dracin with Sonnet;
+the generic location failure must not be interpreted as rejecting the entire
+account or as evidence of API-key billing.
+
+New source automates the observed theme/terms sequence only after the web owner
+confirms provider terms. The disclosure links the actual provider terms/privacy
+pages. Optional sharing is deselected before Done; unrecognized screens receive
+no input. Account-bound OAuth does not finish until both new credentials and the
+provider's persisted onboardingComplete marker are present. Credential freshness
+uses a prelaunch digest baseline rather than filesystem timestamp precision;
+unchanged old credentials cannot establish successful authorization.
+
+With no explicit model, Auto now selects one text model with available usage,
+excluding cooldowns. At equal quota, balanced Sonnet is preferred. This initial
+selection does not enable model fallback or override a fixed model. Connection
+verification uses the same Auto selection, so a bad hidden CLI default cannot
+incorrectly mark an otherwise working account unavailable. Existing explicit
+model/fallback-policy tests remain passing. Integrated actual-child wizard,
+consent/privacy, credential baseline, owner API and quota-routing tests pass;
+clean build/browser verification and isolated deployment follow separately.

@@ -366,3 +366,35 @@ func TestInboxUsesSameAccountWhileAnotherSessionRuns(t *testing.T) {
 		t.Fatal("provider invoked while full", string(calls))
 	}
 }
+
+func TestAutoModelUsesEvidencedQuotaWithoutEnablingFallback(t *testing.T) {
+	s, _, registered, p, _, home, _ := setupFailoverFixture(t)
+	registered.ModelID = ""
+	oldFetch := fetchInboxModelUsage
+	defer func() { fetchInboxModelUsage = oldFetch }()
+	usage := agent.AccountModelUsage{Available: true, Models: []agent.ModelUsage{{Model: "claude-opus-test", Remaining: 32.6}, {Model: "gemini-test", Remaining: 0.15}, {Model: "claude-sonnet-test", Remaining: 32.6}}}
+	fetchInboxModelUsage = func(context.Context, string, string) agent.AccountModelUsage { return usage }
+	routes := s.providerRoutes(context.Background(), p.OwnerID, registered, home, false)
+	if len(routes) != 1 || routes[0].model != "claude-sonnet-test" {
+		t.Fatalf("auto did not pick one healthy balanced initial model: %+v", routes)
+	}
+	release, err := s.leaseProviderRoute(context.Background(), p.OwnerID, registered, routes[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+	current, err := agent.GetProviderAccount(p.OwnerID, p.ID)
+	if err != nil || current.AllowModelFallback {
+		t.Fatal("auto selection changed fallback policy", err)
+	}
+	registered.ModelID = "gemini-test"
+	routes = s.providerRoutes(context.Background(), p.OwnerID, registered, home, false)
+	if len(routes) != 1 || routes[0].model != "gemini-test" {
+		t.Fatal("explicit model ignored", routes)
+	}
+	registered.ModelID = ""
+	usage = agent.AccountModelUsage{Available: true, Models: []agent.ModelUsage{{Model: "gemini-test", Remaining: 0}, {Model: "gemini-image", Remaining: 100}}}
+	if routes = s.providerRoutes(context.Background(), p.OwnerID, registered, home, false); len(routes) != 0 {
+		t.Fatal("invented route without eligible text quota", routes)
+	}
+}

@@ -133,6 +133,14 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			}
 			routes = append(routes, inboxAccountRoute{accountID, profileHome, id, remaining, isPrimary})
 		}
+		// No fixed model means Auto, not an instruction to use the CLI's hidden
+		// default. Choose one evidenced initial model without enabling fallback.
+		if profile != nil && model == "" && !profile.AllowModelFallback && usage.Available {
+			if best, ok := agent.AutomaticTextModel(usage, profile.ModelCooldowns, time.Now()); ok {
+				addModel(best.Model, best.Remaining)
+			}
+			return
+		}
 		if profile != nil && profile.AllowModelFallback && usage.Available {
 			for _, item := range usage.Models {
 				if item.Remaining > 0 && agent.IsTextModel(item.Model) {
@@ -216,7 +224,7 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 	}
 	profile, err := agent.GetProviderAccount(owner, route.accountID)
 	allowed := err == nil && profile.CredentialsPresent && ((route.primary && profile.AgentID == registered.ID && profile.ConnectionID == registered.ConnectionID) || (!route.primary && profile.AllowFailover))
-	if allowed && route.model != "" && route.model != registered.ModelID && !profile.AllowModelFallback {
+	if allowed && route.model != "" && route.model != registered.ModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
 		allowed = false
 	}
 	if allowed && time.Now().Before(profile.ModelCooldowns[route.model]) {

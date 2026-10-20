@@ -79,8 +79,9 @@ func (s *Server) handleProviderAccountAuthCode(w http.ResponseWriter, r *http.Re
 	}
 	id := chi.URLParam(r, "accountID")
 	var req struct {
-		SessionID string `json:"session_id"`
-		Code      string `json:"code"`
+		SessionID   string `json:"session_id"`
+		AcceptTerms bool   `json:"accept_provider_terms"`
+		Code        string `json:"code"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req) != nil {
 		respondJSONError(w, 400, "Invalid authorization code request")
@@ -98,7 +99,7 @@ func (s *Server) handleProviderAccountAuthCode(w http.ResponseWriter, r *http.Re
 		respondJSONError(w, 400, "Enter an authorization code")
 		return
 	}
-	if err := agent.SubmitProviderAccountAuth(owner, id, req.SessionID, req.Code); err != nil {
+	if err := agent.SubmitProviderAccountAuth(owner, id, req.SessionID, req.Code, req.AcceptTerms); err != nil {
 		respondJSONError(w, 400, err.Error())
 		return
 	}

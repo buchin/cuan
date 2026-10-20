@@ -364,6 +364,7 @@ export function TeamView({
         session.accountId,
         session.sessionId,
         code.trim(),
+        true,
       )
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       if (!account.credentials_present)
@@ -911,6 +912,13 @@ export function TeamView({
                             minutes.
                           </p>
                         </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          By confirming sign-in, you agree to the{' '}
+                          <a href="https://antigravity.google/terms" target="_blank" rel="noreferrer" className="underline">Antigravity terms</a>{' '}
+                          and acknowledge Google's{' '}
+                          <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="underline">privacy policy</a>.
+                          Cuan won't opt you into optional interaction sharing.
+                        </p>
                         <button
                           type="button"
                           disabled={busy}

@@ -220,11 +220,11 @@ func StartProviderAccountAuth(ctx context.Context, owner, id string) (*Antigravi
 	return startAntigravityAuthSession(ctx, home, owner, id)
 }
 
-func SubmitProviderAccountAuth(owner, id, session, code string) error {
+func SubmitProviderAccountAuth(owner, id, session, code string, acceptTerms ...bool) error {
 	if _, err := GetProviderAccount(owner, id); err != nil {
 		return err
 	}
-	return submitAntigravityAuthCode(session, code, owner, id)
+	return submitAntigravityAuthCode(session, code, owner, id, acceptTerms...)
 }
 func CancelProviderAccountAuth(owner, id, sessionID string) error {
 	authSessionsMu.Lock()
@@ -248,7 +248,17 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 		return nil, err
 	}
 	probeStarted := time.Now().UTC()
-	probeErr := VerifyAntigravityProfile(ctx, home)
+	model := ""
+	var probeErr error
+	usage := FetchAccountModelUsage(ctx, owner, id)
+	if best, ok := AutomaticTextModel(usage, a.ModelCooldowns, time.Now()); ok {
+		model = best.Model
+	} else if usage.Available && len(usage.Models) > 0 {
+		probeErr = antigravityProbeError("quota")
+	}
+	if probeErr == nil {
+		probeErr = VerifyAntigravityProfile(ctx, home, model)
+	}
 	now := time.Now().UTC()
 	a.LastCheckedAt = &now
 	a.CredentialsPresent = IsAntigravityLoggedInInDir(home)
@@ -257,6 +267,9 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	}
 	a.State = "verified"
 	a.Message = "Provider connection verified"
+	if model != "" {
+		a.Message += " using " + model
+	}
 	a.VerifiedAt = &now
 	if probeErr != nil {
 		a.VerifiedAt = nil

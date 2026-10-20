@@ -7,7 +7,7 @@ setup=setup.replace("    if(p==='/api/v1/provider-accounts')return json({account
     if(p==='/api/v1/agents' && method==='GET')return onboardingFail?json({error:'fixture unavailable'},503):json({agents});
     if(p==='/api/v1/provider-accounts')return method==='POST'?json({account:{id:'acct_onboard'}},201):json({accounts:[]});
     if(p==='/api/v1/provider-accounts/acct_onboard/auth-init')return json({auth_url:'https://example.invalid/oauth',session_id:'fixture-session'});
-    if(p==='/api/v1/provider-accounts/acct_onboard/auth-code')return json({account:{id:'acct_onboard',credentials_present:true,state:'verified'}});
+    if(p==='/api/v1/provider-accounts/acct_onboard/auth-code'){assert.equal(r.postDataJSON().accept_provider_terms,true);return json({account:{id:'acct_onboard',credentials_present:true,state:'verified'}});}
     if(p==='/api/v1/agents/connect-cli') {const body=r.postDataJSON();agents.push({id:'agent_dev',name:body.name,harness:'agy',provider:'agy',enabled:true,status:'active',connection_state:'unknown'});return json({agent:agents[0]},201);}
 `);
 setup+=`
@@ -27,6 +27,8 @@ for(const theme of ['light','dark']) for(const width of [360,390,820,1440]) {
  assert.equal(await page.getByLabel('Agent name',{exact:true}).count(),0);
  assert.equal(new URL(page.url()).pathname,'/studio');
  await page.getByLabel('2. Paste the code from Google', {exact:true}).fill('fixture-code');
+ await page.getByRole('link',{name:'Antigravity terms',exact:true}).waitFor();
+ assert(await page.getByText("Cuan won't opt you into optional interaction sharing.",{exact:false}).isVisible());
  await page.getByRole('button',{name:'Confirm sign-in',exact:true}).click();
  await page.waitForURL(base+'/studio');
  await page.getByRole('button',{name:'Get it done',exact:true}).waitFor();

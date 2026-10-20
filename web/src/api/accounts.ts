@@ -59,11 +59,11 @@ export const accountsApi = {
     apiFetch<HarnessAuth>(`${base}/${encodeURIComponent(id)}/auth-init`, {
       method: 'POST',
     }),
-  code: async (id: string, session_id: string, code: string) =>
+  code: async (id: string, session_id: string, code: string, accept_provider_terms = false) =>
     (
       await apiFetch<{ account: ProviderAccount }>(
         `${base}/${encodeURIComponent(id)}/auth-code`,
-        { method: 'POST', body: JSON.stringify({ session_id, code }) },
+        { method: 'POST', body: JSON.stringify({ session_id, code, accept_provider_terms }) },
       )
     ).account,
   cancel: (id: string, session_id: string) =>
