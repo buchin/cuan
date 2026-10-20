@@ -32,11 +32,12 @@ snapshots and choice actions. The current production application is49f89ec/schem
    Actual binary startup, owner setup, neutral Default, process restart retention,
    browser onboarding and SQL-backed first goal all pass. Docker remains a separate
    unverified distribution/runtime path; do not advertise turnkey AGY containers.
-2. Strengthen the combined durable recovery proof: process-loss → scoped revision
-   → verified result is covered with a real fake-provider process and memory stores;
-   SQL fresh-install/one-result and SQL launch reconstruction are covered separately.
-   A single SQL-backed approved-goal interruption/server-reconstruction scenario is
-   still required before claiming that entire path from one integrated execution.
+2. Combined SQL-backed proof now passes: Studio goal → exact proposal → owner
+   approval → real agent SIGKILL with progress-only evidence → entirely new server
+   instances → automatic scoped continuation → automatically delivered verified
+   result. One task, two attempts, one artifact creation and one final result.
+   See `docs/evidence/durable-goal-recovery/README.md`. This is reconstruction over
+   durable SQL state, not a literal host reboot or arbitrary external effects.
 3. Preserve scope, context, authorization and no-overlap invariants during that
    reconstruction. A native provider-session resume and arbitrary external effects
    remain distinct from application-level progress recovery.
@@ -77,3 +78,9 @@ verified: initial root/login has a two-field owner form, configured installation
 show normal sign-in, failures retain form state, and successful setup leads to
 AI onboarding. Real PostgreSQL concurrency admits only one owner across six
 simultaneous setup requests. Existing credentials are preserved.
+
+The approved-goal SQL recovery gap is now closed by the integrated fixture; the
+companion direct-goal SQL lifecycle also passes after refactoring. The goal stays
+open while Docker installation/runtime verification remains unresolved. The
+native production application remains49f89ec/schema25; this final checkpoint
+adds only tests and evidence and needs no application redeployment.

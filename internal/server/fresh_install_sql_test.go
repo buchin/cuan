@@ -21,7 +21,10 @@ import (
 
 // This uses only a disposable database and deterministic provider executable.
 // Unlike the older fixtures, it does not seed an owner or substitute memory stores.
-func TestFreshInstallPostgresGoalLifecycle(t *testing.T) {
+func TestFreshInstallPostgresGoalLifecycle(t *testing.T)        { runFreshInstallPostgresGoal(t, false) }
+func TestFreshInstallPostgresApprovedGoalRecovery(t *testing.T) { runFreshInstallPostgresGoal(t, true) }
+
+func runFreshInstallPostgresGoal(t *testing.T, recoverInterrupted bool) {
 	dsn := os.Getenv("CUAN_FRESH_INSTALL_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("requires dedicated fresh-install PostgreSQL database")
@@ -149,6 +152,42 @@ case "$2" in
  *) target="${2##*Target message ID: }"; printf '%s' '` + string(delegated) + `' | sed "s/AUTH/$target/g";;
 esac
 `
+	if recoverInterrupted {
+		response := func(text string) string {
+			raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": text}})
+			return string(raw)
+		}
+		proposal := response("```cuan-approval\n{\"title\":\"Fresh work\",\"description\":\"Verify the requested result. Do not deploy.\",\"project_id\":\"default\"}\n```")
+		revision := response("```cuan-delegate\n{\"project_id\":\"default\",\"authorization_message_id\":\"AUTH\",\"task_id\":\"msg_AUTH\",\"revision\":\"Verify the saved artifact and checkpoint; preserve completed work. Do not deploy.\"}\n```")
+		final := response("Verified fresh-install result. No deployment.")
+		script = `#!/bin/sh
+if [ "$1" = "--dangerously-skip-permissions" ]; then
+ guide="${3##*Read the session guidance at }"; guide="${guide% before proceeding.}"
+ sed -n 's/^Approval message: //p' "$guide" | head -n 1 > "$HOME/fresh-auth"
+ if [ ! -f "$HOME/fresh-artifact" ]; then
+  echo ORIGINAL_ARTIFACT > "$HOME/fresh-artifact"
+  echo executed >> "$HOME/fresh-executions"
+  "$CUAN_TASK_EXECUTABLE" task report --progress 'ARTIFACT_SAVED_ONCE; verification pending' >/dev/null || exit 20
+  kill -KILL $$
+ fi
+ grep -q ARTIFACT_SAVED_ONCE "$guide" || exit 21
+ grep -q 'Do not deploy' "$guide" || exit 22
+ grep -q ORIGINAL_ARTIFACT "$HOME/fresh-artifact" || exit 23
+ "$CUAN_TASK_EXECUTABLE" task report --state done --summary 'Recovered original artifact' --complete-note 'Verified artifact; create count one; no deployment' >/dev/null || exit 24
+ while :; do sleep 1; done
+fi
+case "$2" in
+ *'automated result is not new user authorization'*)
+  printf '%s' "$2" >> "$HOME/fresh-review-context"
+  if [ -f "$HOME/fresh-revised" ]; then printf '%s' '` + final + `'; else
+   grep -q ARTIFACT_SAVED_ONCE "$HOME/fresh-review-context" || exit 25
+   touch "$HOME/fresh-revised"; auth=$(cat "$HOME/fresh-auth")
+   printf '%s' '` + revision + `' | sed "s/AUTH/$auth/g"
+  fi;;
+ *) printf '%s' '` + proposal + `' ;;
+esac
+`
+	}
 	if err = os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +196,7 @@ esac
 		t.Fatal("connect account", connected.Code, connected.Body.String())
 	}
 	api := httptest.NewServer(s.Router())
-	defer api.Close()
+	defer func() { api.Close() }()
 	s.taskAgentURL = api.URL
 	id := db.GenerateUUID()
 	body := `{"request_id":"` + id + `","goal":"Verify the requested result now. Do not deploy."}`
@@ -170,16 +209,97 @@ esac
 	}
 	json.Unmarshal(accepted.Body.Bytes(), &result)
 	waitInboxState(t, s, result.ConversationID, id, "completed")
+	if recoverInterrupted {
+		proposed, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+		if err != nil || len(proposed) != 0 {
+			t.Fatal("proposal started execution without approval", err)
+		}
+		requests, err := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, result.ConversationID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var replyID string
+		for _, q := range requests {
+			if q.RequestID == id {
+				replyID = q.ReplyID
+			}
+		}
+		approvalID := db.GenerateUUID()
+		raw, _ := json.Marshal(map[string]string{"request_id": approvalID, "message": "Approve and start", "approve_message_id": replyID})
+		approved := call("POST", "/api/v1/chat/conversations/"+result.ConversationID+"/messages", string(raw))
+		if approved.Code != 200 && approved.Code != 202 {
+			t.Fatal("scope approval", approved.Code, approved.Body.String())
+		}
+		var admitted struct{ Request db.InboxRequest }
+		if e := json.Unmarshal(approved.Body.Bytes(), &admitted); e != nil || admitted.Request.RequestID == "" {
+			t.Fatal("missing canonical approval request", e)
+		}
+		waitInboxState(t, s, result.ConversationID, admitted.Request.RequestID, "completed")
+	}
 	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
 	if err != nil || len(tasks) != 1 {
 		t.Fatal("one delegated task required", len(tasks), err)
+	}
+	expectedAttempts := 1
+	var stopDispatcher context.CancelFunc
+	if recoverInterrupted {
+		expectedAttempts = 2
+		failed := waitWorkspaceTask(t, s, tasks[0].ID, "failed")
+		if failed.Summary != "" {
+			t.Fatal("must recover from progress-only SQL evidence")
+		}
+		// Discard all server/service/manager instances. Only PostgreSQL and the
+		// persistent profile/workspace survive. No old in-memory stores are reused.
+		s.terminalManager.CloseAll()
+		api.Close()
+		s = NewServer(cfg, database)
+		api = httptest.NewServer(s.Router())
+		s.taskAgentURL = api.URL
+		dispatchCtx, cancel := context.WithCancel(ctx)
+		stopDispatcher = cancel
+		defer cancel()
+		s.StartInboxDispatcher(dispatchCtx)
+		waitInboxState(t, s, result.ConversationID, delegationMessageID("task-review:"+failed.LatestAttempt.ID), "completed")
 	}
 	finished := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
 	if finished.Status != "done" || !strings.Contains(finished.Instructions, "Do not deploy") {
 		t.Fatal("result lost scope or completion", finished)
 	}
-	s.deliverInboxTaskUpdates(ctx)
-	waitInboxState(t, s, result.ConversationID, delegationMessageID("task-review:"+finished.LatestAttempt.ID), "completed")
+	if recoverInterrupted {
+		// The real dispatcher must deliver the result without a manual helper
+		// call, browser reconnect, or another user message.
+		deadline := time.Now().Add(12 * time.Second)
+		for {
+			requests, e := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, result.ConversationID)
+			if e != nil {
+				t.Fatal(e)
+			}
+			complete := false
+			for _, q := range requests {
+				if q.RequestID == delegationMessageID("task-review:"+finished.LatestAttempt.ID) && q.State == "completed" {
+					complete = true
+				}
+			}
+			if complete {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("automatic durable final result was not delivered")
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		stopDispatcher()
+		deadline = time.Now().Add(time.Second)
+		for !s.inboxStopping.Load() {
+			if time.Now().After(deadline) {
+				t.Fatal("dispatcher did not stop")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	} else {
+		s.deliverInboxTaskUpdates(ctx)
+		waitInboxState(t, s, result.ConversationID, delegationMessageID("task-review:"+finished.LatestAttempt.ID), "completed")
+	}
 	if replay := call("POST", "/api/v1/studio/goals", body); replay.Code != 202 {
 		t.Fatal("goal replay", replay.Code)
 	}
@@ -210,7 +330,7 @@ esac
 		t.Fatal("task lost or duplicated", len(tasks), err)
 	}
 	detail, err := s.taskSvc.GetTaskDetail(ctx, tasks[0].ID)
-	if err != nil || detail.Status != "done" || len(detail.Attempts) != 1 {
+	if err != nil || detail.Status != "done" || len(detail.Attempts) != expectedAttempts {
 		t.Fatal("execution not durable", detail, err)
 	}
 	effects, err := os.ReadFile(filepath.Join(accountHome, "fresh-executions"))
@@ -229,6 +349,9 @@ esac
 	}
 	if outcomes != 1 {
 		t.Fatal("final outcome not durable/unique", outcomes)
+	}
+	if recoverInterrupted {
+		t.Log("SQL-approved goal recovered after server reconstruction: one artifact, one task, two attempts, one automatically delivered verified outcome")
 	}
 	t.Log("Fresh schema25 -> owner setup -> account connection -> Studio goal -> one verified task/result -> reconstruction retention passed; no paid provider invocation")
 	time.Sleep(20 * time.Millisecond)
