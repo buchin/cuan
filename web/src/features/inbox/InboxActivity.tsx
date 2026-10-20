@@ -22,6 +22,7 @@ export function InboxActivity({
   const { t, language } = useLanguage()
 
   const [now, setNow] = useState(Date.now())
+  const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
@@ -100,7 +101,7 @@ export function InboxActivity({
         </div>
       )}
       <div className="flex items-start gap-2">
-        <details className="group/response min-w-0 flex-1">
+        <details className="group/response min-w-0 flex-1" onToggle={(event) => setExpanded(event.currentTarget.open)}>
           <summary
             className={
               compact
@@ -149,7 +150,7 @@ export function InboxActivity({
               </>
             )}
           </summary>
-          <div className="mt-1 space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+          {expanded && <div className="mt-1 space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
             <p className="font-medium">
               {q.state === 'completed'
                 ? q.agent_id
@@ -312,7 +313,7 @@ export function InboxActivity({
                 or credentials.
               </p>
             </details>
-          </div>
+          </div>}
         </details>
         {(q.state === 'queued' || q.state === 'running') && (
           <button

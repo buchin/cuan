@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -367,6 +368,7 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
+	var lastSnapshot []byte
 	snapshot := func() bool {
 		requests, err := store.ListInboxRequests(r.Context(), resolved.RoomID)
 		if err != nil {
@@ -384,7 +386,12 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return false
 		}
-		_, err = fmt.Fprintf(w, "event: snapshot\ndata: %s\n\n", data)
+		if bytes.Equal(lastSnapshot, data) {
+			_, err = fmt.Fprint(w, ": heartbeat\n\n")
+		} else {
+			_, err = fmt.Fprintf(w, "event: snapshot\ndata: %s\n\n", data)
+			lastSnapshot = data
+		}
 		flusher.Flush()
 		return err == nil
 	}

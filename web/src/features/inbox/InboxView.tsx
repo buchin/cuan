@@ -1,3 +1,4 @@
+import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import {
   AttachmentPicker,
@@ -10,7 +11,7 @@ import { CreateAction } from '../../components/layout/CreateAction'
 import type { Agent } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import {
   ChatContact,
   ChatMessage,
@@ -64,7 +65,7 @@ export function InboxView({
   onNewMessage,
   contacts = [],
   agents = [],
-  now,
+  now: suppliedNow,
   loading: contactsLoading = false,
   error: contactsError = '',
   onRetry,
@@ -78,6 +79,8 @@ export function InboxView({
   onBackToContacts,
   onMobileChatActiveChange,
 }: InboxViewProps) {
+  const clock = useConnectionClock(agents)
+  const now = suppliedNow ?? clock
   const { t, language } = useLanguage()
 
   const unsentDrafts = useRef<Record<string, string>>({})
@@ -98,6 +101,9 @@ export function InboxView({
   const activeConvRef = useRef('')
   activeConvRef.current =
     activeContact?.conversation_id || activeContact?.id || ''
+  const [messageLimit, setMessageLimit] = useState(50)
+  const olderAnchor = useRef<{ height: number; top: number } | null>(null)
+  useEffect(() => { setMessageLimit(50); olderAnchor.current = null }, [activeContact?.id])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const uploads = useAttachments(
@@ -447,6 +453,23 @@ export function InboxView({
   const visibleMessageIds = new Set(
     messages.map((message) => message.uuid).filter(Boolean),
   )
+  const requestsByMessage = useMemo(() => {
+    const ids = new Set(messages.map(message => message.uuid).filter(Boolean))
+    const index = new Map<string, InboxRequest[]>()
+    for (const request of requests) {
+      const key = ids.has(request.reply_id) ? request.reply_id : request.message_id
+      if (key) index.set(key, [...(index.get(key) || []), request])
+    }
+    return index
+  }, [messages, requests])
+  const messageStart = Math.max(0, messages.length - messageLimit)
+  useLayoutEffect(() => {
+    const list = messageListRef.current
+    if (list && olderAnchor.current) {
+      list.scrollTop = olderAnchor.current.top + list.scrollHeight - olderAnchor.current.height
+      olderAnchor.current = null
+    }
+  }, [messageLimit])
   return (
     <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
       {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
@@ -608,7 +631,14 @@ export function InboxView({
                 </div>
               )}
 
-              {messages.map((msg, index) => {
+              {messageStart > 0 && <div className="flex justify-center py-2"><button type="button" className="min-h-11 rounded-md border px-3 text-xs hover:bg-muted" onClick={() => {
+                const list = messageListRef.current
+                if (list) olderAnchor.current = { height: list.scrollHeight, top: list.scrollTop }
+                followTail.current = false
+                setMessageLimit(limit => limit + 50)
+              }}>{t('Load older messages')}</button></div>}
+              {messages.slice(messageStart).map((msg, offset) => {
+                const index = messageStart + offset
                 // In WhatsApp/Telegram: User is right-aligned, Contact (Agent/Customer) is left-aligned
                 const isUser =
                   msg.author_type === 'user' && activeContact.type === 'agent'
@@ -622,7 +652,7 @@ export function InboxView({
                 const date = new Date(msg.created_at)
                 const showDate =
                   Number.isFinite(date.getTime()) &&
-                  (!index ||
+                  (!offset ||
                     date.toDateString() !==
                       new Date(messages[index - 1].created_at).toDateString())
                 const today = new Date(),
@@ -795,13 +825,7 @@ export function InboxView({
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}
                     </div>
-                    {requests
-                      .filter(
-                        (q) =>
-                          q.reply_id === msg.uuid ||
-                          (q.message_id === msg.uuid &&
-                            !visibleMessageIds.has(q.reply_id)),
-                      )
+                    {(requestsByMessage.get(msg.uuid || '') || [])
                       .map((q) => {
                         const placeholder =
                           (q.agent_id || activeContact.type === 'agent') &&

@@ -1,4 +1,5 @@
 import {
+  memo,
   isValidElement,
   useEffect,
   useRef,
@@ -91,7 +92,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   )
 }
 
-export function ChatMarkdown({ content }: { content: string }) {
+export const ChatMarkdown = memo(function ChatMarkdown({ content }: { content: string }) {
   return (
     <div className="chat-markdown min-w-0 max-w-full text-base leading-relaxed">
       <ReactMarkdown
@@ -134,4 +135,4 @@ export function ChatMarkdown({ content }: { content: string }) {
       </ReactMarkdown>
     </div>
   )
-}
+})

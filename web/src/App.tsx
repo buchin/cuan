@@ -85,11 +85,6 @@ export function App() {
   const [directoryAgents, setDirectoryAgents] = useState<Agent[]>([])
   const [contactsLoading, setContactsLoading] = useState(true)
   const [contactsError, setContactsError] = useState('')
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
   useEffect(() => {
     if (rootSegment === 'team')
       navigate('/settings/agents' + location.search, { replace: true })
@@ -184,21 +179,28 @@ export function App() {
       agentsApi.list(),
     ])
     if (list.status === 'fulfilled') {
-      setContacts(list.value)
+      setContacts(previous => JSON.stringify(previous) === JSON.stringify(list.value) ? previous : list.value)
       setContactsError('')
     } else
       setContactsError(
         'Could not load contacts. Check your connection and try again.',
       )
-    setDirectoryAgents(agents.status === 'fulfilled' ? agents.value : [])
+    if (agents.status === 'fulfilled') setDirectoryAgents(previous => JSON.stringify(previous) === JSON.stringify(agents.value) ? previous : agents.value)
     setContactsLoading(false)
   }, [])
 
   useEffect(() => {
     if (isAuthenticated) {
       Promise.allSettled([refreshProjects(), refreshTasks(), refreshContacts()])
-      const interval = setInterval(refreshContacts, 5000)
-      return () => clearInterval(interval)
+      let refreshing = false
+      const refresh = async () => {
+        if (document.hidden || refreshing) return
+        refreshing = true
+        try { await refreshContacts() } finally { refreshing = false }
+      }
+      const interval = setInterval(() => void refresh(), 5000)
+      document.addEventListener('visibilitychange', refresh)
+      return () => { clearInterval(interval); document.removeEventListener('visibilitychange', refresh) }
     }
   }, [isAuthenticated, refreshProjects, refreshTasks, refreshContacts])
 
@@ -607,7 +609,6 @@ export function App() {
           <InboxSubPanel
             contacts={contacts}
             agents={directoryAgents}
-            now={now}
             loading={contactsLoading}
             error={contactsError}
             onRetry={refreshContacts}
@@ -629,7 +630,6 @@ export function App() {
           <InboxView
             contacts={contacts}
             agents={directoryAgents}
-            now={now}
             loading={contactsLoading}
             error={contactsError}
             onRetry={refreshContacts}

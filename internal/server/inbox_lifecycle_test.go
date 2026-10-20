@@ -134,6 +134,25 @@ func TestInboxLifecycleContextFIFOStreamAndTask(t *testing.T) {
 			break
 		}
 	}
+	if found {
+		// Unchanged room events must keep the connection alive without replaying
+		// the full history or triggering another browser render.
+		s.publishInbox(first.RoomID)
+		heartbeat := false
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "event: snapshot") {
+				t.Fatal("unchanged history was retransmitted")
+			}
+			if line == ": heartbeat" {
+				heartbeat = true
+				break
+			}
+		}
+		if !heartbeat {
+			t.Fatal("missing unchanged-history heartbeat", scanner.Err())
+		}
+	}
 	response.Body.Close()
 	cancel()
 	if !found {

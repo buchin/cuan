@@ -1,3 +1,4 @@
+import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
@@ -47,7 +48,7 @@ interface InboxSubPanelProps {
 export function InboxSubPanel({
   contacts,
   agents = [],
-  now,
+  now: suppliedNow,
   loading = false,
   error = '',
   onRetry,
@@ -58,6 +59,8 @@ export function InboxSubPanel({
   searchQuery = '',
   onSearchChange,
 }: InboxSubPanelProps) {
+  const clock = useConnectionClock(agents)
+  const now = suppliedNow ?? clock
   const { t, language } = useLanguage()
 
   const [internalTab, setInternalTab] = useState<ContactFilterTab>(selectedTab)
