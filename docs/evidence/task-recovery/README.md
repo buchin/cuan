@@ -1,6 +1,6 @@
 ## Task execution recovery checkpoint
 
-Local implementation, not deployed yet.
+Production application release: 0071835c4c6f8e7a25f6ef549e23b6570a2d32d9.
 
 A re-executed supervisor holds a kernel flock in the persistent workspace
 execution-lock directory. A reconstructed manager and the task launch endpoint
@@ -46,6 +46,17 @@ normal delegation, subsequent triggers, changed scope/action and bounded revisio
 This pins the first stored scope; it does not prove natural-language consent or
 bind an immutable proposal before approval.
 
-Pending: immutable proposal/approval scope enforcement, clean release and
-production verification. This is
+Clean-worktree targeted checks passed, including task reporting and interactive
+completion (35.246 seconds server tests). Native atomic deployment and readiness
+passed. Read-only production mobile/desktop recovery controls passed. A service-user
+probe of the actual production binary rejects an occupied lock with exit75 and
+propagates a shell's exit7, with no provider invocation or task creation.
+All 36 application tables (ephemeral auth sessions excluded) and 863 profile files
+match the pre-release backup. Schema24 remains unchanged, auto-migration disabled.
+Backup: /opt/cuan/backups/task-recovery-release. Previous release:
+3b230b7c2225e69b4036983b657920328210e1d6. Build retains existing CSS syntax/chunk-size
+warnings; these are outside this backend release and do not block the build.
+
+Pending: immutable proposal/approval scope enforcement and the remaining product
+audit requirements. This is
 not evidence that the full product goal is complete.
