@@ -291,3 +291,29 @@ The full objective is still unproven; no actual-provider/GitHub end-to-end succe
 is claimed. Experimental Docker isolation work remains stopped.
 
 Production f40909a now includes the human Git identity fix. Actual rollback/reactivation and read-only asset/retention checks pass; all 37 application tables, 930 profile files, seven item states and eleven notification read flags are unchanged. No production inference or commit was used to verify this release. OAuth App registration and actual-provider end-to-end proof remain open.
+
+
+## 2026-10-21 actual-provider historical completion investigation
+
+Read-only production observation found 22 completed Inbox requests, five
+succeeded task attempts, one failed attempt and five agent reports. No done task
+with a recorded commit was present. These aggregates establish actual provider
+traffic, not end-to-end implementation delivery or interruption recovery.
+
+The blocked “Hello world” attempt finished on 2026-10-19 at 23:39:14 +08:00.
+Its activity history contains a required report contract but no agent report.
+The saved output (304 characters) diagnoses a headless command permission denial;
+the provider nevertheless exited zero. Consequently Cuan correctly withheld
+completion instead of claiming that the requested work shipped.
+
+Current task launcher uses the explicitly authorized interactive task mode and
+workspace argument. TestS25AgentOutlivesRequestAndPromptIsNotShellCode passed
+again on 2026-10-21 (internal/terminal, 0.233s), checking those exact arguments,
+request-independent process lifetime and literal prompt handling. This fixture
+does not prove authenticated provider behavior. Historical missing-report failure
+must not be presented as a reproduced regression in the active release.
+
+No production task was resumed, submitted or modified; no account profile or
+credential was borrowed. Actual authenticated model implementation, final report,
+scoped Git delivery and interruption recovery remain unproven. Live GitHub OAuth
+App configuration remains absent. Keep the full objective open.
