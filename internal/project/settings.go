@@ -78,7 +78,7 @@ func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*
 		if json.Unmarshal([]byte(value), &snapshot) != nil {
 			return nil, errors.New("Task project context is invalid")
 		}
-		if snapshot.ProjectID != id {
+		if !historicalProjectID(p, snapshot.ProjectID) {
 			return p, nil
 		} // Explicit project reassignment.
 		revision = snapshot.Revision
@@ -105,7 +105,7 @@ func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*
 		Revision  string           `json:"revision"`
 		Binding   workspaceBinding `json:"binding"`
 	}
-	if json.Unmarshal([]byte(raw), &original) != nil || original.ProjectID != id || original.Revision != revision {
+	if json.Unmarshal([]byte(raw), &original) != nil || !historicalProjectID(p, original.ProjectID) || original.Revision != revision {
 		return nil, errors.New("Original task workspace binding is invalid")
 	}
 	p.LocalPath = original.Binding.LocalPath
@@ -123,6 +123,9 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	}
 	if req.ExpectedUpdatedAt.IsZero() || !req.ExpectedUpdatedAt.Equal(current.UpdatedAt) {
 		return nil, ErrSettingsConflict
+	}
+	if id == "default" && (strings.TrimSpace(req.Name) != "Default" || strings.TrimSpace(req.RepoURL) != "") {
+		return nil, errors.New("Default is for general work. Use a separate project for a name or repository.")
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" || len([]rune(name)) > 120 {

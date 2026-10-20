@@ -2,14 +2,14 @@ import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { workspacePath } from './workspacePath'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Info, Square, Send } from 'lucide-react'
+import { ArrowLeft, Info, Square, Send, Bot } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
 import { TaskReadyPage } from './TaskReadyPage'
 import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
-import { attemptLabel, taskRef, workStatus } from './task-ui'
+import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime } from './task-ui'
 
 export function TaskSessionPage({
   taskId,
@@ -205,7 +205,7 @@ export function TaskSessionPage({
             {detail.title}
           </h2>
           <p className="truncate text-xs text-muted-foreground">
-            {!latest ? attemptLabel(attempt) : workStatus(detail)}
+            {answer ? 'Answered' : !latest ? attemptLabel(attempt) : workStatus(detail)}
           </p>
         </div>
         <div ref={setTerminalControls} className="flex shrink-0 items-center" />
@@ -265,13 +265,15 @@ export function TaskSessionPage({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="task-result-content mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
+          <div className="task-result-content max-w-3xl space-y-4 p-4 sm:p-6">
             <section aria-label="Session result">
-              <h3 className="mb-2 text-sm font-semibold">
-                {answer ? 'Answer' : 'Result'}
-              </h3>
+              <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Bot className="h-4 w-4" aria-hidden="true" />
+                <span className="font-medium text-foreground">{agentDisplayName(attempt.agent_name)}</span>
+                <time dateTime={final?.created_at || attempt.finished_at || attempt.created_at}>{relativeTime(final?.created_at || attempt.finished_at || attempt.created_at)}</time>
+              </div>
               {result ? (
-                <div className="rounded-xl rounded-tl-sm border bg-muted/20 p-3 sm:p-4"><ChatMarkdown content={result} /></div>
+                <div className="w-fit max-w-full rounded-xl rounded-tl-sm border bg-muted/20 p-3 sm:p-4"><ChatMarkdown content={result} /></div>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No result was recorded for this session. Open the terminal or
@@ -279,7 +281,7 @@ export function TaskSessionPage({
                 </p>
               )}
             </section>
-            <div className="flex flex-wrap items-center gap-2">
+            {(canAccept || !result) && <div className="flex flex-wrap items-center gap-2">
               {canAccept && (
                 <button
                   className="action-primary"
@@ -313,15 +315,7 @@ export function TaskSessionPage({
                   Open terminal
                 </button>
               )}
-            </div>
-            {latest && detail.complete_note && detail.complete_note !== result && <details className="rounded-lg border px-3 py-2">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Verification</summary>
-              <div className="pb-2 pt-1"><ChatMarkdown content={detail.complete_note} /></div>
-            </details>}
-            <details className="rounded-lg border px-3 py-2">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Your request</summary>
-              <div className="pb-2 pt-1"><ChatMarkdown content={detail.description || detail.title} /></div>
-            </details>
+            </div>}
             {!latest && (
               <p className="text-xs text-muted-foreground">
                 Earlier session · select the latest session in Detail to
@@ -509,6 +503,15 @@ export function TaskSessionPage({
               ))}
             </details>
           )}
+            {latest && detail.complete_note && detail.complete_note !== result && <details className="rounded-lg border px-3 py-2">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Verification</summary>
+              <div className="pb-2 pt-1"><ChatMarkdown content={detail.complete_note} /></div>
+            </details>}
+            <details className="rounded-lg border px-3 py-2">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Your request</summary>
+              <div className="pb-2 pt-1"><ChatMarkdown content={detail.description || detail.title} /></div>
+            </details>
+
           <aside aria-label="Agent report">
             <h3 className="mb-3 text-sm font-semibold">Agent report</h3>
             {!reports.length ? (

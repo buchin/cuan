@@ -243,6 +243,17 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 				s.publishTaskLaunchOutcome(ctx, *launch, launch.State, text)
 			}
 		}
+		if err == nil && detail.LatestAttempt == nil && detail.Status == task.TaskStatusDone && strings.TrimSpace(detail.Summary) != "" && strings.TrimSpace(detail.CompleteNote) != "" {
+			// The owner can complete saved work outside an agent session (for example
+			// repairing project setup). Deliver that recorded result without inventing
+			// an execution attempt or replaying its previously stopped launch.
+			id := delegationMessageID("recorded-completion:" + detail.ID + ":" + detail.UpdatedAt.UTC().Format(time.RFC3339Nano))
+			now := time.Now().UTC()
+			message := &db.ProjectMessage{ID: id, RoomID: detail.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: "Work marked completed.\n\n" + detail.Summary + "\n\n[View details](/tasks/" + detail.ID + ")", CreatedAt: now, UpdatedAt: now}
+			if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
+				s.publishInbox(detail.SourceRoomID)
+			}
+		}
 		if err != nil || detail.LatestAttempt == nil {
 			continue
 		}

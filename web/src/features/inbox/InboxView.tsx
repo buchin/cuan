@@ -602,11 +602,10 @@ export function InboxView({
               <Bot className="h-8 w-8 text-primary" />
             </div>
             <h3 className="text-base font-bold text-foreground">
-              Direct Messenger Hub
+              Your conversations
             </h3>
             <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-              Select a conversation to contact agents and customers. Manage
-              agents in Settings → Agents.
+              Choose a conversation to continue, or start something new in Studio.
             </p>
           </div>
         ) : (

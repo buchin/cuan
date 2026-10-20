@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
@@ -43,6 +44,9 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		text := "The work is saved, but could not start. " + reason + link
 		if state == "queued" {
 			text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
+		}
+		if state == "queued" && strings.Contains(reason, "Project files could not be downloaded.") {
+			text = "I’m preparing the project files and will continue automatically. Your request and approval are saved." + link
 		}
 		if state == "started" {
 			text = "Work started. I’ll report progress and the result here." + link
@@ -98,7 +102,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		Code  string `json:"code"`
 	}
 	json.Unmarshal(response.body.Bytes(), &problem)
-	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" {
+	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "repository_preparing" {
 		return finish("queued", problem.Error)
 	}
 	if problem.Error == "" {
@@ -128,6 +132,32 @@ func (s *Server) drainTaskLaunches(ctx context.Context, now time.Time) {
 	}
 }
 func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaunch, state, text string) {
+	// The foreground reply can itself deliver a stopped launch. Wait until that
+	// durable reply is reconciled, then avoid a second identical agent bubble.
+	if state == "stopped" && job.SourceRequestID != "" {
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			if requests, e := store.ListInboxRequests(ctx, job.RoomID); e == nil {
+				for _, request := range requests {
+					if request.RequestID != job.SourceRequestID {
+						continue
+					}
+					if request.State == "queued" || request.State == "running" {
+						return
+					}
+					if request.State == "completed" && request.ReplyID != "" && job.SafeError != "" {
+						if messages, e := s.projectStudioRepo.ListMessagesByRoomID(ctx, job.RoomID); e == nil {
+							for _, message := range messages {
+								if message.ID == request.ReplyID && strings.Contains(message.Content, "/tasks/"+job.TaskID) && strings.Contains(message.Content, job.SafeError) {
+									return
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	now := time.Now().UTC()
 	message := &db.ProjectMessage{ID: delegationMessageID("launch-outcome:" + job.ID + ":" + state), RoomID: job.RoomID, AuthorType: "agent", AuthorID: job.AgentID, AuthorName: "Cuan", Content: text, CreatedAt: now, UpdatedAt: now}
 	if s.projectStudioRepo.CreateMessage(ctx, message) == nil {

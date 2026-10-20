@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/agent"
+	cuangit "github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
 )
@@ -390,6 +391,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					}
 					workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
 					if e != nil {
+						if errors.Is(e, cuangit.ErrRepositoryDownloadUnavailable) {
+							respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
+							return
+						}
 						respondJSONError(w, 409, e.Error())
 						return
 					}

@@ -33,3 +33,21 @@ func TestEnsureDefaultCreatesAndPreservesConfiguration(t *testing.T) {
 		t.Fatal("duplicate Default projects", projects, err)
 	}
 }
+
+func TestDefaultSettingsKeepNeutralIdentity(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore(), nil, "", t.TempDir())
+	p, err := svc.EnsureDefault(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []UpdateSettingsRequest{{Name: "Cuan", ExpectedUpdatedAt: p.UpdatedAt}, {Name: "Default", RepoURL: "https://example.invalid/repo", ExpectedUpdatedAt: p.UpdatedAt}} {
+		if _, err = svc.UpdateSettings(ctx, p.ID, r); err == nil {
+			t.Fatal("Default accepted a project-specific identity")
+		}
+	}
+	got, err := svc.UpdateSettings(ctx, p.ID, UpdateSettingsRequest{Name: "Default", Goal: "General work", ExpectedUpdatedAt: p.UpdatedAt})
+	if err != nil || got.Name != "Default" || got.RepoURL != "" {
+		t.Fatal(got, err)
+	}
+}

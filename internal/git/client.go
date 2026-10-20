@@ -288,7 +288,11 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 	if fi, err := os.Stat(gitDir); err == nil && fi.IsDir() {
 		// Remove credentials left by older clones and fetch only the intended remote.
 		if exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "remote", "set-url", "origin", repoURL).Run() != nil {
-			return errors.New("Could not update repository remote")
+			// Older provisioned caches can be an empty git init without origin. Adding
+			// the intended remote does not checkout or discard existing local files.
+			if exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "remote", "add", "origin", repoURL).Run() != nil {
+				return errors.New("Could not prepare the repository connection")
+			}
 		}
 		cmd := exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "fetch", "origin", "--prune")
 		authenticate(cmd)

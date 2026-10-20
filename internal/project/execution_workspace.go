@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 var executionWorkspaceMu sync.Mutex
@@ -69,7 +70,25 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 	}
 	base := "refs/remotes/origin/" + p.DefaultBranch
 	if _, err = run("-C", source, "rev-parse", "--verify", base+"^{commit}"); err != nil {
-		return "", errors.New("Project default branch is unavailable. Sync the project first.")
+		// Repair an empty/stale cache before reserving any execution attempt. Existing
+		// worktrees return above and never fetch or change their original base.
+		current, e := s.store.GetProject(ctx, p.ID)
+		if e != nil {
+			return "", errors.New("Project connection is unavailable. Your work is saved.")
+		}
+		token, e := s.repositoryToken(ctx, current.EncryptedToken)
+		if e != nil {
+			return "", e
+		}
+		fetch, cancel := context.WithTimeout(ctx, 20*time.Second)
+		e = s.gitClient.FetchBoundBranch(fetch, source, p.RepoURL, p.DefaultBranch, token)
+		cancel()
+		if e != nil {
+			return "", e
+		}
+		if _, e = run("-C", source, "rev-parse", "--verify", base+"^{commit}"); e != nil {
+			return "", errors.New("Project files could not be prepared. Your request is saved.")
+		}
 	}
 	if _, err = run("-C", source, "show-ref", "--verify", "refs/heads/"+branch); err == nil {
 		if err := s.restoreRetiredWorkspace(ctx, key, taskID, source, branch, destination); err != nil {

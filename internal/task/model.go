@@ -130,6 +130,7 @@ type LogRecord struct {
 
 // TaskItemResponse is returned in task listings.
 type TaskItemResponse struct {
+	ResultKind string `json:"result_kind,omitempty"`
 	Task
 	ProjectName   string       `json:"project_name,omitempty"`
 	ProjectNames  []string     `json:"project_names,omitempty"`
@@ -138,7 +139,8 @@ type TaskItemResponse struct {
 
 // TaskDetailResponse contains full detail including history and attempts.
 type TaskDetailResponse struct {
-	Launch *LaunchInfo `json:"launch,omitempty"`
+	ResultKind string      `json:"result_kind,omitempty"`
+	Launch     *LaunchInfo `json:"launch,omitempty"`
 	Task
 	ProjectName   string          `json:"project_name,omitempty"`
 	ProjectNames  []string        `json:"project_names,omitempty"`

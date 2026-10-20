@@ -81,7 +81,7 @@ export function workStatus(task: Task) {
   if (task.launch?.state === 'cancelled') return 'Cancelled'
   if (task.status === 'blocked' || ['failed', 'interrupted'].includes(attempt || '')) return 'Needs attention'
   if (attempt === 'canceled' || attempt === 'cancelled') return 'Cancelled'
-  if (task.status === 'review') return 'Ready for review'
+  if (task.status === 'review') return task.result_kind === 'answer' && ['succeeded', 'completed'].includes(attempt || '') ? 'Answered' : 'Ready for review'
   if (task.status === 'doing') return 'Not running'
   return 'Not started'
 }
@@ -89,3 +89,5 @@ export function tasksForProject(tasks: Task[], projectId: string) {
   return tasks.filter((task) => task.project_id === projectId || task.project_ids?.includes(projectId) ||
     (projectId === 'default' && !task.project_id && !task.project_ids?.length))
 }
+
+export const agentDisplayName = (value?: string) => value?.startsWith('agent_') ? '@' + value.slice(6) : value || 'Agent'

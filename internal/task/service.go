@@ -262,6 +262,7 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 	}
 
 	return &TaskDetailResponse{
+		ResultKind:    resultKindForAttempt(classifyResult(activities), latestAttempt),
 		Launch:        s.launchInfo(ctx, id),
 		Task:          *t,
 		ProjectName:   projectName,
@@ -279,6 +280,19 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 
+	classifications := map[string]ResultClassification{}
+	if reader, ok := s.store.(interface {
+		LatestResultClassifications(context.Context, []string) (map[string]ResultClassification, error)
+	}); ok {
+		ids := make([]string, 0, len(tasks))
+		for _, t := range tasks {
+			ids = append(ids, t.ID)
+		}
+		classifications, err = reader.LatestResultClassifications(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("list task result classifications: %w", err)
+		}
+	}
 	// Cache project names to avoid duplicate lookups
 	projectNames := make(map[string]string)
 
@@ -310,6 +324,7 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 
 		latestAttempt, _ := s.store.GetLatestAttempt(ctx, t.ID)
 		items = append(items, &TaskItemResponse{
+			ResultKind:    resultKindForAttempt(classifications[t.ID], latestAttempt),
 			Task:          *t,
 			ProjectName:   pName,
 			ProjectNames:  pNames,

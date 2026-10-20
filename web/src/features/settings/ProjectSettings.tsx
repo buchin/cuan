@@ -13,6 +13,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
   onArchive?: (id: string) => Promise<void>
 }) {
   const { t } = useLanguage()
+  const isDefault = project.id === 'default'
   const values = (p: Project) => ({
     name: p.name, goal: String(p.metadata?.cuan_settings?.goal || ''),
     instructions: String(p.metadata?.cuan_settings?.instructions || ''),
@@ -49,7 +50,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
     }}>
       <div className="space-y-2">
         <label htmlFor="project-name" className="text-sm font-medium">{t('Project name')}</label>
-        <input id="project-name" className="field-control" value={form.name} required maxLength={120} disabled={busy} onChange={event => change('name', event.target.value)} />
+        <input id="project-name" className="field-control" value={form.name} required maxLength={120} disabled={busy || isDefault} onChange={event => change('name', event.target.value)} />
       </div>
       <div className="space-y-2">
         <label htmlFor="project-goal" className="text-sm font-medium">{t('Goal')}</label>
@@ -60,7 +61,8 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <textarea id="project-instructions" className="field-control min-h-28 resize-y py-3" rows={4} maxLength={4000} disabled={busy} value={form.instructions} onChange={event => change('instructions', event.target.value)} placeholder={t('Preferences, constraints, or context Cuan should remember.')} />
         <p className="text-xs text-muted-foreground">{t('Applies to new tasks. Existing tasks keep their original instructions.')}</p>
       </div>
-      <details className="border-t pt-2">
+      {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
+      {!isDefault && <details className="border-t pt-2">
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{t('Advanced')}</summary>
         <div className="space-y-4 pb-3 pt-2">
           <div className="space-y-2"><label htmlFor="project-repository" className="text-sm font-medium">{t('Repository URL')}</label>
@@ -70,7 +72,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
             <input id="project-branch" className="field-control" disabled={busy} maxLength={200} value={form.default_branch} placeholder={t('Use repository default')} onChange={event => change('default_branch', event.target.value)} /></div>
           <p className="text-xs leading-5 text-muted-foreground">{t('Leave the branch empty to use the repository default when connecting. A new connection is verified in a separate workspace. Existing tasks retain their original workspace, including when resumed.')}</p>
         </div>
-      </details>
+      </details>}
       {error && <div role="alert" className="text-sm text-destructive">{t(error)}
         {conflict && <button type="button" className="action-secondary mt-2" disabled={busy} onClick={async () => {
           if (!confirm(t('Discard your draft and reload saved settings?'))) return
@@ -87,7 +89,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <span role="status" className="text-xs text-muted-foreground">{t(notice || (dirty ? 'Unsaved changes' : ''))}</span>
       </div>
     </form>
-    {onArchive && !project.is_archived && <section className="border-t pt-5">
+    {onArchive && !isDefault && !project.is_archived && <section className="border-t pt-5">
       <h2 className="text-sm font-medium">{t('Archive project')}</h2>
       <p className="my-2 text-sm text-muted-foreground">{t('Hide this project from active projects. Your data stays available.')}</p>
       <button type="button" className="action-secondary" disabled={busy || dirty} onClick={async () => {

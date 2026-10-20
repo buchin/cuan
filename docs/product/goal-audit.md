@@ -9,29 +9,34 @@ does not establish the whole goal.
 
 ## Latest checkpoint — 2026-10-21
 
-Production is `98f8811`/schema25. Native installation/service supervision, isolated
-task worktrees, scoped push and missing-GitHub continuation have targeted actual
-process/Git/SQL evidence. Cancellation-aware recovery is deployed: old approvals
-and synthetic result reviews cannot undo a user cancellation. Actual rollback,
-read-only browser/assets and retained-data checks pass.
+Production and the dedicated Dracin test installation run `94ff5f3`/schema25.
+The owner explicitly accepted provider terms with optional interaction sharing
+OFF. The dedicated account completed native onboarding, and actual connection
+verification plus a Studio message both succeed using Sonnet. Auto model routing
+uses evidenced quota instead of the unavailable implicit Gemini default. Direct
+Studio connection, System appearance and the dedicated favicon are deployed.
+Production health, exact assets, responsive browser checks and retained data pass.
+The earlier consent/location blocker sections below are historical and superseded.
 
-The full objective remains unproven. An isolated native Cuan installation now
-exists on Dracin and the owner connected one dedicated Google account. Its
-interactive task remains live at the provider Terms of Service & Data Use screen;
-owner confirmation is pending. A separate minimal noninteractive CLI diagnostic
-returned the same provider location error as chat. Neither credentials being
-saved nor theme defaults establish completed first-run setup or working inference.
-Production GitHub OAuth App registration is still absent. Fixture inference is
-not a substitute for actual authenticated goal → approval → implementation →
-interruption → continuation → verified Git delivery.
-Do not resume the stopped experimental Docker/security probes. Historical sections
-below describe earlier releases and their findings at the time.
+The full objective remains open: fresh live OAuth automation from an empty account
+and actual approved implementation with controlled interruption/recovery are not
+proven by the successful reply or deterministic fixtures.
+
+Current work also addresses the owner's observed legacy Default project and
+project-task UX. Production's `default` project is still named cuan, bound to a
+repository, and its Git cache has no commit/ref despite a synced flag. A saved
+administrative task could not launch from that cache. Source fixes add explicit
+transactional Default separation, historical workspace compatibility, preparation
+of missing Git bases before execution, nonduplicated launch failure delivery,
+answer/result UX and Inbox Live Chat shortcuts. Real Git, PostgreSQL, targeted
+service and responsive browser evidence pass; live activation is pending.
+No production task or AI request has been replayed for verification.
 
 ## Current requirement audit
 
 | Requirement | Authoritative implementation/evidence | Current finding |
 | --- | --- | --- |
-| Connect AI from Studio without an agent-name/configuration form | StudioView + TeamView connectionOnly; direct-ai-connect browser evidence | Source implementation and separate-checkout browser/build tests pass; draft retained and execution requires explicit submission. Not deployed while the actual test task remains active |
+| Connect AI from Studio without an agent-name/configuration form | StudioView + TeamView connectionOnly; direct-ai-connect browser evidence | Deployed in 94ff5f3; fixtures retain the draft and require explicit submission. Dedicated-account verification and a real Studio reply succeed; fresh live OAuth wizard automation remains unproven. |
 | Accept a natural-language goal without requiring agent/project/task forms | Studio routes through durable Inbox; studio.go and studio_test.go | Implemented; existing targeted fixtures cover dispatch and identity |
 | Clarify ambiguity and obtain approval for consequential scope | workflow/coordinator.md; inbox_approval.go; inbox_delegation.go | Structured proposals now render an exact scope and persist a same-owner/agent/conversation approval snapshot; canonical dispatch needs no model rewrite. Direct unstructured intent still relies on model interpretation; deployed in ca9028f; clean fixture and read-only production verification pass |
 | Preserve original goal, project and authorization across execution | SourceRoomID/SourceMessageID, stored task instructions, task-bound reporting capability | Direct and structured-approved work retain the original request; structured scope snapshots, digests and task-bound capability are verified by plan-approval and recovery fixtures |

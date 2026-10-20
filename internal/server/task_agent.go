@@ -102,8 +102,7 @@ For a greeting/question with no file changes, use --state review --result-kind a
 Use --state review when implementation still needs review.
 For implementation, file changes or uncertain classification, use --result-kind implementation (the default).
 Done requires actual completed work, verification evidence and all declared criteria completed.
-For a greeting/question, state that it was answered directly and no files/tests
-were needed. Never claim unperformed work. For a blocker use --state blocked
+For a greeting/question, put the actual useful answer in --summary, not a meta-description such as "Responded to the message". Explain in --complete-note that no files/tests were needed. Never claim unperformed work. For a blocker use --state blocked
 with summary and concrete evidence instead.
 A final report closes this session automatically after output drains.
 Human instructions are read-only. Never print the private

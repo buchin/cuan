@@ -6,7 +6,7 @@ import { Search } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
-import { relativeTime, tasksForProject, workStatus, taskRef } from '../tasks/task-ui'
+import { relativeTime, tasksForProject, workStatus, taskRef, agentDisplayName } from '../tasks/task-ui'
 
 export function ProjectWorkView({
   project,
@@ -34,10 +34,9 @@ export function ProjectWorkView({
   const scoped = tasksForProject(tasks, project.id)
   const filters = [
     { id: 'all', label: 'All', matches: (_task: Task) => true },
-    { id: 'active', label: 'Working', matches: (task: Task) => ['Working', 'Waiting to start'].includes(workStatus(task)) },
-    { id: 'attention', label: 'Needs attention', matches: (task: Task) => ['Needs attention', 'Not running'].includes(workStatus(task)) },
-    { id: 'review', label: 'Review', matches: (task: Task) => workStatus(task) === 'Ready for review' },
-    { id: 'completed', label: 'Completed', matches: (task: Task) => workStatus(task) === 'Completed' },
+    { id: 'active', label: 'Active', matches: (task: Task) => ['Working', 'Waiting to start', 'Not started'].includes(workStatus(task)) },
+    { id: 'attention', label: 'Needs attention', matches: (task: Task) => ['Needs attention', 'Not running', 'Ready for review'].includes(workStatus(task)) },
+    { id: 'completed', label: 'Completed', matches: (task: Task) => ['Completed', 'Answered'].includes(workStatus(task)) },
   ]
   const summaryFor = (task: Task) => {
     const text = (workStatus(task) === 'Completed' ? task.complete_note || task.summary : task.launch?.safe_error || task.summary) || ''
@@ -94,7 +93,7 @@ export function ProjectWorkView({
         </label>
       </div>
       <div role="group" aria-label={t('Task filters')} className="flex shrink-0 flex-wrap gap-x-3 border-b px-3 sm:px-5">
-        {filters.map(item => <button key={item.id} type="button" aria-pressed={filter === item.id}
+        {filters.filter(item => item.id === 'all' || item.id === filter || searched.some(item.matches)).map(item => <button key={item.id} type="button" aria-pressed={filter === item.id}
           className={`min-h-11 border-b-2 text-xs ${filter === item.id ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           onClick={() => setFilter(item.id)}>{t(item.label)} <span className="ml-1 tabular-nums">{searched.filter(item.matches).length}</span></button>)}
       </div>
@@ -132,13 +131,13 @@ export function ProjectWorkView({
             >
               <span className="min-w-0 flex-1">
                 <span className="line-clamp-2 break-words text-sm font-medium leading-5">{item.title}</span>
-                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                {summaryFor(item) && <span className="mt-1 line-clamp-1 break-words text-xs leading-5 text-muted-foreground">{summaryFor(item)}</span>}
+                <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${['Needs attention', 'Not running'].includes(workStatus(item)) ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : workStatus(item) === 'Working' ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>{t(workStatus(item))}</span>
-                  <span className="tabular-nums">{taskRef(item.id)}</span>
-                  {item.latest_attempt?.agent_name && <span>{item.latest_attempt.agent_name}</span>}
+                                    {item.latest_attempt?.agent_name && <span>{agentDisplayName(item.latest_attempt.agent_name)}</span>}
                   <time className="sm:ml-auto" dateTime={item.updated_at} title={new Date(item.updated_at).toLocaleString()}>{t(relativeTime(item.updated_at))}</time>
                 </span>
-                {summaryFor(item) && <span className="mt-1.5 line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{summaryFor(item)}</span>}
+
               </span>
             </Link>
             </ItemActions>

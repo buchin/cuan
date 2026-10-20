@@ -5,6 +5,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
 import { Search, Bot, User, Archive } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -61,6 +62,7 @@ export function InboxSubPanel({
   searchQuery = '',
   onSearchChange,
 }: InboxSubPanelProps) {
+  const navigate = useNavigate()
   const archive = useArchivedItems('conversation')
   const [showArchived, setShowArchived] = useState(false)
   const clock = useConnectionClock(agents)
@@ -123,6 +125,7 @@ export function InboxSubPanel({
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
       <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1">
         {/* Search Bar */}
+        <ItemActions label="Inbox" actions={[{ label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') }]}>
         <div className="relative">
           <Search className="absolute left-2.5 top-3.5 h-3.5 w-3.5 text-muted-foreground" />
           <input
@@ -134,6 +137,8 @@ export function InboxSubPanel({
             className="w-full min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search border border-transparent text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
+
+        </ItemActions>
 
         {/* Filter Tabs (All, Agents, Customers) */}
         <div className="flex gap-2 text-sm" role="group" aria-label={t('Conversation filters')}>
@@ -199,7 +204,11 @@ export function InboxSubPanel({
           </div>
         ) : filteredContacts.length === 0 ? (
           <div className="p-6 text-center text-xs text-muted-foreground">
-            {t(showArchived && !query.trim() ? 'No archived conversations.' : 'No matching conversations.')}
+            {t(!query.trim() && !showArchived && activeTab === 'customers' ? 'No customer conversations yet.' : showArchived && !query.trim() ? 'No archived conversations.' : 'No matching conversations.')}
+            {!query.trim() && !showArchived && customerCount === 0 && activeTab !== 'agents' && <div className="mt-3 space-y-2">
+              <p>{t('Add live chat to your website to receive messages here.')}</p>
+              <Link className="action-secondary inline-flex" to="/settings/integrations/live-chat">{t('Connect Live Chat')}</Link>
+            </div>}
           </div>
         ) : (
           filteredContacts.map((contact) => {
