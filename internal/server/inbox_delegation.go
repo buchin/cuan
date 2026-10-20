@@ -17,7 +17,7 @@ import (
 )
 
 const inboxDelegationInstruction = `Execution is available through application-managed delegation, not native shell tools in chat.
-For approved work end your reply with exactly ONE cuan-delegate fenced JSON block:
+A clear user instruction to perform work already authorizes its stated scope; no separate task/run wording or planning turn is required. For approved work end your reply with exactly ONE cuan-delegate fenced JSON block:
 ` + "```cuan-delegate\n{\"title\":\"Audit project security\",\"description\":\"Approved scope, constraints and acceptance criteria, self-contained\",\"project_id\":\"registered ID\",\"authorization_message_id\":\"ID of the user's explicit execution instruction or approval\"}\n```" + `
 For a new product/project that has no suitable registered project, omit project_id and supply project_name (up to100 characters). Only do this after the user authorizes that work. Reuse a registered project when appropriate; use Default for general work. Never create a project for a greeting or an unapproved plan.
 The application creates and starts the task with this conversation's agent and reports actual status here.
@@ -135,6 +135,9 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	}
 	if authorization == nil || !authenticatedApproval {
 		return fail("approval must come from a user message in this conversation")
+	}
+	if decision := decodeInboxPlanDecision(authorization.Content); decision != nil && decision.Action == "defer" {
+		return fail("deferring a plan does not authorize execution")
 	}
 	if plan := decodeApprovedInboxPlan(authorization.Content); plan != nil && d.TaskID == "" {
 		expected := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName}

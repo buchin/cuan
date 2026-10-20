@@ -49,6 +49,7 @@ type inboxApprovalPlan struct {
 	ProjectName string `json:"project_name,omitempty"`
 }
 type approvedInboxPlan struct {
+	Action    string            `json:"action,omitempty"`
 	MessageID string            `json:"message_id"`
 	Plan      inboxApprovalPlan `json:"plan"`
 }
@@ -100,7 +101,7 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 	}
 	return nil, errors.New("This message has no executable plan; ask the agent to clarify it")
 }
-func decodeApprovedInboxPlan(content string) *approvedInboxPlan {
+func decodeInboxPlanDecision(content string) *approvedInboxPlan {
 	if !strings.HasPrefix(content, attachmentEnvelope) {
 		return nil
 	}
@@ -110,6 +111,14 @@ func decodeApprovedInboxPlan(content string) *approvedInboxPlan {
 	}
 	return m.Approval
 }
+func decodeApprovedInboxPlan(content string) *approvedInboxPlan {
+	p := decodeInboxPlanDecision(content)
+	if p != nil && p.Action != "" && p.Action != "approve" {
+		return nil
+	}
+	return p
+}
+
 func approvedPlanDelegation(plan *approvedInboxPlan, authorization string) string {
 	d := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName, AuthorizationID: authorization}
 	raw, _ := json.Marshal(d)
@@ -123,7 +132,7 @@ func (s *Server) inboxApprovedPlan(ctx context.Context, q db.InboxRequest) (*app
 	}
 	for _, m := range messages {
 		if m.ID == q.MessageID && m.AuthorType == "user" {
-			return decodeApprovedInboxPlan(m.Content), nil
+			return decodeInboxPlanDecision(m.Content), nil
 		}
 	}
 	return nil, nil

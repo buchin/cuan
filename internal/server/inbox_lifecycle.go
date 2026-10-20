@@ -220,8 +220,14 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						if planErr != nil {
 							failure = "Could not read the approved plan. No new execution was started."
 						} else if plan != nil {
-							step("approved_plan", "Starting the exact plan approved in this conversation.")
-							output = approvedPlanDelegation(plan, q.MessageID)
+							if plan.Action != "defer" {
+								step("approved_plan", "Starting the exact plan approved in this conversation.")
+							}
+							if plan.Action == "defer" {
+								output = "The plan is saved for later. No work was started by this action. You can approve it here when you are ready."
+							} else {
+								output = approvedPlanDelegation(plan, q.MessageID)
+							}
 						} else {
 							output, failure = s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
 						}

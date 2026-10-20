@@ -15,6 +15,12 @@ import (
 )
 
 func TestInboxPlanApprovalStartsPersistedScopeOnceWithoutRewriting(t *testing.T) {
+	runInboxPlanApproval(t, false)
+}
+func TestInboxPlanDeferralNeverAuthorizesWorkAndCanBeApprovedLater(t *testing.T) {
+	runInboxPlanApproval(t, true)
+}
+func runInboxPlanApproval(t *testing.T, deferFirst bool) {
 	s, _, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
@@ -75,7 +81,46 @@ printf '%s' '` + string(response) + `'
 	if got := s.conversationalApprovalID(ctx, first.RoomID, "What does this change?"); got != "" {
 		t.Fatal("question treated as consent")
 	}
-	approved := post(map[string]string{"request_id": db.GenerateUUID(), "message": "Gas"})
+	approvalPayload := map[string]string{"request_id": db.GenerateUUID(), "message": "Gas"}
+	if deferFirst {
+		deferred := post(map[string]string{"request_id": db.GenerateUUID(), "message": "Not now", "approve_message_id": first.ReplyID, "plan_action": "defer"})
+		waitInboxState(t, s, deferred.RoomID, deferred.RequestID, "completed")
+		repeated := post(map[string]string{"request_id": db.GenerateUUID(), "message": "Not now", "approve_message_id": first.ReplyID, "plan_action": "defer"})
+		if repeated.RequestID != deferred.RequestID || repeated.MessageID != deferred.MessageID {
+			t.Fatal("deferral duplicated")
+		}
+		tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+		if len(tasks) != 0 {
+			t.Fatal("deferral started work")
+		}
+		if got := s.conversationalApprovalID(ctx, first.RoomID, "Gas"); got != "" {
+			t.Fatal("consent attached across intervening messages")
+		}
+		stored, _ := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, deferred.RoomID)
+		for _, q := range stored {
+			if q.RequestID == deferred.RequestID {
+				deferred = q
+			}
+		}
+		action := inboxDelegation{Title: plan.Title, Description: plan.Description, ProjectID: plan.ProjectID, AuthorizationID: deferred.MessageID}
+		raw, _ := json.Marshal(action)
+		if out := s.applyInboxDelegation(ctx, deferred, "```cuan-delegate\n"+string(raw)+"\n```"); !strings.Contains(out, "does not authorize") {
+			t.Fatal(out)
+		}
+		messages, _ := s.getFormattedMessagesResult(ctx, first.RoomID, "")
+		found := false
+		for _, m := range messages {
+			if m.UUID == first.ReplyID {
+				found = m.PlanDeferred && !m.ApprovalAccepted
+			}
+		}
+		if !found {
+			t.Fatal("deferral state lost")
+		}
+		approvalPayload["message"] = "Approve this plan"
+		approvalPayload["approve_message_id"] = first.ReplyID
+	}
+	approved := post(approvalPayload)
 	waitInboxState(t, s, approved.RoomID, approved.RequestID, "completed")
 	tasks, _ = s.taskSvc.ListTasks(ctx, task.TaskFilter{})
 	if len(tasks) != 1 {
@@ -101,6 +146,12 @@ printf '%s' '` + string(response) + `'
 	for _, q := range stored {
 		if q.RequestID == approved.RequestID {
 			approved = q
+		}
+	}
+	if deferFirst {
+		raw, _ := json.Marshal(map[string]string{"request_id": db.GenerateUUID(), "message": "Not now", "approve_message_id": first.ReplyID, "plan_action": "defer"})
+		if w := call("POST", "/api/v1/chat/conversations/agent_lifecycle/messages", string(raw)); w.Code != 409 {
+			t.Fatal("deferral claimed to stop approved work", w.Code)
 		}
 	}
 	// A later model response cannot substitute different scope for this approval.

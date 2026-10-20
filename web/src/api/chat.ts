@@ -34,6 +34,8 @@ export interface InboxTaskDraft {
 }
 
 export interface ChatMessage {
+  plan_deferred?: boolean
+  plan_defer_request_id?: string
   approval_accepted?: boolean
   approval_request_id?: string
   approval_title?: string
@@ -133,6 +135,7 @@ export const chatApi = {
     requestId?: string,
     attachmentIds?: string[],
     approveMessageId?: string,
+    planAction?: 'approve' | 'defer',
   ): Promise<{ message: ChatMessage; agent_reply?: ChatMessage }> => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15000)
@@ -147,6 +150,7 @@ export const chatApi = {
           request_id: requestId,
           attachment_ids: attachmentIds,
           approve_message_id: approveMessageId,
+          plan_action: planAction,
           message,
           content: message,
           author_type: 'user',

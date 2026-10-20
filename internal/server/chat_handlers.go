@@ -51,29 +51,31 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
-	ApprovalRequestID string                   `json:"approval_request_id,omitempty"`
-	ApprovalAccepted  bool                     `json:"approval_accepted,omitempty"`
-	ApprovalPlan      *inboxApprovalPlan       `json:"approval_plan,omitempty"`
-	ApprovalTitle     string                   `json:"approval_title,omitempty"`
-	Attachments       []conversationAttachment `json:"attachments,omitempty"`
-	ID                int64                    `json:"id"`
-	UUID              string                   `json:"uuid,omitempty"`
-	ChatSessionUUID   string                   `json:"chat_session_uuid,omitempty"`
-	RoomID            string                   `json:"room_id,omitempty"`
-	SenderType        string                   `json:"sender_type"` // "visitor" or "operator"
-	AuthorType        string                   `json:"author_type"` // "user", "agent", "system"
-	AuthorName        string                   `json:"author_name"`
-	Message           string                   `json:"message"`
-	Content           string                   `json:"content"`
-	Product           string                   `json:"product,omitempty"`
-	AttachmentURL     string                   `json:"attachment_url,omitempty"`
-	AttachmentType    string                   `json:"attachment_type,omitempty"`
-	AttachmentName    string                   `json:"attachment_name,omitempty"`
-	AttachmentSize    int64                    `json:"attachment_size,omitempty"`
-	HasAttachment     bool                     `json:"has_attachment,omitempty"`
-	ActionCard        *AgentActionCard         `json:"action_card,omitempty"`
-	TaskDraft         *InboxTaskDraft          `json:"task_draft,omitempty"`
-	CreatedAt         time.Time                `json:"created_at"`
+	PlanDeferred       bool                     `json:"plan_deferred,omitempty"`
+	PlanDeferRequestID string                   `json:"plan_defer_request_id,omitempty"`
+	ApprovalRequestID  string                   `json:"approval_request_id,omitempty"`
+	ApprovalAccepted   bool                     `json:"approval_accepted,omitempty"`
+	ApprovalPlan       *inboxApprovalPlan       `json:"approval_plan,omitempty"`
+	ApprovalTitle      string                   `json:"approval_title,omitempty"`
+	Attachments        []conversationAttachment `json:"attachments,omitempty"`
+	ID                 int64                    `json:"id"`
+	UUID               string                   `json:"uuid,omitempty"`
+	ChatSessionUUID    string                   `json:"chat_session_uuid,omitempty"`
+	RoomID             string                   `json:"room_id,omitempty"`
+	SenderType         string                   `json:"sender_type"` // "visitor" or "operator"
+	AuthorType         string                   `json:"author_type"` // "user", "agent", "system"
+	AuthorName         string                   `json:"author_name"`
+	Message            string                   `json:"message"`
+	Content            string                   `json:"content"`
+	Product            string                   `json:"product,omitempty"`
+	AttachmentURL      string                   `json:"attachment_url,omitempty"`
+	AttachmentType     string                   `json:"attachment_type,omitempty"`
+	AttachmentName     string                   `json:"attachment_name,omitempty"`
+	AttachmentSize     int64                    `json:"attachment_size,omitempty"`
+	HasAttachment      bool                     `json:"has_attachment,omitempty"`
+	ActionCard         *AgentActionCard         `json:"action_card,omitempty"`
+	TaskDraft          *InboxTaskDraft          `json:"task_draft,omitempty"`
+	CreatedAt          time.Time                `json:"created_at"`
 }
 
 // LiveChatSession stores visitor session metadata for the Dojo live chat widget.
@@ -924,9 +926,18 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		Content          string   `json:"content"`
 		RequestID        string   `json:"request_id"`
 		ApproveMessageID string   `json:"approve_message_id"`
+		PlanAction       string   `json:"plan_action"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload) != nil {
 		respondJSONError(w, 400, "Invalid request")
+		return
+	}
+	if payload.PlanAction != "" && payload.PlanAction != "approve" && payload.PlanAction != "defer" {
+		respondJSONError(w, 400, "Unknown plan action")
+		return
+	}
+	if payload.PlanAction != "" && payload.ApproveMessageID == "" {
+		respondJSONError(w, 400, "Choose a plan for this action")
 		return
 	}
 	text := strings.TrimSpace(payload.Message)
@@ -978,7 +989,27 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			return
 		}
 		payload.RequestID = delegationMessageID("approve-plan:" + resolved.RoomID + ":" + plan.MessageID)
-		raw, _ := json.Marshal(attachmentMessage{Text: "Approved: " + plan.Plan.Title, Approval: plan})
+		decisionText := "Approved: " + plan.Plan.Title
+		if payload.PlanAction == "defer" {
+			messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), resolved.RoomID)
+			if err != nil {
+				respondJSONError(w, 503, "Could not verify the plan status")
+				return
+			}
+			for _, m := range messages {
+				if m.AuthorType == "user" {
+					if decision := decodeApprovedInboxPlan(m.Content); decision != nil && decision.MessageID == plan.MessageID {
+						respondJSONError(w, 409, "This plan is already approved. Use its work controls to stop active execution.")
+						return
+					}
+				}
+			}
+
+			payload.RequestID = delegationMessageID("defer-plan:" + resolved.RoomID + ":" + plan.MessageID)
+			plan.Action = "defer"
+			decisionText = "Not now: " + plan.Plan.Title
+		}
+		raw, _ := json.Marshal(attachmentMessage{Text: decisionText, Approval: plan})
 		text = attachmentEnvelope + string(raw)
 	}
 	now := time.Now().UTC()
@@ -1198,10 +1229,15 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 	}
 
 	approved := map[string]bool{}
+	deferred := map[string]bool{}
 	for _, m := range rawMsgs {
 		if m.AuthorType == "user" {
-			if p := decodeApprovedInboxPlan(m.Content); p != nil {
-				approved[p.MessageID] = true
+			if p := decodeInboxPlanDecision(m.Content); p != nil {
+				if p.Action == "defer" {
+					deferred[p.MessageID] = true
+				} else {
+					approved[p.MessageID] = true
+				}
 			}
 		}
 	}
@@ -1244,20 +1280,27 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			UUID:              m.ID,
 			ApprovalRequestID: approvalRequestID,
 			ApprovalAccepted:  approved[m.ID],
-			ChatSessionUUID:   roomID,
-			RoomID:            roomID,
-			SenderType:        senderType,
-			AuthorType:        m.AuthorType,
-			AuthorName:        m.AuthorName,
-			Message:           content,
-			Content:           content,
-			Product:           product,
-			ActionCard:        actionCard,
-			TaskDraft:         draft,
-			ApprovalTitle:     approvalTitle,
-			ApprovalPlan:      approvalPlan,
-			Attachments:       attached,
-			CreatedAt:         m.CreatedAt,
+			PlanDeferred:      deferred[m.ID],
+			PlanDeferRequestID: func() string {
+				if approvalPlan != nil {
+					return delegationMessageID("defer-plan:" + roomID + ":" + m.ID)
+				}
+				return ""
+			}(),
+			ChatSessionUUID: roomID,
+			RoomID:          roomID,
+			SenderType:      senderType,
+			AuthorType:      m.AuthorType,
+			AuthorName:      m.AuthorName,
+			Message:         content,
+			Content:         content,
+			Product:         product,
+			ActionCard:      actionCard,
+			TaskDraft:       draft,
+			ApprovalTitle:   approvalTitle,
+			ApprovalPlan:    approvalPlan,
+			Attachments:     attached,
+			CreatedAt:       m.CreatedAt,
 		}
 	}
 

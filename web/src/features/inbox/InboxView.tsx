@@ -111,6 +111,7 @@ export function InboxView({
     id: string
     attachmentIds?: string[]
     approveMessageId?: string
+    planAction?: 'approve' | 'defer'
   } | null>(null)
   const activeConvRef = useRef('')
   activeConvRef.current =
@@ -372,11 +373,11 @@ export function InboxView({
     requests.map((q) => q.request_id + q.state).join(','),
   ])
 
-  const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string) => {
+  const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer') => {
     if (!activeContact || sending || uploads.busy || retryCount >= 3) return
     const convId = activeContact.conversation_id || activeContact.id
     const pending = pendingRef.current
-    const text = pending?.convId === convId ? pending.text : approveMessageId ? t('Approve this plan') : inputMessage.trim()
+    const text = pending?.convId === convId ? pending.text : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
     if (!text && !uploads.items.length && !pending?.attachmentIds?.length)
       return
     const request =
@@ -388,6 +389,7 @@ export function InboxView({
             id: approvalRequestId || crypto.randomUUID(),
             attachmentIds: approveMessageId ? [] : uploads.items.map((a) => a.id),
             approveMessageId,
+            planAction,
           }
     // Save before the first network byte; reload/retry reuses the same key.
     try {
@@ -415,6 +417,7 @@ export function InboxView({
         request.id,
         request.attachmentIds,
         request.approveMessageId,
+        request.planAction,
       )
       if (!request.approveMessageId) uploads.clear()
       if (unsentDrafts.current[convId]?.trim() === request.text)
@@ -790,7 +793,7 @@ export function InboxView({
                     >
                       {msg.approval_title && (
                         <p className="mb-2 text-xs font-medium">
-                          {t(msg.approval_accepted ? 'Approved' : 'Needs approval')}
+                          {t(msg.approval_accepted ? 'Approved' : msg.plan_deferred ? 'Saved for later' : 'Needs approval')}
                         </p>
                       )}
                       {msg.attachments?.map((a) => (
@@ -816,9 +819,20 @@ export function InboxView({
                         <div className="mt-3 space-y-2 border-l-2 border-primary/30 pl-3">
                           <p className="text-sm font-medium">{msg.approval_plan.title}</p>
                           <p className="whitespace-pre-wrap break-words text-sm">{msg.approval_plan.description}</p>
-                          <Button size="sm" disabled={msg.approval_accepted || sending || uploads.busy || retryCount >= 3 || !!pendingRef.current} onClick={() => handleSendMessage(msg.uuid, msg.approval_request_id)}>
-                            {t(msg.approval_accepted ? 'Approved' : 'Approve and start')}
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" className="min-h-11" disabled={msg.approval_accepted || sending || uploads.busy || retryCount >= 3 || !!pendingRef.current} onClick={() => handleSendMessage(msg.uuid, msg.approval_request_id)}>
+                              {t(msg.approval_accepted ? 'Approved' : 'Approve and start')}
+                            </Button>
+                            {!msg.approval_accepted && <>
+                              <Button size="sm" variant="outline" className="min-h-11" disabled={sending || !!pendingRef.current} onClick={() => {
+                                setInputMessage(current => (current ? current + '\n\n' : '') + t('Changes to this plan') + ' — ' + msg.approval_plan!.title + ': ')
+                                textareaRef.current?.focus()
+                              }}>{t('Change plan')}</Button>
+                              <Button size="sm" variant="ghost" className="min-h-11" disabled={msg.plan_deferred || sending || uploads.busy || retryCount >= 3 || !!pendingRef.current} onClick={() => handleSendMessage(msg.uuid, msg.plan_defer_request_id, 'defer')}>
+                                {t(msg.plan_deferred ? 'Saved for later' : 'Not now')}
+                              </Button>
+                            </>}
+                          </div>
                         </div>
                       )}
 

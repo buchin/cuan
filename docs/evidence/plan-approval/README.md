@@ -41,5 +41,32 @@ files match /opt/cuan/backups/plan-approval-release. Schema24 and disabled autom
 migration remain unchanged. Previous release: 0071835c4c6f8e7a25f6ef549e23b6570a2d32d9.
 See production.json. Existing CSS syntax/chunk-size build warnings remain.
 
-Additional Telegram-style choice actions are a user suggestion, not shipped as
-part of this release. This release implements the concrete approval action only.
+## Optional choice actions follow-up (not deployed yet)
+
+Added Change plan (composer reference/focus, no send) and Not now (persisted,
+idempotent deferral, no provider/task launch). An approved task cannot be deferred
+through this action; use actual work controls. Deferrals cannot authorize execution.
+Browser fixtures verify all three actions at 390/820/1440, preserved drafts and
+focus, 44px minimum touch height, saved deferral and subsequent approval. Backend
+fixtures verify repeated deferral, no task/provider call, rejected use as consent,
+later approval and refusal to defer already-approved work.
+
+The structured approval → execution → SIGKILL → progress checkpoint → same-task
+revision → verified result fixture now passes as one integrated path, with one
+artifact creation, two attempts and one final coordinator outcome. Direct explicit
+authorization remains supported by its existing fixture.
+
+Read-only comparison of Fural's task create page confirms it calls createTask and
+navigates with spawn/autostart=1 for a selected agent, without a mandatory plan
+step. Cuan likewise keeps proposals optional; the choice actions are only for
+conversations needing a decision.
+
+## Direct execution alignment (pending release)
+
+Coordinator guidance now explicitly treats a clear work instruction as authority
+for that stated scope, without requiring “create task/run agent” words or another
+planning turn. Implementation planning stays internal. Proposals remain optional
+for ambiguity, additional scope or consequential undecided actions.
+A fake-provider fixture sends an ordinary read-only audit instruction and verifies
+single-turn delegation, progress/result, identity and idempotency. This validates
+application plumbing and delivery of guidance, not universal model intent accuracy.

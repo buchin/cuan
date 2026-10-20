@@ -1,12 +1,26 @@
-## Approve a plan in Inbox
+## Optional decisions in Inbox
 
 Cuan defaults to English. Settings can explicitly select another supported
 language or Auto; saved preferences are preserved.
+
+A separate plan is optional. A clear instruction that already authorizes work
+can start it directly. Questions stay conversational; ambiguity calls for a
+focused question. The actions below appear only when a decision is needed.
 
 Describe your goal in Studio or an agent conversation. When the agent proposes
 work, read the scope and limits displayed below its reply, then choose **Approve
 and start**. The button changes to **Approved** when the approval is accepted.
 You can keep an unsent draft in the composer while approving a plan.
+
+**Change plan** focuses the composer and appends a reference to the proposal,
+preserving your draft. Add the changes you want and send when ready; clicking
+that button alone sends nothing and launches no work.
+
+**Not now** saves a deferral in the conversation without calling the provider or
+starting work. Its state survives reload; you can still approve that proposal
+later. Repeated clicks reuse the same saved deferral. Deferral is not approval
+and cannot authorize delegation. Once approved, use work controls to stop active
+execution; Not now does not cancel or pause an approved task.
 
 An unambiguous short reply such as “go ahead”, “approve”, “Gas” or “setuju” can
 also approve the immediately preceding structured plan. An intervening message,
@@ -29,7 +43,7 @@ remain notifications and have no execution button.
 
 The authenticated conversation message endpoint accepts `approve_message_id`,
 selecting a completed agent proposal in the same owner/agent/conversation scope.
-The client cannot submit a replacement plan. The server assigns a stable request
+The optional `plan_action` is `approve` (default) or `defer`; unknown actions are rejected. The client cannot submit a replacement plan. The server assigns a stable request
 ID to that proposal and saves its scope in the private user-message envelope.
 Raw envelope injection is rejected. Ordinary history shows the readable approval
 text, never the envelope. No database migration is required.

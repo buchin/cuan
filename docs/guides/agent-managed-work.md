@@ -30,6 +30,11 @@ Tell an agent what you want to achieve and which project it belongs to. For exam
 
 > Check the Cuan repository for security issues. Create the work, run a read-only audit, and report the findings here. Do not change files or deploy.
 
+A clear instruction to perform work starts it directly; you do not need to say
+“create a task”, “run an agent”, or approve another planning step. The agent plans
+implementation internally. It asks only about unresolved ambiguity, proposed
+new scope or a consequential decision that you have not authorized.
+
 The agent can discuss a plan first when the scope needs agreement. Reply naturally
 when you want it to proceed. Once you approve a concrete plan, you do not need to
 fill task forms, choose a runner or repeatedly approve the same scope.
@@ -47,9 +52,10 @@ are internal and are not prerequisites for using Cuan. Runtime policies are
 versioned in `internal/workflow/coordinator.md` and `developer.md` and embedded in
 the respective agent instructions.
 
-For substantial work the coordinator presents outcomes, task order, dependencies,
-acceptance criteria, risks, deployment/migration gates and exclusions before
-asking for approval. User experience and documentation are acceptance criteria.
+When an undecided scope or consequential action requires approval, the coordinator
+presents the outcome, relevant dependencies, acceptance criteria, risks, gates
+and exclusions needed for that decision. Substantial work alone is not a reason
+to require another approval. User experience and documentation are acceptance criteria.
 After approval the coordinator manages execution, evidence review and corrections
 within scope. It asks for a user decision for changed scope or external blockers.
 Individual tasks can be Done without a human Accept action. Overall sprint

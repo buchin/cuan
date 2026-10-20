@@ -3,6 +3,9 @@
     {
       "width": 390,
       "exactScopeVisible": true,
+      "changePlanPreservesDraftAndFocus": true,
+      "deferralAction": true,
+      "minimumTouchHeight44": true,
       "approveAction": true,
       "stableRequestId": true,
       "approvedButtonDisabled": true,
@@ -12,6 +15,9 @@
     {
       "width": 820,
       "exactScopeVisible": true,
+      "changePlanPreservesDraftAndFocus": true,
+      "deferralAction": true,
+      "minimumTouchHeight44": true,
       "approveAction": true,
       "stableRequestId": true,
       "approvedButtonDisabled": true,
@@ -21,6 +27,9 @@
     {
       "width": 1440,
       "exactScopeVisible": true,
+      "changePlanPreservesDraftAndFocus": true,
+      "deferralAction": true,
+      "minimumTouchHeight44": true,
       "approveAction": true,
       "stableRequestId": true,
       "approvedButtonDisabled": true,
