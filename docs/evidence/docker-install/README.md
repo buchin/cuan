@@ -62,3 +62,23 @@ public TLS, arbitrary external-effect recovery or native provider-session resume
 was tested. The full product goal stays open while turnkey container AI execution
 is unresolved. Dependency audit and bundle-size warnings from the build are
 separate follow-up work; this run does not claim they were resolved.
+
+## Default Docker sandbox policy probe
+
+A follow-up actual container probe installed Alpine Bubblewrap in a disposable
+`alpine:3.20` container, then ran the native sandbox primitives as a non-root user
+with default Docker security policy. The container had no added capabilities,
+custom security options or privileged mode. Network host mode was used for
+package installation; it did not change the tested namespace security policy.
+Bubblewrap exited1 before starting the shell: namespace creation was denied.
+The same host passes the native service-user sandbox check. This establishes a
+container policy constraint on this host, not a universal claim about every
+Docker installation or a successful AI runtime. Raw result: [sandbox-policy.json](sandbox-policy.json).
+
+The unit and daemon were stopped, the container was removed, its private network
+namespace mount unmounted, and private daemon caches removed. Production health
+passed;6.04GiB remained free. No host policy/sysctl or production service changed.
+Installing additional packages alone is therefore insufficient to close the
+Docker AI gap. The release needs an explicit choice between a native execution
+path and designing/verifying a separate supported container execution boundary.
+Neither unrestricted fallback nor privileged containers were used.

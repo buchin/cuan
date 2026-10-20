@@ -120,3 +120,17 @@ negative/success contracts pass. README/onboarding now use this single command.
 See `docs/evidence/native-runtime-setup/`. This closes the split-prerequisite
 setup gap, not the unsupported stock Docker AI runtime or a fresh-provider
 inference verification. The full goal remains open.
+
+## Actual container namespace constraint
+
+The default Docker sandbox gap is now reproduced, not merely inferred from
+missing binaries. Actual Alpine Bubblewrap under a non-root container user and
+standard security options exits1 at namespace creation; the same host supports
+the native service-user sandbox. See
+`docs/evidence/docker-install/sandbox-policy.json`. All probe resources were
+stopped/cleaned and production health passed. Installing the CLI/Bubblewrap in
+the image alone will not close this gap. The user was asked whether first-release
+AI execution must be turnkey through Docker or native Linux is the official
+execution path while container AI follows later. This deployment support decision
+is pending; it has not been inferred from elapsed time. No scope was removed and
+the full goal remains active.
