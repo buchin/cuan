@@ -1299,6 +1299,9 @@ func (s *Server) routes() {
 		cr.Post("/{id}/execute", s.handleExecuteBatchCampaign)
 	})
 
+	s.router.Get("/api/v1/item-preferences", s.handleItemPreferences)
+	s.router.Patch("/api/v1/item-preferences", s.handleItemPreferences)
+
 	s.router.Route("/api/v1/provider-accounts", func(ar chi.Router) {
 		ar.Get("/", s.handleListProviderAccounts)
 		ar.Post("/", s.handleCreateProviderAccount)

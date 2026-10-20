@@ -82,7 +82,7 @@ export function workStatus(task: Task) {
   if (task.status === 'blocked' || ['failed', 'interrupted'].includes(attempt || '')) return 'Needs attention'
   if (attempt === 'canceled' || attempt === 'cancelled') return 'Cancelled'
   if (task.status === 'review') return 'Ready for review'
-  if (task.status === 'doing') return 'Working'
+  if (task.status === 'doing') return 'Not running'
   return 'Not started'
 }
 export function tasksForProject(tasks: Task[], projectId: string) {

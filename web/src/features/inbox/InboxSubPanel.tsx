@@ -1,3 +1,5 @@
+import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
+import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
@@ -59,6 +61,8 @@ export function InboxSubPanel({
   searchQuery = '',
   onSearchChange,
 }: InboxSubPanelProps) {
+  const archive = useArchivedItems('conversation')
+  const [showArchived, setShowArchived] = useState(false)
   const clock = useConnectionClock(agents)
   const now = suppliedNow ?? clock
   const { t, language } = useLanguage()
@@ -82,6 +86,7 @@ export function InboxSubPanel({
   const customerCount = contacts.filter((c) => c.type === 'customer').length
 
   const filteredContacts = contacts.filter((c) => {
+    if (archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at) !== showArchived) return false
     if (activeTab === 'agents' && c.type !== 'agent') return false
     if (activeTab === 'customers' && c.type !== 'customer') return false
     if (query.trim()) {
@@ -130,6 +135,7 @@ export function InboxSubPanel({
           />
         </div>
 
+        <button type="button" className="min-h-11 px-2 text-xs text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{t(showArchived ? 'Back to Inbox' : 'Archived conversations')}</button>
         {/* Filter Tabs (All, Agents, Customers) */}
         <div className="flex gap-4 text-sm">
           <button
@@ -173,6 +179,7 @@ export function InboxSubPanel({
         </div>
       </div>
 
+      {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
       {/* Contacts List */}
       <div className="flex-1 overflow-y-auto divide-y divide-border/20">
         {loading ? (
@@ -207,10 +214,23 @@ export function InboxSubPanel({
                 'quota_limited',
                 'unavailable',
               ].includes(status.state)
+            const id = contact.conversation_id || contact.id
+            const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
+            const openContact = () => {
+              onSelectContact(contact)
+              void archive.markRead(id, true, contact.last_message_at).catch(() => {})
+            }
+            const archiveAction = { label: showArchived ? 'Restore conversation' : 'Archive conversation', disabled: !archive.loaded, run: () => archive.archive(id, !showArchived) }
             return (
+              <ItemActions key={contact.id} label={contact.name} swipeAction={archiveAction} actions={[
+                { label: 'Open conversation', run: openContact },
+                { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
+                { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(id)) },
+                archiveAction,
+              ]}>
               <button
                 key={contact.id}
-                onClick={() => onSelectContact(contact)}
+                onClick={openContact}
                 className={cn(
                   'inbox-contact-row w-full min-h-20 text-left px-3 py-3 transition-colors flex items-center gap-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
                   isSelected && 'bg-accent text-accent-foreground font-medium',
@@ -232,10 +252,10 @@ export function InboxSubPanel({
                 {/* Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="text-base font-semibold text-foreground truncate">
+                    <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-medium")}>
                       {contact.name}
                     </span>
-                    <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                    <span className={cn("text-xs shrink-0 tabular-nums", unread ? "text-primary font-medium" : "text-muted-foreground")}>
                       {formatTime(
                         contact.last_message_at || contact.updated_at,
                       )}
@@ -252,12 +272,12 @@ export function InboxSubPanel({
                     <p className="text-sm text-muted-foreground truncate leading-relaxed">
                       {conversationPreview(contact.last_message)}
                     </p>
-                    {contact.unread_count > 0 && (
+                    {unread > 0 && (
                       <span
-                        aria-label={`${contact.unread_count} unread messages`}
+                        aria-label={`${unread} unread messages`}
                         className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center"
                       >
-                        {contact.unread_count}
+                        {unread}
                       </span>
                     )}
                   </div>
@@ -268,10 +288,12 @@ export function InboxSubPanel({
                   )}
                 </div>
               </button>
+              </ItemActions>
             )
           })
         )}
       </div>
+      <ArchiveNotice state={archive} />
     </div>
   )
 }

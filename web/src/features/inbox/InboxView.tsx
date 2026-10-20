@@ -1,3 +1,5 @@
+import { updateItemPreference } from '../../hooks/useArchivedItems'
+import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { Button } from "../../components/ui/button"
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
@@ -98,6 +100,29 @@ export function InboxView({
 
   const unsentDrafts = useRef<Record<string, string>>({})
   const loadVersion = useRef(0)
+  const readReceipts = useRef(new Map<string, string>())
+  const latestLoaded = useRef<{ id: string; messages: ChatMessage[] }>()
+  function markConversationSeen(id: string, next: ChatMessage[]) {
+    latestLoaded.current = { id, messages: next }
+    if (document.visibilityState !== 'visible' || activeConvRef.current !== id) return
+    const last = next[next.length - 1]
+    if (!last) return
+    const signature = String(last?.uuid || last?.id || 'empty') + (last?.created_at || '')
+    if (readReceipts.current.get(id) === signature) return
+    readReceipts.current.set(id, signature)
+    void updateItemPreference('conversation', id, { read: true, seen_at: last.created_at }).catch(() => {
+      if (readReceipts.current.get(id) === signature) readReceipts.current.delete(id)
+    })
+  }
+  useEffect(() => {
+    const visible = () => {
+      const loaded = latestLoaded.current
+      if (loaded) markConversationSeen(loaded.id, loaded.messages)
+    }
+    document.addEventListener('visibilitychange', visible)
+    return () => document.removeEventListener('visibilitychange', visible)
+  }, [])
+
   const followTail = useRef(true)
   const [hasNewMessages, setHasNewMessages] = useState(false)
   const [streamState, setStreamState] = useState('connecting')
@@ -162,6 +187,7 @@ export function InboxView({
         if (activeConvRef.current !== convId || version !== loadVersion.current)
           return
         setMessages(data.messages || [])
+        markConversationSeen(convId, data.messages || [])
         setRequests(data.requests || [])
         setLinkedTasks(data.tasks || [])
         const pending = pendingRef.current
@@ -277,6 +303,7 @@ export function InboxView({
           setStreamState('live')
           setLoading(false)
           setMessages(data.messages || [])
+        markConversationSeen(convId, data.messages || [])
           setRequests(data.requests || [])
           setLinkedTasks(data.tasks || [])
           const pending = pendingRef.current
@@ -784,6 +811,15 @@ export function InboxView({
                         {dayLabel}
                       </time>
                     )}
+                    <ItemActions subtle label={t('Message') + ' ' + String(msg.id || index + 1)} actions={[
+                      { label: 'Copy message', run: () => navigator.clipboard.writeText(msg.content || msg.message) },
+                      { label: 'Quote message', run: () => {
+                        const quote = (msg.content || msg.message).split('\n').map(line => '> ' + line).join('\n')
+                        setInputMessage(current => (current ? current + '\n\n' : '') + quote + '\n\n')
+                        textareaRef.current?.focus()
+                      } },
+                      { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(activeContact.conversation_id || activeContact.id) + (msg.uuid ? '?message=' + encodeURIComponent(msg.uuid) : '')) },
+                    ]}>
                     <div
                       className={cn(
                         'wa-message-bubble relative min-w-0',
@@ -932,6 +968,7 @@ export function InboxView({
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}
                     </div>
+                    </ItemActions>
                     {(requestsByMessage.get(msg.uuid || '') || []).map((q) => {
                       const placeholder =
                         (q.agent_id || activeContact.type === 'agent') &&

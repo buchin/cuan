@@ -1,3 +1,5 @@
+import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
+import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
 import { ContactMemoryPanel } from './ContactMemoryPanel'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -34,6 +36,8 @@ const dateLabel = (iso: string, language: string) => {
 
 export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
   const { t, language } = useLanguage()
+  const archive = useArchivedItems('contact')
+  const [showArchived, setShowArchived] = useState(false)
   const label = (c: Contact) => c.name || c.email || t('Anonymous visitor')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -135,7 +139,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
       : contacts
   ).filter(
     (c) =>
-      (!tag || c.tags.includes(tag)) && (!product || source(c) === product),
+      archive.isArchived(c.id) === showArchived && (!tag || c.tags.includes(tag)) && (!product || source(c) === product),
   )
   const filteredActive = !!(query.trim() || tag || product)
   const draft = selected ? drafts[selected.id] || selected.tags : []
@@ -337,6 +341,10 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
             </div>
           )}
         </div>
+        <div className="flex items-center justify-between px-3">
+          <button type="button" className="min-h-11 text-xs text-muted-foreground" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{t(showArchived ? 'Active contacts' : 'Archived contacts')}</button>
+        </div>
+        {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {loading ? (
             <p role="status" className="py-6 text-sm text-muted-foreground">
@@ -429,6 +437,11 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
               ) : (
                 <div className="overflow-hidden divide-y divide-border/50">
                   {filtered.map((c) => (
+                    <ItemActions key={c.id} label={label(c)} actions={[
+                      { label: 'Open contact', run: () => select(c.id) },
+                      { label: 'Copy link', run: () => copyItemLink('/contacts?contact=' + encodeURIComponent(c.id)) },
+                      { label: showArchived ? 'Restore contact' : 'Archive contact', disabled: !archive.loaded, run: () => archive.archive(c.id, !showArchived) },
+                    ]}>
                     <button
                       key={c.id}
                       type="button"
@@ -475,6 +488,20 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                                 {t}
                               </span>
                             ))}
+                            {c.tags.length > 2 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{c.tags.length - 2}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                    </ItemActions>
+                  ))}
+
+                </div>
+              )}
                             {query.trim() &&
                               searchResults.key === searchKey &&
                               searchResults.more && (
@@ -488,21 +515,10 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
                                   {t('Load more contacts')}
                                 </button>
                               )}
-                            {c.tags.length > 2 && (
-                              <span className="text-xs text-muted-foreground">
-                                +{c.tags.length - 2}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>
+        <ArchiveNotice state={archive} />
       </aside>
       <div
         className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-6 ${selectedId ? '' : 'hidden min-[1200px]:block'}`}

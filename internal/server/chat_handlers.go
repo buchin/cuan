@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -486,6 +487,34 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	typeFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
 	searchQuery := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
+	preferences := itemPreferences{}
+	if s.authSvc != nil {
+		if owner, e := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); e == nil {
+			itemPreferencesMu.Lock()
+			saved, readError := readItemPreferences(owner.ID)
+			itemPreferencesMu.Unlock()
+			if readError != nil {
+				respondJSONError(w, 503, "Could not load conversation state. Try again.")
+				return
+			}
+			preferences = saved
+		}
+	}
+	countUnread := func(id string, messages []db.ProjectMessage, isAgent bool) int {
+		state := preferences["conversation:"+id]
+		cutoff, _ := time.Parse(time.RFC3339Nano, state.ReadAt)
+		count := 0
+		for _, message := range messages {
+			incoming := (isAgent && message.AuthorType == "agent") || (!isAgent && message.AuthorType == "user")
+			if incoming && message.CreatedAt.After(cutoff) {
+				count++
+			}
+		}
+		if state.Unread && count == 0 {
+			return 1
+		}
+		return count
+	}
 	contacts := make([]ChatContact, 0)
 
 	if typeFilter != "customers" {
@@ -499,6 +528,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					roomID := ""
 					lastMsg := "No conversations yet."
 					lastAt := a.UpdatedAt
+					unread := 0
 					if s.projectStudioRepo != nil {
 						if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
 							for _, rm := range allRooms {
@@ -512,6 +542,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID); len(msgs) > 0 {
 								lastMsg = msgs[len(msgs)-1].Content
 								lastAt = msgs[len(msgs)-1].CreatedAt
+								unread = countUnread(roomID, msgs, true)
 							}
 						}
 					}
@@ -536,7 +567,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						Avatar:         a.Avatar,
 						Status:         "idle",
 						ConversationID: roomID,
-						UnreadCount:    0,
+						UnreadCount:    unread,
 						LastMessage:    attachmentPreview(lastMsg),
 						LastMessageAt:  lastAt,
 						UpdatedAt:      lastAt,
@@ -559,11 +590,13 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 				last := "No messages yet."
 				at := room.UpdatedAt
+				unread := 0
 				if messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID); err == nil && len(messages) > 0 {
 					last = messages[len(messages)-1].Content
 					at = messages[len(messages)-1].CreatedAt
+					unread = countUnread(room.ID, messages, true)
 				}
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at})
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at})
 			}
 		}
 	}
@@ -614,11 +647,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), sess.UUID); len(msgs) > 0 {
 					lastMsg = msgs[len(msgs)-1].Content
 					lastAt = msgs[len(msgs)-1].CreatedAt
-					for _, m := range msgs {
-						if m.AuthorType == "user" {
-							unread++
-						}
-					}
+					unread = countUnread(sess.UUID, msgs, false)
 				}
 			}
 
@@ -653,6 +682,11 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		contacts = filtered
 	}
 
+	for i := range contacts {
+		if preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {
+			contacts[i].UnreadCount = 1
+		}
+	}
 	sort.SliceStable(contacts, func(i, j int) bool { return contacts[i].UpdatedAt.After(contacts[j].UpdatedAt) })
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"contacts": contacts,

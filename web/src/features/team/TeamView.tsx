@@ -424,7 +424,7 @@ export function TeamView({
           {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
           <p className="mt-1 text-sm text-muted-foreground">
             {t(
-              'Each agent keeps its identity. Allowed backup accounts can help when a provider reaches its usage limit.',
+              'Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.',
             )}
           </p>
         </div>
@@ -543,7 +543,7 @@ export function TeamView({
                         {a.name}
                       </h3>
                       <p
-                        className={`mt-1 text-sm ${state.verified ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}
+                        className={`mt-1 text-sm ${state.verified ? 'text-emerald-700 dark:text-emerald-400' : ['login_required','quota_limited','unavailable'].includes(state.state) ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
                       >
                         {state.state === 'unknown'
                           ? a.last_checked_at || a.verified_at

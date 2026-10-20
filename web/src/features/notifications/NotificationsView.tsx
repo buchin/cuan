@@ -1,3 +1,4 @@
+import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { InstallNudge } from '../settings/InstallNudge'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -57,12 +58,19 @@ export function NotificationsView() {
 
 export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNotification; timeLabel: string; absoluteLabel?: string}) {
   const {markRead} = useNotifications(), {t} = useLanguage()
+  const navigate = useNavigate()
   const unread = !item.read && !item.resolved
               const Icon = item.resolved || item.kind === 'completed' ? CircleCheck : item.kind === 'approval' ? ClipboardCheck : item.kind === 'customer' ? MessageCircle : CircleAlert
               const status = item.status || ({approval:'Needs approval',blocker:'Needs attention',completed:'Completed',customer:'Customer message'}[item.kind])
               const action = item.action_label || (item.href.startsWith('/inbox/') ? 'Open conversation' : 'View work')
               const href = /^\/(inbox|projects|tasks)(\/|$)/.test(item.href) ? item.href : '/studio'
+              const readAction = { label: 'Mark as read', disabled: !unread, run: () => markRead([item.id]) }
               return <li key={item.id}>
+                <ItemActions label={t(item.title)} swipeAction={readAction} actions={[
+                  { label: action, run: () => { navigate(href); if (!item.read) void markRead([item.id]).catch(() => {}) } },
+                  readAction,
+                  { label: 'Copy link', run: () => copyItemLink(href) },
+                ]}>
                 <Link to={href} onClick={() => { if (!item.read) void markRead([item.id]).catch(() => {}) }} className="group flex w-full gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                   <span aria-hidden="true" className={'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full '+(unread ? (item.kind === 'blocker' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'bg-primary/10 text-primary') : 'bg-muted text-muted-foreground')}><Icon className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1">
@@ -79,6 +87,7 @@ export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNoti
                     </span>
                   </span>
                 </Link>
+                </ItemActions>
               </li>
 }
 

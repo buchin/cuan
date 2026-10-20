@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "theme": "light",
+      "width": 360,
+      "visibleMenu": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 820,
+      "visibleMenu": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "visibleMenu": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "visibleMenu": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 820,
+      "visibleMenu": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "visibleMenu": true,
+      "noOverflow": true
+    }
+  ],
+  "touchLongPress": true,
+  "touchSwipeArchive": true,
+  "verticalScrollCancelsLongPress": true,
+  "shortSwipeDoesNotArchive": true,
+  "keyboardMenu": true,
+  "readUnreadReload": true,
+  "archiveUndo": true,
+  "failedArchiveRetainsRow": true,
+  "contactArchiveRestore": true,
+  "projectTaskNavigation": true,
+  "notificationMenu": true,
+  "messageCopyQuote": true,
+  "truthfulIdleTask": true,
+  "agentConnectionExplanation": true,
+  "settingsDirtySavedStates": true,
+  "failedSaveRetainsDraft": true,
+  "noTaskLaunches": true,
+  "providerCalls": 0
+}

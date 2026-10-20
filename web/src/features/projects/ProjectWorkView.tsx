@@ -1,6 +1,7 @@
+import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
@@ -27,6 +28,7 @@ export function ProjectWorkView({
   const { t } = useLanguage()
   const [query, setQuery] = useState('')
   const location = useLocation()
+  const navigate = useNavigate()
   const base = '/projects/' + encodeURIComponent(project.id) + '/tasks'
   const scoped = tasksForProject(tasks, project.id)
   const visible = scoped.filter((t) =>
@@ -100,6 +102,10 @@ export function ProjectWorkView({
           </p>
         ) : (
           visible.map((item) => (
+            <ItemActions key={item.id} label={item.title} actions={[
+              { label: 'Open task', run: () => navigate(base + '/' + encodeURIComponent(item.id), { state: { ...location.state, taskReturnTo: base } }) },
+              { label: 'Copy link', run: () => copyItemLink(base + '/' + encodeURIComponent(item.id)) },
+            ]}>
             <Link
               key={item.id}
               to={base + '/' + encodeURIComponent(item.id)}
@@ -115,6 +121,7 @@ export function ProjectWorkView({
                 </span>
               </span>
             </Link>
+            </ItemActions>
           ))
         )}
       </div>

@@ -79,3 +79,5 @@
 .inbox-search { background: #f0f2f5; }
 .dark .inbox-list { background: #121212; }
 .dark .inbox-search, .dark .app-page-header { background: #1a1a1a; }
+
+.message-actions .wa-message-bubble { max-width: 100%; }

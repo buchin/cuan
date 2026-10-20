@@ -1,5 +1,6 @@
+import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus, ChevronRight } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
@@ -30,6 +31,7 @@ export function ProjectsWorkspace({
   onNewTask?: () => void
 }) {
   const { t } = useLanguage()
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [archived, setArchived] = useState(!!project?.is_archived)
   useEffect(() => {
@@ -54,6 +56,8 @@ export function ProjectsWorkspace({
       blocked: states.filter((state) => state === 'Needs attention').length,
       working: states.filter((state) => state === 'Working').length,
       review: states.filter((state) => state === 'Ready for review').length,
+      completed: states.filter((state) => state === 'Completed').length,
+      stopped: states.filter((state) => state === 'Not running').length,
       latest,
     }]
   })), [projects, tasks])
@@ -117,6 +121,12 @@ export function ProjectsWorkspace({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {visible.map((item) => (
+            <ItemActions key={item.id} label={item.name} actions={[
+              { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+              { label: 'Project settings', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
+              { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+              ...(onArchiveProject ? [{ label: item.is_archived ? 'Restore project' : 'Archive project', run: () => onArchiveProject(item.id, !item.is_archived) }] : []),
+            ]}>
             <Link
               key={item.id}
               to={`/projects/${encodeURIComponent(item.id)}/tasks`}
@@ -128,6 +138,8 @@ export function ProjectsWorkspace({
                 <span className="block truncate text-sm font-medium">{item.name}</span>
                 <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span>{summaries.get(item.id)?.count || 0} {t(summaries.get(item.id)?.count === 1 ? 'task' : 'tasks')}</span>
+                  {!!summaries.get(item.id)?.completed && <span>· {summaries.get(item.id)?.completed} {t('completed')}</span>}
+                  {!!summaries.get(item.id)?.stopped && <span>· {summaries.get(item.id)?.stopped} {t('not running')}</span>}
                   {!!summaries.get(item.id)?.working && <span className="text-primary">· {summaries.get(item.id)?.working} {t('working')}</span>}
                   {!!summaries.get(item.id)?.blocked && <span>· {summaries.get(item.id)?.blocked} {t('blocked')}</span>}
                   {!!summaries.get(item.id)?.review && <span>· {summaries.get(item.id)?.review} {t('ready for review')}</span>}
@@ -138,6 +150,7 @@ export function ProjectsWorkspace({
                 <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground/60" />
               </span>
             </Link>
+            </ItemActions>
           ))}
           {error && !project && (
             <div role="alert" className="p-3 text-sm">

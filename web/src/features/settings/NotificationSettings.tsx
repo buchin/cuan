@@ -19,7 +19,10 @@ export function NotificationSettings() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
-    [connected, setConnected] = useState(false)
+    [connected, setConnected] = useState(false),
+    [savedPrefs, setSavedPrefs] = useState('')
+  const dirty = !!prefs && JSON.stringify(prefs) !== savedPrefs
+  useEffect(() => { if (dirty) setNotice('') }, [dirty, prefs])
   const supported =
     'Notification' in window &&
     'PushManager' in window &&
@@ -33,13 +36,15 @@ export function NotificationSettings() {
         preferences: Preferences
         devices: number
       }>('/api/v1/notifications/preferences')
-      setPrefs({
+      const initial = {
         ...data.preferences,
         timezone:
           data.preferences.timezone === 'UTC' && !data.preferences.quiet
             ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
             : data.preferences.timezone,
-      })
+      }
+      setPrefs(initial)
+      setSavedPrefs(JSON.stringify(initial))
       if (supported) {
         const registration = await navigator.serviceWorker.getRegistration()
         const sub = await registration?.pushManager.getSubscription()
@@ -173,6 +178,7 @@ export function NotificationSettings() {
           className="space-y-4 rounded-lg border border-border bg-card p-5"
           onSubmit={async (e) => {
             e.preventDefault()
+            if (!dirty || busy) return
             setBusy(true)
             setError('')
             setNotice('')
@@ -181,6 +187,7 @@ export function NotificationSettings() {
                 method: 'PATCH',
                 body: JSON.stringify(prefs),
               })
+              setSavedPrefs(JSON.stringify(prefs))
               setNotice('Notification preferences saved.')
             } catch (e) {
               setError(
@@ -271,8 +278,9 @@ export function NotificationSettings() {
               </label>
             </div>
           )}
-          <button className="action-primary" disabled={busy}>
-            {t('Save preferences')}
+          <p role="status" className="text-xs text-muted-foreground">{t(busy ? 'Saving…' : dirty ? 'Unsaved changes' : 'All changes saved')}</p>
+          <button className="action-primary" disabled={busy || !dirty}>
+            {t(busy ? 'Saving…' : 'Save preferences')}
           </button>
         </form>
       ) : (

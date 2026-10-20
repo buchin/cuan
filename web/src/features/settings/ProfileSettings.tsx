@@ -12,8 +12,14 @@ export function ProfileSettings() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
-    [passwordOpen, setPasswordOpen] = useState(false)
+    [passwordOpen, setPasswordOpen] = useState(false),
+    [savedName, setSavedName] = useState(user?.display_name || ''),
+    [saving, setSaving] = useState<'name' | 'username' | null>(null)
+  const nameDirty = name.trim() !== savedName.trim()
+  const usernameDirty = username.trim().toLowerCase() !== (user?.username || '').toLowerCase()
   async function save(kind: 'name' | 'username') {
+    if (busy || (kind === 'name' ? !nameDirty : !usernameDirty)) return
+    setSaving(kind)
     setBusy(true)
     setError('')
     setNotice('')
@@ -28,6 +34,7 @@ export function ProfileSettings() {
           method: 'PATCH',
           body: JSON.stringify({ username, current_password: password }),
         })
+      if (kind === 'name') setSavedName(name.trim())
       setPassword('')
       await refreshUser()
       setNotice(
@@ -47,6 +54,7 @@ export function ProfileSettings() {
       )
     } finally {
       setBusy(false)
+      setSaving(null)
     }
   }
   return (
@@ -78,14 +86,15 @@ export function ProfileSettings() {
           autoComplete="name"
           maxLength={80}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setNotice('') }}
           disabled={busy}
         />
         <p className="text-sm text-muted-foreground">
           {t('The name shown in your account menu. Your login stays the same.')}
         </p>
-        <button className="action-primary" disabled={busy}>
-          {t('Save display name')}
+        {nameDirty && <p role="status" className="text-xs text-muted-foreground">{t(saving === 'name' ? 'Saving…' : 'Unsaved changes')}</p>}
+        <button className="action-primary" disabled={busy || !nameDirty}>
+          {t(saving === 'name' ? 'Saving…' : 'Save display name')}
         </button>
       </form>
       <form
@@ -109,7 +118,7 @@ export function ProfileSettings() {
           pattern="[a-zA-Z0-9._\-]{3,32}"
           required
           disabled={busy}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={(e) => { setUsername(e.target.value); setNotice('') }}
         />
         <p className="text-sm text-muted-foreground">
           {t(
@@ -132,11 +141,12 @@ export function ProfileSettings() {
           disabled={busy}
           onChange={(e) => setPassword(e.target.value)}
         />
+        {usernameDirty && <p role="status" className="text-xs text-muted-foreground">{t(saving === 'username' ? 'Saving…' : 'Unsaved changes')}</p>}
         <button
           className="action-primary"
-          disabled={busy || username === user?.username}
+          disabled={busy || !usernameDirty}
         >
-          {t('Change username')}
+          {t(saving === 'username' ? 'Saving…' : 'Change username')}
         </button>
         <button
           type="button"
