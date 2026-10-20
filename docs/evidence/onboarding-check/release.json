@@ -1,0 +1,11 @@
+{
+  "release": "7c54fa0fb7a18732bb7b065a56932addf43b6877",
+  "exactTestedAssetsMatch": true,
+  "healthy": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "rollbackReactivationPassed": true,
+  "retainedApplicationTables": 37,
+  "profileFilesUnchanged": 896,
+  "readFlagsPreserved": 11
+}

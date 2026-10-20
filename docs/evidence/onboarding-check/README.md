@@ -21,3 +21,11 @@ No live OAuth or inference is used by these fixtures.
 
 This improves onboarding and installation guidance. A unified native application
 installer and the full container AI runtime remain separate outstanding work.
+
+## Production
+
+Release7c54fa0 passes authenticated read-only Studio checks at all four widths in
+both themes. Actual prerequisite endpoint reports installed components and does
+not claim verified execution. Tested/released frontend hashes match. Actual
+rollback/reactivation and retained data/profile/notification checks pass. No
+production OAuth, goal submission or provider inference was performed.
