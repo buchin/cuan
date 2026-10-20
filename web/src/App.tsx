@@ -32,7 +32,7 @@ import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
 
 export function App() {
-  const { isAuthenticated, isLoading: authLoading, token } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, token, setupRequired } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -496,7 +496,7 @@ export function App() {
 
   if (
     rootSegment === 'about' ||
-    (location.pathname === '/' && !token && !isAuthenticated)
+    (location.pathname === '/' && !token && !isAuthenticated && setupRequired !== true)
   )
     return <LandingPage />
 
@@ -559,7 +559,7 @@ export function App() {
 
   // 2. Unauthenticated: Auth Gatekeeper
   if (!isAuthenticated) {
-    if (location.pathname === '/') return <LandingPage />
+    if (location.pathname === '/' && setupRequired !== true) return <LandingPage />
     return <LoginScreen />
   }
 

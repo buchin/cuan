@@ -20,14 +20,24 @@ must maintain their own account/password settings. The old command-entrypoint
 seed, which forced Default to the Cuan repository/name, is removed. The shared
 project service creates a neutral Default and preserves existing configuration.
 
+## First-owner browser flow
+
+An unowned installation now shows **Set up your workspace** at root/login, with
+email and a new password. A successful setup enters Studio's AI connection guide.
+Configured installations retain normal sign-in; shared default-credential hints
+and technical login clutter are removed. Authentication progress stays local to
+the form so failures retain inputs and visible error feedback. PostgreSQL owner
+creation is serialized in a transaction; six concurrent first-setup requests
+create exactly one owner and return403 for the rest, without changing schema.
+
 ## Verification
 
 - Real PostgreSQL, empty dedicated database: migrate all25; owner setup required;
-  unauthenticated access rejected; initial owner created and second setup denied;
+  unauthenticated access rejected; six concurrent setup requests create exactly one owner; later setup denied;
   missing-agent guidance; dedicated account connection; Studio submission; one
   task/attempt and verified result; identical-goal replay; server reconstruction
   retains owner session, task, outcome and renamed project. Deterministic provider
-  and sandbox fixtures only, no external inference. Passed in3.09s. Database dropped.
+  and sandbox fixtures only, no external inference. Latest run passed in3.49s. Database dropped.
 - Actual candidate native binary, not a test server: starts against a separate
   empty PostgreSQL database and temporary HOME, migrates to25, requires owner setup,
   creates neutral Default, and preserves session/name/repository across a real
@@ -48,3 +58,10 @@ prove arbitrary model decisions. Real native AGY filesystem/process sandbox
 readiness is established by the separate chat-sandbox evidence. Docker Compose,
 image build and nested AGY runtime remain unverified here. These are not claimed
 as a supported turnkey AI installation.
+
+Owner setup/sign-in browser checks also pass at390/820/1440: first-run root entry,
+no shared credentials, show/hide password, failure input retention, successful
+setup into AI onboarding, reload session retention, stale setup conflict and
+setup-status retry. See owner-browser.json. OAuth and owner-account creation in
+these browser fixtures are simulated; separate SQL/native tests use real local
+storage and APIs with temporary credentials.

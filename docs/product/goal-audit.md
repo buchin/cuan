@@ -70,3 +70,9 @@ preserved. A real PostgreSQL full-server lifecycle and an actual native binary
 process-restart check pass with disposable databases; evidence is in
 `docs/evidence/onboarding/`. Provider inference and Docker execution were not part
 of those tests. Production delivery of this change is pending.
+
+The first-owner frontend gap found during the follow-up audit is now fixed and
+verified: initial root/login has a two-field owner form, configured installations
+show normal sign-in, failures retain form state, and successful setup leads to
+AI onboarding. Real PostgreSQL concurrency admits only one owner across six
+simultaneous setup requests. Existing credentials are preserved.

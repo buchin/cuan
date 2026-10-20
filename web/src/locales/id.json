@@ -420,5 +420,14 @@
   "Cuan can organize the project for you. Already have one? Connect it below, or start with your goal.": "Cuan bisa mengatur project untuk Anda. Sudah punya project? Hubungkan di bawah, atau langsung tulis tujuan Anda.",
   "Connect a project (optional)": "Hubungkan project (opsional)",
   "Checking connection…": "Memeriksa koneksi…",
-  "← Back to Studio": "← Kembali ke Studio"
+  "← Back to Studio": "← Kembali ke Studio",
+  "Set up your workspace": "Siapkan ruang kerja Anda",
+  "Create your owner account to get started.": "Buat akun pemilik untuk memulai.",
+  "Welcome back. Your workspace is ready for you.": "Selamat datang kembali. Ruang kerja Anda siap digunakan.",
+  "Could not check workspace setup. Check your connection and try again.": "Pengaturan ruang kerja belum bisa diperiksa. Periksa koneksi Anda dan coba lagi.",
+  "Use at least 8 characters.": "Gunakan minimal 8 karakter.",
+  "Creating account…": "Membuat akun…",
+  "Create account": "Buat akun",
+  "Next, connect your AI and tell Cuan what you want to get done.": "Selanjutnya, hubungkan AI dan beri tahu Cuan apa yang ingin Anda kerjakan.",
+  "This workspace already has an owner. Sign in to continue.": "Ruang kerja ini sudah memiliki pemilik. Masuk untuk melanjutkan."
 }

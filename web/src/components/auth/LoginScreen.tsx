@@ -1,237 +1,76 @@
 import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
-import { useState, FormEvent } from 'react'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from '../ui/card'
+import { useState, type FormEvent } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
 import { useAuth } from '../../context/AuthContext'
-import {
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  ShieldCheck,
-  AlertCircle,
-  RefreshCw,
-  Key,
-} from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
+import { Eye, EyeOff, LoaderCircle } from 'lucide-react'
 
-interface LoginScreenProps {
-  onNavigate?: (path: string) => void
-}
-
-export function LoginScreen({ onNavigate: _onNavigate }: LoginScreenProps) {
-  const { login, isLoading } = useAuth()
+export function LoginScreen() {
+  const { login, setup, setupRequired, refreshUser } = useAuth()
+  const { t } = useLanguage()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
-    if (!identifier.trim()) {
-      setError("Enter the owner's username or email.")
-      return
-    }
-    if (!password) {
-      setError('Enter your password.')
-      return
-    }
-
+  const creating = setupRequired === true
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (submitting || setupRequired === null) return
+    setError('')
     setSubmitting(true)
     try {
-      await login(identifier, password)
-      // Login successful! AuthContext updates state, which triggers AuthGate/App to render the authenticated shell.
-    } catch (err: any) {
-      setError(err.message || 'Incorrect username or password. Try again.')
+      if (creating) await setup(identifier, password)
+      else await login(identifier, password)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not continue. Try again.')
     } finally {
       setSubmitting(false)
     }
   }
-
-  const handleFillDefaultAdmin = () => {
-    setIdentifier('admin')
-    setPassword('whosyourdaddy')
-    setError(null)
-  }
-
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
-      {/* Top Bar with Brand & Theme Toggle */}
-      <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
-        <Link
-          to="/"
-          className="flex min-h-11 items-center gap-2.5"
-          aria-label="Cuan home"
-        >
-          <CuanMark className="h-9 w-9" />
-          <span className="font-bold text-lg tracking-tight text-foreground">
-            cuan
-          </span>
+    <div className="flex min-h-[100dvh] flex-col bg-background p-4 text-foreground sm:p-6">
+      <header className="mx-auto w-full max-w-5xl">
+        <Link to="/" className="inline-flex min-h-11 items-center gap-2.5" aria-label={t('Cuan home')}>
+          <CuanMark className="h-8 w-8" />
+          <span className="text-lg font-semibold">cuan</span>
         </Link>
       </header>
-
-      {/* Main Login Card */}
-      <main className="w-full max-w-md mx-auto my-auto py-8">
-        <div className="space-y-6">
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center p-3 bg-primary/10 text-primary border border-primary/20 mb-1">
-              <Lock className="h-7 w-7" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Sign in to Cuan
-            </h1>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Manage your projects, conversations, and agents in one workspace.
-            </p>
+      <main className="mx-auto my-auto w-full max-w-sm py-8">
+        <h1 className="text-2xl font-semibold tracking-tight">{t(creating ? 'Set up your workspace' : 'Sign in to Cuan')}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t(creating ? 'Create your owner account to get started.' : 'Welcome back. Your workspace is ready for you.')}</p>
+        {setupRequired === null ? (
+          <div role="alert" className="mt-6 space-y-3 text-sm">
+            <p>{t('Could not check workspace setup. Check your connection and try again.')}</p>
+            <Button onClick={() => void refreshUser()}>{t('Try again')}</Button>
           </div>
-
-          <Card className="bg-card text-card-foreground border-border shadow-2xl">
-            <CardHeader className="space-y-1 pb-4 border-b border-border">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold">
-                  Owner sign-in
-                </CardTitle>
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5">
-                  Single-Owner
-                </span>
+        ) : (
+          <form onSubmit={submit} className="mt-6 space-y-4">
+            {error && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{t(error)}</p>}
+            <div className="space-y-2">
+              <label htmlFor="owner-identifier" className="block text-sm font-medium">{t(creating ? 'Email' : 'Username or email')}</label>
+              <Input id="owner-identifier" type={creating ? 'email' : 'text'} autoComplete={creating ? 'email' : 'username'} autoCapitalize="none" spellCheck={false} placeholder={creating ? 'you@example.com' : 'Username or email'} value={identifier} onChange={e => setIdentifier(e.target.value)} disabled={submitting} required autoFocus />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="owner-password" className="block text-sm font-medium">{t('Password')}</label>
+              <div className="relative">
+                <Input id="owner-password" type={showPassword ? 'text' : 'password'} autoComplete={creating ? 'new-password' : 'current-password'} minLength={creating ? 8 : undefined} aria-describedby={creating ? 'owner-password-help' : undefined} value={password} onChange={e => setPassword(e.target.value)} disabled={submitting} required className="pr-12" />
+                <button type="button" aria-label={t(showPassword ? 'Hide password' : 'Show password')} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 flex min-w-11 items-center justify-center text-muted-foreground hover:text-foreground">
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
-              <CardDescription className="text-xs text-muted-foreground">
-                Sign in with your configured owner account.
-              </CardDescription>
-            </CardHeader>
-
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-4 pt-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Sign-in failed</AlertTitle>
-                    <AlertDescription className="text-xs">
-                      {error}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                    <span>Username or email</span>
-                  </label>
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="admin or owner@example.com"
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      disabled={submitting || isLoading}
-                      required
-                      autoFocus
-                      className="pl-9"
-                    />
-                    <User className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-foreground">
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleFillDefaultAdmin}
-                      className="text-[11px] text-primary hover:underline flex items-center gap-1 font-mono"
-                      title="Fill in the default admin credentials"
-                    >
-                      <Key className="h-3 w-3" />
-                      Use default admin
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={submitting || isLoading}
-                      required
-                      className="pl-9 pr-10"
-                    />
-                    <Lock className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Default Credentials Callout */}
-                <div className="p-3 bg-muted/50 border border-border text-xs text-muted-foreground space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-medium text-foreground text-[11px]">
-                    <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                    Default setup credentials
-                  </div>
-                  <p className="text-[11px]">
-                    Username:{' '}
-                    <code className="text-primary font-mono font-bold">
-                      admin
-                    </code>{' '}
-                    | Password:{' '}
-                    <code className="text-primary font-mono font-bold">
-                      whosyourdaddy
-                    </code>
-                  </p>
-                </div>
-              </CardContent>
-
-              <CardFooter className="pt-2 flex flex-col gap-2 border-t border-border">
-                <Button
-                  type="submit"
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-                  disabled={submitting || isLoading}
-                >
-                  {submitting ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Signing in…
-                    </>
-                  ) : (
-                    'Sign in'
-                  )}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
+              {creating && <p id="owner-password-help" className="text-xs text-muted-foreground">{t('Use at least 8 characters.')}</p>}
+            </div>
+            <Button type="submit" disabled={submitting} className="w-full">
+              {submitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {t(submitting ? (creating ? 'Creating account…' : 'Signing in…') : (creating ? 'Create account' : 'Sign in'))}
+            </Button>
+            {creating && <p className="text-xs leading-relaxed text-muted-foreground">{t('Next, connect your AI and tell Cuan what you want to get done.')}</p>}
+          </form>
+        )}
       </main>
-
-      {/* Footer */}
-      <footer className="w-full max-w-5xl mx-auto py-3 text-center text-xs text-muted-foreground border-t border-border/60">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Cuan</span>
-          <span className="font-mono text-[11px]">
-            PostgreSQL Session Guard • Bcrypt Hash
-          </span>
-        </div>
-      </footer>
     </div>
   )
 }

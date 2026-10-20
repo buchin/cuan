@@ -8,7 +8,7 @@ interface AuthGateProps {
   onNavigate?: (path: string) => void
 }
 
-export function AuthGate({ children, onNavigate }: AuthGateProps) {
+export function AuthGate({ children }: AuthGateProps) {
   const { isAuthenticated, isLoading } = useAuth()
 
   if (isLoading) {
@@ -25,7 +25,7 @@ export function AuthGate({ children, onNavigate }: AuthGateProps) {
   }
 
   if (!isAuthenticated) {
-    return <LoginScreen onNavigate={onNavigate} />
+    return <LoginScreen />
   }
 
   return <>{children}</>

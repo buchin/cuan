@@ -20,6 +20,7 @@ interface AuthContextType {
   isLoading: boolean
   setupRequired: boolean | null
   login: (identifier: string, password: string) => Promise<void>
+  setup: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   changePassword: (
     currentPassword: string,
@@ -100,44 +101,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser()
   }, [refreshUser])
 
-  const login = async (identifier: string, password: string) => {
-    setIsLoading(true)
-    try {
-      const payload = {
-        username: identifier.trim(),
-        email: identifier.trim(),
-        password: password.trim(),
+  // Form progress stays local: changing global boot loading would unmount the
+  // form and discard its draft/error on an authentication failure.
+  const authenticate = async (path: string, payload: Record<string, string>) => {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      if (path.endsWith('/setup') && res.status === 403) {
+        setSetupRequired(false)
+        throw new Error('This workspace already has an owner. Sign in to continue.')
       }
-
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Incorrect username, email, or password')
-      }
-
-      const receivedToken = data.token
-      const receivedUser: OwnerInfo = data.user ||
-        data.owner || {
-          id: 'owner_admin',
-          username: identifier,
-          email: identifier,
-        }
-
-      localStorage.setItem(TOKEN_KEY, receivedToken)
-      setToken(receivedToken)
-      setUser(receivedUser)
-      setSetupRequired(false)
-    } finally {
-      setIsLoading(false)
+      throw new Error(data.error || 'Could not sign in. Try again.')
     }
+    const receivedUser = data.user || data.owner
+    if (!data.token || !receivedUser?.id) throw new Error('Could not confirm your account. Try signing in.')
+    localStorage.setItem(TOKEN_KEY, data.token)
+    setToken(data.token)
+    setUser(receivedUser)
+    setSetupRequired(false)
   }
+
+  const login = (identifier: string, password: string) =>
+    authenticate('/api/v1/auth/login', {
+      username: identifier.trim(), email: identifier.trim(), password: password.trim(),
+    })
+
+  const setup = (email: string, password: string) =>
+    authenticate('/api/v1/auth/setup', { email: email.trim(), password: password.trim() })
 
   const logout = async () => {
     try {
@@ -218,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         setupRequired,
         login,
+        setup,
         logout,
         changePassword,
         refreshUser,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -76,9 +77,28 @@ func TestFreshInstallPostgresGoalLifecycle(t *testing.T) {
 	if unauthorized := call("GET", "/api/v1/tasks", ""); unauthorized.Code != 401 {
 		t.Fatal("unowned workspace exposed", unauthorized.Code)
 	}
-	setup := call("POST", "/api/v1/auth/setup", `{"email":"fresh@example.invalid","password":"fixture-password-12345"}`)
-	if setup.Code != 201 {
-		t.Fatal("owner setup", setup.Code, setup.Body.String())
+	// Distinct credentials ensure success is due to the single-owner guard,
+	// rather than a coincidental email/username unique-index collision.
+	responses := make(chan *httptest.ResponseRecorder, 6)
+	for i := 0; i < 6; i++ {
+		go func(i int) {
+			responses <- call("POST", "/api/v1/auth/setup", fmt.Sprintf(`{"email":"fresh%d@example.invalid","password":"fixture-password-12345"}`, i))
+		}(i)
+	}
+	var setup *httptest.ResponseRecorder
+	for i := 0; i < 6; i++ {
+		r := <-responses
+		if r.Code == 201 {
+			if setup != nil {
+				t.Fatal("concurrent setup created more than one owner")
+			}
+			setup = r
+		} else if r.Code != 403 {
+			t.Fatal("concurrent setup failed unexpectedly", r.Code, r.Body.String())
+		}
+	}
+	if setup == nil {
+		t.Fatal("no initial owner was created")
 	}
 	var session struct {
 		Token string `json:"token"`
