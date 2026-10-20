@@ -1,0 +1,16 @@
+{
+  "applicationRelease": "e70ade0ce6e41e7f93b62dfac4419636f220498b",
+  "testedAndReleasedAssetsIdentical": true,
+  "assetFiles": 25,
+  "rollbackReactivationVerified": true,
+  "previousRelease": "5961b4a94f7e7deb07ddd589bb70f993bd8ad8ef",
+  "retainedTablesVerified": 37,
+  "profileFilesVerified": 878,
+  "changedProfileFiles": 0,
+  "existingReadFlagsVerified": 11,
+  "nonFeedPreferencesPreserved": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "providerCalls": 0,
+  "privateBackup": "/opt/cuan/backups/project-task-ui-release-20261020"
+}

@@ -1,0 +1,70 @@
+{
+  "release": "e70ade0ce6e41e7f93b62dfac4419636f220498b",
+  "schema": 25,
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "oneTaskHeader": true,
+      "contextualNewTask": true,
+      "resultFirst": true,
+      "shareableDetail": true,
+      "notificationQuickView": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "oneTaskHeader": true,
+      "contextualNewTask": true,
+      "resultFirst": true,
+      "shareableDetail": true,
+      "notificationQuickView": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "oneTaskHeader": true,
+      "contextualNewTask": true,
+      "resultFirst": true,
+      "shareableDetail": true,
+      "notificationQuickView": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "oneTaskHeader": true,
+      "contextualNewTask": true,
+      "resultFirst": true,
+      "shareableDetail": true,
+      "notificationQuickView": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "oneTaskHeader": true,
+      "contextualNewTask": true,
+      "resultFirst": true,
+      "shareableDetail": true,
+      "notificationQuickView": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "oneTaskHeader": true,
+      "contextualNewTask": true,
+      "resultFirst": true,
+      "shareableDetail": true,
+      "notificationQuickView": true,
+      "noOverflow": true
+    }
+  ],
+  "nonLoginWrites": [],
+  "providerCalls": 0,
+  "markReadActions": 0,
+  "taskLaunches": 0
+}
