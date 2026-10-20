@@ -1,10 +1,10 @@
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus, ChevronRight } from 'lucide-react'
+import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
-import { relativeTime, tasksForProject, workStatus } from '../tasks/task-ui'
+import { tasksForProject, workStatus } from '../tasks/task-ui'
 import { ProjectWorkView } from './ProjectWorkView'
 
 export function ProjectsWorkspace({
@@ -53,7 +53,7 @@ export function ProjectsWorkspace({
       .sort((a, b) => Date.parse(b) - Date.parse(a))[0]
     return [item.id, {
       count: work.length,
-      blocked: states.filter((state) => state === 'Needs attention').length,
+      blocked: states.filter((state) => state === 'Needs attention' || state === 'Not running').length,
       working: states.filter((state) => state === 'Working').length,
       review: states.filter((state) => state === 'Ready for review').length,
       completed: states.filter((state) => state === 'Completed').length,
@@ -131,23 +131,19 @@ export function ProjectsWorkspace({
               key={item.id}
               to={`/projects/${encodeURIComponent(item.id)}/tasks`}
               aria-current={project?.id === item.id ? 'page' : undefined}
-              className={`group flex min-h-20 items-center gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
+              className={`group flex min-h-16 items-center gap-2 rounded-[6px] px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Folder className="h-4 w-4" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{item.name}</span>
-                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span>{summaries.get(item.id)?.count || 0} {t(summaries.get(item.id)?.count === 1 ? 'task' : 'tasks')}</span>
-                  {!!summaries.get(item.id)?.completed && <span>· {summaries.get(item.id)?.completed} {t('completed')}</span>}
-                  {!!summaries.get(item.id)?.stopped && <span>· {summaries.get(item.id)?.stopped} {t('not running')}</span>}
-                  {!!summaries.get(item.id)?.working && <span className="text-primary">· {summaries.get(item.id)?.working} {t('working')}</span>}
-                  {!!summaries.get(item.id)?.blocked && <span>· {summaries.get(item.id)?.blocked} {t('blocked')}</span>}
-                  {!!summaries.get(item.id)?.review && <span>· {summaries.get(item.id)?.review} {t('ready for review')}</span>}
+                <span className="mt-1 block truncate text-xs text-muted-foreground">
+                  {summaries.get(item.id)?.count || 0} {t(summaries.get(item.id)?.count === 1 ? 'task' : 'tasks')}
+                  {!!summaries.get(item.id)?.blocked ? <span className="text-amber-700 dark:text-amber-400"> · {summaries.get(item.id)?.blocked} {t('needs attention')}</span>
+                    : !!summaries.get(item.id)?.working ? <span className="text-primary"> · {summaries.get(item.id)?.working} {t('working')}</span>
+                    : !!summaries.get(item.id)?.review ? <> · {summaries.get(item.id)?.review} {t('in review')}</>
+                    : !!summaries.get(item.id)?.stopped ? <> · {summaries.get(item.id)?.stopped} {t('not running')}</>
+                    : !!summaries.get(item.id)?.completed ? <> · {summaries.get(item.id)?.completed} {t('completed')}</> : null}
                 </span>
-              </span>
-              <span className="flex shrink-0 flex-col items-end gap-2">
-                {summaries.get(item.id)?.latest && <time dateTime={summaries.get(item.id)?.latest} className="text-[11px] text-muted-foreground">{t(relativeTime(summaries.get(item.id)?.latest))}</time>}
-                <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground/60" />
               </span>
             </Link>
             </ItemActions>

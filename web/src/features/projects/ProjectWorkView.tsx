@@ -6,7 +6,7 @@ import { Search } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
-import { relativeTime, tasksForProject, workStatus } from '../tasks/task-ui'
+import { relativeTime, tasksForProject, workStatus, taskRef } from '../tasks/task-ui'
 
 export function ProjectWorkView({
   project,
@@ -27,13 +27,26 @@ export function ProjectWorkView({
 }) {
   const { t } = useLanguage()
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
   const location = useLocation()
   const navigate = useNavigate()
   const base = '/projects/' + encodeURIComponent(project.id) + '/tasks'
   const scoped = tasksForProject(tasks, project.id)
-  const visible = scoped.filter((t) =>
-    [t.title, t.status].join(' ').toLowerCase().includes(query.toLowerCase()),
-  )
+  const filters = [
+    { id: 'all', label: 'All', matches: (_task: Task) => true },
+    { id: 'active', label: 'Working', matches: (task: Task) => ['Working', 'Waiting to start'].includes(workStatus(task)) },
+    { id: 'attention', label: 'Needs attention', matches: (task: Task) => ['Needs attention', 'Not running'].includes(workStatus(task)) },
+    { id: 'review', label: 'Review', matches: (task: Task) => workStatus(task) === 'Ready for review' },
+    { id: 'completed', label: 'Completed', matches: (task: Task) => workStatus(task) === 'Completed' },
+  ]
+  const summaryFor = (task: Task) => {
+    const text = (workStatus(task) === 'Completed' ? task.complete_note || task.summary : task.launch?.safe_error || task.summary) || ''
+    return text.replace(/\s+/g, ' ').trim()
+  }
+  const searched = scoped.filter(task =>
+    [task.title, taskRef(task.id), task.status, workStatus(task), summaryFor(task), task.latest_attempt?.agent_name]
+      .join(' ').toLowerCase().includes(query.toLowerCase().trim()))
+  const visible = searched.filter(task => (filters.find(item => item.id === filter) || filters[0]).matches(task))
   const selected = scoped.find((t) => t.id === taskId)
   if (taskId)
     return (
@@ -80,6 +93,11 @@ export function ProjectWorkView({
           />
         </label>
       </div>
+      <div role="group" aria-label={t('Task filters')} className="flex shrink-0 flex-wrap gap-x-3 border-b px-3 sm:px-5">
+        {filters.map(item => <button key={item.id} type="button" aria-pressed={filter === item.id}
+          className={`min-h-11 border-b-2 text-xs ${filter === item.id ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          onClick={() => setFilter(item.id)}>{t(item.label)} <span className="ml-1 tabular-nums">{searched.filter(item.matches).length}</span></button>)}
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-5">
         {error ? (
           <div role="alert" className="p-3 text-sm">
@@ -95,7 +113,7 @@ export function ProjectWorkView({
         ) : !visible.length ? (
           <p className="p-5 text-sm text-muted-foreground">
             {t(
-              query
+              query || filter !== 'all'
                 ? 'No matching work.'
                 : 'No work yet. Ask an agent in Inbox or create a task.',
             )}
@@ -115,10 +133,12 @@ export function ProjectWorkView({
               <span className="min-w-0 flex-1">
                 <span className="line-clamp-2 break-words text-sm font-medium leading-5">{item.title}</span>
                 <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span className={workStatus(item) === 'Needs attention' ? 'text-destructive' : workStatus(item) === 'Working' ? 'text-primary' : ''}>{t(workStatus(item))}</span>
-                  <span aria-hidden="true">·</span>
-                  <time dateTime={item.updated_at} title={new Date(item.updated_at).toLocaleString()}>{t(relativeTime(item.updated_at))}</time>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${['Needs attention', 'Not running'].includes(workStatus(item)) ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : workStatus(item) === 'Working' ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>{t(workStatus(item))}</span>
+                  <span className="tabular-nums">{taskRef(item.id)}</span>
+                  {item.latest_attempt?.agent_name && <span>{item.latest_attempt.agent_name}</span>}
+                  <time className="sm:ml-auto" dateTime={item.updated_at} title={new Date(item.updated_at).toLocaleString()}>{t(relativeTime(item.updated_at))}</time>
                 </span>
+                {summaryFor(item) && <span className="mt-1.5 line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{summaryFor(item)}</span>}
               </span>
             </Link>
             </ItemActions>

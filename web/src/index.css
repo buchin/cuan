@@ -326,7 +326,8 @@ body {
 }
 
 /* Keep touch actions discoverable; reveal desktop shortcuts on interaction. */
-.item-action-row:has(> div > button[aria-pressed="true"]) { background: oklch(var(--accent)); }
+.item-action-row:has(> div > button[aria-pressed="true"]),
+.item-action-row:has(> div > a[aria-current="page"]) { background: oklch(var(--accent)); }
 @media (hover: hover) and (pointer: fine) {
   .item-action-row > [data-item-menu] { opacity: 0; }
   .item-action-row:hover > [data-item-menu],
