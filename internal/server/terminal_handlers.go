@@ -228,6 +228,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	defer s.taskLaunches.Delete(taskID)
+	if active, ownershipErr := s.terminalManager.TaskExecutionActive(taskID); ownershipErr != nil {
+		respondJSONError(w, 503, "Could not verify the previous execution. No replacement was started.")
+		return
+	} else if active {
+		respondJSONError(w, 409, "This work still has an active process. No replacement was started.")
+		return
+	}
 	if history := s.terminalManager.GetTaskHistory(taskID); len(history) > 0 && history[len(history)-1].Status == "running" {
 		respondJSONError(w, 409, "This task already has an active session. Open its terminal.")
 		return
@@ -404,6 +411,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					sessionContext += "\n## " + section.label + "\n" + section.text + "\n"
 				}
 			}
+			sessionContext += taskRecoveryContext(detail)
 			if strings.TrimSpace(payload.Revision) != "" {
 				taskPrompt = payload.Revision
 			}

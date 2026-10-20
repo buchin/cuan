@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/taskprocess"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -413,12 +415,31 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	}
 	// Keep launch reservation until process and history are installed.
 
+	lockPath, lockErr := m.taskLockPath(taskID)
+	if lockErr != nil {
+		m.mu.Unlock()
+		return nil, lockErr
+	}
+	active, lockErr := taskprocess.Active(lockPath)
+	if lockErr != nil || active {
+		m.mu.Unlock()
+		if active {
+			return nil, taskprocess.ErrActive
+		}
+		return nil, fmt.Errorf("task execution ownership unavailable: %w", lockErr)
+	}
+	supervisor, supervisorErr := os.Executable()
+	if supervisorErr != nil {
+		m.mu.Unlock()
+		return nil, supervisorErr
+	}
+	supervisedArgs := append([]string{taskprocess.Command, lockPath, strconv.Itoa(os.Getpid()), "--", executable}, ptyArgs...)
 	sessionID := generateSessionID()
 	ptyCfg := PTYConfig{
 		TaskID:      taskID,
 		WorkDir:     workDir,
-		Shell:       executable,
-		Args:        ptyArgs,
+		Shell:       supervisor,
+		Args:        supervisedArgs,
 		Env:         cfg.Env,
 		InitialCols: cols,
 		InitialRows: rows,
@@ -517,4 +538,29 @@ func (m *Manager) GetTaskHistory(taskID string) []*TaskRunHistory {
 		result[i] = &clone
 	}
 	return result
+}
+
+func (m *Manager) taskLockPath(taskID string) (string, error) {
+	if !validTaskIDRegex.MatchString(taskID) {
+		return "", ErrInvalidTaskID
+	}
+	root, err := filepath.Abs(filepath.Join(m.cfg.WorkspacesDir, ".task-execution-locks"))
+	if err != nil {
+		return "", err
+	}
+	if err = os.MkdirAll(root, 0700); err != nil {
+		return "", err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, taskID+".lock"), nil
+}
+func (m *Manager) TaskExecutionActive(taskID string) (bool, error) {
+	path, err := m.taskLockPath(taskID)
+	if err != nil {
+		return false, err
+	}
+	return taskprocess.Active(path)
 }

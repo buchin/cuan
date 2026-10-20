@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	ErrPTYClosed       = errors.New("pty process is closed")
-	ErrInvalidWorkDir  = errors.New("invalid or insecure working directory")
-	ErrShellNotFound   = errors.New("shell executable not found")
+	ErrPTYClosed      = errors.New("pty process is closed")
+	ErrInvalidWorkDir = errors.New("invalid or insecure working directory")
+	ErrShellNotFound  = errors.New("shell executable not found")
 )
 
 // PTYConfig defines parameters for spawning an isolated pseudo-terminal process.
@@ -189,6 +189,17 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 	cmd := exec.CommandContext(ctx, shellPath, cfg.Args...)
 	cmd.Dir = canonicalDir
 	cmd.Env = env
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		if err == syscall.ESRCH {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	cmd.WaitDelay = 3 * time.Second
 
 	ws := &pty.Winsize{
 		Cols: cols,

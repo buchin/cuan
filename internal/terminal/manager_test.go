@@ -2,8 +2,11 @@ package terminal
 
 import (
 	"context"
+	"errors"
+	"github.com/buchin/cuan/internal/taskprocess"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -268,5 +271,58 @@ func TestManager_ReportedFinishIgnoresStaleInputAndAttempt(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("reported process did not terminate")
+	}
+}
+
+func TestManagerExecutionOwnershipSurvivesReconstruction(t *testing.T) {
+	base := t.TempDir()
+	bin := t.TempDir()
+	workspace := t.TempDir()
+	script := "#!/bin/sh\necho LIVE_OWNERSHIP\ntrap '' HUP TERM\nwhile :; do sleep 0.05; done\n"
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	first := NewManager(ManagerConfig{WorkspacesDir: base})
+	defer first.CloseAll()
+	ready := make(chan struct{}, 1)
+	_, err := first.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "ownership-task", Command: "agy", WorkDir: workspace, OnOutput: func(data []byte) {
+		if strings.Contains(string(data), "LIVE_OWNERSHIP") {
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ready:
+	case <-time.After(3 * time.Second):
+		t.Fatal("agent did not become active")
+	}
+	second := NewManager(ManagerConfig{WorkspacesDir: base})
+	defer second.CloseAll()
+	if active, err := second.TaskExecutionActive("ownership-task"); err != nil || !active {
+		t.Fatal("reconstructed manager lost live process ownership", err)
+	}
+	if _, err := second.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "ownership-task", Command: "agy", WorkDir: workspace}); !errors.Is(err, taskprocess.ErrActive) {
+		t.Fatal("replacement overlapped live agent", err)
+	}
+	first.CloseAll()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		active, err := second.TaskExecutionActive("ownership-task")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !active {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("execution ownership did not release")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/buchin/cuan/internal/taskprocess"
 	"log"
 	"net/http"
 	"os"
@@ -25,6 +26,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == taskprocess.Command {
+		os.Exit(taskprocess.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "task" {
 		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
 	}
