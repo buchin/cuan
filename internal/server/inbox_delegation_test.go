@@ -165,6 +165,14 @@ esac
 	if !strings.Contains(response, "already handled") {
 		t.Fatal(response)
 	}
+	// A different trigger must reuse the approval's launch identity too.
+	otherTrigger := accepted.Request
+	otherTrigger.RequestID = db.GenerateUUID()
+	otherTrigger.MessageID = db.GenerateUUID()
+	otherTrigger.CreatedAt = time.Now().UTC()
+	if out := s.applyInboxDelegation(ctx, otherTrigger, replay); !strings.Contains(out, "already handled") {
+		t.Fatal("approval replay launched again", out)
+	}
 	s.deliverInboxTaskUpdates(ctx)
 	reviewID := delegationMessageID("task-review:" + result.LatestAttempt.ID)
 	waitInboxState(t, s, accepted.Request.RoomID, reviewID, "completed")
@@ -264,5 +272,51 @@ func TestInboxDelegationSaveAndApprovalProvenance(t *testing.T) {
 	detail, err := s.taskSvc.GetTaskDetail(ctx, "msg_"+q.MessageID)
 	if err != nil || len(detail.Attempts) != 0 || detail.Status != "backlog" {
 		t.Fatal(detail, err)
+	}
+}
+
+func TestInboxDelegationApprovalScopeIsStableAcrossTriggerMessages(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p1", Name: "One"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: room.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "save", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	m := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", Content: "Save the read-only audit. Do not run.", CreatedAt: now}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, m)
+	d := inboxDelegation{Action: "save", Title: "Audit", Description: "Read-only audit", ProjectID: "p1", AuthorizationID: q.MessageID}
+	apply := func() string {
+		raw, _ := json.Marshal(d)
+		return s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(raw)+"\n```")
+	}
+	if out := apply(); !strings.Contains(out, "has not been started") {
+		t.Fatal(out)
+	}
+	// Another trigger referring to the same approval must not create another task.
+	q.MessageID = db.GenerateUUID()
+	q.RequestID = db.GenerateUUID()
+	if out := apply(); !strings.Contains(out, "has not been started") {
+		t.Fatal(out)
+	}
+	for _, change := range []string{"description", "run"} {
+		if change == "description" {
+			d.Description = "Modify and deploy everything"
+		} else {
+			d.Description = "Read-only audit"
+			d.Action = "run"
+		}
+		if out := apply(); !strings.Contains(out, "another scope") {
+			t.Fatal("changed approval accepted", out)
+		}
+	}
+	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+	if err != nil || len(tasks) != 1 {
+		t.Fatal(tasks, err)
+	}
+	detail, _ := s.taskSvc.GetTaskDetail(ctx, tasks[0].ID)
+	if len(detail.Attempts) != 0 || detail.SourceMessageID != d.AuthorizationID {
+		t.Fatal("approval identity or save-only authorization lost")
 	}
 }

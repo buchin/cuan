@@ -127,7 +127,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 		if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
 			for _, request := range requests {
-				if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelling" {
+				if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
 					authenticatedApproval = true
 				}
 			}
@@ -173,8 +173,8 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	} else {
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)
-		instructions := "Cuan managed delegation v1.\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
-		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, q.MessageID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: d.Title, Instructions: instructions, AssignedAgent: q.AgentID})
+		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
+		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: d.Title, Instructions: instructions, AssignedAgent: q.AgentID})
 		if e != nil {
 			return fail("the task could not be saved")
 		}
@@ -183,13 +183,20 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			return fail("the saved task could not be loaded")
 		}
 	}
+	if d.TaskID == "" && !strings.Contains(t.Instructions, "\n"+delegationScopeDigest(*d)+"\n") {
+		return fail("this approval is already bound to another scope; approve the changed plan separately")
+	}
 	if t.SourceRoomID != q.RoomID || t.ProjectID != d.ProjectID {
 		return fail("the saved task belongs to another scope")
 	}
 	if d.Action == "save" {
 		return "The work is saved and has not been started.\n\n[View work](/tasks/" + t.ID + ")"
 	}
-	payload := runTaskAgentPayload{RequestID: q.RequestID, AgentID: q.AgentID, Revision: d.Revision}
+	launchID := q.RequestID
+	if d.TaskID == "" {
+		launchID = delegationMessageID("task-run:" + q.RoomID + ":" + d.AuthorizationID)
+	}
+	payload := runTaskAgentPayload{RequestID: launchID, AgentID: q.AgentID, Revision: d.Revision}
 	response := &delegationResponse{header: make(http.Header)}
 	request, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-delegation", nil)
 	s.runTaskAgent(response, request, t.ID, payload, q.OwnerID)
@@ -307,4 +314,15 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		s.publishInbox(q.RoomID)
 		s.kickInboxRoom(q.RoomID)
 	}
+}
+
+// Bind replayed initial delegation to its first stored scope and action. This
+// does not infer consent from natural language; structured approval is separate.
+func delegationScopeDigest(d inboxDelegation) string {
+	action := d.Action
+	if action == "" {
+		action = "run"
+	}
+	raw, _ := json.Marshal([]string{action, d.Title, d.Description, d.ProjectID})
+	return fmt.Sprintf("Approved scope digest: %x", sha256.Sum256(raw))
 }

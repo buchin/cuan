@@ -31,6 +31,21 @@ Targeted checks passed:
   checks pass (32.954 seconds). An initial 20-second command deadline was too
   short; the bounded rerun completed within a 45-second test deadline.
 
-Pending: integrated interrupted-task continuation and no-repeat proof, immutable
-approval scope enforcement, clean release and production verification. This is
+The integrated fake-provider flow also passes: a real task shell writes one
+artifact, reports progress without a summary, and receives SIGKILL. Automated
+coordinator review receives the saved checkpoint and requests a scoped revision
+of the same task. The replacement verifies the prior artifact and original
+no-deploy constraint, reports done, and produces one final coordinator response.
+There is one task, two attempts and exactly one artifact creation.
+
+Initial delegation identity now derives from the authorization message, rather
+than a later triggering message. A stable launch request prevents re-execution
+across different triggers. A stored scope digest rejects changed initial scope
+or save-to-run elevation under that same approval. Tests cover managed projects,
+normal delegation, subsequent triggers, changed scope/action and bounded revisions.
+This pins the first stored scope; it does not prove natural-language consent or
+bind an immutable proposal before approval.
+
+Pending: immutable proposal/approval scope enforcement, clean release and
+production verification. This is
 not evidence that the full product goal is complete.
