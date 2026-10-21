@@ -9,8 +9,8 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, production workflow release
 
-Production runs `fb624e5af9ec0cf2b4ccae1bec6a104aa288c3ae`/schema25
-(tag `goal-workflow-20261021`). The full typed coordinator, canonical report
+Production runs `5882000e9e5b412f5afad2f5931b277e24a0c6cd`/schema25, following
+the full workflow release tagged `goal-workflow-20261021`. The full typed coordinator, canonical report
 evaluator, same-task interruption recovery and private task artifact delivery are
 now deployed. Health and private pre-release database backup checks passed;
 no database migration was required. Release activation checks for live GitHub
@@ -145,7 +145,7 @@ No production task or AI request has been replayed for verification.
 ## Remaining completion work
 
 Clear instructions remain direct. Optional scope decisions use exact approval
-snapshots and choice actions. The current production application is fb624e5/schema25. Older checkpoints below are historical; the current checkpoint above takes precedence.
+snapshots and choice actions. The current production application is 5882000/schema25. Older checkpoints below are historical; the current checkpoint above takes precedence.
 
 1. Supported native first-run and public documentation are now verified/reconciled.
    Actual binary startup, owner setup, neutral Default, process restart retention,
@@ -498,3 +498,15 @@ real-model recovery proof require the owner decision before continuing this live
 session. Do not infer approval from an automatic goal continuation message.
 The full goal is blocked at that prerequisite, not complete. Resume after the
 owner accepts or declines the provider terms with a clear sharing preference.
+
+## Repository UX release verification
+
+Production5882000 replaces two legacy PAT-requesting repository errors with
+Settings > Integrations guidance. Targeted project-connect, real-Git push
+recovery, queued continuation and same-scope recovery tests passed together
+(13.332s). The previous20s command was terminated and is not counted as a pass.
+Build/deployment health passed, schema25/no migration. Postdeploy read-only
+browser checks passed at390/820/1440, exact assets and GitHub connection retention
+passed, zero production inference. See
+../evidence/goal-workflow-production/repository-copy-release.json.
+Real-Git fixtures do not establish native model remote GitHub delivery.
