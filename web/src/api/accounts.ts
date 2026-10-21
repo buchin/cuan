@@ -71,6 +71,10 @@ export const accountsApi = {
       method: 'POST',
       body: JSON.stringify({ session_id, code: '' }),
     }),
+  finishSetup: async (id: string) =>
+    (await apiFetch<{ account: ProviderAccount }>(`${base}/${encodeURIComponent(id)}/verify`, {
+      method: 'POST', body: JSON.stringify({ finish_setup: true, accept_provider_terms: true }),
+    })).account,
   verify: async (id: string) =>
     (
       await apiFetch<{ account: ProviderAccount }>(

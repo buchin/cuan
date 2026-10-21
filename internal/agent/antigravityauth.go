@@ -251,7 +251,7 @@ func startAntigravityAuthSession(ctx context.Context, home, ownerID, accountID s
 			return nil, errors.New("Existing sign-in state could not be checked; no login process was started")
 		}
 	}
-	terminal, err := pty.Start(cmd)
+	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 120})
 	if err != nil {
 		cancel()
 		return nil, errors.New("cannot start Antigravity login terminal")

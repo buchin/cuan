@@ -37,3 +37,15 @@ resend a failed message or authorize replay of uncertain work. No scheduled
 quota-reset retry is promised. Account/model fallback remains subject to the
 owner's existing settings. Review and verification are required before reporting
 work complete, even when a replacement provider returns successfully.
+
+### Google sign-in saved but setup incomplete
+
+Cuan opens the first-run provider wizard in a sized terminal so its navigation
+buttons are visible. If Google authorization succeeds but the wizard is still
+incomplete, the confirmation flow resumes setup using the same saved account and
+the terms consent given with confirmation. Optional interaction sharing stays off.
+No new authorization code, agent name or replacement account is required. Setup
+completion is taken from the provider's own saved state; Cuan does not manufacture
+it. The owner-scoped verification endpoint accepts `finish_setup: true` with
+`accept_provider_terms: true` for this bounded recovery. Provider quota or location
+restrictions can still prevent AI execution after setup completes.

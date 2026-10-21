@@ -116,6 +116,23 @@ func (s *Server) handleVerifyProviderAccount(w http.ResponseWriter, r *http.Requ
 	if owner == "" {
 		return
 	}
+	if r.ContentLength != 0 {
+		var req struct {
+			FinishSetup bool `json:"finish_setup"`
+			AcceptTerms bool `json:"accept_provider_terms"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req) != nil {
+			respondJSONError(w, 400, "Invalid setup request")
+			return
+		}
+		if req.FinishSetup {
+			if err := agent.FinishProviderAccountSetup(r.Context(), owner, chi.URLParam(r, "accountID"), req.AcceptTerms); err != nil {
+				respondJSONError(w, 409, err.Error())
+				return
+			}
+		}
+	}
+
 	a, err := agent.VerifyProviderAccount(r.Context(), owner, chi.URLParam(r, "accountID"))
 	if err != nil {
 		respondJSONError(w, 404, "Account is unavailable for verification")

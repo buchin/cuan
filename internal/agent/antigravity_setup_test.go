@@ -153,3 +153,56 @@ func TestCredentialBaselineRejectsOldFilesWithoutRelyingOnMtime(t *testing.T) {
 		t.Fatal("invalid changed credentials accepted")
 	}
 }
+
+func TestSavedAccountSetupRecoveryPreservesCredentials(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	bin := t.TempDir()
+	script := `#!/bin/sh
+stty -icanon -echo -icrnl
+[ "$(stty size)" = "40 120" ] || exit 41
+printf 'Choose your color scheme:\nterminal\n[Next]'
+key=$(dd bs=1 count=1 2>/dev/null)
+[ "$key" = "$(printf '\r')" ] || exit 42
+printf 'Terms of Service & Data Use\n[ ] Yes, I agree to help improve\n[Previous] [Done]'
+key=$(dd bs=1 count=1 2>/dev/null); [ "$key" = "$(printf '\t')" ] || exit 43
+printf '> Previous'
+key=$(dd bs=1 count=1 2>/dev/null); [ "$key" = "$(printf '\t')" ] || exit 44
+printf '> Done'
+key=$(dd bs=1 count=1 2>/dev/null); [ "$key" = "$(printf '\r')" ] || exit 45
+mkdir -p "$ANTIGRAVITY_CONFIG_DIR/cache"
+printf '{"onboardingComplete":true}' > "$ANTIGRAVITY_CONFIG_DIR/cache/onboarding.json"
+sleep 1
+`
+	os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	a, err := CreateProviderAccount("owner-setup", "Dev2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := ProviderAccountHome("owner-setup", a.ID)
+	os.MkdirAll(AntigravityConfigDirPath(home), 0700)
+	credential := []byte(`{"token":{"access_token":"fixture-saved-not-real"}}`)
+	os.WriteFile(AntigravityCredentialsFilePath(home), credential, 0600)
+	if err := FinishProviderAccountSetup(context.Background(), "owner-setup", a.ID, false); err == nil {
+		t.Fatal("missing consent accepted")
+	}
+	if antigravityOnboardingComplete(home) {
+		t.Fatal("consent rejection changed setup")
+	}
+	if err := FinishProviderAccountSetup(context.Background(), "other-owner", a.ID, true); err == nil {
+		t.Fatal("foreign owner accepted")
+	}
+	if err := FinishProviderAccountSetup(context.Background(), "owner-setup", a.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if !antigravityOnboardingComplete(home) {
+		t.Fatal("provider did not finish setup")
+	}
+	after, _ := os.ReadFile(AntigravityCredentialsFilePath(home))
+	if string(after) != string(credential) {
+		t.Fatal("saved sign-in replaced")
+	}
+	if err := FinishProviderAccountSetup(context.Background(), "owner-setup", a.ID, true); err != nil {
+		t.Fatal("repeat completion failed", err)
+	}
+}

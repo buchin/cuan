@@ -360,12 +360,16 @@ export function TeamView({
     setBusy(true)
     setFormError('')
     try {
-      const account = await accountsApi.code(
+      let account
+      try { account = await accountsApi.code(
         session.accountId,
         session.sessionId,
         code.trim(),
         true,
-      )
+      ) } catch (err) {
+        if (!(err instanceof Error) || !/setup is (not complete|incomplete)/i.test(err.message)) throw err
+        account = await accountsApi.finishSetup(session.accountId)
+      }
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       if (!account.credentials_present)
         throw new Error(
