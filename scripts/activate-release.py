@@ -69,6 +69,29 @@ def database_scalar(query, env):
     return result.stdout.strip()
 
 
+def assert_no_github_login(control_group=None, proc_root=Path('/proc'), cgroup_root=Path('/sys/fs/cgroup')):
+    # Device login is held in a running gh process, not a task database row.
+    # A release must not cut off the owner's pending browser authorization.
+    if control_group is None:
+        control_group = subprocess.check_output(
+            ['systemctl', 'show', SERVICE, '-p', 'ControlGroup', '--value'], text=True).strip()
+    if not control_group.startswith('/') or control_group == '/' or '..' in Path(control_group).parts:
+        raise RuntimeError('Could not verify pending GitHub sign-in; release was not switched')
+    try:
+        pids = (cgroup_root / control_group.lstrip('/') / 'cgroup.procs').read_text().split()
+        for pid in pids:
+            if not pid.isdigit():
+                raise RuntimeError('Could not verify pending GitHub sign-in; release was not switched')
+            try:
+                args = (proc_root / pid / 'cmdline').read_bytes().split(b'\0')
+            except FileNotFoundError:
+                continue  # This exact process already ended.
+            if len(args) >= 3 and Path(os.fsdecode(args[0])).name == 'gh' and args[1] == b'auth' and args[2] in (b'login', b'token'):
+                raise RuntimeError('GitHub sign-in is active; finish or cancel it in Cuan before changing release')
+    except OSError as error:
+        raise RuntimeError('Could not verify pending GitHub sign-in; release was not switched') from error
+
+
 def assert_idle_work():
     # A pre-switch gate, not a lock on HTTP admission. Queued requests that arrive
     # after this check retain their normal durable restart/recovery semantics.
@@ -79,6 +102,8 @@ def assert_idle_work():
         column='state' if table!='task_attempts' else 'status'
         if int(database_scalar('SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')',env)):
             raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
+
+    assert_no_github_login()
 
 
 def assert_project_workspace_support(manifest, retained_environment=None):
@@ -202,6 +227,7 @@ def main():
             'Environment=CUAN_AUTO_MIGRATE=false\n')
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         retained_environment = database_environment()
+        assert_idle_work()  # Recheck after backup and unit preparation.
         switch(current, target)
         if not restart_and_check():
             assert_project_workspace_support(json.loads((old / 'release.json').read_text()), retained_environment)

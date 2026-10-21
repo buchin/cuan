@@ -24,7 +24,7 @@ p.write_text(str(n+1))
 assert 'AUTOMATIC_ORIGINAL_INTENT' in sys.argv[2]
 result={'status':'ERROR','message':'Temporary provider failure'}
 if n>0 and '` + outcome + `'=='success':
- result={'status':'SUCCESS','response':'Recovered the original answer.'}
+ result={'status':'SUCCESS','response':json.dumps({'reply':'Recovered the original answer.','topic_title':'','action':None})}
 print(json.dumps({'event':'result','result':result}))
 `
 			binary := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")

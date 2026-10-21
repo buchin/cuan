@@ -54,11 +54,33 @@ class Gates(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'Active or waiting work'):
                 a.assert_idle_work()
     def test_schema24_without_launch_table_can_upgrade(self):
-        with patch.object(a,'database_environment',return_value={}), patch.object(a,'database_scalar',side_effect=['t','0','t','0','f']):
+        with patch.object(a,'assert_no_github_login'), patch.object(a,'database_environment',return_value={}), patch.object(a,'database_scalar',side_effect=['t','0','t','0','f']):
             a.assert_idle_work()
     def test_database_gate_fails_closed(self):
         with patch.object(a,'database_environment',return_value={}), patch.object(a,'database_scalar',side_effect=RuntimeError('unavailable')):
             with self.assertRaises(RuntimeError): a.assert_idle_work()
+    def test_pending_github_auth_blocks_release_without_reading_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            group = root/'cgroups/system.slice/cuan.service'
+            group.mkdir(parents=True)
+            (group/'cgroup.procs').write_text('100 101')
+            for pid, args in [('100', b'/opt/cuan/cuan-server\0'), ('101', b'/private/runtime/gh\0auth\0login\0--web\0')]:
+                process = root/'proc'/pid
+                process.mkdir(parents=True)
+                (process/'cmdline').write_bytes(args)
+            with self.assertRaisesRegex(RuntimeError, 'GitHub sign-in is active'):
+                a.assert_no_github_login('/system.slice/cuan.service', root/'proc', root/'cgroups')
+            (root/'proc/101/cmdline').write_bytes(b'/private/runtime/gh\0auth\0token\0')
+            with self.assertRaisesRegex(RuntimeError, 'GitHub sign-in is active'):
+                a.assert_no_github_login('/system.slice/cuan.service', root/'proc', root/'cgroups')
+            (root/'proc/101/cmdline').unlink()
+            a.assert_no_github_login('/system.slice/cuan.service', root/'proc', root/'cgroups')
+    def test_github_process_gate_fails_closed_when_state_is_unreadable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(RuntimeError, 'Could not verify'):
+                a.assert_no_github_login('/system.slice/cuan.service', Path(directory), Path(directory))
+
     def test_empty_or_public_existing_backup_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             a.BASE = Path(directory)
