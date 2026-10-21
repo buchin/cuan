@@ -58,7 +58,7 @@ func FetchRunnableAccountModelUsage(ctx context.Context, owner, id string) Accou
 	}
 	usage.Models = filtered
 	if len(filtered) == 0 {
-		usage.Message = "No installed AI model has current quota evidence."
+		usage.Message = "No supported AI model has verified availability. Refresh usage or connect another account."
 	}
 	return usage
 }
@@ -122,6 +122,16 @@ func nativeAccountModelCatalog(ctx context.Context, owner, id string) (map[strin
 		return nil, false
 	}
 	nativeCatalogCache.Lock()
+	if len(nativeCatalogCache.entries) >= 128 {
+		oldestKey := ""
+		var oldest time.Time
+		for candidate, entry := range nativeCatalogCache.entries {
+			if oldestKey == "" || entry.at.Before(oldest) {
+				oldestKey, oldest = candidate, entry.at
+			}
+		}
+		delete(nativeCatalogCache.entries, oldestKey)
+	}
 	nativeCatalogCache.entries[key] = nativeCatalogEntry{time.Now(), models}
 	nativeCatalogCache.Unlock()
 	return models, true

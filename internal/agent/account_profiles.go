@@ -253,6 +253,8 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	usage := FetchRunnableAccountModelUsage(ctx, owner, id)
 	if best, ok := AutomaticTextModel(usage, a.ModelCooldowns, time.Now()); ok {
 		model = best.Model
+	} else if usage.Available && len(usage.Models) == 0 {
+		probeErr = errors.New(usage.Message)
 	} else if usage.Available {
 		probeErr = antigravityProbeError("quota")
 	}
