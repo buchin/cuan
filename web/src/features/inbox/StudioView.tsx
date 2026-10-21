@@ -187,6 +187,7 @@ export function StudioView({
           </label>
           <div className="overflow-hidden rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
             <textarea
+              data-primary-composer
               id="studio-goal"
               ref={goalInput}
               className="block min-h-36 max-h-80 md:min-h-44 w-full resize-none border-0 bg-transparent p-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
