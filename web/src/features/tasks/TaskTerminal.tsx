@@ -9,7 +9,6 @@ import {
   ChevronUp,
   RefreshCw,
   Keyboard,
-  KeyboardOff,
   MoreHorizontal,
 } from 'lucide-react'
 import { getAuthToken } from '../../api/client'
@@ -208,7 +207,7 @@ export function TaskTerminal({
           window.location.href,
         )
         url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-        url.searchParams.set('mode', 'watch')
+        url.searchParams.set('mode', 'interactive')
         url.searchParams.set('attach', '1')
         url.searchParams.set('session_id', liveId)
         url.searchParams.set('cols', String(terminal.cols))
@@ -238,6 +237,11 @@ export function TaskTerminal({
                 )
                 return
               }
+              const enabled = data.mode === 'interactive'
+              interactive.current = enabled
+              setInput(enabled)
+              terminal.options.disableStdin = !enabled
+              terminal.options.cursorBlink = enabled
               setConnection('connected')
               fitTerminal()
             } else if (data.type === 'status') {
@@ -246,7 +250,6 @@ export function TaskTerminal({
               setInput(enabled)
               terminal.options.disableStdin = !enabled
               terminal.options.cursorBlink = enabled
-              if (enabled) terminal.focus()
             } else if (data.type === 'error')
               setError(data.message || 'Terminal request failed.')
           } catch {
@@ -307,12 +310,17 @@ export function TaskTerminal({
       document.removeEventListener('keydown', escape)
     }
   }, [])
-  const toggleInput = () => {
+  const showKeyboard = () => {
     const ws = socket.current
-    if (ws?.readyState !== WebSocket.OPEN) return
-    ws.send(
-      JSON.stringify({ type: 'mode', mode: input ? 'watch' : 'interactive' }),
-    )
+    const terminal = term.current
+    if (ws?.readyState !== WebSocket.OPEN || !terminal) return
+    // Mobile browsers require focus within the original user gesture, not in
+    // the later WebSocket response. Input permission still follows server mode.
+    if (!interactive.current) {
+      terminal.options.disableStdin = false
+      ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
+    }
+    terminal.focus()
   }
   const controls = (
     <div
@@ -363,16 +371,12 @@ export function TaskTerminal({
         {liveId && (
           <button
             className="icon-action"
-            aria-label={input ? 'Disable input' : 'Enable input'}
-            title={input ? 'Disable input' : 'Enable input'}
+            aria-label="Show keyboard"
+            title="Show keyboard"
             disabled={connection !== 'connected'}
-            onClick={toggleInput}
+            onClick={showKeyboard}
           >
-            {input ? (
-              <KeyboardOff className="h-4 w-4" />
-            ) : (
-              <Keyboard className="h-4 w-4" />
-            )}
+            <Keyboard className="h-4 w-4" />
           </button>
         )}
       </div>
