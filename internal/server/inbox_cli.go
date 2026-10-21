@@ -18,6 +18,7 @@ import (
 )
 
 type inboxSchemaRetryKey struct{}
+type inboxAnalysisRecoveryKey struct{}
 
 // boundedInboxOutput prevents noisy subprocesses exhausting server memory.
 // Live activity contains only application-owned labels, never stderr/reasoning.
@@ -67,7 +68,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
 	coordinator := !snapshotReview && !answerOnly
+	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	system := inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nContext data:\n" + prompt
+	if analysisRecovery {
+		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
+	}
 	if snapshotReview {
 		system = inboxReviewEvaluationInstruction + "\n\nReport data:\n" + prompt
 	}
@@ -78,7 +83,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if !coordinator {
 			return reply, ""
 		}
-		output, err := decodeInboxCoordinatorResponse(reply)
+		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
 		if err != nil {
 			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 		}
@@ -241,6 +246,17 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			}
 		}
 		alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
+		if coordinator && reason == "tool_permission_denied" && !analysisRecovery && !alreadyRepaired && ctx.Err() == nil && runErr == nil && !runtime.invalid && !runtime.overflow {
+			if step != nil {
+				step("analysis_recovery", "A tool was denied. Continuing the analysis with read-only tools; no work is being restarted.")
+			}
+			// This is an analysis-only continuation, never an action replay.
+			// Retain the original uncertainty in retrySafe and reject every
+			// application action from the replacement response below.
+			repairCtx := context.WithValue(ctx, inboxAnalysisRecoveryKey{}, true)
+			repairCtx = context.WithValue(repairCtx, inboxSchemaRetryKey{}, true)
+			return s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, nil, attachmentPaths...)
+		}
 		if coordinator && reason == "coordinator_invalid" && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
 			if step != nil {
 				step("response_recovery", "The reply format was invalid. Retrying once without applying the rejected response.")
