@@ -7,7 +7,33 @@ menggandakan pekerjaan.
 This audit preserves that end state. A successful retry or green unit test alone
 does not establish the whole goal.
 
-## Current checkpoint — 2026-10-21, native recovery
+## Current checkpoint — 2026-10-21, UI release and coordinator gap
+
+Production runs UI-only release `0b130c1`/schema25 (tag `ui-release-20261021`).
+Original system-message Markdown and contextual action rendering, plus global
+keyboard shortcuts, passed real production browser checks at 390/820/1440px.
+No production inference was invoked. Backend code remains `09a3fc4`; staged
+workflow changes were deliberately excluded from this release.
+
+Dedicated staging runs `269e9b0`/schema25. The original interrupted task resumed
+and finished on its second attempt, preserving its original HTML hash and inode.
+A specialized structured evaluator subsequently delivered the canonical report
+review in Inbox without tools. Task artifact snapshot/download/owner-boundary
+and CLI tests pass, and the UI can display private output attachments.
+
+A new native goal exposed an unresolved general coordinator boundary: after
+plain-prose scope approval, Inbox implemented files inside the provider brain,
+reported file:// links and created no task. AGY plan mode denies ordinary writes
+but permits provider artifact tools. Prompt-only role restrictions and plan mode
+therefore do not prove SM/dev separation. A constrained application action
+protocol is the next available correction; do not replay the saved user approval
+or move provider files into a task workspace and call it recovery.
+
+The full objective remains open, including native user-accessible artifact
+delivery and fresh-live OAuth onboarding from an empty account. See
+[UI evidence](../evidence/inbox-actions-hotkeys/README.md).
+
+## Earlier checkpoint — native recovery
 
 Production runs `09a3fc4`/schema25; dedicated Dracin staging runs `8b2ed65`/schema25.
 Production Default is neutral (name Default, no repository); legacy Cuan data was

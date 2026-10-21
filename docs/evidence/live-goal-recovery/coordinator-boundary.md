@@ -60,3 +60,18 @@ attempted a terminal tool and the review failed on permission denial. The task i
 Done according to its execution report; coordinator acceptance and user-accessible
 file delivery remain unresolved. Do not present the whole lifecycle as passed.
 Production remains on `09a3fc4` and was not changed by these staging tests.
+
+## Structured review checkpoint
+
+Staging `40f0838` replaced mixed execution instructions with a JSON report
+evaluator bound to the current canonical attempt. Native review
+`273f03a6-9411-4eec-a241-b688e0f57854` completed and delivered a user-facing summary
+explicitly attributed to the work session's verification report. No execution
+attempt was added. Targeted tests reject conflicting/extra-action decisions and
+return a failed task for correction even when the model incorrectly says pass.
+
+This improves result review only. The later tip-calculator scenario on staging
+`269e9b0` showed general Inbox approval still permitting native provider-artifact
+implementation with no task. See the current audit and UI evidence for this
+unresolved boundary. Production `0b130c1` contains UI changes only, with backend
+source unchanged from `09a3fc4`.
