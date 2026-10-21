@@ -1,6 +1,6 @@
 ## SQL-backed approved-goal interruption and reconstruction
 
-`TestFreshInstallPostgresApprovedGoalRecovery` passes in6.58s against an empty,
+`TestFreshInstallPostgresApprovedGoalRecovery` passes in6.05s on1ccf2f4 against an empty,
 dedicated real PostgreSQL database. Every application store comes from
 `NewServer(cfg, database)`; no memory stores are substituted. The local provider
 and Bubblewrap launcher are deterministic fixtures, not external inference.
@@ -13,9 +13,9 @@ approval. The owner's approval uses the canonical saved approval request identit
 A real child shell writes one artifact, reports a progress-only checkpoint, and
 receives SIGKILL before producing a final summary. The test discards the original
 server, service and terminal-manager instances, retaining only PostgreSQL and
-persistent HOME/workspaces. A new server's normal Inbox dispatcher immediately
-reviews the interrupted attempt. The review must contain the saved checkpoint;
-it requests a scoped revision of the same task under the original authorization.
+persistent HOME/workspaces. A new server's normal Inbox dispatcher deterministically resumes the interrupted
+approved task with its saved checkpoint and original authorization, without
+requiring another model to reconstruct the launch.
 The replacement shell verifies the artifact, checkpoint and no-deploy constraint
 before reporting done. The dispatcher automatically delivers the verified final
 result without a browser reconnect, user message or manual delivery-helper call.
@@ -23,8 +23,10 @@ result without a browser reconnect, user message or manual delivery-helper call.
 Assertions after another reconstruction prove one task, two attempts, one artifact
 creation, exactly one final coordinator result, retained owner session and retained
 renamed project. Replaying the initial Studio goal does not duplicate execution.
-The companion direct-goal SQL lifecycle still passes after the shared fixture
-refactor (4.37s). Both dedicated databases were dropped; no production database
+The companion direct-goal SQL lifecycle passed after typed-protocol fixture
+alignment (3.02s on1469c31). The quota-recovery variant also passes (5.85s on
+1ccf2f4): a native-shaped warning stops the failed route, then the permitted
+model continues the original task and checks its existing artifact/checkpoint. Both dedicated databases were dropped; no production database
 writes or external provider calls occurred.
 
 ## Reproduce
@@ -48,7 +50,8 @@ OS supervisor parent-loss/ownership checks and real native binary restart eviden
 are separate checks in task-recovery and onboarding. The provider fixture verifies
 recovery contracts rather than a live model's interpretation of every goal.
 
-Only test/evidence files changed in this checkpoint. The production implementation
-remains49f89ec/schema25, whose native delivery, rollback/reactivation and retained
-data checks passed. Docker distribution/runtime verification remains open in the
-full goal audit.
+The recovery implementation is deployed in production and dedicated staging
+within b85d444/schema25, with health/readiness passing. Tests use controlled
+provider transports and real child processes; native interruption recovery and
+native downloadable delivery are separately recorded in live-goal-recovery and
+coordinator-native. See current-provider-recovery.json for the latest SQL runs.

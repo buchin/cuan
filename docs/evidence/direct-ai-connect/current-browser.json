@@ -1,0 +1,34 @@
+{
+  "checks": [
+    {
+      "theme": "light",
+      "width": 390,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    }
+  ],
+  "accountFetchFailureHandled": true,
+  "existingWorkspaceUnchanged": true,
+  "oneSubmissionAfterSetup": true,
+  "realProviderCalls": 0,
+  "source_release": "1469c31138c80a7d3309f1feb8e367e89f5933c5",
+  "api": "fixture",
+  "google_authorization": "not performed by this browser fixture",
+  "saved_setup_recovery": "Fixture saved-code incomplete response triggers actual frontend finishSetup request; credential/wizard behavior verified separately."
+}
