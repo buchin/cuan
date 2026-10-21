@@ -70,3 +70,9 @@ including the Auto/provider-default route, so task preflight does not immediatel
 reuse a route that just failed in Inbox. Other allowed models remain eligible.
 Native task location-warning prompts also stop the matching attempt and retain
 that limitation for review. Cooldown expiry is not proof of restored availability.
+
+If a coordinator reply fails the JSON response contract before any application
+action or unsafe tool activity, Cuan retries that reply once under the same model,
+account, original context and permissions. Rejected text is never applied as an
+action. A second invalid result stops; uncertainty from either attempt prevents
+further safe replay. This repair does not recreate tasks or relax result validation.

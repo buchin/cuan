@@ -150,3 +150,48 @@ func TestCoordinatorRuntimeMetadataCannotHideATool(t *testing.T) {
 		}
 	}
 }
+
+func TestCoordinatorInvalidSchemaRetriesOnlyOnceWithoutEffects(t *testing.T) {
+	for _, scenario := range []string{"repaired", "still-invalid", "unsafe", "unsafe-retry"} {
+		t.Run(scenario, func(t *testing.T) {
+			bin, home := t.TempDir(), t.TempDir()
+			result, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]any{"status": "SUCCESS", "response": coordinatorJSON("Recovered answer", "", nil)}})
+			first := `{"event":"result","result":{"status":"SUCCESS","response":"invalid transport"}}`
+			if scenario == "unsafe" {
+				first = "{\"event\":\"step_update\",\"step_update\":{\"step_index\":1,\"step_type\":\"tool\",\"state\":\"DONE\",\"tool_name\":\"run_command\"}}\n" + first
+			}
+			if scenario == "unsafe-retry" {
+				result = append([]byte("{\"event\":\"step_update\",\"step_update\":{\"step_index\":1,\"step_type\":\"tool\",\"state\":\"DONE\",\"tool_name\":\"run_command\"}}\n"), result...)
+			}
+			if scenario == "still-invalid" {
+				result = []byte(first)
+			}
+			script := "#!/bin/sh\nprintf x >> \"$HOME/calls\"\nif [ \"$(cat \"$HOME/calls\")\" = x ]; then\ncat <<'FIRST'\n" + first + "\nFIRST\nelse\ncat <<'SECOND'\n" + string(result) + "\nSECOND\nfi\n"
+			if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			installInboxSandboxStub(t, bin)
+			t.Setenv("PATH", bin+":/usr/bin:/bin")
+			s := &Server{cfg: &config.Config{Environment: "staging"}}
+			safe := false
+			out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Answer the question", home, t.TempDir(), nil, &safe)
+			calls, _ := os.ReadFile(filepath.Join(home, "calls"))
+			if scenario == "repaired" {
+				if out != "Recovered answer" || failure != "" || !safe || string(calls) != "xx" {
+					t.Fatal(out, failure, safe, string(calls))
+				}
+			} else {
+				want := "xx"
+				if scenario == "unsafe" {
+					want = "x"
+				}
+				if strings.HasPrefix(scenario, "unsafe") && safe {
+					t.Fatal("unsafe retry outcome was declared safe")
+				}
+				if out != "" || failure == "" || string(calls) != want {
+					t.Fatal("unbounded/unsafe repair", out, failure, string(calls))
+				}
+			}
+		})
+	}
+}

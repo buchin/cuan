@@ -17,6 +17,8 @@ import (
 	"github.com/buchin/cuan/internal/workflow"
 )
 
+type inboxSchemaRetryKey struct{}
+
 // boundedInboxOutput prevents noisy subprocesses exhausting server memory.
 // Live activity contains only application-owned labels, never stderr/reasoning.
 type boundedInboxOutput struct {
@@ -238,6 +240,19 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 				failure = "The agent returned no reply after a tool failed. Your message is saved. Open Details. The request will not be rerun automatically."
 			}
 		}
+		alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
+		if coordinator && reason == "coordinator_invalid" && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+			if step != nil {
+				step("response_recovery", "The reply format was invalid. Retrying once without applying the rejected response.")
+			}
+			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
+			repairSafe := false
+			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt+"\n\nResponse-format recovery: the previous response did not match the JSON transport contract and no application action was applied. Answer the same target message using exactly one valid schema object. Preserve existing task identity, original authorization and scope. Do not implement work or call execution tools.", home, workspace, step, &repairSafe, attachmentPaths...)
+			// The outer safety defer must retain any uncertainty from the retry.
+			runtime.unsafeTool = runtime.unsafeTool || !repairSafe
+			return output, err
+		}
+
 		lowerDiagnostic := strings.ToLower(stderr.String())
 		if reason == "runtime_missing_result" && (strings.Contains(lowerDiagnostic, "quota") || strings.Contains(lowerDiagnostic, "429") || strings.Contains(lowerDiagnostic, "resource_exhausted") || strings.Contains(lowerDiagnostic, "unauthorized") || strings.Contains(lowerDiagnostic, "401") || strings.Contains(lowerDiagnostic, "invalid_grant")) {
 			failure = safeInboxProviderFailure(nil, stderr.String())
