@@ -14,6 +14,7 @@ func TestConnectionVerificationUsesAvailableAutomaticModel(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	bin := t.TempDir()
 	script := `#!/bin/sh
+ if [ "$1" = models ]; then printf 'claude-sonnet-test\tSonnet\nclaude-opus-test\tOpus\n'; exit 0; fi
  last=''
  for arg in "$@"; do last="$arg"; done
  [ "$last" = claude-sonnet-test ] || exit 31
@@ -39,7 +40,7 @@ func TestConnectionVerificationUsesAvailableAutomaticModel(t *testing.T) {
 			t.Error("unexpected usage path")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"models":{"gemini-test":{"quotaInfo":{"remainingFraction":0.0015}},"claude-opus-test":{"quotaInfo":{"remainingFraction":0.326}},"claude-sonnet-test":{"quotaInfo":{"remainingFraction":0.326}}}}`))
+		_, _ = w.Write([]byte(`{"models":{"gemini-obsolete":{"quotaInfo":{"remainingFraction":1}},"gemini-test":{"quotaInfo":{"remainingFraction":0.0015}},"claude-opus-test":{"quotaInfo":{"remainingFraction":0.326}},"claude-sonnet-test":{"quotaInfo":{"remainingFraction":0.326}}}}`))
 	}))
 	defer server.Close()
 	oldHosts, oldClient := modelUsageHosts, modelUsageClient

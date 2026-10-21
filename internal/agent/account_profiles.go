@@ -250,10 +250,10 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	probeStarted := time.Now().UTC()
 	model := ""
 	var probeErr error
-	usage := FetchAccountModelUsage(ctx, owner, id)
+	usage := FetchRunnableAccountModelUsage(ctx, owner, id)
 	if best, ok := AutomaticTextModel(usage, a.ModelCooldowns, time.Now()); ok {
 		model = best.Model
-	} else if usage.Available && len(usage.Models) > 0 {
+	} else if usage.Available {
 		probeErr = antigravityProbeError("quota")
 	}
 	if probeErr == nil {

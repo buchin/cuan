@@ -16,7 +16,7 @@ const inboxQuotaNoBackup = "No allowed account/model route is currently availabl
 
 type inboxModelKey struct{}
 
-var fetchInboxModelUsage = agent.FetchAccountModelUsage
+var fetchInboxModelUsage = agent.FetchRunnableAccountModelUsage
 
 type inboxAccountRoute struct {
 	accountID, home, model string
