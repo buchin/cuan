@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { trapDialogFocus } from '../../lib/dialog'
 
 const destinations: Record<string, string> = { h: '/studio', i: '/inbox', p: '/projects', c: '/contacts', n: '/notifications', s: '/settings' }
@@ -7,10 +7,9 @@ const shortcuts = [['G then H', 'Studio'], ['G then I', 'Inbox'], ['G then P', '
 
 export function KeyboardShortcuts() {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
   const dialog = useRef<HTMLDialogElement>(null)
   const prefix = useRef(0)
-  useEffect(() => { prefix.current = 0 }, [pathname])
+  const prefixRoute = useRef('')
   useEffect(() => {
     const showHelp = () => { prefix.current = 0; if (!dialog.current?.open) dialog.current?.showModal() }
     const onKey = (event: KeyboardEvent) => {
@@ -21,10 +20,11 @@ export function KeyboardShortcuts() {
       const key = event.key.toLowerCase()
       if (event.key === '?') { event.preventDefault(); showHelp(); return }
       if (prefix.current > Date.now()) {
+        const samePage=prefixRoute.current===window.location.pathname
         prefix.current = 0
-        if (destinations[key]) { event.preventDefault(); navigate(destinations[key]); return }
+        if (samePage && destinations[key]) { event.preventDefault(); navigate(destinations[key]); return }
       }
-      if (key === 'g') { prefix.current = Date.now() + 1000; return }
+      if (key === 'g') { prefix.current = Date.now() + 1000; prefixRoute.current=window.location.pathname; return }
       if (key === 'c') {
         const input = document.querySelector<HTMLTextAreaElement>('[data-primary-composer]:not(:disabled)')
         if (input && input.getClientRects().length) { event.preventDefault(); input.focus() }
