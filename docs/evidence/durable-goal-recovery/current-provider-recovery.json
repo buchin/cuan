@@ -1,0 +1,26 @@
+{
+  "release": "1ccf2f4dbd0db0b7b38a88dd6653df3d81204aeb",
+  "provider": "controlled fixture",
+  "database": "isolated PostgreSQL",
+  "production_test_writes": 0,
+  "tests": [
+    {
+      "name": "TestFreshInstallPostgresQuotaGoalRecovery",
+      "passed": true,
+      "skipped": false,
+      "seconds": 5.85
+    },
+    {
+      "name": "TestFreshInstallPostgresApprovedGoalRecovery",
+      "passed": true,
+      "skipped": false,
+      "seconds": 6.05
+    }
+  ],
+  "production": {
+    "deployment": "healthy",
+    "schema": 25,
+    "public_readyz": "ready"
+  },
+  "limits": "Fixture verifies recovery orchestration and duplicate guards; does not establish live provider quota availability."
+}

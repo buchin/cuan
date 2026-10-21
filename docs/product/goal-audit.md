@@ -668,3 +668,17 @@ requires reconciling this result against the goal's complete requirement audit.
 Production3258b97 includes the correction-budget fix and message gesture/detail
 layout fix. Production-asset browser checks use fixture messages and simulated
 touch; no live message was resent. See ../evidence/chat-gesture-detail/browser.json.
+
+## Current recovery verification — 2026-10-21
+
+Production now runs1ccf2f4, healthy with schema25 and public readiness passing.
+Both isolated PostgreSQL scenarios passed without skips: approved interrupted
+goal recovery (6.05s) and native-warning quota recovery (5.85s). The provider is
+a controlled fixture; this does not prove live provider quota availability.
+Recovery retains the original approval, task and artifacts, applies permitted
+model routing, and respects cancellation and correction bounds. Evidence:
+../evidence/durable-goal-recovery/current-provider-recovery.json.
+
+The gesture/Detail UI from3258b97 remains included. The broader goal audit is
+still open; this checkpoint does not claim every onboarding/deployment path
+is fully verified.
