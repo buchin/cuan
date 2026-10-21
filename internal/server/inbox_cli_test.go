@@ -114,8 +114,9 @@ echo private-stderr >&2
 		t.Fatal(out, failure)
 	}
 	calls, err := os.ReadFile(filepath.Join(home, "invocations"))
-	if err != nil || string(calls) != "x" {
-		t.Fatal("request replayed or not executed", err)
+	// Initial attempt + bounded read-only analysis recovery
+	if err != nil || string(calls) != "xx" {
+		t.Fatalf("expected bounded analysis recovery (2 invocations), got %q (err=%v)", string(calls), err)
 	}
 	joined := strings.Join(trace, "\n")
 	if !strings.Contains(joined, "runtime_permission_denied") || !strings.Contains(joined, "Tool permission denied. The runtime stopped") || strings.Contains(joined+failure, "private") || strings.Contains(joined, "Terminal command finished") {
