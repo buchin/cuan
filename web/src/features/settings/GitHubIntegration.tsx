@@ -10,6 +10,7 @@ export function GitHubIntegration() {
  const [connection, setConnection] = useState<Connection>(), [token, setToken] = useState('')
  const [oauth, setOAuth] = useState<boolean | null>(null)
  const [oauthError, setOAuthError] = useState(false)
+ const [setupOpen, setSetupOpen] = useState(false)
  const [busy, setBusy] = useState(false), [error, setError] = useState('')
  const load = () => { setError(''); return apiFetch<Connection>('/api/v1/integrations/github').then(setConnection).catch(() => setError('Could not load GitHub connection. Try again.')) }
  const checkOAuth = () => { setOAuthError(false); setOAuth(null); return apiFetch<{ configured: boolean }>('/api/v1/integrations/github/oauth').then(result => setOAuth(result.configured)).catch(() => setOAuthError(true)) }
@@ -44,14 +45,16 @@ export function GitHubIntegration() {
      input?.focus()
      input?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }}>Connect with access token</button>
-    <details className="rounded-md border p-3"><summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">Set up GitHub sign-in</summary>
+    <div className="space-y-3"><button type="button" className="action-secondary" aria-expanded={setupOpen} aria-controls="github-signin-setup" onClick={() => setSetupOpen(open => !open)}>Set up GitHub sign-in <span aria-hidden="true">{setupOpen ? '▴' : '▾'}</span></button>
+     {setupOpen && <div id="github-signin-setup" className="rounded-md border bg-muted/30 p-3">
      <ol className="list-decimal space-y-2 pl-5 pt-2">
       <li><a href="https://github.com/settings/applications/new" target="_blank" rel="noopener noreferrer" className="underline">Register a GitHub OAuth App ↗</a> for this Cuan installation.</li>
       <li>Set its homepage to <code className="break-all">{window.location.origin}</code> and callback URL to <code className="break-all">{window.location.origin}/api/v1/integrations/github/oauth/callback</code>.</li>
       <li>Configure <code>CUAN_GITHUB_CLIENT_ID</code>, <code>CUAN_GITHUB_CLIENT_SECRET</code>, and <code>CUAN_GITHUB_REDIRECT_URL</code> in the Cuan service environment, then restart the service. Keep the client secret private.</li>
      </ol>
      <button type="button" className="action-secondary mt-3" onClick={() => void checkOAuth()}>Check setup again</button>
-    </details>
+     </div>}
+    </div>
    </div>}
    {oauth === null && !oauthError && <p role="status" className="text-sm text-muted-foreground">Checking GitHub sign-in availability…</p>}
    {oauthError && <div role="alert" className="space-y-2 text-sm"><p>Could not check GitHub sign-in availability.</p><button type="button" className="action-secondary" onClick={() => void checkOAuth()}>Check again</button></div>}
