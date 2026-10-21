@@ -125,6 +125,14 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			s.emit("runtime_permission_denied", "Tool permission denied by the runtime. Activity ending does not mean the command succeeded.")
 		}
 	case "step_update":
+		// Native AGY also emits input/finish lifecycle steps. They are not
+		// tools, and must not make a schema-only reply look like execution.
+		if e.Update.Type == "user_input" || e.Update.Type == "finish" {
+			if e.Update.Tool != "" {
+				s.unsafeTool = true
+			}
+			return
+		}
 		// Unknown/malformed tool activity cannot authorize a replay on another account.
 		if e.Update.Type != "agent_response" && e.Update.Type != "tool" {
 			s.unsafeTool = true

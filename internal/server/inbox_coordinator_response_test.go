@@ -95,6 +95,7 @@ func TestCoordinatorCLIRequiresSchemaAndRejectsNativeExecution(t *testing.T) {
 				b, _ := json.Marshal(map[string]any{"event": "step_update", "step_update": map[string]any{"step_index": 1, "step_type": "tool", "state": "DONE", "tool_name": tool}})
 				event = string(b) + "\n"
 			}
+			event = "{\"event\":\"step_update\",\"step_update\":{\"step_index\":0,\"state\":\"DONE\",\"step_type\":\"user_input\"}}\n" + event + "{\"event\":\"step_update\",\"step_update\":{\"step_index\":2,\"state\":\"DONE\",\"step_type\":\"finish\"}}\n"
 			script := "#!/bin/sh\ncase \"$*\" in *--json-schema*) ;; *) exit 8;; esac\ncat <<'RESULT'\n" + event + string(result) + "\nRESULT\n"
 			if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 				t.Fatal(err)
@@ -138,4 +139,14 @@ func coordinatorFixtureResponse(content string) string {
 		return coordinatorJSON(strings.TrimSpace(content[:start]), kind, payload)
 	}
 	return coordinatorJSON(content, "", nil)
+}
+
+func TestCoordinatorRuntimeMetadataCannotHideATool(t *testing.T) {
+	for _, kind := range []string{"user_input", "finish"} {
+		var stream inboxRuntimeStream
+		stream.Write([]byte(`{"event":"step_update","step_update":{"step_type":"` + kind + `","tool_name":"run_command","step_index":1,"state":"DONE"}}` + "\n"))
+		if !stream.unsafeTool {
+			t.Fatal("tool hidden in lifecycle metadata", kind)
+		}
+	}
 }
