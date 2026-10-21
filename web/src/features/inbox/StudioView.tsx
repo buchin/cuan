@@ -196,6 +196,16 @@ export function StudioView({
               maxLength={6000}
               disabled={busy}
               onChange={(e) => update(e.target.value)}
+              onKeyDown={(e) => {
+                if (
+                  !e.nativeEvent.isComposing &&
+                  e.key === 'Enter' &&
+                  (e.ctrlKey || e.metaKey)
+                ) {
+                  e.preventDefault()
+                  e.currentTarget.form?.requestSubmit()
+                }
+              }}
             />
             <div className="px-2 pb-2">
               <AttachmentPicker uploads={uploads} disabled={busy} />
