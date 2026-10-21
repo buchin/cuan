@@ -37,6 +37,13 @@ export function GitHubIntegration() {
    }}>{busy ? 'Connecting…' : 'Connect GitHub'}</button>}
    {oauth === false && <div role="status" className="space-y-2 text-sm text-muted-foreground">
     <p>GitHub sign-in is not set up yet. You can connect with a token below.</p>
+    <button type="button" className="action-primary" disabled={busy} onClick={() => {
+     const input = document.getElementById('github-token') as HTMLInputElement | null
+     const details = input?.closest('details')
+     if (details) details.open = true
+     input?.focus()
+     input?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }}>Connect with access token</button>
     <details className="rounded-md border p-3"><summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">Set up GitHub sign-in</summary>
      <ol className="list-decimal space-y-2 pl-5 pt-2">
       <li><a href="https://github.com/settings/applications/new" target="_blank" rel="noopener noreferrer" className="underline">Register a GitHub OAuth App ↗</a> for this Cuan installation.</li>
