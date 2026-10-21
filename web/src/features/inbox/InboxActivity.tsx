@@ -11,6 +11,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { InboxRequest } from '../../api/chat'
+import { TeamView } from '../team/TeamView'
 
 export function InboxActivity({
   request: q,
@@ -36,9 +37,12 @@ export function InboxActivity({
   const [copyStatus, setCopyStatus] = useState('')
   const [recovering, setRecovering] = useState(false)
   const [recoveryStatus, setRecoveryStatus] = useState('')
+  const [connectSetup, setConnectSetup] = useState(false)
+  const [connectRequested, setConnectRequested] = useState(false)
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
+  const accessBlocked = recovery === 'check_usage' || !!q.safe_error?.includes('location restriction')
   const recover = async (action: () => Promise<void>) => {
     if (recovering) return
     setRecovering(true)
@@ -427,6 +431,16 @@ export function InboxActivity({
                   ? 'Check the agent connection before trying again.'
                   : (q.safe_error || 'Your reply stopped. Your message is saved.'))}
           </p>
+          {accessBlocked && <div className="mb-2">
+            <p className="text-xs text-muted-foreground">{t('To continue sooner, connect another account with available AI access. Your saved work stays in this conversation.')}</p>
+            <button type="button" className="mt-2 inline-flex min-h-11 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"
+              onClick={() => { setConnectSetup(true); setConnectRequested(true) }}>
+              {t('Connect another account')}
+            </button>
+          </div>}
+          {connectSetup && <TeamView connectionOnly createRequested={connectRequested}
+            onCreateHandled={() => setConnectRequested(false)}
+            onAgentConnected={() => { setConnectSetup(false); setRecoveryStatus(t('Account connected. Your saved message has not been sent again.')) }} />}
           {recovery === 'try_again' && onRetry ? (
             <button type="button" disabled={recovering}
               className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-foreground underline underline-offset-4 disabled:opacity-50"

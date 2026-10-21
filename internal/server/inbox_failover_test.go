@@ -408,3 +408,48 @@ func TestAutoModelUsesEvidencedQuotaWithoutEnablingFallback(t *testing.T) {
 		t.Fatal("invented route without eligible text quota", routes)
 	}
 }
+
+func TestInboxRecoveryChecksOtherAccountBeforeMoreModels(t *testing.T) {
+	for _, failureKind := range []string{"quota", "location", "unsafe-location"} {
+		t.Run(failureKind, func(t *testing.T) {
+			s, _, registered, p, b, home, backupHome := setupFailoverFixture(t)
+			agent.SetProviderAccountFailover(p.OwnerID, b.ID, true)
+			agent.SetProviderAccountModelFallback(p.OwnerID, p.ID, true)
+			agent.SetProviderAccountModelFallback(p.OwnerID, b.ID, true)
+			original := fetchInboxModelUsage
+			defer func() { fetchInboxModelUsage = original }()
+			fetchInboxModelUsage = func(_ context.Context, _ string, id string) agent.AccountModelUsage {
+				models := []agent.ModelUsage{{Model: "claude-first", Remaining: 90}, {Model: "claude-second", Remaining: 80}, {Model: "claude-third", Remaining: 70}, {Model: "claude-fourth", Remaining: 60}}
+				if id == b.ID {
+					models = []agent.ModelUsage{{Model: "claude-backup", Remaining: 10}}
+				}
+				return agent.AccountModelUsage{Available: true, Models: models}
+			}
+			os.WriteFile(filepath.Join(home, "limited"), nil, 0600)
+			if failureKind != "quota" {
+				f := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+				raw, _ := os.ReadFile(f)
+				raw = []byte(strings.ReplaceAll(string(raw), "RESOURCE_EXHAUSTED private-token", "User location is not supported for the API use"))
+				if err := os.WriteFile(f, raw, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if failureKind == "unsafe-location" {
+				os.WriteFile(filepath.Join(home, "unsafe"), nil, 0600)
+			}
+			out, failure := s.executeInboxWithFailover(context.Background(), p.OwnerID, registered, "Analyze", home, t.TempDir(), false, nil)
+			calls, _ := os.ReadFile(filepath.Join(home, "calls"))
+			backup, _ := os.ReadFile(filepath.Join(backupHome, "calls"))
+			if string(calls) != "x" {
+				t.Fatal("repeated models on failing primary", string(calls))
+			}
+			if failureKind == "unsafe-location" {
+				if out != "" || failure == "" || len(backup) != 0 {
+					t.Fatal("unsafe activity replayed", out, failure, string(backup))
+				}
+			} else if out != "Same agent backup answer" || failure != "" || string(backup) != "x" {
+				t.Fatal("permitted backup not used exactly once", out, failure, string(backup))
+			}
+		})
+	}
+}

@@ -35,9 +35,20 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 	attempts := 0
 	busyRoutes := 0
 	seen := map[string]bool{}
-	for _, route := range routes {
-		if attempts >= 3 || ctx.Err() != nil {
+	triedAccounts := map[string]bool{}
+	restrictedAccounts := map[string]bool{}
+	var restriction string
+	for len(routes) > 0 {
+		if attempts >= 8 || ctx.Err() != nil {
 			break
+		}
+		// Try another permitted account before spending the turn on more models
+		// from one failing account. Preserve quota ranking within each group.
+		sort.SliceStable(routes, func(i, j int) bool { return !triedAccounts[routes[i].accountID] && triedAccounts[routes[j].accountID] })
+		route := routes[0]
+		routes = routes[1:]
+		if restrictedAccounts[route.accountID] {
+			continue
 		}
 		key := route.accountID + ":" + route.model
 		if seen[key] {
@@ -52,6 +63,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			continue
 		}
 		attempts++
+		triedAccounts[route.accountID] = true
 		if step != nil {
 			if !route.primary {
 				step("account_failover", "Continuing this agent's reply with an allowed backup account.")
@@ -76,6 +88,16 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			}
 			return output, ""
 		}
+		if strings.Contains(failure, "location restriction") && safe {
+			// Another model under this same account cannot resolve a location
+			// rejection. Only a separately allowed account may be tried.
+			restrictedAccounts[route.accountID] = true
+			restriction = failure
+			if step != nil {
+				step("provider_restricted", "This account is restricted by the provider. Checking other allowed accounts without repeating work.")
+			}
+			continue
+		}
 		if !isInboxQuotaFailure(failure) {
 			return "", failure
 		}
@@ -99,6 +121,12 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			step("recovery_safe", "No provider execution was started; account session slots are full.")
 		}
 		return "", "All available AI session slots are in use. Your message is saved. Try again when a session finishes."
+	}
+	if restriction != "" {
+		return "", restriction
+	}
+	if len(routes) > 0 {
+		return "", "Provider quota is limited. Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
 	}
 	return "", inboxQuotaNoBackup
 }
