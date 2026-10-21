@@ -42,7 +42,7 @@ export function InboxActivity({
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
-  const accessBlocked = recovery === 'check_usage' || !!q.safe_error?.includes('location restriction')
+  const accessBlocked = recovery === 'check_usage' || /usage limit|quota|location restriction|No allowed account\/model route/.test(q.safe_error || '')
   const recover = async (action: () => Promise<void>) => {
     if (recovering) return
     setRecovering(true)
