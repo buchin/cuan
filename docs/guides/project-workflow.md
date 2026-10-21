@@ -76,3 +76,8 @@ action or unsafe tool activity, Cuan retries that reply once under the same mode
 account, original context and permissions. Rejected text is never applied as an
 action. A second invalid result stops; uncertainty from either attempt prevents
 further safe replay. This repair does not recreate tasks or relax result validation.
+
+Cancelled attempts do not consume the three-attempt automatic correction budget.
+They still require a fresh authenticated user instruction before continuation;
+an automatic review cannot restart cancelled work. Failed and completed attempts
+still count toward the correction limit, preventing an unbounded repair loop.

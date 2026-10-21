@@ -13,7 +13,7 @@ import (
 // Reuse the durable approval and launch guards instead of asking the chat model
 // to run tools or reconstruct a task. Other failures still need result review.
 func interruptedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusBlocked || len(d.Attempts) >= 3 {
+	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusBlocked || taskRevisionAttemptCount(d) >= 3 {
 		return false
 	}
 	a := d.LatestAttempt
@@ -35,4 +35,20 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 		s.publishInbox(d.SourceRoomID)
 	}
 	return strings.Contains(output, "Work started") || strings.Contains(output, "already handled") || strings.Contains(output, "waiting") || strings.Contains(output, "pending launch")
+}
+
+// Cancellation already requires a fresh authenticated user instruction. It is
+// not an automated correction attempt and must not permanently exhaust that
+// user's ability to continue the original task after resolving a blocker.
+func taskRevisionAttemptCount(d *task.TaskDetailResponse) int {
+	if d == nil {
+		return 0
+	}
+	count := 0
+	for _, a := range d.Attempts {
+		if a != nil && a.Status != task.AttemptStatusCanceled && !a.CancelRequested && a.CanceledAt == nil {
+			count++
+		}
+	}
+	return count
 }

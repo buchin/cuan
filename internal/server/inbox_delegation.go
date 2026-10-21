@@ -175,7 +175,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		if !s.taskContinuationAfterCancel(ctx, q, t) {
 			return fail("the work was cancelled; a new user instruction is required to continue")
 		}
-		if len(t.Attempts) >= 3 {
+		if taskRevisionAttemptCount(t) >= 3 {
 			return fail("the task reached its retry limit; its blocker needs review")
 		}
 		if t.Status == task.TaskStatusDone {

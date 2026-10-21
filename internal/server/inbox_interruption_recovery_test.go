@@ -38,3 +38,18 @@ func TestInterruptionRecoveryExcludesCancellationAndUnrelatedFailures(t *testing
 		t.Fatal("missing canonical attempt accepted")
 	}
 }
+
+func TestTaskRevisionBudgetExcludesCancelledAttempts(t *testing.T) {
+	d := &task.TaskDetailResponse{Attempts: []*task.TaskAttempt{
+		{Status: task.AttemptStatusFailed},
+		{Status: task.AttemptStatusCanceled},
+		{Status: task.AttemptStatusFailed, CancelRequested: true},
+	}}
+	if got := taskRevisionAttemptCount(d); got != 1 {
+		t.Fatal("cancellation exhausted correction budget", got)
+	}
+	d.Attempts = append(d.Attempts, &task.TaskAttempt{Status: task.AttemptStatusSucceeded}, &task.TaskAttempt{Status: task.AttemptStatusFailed})
+	if got := taskRevisionAttemptCount(d); got != 3 {
+		t.Fatal("ordinary attempts escaped retry limit", got)
+	}
+}
