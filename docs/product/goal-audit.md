@@ -589,3 +589,25 @@ The user screenshot shows the existing production task terminal waiting after a
 quota error, despite status Working. This is distinct from a running model call.
 Deployment remains guarded while that session is open; a specific approval to
 end it was requested after the candidate was built and verified.
+
+## Production activation and remaining native gate (2026-10-21)
+
+After explicit owner approval, the canonical cancel endpoint stopped only attempt
+att_daa1f32faead20bcaf68157842fa9cc7. Its task remains saved and blocked, with one
+attempt and a cancellation activity. The release gate then reported no active
+Inbox requests, attempts or queued launches. Atomic production deployment activated
+972b601469c2a68e0e8ec4ada7a8927b860f8da7; /healthz returned healthy and the public
+index served index-BKU_NYgx.js containing Show keyboard. Physical mobile keyboard
+visibility still needs device confirmation.
+
+The original dedicated GitHub test task remains unchanged: one failed preparation
+attempt, no commit or push result. Saved Google credentials remain present. A fresh
+usage read returned quota entries including obsolete Gemini IDs; this does not
+prove availability of the installed CLI's supported models. Prior native execution
+proved quota/location failures, not GitHub delivery. Full goal remains open.
+
+Inspection identified an additional observability gap: taskOutputRecorder stops
+saving output after 1000 lines or 256 KiB. Thus later CLI quota prompts can be
+visible in the live terminal while absent from retained logs; absence of a quota
+message in saved logs is not evidence that the provider is still working. No
+unverified automatic termination or task replay was added in this inspection.
