@@ -5,6 +5,12 @@ import (
 	"testing"
 )
 
+func TestInboxReviewEvaluationInstructionLanguageGuard(t *testing.T) {
+	if !strings.Contains(inboxReviewEvaluationInstruction, "never use Spanish") {
+		t.Fatal("language guard missing from review evaluation instruction")
+	}
+}
+
 func TestInboxReviewEvaluationRejectsConflictingAndExecutableFields(t *testing.T) {
 	pass := `{"decision":"pass","explanation":"Reported checks cover the request.","revision":""}`
 	for _, raw := range []string{pass, "```json\n" + pass + "\n```", "```json\n" + pass + "\n```" + pass} {
