@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	sdk "github.com/buchin/cuan/pkg/extensions"
 	"net/http"
 	"net/url"
 	"sort"
@@ -20,6 +21,7 @@ type UniversalSearchItem struct {
 	URL     string `json:"url"`
 }
 type UniversalSearchGroup struct {
+	Label   string                `json:"label,omitempty"`
 	Kind    string                `json:"kind"`
 	Items   []UniversalSearchItem `json:"items"`
 	HasMore bool                  `json:"has_more"`
@@ -253,7 +255,8 @@ func (s *Server) globalConversations(ctx context.Context, q string, offset int) 
 	return searchPage(out, offset), nil
 }
 func (s *Server) handleUniversalSearch(w http.ResponseWriter, r *http.Request) {
-	if s.accountOwner(w, r) == "" {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
 		return
 	}
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -313,6 +316,23 @@ func (s *Server) handleUniversalSearch(w http.ResponseWriter, r *http.Request) {
 			group.Items = items
 		}
 		groups = append(groups, group)
+	}
+	if s.extensions != nil {
+		for _, result := range s.extensions.Search(ctx, sdk.SearchRequest{Query: q, Offset: offset, Limit: 6, Scope: sdk.Scope{OwnerID: owner}}) {
+			group := UniversalSearchGroup{Kind: "extension:" + result.ID, Label: result.Label, Items: []UniversalSearchItem{}}
+			if result.Error != nil {
+				group.Error = "Search is temporarily unavailable for this category."
+			} else {
+				for _, item := range result.Items {
+					group.Items = append(group.Items, UniversalSearchItem{ID: item.ID, Title: item.Title, Snippet: item.Snippet, URL: item.URL})
+				}
+				group.HasMore = len(group.Items) > 5
+				if group.HasMore {
+					group.Items = group.Items[:5]
+				}
+			}
+			groups = append(groups, group)
+		}
 	}
 	respondJSON(w, 200, map[string]any{"groups": groups})
 }

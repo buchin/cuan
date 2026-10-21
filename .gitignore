@@ -25,6 +25,7 @@ backups/*.sha256
 backups/*.meta.json
 backups/*.sql
 *.log
+__pycache__/
 .DS_Store
 .idea/
 .vscode/

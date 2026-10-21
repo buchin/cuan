@@ -12,7 +12,17 @@ func (s *Service) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	if store, ok := s.store.(interface {
 		ReconcileLocalTask(context.Context, string, string) error
 	}); ok {
-		return store.ReconcileLocalTask(ctx, taskID, attemptID)
+		var before *Task
+		if s.extensions != nil {
+			before, _ = s.store.GetTask(ctx, taskID)
+		}
+		err := store.ReconcileLocalTask(ctx, taskID, attemptID)
+		if err == nil && before != nil {
+			if after, e := s.store.GetTask(ctx, taskID); e == nil {
+				s.extensionTransition(ctx, before.Status, after)
+			}
+		}
+		return err
 	}
 	return nil
 }

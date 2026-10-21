@@ -1,4 +1,10 @@
 import {
+  ExtensionBoundary,
+  fenceRenderer,
+  markdownParsers,
+  useExtensionRevision,
+} from '../../extensions/sdk'
+import {
   memo,
   isValidElement,
   useEffect,
@@ -20,6 +26,7 @@ function safeLinkUrl(url: string) {
 }
 
 function CodeBlock({ children }: { children?: ReactNode }) {
+  const extensionRevision = useExtensionRevision()
   const element = isValidElement<{ children?: ReactNode; className?: string }>(
     children,
   )
@@ -57,6 +64,20 @@ function CodeBlock({ children }: { children?: ReactNode }) {
     timer.current = setTimeout(() => setStatus('idle'), 2500)
   }
 
+  const Renderer = fenceRenderer(language)
+  if (Renderer)
+    return (
+      <ExtensionBoundary
+        resetKey={language + ':' + text + ':' + extensionRevision}
+        fallback={
+          <pre>
+            <code>{text}</code>
+          </pre>
+        }
+      >
+        <Renderer code={text} language={language} />
+      </ExtensionBoundary>
+    )
   return (
     <div className="chat-code rounded-lg border border-border bg-muted/50">
       <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
@@ -92,47 +113,59 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   )
 }
 
-export const ChatMarkdown = memo(function ChatMarkdown({ content }: { content: string }) {
+export const ChatMarkdown = memo(function ChatMarkdown({
+  content,
+}: {
+  content: string
+}) {
+  const extensionRevision = useExtensionRevision()
   return (
     <div className="chat-markdown min-w-0 max-w-full text-base leading-relaxed">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        skipHtml
-        urlTransform={safeLinkUrl}
-        components={{
-          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-          a: ({ href, children }) =>
-            href ? (
-              <a
-                href={href}
-                target={/^https?:/i.test(href) ? '_blank' : undefined}
-                rel="noopener noreferrer"
-              >
-                {children}
-              </a>
-            ) : (
-              <span>{children}</span>
-            ),
-          // Avoid loading arbitrary remote images/tracking pixels from agent output.
-          img: ({ alt }) => (
-            <span className="text-muted-foreground">
-              {alt ? `[Image: ${alt}]` : '[Image]'}
-            </span>
-          ),
-          table: ({ children }) => (
-            <div
-              className="chat-table"
-              role="region"
-              aria-label="Message table"
-              tabIndex={0}
-            >
-              <table>{children}</table>
-            </div>
-          ),
-        }}
+      <ExtensionBoundary
+        resetKey={content + ':' + extensionRevision}
+        fallback={
+          <div className="whitespace-pre-wrap break-words">{content}</div>
+        }
       >
-        {content}
-      </ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, ...markdownParsers()]}
+          skipHtml
+          urlTransform={safeLinkUrl}
+          components={{
+            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+            a: ({ href, children }) =>
+              href ? (
+                <a
+                  href={href}
+                  target={/^https?:/i.test(href) ? '_blank' : undefined}
+                  rel="noopener noreferrer"
+                >
+                  {children}
+                </a>
+              ) : (
+                <span>{children}</span>
+              ),
+            // Avoid loading arbitrary remote images/tracking pixels from agent output.
+            img: ({ alt }) => (
+              <span className="text-muted-foreground">
+                {alt ? `[Image: ${alt}]` : '[Image]'}
+              </span>
+            ),
+            table: ({ children }) => (
+              <div
+                className="chat-table"
+                role="region"
+                aria-label="Message table"
+                tabIndex={0}
+              >
+                <table>{children}</table>
+              </div>
+            ),
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </ExtensionBoundary>
     </div>
   )
 })

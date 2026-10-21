@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	sdk "github.com/buchin/cuan/pkg/extensions"
 	"net/http"
 	"strings"
 	"time"
@@ -29,6 +30,15 @@ func (s *Server) handleCRMCreate(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, 400, "Invalid contact request")
 		return
 	}
+	draft := struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}{req.Name, req.Email}
+	if err := s.prepareExtension(r.Context(), "contact.before_save", sdk.Scope{ResourceID: req.RequestID}, draft, &draft); err != nil {
+		respondJSONError(w, 422, "An extension could not validate the contact")
+		return
+	}
+	req.Name, req.Email = draft.Name, draft.Email
 	req.RequestID = strings.ToLower(req.RequestID)
 	req.Name = strings.TrimSpace(req.Name)
 	email, err := normalizeCRMEmail(req.Email)
@@ -67,6 +77,8 @@ func (s *Server) handleCRMCreate(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if created {
 		status = http.StatusCreated
+		s.publishExtension(r.Context(), "contact.created", c.ID, "", c.CreatedAt)
+		s.publishExtension(r.Context(), "contact.saved", c.ID, "", c.UpdatedAt)
 	}
 	respondJSON(w, status, map[string]any{"contact": c})
 }

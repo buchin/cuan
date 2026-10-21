@@ -24,6 +24,11 @@ type inboxRuntimeStream struct {
 	unsafeTool                              bool
 	seen                                    map[string]bool
 	step                                    func(string, string)
+	maxToolCalls                            int
+	toolCalls                               int
+	toolIndices                             map[int]bool
+	toolBudgetExceeded                      bool
+	cancel                                  func()
 }
 
 func (s *inboxRuntimeStream) emit(kind, text string) {
@@ -174,6 +179,22 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			default:
 				s.unsafeTool = true
 			}
+			if u.Tool != "finish" && u.Index != nil {
+				if s.toolIndices == nil {
+					s.toolIndices = make(map[int]bool)
+				}
+				if !s.toolIndices[*u.Index] {
+					s.toolIndices[*u.Index] = true
+					s.toolCalls++
+					if s.maxToolCalls > 0 && s.toolCalls > s.maxToolCalls {
+						s.toolBudgetExceeded = true
+						s.emit("runtime_tool_budget_exceeded", fmt.Sprintf("Tool limit of %d calls reached for coordinator chat. Finishing response.", s.maxToolCalls))
+						if s.cancel != nil {
+							s.cancel()
+						}
+					}
+				}
+			}
 
 			names := map[string]string{"read_file": "Read file", "view_file": "Read file", "view_file_outline": "File outline", "view_code_item": "Read code", "list_dir": "List directory", "grep_search": "Search text", "find_by_name": "Find file", "run_command": "Terminal command", "finish": "Format response"}
 			name := names[u.Tool]
@@ -207,6 +228,9 @@ func (s *inboxRuntimeStream) finish() (string, string, string) {
 	if len(s.pending) > 0 {
 		s.consume(s.pending)
 		s.pending = nil
+	}
+	if s.toolBudgetExceeded {
+		return "", "Provider tool budget exceeded for chat.", "tool_budget_exceeded"
 	}
 	if s.overflow {
 		return "", "Provider activity exceeded the size limit. Your message is saved. The request was not rerun.", "runtime_overflow"

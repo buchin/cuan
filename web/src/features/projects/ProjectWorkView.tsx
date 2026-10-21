@@ -1,4 +1,9 @@
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
+import {
+  ExtensionBoundary,
+  projectViews,
+  useExtensionRevision,
+} from '../../extensions/sdk'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -26,10 +31,14 @@ export function ProjectWorkView({
   onRetry: () => void
 }) {
   const { t } = useLanguage()
+  useExtensionRevision()
+  const views = projectViews()
+  const [viewId, setViewId] = useState('list')
+  const navigate = useNavigate()
+  const extensionView = views.find((view) => view.id === viewId)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('all')
   const location = useLocation()
-  const navigate = useNavigate()
   const base = '/projects/' + encodeURIComponent(project.id) + '/tasks'
   const scoped = tasksForProject(tasks, project.id)
   const filters = [
@@ -76,12 +85,86 @@ export function ProjectWorkView({
         </div>
       </div>
     )
+  if (!taskId && extensionView) {
+    if (loading || error) return (
+      <div className="p-5 text-sm" role={error ? 'alert' : 'status'}>
+        <p>{error || t('Loading work…')}</p>
+        {error && <button className="action-secondary mt-3" onClick={onRetry}>{t('Try again')}</button>}
+      </div>
+    )
+    const View = extensionView.component
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex min-h-11 shrink-0 gap-2 p-3">
+          <button
+            className="action-secondary"
+            onClick={() => setViewId('list')}
+          >
+            {t('Tasks')}
+          </button>
+          {views.map((view) => (
+            <button
+              key={view.id}
+              aria-pressed={view.id === viewId}
+              className="action-secondary"
+              onClick={() => setViewId(view.id)}
+            >
+              {view.label}
+            </button>
+          ))}
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto p-3">
+          <ExtensionBoundary
+            resetKey={viewId + ':' + project.id}
+            fallback={
+              <div>
+                <p>{t('This view is unavailable.')}</p>
+                <button
+                  className="action-secondary"
+                  onClick={() => setViewId('list')}
+                >
+                  {t('Back to tasks')}
+                </button>
+              </div>
+            }
+          >
+            <View
+              projectId={project.id}
+              tasks={visible.map((task) => ({
+                id: task.id,
+                title: task.title,
+                status: task.status,
+              }))}
+              openTask={(id) =>
+                navigate(base + '/' + encodeURIComponent(id), {
+                  state: { ...location.state, taskReturnTo: base },
+                })
+              }
+            />
+          </ExtensionBoundary>
+        </div>
+      </div>
+    )
+  }
   return (
     <section
       className="flex h-full min-h-0 flex-col"
       aria-label={t('Project tasks')}
     >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 p-3 sm:p-5">
+        {!!views.length && (
+          <div className="flex gap-2">
+            {views.map((view) => (
+              <button
+                key={view.id}
+                className="action-secondary"
+                onClick={() => setViewId(view.id)}
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
+        )}
         <h3 className="text-sm font-semibold">
           {t('Tasks')}{' '}
           <span className="ml-1 text-xs font-normal text-muted-foreground">

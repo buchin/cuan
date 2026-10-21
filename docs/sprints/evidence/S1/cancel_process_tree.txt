@@ -1,13 +1,13 @@
 === CUAN SPRINT 1 (T5) EVIDENCE: CANCEL PROCESS TREE TERMINATION ===
-Timestamp: 2026-10-16T08:52:46Z
+Timestamp: 2026-10-21T13:52:06Z
 DoD Requirement: Cancel menghentikan seluruh process tree task (PGID/process group).
 
 1. Subprocess Tree Spawned:
-   - Parent PID: 1463
-   - Descendant PIDs: [1464 1465]
+   - Parent PID: 3673
+   - Descendant PIDs: [3674 3675]
    - Status Before Cancel: Alive
 
-2. Owner Cancel Request via API (POST /api/v1/tasks/task_f43a30d38375/cancel):
+2. Owner Cancel Request via API (POST /api/v1/tasks/task_a3c41a285ca1/cancel):
    - HTTP Status: 200
    - Attempt Status: canceled
    - Cancel Requested: true
@@ -18,6 +18,6 @@ DoD Requirement: Cancel menghentikan seluruh process tree task (PGID/process gro
    - Action: Runner invokes KillProcessTree(parentPID)
 
 4. Post-Cancellation Process Audit:
-   - Parent PID 1463 Alive: false
+   - Parent PID 3673 Alive: false
    - Descendants Alive: 0 (Lingering: [])
 === RESULT: PASS (Seluruh process tree dan grandchild processes mati tuntas) ===

@@ -1,3 +1,4 @@
+import { installExampleExtension } from './extensions/example'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
@@ -9,6 +10,9 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import './index.css'
+
+if (import.meta.env.VITE_CUAN_EXAMPLE_EXTENSIONS === '1')
+  installExampleExtension()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

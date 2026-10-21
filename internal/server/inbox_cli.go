@@ -99,7 +99,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+		args = []string{"-p", system, "--print-timeout", "45s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		if answerOnly {
 			args = []string{"-p", system, "--print-timeout", "20s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		}
@@ -190,7 +190,19 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
-		runtime = &inboxRuntimeStream{step: step}
+		maxTools := 0
+		if coordinator {
+			maxTools = 3
+		}
+		runtime = &inboxRuntimeStream{
+			step:         step,
+			maxToolCalls: maxTools,
+			cancel: func() {
+				if cmd.Cancel != nil {
+					_ = cmd.Cancel()
+				}
+			},
+		}
 		defer func() {
 			if retrySafe != nil {
 				*retrySafe = ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow
@@ -268,6 +280,18 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			runtime.unsafeTool = runtime.unsafeTool || !repairSafe
 			return output, err
 		}
+		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+			if step != nil {
+				step("response_recovery", "The previous tool attempt exceeded budget or returned no reply. Answering directly from conversation context.")
+			}
+			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
+			repairCtx = context.WithValue(repairCtx, inboxAnswerOnlyKey{}, true)
+			recoverySafe := false
+			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt+"\n\nRecovery: A tool attempt did not return a response or exceeded the chat tool budget. Answer the target message directly using the supplied conversation, task evidence and recorded request outcomes without calling tools.", home, workspace, step, &recoverySafe, attachmentPaths...)
+			if err == "" && output != "" {
+				return output, ""
+			}
+		}
 
 		lowerDiagnostic := strings.ToLower(stderr.String())
 		if reason == "runtime_missing_result" && (strings.Contains(lowerDiagnostic, "quota") || strings.Contains(lowerDiagnostic, "429") || strings.Contains(lowerDiagnostic, "resource_exhausted") || strings.Contains(lowerDiagnostic, "unauthorized") || strings.Contains(lowerDiagnostic, "401") || strings.Contains(lowerDiagnostic, "invalid_grant")) {
@@ -278,7 +302,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			failure = safeInboxProviderFailure(ctx.Err(), "")
 			reason = "runtime_interrupted"
 		}
-		labels := map[string]string{"coordinator_invalid": "The coordinator response could not be validated.", "coordinator_tool_rejected": "A tool action outside the chat workflow was rejected.", "runtime_missing_result": "The runtime stopped without a final result.", "runtime_invalid": "Could not validate runtime events.", "runtime_overflow": "Runtime activity size limit reached.", "runtime_process_failure": "Runtime process failed.", "runtime_interrupted": "The process was interrupted or timed out.", "provider_failure": "The provider reported a failure.", "provider_timeout": "The provider timed out.", "tool_permission_denied": "Tool permission denied. The runtime stopped without a reply.", "empty_response": "The provider returned no reply text.", "invalid_result": "Invalid runtime final result.", "empty_output": "The runtime returned no final result."}
+		labels := map[string]string{"coordinator_invalid": "The coordinator response could not be validated.", "coordinator_tool_rejected": "A tool action outside the chat workflow was rejected.", "runtime_missing_result": "The runtime stopped without a final result.", "runtime_invalid": "Could not validate runtime events.", "runtime_overflow": "Runtime activity size limit reached.", "runtime_process_failure": "Runtime process failed.", "runtime_interrupted": "The process was interrupted or timed out.", "provider_failure": "The provider reported a failure.", "provider_timeout": "The provider timed out.", "tool_permission_denied": "Tool permission denied. The runtime stopped without a reply.", "tool_budget_exceeded": "The chat tool budget was reached.", "empty_response": "The provider returned no reply text.", "invalid_result": "Invalid runtime final result.", "empty_output": "The runtime returned no final result."}
 		if step != nil {
 			step("result_validation", labels[reason])
 			if (reason == "provider_failure" || reason == "empty_response") && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {

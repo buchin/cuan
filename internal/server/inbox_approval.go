@@ -151,7 +151,7 @@ func (s *Server) inboxApprovedPlan(ctx context.Context, q db.InboxRequest) (*app
 // Questions, attachments and replies after an intervening message remain chat.
 func (s *Server) conversationalApprovalID(ctx context.Context, room, text string) string {
 	switch strings.ToLower(strings.Trim(strings.TrimSpace(text), ".!")) {
-	case "approve", "approved", "approve this plan", "yes", "yes please", "go ahead", "proceed", "gas", "setuju", "lanjut", "oke gas":
+	case "approve", "approved", "approve this plan", "yes", "yes please", "go ahead", "go", "proceed", "gas", "gass", "gaskeun", "gas pol", "setuju", "lanjut", "lanjutkan", "oke", "ok", "oke gas", "siap", "jalankan", "jalan":
 	default:
 		return ""
 	}

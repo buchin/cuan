@@ -195,3 +195,43 @@ func TestCoordinatorInvalidSchemaRetriesOnlyOnceWithoutEffects(t *testing.T) {
 		})
 	}
 }
+
+func TestCoordinatorToolBudgetRecovery(t *testing.T) {
+	home, bin := t.TempDir(), t.TempDir()
+	// Script:
+	// Call 1: outputs 4 tools (exceeding max 3). Note: tool 4 triggers SIGKILL from cancel(),
+	// but if the shell continues it would output invalid.
+	// Call 2 (recovery): answerOnly response with simple answer.
+	script := `#!/bin/sh
+printf x >> "$HOME/calls"
+if [ "$(cat "$HOME/calls")" = x ]; then
+  cat <<'FIRST'
+{"event":"init","conversation_id":"11111111-2222-3333-4444-555555555555"}
+{"event":"step_update","step_update":{"step_index":1,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}
+{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"read_file"}}
+{"event":"step_update","step_update":{"step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"view_file"}}
+{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"view_file"}}
+{"event":"step_update","step_update":{"step_index":3,"state":"ACTIVE","step_type":"tool","tool_name":"grep_search"}}
+{"event":"step_update","step_update":{"step_index":3,"state":"DONE","step_type":"tool","tool_name":"grep_search"}}
+{"event":"step_update","step_update":{"step_index":4,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}
+FIRST
+  sleep 10
+else
+  cat <<'SECOND'
+{"event":"result","result":{"status":"SUCCESS","response":"Direct recovery answer without tools"}}
+SECOND
+fi
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	safe := false
+	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "General question", home, t.TempDir(), nil, &safe)
+	calls, _ := os.ReadFile(filepath.Join(home, "calls"))
+	if out != "Direct recovery answer without tools" || failure != "" || !safe || string(calls) != "xx" {
+		t.Fatalf("expected direct recovery answer, got out=%q failure=%q safe=%v calls=%s", out, failure, safe, string(calls))
+	}
+}

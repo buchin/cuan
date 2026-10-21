@@ -1,5 +1,5 @@
 === CUAN SPRINT 1 (T7) EVIDENCE: INSTALLER PREFLIGHT VERIFIED ===
-Timestamp: 2026-10-16T08:52:48Z
+Timestamp: 2026-10-21T13:52:09Z
 DoD Requirement: Fresh install mengikuti docs, installer melakukan preflight, smart proxy detection, tidak menimpa existing config.
 
 ================================================================================
@@ -7,16 +7,13 @@ DoD Requirement: Fresh install mengikuti docs, installer melakukan preflight, sm
 ================================================================================
 ==> Running system preflight checks...
     [OK] Operating System: Linux (x86_64)
-    [OK] Disk space: 348188MB available.
-    [OK] Available memory: 21491MB.
+    [OK] Disk space: 291910MB available.
+    [OK] Available memory: 32586MB.
     [OK] Docker CLI found: Docker version 29.5.2, build 79eb04c7d8e1d73247cb7fe011eecc645063e0f0
-    [INFO] Native Docker daemon or compose plugin not active in this sandbox.
-           Preflight acknowledges containerised environment / mock runner.
+    [INFO] Docker Compose is unavailable. An actual installation requires Docker Engine and Compose.
     [DETECTED] Ports 80 & 443 are free. Selecting Mode A: Standalone Caddy proxy.
     [OK] App port 8080 is available.
 ==> All preflight checks passed successfully.
-==> Configuring environment (.env)...
-    [INFO] Existing .env found. Retaining existing configuration and secrets.
 
 --------------------------------------------------------------------------------
  DRY-RUN EXECUTION PLAN (No changes made)
@@ -29,6 +26,7 @@ DoD Requirement: Fresh install mengikuti docs, installer melakukan preflight, sm
  Reverse Proxy:       Caddy (Automated TLS via Ports 80 & 443)
  Health Probe:        http://127.0.0.1:8080/healthz
  Readiness Probe:     http://127.0.0.1:8080/readyz
+ AI execution:        Not included in the stock Docker image; native Linux is the verified AI path.
 --------------------------------------------------------------------------------
 Dry-run verification completed successfully.
 

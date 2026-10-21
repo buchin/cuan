@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	extensionSDK "github.com/buchin/cuan/pkg/extensions"
 	"log"
 	"net/http"
 	"os"
@@ -42,6 +43,7 @@ import (
 )
 
 type Server struct {
+	extensions             *extensionSDK.Registry
 	crm                    *crmStore
 	cfg                    *config.Config
 	db                     *sql.DB
@@ -455,6 +457,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 
 	s := &Server{
+		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
 		cfg:                    cfg,
 		db:                     db,
@@ -512,6 +515,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	s.configureSharedGitHubAccess()
 	s.routes()
 	s.setupStaticRoutes()
+	s.SetExtensionRegistry(s.extensions)
 	return s
 }
 
@@ -554,6 +558,9 @@ func (s *Server) TaskService() *task.Service {
 
 func (s *Server) SetTaskService(svc *task.Service) {
 	s.taskSvc = svc
+	if svc != nil {
+		svc.SetExtensionRegistry(s.extensions)
+	}
 }
 
 func (s *Server) RunnerService() *runner.RunnerService {
@@ -920,7 +927,7 @@ func (s *Server) SetWordPressWebmaster(w *wordpress.WebmasterEngine) {
 func (s *Server) routes() {
 	s.router.Get("/api/v1/task-agent/{id}", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}", s.handleTaskAgent)
-	s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
+ s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
@@ -1618,6 +1625,8 @@ func (s *Server) routes() {
 			pr.Post("/inbox/{id}/approve", s.handleApproveInboxThread)
 
 			// Direct Messenger Hub (Sprint 18)
+			pr.Get("/extensions", s.handleExtensions)
+			pr.Post("/extensions/{extensionID}/actions/{action}", s.handleExtensionAction)
 			pr.Get("/search", s.handleUniversalSearch)
 			pr.Get("/contacts/search", s.handleCRMSearch)
 			pr.Get("/contacts/{id}/memory", s.handleContactMemory)

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	sdk "github.com/buchin/cuan/pkg/extensions"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ type ProjectFinder interface {
 }
 
 type Service struct {
+	extensions    *sdk.Registry
 	taskMu        sync.Mutex
 	attemptMu     sync.Mutex
 	store         Store
@@ -91,7 +93,13 @@ func generateID(prefix string) string {
 
 func (s *Service) CreateTask(ctx context.Context, author string, req CreateTaskRequest) (*Task, error) {
 	s.taskMu.Lock()
-	defer s.taskMu.Unlock()
+	var createdEvent *Task
+	defer func() {
+		s.taskMu.Unlock()
+		if createdEvent != nil {
+			s.extensionEvent(ctx, "task.created", createdEvent)
+		}
+	}()
 	id := generateID("task")
 	if req.RequestID != "" {
 		if !validRequestUUID(req.RequestID) {
@@ -115,7 +123,12 @@ func (s *Service) CreateTask(ctx context.Context, author string, req CreateTaskR
 			return nil, err
 		}
 	}
-	return s.createTaskWithID(ctx, author, req, id)
+	created, err := s.createTaskWithID(ctx, author, req, id)
+	if err == nil {
+		snapshot := *created
+		createdEvent = &snapshot
+	}
+	return created, err
 }
 
 // CreateTaskFromMessage uses the source UUID as the idempotency key. A lost
@@ -131,6 +144,9 @@ func (s *Service) CreateTaskFromMessage(ctx context.Context, author, source stri
 		if existing, e := s.store.GetTask(ctx, id); e == nil {
 			return existing, nil
 		}
+	}
+	if err == nil {
+		s.extensionEvent(ctx, "task.created", result)
 	}
 	return result, err
 }
@@ -337,7 +353,14 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 
 func (s *Service) UpdateTask(ctx context.Context, id string, author string, req UpdateTaskRequest) (*Task, error) {
 	s.taskMu.Lock()
-	defer s.taskMu.Unlock()
+	var transitionEvent *Task
+	var previousStatus string
+	defer func() {
+		s.taskMu.Unlock()
+		if transitionEvent != nil {
+			s.extensionTransition(ctx, previousStatus, transitionEvent)
+		}
+	}()
 	t, err := s.store.GetTask(ctx, id)
 	if err != nil {
 		return nil, err
@@ -499,6 +522,8 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 		_ = s.store.CreateActivity(ctx, act)
 	}
 
+	snapshot := *t
+	transitionEvent, previousStatus = &snapshot, oldStatus
 	return t, nil
 }
 
@@ -729,7 +754,14 @@ func (s *Service) updateAttemptStatus(ctx context.Context, attemptID string, aut
 // CancelTask marks the active attempt for a task as canceled and triggers process cancellation.
 func (s *Service) CancelTask(ctx context.Context, taskID string, author string) (*TaskAttempt, error) {
 	s.attemptMu.Lock()
-	defer s.attemptMu.Unlock()
+	var transitionEvent *Task
+	var previousStatus string
+	defer func() {
+		s.attemptMu.Unlock()
+		if transitionEvent != nil {
+			s.extensionTransition(ctx, previousStatus, transitionEvent)
+		}
+	}()
 	t, err := s.store.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, err
@@ -764,7 +796,10 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 	oldTaskStatus := t.Status
 	t.Status = TaskStatusBlocked
 	t.UpdatedAt = now
-	_ = s.store.UpdateTask(ctx, t)
+	if err := s.store.UpdateTask(ctx, t); err == nil {
+		snapshot := *t
+		transitionEvent, previousStatus = &snapshot, oldTaskStatus
+	}
 
 	// Record activity
 	act := &TaskActivity{

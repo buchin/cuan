@@ -152,3 +152,41 @@ func TestNativeReadFileQuotaActivity(t *testing.T) {
 		})
 	}
 }
+
+func TestInboxRuntimeStreamToolBudgetExceeded(t *testing.T) {
+	cancelled := false
+	var traces []string
+	stream := &inboxRuntimeStream{
+		maxToolCalls: 3,
+		cancel:       func() { cancelled = true },
+		step:         func(k, v string) { traces = append(traces, k+":"+v) },
+	}
+	// Tool 1
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":1,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}` + "\n"))
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"read_file"}}` + "\n"))
+	// Tool 2
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"view_file"}}` + "\n"))
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"view_file"}}` + "\n"))
+	// Tool 3
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":3,"state":"ACTIVE","step_type":"tool","tool_name":"grep_search"}}` + "\n"))
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":3,"state":"DONE","step_type":"tool","tool_name":"grep_search"}}` + "\n"))
+
+	if cancelled || stream.toolBudgetExceeded || stream.toolCalls != 3 {
+		t.Fatalf("expected 3 tools within budget, cancelled=%v budgetExceeded=%v count=%d", cancelled, stream.toolBudgetExceeded, stream.toolCalls)
+	}
+
+	// Tool 4 exceeds budget
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":4,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}` + "\n"))
+
+	if !cancelled {
+		t.Fatal("expected cancel callback to be invoked on exceeding tool budget")
+	}
+	if !stream.toolBudgetExceeded {
+		t.Fatal("expected toolBudgetExceeded to be true")
+	}
+
+	out, failure, reason := stream.finish()
+	if out != "" || reason != "tool_budget_exceeded" || !strings.Contains(failure, "tool budget exceeded") {
+		t.Fatalf("unexpected finish result: out=%q failure=%q reason=%q", out, failure, reason)
+	}
+}

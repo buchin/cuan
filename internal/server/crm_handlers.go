@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	sdk "github.com/buchin/cuan/pkg/extensions"
 	"net/http"
 	"net/mail"
 	"sort"
@@ -50,7 +51,25 @@ func scanCRM(row interface{ Scan(...any) error }) (CRMContact, error) {
 
 const crmColumns = `id,product,guest_uuid,session_uuid,name,email,tags,created_at,updated_at`
 
-func (s *Server) crmUpsert(ctx context.Context, guest, product, name, email string) (CRMContact, error) {
+func (s *Server) crmUpsert(ctx context.Context, guest, product, name, email string) (contact CRMContact, resultErr error) {
+	draft := struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}{name, email}
+	if err := s.prepareExtension(ctx, "contact.before_save", sdk.Scope{}, draft, &draft); err != nil {
+		return CRMContact{}, err
+	}
+	name, email = strings.TrimSpace(draft.Name), draft.Email
+	var normalizeErr error
+	email, normalizeErr = normalizeCRMEmail(email)
+	if normalizeErr != nil || utf8.RuneCountInString(name) > 120 || strings.ContainsAny(name, "\r\n\x00") {
+		return CRMContact{}, errors.New("invalid contact identity")
+	}
+	defer func() {
+		if resultErr == nil {
+			s.publishExtension(ctx, "contact.saved", contact.ID, "", contact.UpdatedAt)
+		}
+	}()
 	c := CRMContact{ID: db.GenerateUUID(), Product: product, GuestUUID: guest, SessionUUID: db.GenerateUUID(), Name: name, Email: email, Tags: []string{}, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	if s.db != nil {
 		return scanCRM(s.db.QueryRowContext(ctx, `INSERT INTO crm_contacts(id,product,guest_uuid,session_uuid,name,email) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(product,guest_uuid) DO UPDATE SET name=CASE WHEN $5='' THEN crm_contacts.name ELSE $5 END,email=CASE WHEN $6='' THEN crm_contacts.email ELSE $6 END,updated_at=NOW() RETURNING `+crmColumns, c.ID, product, guest, c.SessionUUID, name, email))
@@ -195,5 +214,6 @@ func (s *Server) handleCRMUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	s.publishExtension(r.Context(), "contact.updated", id, "", time.Now().UTC())
 	respondJSON(w, 200, map[string]any{"tags": tags})
 }

@@ -1,5 +1,5 @@
 === CUAN SPRINT 1 (T5) EVIDENCE: LOG STREAMING, CREDENTIAL MASKING & BOUNDED LOGS ===
-Timestamp: 2026-10-16T08:52:46Z
+Timestamp: 2026-10-21T13:52:07Z
 DoD Requirement: Log streaming, log dibatasi/dirotasi (mencegah disk penuh), kredensial disamarkan ([REDACTED]).
 
 1. Streamed Log Ingestion (HTTP 200):
@@ -18,6 +18,6 @@ DoD Requirement: Log streaming, log dibatasi/dirotasi (mencegah disk penuh), kre
 3. Bounded Log Buffer Capacity:
    - Ingested Lines: 100
    - Max Bounded Buffer: 20
-   - Stored Lines in DB: 21
-   - Truncation Notice: [LOG TRUNCATED: maximum log buffer of 20 lines reached]
+   - Stored Lines in DB: 20
+   - Truncation Notice: Spam output line 100 to test buffer bounds
 === RESULT: PASS (Zero credential leak, log buffer capped & truncated cleanly) ===

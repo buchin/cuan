@@ -1,14 +1,14 @@
 === CUAN SPRINT 1 (T5) EVIDENCE: RESOURCE MONITORING & PEAK RAM ===
-Timestamp: 2026-10-16T08:52:46Z
+Timestamp: 2026-10-21T13:52:07Z
 DoD Requirement: Monitoring metrik CPU / RAM / Disk (ukur peak RSS runner & agent).
 
 1. Host Resource Sampling (Runner Host Environment):
-   - CPU Estimated Load: 519.75%
-   - Memory Used: 364829 MB / 386430 MB (94.4%)
-   - Disk Used: 1522 GB / 1862 GB (81.7%)
+   - CPU Estimated Load: 454.00%
+   - Memory Used: 353929 MB / 386430 MB (91.6%)
+   - Disk Used: 1577 GB / 1862 GB (84.7%)
 
 2. Agent Attempt Peak RSS Tracking:
-   - Attempt ID: att_cdc647f75d38
+   - Attempt ID: att_12c9e45684aa
    - Peak RSS Bytes: 217202688 bytes (207.14 MB)
    - Final Status: succeeded (Exit Code: 0)
 === RESULT: PASS (Host CPU/RAM/Disk metrics sampled, agent peak RSS recorded) ===

@@ -104,7 +104,12 @@ func (s *Server) memoryList(ctx context.Context, contact, query string, offset i
 	}
 	return out, nil
 }
-func (s *Server) memorySave(ctx context.Context, m ContactMemory) (ContactMemory, error) {
+func (s *Server) memorySave(ctx context.Context, m ContactMemory) (saved ContactMemory, saveErr error) {
+	defer func() {
+		if saveErr == nil && saved.ID != "" {
+			s.publishExtension(ctx, "contact.memory.saved", saved.ID, "", saved.UpdatedAt)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return ContactMemory{}, err
 	}
@@ -266,6 +271,11 @@ func (s *Server) handleContactMemoryChange(w http.ResponseWriter, r *http.Reques
 		respondJSONError(w, 404, "Note not found")
 		return
 	}
+	eventKind := "contact.memory.updated"
+	if r.Method == "DELETE" {
+		eventKind = "contact.memory.deleted"
+	}
+	s.publishExtension(r.Context(), eventKind, id, "", now)
 	respondJSON(w, 200, map[string]bool{"ok": true})
 }
 
