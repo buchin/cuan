@@ -1,0 +1,20 @@
+{
+  "request_id": "fe23da29-b90b-c9c2-faae-2877c1593d67",
+  "state": "failed",
+  "native_session": "18062422-7b63-4769-ae14-13833b1b21bb",
+  "production_release": "1ccf2f4dbd0db0b7b38a88dd6653df3d81204aeb",
+  "inspection": "read-only production SQL and exact provider transcript",
+  "tool": "run_command",
+  "intent": "Search application source for error labels using grep",
+  "denied_by": "native CLI plan-mode tool permission",
+  "runtime_exit": 0,
+  "application_accepted_reply": false,
+  "reasons": [
+    "Terminal invocation violates the Inbox coordinator contract; native read-only search tools were available instead.",
+    "Nonempty denied_actions caused the application to reject the incomplete reply."
+  ],
+  "credential_or_quota_cause": false,
+  "prior_route": "Initial route hit quota; automatic permitted account failover reached this distinct tool denial.",
+  "user_message_replayed": false,
+  "production_writes": 0
+}
