@@ -46,7 +46,20 @@ a task. Requests to save work without running it create a saved task with no ses
 
 ## Internal roles and scope
 
-The chat agent coordinates work; task sessions execute it. The user owns goals,
+The chat agent coordinates work and can perform technical analysis directly:
+read project files, search source, interpret supplied error/status evidence, and
+assess task verification. It uses read-only file/search tools; code changes,
+commands that perform work, and deployments belong to task sessions.
+
+If the native runtime denies a tool, Cuan makes at most one analysis-only
+continuation with the original context and the same account/model. It can use
+read-only tools, but its response cannot create tasks, request approvals, change
+contact notes, rename the topic, or apply any other application action. Failed
+partial output is discarded. A repeated denial or an invalid/unsafe continuation
+remains an honest failure. This mechanism does not assert that earlier native
+activity had no effects and does not restart task execution.
+
+The user owns goals,
 priorities, constraints, scope approval and overall outcome review. Scrum terms
 are internal and are not prerequisites for using Cuan. Runtime policies are
 versioned in `internal/workflow/coordinator.md` and `developer.md` and embedded in
