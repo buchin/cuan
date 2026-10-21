@@ -9,7 +9,7 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, production workflow release
 
-Production runs `9fecf67430bf59eb0894bd1c45e9d8e9c8f71174`/schema25, following
+Production runs `79c04c0371d55a91d8813828302c89ce44d5bc38`/schema25, following
 the full workflow release tagged `goal-workflow-20261021`. The full typed coordinator, canonical report
 evaluator, same-task interruption recovery and private task artifact delivery are
 now deployed. Health and private pre-release database backup checks passed;
@@ -551,3 +551,12 @@ shared VPS. Corrected Nginx log rotation and release retention restored8.6GB
 free without removing application data or backups; see
 ../operations/storage-retention.md. Native GitHub same-task continuation remains
 unfinished; these changes do not establish overall goal completion.
+
+## Compact Studio and conversation context
+
+Production79c04c0 now includes the approved104px auto-growing Studio composer;
+responsive height/growth/shrink/draft/CTA checks passed. It also contains407cd86,
+which retains a prior same-conversation task project for follow-ups without an
+explicit project name and provides original authorization/execution state.
+Targeted project scope tests pass in the clean release. Actual native GitHub
+continuation has not yet been repeated on that correction; full goal stays open.
