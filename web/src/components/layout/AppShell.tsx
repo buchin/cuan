@@ -283,12 +283,14 @@ export function AppShell({
               </button>
             )}
             {newAction && (
+              <div className={['projects', 'contacts', 'inbox'].includes(currentTab) && !(currentTab === 'inbox' && !listOpen) ? 'min-[1200px]:hidden' : undefined}>
               <CreateAction
                 id="header-new-action"
                 label={newAction.label}
                 onClick={newAction.onClick}
                 kind={currentTab}
               />
+              </div>
             )}
           </div>
         </header>

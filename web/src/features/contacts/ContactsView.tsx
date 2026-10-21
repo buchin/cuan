@@ -1,3 +1,4 @@
+import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
 import { ContactMemoryPanel } from './ContactMemoryPanel'
@@ -35,7 +36,7 @@ const dateLabel = (iso: string, language: string) => {
     : d.toLocaleDateString(language, { day: 'numeric', month: 'short' })
 }
 
-export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
+export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: number; onNewContact?: () => void }) {
   const { t, language } = useLanguage()
   const archive = useArchivedItems('contact')
   const [showArchived, setShowArchived] = useState(false)
@@ -266,6 +267,7 @@ export function ContactsView({ refreshKey = 0 }: { refreshKey?: number }) {
         className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
         <div className="shrink-0 border-b p-3">
+          <ListCreateAction label="New contact" kind="contacts" onClick={onNewContact} />
           <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">

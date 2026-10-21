@@ -1,3 +1,4 @@
+import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -17,7 +18,9 @@ export function ProjectsWorkspace({
   onRetry,
   onArchiveProject,
   settingsContent,
+  onNewProject,
 }: {
+  onNewProject?: () => void
   settingsContent?: ReactNode
   projects: Project[]
   project?: Project
@@ -75,6 +78,7 @@ export function ProjectsWorkspace({
         className={`min-h-0 w-full min-w-0 flex-col min-[1200px]:w-72 min-[1200px]:shrink-0 min-[1200px]:border-r ${project ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
         <div className="shrink-0 border-b px-3 pt-3">
+          <ListCreateAction label="New project" kind="projects" onClick={onNewProject} />
           <label className="flex h-10 items-center gap-2 rounded-md border bg-muted/20 px-3 focus-within:ring-2 focus-within:ring-ring">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input

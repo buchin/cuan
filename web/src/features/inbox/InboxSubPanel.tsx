@@ -1,3 +1,4 @@
+import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
 import { useConnectionClock } from '../agents/useConnectionClock'
@@ -34,6 +35,7 @@ export function conversationPreview(message?: string) {
 export type ContactFilterTab = 'all' | 'agents' | 'customers'
 
 interface InboxSubPanelProps {
+  onNewMessage?: () => void
   contacts: ChatContact[]
   agents?: Agent[]
   now?: number
@@ -50,6 +52,7 @@ interface InboxSubPanelProps {
 
 export function InboxSubPanel({
   contacts,
+  onNewMessage,
   agents = [],
   now: suppliedNow,
   loading = false,
@@ -124,6 +127,7 @@ export function InboxSubPanel({
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
       <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1">
+        <ListCreateAction label="New message" kind="inbox" onClick={onNewMessage} />
         {/* Search Bar */}
         <ItemActions label="Inbox" actions={[{ label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') }]}>
         <div className="relative">

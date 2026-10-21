@@ -590,6 +590,7 @@ export function App() {
           currentTab === 'studio' ||
           currentTab === 'notifications' ||
           projectDetail ||
+          (currentTab === 'contacts' && !!new URLSearchParams(location.search).get('contact')) ||
           (currentTab === 'settings' && subParam !== 'agents')
             ? undefined
             : {
@@ -630,6 +631,7 @@ export function App() {
         inboxSubPanel={
           <InboxSubPanel
             contacts={contacts}
+            onNewMessage={() => openNew('message')}
             agents={directoryAgents}
             loading={contactsLoading}
             error={contactsError}
@@ -692,7 +694,7 @@ export function App() {
 
         {/* 2. Global Task Board View — Tasks */}
         {currentTab === 'contacts' && (
-          <ContactsView refreshKey={contactRevision} />
+          <ContactsView refreshKey={contactRevision} onNewContact={() => openNew('contact')} />
         )}
         {sessionRoute && pathSegments[3] === 'start' && (
           <TaskStartingPage key={subParam} taskId={subParam} />
@@ -756,6 +758,7 @@ export function App() {
           ) : subParam && activeProject?.id === subParam ? (
             pathSegments[2] !== 'tasks' ? (
               <ProjectsWorkspace
+                onNewProject={() => openNew('project')}
                 projects={projects}
                 project={activeProject}
                 tasks={tasks}
@@ -776,6 +779,7 @@ export function App() {
               />
             ) : (
               <ProjectsWorkspace
+                onNewProject={() => openNew('project')}
                 projects={projects}
                 onArchiveProject={handleArchiveProject}
                 onNewTask={() => openNew('task')}
@@ -794,6 +798,7 @@ export function App() {
             )
           ) : (
             <ProjectsWorkspace
+                onNewProject={() => openNew('project')}
               projects={projects}
               tasks={tasks}
               loading={projectsLoading || tasksLoading}
