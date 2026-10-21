@@ -1,0 +1,16 @@
+{
+  "production": "PASS",
+  "release": "bc12c13b644d80d850695a49237578034976db80",
+  "unconfiguredOAuth": true,
+  "noInertConnectButton": true,
+  "tokenFormVisible": true,
+  "setupGuideWorks": true,
+  "recheckWorks": true,
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "providerCalls": 0,
+  "postLoginWritesBlocked": true
+}

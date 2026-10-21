@@ -9,11 +9,17 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, UI release and coordinator gap
 
-Production runs UI-only release `0b130c1`/schema25 (tag `ui-release-20261021`).
+Production runs UI-only release `bc12c13`/schema25 (tag `ui-github-button-20261021`).
 Original system-message Markdown and contextual action rendering, plus global
 keyboard shortcuts, passed real production browser checks at 390/820/1440px.
 No production inference was invoked. Backend code remains `09a3fc4`; staged
 workflow changes were deliberately excluded from this release.
+
+GitHub OAuth remains unconfigured on production. The unavailable disabled
+Connect action has been replaced with a usable token CTA and a visible secondary
+Set up GitHub sign-in button. Real read-only production browser verification
+passed at 390/820/1440px, including disclosure open/close, token input focus and
+availability recheck. This does not establish an actual GitHub connection.
 
 Dedicated staging runs `269e9b0`/schema25. The original interrupted task resumed
 and finished on its second attempt, preserving its original HTML hash and inode.
