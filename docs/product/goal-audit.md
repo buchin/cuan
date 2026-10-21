@@ -649,3 +649,22 @@ No commit, push or successful native delivery is claimed. See
 ../evidence/native-model-routing/current-release-blocker.json. This is an external
 provider prerequisite; do not repeatedly replay the work, reconnect already-saved
 Google/GitHub credentials, or replace native delivery with manual developer work.
+
+## Native GitHub delivery independently verified — 2026-10-21
+
+The original approved task is now Done with exactly one task and four attempts;
+only the fourth succeeded. Earlier attempts were preparation failure and two
+operator-stopped blocked CLI runs. User follow-ups and runtime fixes were involved;
+this is not evidence of an entirely unattended four-attempt recovery.
+
+The independent verifier used only the dedicated installation's saved encrypted
+Cuan GitHub connection and a live read-only GitHub ref lookup. Remote branch head
+matches fab06900da7d12a44b931ccef8b8fffac4a10c53. The existing worktree is clean,
+only the approved check.md was committed, whitespace validation passes, required
+document topics are present, and the author is the configured human. Evidence:
+../evidence/native-github-delivery/independent-proof.json. Full completion still
+requires reconciling this result against the goal's complete requirement audit.
+
+Production3258b97 includes the correction-budget fix and message gesture/detail
+layout fix. Production-asset browser checks use fixture messages and simulated
+touch; no live message was resent. See ../evidence/chat-gesture-detail/browser.json.

@@ -1,0 +1,16 @@
+{
+  "task_id": "msg_fadb6835-ebfb-4c5e-a787-8c7f37b09768",
+  "attempt_id": "att_71b6755e380e5e7dc71f75487979dd5c",
+  "task_count": 1,
+  "attempt_count": 4,
+  "canonical_status": "done",
+  "remote_sha": "fab06900da7d12a44b931ccef8b8fffac4a10c53",
+  "live_github_ref_matches": true,
+  "task_branch": "cuan/task-21936ec00b0227b177c8736c47d8d4ec69fb108529ed08fc9d7155d00eda04c2",
+  "changed_files": ["docs/evidence/native-github-delivery/check.md"],
+  "whitespace_check": true,
+  "clean_worktree": true,
+  "expected_topics": true,
+  "author": "buchin <156540+buchin@users.noreply.github.com>",
+  "credential_source": "dedicated Cuan saved GitHub connection; read-only verifier"
+}

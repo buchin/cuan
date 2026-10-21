@@ -81,3 +81,11 @@ Cancelled attempts do not consume the three-attempt automatic correction budget.
 They still require a fresh authenticated user instruction before continuation;
 an automatic review cannot restart cancelled work. Failed and completed attempts
 still count toward the correction limit, preventing an unbounded repair loop.
+
+### Message shortcuts
+
+Swipe a message left to quote it in your reply; the message is not sent until you
+press Send. Long press on touch devices or right-click on desktop opens message
+actions such as Copy and Quote. Keyboard users can focus the action button or
+use Shift+F10. The desktop action shortcut appears on hover/focus without reserving
+a permanent bubble column. Response Detail expands across the bubble width.
