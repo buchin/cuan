@@ -510,3 +510,18 @@ browser checks passed at390/820/1440, exact assets and GitHub connection retenti
 passed, zero production inference. See
 ../evidence/goal-workflow-production/repository-copy-release.json.
 Real-Git fixtures do not establish native model remote GitHub delivery.
+
+## Native GitHub scenario: real repository path regression
+
+After the user linked staging GitHub and authorized testing buchin/cuan, the
+native Studio proposal was approved. Exactly one task was created:
+msg_fadb6835-ebfb-4c5e-a787-8c7f37b09768. Its first attempt failed before provider
+execution because reporting could not open the worktree. Relative Git worktree
+paths were interpreted from the source repository rather than Cuan's working
+directory. Commit04af327 uses absolute destinations and verifies/reuses legacy
+nested worktrees without losing pending files. Targeted real-Git regression tests
+pass; staging was upgraded with backup and retained configuration/readiness.
+
+A subsequent same-conversation continuation failed at the coordinator's native
+tool permission boundary; no second task or successful GitHub push is claimed.
+This remains agent-fixable work; do not ask the owner to reconnect working accounts.
