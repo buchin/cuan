@@ -24,7 +24,12 @@ import (
 func TestFreshInstallPostgresGoalLifecycle(t *testing.T)        { runFreshInstallPostgresGoal(t, false) }
 func TestFreshInstallPostgresApprovedGoalRecovery(t *testing.T) { runFreshInstallPostgresGoal(t, true) }
 
-func runFreshInstallPostgresGoal(t *testing.T, recoverInterrupted bool) {
+func TestFreshInstallPostgresQuotaGoalRecovery(t *testing.T) {
+	runFreshInstallPostgresGoal(t, true, "quota")
+}
+
+func runFreshInstallPostgresGoal(t *testing.T, recoverInterrupted bool, cause ...string) {
+	providerQuota := len(cause) > 0 && cause[0] == "quota"
 	dsn := os.Getenv("CUAN_FRESH_INSTALL_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("requires dedicated fresh-install PostgreSQL database")
@@ -47,7 +52,12 @@ func runFreshInstallPostgresGoal(t *testing.T, recoverInterrupted bool) {
 		t.Fatal(err)
 	}
 	oldUsage := fetchInboxModelUsage
-	fetchInboxModelUsage = func(context.Context, string, string) agent.AccountModelUsage { return agent.AccountModelUsage{} }
+	fetchInboxModelUsage = func(context.Context, string, string) agent.AccountModelUsage {
+		if providerQuota {
+			return agent.AccountModelUsage{Available: true, Models: []agent.ModelUsage{{Model: "claude-fixture", Remaining: 100}}}
+		}
+		return agent.AccountModelUsage{}
+	}
 	defer func() { fetchInboxModelUsage = oldUsage }()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -185,6 +195,13 @@ case "$2" in
 esac
 `
 	}
+	if providerQuota {
+		if _, err := agent.SetProviderAccountModelFallback(owner.ID, account.ID, true); err != nil {
+			t.Fatal(err)
+		}
+		script = strings.ReplaceAll(script, "kill -KILL $$", "printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits.\\n'\n  while :; do sleep 1; done")
+	}
+
 	if err = os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
