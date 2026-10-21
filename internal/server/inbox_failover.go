@@ -36,7 +36,6 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 	busyRoutes := 0
 	seen := map[string]bool{}
 	triedAccounts := map[string]bool{}
-	restrictedAccounts := map[string]bool{}
 	var restriction string
 	for len(routes) > 0 {
 		if attempts >= 8 || ctx.Err() != nil {
@@ -47,9 +46,6 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		sort.SliceStable(routes, func(i, j int) bool { return !triedAccounts[routes[i].accountID] && triedAccounts[routes[j].accountID] })
 		route := routes[0]
 		routes = routes[1:]
-		if restrictedAccounts[route.accountID] {
-			continue
-		}
 		key := route.accountID + ":" + route.model
 		if seen[key] {
 			continue
@@ -92,12 +88,12 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			return output, ""
 		}
 		if strings.Contains(failure, "location restriction") && safe {
-			// Another model under this same account cannot resolve a location
-			// rejection. Only a separately allowed account may be tried.
-			restrictedAccounts[route.accountID] = true
+			// A regional rejection can be model-specific (for example Gemini
+			// may fail where Sonnet succeeds). Only pre-authorized alternatives
+			// already in the route list may be tried.
 			restriction = failure
 			if step != nil {
-				step("provider_restricted", "This account is restricted by the provider. Checking other allowed accounts without repeating work.")
+				step("provider_restricted", "This model route is restricted by the provider. Checking allowed alternatives without repeating work.")
 			}
 			continue
 		}

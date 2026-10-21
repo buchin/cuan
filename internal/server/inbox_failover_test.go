@@ -453,3 +453,38 @@ func TestInboxRecoveryChecksOtherAccountBeforeMoreModels(t *testing.T) {
 		})
 	}
 }
+
+func TestInboxRegionRestrictionCanUseAllowedModelOnSameAccount(t *testing.T) {
+	s, _, registered, p, _, home, _ := setupFailoverFixture(t)
+	if _, err := agent.SetProviderAccountModelFallback(p.OwnerID, p.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	old := fetchInboxModelUsage
+	defer func() { fetchInboxModelUsage = old }()
+	fetchInboxModelUsage = func(context.Context, string, string) agent.AccountModelUsage {
+		return agent.AccountModelUsage{Available: true, Models: []agent.ModelUsage{{Model: "gemini-test", Remaining: 90}, {Model: "claude-sonnet-test", Remaining: 80}}}
+	}
+	script := `#!/bin/sh
+printf x >> "$HOME/calls"
+last=''
+for arg in "$@"; do last="$arg"; done
+if [ "$last" = claude-sonnet-test ]; then
+ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Recovered on allowed Sonnet\",\"topic_title\":\"\",\"action\":null}"}}'
+else
+ printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"User location is not supported for the API use"}}'
+ exit 3
+fi
+`
+	f := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+	if err := os.WriteFile(f, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	out, failure := s.executeInboxWithFailover(context.Background(), p.OwnerID, registered, "Analyze", home, t.TempDir(), false, nil)
+	if out != "Recovered on allowed Sonnet" || failure != "" {
+		t.Fatal(out, failure)
+	}
+	calls, _ := os.ReadFile(filepath.Join(home, "calls"))
+	if string(calls) != "xxx" {
+		t.Fatal("wrong route attempts", string(calls))
+	}
+}

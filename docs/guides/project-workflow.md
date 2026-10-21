@@ -25,8 +25,8 @@ of the list page. The same action is not duplicated in the detail panel.
 
 Cuan checks permitted account/model routes before asking you to intervene. After
 an eligible failure it checks another allowed account before more models on the
-same account. A location-restricted account is skipped for that reply; another
-account is attempted only when no uncertain tool effects were recorded. Each
+same account. A location-restricted model route is not repeated in that reply. Other
+permitted accounts/models may be tried only when no uncertain tool effects were recorded. Each
 reply has at most eight provider attempts and the existing request deadline.
 Cancellation and unknown tool effects still prevent replay.
 
