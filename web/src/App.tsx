@@ -529,7 +529,7 @@ export function App() {
   const settingsDetail = currentTab === 'settings' && !!settingTitles[subParam]
   const headerTitle = projectDetail
     ? projectSettings
-      ? 'Settings'
+      ? pathSegments[2] === 'repository' ? 'Repository' : 'Settings'
       : headerProject?.name || 'Project'
     : settingsDetail
       ? pathSegments[2] === 'live-chat'

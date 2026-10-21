@@ -531,5 +531,11 @@
   "Hide this project from active projects. Your data stays available.": "Sembunyikan project dari daftar aktif. Data tetap tersedia.",
   "Reload saved settings": "Muat ulang pengaturan tersimpan",
   "Discard your draft and reload saved settings?": "Buang draf dan muat ulang pengaturan tersimpan?",
-  "Project changed elsewhere. Reload before saving.": "Project telah berubah di tempat lain. Muat ulang sebelum menyimpan."
+  "Project changed elsewhere. Reload before saving.": "Project telah berubah di tempat lain. Muat ulang sebelum menyimpan.",
+  "Project repository": "Repositori proyek",
+  "Connect a repository to keep this project’s files and version history together.": "Hubungkan repositori untuk menyimpan file dan riwayat perubahan proyek ini.",
+  "Connected repository": "Repositori terhubung",
+  "Selected repository": "Repositori dipilih",
+  "No repository connected. This project can still work without one.": "Belum ada repositori terhubung. Proyek ini tetap bisa digunakan tanpa repositori.",
+  "Leave the branch empty to use the repository default. Changes apply to new work; existing work keeps its connection.": "Kosongkan branch untuk menggunakan bawaan repositori. Perubahan berlaku untuk pekerjaan baru; pekerjaan yang sudah ada tetap memakai koneksi semula."
 }

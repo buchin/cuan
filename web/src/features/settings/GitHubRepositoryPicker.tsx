@@ -24,6 +24,6 @@ export function GitHubRepositoryPicker({ disabled, onSelect }: { disabled: boole
    {more && <button type="button" className="action-secondary" disabled={disabled || busy} onClick={() => void load(page + 1)}>{busy ? 'Loading…' : 'Load more'}</button>}
   </>}
   {error && <p role="alert" className="text-xs text-destructive">{error} <button type="button" disabled={disabled || busy} className="underline" onClick={() => void load(page ? page + 1 : 1)}>Try again</button></p>}
-  <Link className="inline-flex min-h-11 items-center text-xs underline" to="/settings/integrations/github">Manage GitHub connection</Link>
+  <Link className="flex min-h-11 w-fit items-center text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground" to="/settings/integrations/github">Manage GitHub connection</Link>
  </div>
 }

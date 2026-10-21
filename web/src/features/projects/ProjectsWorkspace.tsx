@@ -1,7 +1,7 @@
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Folder, Search, ChevronLeft, Archive, MoreHorizontal } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
@@ -35,6 +35,7 @@ export function ProjectsWorkspace({
 }) {
   const { t } = useLanguage()
   const navigate = useNavigate()
+  const repositoryView = useLocation().pathname.split('/')[2] === 'repository'
   const [query, setQuery] = useState('')
   const [archived, setArchived] = useState(!!project?.is_archived)
   useEffect(() => {
@@ -190,7 +191,7 @@ export function ProjectsWorkspace({
               </div>
             </div>}
             {!taskId && <nav aria-label={t('Project navigation')} className="flex shrink-0 gap-5 border-b px-4 sm:px-5">
-              {[{label: 'Settings', path: 'settings', active: !!settingsContent}, {label: 'Activity', path: 'tasks', active: !settingsContent}].map(item => <Link
+              {[{label: 'Settings', path: 'settings', active: !!settingsContent && !repositoryView}, ...(project.id !== 'default' ? [{label: 'Repository', path: 'repository', active: !!settingsContent && repositoryView}] : []), {label: 'Activity', path: 'tasks', active: !settingsContent}].map(item => <Link
                 key={item.path}
                 to={`/projects/${encodeURIComponent(project.id)}/${item.path}`}
                 aria-current={item.active ? 'page' : undefined}
