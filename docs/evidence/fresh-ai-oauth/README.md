@@ -21,3 +21,13 @@ coverage for the observed post-login setup screens remains separate evidence.
 
 See native-start.json. The test is opt-in and never invokes inference or signs
 in automatically: TestLiveFreshProfileOAuthStart in internal/agent.
+
+## Existing account readiness after user confirmation
+
+The user confirmed that Google was already connected on this installation.
+Cuan's actual provider-account verification API succeeded with the saved account
+using claude-sonnet-4-6 on 2026-10-21. See
+existing-account-reverification.json. This uses the dedicated test installation;
+no production task or chat was replayed. No new Google login is required for
+continued tests with this account. This does not retroactively record the full
+fresh-profile OAuth consent/post-login sequence.

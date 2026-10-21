@@ -64,7 +64,14 @@ not prove every requirement or erase earlier failed scenarios.
 | GitHub connection | Actual production device challenge and reload resumption verified. Owner consent, retained connection and private repo continuation remain unverified. |
 | Future integration design | Repository AGENTS.md links the approved integration principles: maintained official CLI where appropriate, simple UI, isolated credentials, explicit consent, documented API/SDK alternatives. |
 
-The overall goal remains open at the two real authorization gates above.
+The overall goal remains open. The user confirmed that Google was already
+connected on the dedicated installation. Reverification through Cuan's actual
+provider-account API on 2026-10-21 succeeded using claude-sonnet-4-6 (see
+../evidence/fresh-ai-oauth/existing-account-reverification.json). Existing-account
+readiness is therefore verified and is not a user-login blocker. A complete
+fresh-profile OAuth recording remains an evidence limitation, not a reason to
+ask the user to repeat a working connection. Real GitHub consent/private repo
+continuation remains unverified.
 
 ## Earlier checkpoint — native recovery
 
