@@ -208,7 +208,7 @@ esac
 		}
 	}
 	prompt, _ := os.ReadFile(filepath.Join(home, "delegation-prompts"))
-	for _, text := range []string{"Product Owner", "Keep these terms internal", humanPrompt, "Verification evidence"} {
+	for _, text := range []string{"Product Owner", "Keep these terms internal", humanPrompt, "Verification evidence", "without calling native tools", "Have the task session inspect its existing workspace"} {
 		if !strings.Contains(string(prompt), text) {
 			t.Fatal("missing relevant context", text)
 		}
