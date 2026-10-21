@@ -14,7 +14,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
 }) {
   const { t } = useLanguage()
   const isDefault = project.id === 'default'
-  const repositoryView = useLocation().pathname.split('/')[2] === 'repository'
+  const repositoryView = useLocation().pathname.split('/').filter(Boolean)[2] === 'repository'
   const values = (p: Project) => ({
     name: p.name, goal: String(p.metadata?.cuan_settings?.goal || ''),
     instructions: String(p.metadata?.cuan_settings?.instructions || ''),

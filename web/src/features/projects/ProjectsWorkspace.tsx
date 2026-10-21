@@ -35,7 +35,7 @@ export function ProjectsWorkspace({
 }) {
   const { t } = useLanguage()
   const navigate = useNavigate()
-  const repositoryView = useLocation().pathname.split('/')[2] === 'repository'
+  const repositoryView = useLocation().pathname.split('/').filter(Boolean)[2] === 'repository'
   const [query, setQuery] = useState('')
   const [archived, setArchived] = useState(!!project?.is_archived)
   useEffect(() => {
