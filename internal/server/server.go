@@ -2344,11 +2344,11 @@ func (s *Server) handleConnectProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, git.ErrRepoNotFound) {
-			respondJSONError(w, http.StatusNotFound, "Repository not found on GitHub. Check the owner/repo name and provide a Personal Access Token (PAT) for private repositories.")
+			respondJSONError(w, http.StatusNotFound, "Repository not found. Check its name and make sure the GitHub account connected in Settings > Integrations has access.")
 			return
 		}
 		if errors.Is(err, git.ErrAccessDenied) {
-			respondJSONError(w, http.StatusForbidden, "GitHub repository access denied (401/403). Check your Personal Access Token (PAT) and its 'repo' scope.")
+			respondJSONError(w, http.StatusForbidden, "GitHub could not grant access to this repository. Reconnect GitHub in Settings > Integrations with an account that has access, then try again.")
 			return
 		}
 		if errors.Is(err, project.ErrProjectAlreadyExists) {
