@@ -1,0 +1,19 @@
+{
+  "production": "PASS",
+  "release": "fb624e5af9ec0cf2b4ccae1bec6a104aa288c3ae",
+  "realExistingSystemMessage": true,
+  "primaryNavigationCTA": true,
+  "rawMarkdownFixed": true,
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "composerFocus": true,
+  "typingSafe": true,
+  "shortcutHelp": true,
+  "globalNavigation": true,
+  "exactAssets": true,
+  "providerCalls": 0,
+  "postLoginWritesBlocked": true
+}

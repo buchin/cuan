@@ -7,18 +7,26 @@ menggandakan pekerjaan.
 This audit preserves that end state. A successful retry or green unit test alone
 does not establish the whole goal.
 
-## Current checkpoint — 2026-10-21, UI release and coordinator gap
+## Current checkpoint — 2026-10-21, production workflow release
 
-Production runs scoped GitHub CLI release `758f9f3`/schema25 (tag
-`github-cli-signin-20261021`). Native `gh auth login --web` started from the real
-production UI and produced a GitHub device challenge. Reload resumes the same
-pending login; no OAuth App or manual personal access token is needed. The normal
-UI has one Sign in with GitHub action, then a one-time code and Continue on GitHub.
-The owner must still authorize on GitHub. No live private repository access or
-GitHub account connection is claimed before that consent. Production verification
-made no inference, task or chat writes. Private pre-release DB backup and health
-checks passed. Coordinator/artifact backend changes remain excluded from this
-production release.
+Production runs `fb624e5af9ec0cf2b4ccae1bec6a104aa288c3ae`/schema25
+(tag `goal-workflow-20261021`). The full typed coordinator, canonical report
+evaluator, same-task interruption recovery and private task artifact delivery are
+now deployed. Health and private pre-release database backup checks passed;
+no database migration was required. Release activation checks for live GitHub
+sign-in processes before switching, to avoid interrupting authorization.
+
+The earlier scoped GitHub CLI release `758f9f3` demonstrated a real device
+challenge from the production UI and reload resumption of the same login. That
+challenge expired without completed owner consent. The normal UI needs neither
+a Cuan OAuth App nor a manually created token. No connected GitHub account,
+private repository access or authorized repository continuation is claimed yet.
+
+Read-only verification of the current production release passed at 390, 820 and
+1440 pixels: exact assets, existing message rendering and contextual CTA,
+composer focus, typing-safe shortcuts and navigation. Post-login writes were
+blocked and provider calls were zero. See
+[production verification](../evidence/goal-workflow-production/README.md).
 
 Dedicated staging runs `9911437`/schema25 with the typed coordinator protocol,
 canonical report evaluator and private task artifacts. Its native distance
@@ -41,9 +49,22 @@ separate evidence from the new first-attempt native download scenario.
 
 The full objective remains open: obtain real owner GitHub consent and verify
 private repository access/authorized continuation, verify fresh-live AI OAuth
-onboarding from an empty account, and audit/release the full coordinator/artifact
-candidate after the remaining gates. A controlled positive scenario alone does
+onboarding from an empty account, and verify post-login setup through the actual fresh-account authorization flow. A controlled positive scenario alone does
 not prove every requirement or erase earlier failed scenarios.
+
+## Completion evidence by requirement
+
+| Requirement | Evidence and limit |
+| --- | --- |
+| Natural-language goal, approval, one execution and delivered result | Native dedicated staging scenario passed with one task and one attempt; HTML and README downloaded through Inbox, anonymous access denied, downloaded HTML checked in Chromium. |
+| Interrupted work retains context and approval | Separate native recovery scenario passed with the original task, approval and artifact retained; this is distinct from the first-attempt delivery scenario. |
+| User-visible progress | Start, attachments and final reviewed result captured in the native scenario. Mid-execution progress forwarding has fixture coverage; a captured native intermediate progress report is not claimed. |
+| Production readiness | Full backend deployed at fb624e5, schema25 and health passed; read-only responsive UI and exact assets passed. No production inference/replay used. |
+| Fresh AI connection | Actual CLI reached Google OAuth from an empty isolated profile without manual theme selection. Full authorization and post-login completion remain unverified; preseeded settings are not claimed to survive the CLI rewrite. |
+| GitHub connection | Actual production device challenge and reload resumption verified. Owner consent, retained connection and private repo continuation remain unverified. |
+| Future integration design | Repository AGENTS.md links the approved integration principles: maintained official CLI where appropriate, simple UI, isolated credentials, explicit consent, documented API/SDK alternatives. |
+
+The overall goal remains open at the two real authorization gates above.
 
 ## Earlier checkpoint — native recovery
 
@@ -100,7 +121,7 @@ No production task or AI request has been replayed for verification.
 
 | Requirement | Authoritative implementation/evidence | Current finding |
 | --- | --- | --- |
-| Connect AI from Studio without an agent-name/configuration form | StudioView + TeamView connectionOnly; direct-ai-connect browser evidence | Deployed in 94ff5f3; fixtures retain the draft and require explicit submission. Dedicated-account verification and a real Studio reply succeed; fresh live OAuth wizard automation remains unproven. |
+| Connect AI from Studio without an agent-name/configuration form | StudioView + TeamView connectionOnly; direct-ai-connect browser evidence | Deployed in 94ff5f3; fixtures retain the draft and require explicit submission. Dedicated-account verification and a real Studio reply succeed; native empty-profile OAuth start is verified, while completed fresh-account authorization and post-login setup remain unproven. |
 | Accept a natural-language goal without requiring agent/project/task forms | Studio routes through durable Inbox; studio.go and studio_test.go | Implemented; existing targeted fixtures cover dispatch and identity |
 | Clarify ambiguity and obtain approval for consequential scope | workflow/coordinator.md; inbox_approval.go; inbox_delegation.go | Structured proposals now render an exact scope and persist a same-owner/agent/conversation approval snapshot; canonical dispatch needs no model rewrite. Direct unstructured intent still relies on model interpretation; deployed in ca9028f; clean fixture and read-only production verification pass |
 | Preserve original goal, project and authorization across execution | SourceRoomID/SourceMessageID, stored task instructions, task-bound reporting capability | Direct and structured-approved work retain the original request; structured scope snapshots, digests and task-bound capability are verified by plan-approval and recovery fixtures |
@@ -116,7 +137,7 @@ No production task or AI request has been replayed for verification.
 ## Remaining completion work
 
 Clear instructions remain direct. Optional scope decisions use exact approval
-snapshots and choice actions. The current production application is5961b4a/schema25.
+snapshots and choice actions. The current production application is fb624e5/schema25. Older checkpoints below are historical; the current checkpoint above takes precedence.
 
 1. Supported native first-run and public documentation are now verified/reconciled.
    Actual binary startup, owner setup, neutral Default, process restart retention,
