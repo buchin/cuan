@@ -49,5 +49,7 @@ coordinator review. Exhausted retries do not loop indefinitely.
 
 The live interruption scenario exposed coordinator implementation outside the
 task workspace. Plan mode and the strengthened role contract address that
-boundary, but automatic recovery and final delivery still require native end-to-end
-verification. This document does not certify those flows as complete.
+boundary, and native recovery of the original task has now succeeded with the original
+artifact unchanged. Final coordinator review still fails on native tool denial,
+and browser-accessible deliverable delivery remains unfinished. This document
+does not certify the whole lifecycle as complete.

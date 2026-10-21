@@ -36,3 +36,27 @@ Next acceptance gate: continue the original task with preserved approval and
 workspace, obtain a real execution report, review against every criterion and
 provide user-accessible deliverables. Automatic continuation and fresh-install
 AI onboarding are not yet proven complete.
+
+## Native recovery checkpoint — supersedes the blocked task state above
+
+Staging release `e2c7ded` automatically continued the original task after restart,
+without a new user message, approval replay or operator resume request. The task
+now has exactly two attempts: original failed attempt
+`att_4deca0255167a7b1a71257c14cd81c16`, and successful continuation
+`att_61213fee104b640f8c08041c8031c975`. It reported Done with a summary and
+verification report, and added the missing 1,550-byte README.
+
+The original 9,455-byte HTML file has the same SHA256 and inode as the pre-kill
+record. No original task process remains. This is real native recovery evidence,
+not a fixture or a duplicate deliverable moved from the provider profile.
+
+Targeted integration tests also verify preservation of the same task and artifact,
+reused approval, cancellation exclusion, retry limits and non-interruption failures.
+
+Staging subsequently upgraded to `8b2ed65` with configuration preservation,
+checksums, backup and readiness passing. Its bounded snapshot review follow-up ran
+automatically, without another execution attempt. However, native AGY again
+attempted a terminal tool and the review failed on permission denial. The task is
+Done according to its execution report; coordinator acceptance and user-accessible
+file delivery remain unresolved. Do not present the whole lifecycle as passed.
+Production remains on `09a3fc4` and was not changed by these staging tests.

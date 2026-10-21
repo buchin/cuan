@@ -7,7 +7,33 @@ menggandakan pekerjaan.
 This audit preserves that end state. A successful retry or green unit test alone
 does not establish the whole goal.
 
-## Latest checkpoint — 2026-10-21
+## Current checkpoint — 2026-10-21, native recovery
+
+Production runs `09a3fc4`/schema25; dedicated Dracin staging runs `8b2ed65`/schema25.
+Production Default is neutral (name Default, no repository); legacy Cuan data was
+preserved in its own project. Private Cuan repository access still needs GitHub
+setup; no Fural token was borrowed.
+
+The real Studio proposal was approved through the UI and created one task. A
+controlled interruption stopped its first execution. Earlier coordinator review
+incorrectly implemented duplicate files in its provider profile; this was failed
+acceptance. The corrected orchestration now automatically resumed the same task
+using its original approval. The second native attempt succeeded, preserved the
+original HTML byte-for-byte and inode-for-inode, and added its missing README.
+There were no surviving original processes or duplicate tasks.
+
+Full acceptance remains open: final Inbox coordinator review still attempts a
+native terminal tool and stops on permission denial, even with snapshot-only
+instructions. User-accessible delivery and independent browser checks of the
+artifact remain unproven. Fresh-live OAuth setup from an empty account is also
+not established by the existing-account success. Staging health and targeted
+tests do not prove these missing outcomes. See
+[recovery evidence](../evidence/live-goal-recovery/coordinator-boundary.md).
+
+The checkpoint below and its pending-Default/recovery statements are historical
+and superseded by this current checkpoint.
+
+## Earlier checkpoint — 2026-10-21
 
 Production and the dedicated Dracin test installation run `94ff5f3`/schema25.
 The owner explicitly accepted provider terms with optional interaction sharing
