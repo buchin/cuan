@@ -27,3 +27,12 @@ and exact results. The downloads directory contains the actual delivered files.
 This proves the controlled native proposal/approval/task/report/download path.
 It does not prove fresh AI OAuth onboarding or live private GitHub access, and
 does not erase the earlier interrupted-task evidence or failed scenarios.
+
+## Read-only activity audit — 2026-10-21
+
+Authenticated GET of the existing task detail confirmed one attempt and a final
+`agent_report` with state `done`, followed by succeeded execution. The detail
+contained no `agent_report` with state `progress`. Thus this short native task
+proves start/final delivery, not intermediate progress reporting. No conversation
+was replayed, task changed, or provider invoked for this audit. Progress-report
+forwarding remains covered by targeted application fixtures.
