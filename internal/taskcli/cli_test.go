@@ -69,3 +69,27 @@ func TestTaskPushUsesBoundCapabilityEndpoint(t *testing.T) {
 		t.Fatal("push accepted report mutation")
 	}
 }
+
+func TestTaskReportSendsRepeatedArtifactPaths(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data map[string]any
+		json.NewDecoder(r.Body).Decode(&data)
+		paths, ok := data["artifacts"].([]any)
+		if !ok || len(paths) != 2 || paths[0] != "output.html" || paths[1] != "README.md" {
+			t.Error("missing artifact paths", data)
+		}
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer api.Close()
+	path := filepath.Join(t.TempDir(), "capability.json")
+	raw, _ := json.Marshal(Capability{API: api.URL, Token: "fixture", TaskID: "bound"})
+	os.WriteFile(path, raw, 0600)
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", path)
+	var out, errOut bytes.Buffer
+	if Run([]string{"report", "--state", "done", "--artifact", "output.html", "--artifact", "README.md"}, &out, &errOut) != 0 {
+		t.Fatal(errOut.String())
+	}
+	if Run([]string{"get", "--artifact", "output.html"}, &out, &errOut) != 2 {
+		t.Fatal("get accepted delivery flags")
+	}
+}

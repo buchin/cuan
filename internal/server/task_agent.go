@@ -24,6 +24,7 @@ import (
 type taskAgentGrant struct {
 	TaskID, AttemptID, AgentID string
 	Expires                    time.Time
+	ArtifactRoot               *os.Root
 }
 
 func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID string, contextParts ...string) ([]string, string, string, func(), error) {
@@ -38,7 +39,21 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 	if e != nil {
 		return nil, "", "", none, e
 	}
-	cleanup := func() { s.taskAgentGrants.Delete(digest); _ = os.RemoveAll(dir) }
+	var artifactRoot *os.Root
+	cleanup := func() {
+		s.taskAgentGrants.Delete(digest)
+		if artifactRoot != nil {
+			_ = artifactRoot.Close()
+		}
+		_ = os.RemoveAll(dir)
+	}
+	if workspace, ok := ctx.Value(taskAgentWorkspaceKey{}).(string); ok && workspace != "" {
+		artifactRoot, e = os.OpenRoot(workspace)
+		if e != nil {
+			cleanup()
+			return nil, "", "", none, e
+		}
+	}
 	base := s.taskAgentURL
 	if base == "" {
 		port := s.cfg.ServerPort
@@ -63,7 +78,7 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		cleanup()
 		return nil, "", "", none, e
 	}
-	s.taskAgentGrants.Store(digest, taskAgentGrant{taskID, attemptID, agentID, time.Now().Add(8*time.Hour + 5*time.Minute)})
+	s.taskAgentGrants.Store(digest, taskAgentGrant{TaskID: taskID, AttemptID: attemptID, AgentID: agentID, Expires: time.Now().Add(8*time.Hour + 5*time.Minute), ArtifactRoot: artifactRoot})
 	instructions := `## Session guidance
 Respond to the actual request. A greeting or question is not a request to build
 an application, create a repository, inspect deployment, or write tests.
@@ -96,6 +111,13 @@ pushes only the bound branch; it does not commit files, merge or deploy. A faile
 push retains local work; report the concrete access/conflict blocker. Never
 print credentials or force-push. For substantial work, publish meaningful task report --progress "..." checkpoints.
 Print the user-facing answer before the final report.
+When the requested result is a downloadable file, attach each deliverable to the
+final report with --artifact "relative/path" (repeatable, up to eight files, 10 MB
+per file and 25 MB total). Paths must be relative to WORKSPACE_DIR; do not attach
+credentials, hidden files or private keys. Cuan copies the files into private
+Inbox attachments so the user can download them without server access. Merely
+printing a file:// link or server path does not deliver a file. Example:
+"$CUAN_TASK_EXECUTABLE" task report --state done --summary "Files ready" --complete-note "Actual verification" --artifact "output.html" --artifact "README.md"
 For completed implementation, finish with:
 "$CUAN_TASK_EXECUTABLE" task report --state done --summary "Actual result" --complete-note "Verification and limitations"
 For a greeting/question with no file changes, use --state review --result-kind answer.
@@ -174,7 +196,10 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, 200, latest)
 		return
 	}
-	var report task.AgentReport
+	var report struct {
+		task.AgentReport
+		Artifacts []string `json:"artifacts,omitempty"`
+	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64000))
 	decoder.DisallowUnknownFields()
 	if e = decoder.Decode(&report); e != nil {
@@ -188,7 +213,25 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	if report.State == "" {
 		report.State = "progress"
 	}
-	updated, e := s.taskSvc.ReportAgent(r.Context(), g.TaskID, g.AttemptID, g.AgentID, report)
+	var artifacts []preparedTaskArtifact
+	artifactOwner := ""
+	if len(report.Artifacts) > 0 {
+		if report.State != "done" && report.State != "review" {
+			respondJSONError(w, 400, "Attach files to a final done or review report")
+			return
+		}
+		artifactOwner, e = s.taskArtifactOwner(r.Context(), latest)
+		if e != nil {
+			respondJSONError(w, 409, e.Error())
+			return
+		}
+		artifacts, e = readTaskArtifacts(g.ArtifactRoot, g.TaskID, g.AttemptID, report.Artifacts)
+		if e != nil {
+			respondJSONError(w, 400, e.Error())
+			return
+		}
+	}
+	updated, e := s.taskSvc.ReportAgent(r.Context(), g.TaskID, g.AttemptID, g.AgentID, report.AgentReport)
 	if e != nil {
 		code := 500
 		if errors.Is(e, task.ErrInvalidTaskInput) {
@@ -198,6 +241,10 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			code = 409
 		}
 		respondJSONError(w, code, e.Error())
+		return
+	}
+	if e = s.publishTaskArtifacts(r.Context(), latest, artifactOwner, artifacts); e != nil {
+		respondJSONError(w, 503, "The report is saved, but file delivery was not confirmed. Retry the same report before exiting.")
 		return
 	}
 	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": "Result is reconciled after process exit"})

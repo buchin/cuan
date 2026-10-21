@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import {
+  Keyboard,
   LogOut,
   KeyRound,
   MoreHorizontal,
@@ -177,6 +178,9 @@ export function NavUser({
                 <span>{t('Work monitor')}</span>
               </button>
             )}
+            <button type="button" className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('cuan:keyboard-shortcuts')) }}>
+              <Keyboard className="h-4 w-4" /><span>{t('Keyboard shortcuts')}</span><kbd className="ml-auto text-xs text-muted-foreground">?</kbd>
+            </button>
             {onSettings && (
               <button
                 type="button"

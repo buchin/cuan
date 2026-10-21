@@ -246,8 +246,12 @@ func loadAttachmentForMessage(ctx context.Context, s *Server, room, messageID, i
 	if err != nil {
 		return conversationAttachment{}, "", err
 	}
+	sourceID := messageID
+	if m, e := s.projectStudioRepo.GetMessageByID(ctx, messageID); e == nil && m != nil && m.RoomID == room && (m.AuthorType == "agent" || m.AuthorType == "system") && m.ReplyToID != nil {
+		sourceID = *m.ReplyToID
+	}
 	for _, q := range requests {
-		if q.MessageID != messageID {
+		if q.MessageID != sourceID {
 			continue
 		}
 		if a, path, e := loadAttachment(q.OwnerID, id); e == nil {

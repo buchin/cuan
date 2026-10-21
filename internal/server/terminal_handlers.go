@@ -492,7 +492,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		}
 		sessionContext += "\n## Workspace\n" + workDir + "\n"
 		var extra string
-		reportEnv, extra, reportToken, reportCleanup, err = s.issueTaskAgent(r.Context(), taskID, attempt.ID, agentID, sessionContext)
+		reportEnv, extra, reportToken, reportCleanup, err = s.issueTaskAgent(context.WithValue(r.Context(), taskAgentWorkspaceKey{}, workDir), taskID, attempt.ID, agentID, sessionContext)
 		if err != nil {
 			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Task reporting tools could not be prepared. Execution did not start."})
 			_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)

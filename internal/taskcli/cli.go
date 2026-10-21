@@ -23,7 +23,7 @@ type Capability struct {
 
 func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE]\nUses CUAN_TASK_CAPABILITY_FILE; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
+		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:
 {"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true}],"commit_sha":"optional commit","test_summary":"Actual checks"}
 Omit metadata/checklists when unnecessary. Use --summary and --complete-note directly for a simple result.`)
@@ -44,6 +44,8 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 	state := fs.String("state", "", "progress, review, blocked or done")
 	kind := fs.String("result-kind", "", "answer for conversation without file changes; implementation otherwise")
 	file := fs.String("report-file", "", "Structured JSON report file (never human instructions)")
+	var artifacts []string
+	fs.Func("artifact", "Output file relative to WORKSPACE_DIR to deliver privately in Inbox (repeatable)", func(path string) error { artifacts = append(artifacts, path); return nil })
 	if e := fs.Parse(args[1:]); e != nil {
 		if e == flag.ErrHelp {
 			return 0
@@ -52,6 +54,10 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 	}
 	if fs.NArg() != 0 {
 		fmt.Fprintln(errOut, "Unexpected arguments; use task --help")
+		return 2
+	}
+	if command != "report" && len(artifacts) > 0 {
+		fmt.Fprintln(errOut, "Only task report accepts artifacts")
 		return 2
 	}
 	path := os.Getenv("CUAN_TASK_CAPABILITY_FILE")
@@ -103,6 +109,9 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 				data[strings.ReplaceAll(f.Name, "-", "_")] = *v
 			}
 		})
+		if len(artifacts) > 0 {
+			data["artifacts"] = artifacts
+		}
 		encoded, e := json.Marshal(data)
 		if e != nil || len(encoded) > 64000 {
 			fmt.Fprintln(errOut, "Report too large or invalid")

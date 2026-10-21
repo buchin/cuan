@@ -21,5 +21,5 @@ func (s *Server) inboxTaskReviewPrompt(ctx context.Context, q db.InboxRequest) (
 	if d == nil {
 		return "", true
 	}
-	return inboxReviewData(d), true
+	return s.inboxReviewData(ctx, d), true
 }

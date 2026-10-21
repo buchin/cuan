@@ -1,3 +1,4 @@
+import { KeyboardShortcuts } from './KeyboardShortcuts'
 import { UniversalSearch } from './UniversalSearch'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { NotificationsPopover } from '../../features/notifications/NotificationsPopover'
@@ -141,6 +142,7 @@ export function AppShell({
         effectiveCollapsed && 'nav-collapsed',
       )}
     >
+      <KeyboardShortcuts />
       <nav
         aria-label={t('Main navigation')}
         className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"

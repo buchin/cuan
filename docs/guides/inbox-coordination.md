@@ -53,3 +53,29 @@ boundary, and native recovery of the original task has now succeeded with the or
 artifact unchanged. Final coordinator review still fails on native tool denial,
 and browser-accessible deliverable delivery remains unfinished. This document
 does not certify the whole lifecycle as complete.
+
+## Delivering requested files
+
+Execution agents include `--artifact "relative/path"` on their final `task report`
+for each requested file. Up to eight files can be attached (10 MB each, 25 MB total).
+Paths resolve inside the execution workspace opened when the session starts;
+files outside it, hidden credentials and private keys cannot be attached.
+Cuan snapshots outputs into the owner's private attachment storage and surfaces
+download cards directly in the original Inbox conversation. HTML downloads as a
+file; it is not executed on the application origin. Users need no server access.
+Report assessment receives the actual delivered attachment metadata. A server
+path or file:// link alone does not satisfy a request for downloadable files.
+
+Example for an execution agent:
+
+```sh
+"$CUAN_TASK_EXECUTABLE" task report --state done \
+  --summary "Offline checklist ready" --complete-note "Actual verification" \
+  --artifact "packing-checklist.html" --artifact "README.md"
+```
+
+File delivery currently requires a task originating from an Inbox conversation.
+Downloads require sign-in and remain available as immutable snapshots after the
+execution exits or the source file changes. Repeating the same delivery does not
+create duplicate message cards. Work reports and attachment delivery are distinct
+from the coordinator's acceptance decision.

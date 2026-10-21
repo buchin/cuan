@@ -1297,7 +1297,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			}
 		}
 		var attached []conversationAttachment
-		if m.AuthorType == "user" {
+		if m.AuthorType == "user" || m.AuthorType == "agent" {
 			var ids []string
 			content, ids = decodeAttachmentMessage(content)
 			for _, id := range ids {

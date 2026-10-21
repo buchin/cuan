@@ -266,6 +266,7 @@ export function CreateTaskModal({
             aria-describedby={agentsError ? 'new-task-help' : undefined}
             placeholder="Describe your task…"
             className="block min-h-32 w-full resize-y border-0 bg-transparent p-4 text-base leading-relaxed outline-none focus:ring-0 sm:text-[15px]"
+            data-primary-composer
             rows={4}
             required
             maxLength={24000}

@@ -47,7 +47,7 @@ import {
 } from 'lucide-react'
 import { Task } from '../../api/types'
 import './chat-whatsapp.css'
-import { ChatMarkdown } from './ChatMarkdown'
+import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { cn } from '../../lib/utils'
@@ -754,6 +754,7 @@ export function InboxView({
                   activeContact.type === 'customer'
                 const isAgentMessage =
                   msg.author_type === 'agent' && activeContact.type === 'agent'
+ const isFormattedMessage=isAgentMessage||msg.author_type==='system'
 
                 const isOutgoing = isUser || isOperatorReply
                 const date = new Date(msg.created_at)
@@ -841,8 +842,8 @@ export function InboxView({
                       )}
 
                       {/* Message Body */}
-                      {isAgentMessage ? (
-                        <ChatMarkdown content={msg.content || msg.message} />
+                      {isFormattedMessage ? (
+                        <MessageContent content={msg.content || msg.message} />
                       ) : (
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
                           <span>{msg.content || msg.message}</span>
@@ -963,7 +964,7 @@ export function InboxView({
                           draft={isAgentMessage ? msg.task_draft : undefined}
                         />
                       )}
-                      {isAgentMessage && (
+                      {isFormattedMessage && (
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}
                     </div>
@@ -1130,6 +1131,7 @@ export function InboxView({
                   )}
                   <textarea
                     ref={textareaRef}
+ data-primary-composer
                     aria-label={t('Message')}
                     rows={1}
                     value={inputMessage}
