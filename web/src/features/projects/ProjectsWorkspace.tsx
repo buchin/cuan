@@ -179,7 +179,6 @@ export function ProjectsWorkspace({
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {settingsContent && <Link className="action-secondary text-sm" to={`/projects/${encodeURIComponent(project.id)}/tasks`}>{t('Activity')}</Link>}
-                {!project.is_archived && <Link className="action-primary min-h-11 px-3 text-sm" to="/studio">{t('Ask Cuan')}</Link>}
                 <details className="relative">
                   <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
                   <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">

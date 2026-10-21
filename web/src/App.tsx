@@ -589,7 +589,7 @@ export function App() {
         newAction={
           currentTab === 'studio' ||
           currentTab === 'notifications' ||
-          projectSettings ||
+          projectDetail ||
           (currentTab === 'settings' && subParam !== 'agents')
             ? undefined
             : {
