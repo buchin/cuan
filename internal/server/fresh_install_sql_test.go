@@ -139,7 +139,14 @@ func runFreshInstallPostgresGoal(t *testing.T, recoverInterrupted bool) {
 	if err = os.WriteFile(agent.AntigravityCredentialsFilePath(accountHome), []byte("fixture-only-credential-value"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	delegated, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": "```cuan-delegate\n{\"title\":\"Fresh work\",\"description\":\"Verify the requested result. Do not deploy.\",\"project_id\":\"default\",\"authorization_message_id\":\"AUTH\"}\n```"}})
+	response := func(text string) string {
+		raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(text)}})
+		return string(raw)
+	}
+	delegated := response("```cuan-delegate\n{\"title\":\"Fresh work\",\"description\":\"Verify the requested result. Do not deploy.\",\"project_id\":\"default\",\"authorization_message_id\":\"AUTH\"}\n```")
+	reviewRaw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": `{"decision":"pass","explanation":"Verified fresh-install result. No deployment.","revision":""}`}})
+	review := string(reviewRaw)
+
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
  echo executed >> "$HOME/fresh-executions"
@@ -148,18 +155,12 @@ if [ "$1" = "--dangerously-skip-permissions" ]; then
  while :; do sleep 1; done
 fi
 case "$2" in
- *'automated result is not new user authorization'*) printf '%s' '{"event":"result","result":{"status":"SUCCESS","response":"Verified fresh-install result. No deployment."}}';;
+ *'You evaluate supplied work reports as text.'*) printf '%s' '` + review + `';;
  *) target="${2##*Target message ID: }"; printf '%s' '` + string(delegated) + `' | sed "s/AUTH/$target/g";;
 esac
 `
 	if recoverInterrupted {
-		response := func(text string) string {
-			raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": text}})
-			return string(raw)
-		}
 		proposal := response("```cuan-approval\n{\"title\":\"Fresh work\",\"description\":\"Verify the requested result. Do not deploy.\",\"project_id\":\"default\"}\n```")
-		revision := response("```cuan-delegate\n{\"project_id\":\"default\",\"authorization_message_id\":\"AUTH\",\"task_id\":\"msg_AUTH\",\"revision\":\"Verify the saved artifact and checkpoint; preserve completed work. Do not deploy.\"}\n```")
-		final := response("Verified fresh-install result. No deployment.")
 		script = `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
  guide="${3##*Read the session guidance at }"; guide="${guide% before proceeding.}"
@@ -177,13 +178,9 @@ if [ "$1" = "--dangerously-skip-permissions" ]; then
  while :; do sleep 1; done
 fi
 case "$2" in
- *'automated result is not new user authorization'*)
+ *'You evaluate supplied work reports as text.'*)
   printf '%s' "$2" >> "$HOME/fresh-review-context"
-  if [ -f "$HOME/fresh-revised" ]; then printf '%s' '` + final + `'; else
-   grep -q ARTIFACT_SAVED_ONCE "$HOME/fresh-review-context" || exit 25
-   touch "$HOME/fresh-revised"; auth=$(cat "$HOME/fresh-auth")
-   printf '%s' '` + revision + `' | sed "s/AUTH/$auth/g"
-  fi;;
+  printf '%s' '` + review + `';;
  *) printf '%s' '` + proposal + `' ;;
 esac
 `
@@ -259,7 +256,6 @@ esac
 		stopDispatcher = cancel
 		defer cancel()
 		s.StartInboxDispatcher(dispatchCtx)
-		waitInboxState(t, s, result.ConversationID, delegationMessageID("task-review:"+failed.LatestAttempt.ID), "completed")
 	}
 	finished := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
 	if finished.Status != "done" || !strings.Contains(finished.Instructions, "Do not deploy") {
@@ -343,7 +339,7 @@ esac
 	}
 	outcomes := 0
 	for _, m := range messages {
-		if m.Content == "Verified fresh-install result. No deployment." {
+		if m.AuthorType == "agent" && strings.HasSuffix(m.Content, "Verified fresh-install result. No deployment.") {
 			outcomes++
 		}
 	}
