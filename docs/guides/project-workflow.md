@@ -49,3 +49,12 @@ completion is taken from the provider's own saved state; Cuan does not manufactu
 it. The owner-scoped verification endpoint accepts `finish_setup: true` with
 `accept_provider_terms: true` for this bounded recovery. Provider quota or location
 restrictions can still prevent AI execution after setup completes.
+
+### Default model: Auto
+
+New AI connections and work use **Auto**: Cuan omits the model override and lets
+the CLI/provider use its configured default. Auto does not pin a Gemini version
+or prefer Sonnet based on quota numbers. Connection verification follows the same
+default path. An explicitly selected model is still respected. Allowed model and
+account fallback are separate settings; switching is only attempted after a
+failure that can be safely repeated, with no overlapping work.

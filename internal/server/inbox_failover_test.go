@@ -377,7 +377,7 @@ func TestInboxUsesSameAccountWhileAnotherSessionRuns(t *testing.T) {
 	}
 }
 
-func TestAutoModelUsesEvidencedQuotaWithoutEnablingFallback(t *testing.T) {
+func TestAutoModelUsesProviderDefaultWithoutEnablingFallback(t *testing.T) {
 	s, _, registered, p, _, home, _ := setupFailoverFixture(t)
 	registered.ModelID = ""
 	oldFetch := fetchInboxModelUsage
@@ -385,8 +385,8 @@ func TestAutoModelUsesEvidencedQuotaWithoutEnablingFallback(t *testing.T) {
 	usage := agent.AccountModelUsage{Available: true, Models: []agent.ModelUsage{{Model: "claude-opus-test", Remaining: 32.6}, {Model: "gemini-test", Remaining: 0.15}, {Model: "claude-sonnet-test", Remaining: 32.6}}}
 	fetchInboxModelUsage = func(context.Context, string, string) agent.AccountModelUsage { return usage }
 	routes := s.providerRoutes(context.Background(), p.OwnerID, registered, home, false)
-	if len(routes) != 1 || routes[0].model != "claude-sonnet-test" {
-		t.Fatalf("auto did not pick one healthy balanced initial model: %+v", routes)
+	if len(routes) != 1 || routes[0].model != "" {
+		t.Fatalf("auto did not preserve provider default: %+v", routes)
 	}
 	release, err := s.leaseProviderRoute(context.Background(), p.OwnerID, registered, routes[0])
 	if err != nil {
@@ -404,8 +404,8 @@ func TestAutoModelUsesEvidencedQuotaWithoutEnablingFallback(t *testing.T) {
 	}
 	registered.ModelID = ""
 	usage = agent.AccountModelUsage{Available: true, Models: []agent.ModelUsage{{Model: "gemini-test", Remaining: 0}, {Model: "gemini-image", Remaining: 100}}}
-	if routes = s.providerRoutes(context.Background(), p.OwnerID, registered, home, false); len(routes) != 0 {
-		t.Fatal("invented route without eligible text quota", routes)
+	if routes = s.providerRoutes(context.Background(), p.OwnerID, registered, home, false); len(routes) != 1 || routes[0].model != "" {
+		t.Fatal("quota catalog overrode provider default", routes)
 	}
 }
 

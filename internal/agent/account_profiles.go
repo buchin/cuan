@@ -249,18 +249,9 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	}
 	probeStarted := time.Now().UTC()
 	model := ""
-	var probeErr error
-	usage := FetchRunnableAccountModelUsage(ctx, owner, id)
-	if best, ok := AutomaticTextModel(usage, a.ModelCooldowns, time.Now()); ok {
-		model = best.Model
-	} else if usage.Available && len(usage.Models) == 0 {
-		probeErr = errors.New(usage.Message)
-	} else if usage.Available {
-		probeErr = antigravityProbeError("quota")
-	}
-	if probeErr == nil {
-		probeErr = VerifyAntigravityProfile(ctx, home, model)
-	}
+	// Verify the same provider-default path used by a new Auto conversation.
+	probeErr := VerifyAntigravityProfile(ctx, home, model)
+
 	now := time.Now().UTC()
 	a.LastCheckedAt = &now
 	a.CredentialsPresent = IsAntigravityLoggedInInDir(home)

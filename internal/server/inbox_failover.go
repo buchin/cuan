@@ -68,6 +68,9 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			if !route.primary {
 				step("account_failover", "Continuing this agent's reply with an allowed backup account.")
 			}
+			if route.model == "" {
+				step("model_auto", "Using Auto: the AI provider chooses its default model.")
+			}
 			if route.model != "" {
 				if route.remaining == -1 {
 					step("model_selected", fmt.Sprintf("Using supported model %s; remaining usage has not been verified.", route.model))
@@ -165,13 +168,15 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			}
 			routes = append(routes, inboxAccountRoute{accountID, profileHome, id, remaining, isPrimary})
 		}
-		// No fixed model means Auto, not an instruction to use the CLI's hidden
-		// default. Choose one evidenced initial model without enabling fallback.
-		if profile != nil && model == "" && !profile.AllowModelFallback && usage.Available {
-			if best, ok := agent.AutomaticTextModel(usage, profile.ModelCooldowns, time.Now()); ok {
-				addModel(best.Model, best.Remaining)
+		// Auto delegates initial model choice to the CLI/provider: omit --model.
+		// Explicit fallback remains a separate account permission.
+		if model == "" {
+			if !blocked {
+				addModel("", 101)
 			}
-			return
+			if profile == nil || !profile.AllowModelFallback {
+				return
+			}
 		}
 		if profile != nil && profile.AllowModelFallback && usage.Available {
 			for _, item := range usage.Models {

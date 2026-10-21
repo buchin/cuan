@@ -11,14 +11,12 @@ import (
 	"time"
 )
 
-func TestConnectionVerificationUsesAvailableAutomaticModel(t *testing.T) {
+func TestConnectionVerificationUsesProviderDefault(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	bin := t.TempDir()
 	script := `#!/bin/sh
  if [ "$1" = models ]; then printf 'claude-sonnet-test\tSonnet\nclaude-opus-test\tOpus\n'; exit 0; fi
- last=''
- for arg in "$@"; do last="$arg"; done
- [ "$last" = claude-sonnet-test ] || exit 31
+ for arg in "$@"; do [ "$arg" != --model ] || exit 31; done
  printf 'CUAN_AUTH_OK'
  `
 	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
@@ -49,7 +47,7 @@ func TestConnectionVerificationUsesAvailableAutomaticModel(t *testing.T) {
 	modelUsageClient = server.Client()
 	defer func() { modelUsageHosts = oldHosts; modelUsageClient = oldClient }()
 	verified, err := VerifyProviderAccount(context.Background(), "owner", a.ID)
-	if err != nil || verified.State != "verified" || !strings.Contains(verified.Message, "claude-sonnet-test") {
+	if err != nil || verified.State != "verified" || strings.Contains(verified.Message, " using ") {
 		t.Fatal("verification used wrong default", verified, err)
 	}
 	if verified.AllowModelFallback {
