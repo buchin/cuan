@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNativeCatalogIsScopedCachedAndNotInference(t *testing.T) {
@@ -40,6 +41,22 @@ printf 'gemini-current\tCurrent Gemini\nclaude-sonnet-current\tSonnet\nrandom-in
 	}
 	if _, ok := nativeAccountModelCatalog(context.Background(), "owner", a.ID); !ok {
 		t.Fatal("cached catalog unavailable")
+	}
+	nativeCatalogCache.Lock()
+	for key, entry := range nativeCatalogCache.entries {
+		if strings.HasPrefix(key, home+"\x00") {
+			entry.at = time.Now().Add(-6 * time.Minute)
+			nativeCatalogCache.entries[key] = entry
+		}
+	}
+	nativeCatalogCache.Unlock()
+	release, err := TryLeaseProviderAccount("owner", a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if _, ok := nativeAccountModelCatalog(context.Background(), "owner", a.ID); !ok {
+		t.Fatal("active task made a second session lose its supported catalog")
 	}
 	data, _ := os.ReadFile(filepath.Join(home, "catalog-calls"))
 	if strings.Count(string(data), "called") != 1 {

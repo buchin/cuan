@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -98,6 +99,12 @@ func nativeAccountModelCatalog(ctx context.Context, owner, id string) (map[strin
 	}
 	release, err := TryLeaseProviderAccountRefresh(owner, id)
 	if err != nil {
+		// A supported-name cache does not grant quota. Reuse a bounded stale
+		// catalog for this exact binary while another session holds the profile,
+		// rather than making a second execution slot unusable after five minutes.
+		if errors.Is(err, ErrAccountBusy) && ok && time.Since(cached.at) < 24*time.Hour {
+			return cached.models, true
+		}
 		return nil, false
 	}
 	defer release()
