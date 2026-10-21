@@ -9,17 +9,26 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, UI release and coordinator gap
 
-Production runs UI-only release `bc12c13`/schema25 (tag `ui-github-button-20261021`).
+Production runs UI-only release `803277e`/schema25 (tag `ui-github-signin-20261021`).
 Original system-message Markdown and contextual action rendering, plus global
 keyboard shortcuts, passed real production browser checks at 390/820/1440px.
 No production inference was invoked. Backend code remains `09a3fc4`; staged
 workflow changes were deliberately excluded from this release.
 
-GitHub OAuth remains unconfigured on production. The unavailable disabled
-Connect action has been replaced with a usable token CTA and a visible secondary
-Set up GitHub sign-in button. Real read-only production browser verification
-passed at 390/820/1440px, including disclosure open/close, token input focus and
-availability recheck. This does not establish an actual GitHub connection.
+GitHub OAuth remains unconfigured on production. The primary UI now presents
+only Sign in with GitHub; token and installation configuration are hidden under
+Advanced. Real read-only production verification passed at390/820/1440px in
+light/dark, including clear click feedback when OAuth is unavailable. This does
+not establish an actual GitHub connection. Manual tokens are not the normal
+nondeveloper onboarding path.
+
+Source `7ff9413` introduces a typed general coordinator response envelope, strict
+per-action decoding, rejection of unmanaged native execution tool results, and
+conversion to existing owner/approval/delegation/memory contracts. Targeted
+coordinator, lifecycle, approval, same-task recovery, report/artifact, search and
+topic tests passed. This changes the candidate implementation; native provider
+and full browser acceptance still need verification before backend production
+release. Existing read-only repo analysis and contact memory are retained.
 
 Dedicated staging runs `269e9b0`/schema25. The original interrupted task resumed
 and finished on its second attempt, preserving its original HTML hash and inode.

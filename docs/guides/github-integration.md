@@ -8,10 +8,11 @@ implementation. Desktop/mobile browser tests, deterministic process/real-Git
 continuation tests and production read-only/rollback/retention checks pass.
 
 This installation has no configured OAuth App, so ordinary GitHub authorization
-is not yet available. The connection page shows **Connect with access token**
-and an explicit **Set up GitHub sign-in** button. The latter opens installation
-instructions, the exact callback URL, and **Check setup again**. The administrator
-setup below is required once; manual token connection remains available. No real
+is not yet available. The normal connection screen has one primary action:
+**Sign in with GitHub**. Manual tokens and installation setup are hidden under
+**Advanced**. The one-time OAuth setup below belongs to the installation owner;
+ordinary users should not copy tokens or configure an OAuth App. If OAuth is
+unavailable, clicking sign-in explains the prerequisite and preserves work. No real
 provider inference or live GitHub write was used in verification. Historical
 implementation checkpoints below are superseded by this release status.
 
