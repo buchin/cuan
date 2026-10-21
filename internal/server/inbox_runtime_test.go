@@ -99,3 +99,27 @@ func TestInboxRuntimeDeniedActionsAreSafeAndNotSuccessEvidence(t *testing.T) {
 		t.Fatal("unsafe or missing denial", joined, failure)
 	}
 }
+
+func TestNativeQuotaErrorMessageIsNotToolActivity(t *testing.T) {
+	var labels []string
+	stream := &inboxRuntimeStream{step: func(kind, text string) { labels = append(labels, kind+text) }}
+	stream.Write([]byte(`{"event":"init","conversation_id":"3dd79168-31b5-4bf1-bfb0-2cad9751306c"}
+{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}
+{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"error_message","text":"PRIVATE_PROVIDER_ERROR"}}
+{"event":"result","result":{"status":"ERROR","message":"RESOURCE_EXHAUSTED"}}
+`))
+	raw, failure, _ := stream.finish()
+	if failure != "" || raw == "" || stream.unsafeTool || stream.invalid || stream.overflow {
+		t.Fatal("native error lifecycle blocked safe fallback", failure, stream.unsafeTool)
+	}
+	if strings.Contains(strings.Join(labels, " "), "PRIVATE_PROVIDER_ERROR") {
+		t.Fatal("provider diagnostic leaked")
+	}
+	stream = &inboxRuntimeStream{}
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_type":"error_message","tool_name":"run_command"}}
+`))
+	stream.finish()
+	if !stream.unsafeTool {
+		t.Fatal("tool-bearing error allowed replay")
+	}
+}

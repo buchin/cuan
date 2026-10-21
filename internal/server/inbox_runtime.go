@@ -127,7 +127,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 	case "step_update":
 		// Native AGY also emits input/finish lifecycle steps. They are not
 		// tools, and must not make a schema-only reply look like execution.
-		if e.Update.Type == "user_input" || e.Update.Type == "finish" {
+		if e.Update.Type == "user_input" || e.Update.Type == "finish" || e.Update.Type == "error_message" {
 			if e.Update.Tool != "" {
 				s.unsafeTool = true
 			}
