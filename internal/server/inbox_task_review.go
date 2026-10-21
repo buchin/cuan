@@ -17,5 +17,9 @@ func (s *Server) inboxTaskReviewPrompt(ctx context.Context, q db.InboxRequest) (
 	if err != nil || m == nil || m.RoomID != q.RoomID || m.AuthorType != "system" || m.AuthorID != "cuan_work_review" {
 		return "", false
 	}
-	return m.Content, true
+	d := s.inboxReviewedTask(ctx, q)
+	if d == nil {
+		return "", true
+	}
+	return inboxReviewData(d), true
 }

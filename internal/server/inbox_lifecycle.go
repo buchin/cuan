@@ -218,6 +218,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + s.inboxTopicTitleContext(ctx, q) + prompt
 						step("context", "Project context checked for analysis.")
 						var output, failure string
+						snapshotReview := false
 						plan, planErr := s.inboxApprovedPlan(ctx, q)
 						if planErr != nil {
 							failure = "Could not read the approved plan. No new execution was started."
@@ -234,9 +235,16 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							inferenceCtx := ctx
 							if snapshot, ok := s.inboxTaskReviewPrompt(ctx, q); ok {
 								inferenceCtx = context.WithValue(ctx, inboxTaskReviewKey{}, true)
+								snapshotReview = true
 								prompt = snapshot
+								if snapshot == "" {
+									output = "A newer execution or changed task has superseded this review. The current task and its evidence are preserved."
+									snapshotReview = false
+								}
 							}
-							output, failure = s.executeInboxWithFailover(inferenceCtx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
+							if output == "" {
+								output, failure = s.executeInboxWithFailover(inferenceCtx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
+							}
 						}
 						output, topicTitle = extractTopicTitle(output)
 						if results, searched, searchErr := s.inboxMemorySearchResults(ctx, q, output); searched {
@@ -280,7 +288,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							log.Printf("inbox provider failed room=%s request=%s agent=%s", q.RoomID, q.RequestID, registered.ID)
 							q.SafeError = failure
 						} else {
-							if strings.Contains(output, "```cuan-memory") {
+							if snapshotReview {
+								output = s.applyInboxReviewEvaluation(ctx, q, output)
+							} else if strings.Contains(output, "```cuan-memory") {
 								output = s.applyInboxContactMemory(ctx, q, output)
 							} else {
 								output = s.applyInboxDelegation(ctx, q, output)

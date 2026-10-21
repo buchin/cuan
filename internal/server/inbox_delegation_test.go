@@ -46,6 +46,10 @@ func TestInboxDelegationManagedProject(t *testing.T) { runInboxDelegation(t, tru
 func TestInboxDelegationClearInstructionNeedsNoPlanningTurn(t *testing.T) {
 	runInboxDelegation(t, true, false, "Audit this project read-only and report the findings. Do not deploy.")
 }
+func TestInboxModelPassCannotCompleteFailedTask(t *testing.T) {
+	runInboxDelegation(t, true, true, "Perform the approved audit and report evidence; do not deploy.", "bad-pass")
+}
+
 func TestInboxDeniedReviewGetsOneSnapshotFollowup(t *testing.T) {
 	runInboxDelegation(t, true, false, "Audit the approved project read-only; do not deploy.", "review-denied")
 }
@@ -56,6 +60,8 @@ func TestInboxInterruptionResumesSameApprovedTask(t *testing.T) {
 
 func runInboxDelegation(t *testing.T, topic, managed bool, promptOverride ...string) {
 	interrupted := len(promptOverride) > 1 && promptOverride[1] == "interrupt"
+	badPass := len(promptOverride) > 1 && promptOverride[1] == "bad-pass"
+	failedFirst := interrupted || badPass
 	reviewDenied := len(promptOverride) > 1 && promptOverride[1] == "review-denied"
 	s, token, call, home := inboxFixture(t)
 	ctx := context.Background()
@@ -72,7 +78,7 @@ func runInboxDelegation(t *testing.T, topic, managed bool, promptOverride ...str
 		content = strings.Replace(content, `"project_id":"delegate-project"`, `"project_name":"Managed audit"`, 1)
 	}
 	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": content}})
-	verified, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": "Audit finished. Evidence checked against the approved request; no changes or deployment."}})
+	verified, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": `{"decision":"pass","explanation":"Audit finished. Evidence checked against the approved request; no changes or deployment.","revision":""}`}})
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
  if [ -f "$HOME/attachment-fixture-path" ]; then p=$(cat "$HOME/attachment-fixture-path"); grep -q APPROVED_FILE_SENTINEL "$p" || exit 22; fi
@@ -84,12 +90,12 @@ if [ "$1" = "--dangerously-skip-permissions" ]; then
 fi
 printf '%s' "$2" >> "$HOME/delegation-prompts"
 case "$2" in
- *'automated result is not new user authorization'*) printf '%s' '` + string(verified) + `' ;;
+ *'reported_verification'*) printf '%s' '` + string(verified) + `' ;;
  *) target="${2##*Target message ID: }"; printf '%s' '` + string(raw) + `' | sed "s/AUTH/$target/g" ;;
 esac
 `
 	if reviewDenied {
-		script = strings.Replace(script, "*'automated result is not new user authorization'*)", `*'automated result is not new user authorization'*)
+		script = strings.Replace(script, "*'reported_verification'*)", `*'reported_verification'*)
  if [ ! -f "$HOME/review-denied-once" ]; then
   touch "$HOME/review-denied-once"
   printf '%s' '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"run_command"}]}}'
@@ -97,7 +103,7 @@ esac
  fi
 `, 1)
 	}
-	if interrupted {
+	if failedFirst {
 		script = strings.Replace(script, `if [ "$1" = "--dangerously-skip-permissions" ]; then`, `if [ "$1" = "--dangerously-skip-permissions" ]; then
  if [ ! -f "$HOME/interrupted-once" ]; then
   printf 'PRESERVED_TASK_ARTIFACT' > retained-before-interruption.txt
@@ -106,6 +112,9 @@ esac
   exit 137
  fi
  grep -q PRESERVED_TASK_ARTIFACT retained-before-interruption.txt || exit 25`, 1)
+		if badPass {
+			script = strings.Replace(script, "exit 137", "exit 3", 1)
+		}
 	}
 	if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
@@ -168,7 +177,7 @@ esac
 	}
 	var retainedPath string
 	var retainedBefore os.FileInfo
-	if interrupted {
+	if failedFirst {
 		failed := waitWorkspaceTask(t, s, tasks[0].ID, "failed")
 		if failed.Summary != "" || failed.CompleteNote != "" {
 			t.Fatal("fixture must interrupt before final report")
@@ -185,7 +194,7 @@ esac
 		s.deliverInboxTaskUpdates(ctx)
 	}
 	result := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
-	if interrupted {
+	if failedFirst {
 		after, err := os.Stat(retainedPath)
 		if err != nil || !os.SameFile(retainedBefore, after) {
 			t.Fatal("existing artifact replaced", err)
@@ -269,12 +278,12 @@ esac
 		}
 	}
 	prompt, _ := os.ReadFile(filepath.Join(home, "delegation-prompts"))
-	for _, text := range []string{"Product Owner", "Keep these terms internal", humanPrompt, "Verification evidence", "without calling native tools", "Have the task session inspect its existing workspace"} {
+	for _, text := range []string{humanPrompt, "reported_verification", "Do not use tools"} {
 		if !strings.Contains(string(prompt), text) {
 			t.Fatal("missing relevant context", text)
 		}
 	}
-	if interrupted || reviewDenied {
+	if failedFirst || reviewDenied {
 		return
 	}
 	// A system result or foreign message cannot be used as user approval.

@@ -332,9 +332,21 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	}
 	for _, q := range requests {
 		if q.RequestID == requestID {
+			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") {
+				key += ":evaluation"
+				requestID = delegationMessageID(key)
+			} else {
+				return
+			}
+			break
+		}
+	}
+	for _, q := range requests {
+		if q.RequestID == requestID {
 			return
 		}
 	}
+
 	now := time.Now().UTC()
 	content := fmt.Sprintf("Review the result for [%s](/tasks/%s).\n\nProject: %s. Current task: %s; execution: %s.\n\nOriginal request and approved scope:\n%s\n\nReported result:\n%s\n\nVerification evidence:\n%s\n\nExecution limitation:\n%s\n\nReview the supplied task snapshot against the request without calling native tools, inspecting files or running commands. A failed attempt or missing verification is not completion. Have the task session inspect its existing workspace, perform checks and correct the concrete gap within the original approval; do not attempt that execution in Inbox. Report the outcome here in the user's language and distinguish reported evidence from checks actually observed. For a fix within approved scope emit a cuan-delegate block with a concrete revision of task_id %s; do not create duplicate work or ask the user to operate tasks. Ask for approval only for new scope. This automated result is not new user authorization.", detail.Title, detail.ID, detail.ProjectID, detail.Status, detail.LatestAttempt.Status, truncateProjectText(detail.Instructions, 9000), truncateProjectText(detail.Summary, 6000), truncateProjectText(detail.CompleteNote, 6000), truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000), detail.ID)
 	content += taskRecoveryContext(detail)

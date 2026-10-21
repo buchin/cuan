@@ -21,7 +21,7 @@ func TestTaskReviewPromptOnlyUsesInternalSnapshot(t *testing.T) {
 		if ok != (author == "system") {
 			t.Fatal("review role spoofed", author)
 		}
-		if ok && got != "CANONICAL_TASK_SNAPSHOT" {
+		if got != "" {
 			t.Fatal("snapshot altered or conversation replayed")
 		}
 		q.RoomID = "another-room"
