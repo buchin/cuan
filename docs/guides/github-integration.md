@@ -7,14 +7,18 @@ requirements, the task-bound push tool, scoped queued continuation and OAuth
 implementation. Desktop/mobile browser tests, deterministic process/real-Git
 continuation tests and production read-only/rollback/retention checks pass.
 
-This installation has no configured OAuth App, so ordinary GitHub authorization
-is not yet available. The normal connection screen has one primary action:
-**Sign in with GitHub**. Manual tokens and installation setup are hidden under
-**Advanced**. The one-time OAuth setup below belongs to the installation owner;
-ordinary users should not copy tokens or configure an OAuth App. If OAuth is
-unavailable, clicking sign-in explains the prerequisite and preserves work. No real
-provider inference or live GitHub write was used in verification. Historical
-implementation checkpoints below are superseded by this release status.
+Production release `758f9f3` adds the GitHub CLI browser flow as the default when
+no OAuth App is configured. Open **Sign in with GitHub**, copy the one-time code,
+and choose **Continue on GitHub**. Approve access on GitHub; Cuan updates the
+connected account automatically. This does not require a manual access token or
+OAuth App configuration. Reload resumes the same pending sign-in while the
+server is running. Cancellation stops the pending login.
+
+Real native device challenges and UI reload/cancellation were verified on staging.
+Production also produced a real challenge and awaits owner consent. Full live
+account authorization and private repository access remain unverified until the
+owner completes GitHub's consent. No provider inference or live GitHub write was
+used for this verification. Manual token connection remains an Advanced option.
 
 
 Open Settings → Integrations → GitHub. Create a fine-grained access token on
@@ -185,9 +189,9 @@ is passed only to the task process; no global Git config is overwritten.
 Legacy standalone runners require explicit identity configuration. This automatic
 identity change is deployed in release f40909a.
 
-## GitHub CLI browser sign-in candidate
+## GitHub CLI browser sign-in
 
-The default unconfigured installation now has a candidate `gh auth login --web`
+The default unconfigured installation now uses `gh auth login --web`
 flow behind **Sign in with GitHub**. The UI displays GitHub's one-time device
 code, links to github.com/login/device, polls for completion, and shows the
 connected account automatically. The owner approves access on GitHub; no personal
@@ -211,5 +215,6 @@ advanced connections remain supported.
 
 Targeted tests cover isolation, single pending login, code transport, encrypted
 storage, late cancellation, owner-only status, disconnect, private cleanup, CLI
-cache and checksum rejection. Native provider/browser validation is still required
-before this candidate can be reported as a working production connection.
+cache and checksum rejection. Native GitHub device-code start, reload and cancellation passed on staging;
+production start and reload passed. Real account consent and private repository
+access are still pending. Do not describe a device challenge as a completed login.

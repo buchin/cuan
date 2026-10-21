@@ -1,0 +1,35 @@
+{
+  "downloadedFromRealInbox": true,
+  "browserChecks": "PASS",
+  "cases": [
+    {
+      "km": 0,
+      "miles": 0,
+      "meters": 0
+    },
+    {
+      "km": 1,
+      "miles": 0.621371,
+      "meters": 1000
+    },
+    {
+      "km": 5,
+      "miles": 3.106855,
+      "meters": 5000
+    },
+    {
+      "km": 42.195,
+      "miles": 26.218749,
+      "meters": 42195
+    },
+    {
+      "km": 100,
+      "miles": 62.1371,
+      "meters": 100000
+    }
+  ],
+  "emptyState": true,
+  "noNetworkRequests": true,
+  "noPageErrors": true,
+  "mobileNoOverflow": true
+}

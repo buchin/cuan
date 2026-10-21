@@ -9,44 +9,41 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, UI release and coordinator gap
 
-Production runs UI-only release `803277e`/schema25 (tag `ui-github-signin-20261021`).
-Original system-message Markdown and contextual action rendering, plus global
-keyboard shortcuts, passed real production browser checks at 390/820/1440px.
-No production inference was invoked. Backend code remains `09a3fc4`; staged
-workflow changes were deliberately excluded from this release.
+Production runs scoped GitHub CLI release `758f9f3`/schema25 (tag
+`github-cli-signin-20261021`). Native `gh auth login --web` started from the real
+production UI and produced a GitHub device challenge. Reload resumes the same
+pending login; no OAuth App or manual personal access token is needed. The normal
+UI has one Sign in with GitHub action, then a one-time code and Continue on GitHub.
+The owner must still authorize on GitHub. No live private repository access or
+GitHub account connection is claimed before that consent. Production verification
+made no inference, task or chat writes. Private pre-release DB backup and health
+checks passed. Coordinator/artifact backend changes remain excluded from this
+production release.
 
-GitHub OAuth remains unconfigured on production. The primary UI now presents
-only Sign in with GitHub; token and installation configuration are hidden under
-Advanced. Real read-only production verification passed at390/820/1440px in
-light/dark, including clear click feedback when OAuth is unavailable. This does
-not establish an actual GitHub connection. Manual tokens are not the normal
-nondeveloper onboarding path.
+Dedicated staging runs `9911437`/schema25 with the typed coordinator protocol,
+canonical report evaluator and private task artifacts. Its native distance
+converter scenario now passed: structured proposal, zero tasks before approval,
+real Approve and start click, exactly one Default task, one successful native
+attempt, HTML/README delivered as private Inbox attachments, authenticated browser
+downloads, denied anonymous downloads, and automatic canonical report review.
+The downloaded HTML was opened in Chromium and five numeric cases, empty state,
+mobile overflow, no network requests and no page errors passed. Earlier failed
+request records are preserved: native input/finish events initially triggered
+false positives; `e914bbe`/`1dd7b42` corrected that classification, retaining
+rejection of actual write/terminal tools. See
+[controlled native evidence](../evidence/coordinator-native/README.md).
 
-Source `7ff9413` introduces a typed general coordinator response envelope, strict
-per-action decoding, rejection of unmanaged native execution tool results, and
-conversion to existing owner/approval/delegation/memory contracts. Targeted
-coordinator, lifecycle, approval, same-task recovery, report/artifact, search and
-topic tests passed. This changes the candidate implementation; native provider
-and full browser acceptance still need verification before backend production
-release. Existing read-only repo analysis and contact memory are retained.
+The original interrupted packing task already resumed on its second attempt,
+preserving its original HTML hash/inode and original approval. Its structured
+report review passed without implementation tools. Same-task interruption,
+cancellation, approval, report and artifact boundary tests passed. This remains
+separate evidence from the new first-attempt native download scenario.
 
-Dedicated staging runs `269e9b0`/schema25. The original interrupted task resumed
-and finished on its second attempt, preserving its original HTML hash and inode.
-A specialized structured evaluator subsequently delivered the canonical report
-review in Inbox without tools. Task artifact snapshot/download/owner-boundary
-and CLI tests pass, and the UI can display private output attachments.
-
-A new native goal exposed an unresolved general coordinator boundary: after
-plain-prose scope approval, Inbox implemented files inside the provider brain,
-reported file:// links and created no task. AGY plan mode denies ordinary writes
-but permits provider artifact tools. Prompt-only role restrictions and plan mode
-therefore do not prove SM/dev separation. A constrained application action
-protocol is the next available correction; do not replay the saved user approval
-or move provider files into a task workspace and call it recovery.
-
-The full objective remains open, including native user-accessible artifact
-delivery and fresh-live OAuth onboarding from an empty account. See
-[UI evidence](../evidence/inbox-actions-hotkeys/README.md).
+The full objective remains open: obtain real owner GitHub consent and verify
+private repository access/authorized continuation, verify fresh-live AI OAuth
+onboarding from an empty account, and audit/release the full coordinator/artifact
+candidate after the remaining gates. A controlled positive scenario alone does
+not prove every requirement or erase earlier failed scenarios.
 
 ## Earlier checkpoint — native recovery
 
