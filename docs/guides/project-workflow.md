@@ -12,5 +12,6 @@ all work; you do not need to manage that list to use Cuan.
 New instructions apply to new work. Existing work keeps its original approved
 instructions and workspace. Archive a project to hide it without deleting data.
 
-The project header provides Activity for optional work inspection. Project details
+The Settings and Activity tabs sit below the project name. Settings opens by
+default; Activity provides optional work inspection. Project details
 have no creation or chat button; use Studio or Inbox to describe work.

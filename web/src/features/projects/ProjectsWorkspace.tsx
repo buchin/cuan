@@ -1,7 +1,7 @@
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal } from 'lucide-react'
+import { Folder, Search, ChevronLeft, Archive, MoreHorizontal } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { ProjectWorkView } from './ProjectWorkView'
@@ -170,7 +170,6 @@ export function ProjectsWorkspace({
                 <h2 className="truncate text-sm font-semibold">
                   {project.name}
                 </h2>
-                {settingsContent && <span className="text-xs text-muted-foreground">{t('Settings')}</span>}
                 {project.is_archived && (
                   <span className="text-xs text-muted-foreground">
                     {t('Archived')}
@@ -178,16 +177,22 @@ export function ProjectsWorkspace({
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {settingsContent && <Link className="action-secondary text-sm" to={`/projects/${encodeURIComponent(project.id)}/tasks`}>{t('Activity')}</Link>}
                 <details className="relative">
                   <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
                   <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
-                    <Link className="flex min-h-11 items-center gap-2 rounded-md px-3 text-sm hover:bg-accent" to={`/projects/${encodeURIComponent(project.id)}/settings`}><Settings className="h-4 w-4" />{t('Project settings')}</Link>
                     {onArchiveProject && <button className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent" disabled={busy} onClick={() => void archive()}><Archive className="h-4 w-4" />{t(project.is_archived ? 'Restore project' : 'Archive project')}</button>}
                   </div>
                 </details>
               </div>
             </div>}
+            {!taskId && <nav aria-label={t('Project navigation')} className="flex shrink-0 gap-5 border-b px-4 sm:px-5">
+              {[{label: 'Settings', path: 'settings', active: !!settingsContent}, {label: 'Activity', path: 'tasks', active: !settingsContent}].map(item => <Link
+                key={item.path}
+                to={`/projects/${encodeURIComponent(project.id)}/${item.path}`}
+                aria-current={item.active ? 'page' : undefined}
+                className={`inline-flex min-h-11 items-center border-b-2 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${item.active ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              >{t(item.label)}</Link>)}
+            </nav>}
             {saveError && (
               <p role="alert" className="p-3 text-sm text-destructive">
                 {t(saveError)}
