@@ -57,3 +57,23 @@ func TestTaskOutputRecognizesSplitNativeQuotaWarningOnce(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 	}
 }
+
+func TestTaskOutputRecognizesNativeLocationRestriction(t *testing.T) {
+	svc := task.NewService(task.NewMemoryStore(), nil)
+	r := newTaskOutputRecorder(svc, "region")
+	seen := make(chan struct{}, 1)
+	r.onRegion = func() { seen <- struct{}{} }
+	r.append([]byte("⚠ FAILED_PRECONDITION (code 400): User location is not supported for the API\r\n"))
+	r.append([]byte("use.\n"))
+	select {
+	case <-seen:
+	case <-time.After(time.Second):
+		t.Fatal("native location warning not detected")
+	}
+	if !strings.Contains(r.failureNote(), "location restriction") {
+		t.Fatal("wrong recovery reason")
+	}
+	if r.quotaDetected {
+		t.Fatal("regional rejection labelled as quota")
+	}
+}

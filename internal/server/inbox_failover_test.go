@@ -483,6 +483,20 @@ fi
 	if out != "Recovered on allowed Sonnet" || failure != "" {
 		t.Fatal(out, failure)
 	}
+	profile, err := agent.GetProviderAccount(p.OwnerID, p.ID)
+	if err != nil || !time.Now().Before(profile.ModelCooldowns[""]) || !time.Now().Before(profile.ModelCooldowns["gemini-test"]) {
+		t.Fatal("failed route not remembered", err)
+	}
+	if profile.State == "quota_limited" {
+		t.Fatal("regional restriction marked as account quota")
+	}
+	routes := s.providerRoutes(context.Background(), p.OwnerID, registered, home, false)
+	for _, route := range routes {
+		if route.model == "" || route.model == "gemini-test" {
+			t.Fatal("task preflight reused known restricted route", routes)
+		}
+	}
+
 	calls, _ := os.ReadFile(filepath.Join(home, "calls"))
 	if string(calls) != "xxx" {
 		t.Fatal("wrong route attempts", string(calls))

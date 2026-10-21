@@ -18,16 +18,18 @@ var taskOutputANSI = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
 // Retain bounded, redacted complete lines across browser/server restarts.
 // Oversized lines are omitted so split credentials are never retained partially.
 type taskOutputRecorder struct {
-	mu            sync.Mutex
-	service       *task.Service
-	attemptID     string
-	pending       []byte
-	skipping      bool
-	secrets       []string
-	failed        bool
-	quotaTail     string
-	quotaDetected bool
-	onQuota       func()
+	mu             sync.Mutex
+	service        *task.Service
+	attemptID      string
+	pending        []byte
+	skipping       bool
+	secrets        []string
+	failed         bool
+	quotaTail      string
+	quotaDetected  bool
+	onQuota        func()
+	regionDetected bool
+	onRegion       func()
 }
 
 func newTaskOutputRecorder(s *task.Service, id string) *taskOutputRecorder {
@@ -43,7 +45,7 @@ func newTaskOutputRecorder(s *task.Service, id string) *taskOutputRecorder {
 func (r *taskOutputRecorder) append(chunk []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !r.quotaDetected {
+	if !r.quotaDetected && !r.regionDetected {
 		r.quotaTail += string(chunk)
 		if len(r.quotaTail) > 8192 {
 			r.quotaTail = r.quotaTail[len(r.quotaTail)-8192:]
@@ -53,6 +55,12 @@ func (r *taskOutputRecorder) append(chunk []byte) {
 			r.quotaDetected = true
 			if r.onQuota != nil {
 				go r.onQuota()
+			}
+		}
+		if strings.Contains(plain, "⚠ FAILED_PRECONDITION (code 400): User location is not supported for the API use.") {
+			r.regionDetected = true
+			if r.onRegion != nil {
+				go r.onRegion()
 			}
 		}
 	}
@@ -106,6 +114,9 @@ func (r *taskOutputRecorder) save(lines []string) {
 func (r *taskOutputRecorder) failureNote() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.regionDetected {
+		return "The AI provider reported a location restriction. The run was stopped; inspect saved progress before continuing approved work with an allowed model route."
+	}
 	if r.quotaDetected {
 		return "The AI provider reported a usage limit. The run was stopped; inspect saved progress and uncertain effects before continuing unfinished approved work."
 	}

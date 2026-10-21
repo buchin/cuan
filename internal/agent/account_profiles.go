@@ -442,3 +442,28 @@ func RecordProviderModelQuota(owner, id, model string) error {
 	a.ModelCooldowns[model] = time.Now().Add(5 * time.Minute)
 	return saveProviderAccount(a)
 }
+
+// A location failure applies to the selected route, not every model on an
+// account. The empty key represents Auto/provider default. This is backoff,
+// never a claim that provider eligibility will change when the timer expires.
+func RecordProviderModelRestriction(owner, id, model string) error {
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return err
+	}
+	if a.Legacy {
+		return nil
+	}
+	if a.ModelCooldowns == nil {
+		a.ModelCooldowns = map[string]time.Time{}
+	}
+	for key, until := range a.ModelCooldowns {
+		if !time.Now().Before(until) {
+			delete(a.ModelCooldowns, key)
+		}
+	}
+	a.ModelCooldowns[model] = time.Now().Add(5 * time.Minute)
+	return saveProviderAccount(a)
+}

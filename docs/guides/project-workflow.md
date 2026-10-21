@@ -64,3 +64,9 @@ warning. Cuan stops only that matching attempt, records the account/model cooldo
 and retains the output and workspace for coordinator review. It does not treat the
 stop as completion or immediately replay uncertain work. Other quota mentions in
 ordinary progress text do not trigger this warning detector.
+
+Model-specific location failures are remembered as a short route cooldown,
+including the Auto/provider-default route, so task preflight does not immediately
+reuse a route that just failed in Inbox. Other allowed models remain eligible.
+Native task location-warning prompts also stop the matching attempt and retain
+that limitation for review. Cooldown expiry is not proof of restored availability.

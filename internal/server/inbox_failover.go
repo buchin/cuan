@@ -92,6 +92,11 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			// may fail where Sonnet succeeds). Only pre-authorized alternatives
 			// already in the route list may be tried.
 			restriction = failure
+			if route.accountID != "" {
+				if err := agent.RecordProviderModelRestriction(owner, route.accountID, route.model); err != nil {
+					return "", "Provider location restriction could not be saved. Your message and approved work are preserved."
+				}
+			}
 			if step != nil {
 				step("provider_restricted", "This model route is restricted by the provider. Checking allowed alternatives without repeating work.")
 			}

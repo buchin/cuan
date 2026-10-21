@@ -523,6 +523,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 			_ = s.terminalManager.StopQuotaAttempt(taskID, attempt.ID)
 		}
+		output.onRegion = func() {
+			<-launchSettled
+			if selectedAccountID != "" {
+				_ = agent.RecordProviderModelRestriction(ownerID, selectedAccountID, selectedModel)
+			}
+			_ = s.terminalManager.StopRestrictedAttempt(taskID, attempt.ID)
+		}
 	}
 	// 3. Spawn PTY process via Manager
 	runCfg := terminal.TaskAgentRunConfig{
@@ -560,14 +567,14 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 			if attempt != nil && s.taskSvc != nil {
 				state := task.AttemptStatusFailed
-				if (h.ExitCode == 0 && h.EndReason != "provider_quota") || h.EndReason == "agent_report" {
+				if (h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted") || h.EndReason == "agent_report" {
 					state = task.AttemptStatusSucceeded
 				}
 				note := output.failureNote()
 				if h.EndReason == "agent_report" {
 					note = ""
 				}
-				if h.ExitCode == 0 && h.EndReason != "provider_quota" {
+				if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
 					ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
 					if e != nil || !ready {
 						note = "No review-ready result was recorded. Check the agent report and saved output."
