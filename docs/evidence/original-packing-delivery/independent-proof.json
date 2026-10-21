@@ -1,0 +1,16 @@
+{
+  "canonical_state": {
+    "task_count": 1,
+    "status": "done",
+    "attempt_count": 3
+  },
+  "original_html_hash_retained": true,
+  "original_html_inode_retained": true,
+  "html_sha256": "b7cf55e227fa33995fb4f5208e95d6b62f01738ba76e03a6a249930376ab2ff5",
+  "readme_sha256": "38d6a9980efb724ee851065f19c1208d40d416c0b500a3cd0f0e466e0ebbdecc",
+  "download_hashes_match_workspace": true,
+  "progress_report_observed": true,
+  "final_automatic_review_completed": true,
+  "productionWrites": 0,
+  "limits": "Attempt2 automatically resumed interrupted work. Attempt3 was an operator-requested in-scope delivery correction after runtime fixes; the complete historical sequence was not unattended."
+}

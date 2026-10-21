@@ -1,5 +1,5 @@
 {
-  "release": "1ccf2f4dbd0db0b7b38a88dd6653df3d81204aeb",
+  "release": "ec0628f54507322123f40bf1635491517c2eef46",
   "provider": "controlled fixture",
   "database": "isolated PostgreSQL",
   "production_test_writes": 0,
@@ -8,13 +8,13 @@
       "name": "TestFreshInstallPostgresQuotaGoalRecovery",
       "passed": true,
       "skipped": false,
-      "seconds": 5.85
+      "seconds": 5.9
     },
     {
       "name": "TestFreshInstallPostgresApprovedGoalRecovery",
       "passed": true,
       "skipped": false,
-      "seconds": 6.05
+      "seconds": 6.06
     }
   ],
   "production": {

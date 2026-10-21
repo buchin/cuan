@@ -24,6 +24,20 @@ but ambiguous project requires clarification. Existing Default configuration and
 archive state are preserved. Legacy unassigned tasks remain readable in the Default
 workspace without rewriting historical records.
 
+## Project repository settings
+
+A project's Settings tab contains its name, goal and instructions. Use Repository
+for its optional GitHub connection; Activity shows its work. You can open the
+Repository tab directly at /projects/PROJECT_ID/repository. Pick a repository
+through GitHub; manual URL and branch overrides are under Advanced. Leave the
+branch empty to follow the repository default. Connection changes affect new
+work while existing tasks retain their bound workspace. Drafts survive switching
+between Settings and Repository, and Save changes saves the pending project draft.
+
+A folder badge in the project list indicates a connected repository: GitHub for
+GitHub repositories, a Git badge for other repositories. Plain folders need no
+repository. Default remains for general work and has no Repository tab.
+
 ## Delegate work through chat
 
 Tell an agent what you want to achieve and which project it belongs to. For example:

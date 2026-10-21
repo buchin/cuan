@@ -1,0 +1,31 @@
+{
+  "release": "9ff1d46f6ffda77b0bdd880e69d3be2d2e54cff3",
+  "checks": [
+    {
+      "width": 390,
+      "repositoryTab": true,
+      "settingsExcluded": true,
+      "advancedCollapsed": true,
+      "savedConnectionRetained": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "repositoryTab": true,
+      "settingsExcluded": true,
+      "advancedCollapsed": true,
+      "savedConnectionRetained": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "repositoryTab": true,
+      "settingsExcluded": true,
+      "advancedCollapsed": true,
+      "savedConnectionRetained": true,
+      "noOverflow": true
+    }
+  ],
+  "productionActionWrites": 0,
+  "providerCalls": 0
+}

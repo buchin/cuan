@@ -1,6 +1,6 @@
 ## SQL-backed approved-goal interruption and reconstruction
 
-`TestFreshInstallPostgresApprovedGoalRecovery` passes in6.05s on1ccf2f4 against an empty,
+`TestFreshInstallPostgresApprovedGoalRecovery` passes in6.06s onec0628f against an empty,
 dedicated real PostgreSQL database. Every application store comes from
 `NewServer(cfg, database)`; no memory stores are substituted. The local provider
 and Bubblewrap launcher are deterministic fixtures, not external inference.
@@ -24,8 +24,8 @@ Assertions after another reconstruction prove one task, two attempts, one artifa
 creation, exactly one final coordinator result, retained owner session and retained
 renamed project. Replaying the initial Studio goal does not duplicate execution.
 The companion direct-goal SQL lifecycle passed after typed-protocol fixture
-alignment (3.02s on1469c31). The quota-recovery variant also passes (5.85s on
-1ccf2f4): a native-shaped warning stops the failed route, then the permitted
+alignment (3.02s on1469c31). The quota-recovery variant also passes (5.90s on
+ec0628f): a native-shaped warning stops the failed route, then the permitted
 model continues the original task and checks its existing artifact/checkpoint. Both dedicated databases were dropped; no production database
 writes or external provider calls occurred.
 
@@ -51,7 +51,7 @@ are separate checks in task-recovery and onboarding. The provider fixture verifi
 recovery contracts rather than a live model's interpretation of every goal.
 
 The recovery implementation is deployed in production and dedicated staging
-within b85d444/schema25, with health/readiness passing. Tests use controlled
+within ec0628f/schema25, with health/readiness passing. Tests use controlled
 provider transports and real child processes; native interruption recovery and
 native downloadable delivery are separately recorded in live-goal-recovery and
 coordinator-native. See current-provider-recovery.json for the latest SQL runs.
