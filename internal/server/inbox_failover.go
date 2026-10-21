@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
@@ -148,15 +149,57 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		profiles = nil
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].ID < profiles[j].ID })
+	type candidateRoute struct {
+		profile *agent.ProviderAccount
+		home    string
+		primary bool
+	}
+	candidates := []candidateRoute{{primary, home, true}}
+	for _, candidate := range profiles {
+		if len(candidates) >= 8 {
+			break
+		}
+		if candidate.Legacy || !candidate.AllowFailover || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
+			continue
+		}
+		bound, err := s.agentRepo.GetAgentByID(ctx, candidate.AgentID)
+		if err != nil || bound == nil || !bound.Enabled || bound.ConnectionID != candidate.ConnectionID || (bound.Harness != "agy" && bound.Harness != "antigravity") {
+			continue
+		}
+		candidateHome, err := s.ownedAgentProfileHome(ctx, owner, bound)
+		if err == nil && candidateHome != "" {
+			candidates = append(candidates, candidateRoute{candidate, candidateHome, false})
+		}
+	}
+	// A slow primary must not consume the backup's entire preflight window.
+	// At most two quota/catalog probes run at once; results retain stable order.
+	usages := make([]agent.AccountModelUsage, len(candidates))
+	jobs := make(chan int, len(candidates))
+	for i, candidate := range candidates {
+		if candidate.profile != nil {
+			jobs <- i
+		}
+	}
+	close(jobs)
+	var probes sync.WaitGroup
+	for worker := 0; worker < 2; worker++ {
+		probes.Add(1)
+		go func() {
+			defer probes.Done()
+			for i := range jobs {
+				if probeCtx.Err() != nil {
+					return
+				}
+				usages[i] = fetchInboxModelUsage(probeCtx, owner, candidates[i].profile.ID)
+			}
+		}()
+	}
+	probes.Wait()
 	routes := []inboxAccountRoute{}
-	add := func(profile *agent.ProviderAccount, profileHome string, isPrimary bool) {
+	add := func(profile *agent.ProviderAccount, profileHome string, isPrimary bool, usage agent.AccountModelUsage) {
 		model := registered.ModelID
 		if !agent.IsTextModel(model) {
 			model = ""
-		}
-		usage := agent.AccountModelUsage{}
-		if profile != nil {
-			usage = fetchInboxModelUsage(probeCtx, owner, profile.ID)
 		}
 		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited")
 		addModel := func(id string, remaining float64) {
@@ -217,28 +260,8 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		}
 		addModel(model, score)
 	}
-	add(primary, home, true)
-	checked := 0
-	for _, candidate := range profiles {
-		if ctx.Err() != nil || checked >= 7 {
-			break
-		}
-		if candidate.Legacy || !candidate.AllowFailover || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) {
-			continue
-		}
-		if s.agentRepo == nil {
-			continue
-		}
-		bound, err := s.agentRepo.GetAgentByID(ctx, candidate.AgentID)
-		if err != nil || bound == nil || !bound.Enabled || bound.ConnectionID != candidate.ConnectionID || (bound.Harness != "agy" && bound.Harness != "antigravity") {
-			continue
-		}
-		candidateHome, err := s.ownedAgentProfileHome(ctx, owner, bound)
-		if err != nil || candidateHome == "" {
-			continue
-		}
-		checked++
-		add(candidate, candidateHome, false)
+	for i, candidate := range candidates {
+		add(candidate.profile, candidate.home, candidate.primary, usages[i])
 	}
 	// Rank actual model quota evidence ahead of unknown availability. Ties retain
 	// the primary account, then stable model/account order. Unknown is never 100%.
