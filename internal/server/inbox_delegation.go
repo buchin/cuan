@@ -317,6 +317,19 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	}
 	key := "task-review:" + detail.LatestAttempt.ID
 	requestID := delegationMessageID(key)
+	// One bounded snapshot-only follow-up can repair a legacy review that
+	// stopped on a denied tool. Never replay the original user execution.
+	for _, q := range requests {
+		if q.RequestID == requestID {
+			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") {
+				key += ":snapshot"
+				requestID = delegationMessageID(key)
+			} else {
+				return
+			}
+			break
+		}
+	}
 	for _, q := range requests {
 		if q.RequestID == requestID {
 			return

@@ -46,12 +46,17 @@ func TestInboxDelegationManagedProject(t *testing.T) { runInboxDelegation(t, tru
 func TestInboxDelegationClearInstructionNeedsNoPlanningTurn(t *testing.T) {
 	runInboxDelegation(t, true, false, "Audit this project read-only and report the findings. Do not deploy.")
 }
+func TestInboxDeniedReviewGetsOneSnapshotFollowup(t *testing.T) {
+	runInboxDelegation(t, true, false, "Audit the approved project read-only; do not deploy.", "review-denied")
+}
+
 func TestInboxInterruptionResumesSameApprovedTask(t *testing.T) {
 	runInboxDelegation(t, true, true, "Build the approved audit and report evidence; do not deploy.", "interrupt")
 }
 
 func runInboxDelegation(t *testing.T, topic, managed bool, promptOverride ...string) {
 	interrupted := len(promptOverride) > 1 && promptOverride[1] == "interrupt"
+	reviewDenied := len(promptOverride) > 1 && promptOverride[1] == "review-denied"
 	s, token, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
@@ -83,6 +88,15 @@ case "$2" in
  *) target="${2##*Target message ID: }"; printf '%s' '` + string(raw) + `' | sed "s/AUTH/$target/g" ;;
 esac
 `
+	if reviewDenied {
+		script = strings.Replace(script, "*'automated result is not new user authorization'*)", `*'automated result is not new user authorization'*)
+ if [ ! -f "$HOME/review-denied-once" ]; then
+  touch "$HOME/review-denied-once"
+  printf '%s' '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"run_command"}]}}'
+  exit 0
+ fi
+`, 1)
+	}
 	if interrupted {
 		script = strings.Replace(script, `if [ "$1" = "--dangerously-skip-permissions" ]; then`, `if [ "$1" = "--dangerously-skip-permissions" ]; then
  if [ ! -f "$HOME/interrupted-once" ]; then
@@ -224,6 +238,11 @@ esac
 	}
 	s.deliverInboxTaskUpdates(ctx)
 	reviewID := delegationMessageID("task-review:" + result.LatestAttempt.ID)
+	if reviewDenied {
+		waitInboxState(t, s, accepted.Request.RoomID, reviewID, "failed")
+		s.deliverInboxTaskUpdates(ctx)
+		reviewID = delegationMessageID("task-review:" + result.LatestAttempt.ID + ":snapshot")
+	}
 	waitInboxState(t, s, accepted.Request.RoomID, reviewID, "completed")
 	s.deliverInboxTaskUpdates(ctx)
 	result, _ = s.taskSvc.GetTaskDetail(ctx, tasks[0].ID)
@@ -255,7 +274,7 @@ esac
 			t.Fatal("missing relevant context", text)
 		}
 	}
-	if interrupted {
+	if interrupted || reviewDenied {
 		return
 	}
 	// A system result or foreign message cannot be used as user approval.

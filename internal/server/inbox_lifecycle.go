@@ -231,7 +231,12 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								output = approvedPlanDelegation(plan, q.MessageID)
 							}
 						} else {
-							output, failure = s.executeInboxWithFailover(ctx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
+							inferenceCtx := ctx
+							if snapshot, ok := s.inboxTaskReviewPrompt(ctx, q); ok {
+								inferenceCtx = context.WithValue(ctx, inboxTaskReviewKey{}, true)
+								prompt = snapshot
+							}
+							output, failure = s.executeInboxWithFailover(inferenceCtx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
 						}
 						output, topicTitle = extractTopicTitle(output)
 						if results, searched, searchErr := s.inboxMemorySearchResults(ctx, q, output); searched {
