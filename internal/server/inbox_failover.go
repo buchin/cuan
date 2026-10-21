@@ -57,7 +57,11 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 				step("account_failover", "Continuing this agent's reply with an allowed backup account.")
 			}
 			if route.model != "" {
-				step("model_selected", fmt.Sprintf("Using model %s based on the allowed model policy and available usage evidence.", route.model))
+				if route.remaining == -1 {
+					step("model_selected", fmt.Sprintf("Using supported model %s; remaining usage has not been verified.", route.model))
+				} else {
+					step("model_selected", fmt.Sprintf("Using model %s based on the allowed model policy and available usage evidence.", route.model))
+				}
 			}
 		}
 		attemptCtx := context.WithValue(ctx, inboxModelKey{}, route.model)
@@ -143,7 +147,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		}
 		if profile != nil && profile.AllowModelFallback && usage.Available {
 			for _, item := range usage.Models {
-				if item.Remaining > 0 && agent.IsTextModel(item.Model) {
+				if (item.Remaining > 0 || item.Remaining == -1) && agent.IsTextModel(item.Model) {
 					addModel(item.Model, item.Remaining)
 				}
 			}

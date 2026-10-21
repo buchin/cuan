@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -36,7 +37,7 @@ func (b *catalogOutput) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// FetchRunnableAccountModelUsage intersects quota evidence with the actual
+// FetchRunnableAccountModelUsage combines quota evidence with the actual
 // installed CLI's catalog. The quota RPC may include obsolete model IDs that
 // the CLI rejects before starting any runtime session. This never runs inference.
 func FetchRunnableAccountModelUsage(ctx context.Context, owner, id string) AccountModelUsage {
@@ -50,16 +51,28 @@ func FetchRunnableAccountModelUsage(ctx context.Context, owner, id string) Accou
 		usage.Message = "The installed AI model catalog could not be checked. Try again when the account is idle."
 		return usage
 	}
-	filtered := make([]ModelUsage, 0, len(usage.Models))
+	// Supported catalog entries without quota metadata remain unknown, not
+	// exhausted and not 100% available. Runtime results still decide availability.
+	byID := map[string]ModelUsage{}
 	for _, model := range usage.Models {
 		if models[model.Model] {
-			filtered = append(filtered, model)
+			byID[model.Model] = model
+		}
+	}
+	ids := make([]string, 0, len(models))
+	for id := range models {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	filtered := make([]ModelUsage, 0, len(ids))
+	for _, id := range ids {
+		if known, ok := byID[id]; ok {
+			filtered = append(filtered, known)
+		} else {
+			filtered = append(filtered, ModelUsage{Model: id, Remaining: -1})
 		}
 	}
 	usage.Models = filtered
-	if len(filtered) == 0 {
-		usage.Message = "No supported AI model has verified availability. Refresh usage or connect another account."
-	}
 	return usage
 }
 
