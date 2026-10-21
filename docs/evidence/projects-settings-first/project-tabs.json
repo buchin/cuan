@@ -1,0 +1,16 @@
+{
+  "release": "37845e3",
+  "projectTabs": true,
+  "projectSettingsDefault": true,
+  "activityAccessible": true,
+  "askCuanRemoved": true,
+  "newProjectOnList": true,
+  "noNewTaskButton": true,
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "productionInference": false,
+  "postLoginWritesBlocked": true
+}

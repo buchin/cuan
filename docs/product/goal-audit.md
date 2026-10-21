@@ -9,7 +9,7 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, production workflow release
 
-Production runs `db8f0f6ed63bd3af37d8b8e2ed7ae07cf704fa15`/schema25, following
+Production runs `37845e365575bb3b7394a515ef66f090796eb3c8`/schema25, following
 the full workflow release tagged `goal-workflow-20261021`. The full typed coordinator, canonical report
 evaluator, same-task interruption recovery and private task artifact delivery are
 now deployed. Health and private pre-release database backup checks passed;
@@ -534,3 +534,9 @@ and routes Ask Cuan to Studio. Desktop/tablet/mobile read-only checks passed;
 see ../evidence/projects-settings-first/README.md. The release also contains the
 relative-worktree fix. Native GitHub continuation remains unresolved, so the full
 goal is not complete.
+
+Current project navigation follows the subsequent user-approved revision:
+Settings/Activity tabs, Settings default, New project on the list only, and no
+Ask Cuan/New task on project detail. Production37845e3 and responsive read-only
+checks pass; see projects-settings-first/project-tabs.json. Native GitHub
+continuation remains unfinished and is not superseded by this UI delivery.
