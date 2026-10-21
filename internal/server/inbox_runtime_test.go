@@ -123,3 +123,32 @@ func TestNativeQuotaErrorMessageIsNotToolActivity(t *testing.T) {
 		t.Fatal("tool-bearing error allowed replay")
 	}
 }
+
+// Native Gemini transcripts use read_file; preserve safe read-only failover
+// without broadening replay permission to arbitrary tool aliases.
+func TestNativeReadFileQuotaActivity(t *testing.T) {
+	for _, name := range []string{"read_file", "view_file", "write_file", "run_command", "unrecognized_tool", ""} {
+		t.Run(name, func(t *testing.T) {
+			var labels []string
+			stream := &inboxRuntimeStream{step: func(k, v string) { labels = append(labels, k+":"+v) }}
+			for _, state := range []string{"ACTIVE", "DONE", "ERROR"} {
+				row := map[string]any{"event": "step_update", "step_update": map[string]any{"step_index": 2, "state": state, "step_type": "tool", "tool_name": name, "tool_info": map[string]any{"output": "PRIVATE_FILE_CONTENT"}}}
+				b, _ := json.Marshal(row)
+				stream.Write(append(b, '\n'))
+			}
+			stream.Write([]byte(`{"event":"result","result":{"status":"ERROR","message":"RESOURCE_EXHAUSTED"}}`))
+			_, failure, _ := stream.finish()
+			safe := name == "read_file" || name == "view_file"
+			if failure != "" || stream.unsafeTool == safe {
+				t.Fatal("wrong replay classification", name, stream.unsafeTool, failure)
+			}
+			trace := strings.Join(labels, "\n")
+			if strings.Contains(trace, "PRIVATE") {
+				t.Fatal("file output leaked")
+			}
+			if safe && !strings.Contains(trace, "Read file failed") {
+				t.Fatal("read label missing", trace)
+			}
+		})
+	}
+}

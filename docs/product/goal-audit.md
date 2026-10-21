@@ -611,3 +611,15 @@ saving output after 1000 lines or 256 KiB. Thus later CLI quota prompts can be
 visible in the live terminal while absent from retained logs; absence of a quota
 message in saved logs is not evidence that the provider is still working. No
 unverified automatic termination or task replay was added in this inspection.
+
+## Native read-file replay classification
+
+Read-only inspection of the saved production Gemini transcript for session
+a3af9aa9-90b9-4e6f-91d2-605bd8e1827f found two native `read_file` calls, with
+no tool arguments or file contents exported. Cuan recognized the older
+`view_file` name but treated `read_file` as unknown activity. Runtime parsing now
+recognizes both exact read-only names and labels them Read file. Unknown tools,
+write_file and run_command still prohibit replay. A controlled CLI failover test
+proves native read_file quota failure can reach the permitted backup exactly
+once, preserving the agent binding; this is not a successful production replay
+or proof of full native GitHub delivery.

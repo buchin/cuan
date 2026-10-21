@@ -74,7 +74,7 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"rep
 }
 
 func TestInboxQuotaFailover(t *testing.T) {
-	for _, scenario := range []string{"success", "read-only", "unsafe", "unknown-tool", "not-opted-in", "backup-quota", "auth", "primary-known-quota", "disabled-backup", "cancelled"} {
+	for _, scenario := range []string{"success", "read-only", "native-read-only", "unsafe", "unknown-tool", "not-opted-in", "backup-quota", "auth", "primary-known-quota", "disabled-backup", "cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, _, registered, p, b, home, backupHome := setupFailoverFixture(t)
 			owner := p.OwnerID
@@ -93,8 +93,18 @@ func TestInboxQuotaFailover(t *testing.T) {
 				data, _ := os.ReadFile(f)
 				os.WriteFile(f, []byte(strings.ReplaceAll(string(data), "run_command", "unrecognized_tool")), 0700)
 			}
-			if scenario == "read-only" {
+			if scenario == "read-only" || scenario == "native-read-only" {
 				os.WriteFile(filepath.Join(home, "read"), nil, 0600)
+			}
+			if scenario == "native-read-only" {
+				f := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+				data, err := os.ReadFile(f)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(f, []byte(strings.ReplaceAll(string(data), "view_file", "read_file")), 0700); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if scenario == "auth" {
 				os.WriteFile(filepath.Join(home, "auth"), nil, 0600)
@@ -117,7 +127,7 @@ func TestInboxQuotaFailover(t *testing.T) {
 			}
 			var trace []string
 			out, failure := s.executeInboxWithFailover(ctx, owner, registered, "Analyze this project", home, t.TempDir(), scenario == "primary-known-quota", func(k, v string) { trace = append(trace, k+":"+v) })
-			success := scenario == "success" || scenario == "read-only" || scenario == "primary-known-quota"
+			success := scenario == "success" || scenario == "read-only" || scenario == "native-read-only" || scenario == "primary-known-quota"
 			if success && (out != "Same agent backup answer" || failure != "") {
 				t.Fatal(out, failure)
 			}
