@@ -239,7 +239,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								snapshotReview = true
 								prompt = snapshot
 								if snapshot == "" {
-									output = "A newer execution or changed task has superseded this review. The current task and its evidence are preserved."
+									output = s.inboxStaleReviewOutcome(ctx, q)
 									snapshotReview = false
 								}
 							}

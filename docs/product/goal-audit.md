@@ -623,3 +623,13 @@ write_file and run_command still prohibit replay. A controlled CLI failover test
 proves native read_file quota failure can reach the permitted backup exactly
 once, preserving the agent binding; this is not a successful production replay
 or proof of full native GitHub delivery.
+
+## Clear stopped-work and failure outcomes
+
+Stale automatic reviews now consult the linked task within the same room and
+assigned agent. A saved cancellation explains that work stopped and waits for
+fresh user instruction; other stale updates make no completion/restart claim.
+No AI call or execution is introduced for this status explanation. Existing
+cancellation tests also verify the outcome and reject foreign room/agent state.
+Failed Inbox bubbles with check-status recovery display the server's safe_error
+instead of hiding the specific failure behind a generic stopped-reply message.

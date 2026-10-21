@@ -45,6 +45,25 @@ func TestCancelledTaskRejectsAutomaticCoordinatorContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A stale automatic result must explain the stopped state without AI or a restart.
+	review := db.InboxRequest{MessageID: db.GenerateUUID(), RoomID: room.RoomID, AgentID: original.AgentID}
+	if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{ID: review.MessageID, RoomID: room.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: "Review [work](/tasks/" + saved.ID + ")"}); err != nil {
+		t.Fatal(err)
+	}
+	if out := s.inboxStaleReviewOutcome(ctx, review); !strings.Contains(out, "work has stopped") || !strings.Contains(out, "wait for your instruction") {
+		t.Fatal("unclear stopped outcome", out)
+	}
+	foreign := review
+	foreign.AgentID = "other-agent"
+	if out := s.inboxStaleReviewOutcome(ctx, foreign); strings.Contains(out, "work has stopped") {
+		t.Fatal("foreign task state exposed", out)
+	}
+	foreign = review
+	foreign.RoomID = "other-room"
+	if out := s.inboxStaleReviewOutcome(ctx, foreign); strings.Contains(out, "work has stopped") {
+		t.Fatal("foreign room state exposed", out)
+	}
+
 	automatic := accept("system", time.Now().UTC().Add(time.Second))
 	d := inboxDelegation{TaskID: saved.ID, ProjectID: "p1", AuthorizationID: original.MessageID, Revision: "Verify saved work; preserve original scope"}
 	raw, _ := json.Marshal(d)

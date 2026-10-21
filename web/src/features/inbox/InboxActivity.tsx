@@ -425,7 +425,7 @@ export function InboxActivity({
                 ? 'Usage is limited. Check account availability before trying again.'
                 : recovery === 'check_agent'
                   ? 'Check the agent connection before trying again.'
-                  : 'Your reply stopped. Your message is saved.')}
+                  : (q.safe_error || 'Your reply stopped. Your message is saved.'))}
           </p>
           {recovery === 'try_again' && onRetry ? (
             <button type="button" disabled={recovering}
