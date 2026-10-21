@@ -9,7 +9,7 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, production workflow release
 
-Production runs `5882000e9e5b412f5afad2f5931b277e24a0c6cd`/schema25, following
+Production runs `db8f0f6ed63bd3af37d8b8e2ed7ae07cf704fa15`/schema25, following
 the full workflow release tagged `goal-workflow-20261021`. The full typed coordinator, canonical report
 evaluator, same-task interruption recovery and private task artifact delivery are
 now deployed. Health and private pre-release database backup checks passed;
@@ -525,3 +525,12 @@ pass; staging was upgraded with backup and retained configuration/readiness.
 A subsequent same-conversation continuation failed at the coordinator's native
 tool permission boundary; no second task or successful GitHub push is claimed.
 This remains agent-fixable work; do not ask the owner to reconnect working accounts.
+
+## User-focused Projects view
+
+User approved settings-first Projects. Production db8f0f6 now opens project
+settings by default, retains work under Activity and task/session message links,
+and routes Ask Cuan to Studio. Desktop/tablet/mobile read-only checks passed;
+see ../evidence/projects-settings-first/README.md. The release also contains the
+relative-worktree fix. Native GitHub continuation remains unresolved, so the full
+goal is not complete.

@@ -1,0 +1,14 @@
+{
+  "release": "db8f0f6",
+  "projectSettingsDefault": true,
+  "activityAccessible": true,
+  "askCuanPrimary": true,
+  "noNewTaskButton": true,
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "productionInference": false,
+  "postLoginWritesBlocked": true
+}
