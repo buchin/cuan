@@ -19,7 +19,7 @@ For conversational questions, workflow questions, or greetings, answer directly 
 
 reply: useful user-facing Markdown in the user's language. Answer ordinary questions directly. Never end with only a promise to check. Do not claim tasks started, files delivered, changes made or verification performed before the application confirms it. Never include file:// links, private paths, secrets, action fences or raw action JSON in reply. References to existing application task/contact links are allowed.
 topic_title: normally an empty string. If the recent user discussion establishes a new main topic, use a short 3–8 word title, at most72 characters. Preserve the topic for approvals, corrections, greetings and brief tangents. Do not include private identifiers or contact details.
-action: null for greetings, questions, analysis or clarification. Otherwise choose exactly one typed application action. The application validates and executes it, then provides the actual outcome. Do not combine actions or put action markers in reply. An action is a request, never proof of execution.
+action: null ONLY for pure conversational chit-chat, greetings, or informational answers where no task, change, or user confirmation is proposed. If recommending a task, fix, next steps, or asking confirmation to execute ('Apakah Anda ingin...', 'Setuju?', 'Lanjut?'), action MUST be an approval action object so choice buttons appear. Never emit action: null when asking confirmation questions. An action is a request, never proof of execution.
 
 Kinds and payload fields:
 - approval: {title, description, project_id OR project_name}. Present a concrete proposed outcome, scope, constraints, acceptance criteria and applicable deploy/migration gates. description must contain the full exact scope, max6000 characters; title max200. Always emit this when recommending a concrete change or next step that requires owner consent, so the user can approve it directly with one click or conversational confirmation ('gas'). Do not ask for approval solely because work is substantial.
@@ -162,6 +162,30 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 	if analysisOnly && (value.Action != nil || value.TopicTitle != "") {
 		return "", bad
 	}
+	if !analysisOnly && value.Action == nil && isConfirmationQuestion(value.Reply) {
+		title := extractTitleFromReply(value.Reply)
+		projectName := "Default"
+		lower := strings.ToLower(value.Reply)
+		if strings.Contains(lower, "cuan") || strings.Contains(lower, "studio") || strings.Contains(lower, "form") {
+			projectName = "Cuan"
+		}
+		desc := value.Reply
+		if len([]rune(desc)) > 6000 {
+			desc = string([]rune(desc)[:6000])
+		}
+		payloadBytes, _ := json.Marshal(inboxApprovalPlan{
+			Title:       title,
+			Description: desc,
+			ProjectName: projectName,
+		})
+		value.Action = &struct {
+			Kind    string          `json:"kind"`
+			Payload json.RawMessage `json:"payload"`
+		}{
+			Kind:    "approval",
+			Payload: payloadBytes,
+		}
+	}
 	if value.Action != nil {
 		if len(value.Action.Payload) == 0 || bytes.Equal(bytes.TrimSpace(value.Action.Payload), []byte("null")) {
 			return "", bad
@@ -210,4 +234,46 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 		output += "\n```cuan-title\n" + string(encoded) + "\n```"
 	}
 	return strings.TrimSpace(output), nil
+}
+
+func isConfirmationQuestion(reply string) bool {
+	lower := strings.ToLower(reply)
+	markers := []string{
+		"apakah anda ingin", "apakah anda setuju", "apakah mau", "apakah perlu",
+		"bolehkah saya", "setuju?", "lanjut?", "apakah ingin", "ingin saya jalankan",
+		"mau saya jalankan", "apakah saya", "ingin saya buatkan", "mau saya buatkan",
+		"apakah kita", "bagaimana kalau saya",
+		"would you like me to", "should i", "do you want me to", "shall i",
+		"do you approve", "please confirm",
+	}
+	for _, m := range markers {
+		if strings.Contains(lower, m) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractTitleFromReply(reply string) string {
+	start := strings.Index(reply, "**")
+	if start >= 0 {
+		end := strings.Index(reply[start+2:], "**")
+		if end > 0 {
+			candidate := strings.TrimSpace(reply[start+2 : start+2+end])
+			if len([]rune(candidate)) > 3 && len([]rune(candidate)) <= 100 {
+				return candidate
+			}
+		}
+	}
+	start = strings.Index(reply, `"`)
+	if start >= 0 {
+		end := strings.Index(reply[start+1:], `"`)
+		if end > 0 {
+			candidate := strings.TrimSpace(reply[start+1 : start+1+end])
+			if len([]rune(candidate)) > 5 && len([]rune(candidate)) <= 100 {
+				return candidate
+			}
+		}
+	}
+	return "Usulan Tugas Baru"
 }

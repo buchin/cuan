@@ -235,3 +235,21 @@ fi
 		t.Fatalf("expected direct recovery proposal with approval card, got out=%q failure=%q safe=%v calls=%s", out, failure, safe, string(calls))
 	}
 }
+
+func TestCoordinatorResponseSynthesizesApprovalForConfirmationQuestions(t *testing.T) {
+	raw := coordinatorJSON("Untuk pekerjaan **implementasi shortcut Cmd/Ctrl + Enter pada form Studio**, saya siap langsung menugaskan dan menjalankan eksekusinya ke tim dev sekarang. Apakah Anda ingin saya langsung jalankan eksekusinya?", "", nil)
+	out, err := decodeInboxCoordinatorResponse(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	plan := parseInboxApprovalPlan(out)
+	if plan == nil {
+		t.Fatalf("expected approval plan to be synthesized, got %s", out)
+	}
+	if !strings.Contains(plan.Title, "implementasi shortcut Cmd/Ctrl + Enter pada form Studio") {
+		t.Errorf("unexpected title: %q", plan.Title)
+	}
+	if plan.ProjectName != "Cuan" {
+		t.Errorf("expected project Cuan, got %q", plan.ProjectName)
+	}
+}
