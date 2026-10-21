@@ -139,7 +139,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		}
 		if e.Update.Type == "tool" {
 			switch e.Update.Tool {
-			case "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name":
+			case "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish":
 			default:
 				s.unsafeTool = true
 			}
@@ -170,12 +170,12 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		}
 		if u.Type == "tool" {
 			switch u.Tool {
-			case "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name":
+			case "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish":
 			default:
 				s.unsafeTool = true
 			}
 
-			names := map[string]string{"view_file": "Read file", "view_file_outline": "File outline", "view_code_item": "Read code", "list_dir": "List directory", "grep_search": "Search text", "find_by_name": "Find file", "run_command": "Terminal command"}
+			names := map[string]string{"view_file": "Read file", "view_file_outline": "File outline", "view_code_item": "Read code", "list_dir": "List directory", "grep_search": "Search text", "find_by_name": "Find file", "run_command": "Terminal command", "finish": "Format response"}
 			name := names[u.Tool]
 			if name == "" {
 				name = "Tool"

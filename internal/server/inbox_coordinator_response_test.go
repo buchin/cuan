@@ -86,7 +86,7 @@ func TestCoordinatorResponseRejectsAmbiguousOrUnmanagedActions(t *testing.T) {
 }
 
 func TestCoordinatorCLIRequiresSchemaAndRejectsNativeExecution(t *testing.T) {
-	for _, tool := range []string{"", "view_file", "write_to_file", "run_command"} {
+	for _, tool := range []string{"", "view_file", "finish", "write_to_file", "run_command"} {
 		t.Run(tool, func(t *testing.T) {
 			home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
 			result, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]any{"status": "SUCCESS", "response": coordinatorJSON("Here is a proposal", "approval", inboxApprovalPlan{Title: "Calculator", Description: "Deliver a downloadable calculator; verify the formulas.", ProjectID: "default"})}})
