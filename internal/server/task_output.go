@@ -15,14 +15,13 @@ import (
 // Retain bounded, redacted complete lines across browser/server restarts.
 // Oversized lines are omitted so split credentials are never retained partially.
 type taskOutputRecorder struct {
-	mu           sync.Mutex
-	service      *task.Service
-	attemptID    string
-	pending      []byte
-	skipping     bool
-	bytes, lines int
-	secrets      []string
-	failed       bool
+	mu        sync.Mutex
+	service   *task.Service
+	attemptID string
+	pending   []byte
+	skipping  bool
+	secrets   []string
+	failed    bool
 }
 
 func newTaskOutputRecorder(s *task.Service, id string) *taskOutputRecorder {
@@ -38,9 +37,6 @@ func newTaskOutputRecorder(s *task.Service, id string) *taskOutputRecorder {
 func (r *taskOutputRecorder) append(chunk []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.bytes >= 256*1024 || r.lines >= 1000 {
-		return
-	}
 	lines := []string{}
 	for _, c := range chunk {
 		if c == '\n' {
@@ -76,12 +72,7 @@ func (r *taskOutputRecorder) flush() {
 func (r *taskOutputRecorder) save(lines []string) {
 	logs := []task.LogRecord{}
 	for _, line := range lines {
-		if r.bytes >= 256*1024 || r.lines >= 1000 {
-			break
-		}
 		line = agent.MaskSecrets(line, r.secrets)
-		r.bytes += len(line) + 1
-		r.lines++
 		logs = append(logs, task.LogRecord{AttemptID: r.attemptID, Stream: "stdout", Line: line, LoggedAt: time.Now().UTC()})
 	}
 	if len(logs) == 0 {

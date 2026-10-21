@@ -49,3 +49,19 @@ Moving Cuan there is not a storage improvement. Fix retention first; consider a
 larger volume or dedicated server when real persistent data, rather than retained
 artifacts, requires it. Backup retention needs its own restore-tested policy;
 this cleanup intentionally did not delete existing backups.
+
+### Task terminal diagnostics
+
+Task attempt output is a rolling diagnostic buffer: at most 1,000 recent complete
+lines and 256 KiB of line text per attempt. Older diagnostic lines roll off as
+new output arrives, so a late provider/quota error remains available after reload.
+This is not a full terminal transcript. Task instructions, approvals, reports,
+artifacts and conversation history are separate and are not pruned by this buffer.
+Secrets are masked before storage; oversized terminal lines are omitted rather
+than storing a partial credential. No schema migration or historical-log cleanup
+is required; the window advances when an attempt writes new output.
+
+Targeted checks: `go test ./internal/task ./internal/server -run
+'TestRecentAttemptLogRetention|TestTaskOutputRetainsLateRedactedDiagnostics|TestInboxLifecycleNegativeCasesAndRetainedTaskOutput'
+-count=1 -timeout=30s`. Memory and SQL tests cover late errors, line/byte bounds,
+incremental cursors, oversized lines and isolation between attempts.

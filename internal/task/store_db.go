@@ -680,20 +680,6 @@ func (s *DBStore) AppendLogs(ctx context.Context, attemptID string, logs []LogRe
 		return nil
 	}
 
-	if maxLines > 0 {
-		var currentCount int
-		err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM agent_logs WHERE attempt_id = $1", attemptID).Scan(&currentCount)
-		if err == nil && currentCount >= maxLines {
-			var hasMarker bool
-			_ = s.db.QueryRowContext(ctx, "SELECT true FROM agent_logs WHERE attempt_id = $1 AND line LIKE '[LOG TRUNCATED%' LIMIT 1", attemptID).Scan(&hasMarker)
-			if !hasMarker {
-				_, _ = s.db.ExecContext(ctx, "INSERT INTO agent_logs (attempt_id, stream, line, logged_at) VALUES ($1, $2, $3, $4)",
-					attemptID, "system", fmt.Sprintf("[LOG TRUNCATED: maximum log buffer of %d lines reached]", maxLines), time.Now().UTC())
-			}
-			return nil
-		}
-	}
-
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx for logs: %w", err)
@@ -711,8 +697,40 @@ func (s *DBStore) AppendLogs(ctx context.Context, attemptID string, logs []LogRe
 		if loggedAt.IsZero() {
 			loggedAt = time.Now().UTC()
 		}
-		if _, err := stmt.ExecContext(ctx, attemptID, entry.Stream, entry.Line, loggedAt); err != nil {
+		if _, err := stmt.ExecContext(ctx, attemptID, entry.Stream, boundedLogLine(entry.Line), loggedAt); err != nil {
 			return fmt.Errorf("insert log: %w", err)
+		}
+	}
+
+	if maxLines > 0 {
+		rows, err := tx.QueryContext(ctx, "SELECT id, line FROM agent_logs WHERE attempt_id = $1 ORDER BY id DESC LIMIT $2", attemptID, maxLines)
+		if err != nil {
+			return fmt.Errorf("read log retention window: %w", err)
+		}
+		var oldest int64
+		size := 0
+		for rows.Next() {
+			var id int64
+			var line string
+			if err := rows.Scan(&id, &line); err != nil {
+				rows.Close()
+				return err
+			}
+			if size+len(line)+1 > maxRetainedLogBytes {
+				break
+			}
+			size += len(line) + 1
+			oldest = id
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		if oldest != 0 {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM agent_logs WHERE attempt_id = $1 AND id < $2", attemptID, oldest); err != nil {
+				return fmt.Errorf("trim retained logs: %w", err)
+			}
 		}
 	}
 

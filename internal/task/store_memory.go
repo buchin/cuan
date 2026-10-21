@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -363,34 +362,32 @@ func (m *MemoryStore) AppendLogs(ctx context.Context, attemptID string, logs []L
 	}
 
 	for _, entry := range logs {
-		if maxLines > 0 && len(existing) >= maxLines {
-			// Append truncation marker if not already the last line
-			if len(existing) > 0 && !strings.Contains(existing[len(existing)-1].Line, "[LOG TRUNCATED") {
-				m.nextLogID++
-				marker := &LogRecord{
-					ID:        m.nextLogID,
-					AttemptID: attemptID,
-					Stream:    "system",
-					Line:      fmt.Sprintf("[LOG TRUNCATED: maximum log buffer of %d lines reached]", maxLines),
-					LoggedAt:  time.Now().UTC(),
-				}
-				existing = append(existing, marker)
-			}
-			break
-		}
-
 		m.nextLogID++
 		rec := &LogRecord{
 			ID:        m.nextLogID,
 			AttemptID: attemptID,
 			Stream:    entry.Stream,
-			Line:      entry.Line,
+			Line:      boundedLogLine(entry.Line),
 			LoggedAt:  entry.LoggedAt,
 		}
 		if rec.LoggedAt.IsZero() {
 			rec.LoggedAt = time.Now().UTC()
 		}
 		existing = append(existing, rec)
+	}
+
+	if maxLines > 0 {
+		start, size := len(existing), 0
+		for start > 0 && len(existing)-start < maxLines {
+			n := len(existing[start-1].Line) + 1
+			if size+n > maxRetainedLogBytes {
+				break
+			}
+			size += n
+			start--
+		}
+		// Copy so discarded records are not held by the backing array.
+		existing = append([]*LogRecord(nil), existing[start:]...)
 	}
 
 	m.logs[attemptID] = existing
