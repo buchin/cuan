@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Folder, Search, ChevronLeft, Archive, MoreHorizontal } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
+import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
 
 export function ProjectsWorkspace({
@@ -122,7 +123,7 @@ export function ProjectsWorkspace({
               aria-current={project?.id === item.id ? 'page' : undefined}
               className={`project-list-row group flex rounded-lg min-h-[4.5rem] items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Folder className="h-4 w-4" /></span>
+              <ProjectIcon repoUrl={item.repo_url} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{item.name}</span>
                 <span className="mt-1 block truncate text-xs text-muted-foreground">

@@ -532,6 +532,8 @@
   "Reload saved settings": "Muat ulang pengaturan tersimpan",
   "Discard your draft and reload saved settings?": "Buang draf dan muat ulang pengaturan tersimpan?",
   "Project changed elsewhere. Reload before saving.": "Project telah berubah di tempat lain. Muat ulang sebelum menyimpan.",
+  "GitHub repository": "Repositori GitHub",
+  "Project without a repository": "Proyek tanpa repositori",
   "Project repository": "Repositori proyek",
   "Connect a repository to keep this project’s files and version history together.": "Hubungkan repositori untuk menyimpan file dan riwayat perubahan proyek ini.",
   "Connected repository": "Repositori terhubung",
