@@ -415,7 +415,7 @@ export function App() {
   const handleSelectProject = (p?: Project) => {
     setActiveProject(p)
     if (p) {
-      navigate(`/projects/${p.id}/tasks`)
+      navigate(`/projects/${p.id}/settings`)
     } else {
       navigate('/projects')
     }
@@ -518,7 +518,7 @@ export function App() {
       ? projects.find((p) => p.id === subParam)
       : undefined
   const projectDetail = currentTab === 'projects' && !!subParam
-  const projectSettings = projectDetail && pathSegments[2] === 'settings'
+  const projectSettings = projectDetail && pathSegments[2] !== 'tasks'
   const settingTitles: Record<string, string> = {
     agents: 'Agents',
     integrations: 'Integrations',
@@ -754,7 +754,7 @@ export function App() {
               )}
             </section>
           ) : subParam && activeProject?.id === subParam ? (
-            pathSegments[2] === 'settings' ? (
+            pathSegments[2] !== 'tasks' ? (
               <ProjectsWorkspace
                 projects={projects}
                 project={activeProject}

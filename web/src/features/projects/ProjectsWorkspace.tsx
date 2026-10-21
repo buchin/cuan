@@ -1,10 +1,9 @@
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal, Plus } from 'lucide-react'
+import { Folder, Search, ChevronLeft, Settings, Archive, MoreHorizontal } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
-import { tasksForProject, workStatus } from '../tasks/task-ui'
 import { ProjectWorkView } from './ProjectWorkView'
 
 export function ProjectsWorkspace({
@@ -17,7 +16,6 @@ export function ProjectsWorkspace({
   error,
   onRetry,
   onArchiveProject,
-  onNewTask,
   settingsContent,
 }: {
   settingsContent?: ReactNode
@@ -47,22 +45,6 @@ export function ProjectsWorkspace({
       !!item.is_archived === archived &&
       item.name.toLowerCase().includes(query.toLowerCase().trim()),
   )
-  const summaries = useMemo(() => new Map(projects.map((item) => {
-    const work = tasksForProject(tasks, item.id)
-    const states = work.map(workStatus)
-    const latest = [item.updated_at, ...work.map((task) => task.updated_at)]
-      .filter((value) => Number.isFinite(Date.parse(value)))
-      .sort((a, b) => Date.parse(b) - Date.parse(a))[0]
-    return [item.id, {
-      count: work.length,
-      blocked: states.filter((state) => state === 'Needs attention' || state === 'Not running').length,
-      working: states.filter((state) => state === 'Working').length,
-      review: states.filter((state) => state === 'Ready for review').length,
-      completed: states.filter((state) => (state === 'Completed' || state === 'Answered')).length,
-      stopped: states.filter((state) => state === 'Not running').length,
-      latest,
-    }]
-  })), [projects, tasks])
   async function archive() {
     if (!project || !onArchiveProject || busy) return
     if (
@@ -124,14 +106,14 @@ export function ProjectsWorkspace({
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {visible.map((item) => (
             <ItemActions key={item.id} label={item.name} actions={[
-              { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
-              { label: 'Project settings', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
-              { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+              { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
+              { label: 'Activity', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+              { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/settings') },
               ...(onArchiveProject ? [{ label: item.is_archived ? 'Restore project' : 'Archive project', run: () => onArchiveProject(item.id, !item.is_archived) }] : []),
             ]}>
             <Link
               key={item.id}
-              to={`/projects/${encodeURIComponent(item.id)}/tasks`}
+              to={`/projects/${encodeURIComponent(item.id)}/settings`}
               aria-current={project?.id === item.id ? 'page' : undefined}
               className={`project-list-row group flex rounded-lg min-h-[4.5rem] items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
@@ -139,12 +121,7 @@ export function ProjectsWorkspace({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{item.name}</span>
                 <span className="mt-1 block truncate text-xs text-muted-foreground">
-                  {summaries.get(item.id)?.count || 0} {t(summaries.get(item.id)?.count === 1 ? 'task' : 'tasks')}
-                  {!!summaries.get(item.id)?.blocked ? <span className="text-amber-700 dark:text-amber-400"> · {summaries.get(item.id)?.blocked} {t('needs attention')}</span>
-                    : !!summaries.get(item.id)?.working ? <span className="text-primary"> · {summaries.get(item.id)?.working} {t('working')}</span>
-                    : !!summaries.get(item.id)?.review ? <> · {summaries.get(item.id)?.review} {t('in review')}</>
-                    : !!summaries.get(item.id)?.stopped ? <> · {summaries.get(item.id)?.stopped} {t('not running')}</>
-                    : !!summaries.get(item.id)?.completed ? <> · {summaries.get(item.id)?.completed} {t('completed')}</> : null}
+                  {String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))}
                 </span>
               </span>
             </Link>
@@ -201,8 +178,8 @@ export function ProjectsWorkspace({
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {settingsContent && <Link className="action-secondary text-sm" to={`/projects/${encodeURIComponent(project.id)}/tasks`}>{t('Tasks')}</Link>}
-                {onNewTask && !settingsContent && !project.is_archived && <button className="action-primary min-h-11 gap-1.5 px-3 text-sm" onClick={onNewTask}><Plus className="h-4 w-4" />{t('New task')}</button>}
+                {settingsContent && <Link className="action-secondary text-sm" to={`/projects/${encodeURIComponent(project.id)}/tasks`}>{t('Activity')}</Link>}
+                {!project.is_archived && <Link className="action-primary min-h-11 px-3 text-sm" to="/studio">{t('Ask Cuan')}</Link>}
                 <details className="relative">
                   <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
                   <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
@@ -232,7 +209,7 @@ export function ProjectsWorkspace({
         ) : (
           <div className="flex h-full items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
             <Folder className="h-6 w-6" />
-            <p>{t('Select a project to view its tasks.')}</p>
+            <p>{t('Select a project to view its settings.')}</p>
           </div>
         )}
       </div>
