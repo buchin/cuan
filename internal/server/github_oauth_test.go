@@ -88,16 +88,14 @@ func TestGitHubOAuthBrowserBoundExchange(t *testing.T) {
 		t.Fatal("callback replay exchanged code twice")
 	}
 }
-func TestGitHubOAuthUnavailableAndSafeReturn(t *testing.T) {
-	s, token := setupTestChatServer(t)
-	t.Setenv("CUAN_GITHUB_CLIENT_ID", "")
-	request := httptest.NewRequest("POST", "/api/v1/integrations/github/oauth", strings.NewReader(`{}`))
-	request.Header.Set("Authorization", "Bearer "+token)
-	response := httptest.NewRecorder()
-	s.Router().ServeHTTP(response, request)
-	if response.Code != 503 {
-		t.Fatal("unconfigured OAuth advertised")
+func TestGitHubOAuthNoConfigurationUsesDeviceAndSafeReturn(t *testing.T) {
+	_, call, _, _ := deviceLoginFixture(t)
+	response := call("POST", "/api/v1/integrations/github/oauth")
+	device := decodeDevice(t, response)
+	if device.ID == "" {
+		t.Fatal("missing built-in sign-in")
 	}
+
 	for _, path := range []string{"https://example.com", "//example.com", "/tasks/x?redirect=external", "/settings"} {
 		if githubTaskReturn(path) != "" {
 			t.Fatal("unsafe task return accepted", path)

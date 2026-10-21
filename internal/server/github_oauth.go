@@ -62,11 +62,18 @@ func (s *Server) handleGitHubOAuth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	client, _, callback, configured := githubOAuthConfig()
 	if r.Method == "GET" {
-		respondJSON(w, 200, map[string]any{"configured": configured})
+		response := map[string]any{"configured": true, "oauth_configured": configured, "method": "github_cli"}
+		if configured {
+			response["method"] = "oauth"
+		}
+		if job := s.existingGitHubDeviceLogin(owner); job != nil {
+			response["device_login"] = job.snapshot()
+		}
+		respondJSON(w, 200, response)
 		return
 	}
 	if !configured {
-		respondJSONError(w, 503, "GitHub sign-in is not configured for this installation.")
+		s.beginGitHubDeviceLogin(w, r, owner)
 		return
 	}
 	var body struct {

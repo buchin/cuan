@@ -79,6 +79,7 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				s.inboxStopping.Store(true)
+				s.cancelGitHubDeviceOwner("")
 				s.inboxCancels.Range(func(_, v any) bool { v.(context.CancelFunc)(); return true })
 				return
 			case <-tick.C:

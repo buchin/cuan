@@ -184,3 +184,32 @@ this explicitly (for example with another verified no-reply address). Identity
 is passed only to the task process; no global Git config is overwritten.
 Legacy standalone runners require explicit identity configuration. This automatic
 identity change is deployed in release f40909a.
+
+## GitHub CLI browser sign-in candidate
+
+The default unconfigured installation now has a candidate `gh auth login --web`
+flow behind **Sign in with GitHub**. The UI displays GitHub's one-time device
+code, links to github.com/login/device, polls for completion, and shows the
+connected account automatically. The owner approves access on GitHub; no personal
+access token or Cuan OAuth App configuration is required for this path. GitHub
+identifies this authorization as GitHub CLI. Its normal OAuth scopes apply; this
+is not a repository-selective GitHub App installation.
+
+Each login uses a temporary private HOME and GH_CONFIG_DIR, with an allowlisted
+subprocess environment. Ambient GH_TOKEN, GITHUB_TOKEN, Fural credentials, SSH
+agent and global gh configuration are never inherited. After verification, Cuan
+stores the token encrypted in its existing owner connection and removes the
+temporary profile. Cancel/disconnect prevent a pending login from saving later.
+Reload resumes the same pending job while the server is running. Restarted or
+expired login jobs need a new sign-in; saved project/task approvals remain intact.
+
+Linux amd64/arm64 installations without gh download the official stable CLI to
+Cuan's private runtime bin directory. The release archive is checked against its
+published SHA256 before installing only the expected binary. Other platforms
+need gh available in PATH. Existing explicitly configured OAuth Apps and manual
+advanced connections remain supported.
+
+Targeted tests cover isolation, single pending login, code transport, encrypted
+storage, late cancellation, owner-only status, disconnect, private cleanup, CLI
+cache and checksum rejection. Native provider/browser validation is still required
+before this candidate can be reported as a working production connection.

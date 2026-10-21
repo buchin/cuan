@@ -82,6 +82,8 @@ type Server struct {
 	taskAgentGrants        sync.Map
 	taskAgentURL           string
 	inboxCancels           sync.Map
+	githubDeviceMu         sync.Mutex
+	githubDeviceJobs       map[string]*githubDeviceLogin
 	roomEventBroker        *RoomEventBroker
 	terminalManager        *terminal.Manager
 	terminalHandler        *terminal.Handler
@@ -1543,6 +1545,8 @@ func (s *Server) routes() {
 			pr.Patch("/auth/username", s.handleUsername)
 			pr.Get("/integrations/github/oauth", s.handleGitHubOAuth)
 			pr.Post("/integrations/github/oauth", s.handleGitHubOAuth)
+			pr.Get("/integrations/github/device/{loginID}", s.handleGitHubDeviceLogin)
+			pr.Post("/integrations/github/device/{loginID}/cancel", s.handleGitHubDeviceLogin)
 			pr.Get("/integrations/github", s.handleGitHubConnection)
 			pr.Put("/integrations/github", s.handleGitHubConnection)
 			pr.Delete("/integrations/github", s.handleGitHubConnection)

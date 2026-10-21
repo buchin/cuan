@@ -31,6 +31,9 @@ func (s *Server) handleGitHubConnection(w http.ResponseWriter, r *http.Request) 
 		respondJSONError(w, 503, "GitHub connection storage is unavailable.")
 		return
 	}
+	if r.Method == http.MethodDelete || r.Method == http.MethodPut {
+		s.cancelGitHubDeviceOwner(owner)
+	}
 	githubConnectionMu.Lock()
 	defer githubConnectionMu.Unlock()
 	switch r.Method {
