@@ -1,0 +1,9 @@
+{
+  "accountId": "acct_c033fb0ffc63fbd90105b1c88c52a06a",
+  "state": "quota_limited",
+  "credentialsPresent": true,
+  "lastCheckedAt": "2026-10-21T03:51:06.863569679Z",
+  "message": "Antigravity provider quota is limited. Credentials are saved. Wait for the quota to reset and verify again. Signing in to Google again does not increase quota.",
+  "source": "dedicated staging Cuan verification API",
+  "productionRequestsReplayed": false
+}

@@ -560,3 +560,21 @@ which retains a prior same-conversation task project for follow-ups without an
 explicit project name and provides original authorization/execution state.
 Targeted project scope tests pass in the clean release. Actual native GitHub
 continuation has not yet been repeated on that correction; full goal stays open.
+
+## Native model recovery checkpoint
+
+Staging876358e adds installed-CLI catalog filtering, explicit unknown availability
+and recognition of native error_message lifecycle events. Actual no-tool quota
+failure now safely advances to the next permitted model; native proof is in
+../evidence/native-model-routing/fallback.json. The next model failed with the
+provider's location restriction. Original approved GitHub task remains intact,
+with one task and only the original failed preparation attempt. Sonnet/GPT-OSS
+quota and Gemini region restrictions currently prevent complete verification;
+a tiny Opus success did not extend to the actual continuation prompt.
+
+Production activation was refused by its guard while task attempt
+att_daa1f32faead20bcaf68157842fa9cc7 remained running with a renewing lease.
+Production remains79c04c0. No process was stopped and no production inference
+was run for verification. Further native work needs a usable dedicated account
+route; the user was offered another test account or waiting for quota recovery.
+The full goal remains incomplete.
