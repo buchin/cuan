@@ -165,16 +165,16 @@ export function InboxActivity({
           )}
         </div>
       )}
-      <div className={bubble || compact ? "grid grid-cols-[6rem_minmax(0,1fr)] items-start gap-x-2" : "flex items-start gap-2"}>
+      <div className={bubble || compact ? "relative min-w-0" : "flex items-start gap-2"}>
         <details
-          className={bubble || compact ? "group/response contents" : "group/response min-w-0 flex-1"}
+          className={bubble || compact ? "group/response block min-w-0 w-full" : "group/response min-w-0 flex-1"}
           onToggle={(event) => setExpanded(event.currentTarget.open)}
         >
           <summary
             className={
               compact
-                ? 'col-start-1 row-start-1 inline-flex min-h-11 cursor-pointer list-none items-center gap-1 px-1 text-xs text-muted-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
-                : 'col-start-1 row-start-1 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
+                ? 'inline-flex min-h-11 cursor-pointer list-none items-center gap-1 px-1 text-xs text-muted-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
+                : 'flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
             }
           >
             {compact && (
@@ -219,7 +219,7 @@ export function InboxActivity({
             )}
           </summary>
           {expanded && (
-            <div className="col-span-2 row-start-2 mt-1 min-w-0 space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+            <div className="mt-1 w-full min-w-0 space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
               <p className="font-medium">
                 {q.state === 'completed'
                   ? q.agent_id
@@ -400,7 +400,7 @@ export function InboxActivity({
           <button
             type="button"
             disabled={cancelling}
-            className="col-start-2 row-start-1 inline-flex min-h-11 shrink-0 items-center justify-self-start gap-1 px-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="absolute right-0 top-0 inline-flex min-h-11 shrink-0 items-center justify-self-start gap-1 px-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
             onClick={async () => {
               setCancelling(true)
               setError('')

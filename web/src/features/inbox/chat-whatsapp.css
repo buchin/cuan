@@ -81,3 +81,13 @@
 .dark .inbox-search, .dark .app-page-header { background: #1a1a1a; }
 
 .message-actions .wa-message-bubble { max-width: 100%; }
+
+/* Message actions never reserve a permanent column beside the bubble. */
+@media (hover: hover) and (pointer: fine) {
+  .message-actions:hover .message-menu-trigger,
+  .message-actions:focus-within .message-menu-trigger {
+    opacity: 1;
+    pointer-events: auto;
+    background: var(--wa-incoming);
+  }
+}

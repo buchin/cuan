@@ -776,6 +776,12 @@ export function InboxView({
                           month: 'long',
                           year: 'numeric',
                         })
+
+                const quoteMessage = () => {
+                  const quote = (msg.content || msg.message).split('\n').map(line => '> ' + line).join('\n')
+                  setInputMessage(current => (current ? current + '\n\n' : '') + quote + '\n\n')
+                  textareaRef.current?.focus()
+                }
                 const metadata = (
                   <span className="wa-message-meta">
                     <time dateTime={msg.created_at}>
@@ -811,13 +817,9 @@ export function InboxView({
                         {dayLabel}
                       </time>
                     )}
-                    <ItemActions subtle label={t('Message') + ' ' + String(msg.id || index + 1)} actions={[
+                    <ItemActions subtle swipeAction={{ label: 'Quote message', previewLabel: 'Reply', run: quoteMessage }} label={t('Message') + ' ' + String(msg.id || index + 1)} actions={[
                       { label: 'Copy message', run: () => navigator.clipboard.writeText(msg.content || msg.message) },
-                      { label: 'Quote message', run: () => {
-                        const quote = (msg.content || msg.message).split('\n').map(line => '> ' + line).join('\n')
-                        setInputMessage(current => (current ? current + '\n\n' : '') + quote + '\n\n')
-                        textareaRef.current?.focus()
-                      } },
+                      { label: 'Quote message', run: quoteMessage },
                       { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(activeContact.conversation_id || activeContact.id) + (msg.uuid ? '?message=' + encodeURIComponent(msg.uuid) : '')) },
                     ]}>
                     <div
