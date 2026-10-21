@@ -633,3 +633,19 @@ No AI call or execution is introduced for this status explanation. Existing
 cancellation tests also verify the outcome and reject foreign room/agent state.
 Failed Inbox bubbles with check-status recovery display the server's safe_error
 instead of hiding the specific failure behind a generic stopped-reply message.
+
+## Current-release native GitHub continuation
+
+Dedicated staging was upgraded to5e0fe9a with checksum verification, private DB
+and state backups, unchanged configuration, schema25 readiness and no migrations.
+The first packaging attempt lacked the installer-required cuan-migrate binary and
+failed before activation; the complete checked package installed successfully.
+
+One Inbox continuation of the original approved scope produced request
+8a840df7-2ca4-4e4d-92ad-5f5d00d76388: Opus quota, Sonnet quota, then Gemini location
+restriction. All routes stopped without tool execution. The canonical response
+still contains exactly one task and original attempt att_78cde330a57d6e52a8146f6b90849c7c.
+No commit, push or successful native delivery is claimed. See
+../evidence/native-model-routing/current-release-blocker.json. This is an external
+provider prerequisite; do not repeatedly replay the work, reconnect already-saved
+Google/GitHub credentials, or replace native delivery with manual developer work.
