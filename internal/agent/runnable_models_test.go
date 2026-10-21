@@ -58,6 +58,17 @@ printf 'gemini-current\tCurrent Gemini\nclaude-sonnet-current\tSonnet\nrandom-in
 	if _, ok := nativeAccountModelCatalog(context.Background(), "owner", a.ID); !ok {
 		t.Fatal("active task made a second session lose its supported catalog")
 	}
+	nativeCatalogCache.Lock()
+	for key, entry := range nativeCatalogCache.entries {
+		if strings.HasPrefix(key, home+"\x00") {
+			entry.at = time.Now().Add(-25 * time.Hour)
+			nativeCatalogCache.entries[key] = entry
+		}
+	}
+	nativeCatalogCache.Unlock()
+	if _, ok := nativeAccountModelCatalog(context.Background(), "owner", a.ID); ok {
+		t.Fatal("catalog older than24hours reused while busy")
+	}
 	data, _ := os.ReadFile(filepath.Join(home, "catalog-calls"))
 	if strings.Count(string(data), "called") != 1 {
 		t.Fatal("catalog was not cached")

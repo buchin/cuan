@@ -578,3 +578,14 @@ Production remains79c04c0. No process was stopped and no production inference
 was run for verification. Further native work needs a usable dedicated account
 route; the user was offered another test account or waiting for quota recovery.
 The full goal remains incomplete.
+
+## Terminal input follow-up
+
+User requested input enabled by default and a working mobile keyboard button.
+Candidated030a0b uses interactive handshake mode, applies the acknowledged mode
+and focuses within the keyboard click. Three-size isolated WebSocket checks pass;
+no input reached production. Physical-device keyboard visibility remains pending.
+The user screenshot shows the existing production task terminal waiting after a
+quota error, despite status Working. This is distinct from a running model call.
+Deployment remains guarded while that session is open; a specific approval to
+end it was requested after the candidate was built and verified.
