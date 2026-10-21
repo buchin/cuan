@@ -71,6 +71,26 @@ func TestInboxProjectScopeSnapshotAndWorkspace(t *testing.T) {
 	if dir != repo {
 		t.Fatal("future message changed project")
 	}
+	// A prior same-conversation task anchors a follow-up that omits its name.
+	_, e = s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: "alpha", Title: "Bound work", SourceRoomID: room, SourceMessageID: msg.ID})
+	if e != nil {
+		t.Fatal(e)
+	}
+	follow := db.ProjectMessage{ID: db.GenerateUUID(), RoomID: room, AuthorType: "user", Content: "Continue the approved work", CreatedAt: time.Now().Add(time.Minute)}
+	s.projectStudioRepo.CreateMessage(ctx, &follow)
+	followQ := db.InboxRequest{RoomID: room, MessageID: follow.ID}
+	dir, _ = s.inboxProjectContext(ctx, followQ)
+	if dir != repo {
+		t.Fatal("follow-up lost bound project", dir)
+	}
+	// An explicit different project still takes precedence over retained context.
+	follow.Content = "inspect beta"
+	explicit := db.ProjectMessage{ID: db.GenerateUUID(), RoomID: room, AuthorType: "user", Content: follow.Content, CreatedAt: follow.CreatedAt}
+	s.projectStudioRepo.CreateMessage(ctx, &explicit)
+	_, snapshot = s.inboxProjectContext(ctx, db.InboxRequest{RoomID: room, MessageID: explicit.ID})
+	if !strings.Contains(snapshot, "beta [beta]") {
+		t.Fatal("explicit project overridden", snapshot)
+	}
 	// Project rooms stay pinned even when another project is named in the message.
 	pinned := db.GenerateUUID()
 	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: pinned, ProjectID: "alpha", Title: "Project", Topic: "discussion"})

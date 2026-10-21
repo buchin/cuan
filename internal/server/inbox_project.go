@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -41,9 +42,11 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			return "", "Could not read the target message to select a project."
 		}
 		text := ""
+		var targetAt time.Time
 		for _, m := range messages {
 			if m.ID == q.MessageID {
 				text = m.Content
+				targetAt = m.CreatedAt
 			}
 		}
 		words := " " + strings.Join(strings.FieldsFunc(strings.ToLower(text), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-' }), " ") + " "
@@ -61,8 +64,29 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		}
 		if len(matches) == 1 {
 			selected = matches[0]
-		} else if len(matches) == 0 && len(active) == 1 {
-			selected = active[0]
+		} else if len(matches) == 0 && !targetAt.IsZero() {
+			// A follow-up need not repeat the project name. Use only prior work
+			// bound to this conversation, never another room or a future task.
+			bound := map[string]bool{}
+			if s.taskSvc != nil {
+				if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: q.RoomID}); err == nil {
+					for _, item := range tasks {
+						if item.SourceRoomID == q.RoomID && !item.CreatedAt.After(targetAt) {
+							bound[item.ProjectID] = true
+						}
+					}
+				}
+			}
+			if len(bound) == 1 {
+				for _, p := range active {
+					if bound[p.ID] {
+						selected = p
+					}
+				}
+			}
+			if selected == nil && len(bound) == 0 && len(active) == 1 {
+				selected = active[0]
+			}
 		}
 	}
 	if selected == nil {
@@ -91,7 +115,16 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			}
 			fmt.Fprintf(&b, "Project backlog: %d tasks; up to 40 most recent.\n", total)
 			for _, t := range items {
-				row, _ := json.Marshal(map[string]string{"id": t.ID, "title": truncateProjectText(t.Title, 300), "status": t.Status, "priority": t.Priority})
+				fields := map[string]string{"id": t.ID, "title": truncateProjectText(t.Title, 300), "status": t.Status, "priority": t.Priority}
+				if t.SourceRoomID == q.RoomID {
+					fields["authorization_message_id"] = t.SourceMessageID
+					fields["summary"] = truncateProjectText(t.Summary, 1500)
+					if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil {
+						fields["execution_state"] = string(detail.LatestAttempt.Status)
+						fields["execution_error"] = truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000)
+					}
+				}
+				row, _ := json.Marshal(fields)
 				b.Write(row)
 				b.WriteByte('\n')
 			}
