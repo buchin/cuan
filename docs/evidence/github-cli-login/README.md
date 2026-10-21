@@ -24,3 +24,14 @@ CLI cache, exact archive entry and checksum rejection. These fixtures prove
 those boundaries, not real GitHub account authorization.
 
 See native-device.json and production-device.json for the verification scope.
+
+## Completed owner connection — 2026-10-21
+
+A later real owner sign-in completed successfully. Authenticated production GETs
+confirm connected account buchin and 89 readable repositories across two pages,
+including 31 private repositories and private buchin/cuan. See
+production-connected.json. This used Cuan's saved encrypted connection through
+its own repository endpoint, not ambient developer/Fural credentials. No task
+was replayed, repository modified, or production inference invoked. The old
+pre-release device job returns404; that does not invalidate the saved connection.
+Task-level clone/commit/push and continuation remain distinct unverified outcomes.

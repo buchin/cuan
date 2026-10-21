@@ -19,8 +19,11 @@ sign-in processes before switching, to avoid interrupting authorization.
 The earlier scoped GitHub CLI release `758f9f3` demonstrated a real device
 challenge from the production UI and reload resumption of the same login. That
 challenge expired without completed owner consent. The normal UI needs neither
-a Cuan OAuth App nor a manually created token. No connected GitHub account,
-private repository access or authorized repository continuation is claimed yet.
+a Cuan OAuth App nor a manually created token. A subsequent owner login is now
+saved successfully: authenticated production checks confirm account buchin and
+89 readable repositories, including 31 private repositories and private
+buchin/cuan. This proves saved connection and private repository listing access;
+it does not prove task-level clone/commit/push or authorized continuation.
 
 Read-only verification of the current production release passed at 390, 820 and
 1440 pixels: exact assets, existing message rendering and contextual CTA,
@@ -47,8 +50,7 @@ report review passed without implementation tools. Same-task interruption,
 cancellation, approval, report and artifact boundary tests passed. This remains
 separate evidence from the new first-attempt native download scenario.
 
-The full objective remains open: obtain real owner GitHub consent and verify
-private repository access/authorized continuation, verify fresh-live AI OAuth
+The full objective remains open: verify task-level GitHub delivery/authorized continuation and fresh-live AI OAuth
 onboarding from an empty account, and verify post-login setup through the actual fresh-account authorization flow. A controlled positive scenario alone does
 not prove every requirement or erase earlier failed scenarios.
 
@@ -61,7 +63,7 @@ not prove every requirement or erase earlier failed scenarios.
 | User-visible progress | Start, attachments and final reviewed result captured in the native scenario. Mid-execution progress forwarding has fixture coverage; a captured native intermediate progress report is not claimed. |
 | Production readiness | Full backend deployed at fb624e5, schema25 and health passed; read-only responsive UI and exact assets passed. No production inference/replay used. |
 | Fresh AI connection | Actual CLI reached Google OAuth from an empty isolated profile without manual theme selection. Full authorization and post-login completion remain unverified; preseeded settings are not claimed to survive the CLI rewrite. |
-| GitHub connection | Actual production device challenge and reload resumption verified. Owner consent, retained connection and private repo continuation remain unverified. |
+| GitHub connection | Actual production device challenge, saved owner-authorized connection and private repository listing verified. Task-level repository delivery/continuation remains unverified. |
 | Future integration design | Repository AGENTS.md links the approved integration principles: maintained official CLI where appropriate, simple UI, isolated credentials, explicit consent, documented API/SDK alternatives. |
 
 The overall goal remains open. The user confirmed that Google was already
@@ -70,8 +72,7 @@ provider-account API on 2026-10-21 succeeded using claude-sonnet-4-6 (see
 ../evidence/fresh-ai-oauth/existing-account-reverification.json). Existing-account
 readiness is therefore verified and is not a user-login blocker. A complete
 fresh-profile OAuth recording remains an evidence limitation, not a reason to
-ask the user to repeat a working connection. Real GitHub consent/private repo
-continuation remains unverified.
+ask the user to repeat a working connection. GitHub consent and private repository listing are now verified. Task-level GitHub delivery/continuation remains unverified.
 
 ## Earlier checkpoint — native recovery
 
