@@ -35,3 +35,17 @@ func TestTaskRecoveryContextPreservesProgressOnlyAndBoundsEvidence(t *testing.T)
 		t.Fatal("fixture must prove progress without summary")
 	}
 }
+
+func TestTaskRecoveryWithoutReportRequiresWorkspaceInspection(t *testing.T) {
+	detail := &task.TaskDetailResponse{LatestAttempt: &task.TaskAttempt{ID: "interrupted-without-report", Status: task.AttemptStatusFailed}}
+	got := taskRecoveryContext(detail)
+	for _, expected := range []string{"No progress report was saved", "inspect the existing task workspace", "preserve artifacts", "Never rebuild the deliverable in chat", "does not establish successful completion", "revision of this same task"} {
+		if !strings.Contains(got, expected) {
+			t.Errorf("missing recovery guard %q", expected)
+		}
+	}
+	detail.LatestAttempt.CancelRequested = true
+	if got := taskRecoveryContext(detail); !strings.Contains(got, "Do not revise or restart it automatically") {
+		t.Fatal("missing cancellation override")
+	}
+}

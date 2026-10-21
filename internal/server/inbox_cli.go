@@ -78,7 +78,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "170s", "--dangerously-skip-permissions", "--disable-slash-commands", "--output-format", "stream-json"}
+		args = []string{"-p", system, "--print-timeout", "170s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		if answerOnly {
 			args = []string{"-p", system, "--print-timeout", "20s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		}

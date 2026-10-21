@@ -38,6 +38,12 @@ func taskRecoveryContext(detail *task.TaskDetailResponse) string {
 	if len(reports) > 8 {
 		reports = reports[len(reports)-8:]
 	}
+	if len(reports) == 0 {
+		b.WriteString("No progress report was saved for this attempt. Missing reports do not prove that no work happened: inspect the existing task workspace and preserve artifacts before continuing. Never rebuild the deliverable in chat or provider HOME.\n")
+	}
+	if attempt.Status != task.AttemptStatusSucceeded {
+		b.WriteString("This attempt does not establish successful completion. Do not announce the work as finished based on process exit or prior claims. For an agent-fixable gap within approved scope, request a concrete revision of this same task, then inspect the new evidence.\n")
+	}
 	for _, a := range reports {
 		fmt.Fprintf(&b, "Reported progress (%s): %s\n", a.NewStatus, truncateProjectText(a.Message, 1000))
 	}

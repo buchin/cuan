@@ -94,7 +94,8 @@ func TestInboxCLIDeniedToolExplainedWithoutReplay(t *testing.T) {
 	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
 	script := `#!/bin/sh
 case "$*" in *--disable-slash-commands*) ;; *) exit 9;; esac
-case "$*" in *--dangerously-skip-permissions*) ;; *) exit 8;; esac
+case "$*" in *--dangerously-skip-permissions*) exit 8;; esac
+case "$*" in *"--mode plan --sandbox"*) ;; *) exit 6;; esac
 case "$2" in *"Read-only terminal commands"*) ;; *) exit 7;; esac
 printf x >> "$HOME/invocations"
 printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"run_command"}}' '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command","display_name":"private-path"}]}}'
