@@ -19,6 +19,7 @@ import (
 
 type inboxSchemaRetryKey struct{}
 type inboxAnalysisRecoveryKey struct{}
+type inboxCoordinatorDirectKey struct{}
 
 // boundedInboxOutput prevents noisy subprocesses exhausting server memory.
 // Live activity contains only application-owned labels, never stderr/reasoning.
@@ -67,9 +68,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
+	directCoordinator, _ := ctx.Value(inboxCoordinatorDirectKey{}).(bool)
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	system := inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nContext data:\n" + prompt
+	if directCoordinator {
+		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). If proposing a plan, fix, or next steps, you MUST emit an approval or task_draft action object matching the schema so the UI renders interactive choice buttons. Do not ask confirmation questions in plain text.\n\nContext data:\n" + prompt
+	}
 	if analysisRecovery {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
 	}
@@ -99,7 +104,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		args = []string{"-p", system, "--print-timeout", "45s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+		timeout := "45s"
+		if directCoordinator {
+			timeout = "25s"
+		}
+		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		if answerOnly {
 			args = []string{"-p", system, "--print-timeout", "20s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		}
@@ -191,12 +200,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
 		maxTools := 0
-		if coordinator {
+		if coordinator && !directCoordinator {
 			maxTools = 3
 		}
 		runtime = &inboxRuntimeStream{
-			step:         step,
-			maxToolCalls: maxTools,
+			step:          step,
+			maxToolCalls:  maxTools,
+			disallowTools: directCoordinator,
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()
@@ -282,12 +292,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
 			if step != nil {
-				step("response_recovery", "The previous tool attempt exceeded budget or returned no reply. Answering directly from conversation context.")
+				step("response_recovery", "The previous tool attempt exceeded budget or returned no reply. Answering directly from conversation context with structured actions.")
 			}
 			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
-			repairCtx = context.WithValue(repairCtx, inboxAnswerOnlyKey{}, true)
+			repairCtx = context.WithValue(repairCtx, inboxCoordinatorDirectKey{}, true)
 			recoverySafe := false
-			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt+"\n\nRecovery: A tool attempt did not return a response or exceeded the chat tool budget. Answer the target message directly using the supplied conversation, task evidence and recorded request outcomes without calling tools.", home, workspace, step, &recoverySafe, attachmentPaths...)
+			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, &recoverySafe, attachmentPaths...)
 			if err == "" && output != "" {
 				return output, ""
 			}

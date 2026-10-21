@@ -25,6 +25,7 @@ type inboxRuntimeStream struct {
 	seen                                    map[string]bool
 	step                                    func(string, string)
 	maxToolCalls                            int
+	disallowTools                           bool
 	toolCalls                               int
 	toolIndices                             map[int]bool
 	toolBudgetExceeded                      bool
@@ -180,6 +181,14 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				s.unsafeTool = true
 			}
 			if u.Tool != "finish" && u.Index != nil {
+				if s.disallowTools {
+					s.toolBudgetExceeded = true
+					s.emit("runtime_tool_budget_exceeded", "Tools are disallowed for this response stage. Finishing response.")
+					if s.cancel != nil {
+						s.cancel()
+					}
+					return
+				}
 				if s.toolIndices == nil {
 					s.toolIndices = make(map[int]bool)
 				}

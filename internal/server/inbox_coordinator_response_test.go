@@ -201,7 +201,7 @@ func TestCoordinatorToolBudgetRecovery(t *testing.T) {
 	// Script:
 	// Call 1: outputs 4 tools (exceeding max 3). Note: tool 4 triggers SIGKILL from cancel(),
 	// but if the shell continues it would output invalid.
-	// Call 2 (recovery): answerOnly response with simple answer.
+	// Call 2 (recovery): direct coordinator response with structured approval action.
 	script := `#!/bin/sh
 printf x >> "$HOME/calls"
 if [ "$(cat "$HOME/calls")" = x ]; then
@@ -218,7 +218,7 @@ FIRST
   sleep 10
 else
   cat <<'SECOND'
-{"event":"result","result":{"status":"SUCCESS","response":"Direct recovery answer without tools"}}
+{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Direct recovery answer\",\"topic_title\":\"\",\"action\":{\"kind\":\"approval\",\"payload\":{\"title\":\"Fix shortcut\",\"description\":\"Add keydown handler\",\"project_id\":\"default\"}}}"}}
 SECOND
 fi
 `
@@ -231,7 +231,7 @@ fi
 	safe := false
 	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "General question", home, t.TempDir(), nil, &safe)
 	calls, _ := os.ReadFile(filepath.Join(home, "calls"))
-	if out != "Direct recovery answer without tools" || failure != "" || !safe || string(calls) != "xx" {
-		t.Fatalf("expected direct recovery answer, got out=%q failure=%q safe=%v calls=%s", out, failure, safe, string(calls))
+	if failure != "" || !safe || string(calls) != "xx" || parseInboxApprovalPlan(out) == nil || !strings.Contains(out, "Direct recovery answer") {
+		t.Fatalf("expected direct recovery proposal with approval card, got out=%q failure=%q safe=%v calls=%s", out, failure, safe, string(calls))
 	}
 }
