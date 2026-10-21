@@ -190,8 +190,9 @@ export function StudioView({
               data-primary-composer
               id="studio-goal"
               ref={goalInput}
-              className="block min-h-36 max-h-80 md:min-h-44 w-full resize-none border-0 bg-transparent p-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
-              placeholder={t('Describe what you want to achieve…')}
+              rows={3}
+              className="block min-h-[104px] max-h-80 w-full resize-none border-0 bg-transparent p-4 text-base leading-6 outline-none placeholder:text-muted-foreground disabled:opacity-50"
+              placeholder={t('What would you like done?')}
               value={goal}
               maxLength={6000}
               disabled={busy}
