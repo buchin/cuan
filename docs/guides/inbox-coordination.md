@@ -35,6 +35,16 @@ Users receive useful progress and accessible results in Inbox. Task/session link
 are optional inspection paths. External blockers are explained with their impact
 and options; new scope requires approval.
 
+## Interrupted execution
+
+A failed managed task with exit 137 can continue automatically in its existing
+workspace using its original approval. This applies only while the task is blocked,
+was not cancelled and has fewer than three attempts. The durable launch path
+rechecks ownership, approved scope and active execution before starting. A
+concrete revision requires inspection of existing files, reconciliation of
+uncertain external effects and fresh acceptance evidence. Other failures go to
+coordinator review. Exhausted retries do not loop indefinitely.
+
 ## Verification status
 
 The live interruption scenario exposed coordinator implementation outside the

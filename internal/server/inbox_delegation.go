@@ -312,6 +312,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if origin == nil || origin.OwnerID == "" || origin.AgentID == "" {
 		return
 	}
+	if s.recoverInterruptedInboxTask(ctx, detail, *origin) {
+		return
+	}
 	key := "task-review:" + detail.LatestAttempt.ID
 	requestID := delegationMessageID(key)
 	for _, q := range requests {

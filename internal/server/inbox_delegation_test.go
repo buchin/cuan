@@ -46,7 +46,12 @@ func TestInboxDelegationManagedProject(t *testing.T) { runInboxDelegation(t, tru
 func TestInboxDelegationClearInstructionNeedsNoPlanningTurn(t *testing.T) {
 	runInboxDelegation(t, true, false, "Audit this project read-only and report the findings. Do not deploy.")
 }
+func TestInboxInterruptionResumesSameApprovedTask(t *testing.T) {
+	runInboxDelegation(t, true, true, "Build the approved audit and report evidence; do not deploy.", "interrupt")
+}
+
 func runInboxDelegation(t *testing.T, topic, managed bool, promptOverride ...string) {
+	interrupted := len(promptOverride) > 1 && promptOverride[1] == "interrupt"
 	s, token, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
@@ -78,6 +83,16 @@ case "$2" in
  *) target="${2##*Target message ID: }"; printf '%s' '` + string(raw) + `' | sed "s/AUTH/$target/g" ;;
 esac
 `
+	if interrupted {
+		script = strings.Replace(script, `if [ "$1" = "--dangerously-skip-permissions" ]; then`, `if [ "$1" = "--dangerously-skip-permissions" ]; then
+ if [ ! -f "$HOME/interrupted-once" ]; then
+  printf 'PRESERVED_TASK_ARTIFACT' > retained-before-interruption.txt
+  pwd > "$HOME/interruption-workspace"
+  touch "$HOME/interrupted-once"
+  exit 137
+ fi
+ grep -q PRESERVED_TASK_ARTIFACT retained-before-interruption.txt || exit 25`, 1)
+	}
 	if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +152,34 @@ esac
 	if err != nil || len(tasks) != 1 {
 		t.Fatal(tasks, err)
 	}
+	var retainedPath string
+	var retainedBefore os.FileInfo
+	if interrupted {
+		failed := waitWorkspaceTask(t, s, tasks[0].ID, "failed")
+		if failed.Summary != "" || failed.CompleteNote != "" {
+			t.Fatal("fixture must interrupt before final report")
+		}
+		workspace, err := os.ReadFile(filepath.Join(home, "interruption-workspace"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		retainedPath = filepath.Join(strings.TrimSpace(string(workspace)), "retained-before-interruption.txt")
+		retainedBefore, err = os.Stat(retainedPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.deliverInboxTaskUpdates(ctx)
+	}
 	result := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
+	if interrupted {
+		after, err := os.Stat(retainedPath)
+		if err != nil || !os.SameFile(retainedBefore, after) {
+			t.Fatal("existing artifact replaced", err)
+		}
+		if len(result.Attempts) != 2 {
+			t.Fatal("recovery did not continue same task", len(result.Attempts))
+		}
+	}
 	if managed {
 		p, err := s.projectSvc.Get(ctx, result.ProjectID)
 		if err != nil || p.Name != "Managed audit" || p.LocalPath == "" {
@@ -212,6 +254,9 @@ esac
 		if !strings.Contains(string(prompt), text) {
 			t.Fatal("missing relevant context", text)
 		}
+	}
+	if interrupted {
+		return
 	}
 	// A system result or foreign message cannot be used as user approval.
 	for _, id := range []string{delegationMessageID("task-review:" + result.LatestAttempt.ID + ":input"), db.GenerateUUID()} {
