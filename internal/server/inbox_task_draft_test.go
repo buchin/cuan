@@ -43,7 +43,7 @@ func TestInboxTaskDraftConversationAndConfirmation(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &first)
 	waitInboxState(t, s, first.Request.RoomID, firstID, "completed")
 	content := "Draft berdasarkan pembahasan.\n```cuan-task\n{\"title\":\"Perbaiki header chat mobile\",\"description\":\"Pertahankan hijau. Kriteria selesai: tidak overflow di 360px.\",\"project_id\":\"fixture-project\"}\n```"
-	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": content}})
+	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(content)}})
 	script := "#!/bin/sh\nprintf '%s' \"$2\" > \"$HOME/draft-prompt\"\nprintf '%s' '" + string(raw) + "'\n"
 	bin := strings.Split(os.Getenv("PATH"), ":")[0]
 	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
@@ -55,7 +55,7 @@ func TestInboxTaskDraftConversationAndConfirmation(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &accepted)
 	waitInboxState(t, s, accepted.Request.RoomID, id, "completed")
 	prompt, _ := os.ReadFile(filepath.Join(home, "draft-prompt"))
-	if !strings.Contains(string(prompt), "pertahankan warna hijau") || !strings.Contains(string(prompt), "cuan-task") {
+	if !strings.Contains(string(prompt), "pertahankan warna hijau") || !strings.Contains(string(prompt), "task_draft") {
 		t.Fatal("context/contract missing")
 	}
 	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{})

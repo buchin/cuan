@@ -77,7 +77,7 @@ func runInboxDelegation(t *testing.T, topic, managed bool, promptOverride ...str
 	if managed {
 		content = strings.Replace(content, `"project_id":"delegate-project"`, `"project_name":"Managed audit"`, 1)
 	}
-	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": content}})
+	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(content)}})
 	verified, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": `{"decision":"pass","explanation":"Audit finished. Evidence checked against the approved request; no changes or deployment.","revision":""}`}})
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then

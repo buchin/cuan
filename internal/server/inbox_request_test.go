@@ -42,7 +42,7 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 	}
 	bin := t.TempDir()
 	counter := filepath.Join(profileHome, "execution-count")
-	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\necho run >> \"$HOME/execution-count\"\nsleep 0.2\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"fixture-reply\"}}'\n"), 0700)
+	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\necho run >> \"$HOME/execution-count\"\nsleep 0.2\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"{\\\"reply\\\":\\\"fixture-reply\\\",\\\"topic_title\\\":\\\"\\\",\\\"action\\\":null}\"}}'\n"), 0700)
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s.cfg.Environment = "staging"

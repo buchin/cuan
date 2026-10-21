@@ -215,7 +215,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						q.SafeError = "Could not read conversation context. Your message is saved."
 					} else {
 						workspace, projectContext := s.inboxProjectContext(ctx, q)
-						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + s.inboxTopicTitleContext(ctx, q) + prompt
+						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + s.inboxCoordinatorTopicContext(ctx, q) + prompt
 						step("context", "Project context checked for analysis.")
 						var output, failure string
 						snapshotReview := false

@@ -99,7 +99,7 @@ func TestTopicTitlePreservesManualBindingTimeAndCadence(t *testing.T) {
 func TestInboxTopicTitleSavedWithUsefulReply(t *testing.T) {
 	s, _, call, _ := inboxFixture(t)
 	binary := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
-	script := "#!/usr/bin/env python3\nimport json\nprint(json.dumps({'event':'result','result':{'status':'SUCCESS','response':'Here is the useful answer.\\n```cuan-title\\n{\"title\":\"Preparing the release\"}\\n```'}}))\n"
+	script := "#!/usr/bin/env python3\nimport json\nprint(json.dumps({'event':'result','result':{'status':'SUCCESS','response':json.dumps({'reply':'Here is the useful answer.','topic_title':'Preparing the release','action':None})}}))\n"
 	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestInboxTopicTitleSavedWithUsefulReply(t *testing.T) {
 			t.Fatal("metadata leaked into reply", m.Content)
 		}
 	}
-	onlyMetadata := "#!/usr/bin/env python3\nimport json\nprint(json.dumps({'event':'result','result':{'status':'SUCCESS','response':'```cuan-title\\n{\"title\":\"Metadata must not rename\"}\\n```'}}))\n"
+	onlyMetadata := "#!/usr/bin/env python3\nimport json\nprint(json.dumps({'event':'result','result':{'status':'SUCCESS','response':json.dumps({'reply':'','topic_title':'Metadata must not rename','action':None})}}))\n"
 	if err := os.WriteFile(binary, []byte(onlyMetadata), 0700); err != nil {
 		t.Fatal(err)
 	}

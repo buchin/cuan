@@ -194,11 +194,11 @@ func TestApprovalAndCustomerNotifications(t *testing.T) {
 	s, token, call, _ := inboxFixture(t)
 	ctx := context.Background()
 	owner, _ := s.authSvc.ValidateToken(ctx, token)
-	content := "Proposed scope. Shall I proceed?\n```cuan-approval\n{\"title\":\"Approve the proposed scope\"}\n```"
+	content := "Proposed scope. Shall I proceed?\n```cuan-approval\n{\"title\":\"Approve the proposed scope\",\"description\":\"Review the proposed scope and report findings.\",\"project_id\":\"default\"}\n```"
 	if _, title := splitInboxApproval("user", content); title != "" {
 		t.Fatal("user text became agent approval")
 	}
-	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": content}})
+	raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(content)}})
 	script := "#!/bin/sh\nprintf '%s' '" + string(raw) + "'\n"
 	if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)

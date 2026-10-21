@@ -32,7 +32,7 @@ func runInboxPlanApproval(t *testing.T, deferFirst bool) {
 	plan := inboxApprovalPlan{Title: "Verify navigation", Description: "Read-only navigation audit. Report evidence. Do not modify or deploy.", ProjectID: "plan-project"}
 	encoded, _ := json.Marshal(plan)
 	content := "Here is the proposed audit.\n```cuan-approval\n" + string(encoded) + "\n```"
-	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": content}})
+	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(content)}})
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
  guide="${3##*Read the session guidance at }";guide="${guide% before proceeding.}"

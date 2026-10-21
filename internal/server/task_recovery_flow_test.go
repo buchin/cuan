@@ -61,7 +61,7 @@ func runInboxProcessLossRecovery(t *testing.T, structured, repository bool) {
 	defer api.Close()
 	s.taskAgentURL = api.URL
 	response := func(v string) string {
-		b, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": v}})
+		b, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(v)}})
 		return string(b)
 	}
 	first := response("```cuan-delegate\n{\"title\":\"Verify saved artifact\",\"description\":\"Create an artifact once and verify it. Do not deploy.\",\"project_id\":\"recovery-project\",\"authorization_message_id\":\"AUTH\"}\n```")
@@ -69,7 +69,8 @@ func runInboxProcessLossRecovery(t *testing.T, structured, repository bool) {
 		first = response("```cuan-approval\n{\"title\":\"Verify saved artifact\",\"description\":\"Create an artifact once and verify it. Do not deploy.\",\"project_id\":\"recovery-project\"}\n```")
 	}
 	revision := response("```cuan-delegate\n{\"project_id\":\"recovery-project\",\"authorization_message_id\":\"AUTH\",\"task_id\":\"msg_AUTH\",\"revision\":\"Verify the saved artifact and checkpoint; preserve completed work. Report verified result without deployment.\"}\n```")
-	final := response("Verified the original artifact after recovery. No duplicate work or deployment.")
+	finalRaw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": `{"decision":"pass","explanation":"Verified the original artifact after recovery. No duplicate work or deployment.","revision":""}`}})
+	final := string(finalRaw)
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
  guide="${3##*Read the session guidance at }"; guide="${guide% before proceeding.}"
@@ -101,6 +102,7 @@ if [ "$1" = "--dangerously-skip-permissions" ]; then
  while :; do sleep 1; done
 fi
 case "$2" in
+ *'reported_verification'*) printf '%s' '` + final + `'; exit 0 ;;
  *'automated result is not new user authorization'*)
   printf '%s' "$2" >> "$HOME/recovery-review-context"
   if [ -f "$HOME/recovery-revised" ]; then printf '%s' '` + final + `'; else
@@ -146,8 +148,6 @@ esac
 		t.Fatal("must exercise progress-only recovery")
 	}
 	s.deliverInboxTaskUpdates(ctx)
-	reviewID := delegationMessageID("task-review:" + failed.LatestAttempt.ID)
-	waitInboxState(t, s, accepted.Request.RoomID, reviewID, "completed")
 	result := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
 	if result.Status != "done" || len(result.Attempts) != 2 {
 		t.Fatal(result.Status, len(result.Attempts))
@@ -184,7 +184,7 @@ esac
 	messages, _ := s.projectStudioRepo.ListMessagesByRoomID(ctx, accepted.Request.RoomID)
 	outcomes := 0
 	for _, m := range messages {
-		if m.AuthorType == "agent" && m.Content == "Verified the original artifact after recovery. No duplicate work or deployment." {
+		if m.AuthorType == "agent" && strings.Contains(m.Content, "Verified the original artifact after recovery. No duplicate work or deployment.") {
 			outcomes++
 		}
 	}

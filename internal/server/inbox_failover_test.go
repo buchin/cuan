@@ -47,14 +47,14 @@ func setupFailoverFixture(t *testing.T) (*Server, string, *db.Agent, *agent.Prov
 	bin := t.TempDir()
 	script := `#!/bin/sh
 printf x >> "$HOME/calls"
-case "$2" in *"You are @main"*) ;; *) exit 9;; esac
+case "$2" in *"Your display name: @main"*) ;; *) exit 9;; esac
 if [ -f "$HOME/limited" ]; then
  if [ -f "$HOME/unsafe" ]; then printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"run_command"}}'; fi
  if [ -f "$HOME/read" ]; then printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"view_file"}}'; fi
  if [ -f "$HOME/auth" ]; then printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"invalid_grant private-token"}}';else printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"RESOURCE_EXHAUSTED private-token"}}';fi
  exit 3
 fi
-printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"Same agent backup answer"}}'
+printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Same agent backup answer\",\"topic_title\":\"\",\"action\":null}"}}'
 `
 	os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700)
 	installInboxSandboxStub(t, bin)

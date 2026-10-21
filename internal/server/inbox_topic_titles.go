@@ -203,3 +203,10 @@ func (s *Server) inboxTopicTitleContext(ctx context.Context, q db.InboxRequest) 
 	value, _ := json.Marshal(room.Title)
 	return "\nCurrent conversation display title: " + string(value) + "\n" + inboxTopicTitleInstruction + "\n"
 }
+
+// General coordinator turns carry title metadata in the validated JSON envelope.
+// Do not mix a legacy fenced-output instruction into that transport contract.
+func (s *Server) inboxCoordinatorTopicContext(ctx context.Context, q db.InboxRequest) string {
+	context := s.inboxTopicTitleContext(ctx, q)
+	return strings.Replace(context, inboxTopicTitleInstruction, "Use topic_title in the response envelope only if the conversation establishes a new main topic.", 1)
+}

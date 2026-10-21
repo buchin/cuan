@@ -164,7 +164,7 @@ p.write_text(str(n+1))
 prompt=sys.argv[2]
 if n==0:
  target=re.search(r'Target message ID: ([a-f0-9-]+)',prompt).group(1)
- response='` + "```cuan-search\\n" + `'+json.dumps({'query':'dinosaur','contact_id':'','authorization_message_id':target})+'` + "\\n```" + `'
+ response=json.dumps({'reply':'','topic_title':'','action':{'kind':'memory_search','payload':{'query':'dinosaur','contact_id':'','authorization_message_id':target}}})
 else:
  assert 'Read-only contact memory search results' in prompt and 'His child likes dinosaurs' in prompt and 'source_message_id' in prompt
  response='Budi: his child likes dinosaurs. Source: saved contact note.'
@@ -210,7 +210,7 @@ n=int(p.read_text()) if p.exists() else 0
 p.write_text(str(n+1))
 if n==0:
  target=re.search(r'Target message ID: ([a-f0-9-]+)',sys.argv[2]).group(1)
- response='` + "\x60\x60\x60cuan-search\\n" + `'+json.dumps({'query':'dinosaur','contact_id':'','authorization_message_id':target})+'` + "\\n\x60\x60\x60" + `'
+ response=json.dumps({'reply':'','topic_title':'','action':{'kind':'memory_search','payload':{'query':'dinosaur','contact_id':'','authorization_message_id':target}}})
  print(json.dumps({'event':'result','result':{'status':'SUCCESS','response':response}}))
 else:
  assert '--dangerously-skip-permissions' not in sys.argv and '--mode' in sys.argv

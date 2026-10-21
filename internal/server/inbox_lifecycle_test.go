@@ -23,7 +23,7 @@ func inboxFixture(t *testing.T) (*Server, string, func(string, string, string) *
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	bin := t.TempDir()
-	script := "#!/bin/sh\nif ! mkdir \"$HOME/active\" 2>/dev/null; then echo concurrent >> \"$HOME/overlap\"; exit 9; fi\ntrap 'rmdir \"$HOME/active\"' EXIT\nprintf '\\n---TURN---\\n%s\\n' \"$2\" >> \"$HOME/prompts\"\nsleep 0.15\nprintf '%s' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"FIXTURE answer\"}}' \n"
+	script := "#!/bin/sh\nif ! mkdir \"$HOME/active\" 2>/dev/null; then echo concurrent >> \"$HOME/overlap\"; exit 9; fi\ntrap 'rmdir \"$HOME/active\"' EXIT\nprintf '\\n---TURN---\\n%s\\n' \"$2\" >> \"$HOME/prompts\"\nsleep 0.15\nprintf '%s' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"{\\\"reply\\\":\\\"FIXTURE answer\\\",\\\"topic_title\\\":\\\"\\\",\\\"action\\\":null}\"}}' \n"
 	if e := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); e != nil {
 		t.Fatal(e)
 	}
@@ -254,7 +254,7 @@ func TestInboxLifecycleCancellationAndQueuedRecovery(t *testing.T) {
 	next := db.InboxRequest{RoomID: first.RoomID, OwnerID: stored[0].OwnerID, AgentID: "agent_lifecycle", RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: time.Now(), Deadline: time.Now().Add(time.Hour)}
 	repo := s.projectStudioRepo.(db.InboxRequestRepository)
 	repo.AcceptInboxRequest(context.Background(), next, &db.ProjectMessage{ID: next.MessageID, RoomID: next.RoomID, Content: "queued before restart", AuthorType: "user", CreatedAt: next.CreatedAt})
-	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '%s' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"recovered fixture\"}}' \n"), 0700)
+	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '%s' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"{\\\"reply\\\":\\\"recovered fixture\\\",\\\"topic_title\\\":\\\"\\\",\\\"action\\\":null}\"}}' \n"), 0700)
 	s.drainInboxRoom(first.RoomID)
 	waitInboxState(t, s, first.RoomID, next.RequestID, "completed")
 }

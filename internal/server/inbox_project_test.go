@@ -90,14 +90,16 @@ func TestInboxProjectScopeSnapshotAndWorkspace(t *testing.T) {
 
 func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
 	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
-	script := "#!/bin/sh\npython3 - \"$*\" <<'PY'\nimport os,sys,json\nprint(json.dumps({'event':'result','result':{'status':'SUCCESS','response':os.environ['HOME']+'\\n'+os.getcwd()+'\\n'+sys.argv[1]}}))\nPY\n"
+	script := "#!/bin/sh\npython3 - \"$*\" <<'PY'\nimport os,sys,json\nopen(os.path.join(os.environ['HOME'],'cli-args'),'w').write(sys.argv[1])\nprint(json.dumps({'event':'result','result':{'status':'SUCCESS','response':json.dumps({'reply':os.environ['HOME']+'\\n'+os.getcwd(),'topic_title':'','action':None})}}))\nPY\n"
 	os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700)
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s, _ := setupTestChatServer(t)
 	s.cfg.Environment = "staging"
 	out, failure := s.executeInboxCLI(context.Background(), "pin2", "agy", "Inspect README", home, workspace, nil)
-	if failure != "" || !strings.HasPrefix(out, home+"\n"+workspace+"\n") || !strings.Contains(out, "--dangerously-skip-permissions --disable-slash-commands") || strings.Contains(out, "--mode plan") || strings.Contains(out, "--sandbox") || !strings.Contains(out, "Read-only terminal commands") || strings.Contains(out, "Do not use run_command") {
+	args, _ := os.ReadFile(filepath.Join(home, "cli-args"))
+	argText := string(args)
+	if failure != "" || out != home+"\n"+workspace || strings.Contains(argText, "--dangerously-skip-permissions") || !strings.Contains(argText, "--mode plan") || !strings.Contains(argText, "--sandbox") || !strings.Contains(argText, "--json-schema") || !strings.Contains(argText, "Do not use terminal") {
 		t.Fatal(out, failure)
 	}
 }
