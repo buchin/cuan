@@ -280,6 +280,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	}
 	payload.Binary = expectedBinary
 	selectedModel := ""
+	selectedAccountID := ""
 	routeNote := ""
 	routeRelease := func() {}
 	routeLaunched := false
@@ -311,6 +312,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		}
 		profileHome = selected.home
 		selectedModel = selected.model
+		selectedAccountID = selected.accountID
 		source := "primary account"
 		if !selected.primary {
 			source = "allowed backup account"
@@ -508,10 +510,19 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			reportCleanup()
 		}
 	}()
+	launchSettled := make(chan struct{})
+	defer close(launchSettled)
 	var output *taskOutputRecorder
 	if attempt != nil {
 		output = newTaskOutputRecorder(s.taskSvc, attempt.ID)
 		output.secrets = append(output.secrets, reportToken)
+		output.onQuota = func() {
+			<-launchSettled
+			if selectedAccountID != "" {
+				_ = agent.RecordProviderModelQuota(ownerID, selectedAccountID, selectedModel)
+			}
+			_ = s.terminalManager.StopQuotaAttempt(taskID, attempt.ID)
+		}
 	}
 	// 3. Spawn PTY process via Manager
 	runCfg := terminal.TaskAgentRunConfig{
@@ -549,14 +560,14 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 			if attempt != nil && s.taskSvc != nil {
 				state := task.AttemptStatusFailed
-				if h.ExitCode == 0 || h.EndReason == "agent_report" {
+				if (h.ExitCode == 0 && h.EndReason != "provider_quota") || h.EndReason == "agent_report" {
 					state = task.AttemptStatusSucceeded
 				}
 				note := output.failureNote()
 				if h.EndReason == "agent_report" {
 					note = ""
 				}
-				if h.ExitCode == 0 {
+				if h.ExitCode == 0 && h.EndReason != "provider_quota" {
 					ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
 					if e != nil || !ready {
 						note = "No review-ready result was recorded. Check the agent report and saved output."

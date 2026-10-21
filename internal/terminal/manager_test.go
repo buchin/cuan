@@ -326,3 +326,35 @@ func TestManagerExecutionOwnershipSurvivesReconstruction(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+func TestManagerStopsOnlyMatchingQuotaAttempt(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nwhile :; do sleep .1; done\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	mgr := NewManager(ManagerConfig{WorkspacesDir: t.TempDir()})
+	defer mgr.CloseAll()
+	exits := make(chan *TaskRunHistory, 1)
+	_, err := mgr.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "quota-task", AttemptID: "current", Command: "agy", WorkDir: t.TempDir(), OnExit: func(h *TaskRunHistory) { exits <- h }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mgr.StopQuotaAttempt("quota-task", "old") {
+		t.Fatal("stale attempt stopped current work")
+	}
+	if !mgr.StopQuotaAttempt("quota-task", "current") {
+		t.Fatal("quota attempt not stopped")
+	}
+	select {
+	case h := <-exits:
+		if h.EndReason != "provider_quota" || h.Status != "failed" {
+			t.Fatal(h)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("quota process not terminated")
+	}
+	if mgr.StopQuotaAttempt("quota-task", "current") {
+		t.Fatal("duplicate quota stop accepted")
+	}
+}

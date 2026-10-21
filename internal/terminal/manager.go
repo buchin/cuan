@@ -486,7 +486,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		history.FinishedAt = time.Now().UTC()
 		history.DurationMs = history.FinishedAt.Sub(history.StartedAt).Milliseconds()
 		history.ExitCode = exitCode
-		if exitCode == 0 || history.EndReason == "agent_report" {
+		if (exitCode == 0 && history.EndReason != "provider_quota") || history.EndReason == "agent_report" {
 			history.Status = "completed"
 		} else {
 			history.Status = "failed"
@@ -518,6 +518,27 @@ func (m *Manager) FinishReportedSession(taskID, attemptID string, acceptedAt tim
 		return false
 	}
 	h.EndReason = "agent_report"
+	delete(m.sessions, taskID)
+	m.mu.Unlock()
+	_ = sess.Close()
+	return true
+}
+
+// StopQuotaAttempt closes only the attempt whose output reported a usage limit.
+func (m *Manager) StopQuotaAttempt(taskID, attemptID string) bool {
+	m.mu.Lock()
+	runs := m.histories[taskID]
+	sess := m.sessions[taskID]
+	if len(runs) == 0 || sess == nil {
+		m.mu.Unlock()
+		return false
+	}
+	h := runs[len(runs)-1]
+	if h.AttemptID != attemptID || h.SessionID != sess.ID() || h.Status != "running" {
+		m.mu.Unlock()
+		return false
+	}
+	h.EndReason = "provider_quota"
 	delete(m.sessions, taskID)
 	m.mu.Unlock()
 	_ = sess.Close()

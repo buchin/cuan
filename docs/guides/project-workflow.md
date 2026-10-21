@@ -58,3 +58,9 @@ or prefer Sonnet based on quota numbers. Connection verification follows the sam
 default path. An explicitly selected model is still respected. Allowed model and
 account fallback are separate settings; switching is only attempted after a
 failure that can be safely repeated, with no overlapping work.
+
+Native task terminals also detect the provider's explicit Individual quota reached
+warning. Cuan stops only that matching attempt, records the account/model cooldown
+and retains the output and workspace for coordinator review. It does not treat the
+stop as completion or immediately replay uncertain work. Other quota mentions in
+ordinary progress text do not trigger this warning detector.
