@@ -9,7 +9,7 @@ does not establish the whole goal.
 
 ## Current checkpoint — 2026-10-21, production workflow release
 
-Production runs `37845e365575bb3b7394a515ef66f090796eb3c8`/schema25, following
+Production runs `9fecf67430bf59eb0894bd1c45e9d8e9c8f71174`/schema25, following
 the full workflow release tagged `goal-workflow-20261021`. The full typed coordinator, canonical report
 evaluator, same-task interruption recovery and private task artifact delivery are
 now deployed. Health and private pre-release database backup checks passed;
@@ -540,3 +540,14 @@ Settings/Activity tabs, Settings default, New project on the list only, and no
 Ask Cuan/New task on project detail. Production37845e3 and responsive read-only
 checks pass; see projects-settings-first/project-tabs.json. Native GitHub
 continuation remains unfinished and is not superseded by this UI delivery.
+
+## Contextual creation and storage follow-up
+
+User-approved contextual creation actions share the desktop secondary-list
+placement across Projects, Contacts and Inbox, with mobile/tablet header actions.
+Production9fecf67 and nine responsive browser checks passed; see
+../evidence/list-create-pattern/production.json. A failed upload exposed a full
+shared VPS. Corrected Nginx log rotation and release retention restored8.6GB
+free without removing application data or backups; see
+../operations/storage-retention.md. Native GitHub same-task continuation remains
+unfinished; these changes do not establish overall goal completion.

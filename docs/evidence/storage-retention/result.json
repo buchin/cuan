@@ -1,0 +1,19 @@
+{
+  "productionRootGB": 40,
+  "productionAvailableBeforeMB": 458,
+  "productionAvailableAfterGB": 8.6,
+  "productionUsedPercentAfter": 78,
+  "dracinAvailableGB": 5.6,
+  "nginxLegacyArchivesCompressed": 400,
+  "legacyBytesBefore": 6099951255,
+  "legacyBytesAfter": 682709774,
+  "logrotateConfigValidated": true,
+  "actualNginxRotationExit": 0,
+  "releaseRetentionKeep": 5,
+  "releaseRetentionMinimumHours": 24,
+  "retentionRepeatEligible": 0,
+  "retentionTargetedTests": 2,
+  "cuanActive": true,
+  "nginxActive": true,
+  "applicationDataAndBackupsRemoved": false
+}
