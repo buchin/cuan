@@ -40,7 +40,25 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 	if err = os.MkdirAll(root, 0700); err != nil {
 		return "", err
 	}
-	destination := filepath.Join(root, key)
+	relativeDestination := filepath.Join(root, key)
+	destination, err := filepath.Abs(relativeDestination)
+	if err != nil {
+		return "", err
+	}
+	// Git resolves a relative worktree destination from the repository passed
+	// with -C, not from Cuan's working directory. Reuse the exact legacy path
+	// when an older release created it there; the checks below still verify
+	// its repository and task branch before accepting retained files.
+	if !filepath.IsAbs(relativeDestination) {
+		if _, e := os.Lstat(destination); os.IsNotExist(e) {
+			legacy, e := filepath.Abs(filepath.Join(source, relativeDestination))
+			if e == nil {
+				if _, e := os.Lstat(legacy); e == nil {
+					destination = legacy
+				}
+			}
+		}
+	}
 	branch := "cuan/task-" + key
 	run := func(args ...string) (string, error) {
 		out, err := exec.CommandContext(ctx, "git", args...).Output()
