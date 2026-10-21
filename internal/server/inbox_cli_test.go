@@ -24,6 +24,7 @@ func TestDecodeInboxAgyResult(t *testing.T) {
 		{"denied empty", `{"status":"SUCCESS","response":"","denied_actions":[{"action":"private-command"}]}`, "private-stderr", "", "tool_permission_denied", "tool permission was denied"},
 		{"denied with explanation", `{"status":"SUCCESS","response":"Tool ditolak, berikut analisis dari README.","denied_actions":[{"action":"private-command"}]}`, "", "", "tool_permission_denied", "tool permission was denied"},
 		{"empty response", `{"status":"SUCCESS","response":" "}`, "", "", "empty_response", "returned no reply"},
+		{"agy print timeout", `{"status":"SUCCESS","response":""}`, "[agy] print timeout after 45s with turn in progress; returning partial output", "", "provider_timeout", "timed out"},
 		{"missing status", `{"response":"private-token"}`, "", "", "provider_failure", "could not reply"},
 		{"malformed", "private-token", "", "", "invalid_result", "Could not read"},
 	}

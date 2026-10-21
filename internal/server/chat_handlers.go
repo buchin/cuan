@@ -1197,7 +1197,7 @@ func (s *Server) executeAgentInboxResponse(ctx context.Context, agentName string
 
 func safeInboxProviderFailure(ctxErr error, raw string) string {
 	lower := strings.ToLower(raw)
-	if ctxErr != nil {
+	if ctxErr != nil || strings.Contains(lower, "timeout") {
 		return "Provider timed out. Your message is saved, but the result is unknown. Refresh history. The request will not be rerun automatically."
 	}
 	if strings.Contains(lower, "user location is not supported for the api use") {

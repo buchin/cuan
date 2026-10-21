@@ -73,7 +73,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	system := inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nContext data:\n" + prompt
 	if directCoordinator {
-		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). If proposing a plan, fix, or next steps, you MUST emit an approval or task_draft action object matching the schema so the UI renders interactive choice buttons. Do not ask confirmation questions in plain text.\n\nContext data:\n" + prompt
+		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). As Scrum Master, manage the dev team directly: if the user authorized work ('gas', 'lanjut', etc.) or instructed you to manage/assign tasks to the dev team, emit a delegation action immediately so the dev runner executes it. If proposing a plan, fix, or next steps, you MUST emit an approval or task_draft action object matching the schema so the UI renders interactive choice buttons. Never tell the user to manually open, create or run tasks.\n\nContext data:\n" + prompt
 	}
 	if analysisRecovery {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
@@ -108,9 +108,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if directCoordinator {
 			timeout = "25s"
 		}
-		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
 		if answerOnly {
-			args = []string{"-p", system, "--print-timeout", "20s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+			args = []string{"-p", system, "--print-timeout", "20s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
@@ -357,10 +357,13 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 	}
 	if strings.ToUpper(strings.TrimSpace(result.Status)) != "SUCCESS" {
 		diagnostic := result.Status + "\n" + string(result.Error) + "\n" + result.Message + "\n" + stderr
-		if strings.Contains(strings.ToLower(result.Status), "timeout") {
+		if strings.Contains(strings.ToLower(result.Status), "timeout") || strings.Contains(strings.ToLower(stderr), "timeout") {
 			return "", safeInboxProviderFailure(context.DeadlineExceeded, ""), "provider_timeout"
 		}
 		return "", safeInboxProviderFailure(nil, diagnostic), "provider_failure"
+	}
+	if strings.Contains(strings.ToLower(stderr), "timeout") {
+		return "", safeInboxProviderFailure(context.DeadlineExceeded, stderr), "provider_timeout"
 	}
 	if len(result.DeniedActions) > 0 {
 		return "", "The tool permission was denied, so the reply was not accepted as a completed result. Your message is saved. No work was restarted automatically.", "tool_permission_denied"
