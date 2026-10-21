@@ -29,18 +29,28 @@ export function GitHubIntegration() {
    }}>Disconnect</button>
   </section>}
   {connection && !connection.connected && <section className="space-y-3 rounded-lg border bg-card p-4">
-   <p className="text-sm">Authorize Cuan on GitHub. Review access there, then return to your work.</p>
-   <button type="button" className="action-primary" disabled={busy || oauth !== true} onClick={async () => {
+   <p className="text-sm">{oauth === false ? 'Connect with a GitHub access token on this installation, or set up GitHub sign-in below.' : 'Authorize Cuan on GitHub. Review access there, then return to your work.'}</p>
+   {oauth === true && <button type="button" className="action-primary" disabled={busy} onClick={async () => {
     setBusy(true); setError('')
     try { const result = await apiFetch<{ authorize_url: string }>('/api/v1/integrations/github/oauth', { method: 'POST', body: JSON.stringify({ return_to: returnTo }) }); const url = new URL(result.authorize_url); if (url.origin !== 'https://github.com' || url.pathname !== '/login/oauth/authorize') throw new Error('Invalid authorization URL'); window.location.assign(url.href) }
     catch { setError('Could not start GitHub connection. Try again.'); setBusy(false) }
-   }}>{busy ? 'Connecting…' : 'Connect GitHub'}</button>
-   {oauth === false && <p className="text-sm text-muted-foreground">GitHub sign-in needs to be configured by this installation’s administrator.</p>}
+   }}>{busy ? 'Connecting…' : 'Connect GitHub'}</button>}
+   {oauth === false && <div role="status" className="space-y-2 text-sm text-muted-foreground">
+    <p>GitHub sign-in is not set up yet. You can connect with a token below.</p>
+    <details className="rounded-md border p-3"><summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">Set up GitHub sign-in</summary>
+     <ol className="list-decimal space-y-2 pl-5 pt-2">
+      <li><a href="https://github.com/settings/applications/new" target="_blank" rel="noopener noreferrer" className="underline">Register a GitHub OAuth App ↗</a> for this Cuan installation.</li>
+      <li>Set its homepage to <code className="break-all">{window.location.origin}</code> and callback URL to <code className="break-all">{window.location.origin}/api/v1/integrations/github/oauth/callback</code>.</li>
+      <li>Configure <code>CUAN_GITHUB_CLIENT_ID</code>, <code>CUAN_GITHUB_CLIENT_SECRET</code>, and <code>CUAN_GITHUB_REDIRECT_URL</code> in the Cuan service environment, then restart the service. Keep the client secret private.</li>
+     </ol>
+     <button type="button" className="action-secondary mt-3" onClick={() => void checkOAuth()}>Check setup again</button>
+    </details>
+   </div>}
    {oauth === null && !oauthError && <p role="status" className="text-sm text-muted-foreground">Checking GitHub sign-in availability…</p>}
    {oauthError && <div role="alert" className="space-y-2 text-sm"><p>Could not check GitHub sign-in availability.</p><button type="button" className="action-secondary" onClick={() => void checkOAuth()}>Check again</button></div>}
   </section>}
   {params.get('github_status') && params.get('github_status') !== 'connected' && <p role="status" className="text-sm text-muted-foreground">GitHub connection was not completed. Your work is saved. Try connecting again.</p>}
-  {connection && !connection.connected && <details className="border-t pt-2"><summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">Advanced</summary><form className="space-y-3 py-3" onSubmit={async event => {
+  {connection && !connection.connected && <details key={String(oauth)} open={oauth === false} className="border-t pt-2"><summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">Connect with access token</summary><form className="space-y-3 py-3" onSubmit={async event => {
    event.preventDefault(); setBusy(true); setError('')
    try { setConnection(await apiFetch<Connection>('/api/v1/integrations/github', { method: 'PUT', body: JSON.stringify({ token }) })); setToken('') }
    catch { setError('Could not connect. Check your token and try again.') } finally { setBusy(false) }
