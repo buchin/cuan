@@ -549,9 +549,16 @@ export function TeamView({
                   <div className="flex min-w-0 gap-3">
                     <Bot className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
                     <div className="min-w-0">
-                      <h3 className="break-words text-base font-medium">
-                        {a.name}
-                      </h3>
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <h3 className="break-words text-base font-medium">
+                          {a.name}
+                        </h3>
+                        {account?.email && (
+                          <span className="text-xs text-muted-foreground font-mono">
+                            ({account.email})
+                          </span>
+                        )}
+                      </div>
                       <p
                         className={`mt-1 text-sm ${state.verified ? 'text-emerald-700 dark:text-emerald-400' : ['login_required','quota_limited','unavailable'].includes(state.state) ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
                       >
@@ -561,6 +568,14 @@ export function TeamView({
                             : 'Connection status has not been checked'
                           : state.label}
                       </p>
+                      {state.state === 'quota_limited' && (
+                        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+                          <p className="font-medium">{t('Individual account quota reached')}</p>
+                          <p className="mt-0.5 text-muted-foreground">
+                            {t('Google has paused CLI access for this Google account until its reset period (~50 hours). Per-model token capacity may still show 100%, but this account cannot execute queries until it resets or is upgraded.')}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="col-start-2 row-start-1 sm:col-start-3">
@@ -695,6 +710,11 @@ export function TeamView({
                         className="mt-3 space-y-2 text-xs text-muted-foreground"
                         aria-label={t('Model usage')}
                       >
+                        {state.state === 'quota_limited' && (
+                          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
+                            {t('Note: The percentages below reflect per-model token capacity. Execution for this account is currently paused due to Google individual subscription quota.')}
+                          </div>
+                        )}
                         {usage[account.id].available ? (
                           usage[account.id].models.map((model) => (
                             <div

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,7 @@ type ProviderAccount struct {
 	ID                 string               `json:"id"`
 	OwnerID            string               `json:"-"`
 	Label              string               `json:"label"`
+	Email              string               `json:"email,omitempty"`
 	Provider           string               `json:"provider"`
 	Legacy             bool                 `json:"legacy"`
 	CredentialsPresent bool                 `json:"credentials_present"`
@@ -109,6 +111,42 @@ func saveProviderAccount(a *ProviderAccount) error {
 	return os.Rename(tmp, filepath.Join(dir, "account.json"))
 }
 
+func extractAccountEmail(home string) string {
+	for _, file := range []string{AntigravityCredentialsFilePath(home), AntigravityLegacyCredentialsFilePath(home)} {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		var root struct {
+			IDToken string `json:"id_token"`
+			Email   string `json:"email"`
+		}
+		if json.Unmarshal(raw, &root) == nil {
+			if root.Email != "" && strings.Contains(root.Email, "@") {
+				return root.Email
+			}
+			if root.IDToken != "" {
+				parts := strings.Split(root.IDToken, ".")
+				if len(parts) >= 2 {
+					payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+					if err != nil {
+						payload, err = base64.URLEncoding.DecodeString(parts[1])
+					}
+					if err == nil {
+						var claims struct {
+							Email string `json:"email"`
+						}
+						if json.Unmarshal(payload, &claims) == nil && strings.Contains(claims.Email, "@") {
+							return claims.Email
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
 func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 	if id == "legacy" {
 		if owner == "" {
@@ -130,6 +168,9 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 	}
 	a := stored.ProviderAccount
 	a.OwnerID = stored.Owner
+	if a.Email == "" {
+		a.Email = extractAccountEmail(filepath.Join(dir, "home"))
+	}
 	a.CredentialsPresent = IsAntigravityLoggedInInDir(filepath.Join(dir, "home"))
 	if !a.CredentialsPresent {
 		a.State = "login_required"
@@ -255,6 +296,9 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	now := time.Now().UTC()
 	a.LastCheckedAt = &now
 	a.CredentialsPresent = IsAntigravityLoggedInInDir(home)
+	if a.Email == "" {
+		a.Email = extractAccountEmail(home)
+	}
 	if a.Legacy {
 		a.CredentialsPresent = IsAntigravityLoggedIn()
 	}

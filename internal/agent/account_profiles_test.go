@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/url"
 	"os"
@@ -42,9 +43,13 @@ func TestS26AccountPersistenceOwnerAndPaths(t *testing.T) {
 	if err != nil || !got.CredentialsPresent || got.Label != "Google kerja" {
 		t.Fatalf("metadata roundtrip failed: %v", err)
 	}
+	expected := 1
+	if IsAntigravityLoggedIn() {
+		expected = 2
+	}
 	list, err := ListProviderAccounts("owner-a")
-	if err != nil || len(list) != 1 {
-		t.Fatalf("list: %d %v", len(list), err)
+	if err != nil || len(list) != expected {
+		t.Fatalf("list: %d %v (expected %d)", len(list), err, expected)
 	}
 	raw, _ := json.Marshal(got)
 	if strings.Contains(string(raw), "owner-a") || strings.Contains(string(raw), home) || strings.Contains(string(raw), "fixture-only") {
@@ -213,5 +218,37 @@ func TestS26DedicatedProfileBinding(t *testing.T) {
 	}
 	if !IsAntigravityLoggedInInDir(home) {
 		t.Fatal("rollback removed login credential")
+	}
+}
+
+func TestExtractAccountEmail(t *testing.T) {
+	tempHome := t.TempDir()
+	credDir := AntigravityConfigDirPath(tempHome)
+	if err := os.MkdirAll(credDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. JWT with email in payload
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"email":"user@example.com","sub":"123"}`))
+	tokenData, _ := json.Marshal(map[string]any{
+		"id_token": header + "." + payload + ".signature",
+	})
+	if err := os.WriteFile(AntigravityCredentialsFilePath(tempHome), tokenData, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := extractAccountEmail(tempHome); got != "user@example.com" {
+		t.Fatalf("expected user@example.com, got %q", got)
+	}
+
+	// 2. Direct email field
+	directData, _ := json.Marshal(map[string]any{
+		"email": "direct@example.com",
+	})
+	if err := os.WriteFile(AntigravityCredentialsFilePath(tempHome), directData, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := extractAccountEmail(tempHome); got != "direct@example.com" {
+		t.Fatalf("expected direct@example.com, got %q", got)
 	}
 }

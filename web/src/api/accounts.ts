@@ -9,6 +9,7 @@ export interface ProviderAccount {
   quota_retry_at?: string
   id: string
   label: string
+  email?: string
   provider: string
   legacy: boolean
   credentials_present: boolean
