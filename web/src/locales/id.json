@@ -556,5 +556,22 @@
   "No tasks connected to this conversation": "Belum ada tugas yang terhubung dengan percakapan ini",
   "Tasks created by agents during this conversation will appear here.": "Tugas yang dibuat oleh agen selama percakapan ini akan muncul di sini.",
   "Terminal keyboard shortcuts": "Pintasan keyboard terminal",
-  "Open soft keyboard": "Buka keyboard virtual"
+  "Open soft keyboard": "Buka keyboard virtual",
+  "Work Monitor": "Monitor Pekerjaan",
+  "Internal · Invisible to visitor": "Internal · Tidak terlihat oleh lawan bicara",
+  "Tasks and escalated work for this conversation are handled internally by developers or AI agents without displaying bubbles to the visitor.": "Pekerjaan dan tugas dari obrolan ini didelegasikan ke tim dev atau agen secara internal tanpa memunculkan bubble ke lawan bicara.",
+  "When a user asks for bug fixes or features, escalate their message into a task. It will appear here for dev execution without showing bubbles to the customer.": "Saat pengguna meminta perbaikan bug atau fitur baru, eskalasikan pesan mereka menjadi tugas. Tugas akan muncul di sini untuk dikerjakan tim dev/agen tanpa memunculkan bubble ke pelanggan.",
+  "Create task for this chat": "Buat tugas untuk obrolan ini",
+  "Back to chat": "Kembali ke obrolan",
+  "Live Terminal": "Terminal Langsung",
+  "Escalate to task": "Eskalasi ke tugas",
+  "Escalated to task": "Dieskalasi ke tugas",
+  "View in Work Monitor": "Lihat di Monitor Pekerjaan",
+  "Task title": "Judul tugas",
+  "Enter task title": "Masukkan judul tugas",
+  "Instructions / Description": "Instruksi / Deskripsi",
+  "Enter details for the developer or agent": "Masukkan detail untuk developer atau agen",
+  "Creating task…": "Membuat tugas…",
+  "This task is delegated to the dev team or AI agent in the background. No messages or notifications are sent to the visitor.": "Tugas ini didelegasikan ke tim dev atau agen AI di latar belakang. Tidak ada pesan atau notifikasi yang dikirimkan ke lawan bicara.",
+  "Switch to chat": "Beralih ke obrolan"
 }

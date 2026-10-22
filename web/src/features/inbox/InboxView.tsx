@@ -50,6 +50,8 @@ import './chat-whatsapp.css'
 import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
+import { ConversationWorkMonitor } from './ConversationWorkMonitor'
+import { EscalateTaskDialog } from './EscalateTaskDialog'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 
@@ -128,6 +130,12 @@ export function InboxView({
   const [streamState, setStreamState] = useState('connecting')
   const [linkedTasks, setLinkedTasks] = useState<Task[]>([])
   const [showTasksModal, setShowTasksModal] = useState(false)
+  const [convTab, setConvTab] = useState<'chat' | 'tasks'>('chat')
+  const [escalatingMessage, setEscalatingMessage] = useState<ChatMessage | null>(null)
+
+  useEffect(() => {
+    setConvTab('chat')
+  }, [activeContact?.id])
   const [requests, setRequests] = useState<InboxRequest[]>([])
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
@@ -692,20 +700,98 @@ export function InboxView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowTasksModal(true)}
-                  title={t('Connected tasks')}
-                  aria-label={t('Connected tasks')}
-                  className="icon-action relative text-muted-foreground hover:text-foreground"
+                  onClick={() => setConvTab(convTab === 'tasks' ? 'chat' : 'tasks')}
+                  title={convTab === 'tasks' ? t('Switch to chat') : t('Work Monitor')}
+                  aria-label={convTab === 'tasks' ? t('Switch to chat') : t('Work Monitor')}
+                  className={cn(
+                    "icon-action relative transition-colors",
+                    convTab === 'tasks'
+                      ? "bg-accent text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
                   <CheckSquare className="h-4 w-4" />
                   {linkedTasks.length > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
+                    <span className={cn(
+                      "absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm",
+                      convTab === 'tasks'
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-primary text-primary-foreground"
+                    )}>
                       {linkedTasks.length}
                     </span>
                   )}
                 </button>
               </div>
             </div>
+
+            {/* ── Sub-tabs: Obrolan (Chat) & Pekerjaan (Work Monitor) ── */}
+            <div className="flex shrink-0 items-center border-b border-border bg-background px-3 sm:px-4 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setConvTab('chat')}
+                className={cn(
+                  "flex items-center gap-1.5 py-2 px-3 border-b-2 transition-colors",
+                  convTab === 'chat'
+                    ? "border-primary text-primary font-semibold"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Bot className="h-4 w-4" />
+                <span>{t('Chat')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setConvTab('tasks')}
+                className={cn(
+                  "flex items-center gap-1.5 py-2 px-3 border-b-2 transition-colors",
+                  convTab === 'tasks'
+                    ? "border-primary text-primary font-semibold"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <CheckSquare className="h-4 w-4" />
+                <span>{t('Work Monitor')}</span>
+                {linkedTasks.length > 0 && (
+                  <span className={cn(
+                    "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold",
+                    convTab === 'tasks'
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-primary/10 text-primary"
+                  )}>
+                    {linkedTasks.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {convTab === 'tasks' ? (
+              <ConversationWorkMonitor
+                tasks={linkedTasks}
+                activeContact={activeContact}
+                onRefresh={() =>
+                  loadConversation(
+                    activeContact.conversation_id || activeContact.id,
+                    false,
+                  )
+                }
+                onNewTask={() => {
+                  const latest = messages[messages.length - 1]
+                  setEscalatingMessage(
+                    latest || ({
+                      id: 0,
+                      uuid: '',
+                      author_type: 'user',
+                      content: '',
+                      created_at: new Date().toISOString(),
+                    } as any)
+                  )
+                }}
+                onBackToChat={() => setConvTab('chat')}
+                loading={loading}
+              />
+            ) : (
+              <>
 
             {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
             <div
@@ -827,6 +913,10 @@ export function InboxView({
                       { label: 'Copy message', run: () => navigator.clipboard.writeText(msg.content || msg.message) },
                       { label: 'Quote message', run: quoteMessage },
                       { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(activeContact.conversation_id || activeContact.id) + (msg.uuid ? '?message=' + encodeURIComponent(msg.uuid) : '')) },
+                      ...(msg.uuid ? [{
+                        label: t('Escalate to task'),
+                        run: () => setEscalatingMessage(msg),
+                      }] : []),
                     ]}>
                     <div
                       className={cn(
@@ -971,6 +1061,17 @@ export function InboxView({
                           messageId={msg.uuid}
                           draft={isAgentMessage ? msg.task_draft : undefined}
                         />
+                      )}
+                      {msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
+                        <button
+                          type="button"
+                          onClick={() => setConvTab('tasks')}
+                          className="mt-1.5 inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                          title={t('View in Work Monitor')}
+                        >
+                          <CheckSquare className="h-3 w-3" />
+                          <span>{t('Escalated to task')}</span>
+                        </button>
                       )}
                       {isFormattedMessage && (
                         <div className="wa-markdown-footer">{metadata}</div>
@@ -1175,6 +1276,8 @@ export function InboxView({
                 </div>
               </div>
             </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -1245,6 +1348,17 @@ export function InboxView({
           )}
         </div>
       </ActionDialog>
+
+      <EscalateTaskDialog
+        open={!!escalatingMessage}
+        message={escalatingMessage}
+        conversationId={activeContact?.conversation_id || activeContact?.id || ''}
+        onClose={() => setEscalatingMessage(null)}
+        onTaskCreated={(newTask) => {
+          setLinkedTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)])
+          setConvTab('tasks')
+        }}
+      />
     </div>
   )
 }
