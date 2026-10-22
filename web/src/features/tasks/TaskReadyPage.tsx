@@ -3,12 +3,25 @@ import { tasksApi } from '../../api/tasks'
 import { workspacePath } from './workspacePath'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Info, Play } from 'lucide-react'
+import {
+  ArrowLeft,
+  Info,
+  Play,
+  CheckCircle2,
+  Copy,
+  Check,
+  Terminal,
+  MessageSquare,
+  CheckSquare,
+} from 'lucide-react'
 import { agentsApi, type Agent } from '../../api/agents'
 import type { TaskDetail } from '../../api/types'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
+import { useLanguage } from '../../context/LanguageContext'
+import { relativeTime, agentDisplayName } from './task-ui'
 
 export function TaskReadyPage({ task }: { task: TaskDetail }) {
+  const { t } = useLanguage()
   const location = useLocation(),
     navigate = useNavigate()
   const [agents, setAgents] = useState<Agent[]>([]),
@@ -17,8 +30,19 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
     [revision, setRevision] = useState(0),
     [agentError, setAgentError] = useState(false),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState('')
+    [error, setError] = useState(''),
+    [copied, setCopied] = useState(false)
   const [cancelled, setCancelled] = useState(false)
+
+  const copyResult = () => {
+    const text = task.summary || task.complete_note || ''
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+    }
+  }
   const waiting = task.launch?.state === 'queued' || task.launch?.state === 'claimed'
   const starting = useRef(false)
   const basePath = workspacePath(task.id, location.pathname)
@@ -118,20 +142,157 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="max-w-3xl space-y-6 p-4 sm:p-6">
-          {task.status === 'done' && task.summary && <section aria-label="Recorded task result">
-            <p className="mb-2 text-xs text-muted-foreground">Completed</p>
-            <div className="w-fit max-w-full rounded-xl rounded-tl-sm border bg-muted/20 p-3 sm:p-4"><ChatMarkdown content={task.summary} /></div>
-            {task.complete_note && <details className="mt-3 text-sm"><summary className="min-h-11 cursor-pointer py-3 text-muted-foreground">Verification</summary><ChatMarkdown content={task.complete_note} /></details>}
-          </section>}
-          {task.status !== 'done' && <section aria-label="Original request">
-            <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-              Your request
-            </h3>
-            <ChatMarkdown content={task.description || task.title} />
-          </section>}
-          <p className="text-sm text-muted-foreground">
-            {task.status === 'done' ? 'This task is complete. Reopen it in Detail to continue.' : waiting ? (cancelled ? 'The waiting work was cancelled.' : 'Waiting for an available AI session. Cuan will start this work automatically.') : task.launch?.state === 'stopped' ? (task.launch.safe_error || 'The pending launch stopped. Check its details before continuing.') : task.launch?.state === 'cancelled' ? 'The waiting work was cancelled.' : 'This task has not started yet.'}
-          </p>
+          {task.status === 'done' ? (
+            <div className="space-y-4">
+              {/* Success Banner */}
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-5 text-card-foreground shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">
+                        {t('Work completed')}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {task.latest_attempt?.agent_name ? (
+                          <>
+                            {t('Completed by')}{' '}
+                            <strong className="text-foreground">
+                              {agentDisplayName(task.latest_attempt.agent_name)}
+                            </strong>
+                          </>
+                        ) : (
+                          t('This task has been resolved and approved.')
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <time
+                    dateTime={task.updated_at}
+                    title={new Date(task.updated_at).toLocaleString()}
+                    className="text-xs text-muted-foreground whitespace-nowrap self-start sm:self-center"
+                  >
+                    {t(relativeTime(task.updated_at))}
+                  </time>
+                </div>
+              </div>
+
+              {/* Deliverable / Outcome */}
+              {task.summary && (
+                <section
+                  aria-label="Recorded task result"
+                  className="rounded-xl border border-border bg-card p-4 sm:p-5 text-card-foreground shadow-sm space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      {t('Deliverable / Outcome')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={copyResult}
+                      className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1.5"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>{t('Copied!')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>{t('Copy result')}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="text-sm leading-relaxed text-foreground">
+                    <ChatMarkdown content={task.summary} />
+                  </div>
+                </section>
+              )}
+
+              {/* Verification & Testing */}
+              {task.complete_note && (
+                <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <CheckSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>{t('Verification & Testing')}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <ChatMarkdown content={task.complete_note} />
+                  </div>
+                </div>
+              )}
+
+              {/* Action Toolbar */}
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                {back.startsWith('/inbox/') ? (
+                  <Link
+                    to={back}
+                    className="action-primary text-xs px-3.5 py-2 inline-flex items-center gap-1.5 shadow-sm"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>{t('Back to chat')}</span>
+                  </Link>
+                ) : (
+                  <Link
+                    to={back}
+                    className="action-primary text-xs px-3.5 py-2 inline-flex items-center gap-1.5 shadow-sm"
+                  >
+                    <span>{t('Back to tasks')}</span>
+                  </Link>
+                )}
+                {task.latest_attempt?.id && (
+                  <Link
+                    to={`${basePath}/sessions/latest${suffix}`}
+                    className="action-secondary text-xs px-3 py-2 inline-flex items-center gap-1.5"
+                  >
+                    <Terminal className="h-3.5 w-3.5" />
+                    <span>{t('View terminal log')}</span>
+                  </Link>
+                )}
+                <Link
+                  to={
+                    '/tasks/' +
+                    encodeURIComponent(task.id) +
+                    '?' +
+                    detailSearch.toString()
+                  }
+                  state={{
+                    ...location.state,
+                    workspaceReturnTo: location.pathname + location.search,
+                  }}
+                  className="action-secondary text-xs px-3 py-2 inline-flex items-center gap-1.5"
+                >
+                  <Info className="h-3.5 w-3.5" />
+                  <span>{t('Detail / Reopen')}</span>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              <section aria-label="Original request">
+                <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+                  Your request
+                </h3>
+                <ChatMarkdown content={task.description || task.title} />
+              </section>
+              <p className="text-sm text-muted-foreground">
+                {waiting
+                  ? cancelled
+                    ? 'The waiting work was cancelled.'
+                    : 'Waiting for an available AI session. Cuan will start this work automatically.'
+                  : task.launch?.state === 'stopped'
+                    ? task.launch.safe_error ||
+                      'The pending launch stopped. Check its details before continuing.'
+                    : task.launch?.state === 'cancelled'
+                      ? 'The waiting work was cancelled.'
+                      : 'This task has not started yet.'}
+              </p>
+            </>
+          )}
           {waiting && <button className="action-secondary" disabled={busy || cancelled} onClick={async () => {
             setBusy(true);setError('')
             try {await tasksApi.cancel(task.id);setCancelled(true)} catch(e) {setError(e instanceof Error ? e.message : 'Could not cancel waiting work.')} finally {setBusy(false)}

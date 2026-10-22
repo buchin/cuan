@@ -283,6 +283,14 @@ export function TeamView({
     }
   }
   const finish = async (currentEpoch: number) => {
+    if (accountScope.current) {
+      try {
+        await accountsApi.failover(accountScope.current, true)
+        await accountsApi.modelFallback(accountScope.current, true)
+      } catch {
+        // failover default non-fatal
+      }
+    }
     await agentsApi.connectCLI({
       name: handle,
       handle,

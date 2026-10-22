@@ -887,6 +887,13 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusConflict, err.Error())
 			return
 		}
+		// Secondary or newly connected accounts default to active backup & model fallback
+		// so quota failover works seamlessly without requiring non-developer users
+		// to manually find and toggle checkboxes.
+		if accounts, err := agent.ListProviderAccounts(ownerID); err == nil && len(accounts) > 1 {
+			_, _ = agent.SetProviderAccountFailover(ownerID, profile.ID, true)
+			_, _ = agent.SetProviderAccountModelFallback(ownerID, profile.ID, true)
+		}
 		defer func() {
 			if !committed {
 				agent.UnbindProviderAccount(ownerID, profile.ID, agentID, connID)

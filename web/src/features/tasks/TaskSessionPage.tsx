@@ -2,7 +2,18 @@ import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { workspacePath } from './workspacePath'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Info, Square, Send, Bot } from 'lucide-react'
+import {
+  ArrowLeft,
+  Info,
+  Square,
+  Send,
+  Bot,
+  CheckCircle2,
+  Copy,
+  Check,
+  Terminal,
+  MessageSquare,
+} from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
 import { TaskReadyPage } from './TaskReadyPage'
@@ -10,6 +21,7 @@ import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime } from './task-ui'
+import { useLanguage } from '../../context/LanguageContext'
 
 export function TaskSessionPage({
   taskId,
@@ -18,6 +30,7 @@ export function TaskSessionPage({
   taskId: string
   sessionId: string
 }) {
+  const { t } = useLanguage()
   const location = useLocation(),
     navigate = useNavigate()
   const [detail, setDetail] = useState<TaskDetail | null>(null),
@@ -25,6 +38,7 @@ export function TaskSessionPage({
     [error, setError] = useState(''),
     [runtimeError, setRuntimeError] = useState(''),
     [shareState, setShareState] = useState<'idle' | 'copied' | 'failed'>('idle'),
+    [resultCopied, setResultCopied] = useState(false),
     [terminalControls, setTerminalControls] = useState<HTMLDivElement | null>(
       null,
     ),
@@ -176,6 +190,16 @@ export function TaskSessionPage({
     !!result.trim() &&
     !!detail.complete_note
 
+  const copyResult = () => {
+    const text = result || detail?.summary || detail?.complete_note || ''
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        setResultCopied(true)
+        setTimeout(() => setResultCopied(false), 2000)
+      })
+    }
+  }
+
   return (
     <section
       aria-label="Task session"
@@ -323,7 +347,70 @@ export function TaskSessionPage({
               </p>
             )}
             {latest && detail.status === 'done' && (
-              <p className="text-sm text-muted-foreground">Task completed.</p>
+              <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-card-foreground shadow-sm space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground">
+                      {t('Task completed')}
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      {t('The result has been accepted and verified.')}
+                    </p>
+                  </div>
+                </div>
+                {detail.complete_note && (
+                  <div className="rounded-lg border border-border/70 bg-background/60 p-3 text-xs space-y-1">
+                    <span className="font-semibold text-foreground">
+                      {t('Acceptance note')}:
+                    </span>
+                    <ChatMarkdown content={detail.complete_note} />
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={copyResult}
+                    className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1.5"
+                  >
+                    {resultCopied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>{t('Copied!')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>{t('Copy result')}</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTerminal(true)}
+                    className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1.5"
+                  >
+                    <Terminal className="h-3.5 w-3.5" />
+                    <span>{t('Terminal log')}</span>
+                  </button>
+                  <Link
+                    to={backURL}
+                    state={state}
+                    className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5 ml-auto"
+                  >
+                    {backURL.startsWith('/inbox/') ? (
+                      <>
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>{t('Back to chat')}</span>
+                      </>
+                    ) : (
+                      <span>{t('Back to tasks')}</span>
+                    )}
+                  </Link>
+                </div>
+              </div>
             )}
           </div>
         </div>

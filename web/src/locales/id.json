@@ -579,5 +579,17 @@
   "Start session": "Mulai sesi",
   "Answered": "Terjawab",
   "Not started": "Belum dimulai",
-  "Not running": "Tidak berjalan"
+  "Not running": "Tidak berjalan",
+  "Work completed": "Pekerjaan selesai",
+  "Completed by": "Diselesaikan oleh",
+  "This task has been resolved and approved.": "Tugas ini telah diselesaikan dan disetujui.",
+  "Deliverable / Outcome": "Hasil Pekerjaan",
+  "Copy result": "Salin hasil",
+  "Copied!": "Tersalin!",
+  "Verification & Testing": "Verifikasi & Pengujian",
+  "View terminal log": "Lihat log terminal",
+  "Terminal log": "Log terminal",
+  "Detail / Reopen": "Detail / Buka Kembali",
+  "The result has been accepted and verified.": "Hasil pekerjaan telah diterima dan diverifikasi.",
+  "Acceptance note": "Catatan penerimaan"
 }
