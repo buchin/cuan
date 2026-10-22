@@ -236,3 +236,57 @@ func TestLocationRestrictionDoesNotRetryAfterNoEffectProof(t *testing.T) {
 		t.Fatal("persistent provider restriction retried or treated as login failure", got)
 	}
 }
+
+func TestManualRetryPermitsUsageAndAgentFailures(t *testing.T) {
+	r := NewMemoryProjectStudioRepository()
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	// 1. Quota failure (check_usage)
+	quotaReq := InboxRequest{
+		RoomID:    "room1",
+		RequestID: "req-quota",
+		MessageID: "msg-quota",
+		OwnerID:   "owner1",
+		AgentID:   "agent1",
+		State:     "failed",
+		SafeError: "All connected AI accounts reached provider usage limits. Provider quota is limited.",
+		CreatedAt: now,
+		Steps:     []InboxStep{{Seq: 1, Kind: "provider_cooldown", Text: "usage limit reached", At: now}},
+	}
+	if got := InboxRecoveryAction(quotaReq); got != "check_usage" {
+		t.Fatalf("expected check_usage, got %s", got)
+	}
+	r.AcceptInboxRequest(ctx, quotaReq, &ProjectMessage{ID: quotaReq.MessageID, RoomID: quotaReq.RoomID, Content: "test quota", CreatedAt: now})
+
+	// Automatic retry must reject check_usage
+	if _, _, err := r.AutoRetryInboxRequest(ctx, quotaReq.RoomID, quotaReq.RequestID, quotaReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
+		t.Fatalf("expected ErrInboxRetryUnavailable for auto-retry on check_usage, got %v", err)
+	}
+	// Manual retry must succeed for check_usage
+	child, created, err := r.RetryInboxRequest(ctx, quotaReq.RoomID, quotaReq.RequestID, quotaReq.OwnerID)
+	if err != nil || !created || child.State != "queued" {
+		t.Fatalf("expected manual retry to succeed for check_usage, got child=%+v, created=%v, err=%v", child, created, err)
+	}
+
+	// 2. Unsafe failure (check_status) must be rejected for both manual and auto
+	unsafeReq := InboxRequest{
+		RoomID:    "room2",
+		RequestID: "req-unsafe",
+		MessageID: "msg-unsafe",
+		OwnerID:   "owner1",
+		AgentID:   "agent1",
+		State:     "failed",
+		SafeError: "The result is unknown.",
+		CreatedAt: now,
+		Steps:     []InboxStep{{Seq: 1, Kind: "runtime_tool_started", Text: "rm file", At: now}},
+	}
+	if got := InboxRecoveryAction(unsafeReq); got != "check_status" {
+		t.Fatalf("expected check_status, got %s", got)
+	}
+	r.AcceptInboxRequest(ctx, unsafeReq, &ProjectMessage{ID: unsafeReq.MessageID, RoomID: unsafeReq.RoomID, Content: "test unsafe", CreatedAt: now})
+
+	if _, _, err := r.RetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
+		t.Fatalf("expected ErrInboxRetryUnavailable for manual retry on check_status, got %v", err)
+	}
+}
