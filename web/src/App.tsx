@@ -49,6 +49,14 @@ export function App() {
     !['detail', 'full'].includes(
       new URLSearchParams(location.search).get('view') || '',
     )
+  const isProjectTaskSession =
+    rootSegment === 'projects' &&
+    pathSegments[2] === 'tasks' &&
+    Boolean(pathSegments[3]) &&
+    !['detail', 'full'].includes(
+      new URLSearchParams(location.search).get('view') || '',
+    )
+  const isTerminalSession = sessionRoute || isProjectTaskSession
 
   // Current tab derived from URL route
   const currentTab: AppTab = useMemo(() => {
@@ -228,7 +236,7 @@ export function App() {
   useEffect(() => {
     if (
       !isAuthenticated ||
-      sessionRoute ||
+      isTerminalSession ||
       !['tasks', 'projects'].includes(currentTab)
     )
       return
@@ -252,7 +260,7 @@ export function App() {
       window.removeEventListener('focus', resume)
       document.removeEventListener('visibilitychange', resume)
     }
-  }, [isAuthenticated, currentTab, sessionRoute, refreshTasks])
+  }, [isAuthenticated, currentTab, isTerminalSession, refreshTasks])
 
   // Read the visible conversation directly from the URL. Back/forward and
   // responsive list mode cannot race against an effect restoring old selection.
@@ -576,7 +584,7 @@ export function App() {
             <NotificationsNavigation />
           ) : undefined
         }
-        pageTitle={sessionRoute ? 'Task session' : headerTitle}
+        pageTitle={isTerminalSession ? 'Task session' : headerTitle}
         pageTitleIsContent={
           projectDetail && !!headerProject
         }
@@ -623,10 +631,10 @@ export function App() {
               }
         }
         contentHeader={projectDetail && !!headerProject}
-        projectWorkspace={currentTab === 'projects'}
-        sessionWorkspace={sessionRoute}
+        projectWorkspace={currentTab === 'projects' && !isProjectTaskSession}
+        sessionWorkspace={isTerminalSession}
         hideBottomNav={
-          sessionRoute || (currentTab === 'inbox' && isMobileChatActive)
+          isTerminalSession || (currentTab === 'inbox' && isMobileChatActive)
         }
         inboxSubPanel={
           <InboxSubPanel

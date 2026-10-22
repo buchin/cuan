@@ -182,7 +182,7 @@ export function TaskSessionPage({
       className="flex h-full min-h-0 flex-col bg-background"
     >
       <GitHubPrerequisite task={detail} />
-      <header className="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
+      <header className="flex h-11 shrink-0 items-center gap-1.5 sm:gap-2 border-b px-2 sm:px-3">
         <Link
           to={backURL}
           state={state}
@@ -200,13 +200,13 @@ export function TaskSessionPage({
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div className="min-w-0 flex-1">
-          <h2 className="line-clamp-2 break-words text-sm font-semibold leading-5" title={detail.title}>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+          <h2 className="truncate text-sm font-semibold" title={detail.title}>
             {detail.title}
           </h2>
-          <p className="truncate text-xs text-muted-foreground">
+          <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 text-[10px] sm:text-xs font-medium text-muted-foreground border border-border/40">
             {answer ? 'Answered' : !latest ? attemptLabel(attempt) : workStatus(detail)}
-          </p>
+          </span>
         </div>
         <div ref={setTerminalControls} className="flex shrink-0 items-center" />
         <button

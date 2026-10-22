@@ -10,7 +10,7 @@ import {
   useAttachments,
 } from './Attachments'
 import { Link, useLocation } from 'react-router-dom'
-import { CreateAction } from '../../components/layout/CreateAction'
+import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import type { Agent } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
@@ -73,7 +73,7 @@ interface InboxViewProps {
 }
 
 export function InboxView({
-  onNewMessage,
+  onNewMessage: _onNewMessage,
   contacts = [],
   agents = [],
   now: suppliedNow,
@@ -127,6 +127,7 @@ export function InboxView({
   const [hasNewMessages, setHasNewMessages] = useState(false)
   const [streamState, setStreamState] = useState('connecting')
   const [linkedTasks, setLinkedTasks] = useState<Task[]>([])
+  const [showTasksModal, setShowTasksModal] = useState(false)
   const [requests, setRequests] = useState<InboxRequest[]>([])
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
@@ -689,15 +690,20 @@ export function InboxView({
                     className={cn('h-4 w-4', loading && 'animate-spin')}
                   />
                 </button>
-                <div className="flex items-center gap-1 md:hidden">
-                  {onNewMessage && (
-                    <CreateAction
-                      label={t('New message')}
-                      onClick={onNewMessage}
-                      kind="inbox"
-                    />
+                <button
+                  type="button"
+                  onClick={() => setShowTasksModal(true)}
+                  title={t('Connected tasks')}
+                  aria-label={t('Connected tasks')}
+                  className="icon-action relative text-muted-foreground hover:text-foreground"
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  {linkedTasks.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
+                      {linkedTasks.length}
+                    </span>
                   )}
-                </div>
+                </button>
               </div>
             </div>
 
@@ -1172,6 +1178,73 @@ export function InboxView({
           </>
         )}
       </div>
+
+      <ActionDialog
+        open={showTasksModal}
+        title={t('Connected tasks')}
+        onClose={() => setShowTasksModal(false)}
+      >
+        <div className="space-y-3">
+          {linkedTasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground space-y-2">
+              <CheckSquare className="h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium">{t('No tasks connected to this conversation')}</p>
+              <p className="text-xs text-muted-foreground/80 max-w-xs">
+                {t('Tasks created by agents during this conversation will appear here.')}
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {linkedTasks.map((task) => (
+                <div key={task.id} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm truncate">{task.title}</p>
+                      <span className={cn(
+                        "shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border",
+                        task.status === 'done' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
+                        task.status === 'doing' ? "bg-blue-500/10 text-blue-500 border-blue-500/20" :
+                        task.status === 'review' ? "bg-purple-500/10 text-purple-500 border-purple-500/20" :
+                        task.status === 'blocked' ? "bg-destructive/10 text-destructive border-destructive/20" :
+                        "bg-muted text-muted-foreground border-border"
+                      )}>
+                        {task.status === 'doing'
+                          ? t('Work in progress')
+                          : task.status === 'done'
+                            ? t('Completed')
+                            : task.status === 'blocked'
+                              ? t('Needs attention')
+                              : task.status === 'review'
+                                ? t('Result ready')
+                                : t('Ready')}
+                      </span>
+                    </div>
+                    {task.project_name && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {task.project_name}
+                      </p>
+                    )}
+                  </div>
+                  <Link
+                    to={
+                      task.project_id
+                        ? `/projects/${encodeURIComponent(task.project_id)}/tasks/${encodeURIComponent(task.id)}`
+                        : `/tasks/${task.id}`
+                    }
+                    state={{ taskReturnTo: location.pathname }}
+                    onClick={() => setShowTasksModal(false)}
+                    className="action-secondary shrink-0 text-xs px-2.5 py-1.5 inline-flex items-center gap-1"
+                  >
+                    {task.latest_attempt && ['running', 'queued'].includes(task.latest_attempt.status)
+                      ? t('View progress')
+                      : t('View result')}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </ActionDialog>
     </div>
   )
 }

@@ -322,6 +322,20 @@ export function TaskTerminal({
     }
     terminal.focus()
   }
+  const sendKey = (key: string) => {
+    const ws = socket.current
+    const terminal = term.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      if (!interactive.current) {
+        if (terminal) terminal.options.disableStdin = false
+        interactive.current = true
+        setInput(true)
+        ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
+      }
+      ws.send(JSON.stringify({ type: 'stdin', data: key }))
+      if (following.current) terminal?.scrollToBottom()
+    }
+  }
   const controls = (
     <div
       className={
@@ -522,6 +536,110 @@ export function TaskTerminal({
       >
         <div ref={mount} className="h-full w-full" />
       </div>
+      {liveId && (
+        <div
+          className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-[#262626] bg-[#161616] px-2 py-1.5 select-none touch-pan-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          aria-label="Terminal keyboard shortcuts"
+        >
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\t')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[38px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
+            title="Tab"
+          >
+            Tab
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\x1b')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[38px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
+            title="Escape"
+          >
+            Esc
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\x03')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[50px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-rose-300 transition-colors hover:bg-[#333] active:bg-rose-500 active:text-white disabled:opacity-40"
+            title="Ctrl+C (Interrupt)"
+          >
+            Ctrl+C
+          </button>
+          <div className="mx-0.5 h-4 w-px shrink-0 bg-[#333]" />
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\x1b[A')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
+            title="Arrow Up"
+            aria-label="Up"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\x1b[B')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
+            title="Arrow Down"
+            aria-label="Down"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\x1b[D')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
+            title="Arrow Left"
+            aria-label="Left"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\x1b[C')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
+            title="Arrow Right"
+            aria-label="Right"
+          >
+            →
+          </button>
+          <div className="mx-0.5 h-4 w-px shrink-0 bg-[#333]" />
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => sendKey('\r')}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[48px] shrink-0 items-center justify-center rounded bg-[#262626] px-2.5 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
+            title="Enter (Return)"
+            aria-label="Enter"
+          >
+            ↵ Enter
+          </button>
+          <button
+            type="button"
+            onClick={showKeyboard}
+            disabled={connection !== 'connected'}
+            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs text-muted-foreground transition-colors hover:bg-[#333] hover:text-foreground disabled:opacity-40 ml-auto"
+            title="Open soft keyboard"
+            aria-label="Keyboard"
+          >
+            <Keyboard className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <p className="sr-only">
         {liveId
           ? 'Closing this view does not stop the task. Use Cancel session to stop execution.'

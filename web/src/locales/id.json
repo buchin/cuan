@@ -551,5 +551,10 @@
   "Connected repository": "Repositori terhubung",
   "Selected repository": "Repositori dipilih",
   "No repository connected. This project can still work without one.": "Belum ada repositori terhubung. Proyek ini tetap bisa digunakan tanpa repositori.",
-  "Leave the branch empty to use the repository default. Changes apply to new work; existing work keeps its connection.": "Kosongkan branch untuk menggunakan bawaan repositori. Perubahan berlaku untuk pekerjaan baru; pekerjaan yang sudah ada tetap memakai koneksi semula."
+  "Leave the branch empty to use the repository default. Changes apply to new work; existing work keeps its connection.": "Kosongkan branch untuk menggunakan bawaan repositori. Perubahan berlaku untuk pekerjaan baru; pekerjaan yang sudah ada tetap memakai koneksi semula.",
+  "Connected tasks": "Tugas terhubung",
+  "No tasks connected to this conversation": "Belum ada tugas yang terhubung dengan percakapan ini",
+  "Tasks created by agents during this conversation will appear here.": "Tugas yang dibuat oleh agen selama percakapan ini akan muncul di sini.",
+  "Terminal keyboard shortcuts": "Pintasan keyboard terminal",
+  "Open soft keyboard": "Buka keyboard virtual"
 }
