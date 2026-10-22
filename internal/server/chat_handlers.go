@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
@@ -1250,6 +1251,9 @@ func safeInboxProviderFailure(ctxErr error, raw string) string {
 		return "The provider rejected AI execution from this environment because of a location restriction. Google sign-in may still be saved. Your message is saved; signing in again will not resolve this restriction. No automatic retry was started."
 	}
 	if strings.Contains(lower, "quota") || strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") {
+		if dur, resetStr, ok := agent.ParseProviderQuotaResetDuration(raw); ok && dur > 0 {
+			return fmt.Sprintf("Provider quota is limited (Resets in %s). Your message is saved. Wait for the quota to reset; accounts will not be switched automatically.", resetStr)
+		}
 		return "Provider quota is limited. Your message is saved. Wait for the quota to reset; accounts will not be switched automatically."
 	}
 	if strings.Contains(lower, "unauthorized") || strings.Contains(lower, "login") || strings.Contains(lower, "401") || strings.Contains(lower, "invalid_grant") {

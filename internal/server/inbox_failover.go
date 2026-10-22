@@ -37,6 +37,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 	busyRoutes := 0
 	seen := map[string]bool{}
 	triedAccounts := map[string]bool{}
+	hadQuotaFailure := false
 	var restriction string
 	for len(routes) > 0 {
 		if attempts >= 8 || ctx.Err() != nil {
@@ -104,17 +105,31 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			continue
 		}
 		if !isInboxQuotaFailure(failure) {
+			if !hadQuotaFailure {
+				return "", failure
+			}
 			if len(routes) > 0 {
 				continue
 			}
-			if attempts > 1 {
-				return "", inboxQuotaNoBackup
-			}
-			return "", failure
+			return "", inboxQuotaNoBackup
 		}
+		hadQuotaFailure = true
 		if route.accountID != "" {
-			if err := agent.RecordProviderModelQuota(owner, route.accountID, route.model); err != nil {
-				return "", "The provider reached a usage limit, but its cooldown could not be saved. Your message is saved. Check the account status."
+			dur, resetStr, hasReset := agent.ParseProviderQuotaResetDuration(failure)
+			isIndividualQuota := strings.Contains(strings.ToLower(failure), "individual quota") || hasReset || !agent.IsTextModel(route.model)
+			if isIndividualQuota {
+				if dur <= 0 {
+					dur = 5 * time.Minute
+				}
+				if err := agent.RecordProviderAccountQuotaWithDuration(owner, route.accountID, dur, resetStr); err != nil {
+					return "", "The provider reached a usage limit, but its cooldown could not be saved. Your message is saved. Check the account status."
+				}
+				// Remove all remaining routes belonging to this throttled account
+				routes = filterOutAccountRoutes(routes, route.accountID)
+			} else {
+				if err := agent.RecordProviderModelQuota(owner, route.accountID, route.model); err != nil {
+					return "", "The provider reached a usage limit, but its cooldown could not be saved. Your message is saved. Check the account status."
+				}
 			}
 		}
 		if !safe {
@@ -142,7 +157,20 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 	return "", inboxQuotaNoBackup
 }
 func isInboxQuotaFailure(failure string) bool {
-	return strings.HasPrefix(failure, "Provider quota is limited.")
+	return strings.HasPrefix(failure, "Provider quota is limited")
+}
+
+func filterOutAccountRoutes(routes []inboxAccountRoute, accountID string) []inboxAccountRoute {
+	if accountID == "" {
+		return routes
+	}
+	filtered := make([]inboxAccountRoute, 0, len(routes))
+	for _, r := range routes {
+		if r.accountID != accountID {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
 }
 
 // Shared preflight for new Inbox turns and task launches; no process is started here.
@@ -166,6 +194,9 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			break
 		}
 		if candidate.Legacy || !candidate.AllowFailover || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.State == "setup_incomplete" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
+			continue
+		}
+		if candidate.State == "quota_limited" && (candidate.QuotaRetryAt == nil || time.Now().Before(*candidate.QuotaRetryAt)) {
 			continue
 		}
 		bound, err := s.agentRepo.GetAgentByID(ctx, candidate.AgentID)
@@ -212,7 +243,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		if !agent.IsTextModel(model) {
 			model = ""
 		}
-		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited")
+		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited" && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)))
 		addModel := func(id string, remaining float64) {
 			if profile != nil && time.Now().Before(profile.ModelCooldowns[id]) {
 				return
@@ -233,7 +264,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 				return
 			}
 		}
-		if profile != nil && profile.AllowModelFallback && usage.Available {
+		if !blocked && profile != nil && profile.AllowModelFallback && usage.Available {
 			for _, item := range usage.Models {
 				if (item.Remaining > 0 || item.Remaining == -1) && agent.IsTextModel(item.Model) {
 					addModel(item.Model, item.Remaining)

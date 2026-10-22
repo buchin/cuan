@@ -69,6 +69,7 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"rep
 		data, _ = json.Marshal(meta)
 		os.WriteFile(file, data, 0600)
 	}
+	_, _ = agent.SetProviderAccountFailover(owner.ID, backup.ID, false)
 
 	return s, token, registered, primary, backup, home, backupHome
 }

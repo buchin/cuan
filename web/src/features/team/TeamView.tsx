@@ -630,8 +630,15 @@ export function TeamView({
                         <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
                           <p className="font-medium">{t('Individual account quota reached')}</p>
                           <p className="mt-0.5 text-muted-foreground">
-                            {t('Google has paused CLI access for this Google account until its reset period (~50 hours). Per-model token capacity may still show 100%, but this account cannot execute queries until it resets or is upgraded.')}
+                            {account?.message?.includes('Resets in')
+                              ? account.message
+                              : t('Google has paused CLI access for this Google account until its reset period. Per-model token capacity may still show 100%, but this account cannot execute queries until it resets or is upgraded.')}
                           </p>
+                          {account?.quota_retry_at && (
+                            <p className="mt-1.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
+                              {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -776,7 +783,12 @@ export function TeamView({
                       >
                         {state.state === 'quota_limited' && (
                           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
-                            {t('Note: The percentages below reflect per-model token capacity. Execution for this account is currently paused due to Google individual subscription quota.')}
+                            <p>{t('Note: The percentages below reflect per-model token capacity. Execution for this account is currently paused due to Google individual subscription quota.')}</p>
+                            {account?.quota_retry_at && (
+                              <p className="mt-1 font-mono text-[11px]">
+                                {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
+                              </p>
+                            )}
                           </div>
                         )}
                         {usage[account.id].available ? (

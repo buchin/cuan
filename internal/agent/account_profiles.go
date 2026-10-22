@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -345,7 +346,11 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 		}
 		a.QuotaRetryAt = nil
 		if a.State == "quota_limited" {
-			retry := now.Add(5 * time.Minute)
+			dur, _, ok := ParseProviderQuotaResetDuration(a.Message)
+			if !ok || dur <= 0 {
+				dur = 5 * time.Minute
+			}
+			retry := now.Add(dur)
 			a.QuotaRetryAt = &retry
 		}
 		err = saveProviderAccount(a)
@@ -434,7 +439,7 @@ func SetProviderAccountFailover(owner, id string, enabled bool) (*ProviderAccoun
 }
 
 // Runtime observations update metadata only; credentials and primary binding are preserved.
-func RecordProviderAccountQuota(owner, id string) error {
+func RecordProviderAccountQuotaWithDuration(owner, id string, dur time.Duration, resetStr string) error {
 	accountProfileMu.Lock()
 	defer accountProfileMu.Unlock()
 	a, err := GetProviderAccount(owner, id)
@@ -445,13 +450,24 @@ func RecordProviderAccountQuota(owner, id string) error {
 		return nil
 	}
 	now := time.Now().UTC()
-	retry := now.Add(5 * time.Minute)
+	if dur <= 0 {
+		dur = 5 * time.Minute
+	}
+	retry := now.Add(dur)
 	a.State = "quota_limited"
 	a.VerifiedAt = nil
 	a.LastCheckedAt = &now
 	a.QuotaRetryAt = &retry
-	a.Message = "Provider usage limit reached. This account is cooling down before another attempt."
+	if resetStr != "" {
+		a.Message = fmt.Sprintf("Provider usage limit reached. Resets in %s.", resetStr)
+	} else {
+		a.Message = "Provider usage limit reached. This account is cooling down before another attempt."
+	}
 	return saveProviderAccount(a)
+}
+
+func RecordProviderAccountQuota(owner, id string) error {
+	return RecordProviderAccountQuotaWithDuration(owner, id, 5*time.Minute, "")
 }
 
 func SetProviderAccountModelFallback(owner, id string, enabled bool) (*ProviderAccount, error) {

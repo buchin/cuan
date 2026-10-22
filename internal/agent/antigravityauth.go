@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	neturl "net/url"
 	"os"
@@ -471,6 +472,9 @@ func VerifyAntigravityProfile(ctx context.Context, home string, models ...string
 func antigravityProbeError(output string) error {
 	lower := strings.ToLower(output)
 	if strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "quota") {
+		if dur, resetStr, ok := ParseProviderQuotaResetDuration(output); ok && dur > 0 {
+			return fmt.Errorf("Antigravity provider quota is limited (Resets in %s). Credentials are saved. Wait for the quota to reset and verify again. Signing in to Google again does not increase quota.", resetStr)
+		}
 		return errors.New("Antigravity provider quota is limited. Credentials are saved. Wait for the quota to reset and verify again. Signing in to Google again does not increase quota.")
 	}
 	return errors.New("Could not verify the Antigravity provider connection. Credentials are saved. Verify again. A provider outage does not require signing in again.")
