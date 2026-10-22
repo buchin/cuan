@@ -22,9 +22,13 @@ func InboxRecoveryAction(q InboxRequest) string {
 		return ""
 	}
 	safe, observedTool := false, false
+	hasQuotaCooldown := false
 	for _, step := range q.Steps {
 		if step.Kind == "runtime_permission_denied" {
 			return "check_status"
+		}
+		if step.Kind == "provider_cooldown" || strings.Contains(strings.ToLower(step.Text), "usage limit") || strings.Contains(strings.ToLower(step.Text), "quota") {
+			hasQuotaCooldown = true
 		}
 		if strings.HasPrefix(step.Kind, "runtime_tool_") {
 			observedTool = true
@@ -51,7 +55,7 @@ func InboxRecoveryAction(q InboxRequest) string {
 			return "check_status"
 		}
 	}
-	if strings.Contains(lower, "quota") || strings.Contains(lower, "no allowed account/model route") {
+	if hasQuotaCooldown || strings.Contains(lower, "quota") || strings.Contains(lower, "no allowed account/model route") || strings.Contains(lower, "usage limit") {
 		return "check_usage"
 	}
 	if strings.Contains(lower, "sign-in") || strings.Contains(lower, "agent connection") {

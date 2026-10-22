@@ -42,7 +42,8 @@ export function InboxActivity({
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
-  const accessBlocked = recovery === 'check_usage' || /usage limit|quota|location restriction|No allowed account\/model route/.test(q.safe_error || '')
+  const hasQuotaCooldown = q.steps?.some((step) => step.kind === 'provider_cooldown' || /usage limit|quota/i.test(step.text))
+  const accessBlocked = recovery === 'check_usage' || hasQuotaCooldown || /usage limit|quota|location restriction|No allowed account\/model route/i.test(q.safe_error || '')
   const recover = async (action: () => Promise<void>) => {
     if (recovering) return
     setRecovering(true)
@@ -155,7 +156,7 @@ export function InboxActivity({
               : q.state === 'running'
               ? activityText
               : q.state === 'failed'
-                ? t('Could not reply')
+                ? (accessBlocked ? t('Could not reply — AI quota reached') : t('Could not reply'))
                 : q.state === 'interrupted' ? t('Reply interrupted') : t(label)}
           </span>
           {!autoPending && seconds !== null && (
@@ -423,46 +424,81 @@ export function InboxActivity({
       {failed && (
         <div className="px-2 pb-2">
           <p className="mb-1 max-w-prose text-muted-foreground">
-            {t(recovery === 'recovering' ? 'Your message is saved.' : recovery === 'try_again'
-              ? 'Your message is saved. You can try again.'
-              : recovery === 'check_usage'
-                ? 'Usage is limited. Check account availability before trying again.'
+            {t(recovery === 'recovering' ? 'Your message is saved.' : accessBlocked
+              ? 'All connected AI accounts reached provider usage limits. Your message is saved.'
+              : recovery === 'try_again'
+                ? 'Your message is saved. You can try again.'
                 : recovery === 'check_agent'
                   ? 'Check the agent connection before trying again.'
                   : (q.safe_error || 'Your reply stopped. Your message is saved.'))}
           </p>
-          {accessBlocked && <div className="mb-2">
-            <p className="text-xs text-muted-foreground">{t('To continue sooner, connect another account with available AI access. Your saved work stays in this conversation.')}</p>
-            <button type="button" className="mt-2 inline-flex min-h-11 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"
-              onClick={() => { setConnectSetup(true); setConnectRequested(true) }}>
-              {t('Connect another account')}
-            </button>
-          </div>}
-          {connectSetup && <TeamView connectionOnly createRequested={connectRequested}
-            onCreateHandled={() => setConnectRequested(false)}
-            onAgentConnected={() => { setConnectSetup(false); setRecoveryStatus(t('Account connected. Your saved message has not been sent again.')) }} />}
-          {recovery === 'try_again' && onRetry ? (
-            <button type="button" disabled={recovering}
+          {accessBlocked && (
+            <div className="my-2.5 space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+              <p className="text-xs font-medium text-foreground">
+                {t('To continue sooner, connect another account with available AI access. Your saved work stays in this conversation.')}
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                  onClick={() => { setConnectSetup(true); setConnectRequested(true) }}
+                >
+                  {t('Connect another account')}
+                </button>
+                <Link
+                  to="/settings/agents"
+                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+                >
+                  {t('Open account settings')}
+                </Link>
+              </div>
+            </div>
+          )}
+          {connectSetup && (
+            <TeamView
+              connectionOnly
+              createRequested={connectRequested}
+              onCreateHandled={() => setConnectRequested(false)}
+              onAgentConnected={() => {
+                setConnectSetup(false)
+                setRecoveryStatus(t('Account connected. Your saved message has not been sent again.'))
+              }}
+            />
+          )}
+          {!accessBlocked && recovery === 'try_again' && onRetry ? (
+            <button
+              type="button"
+              disabled={recovering}
               className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-foreground underline underline-offset-4 disabled:opacity-50"
-              onClick={() => void recover(onRetry)}>
+              onClick={() => void recover(onRetry)}
+            >
               {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
               {t(recovering ? 'Trying again…' : 'Try again')}
             </button>
-          ) : recovery === 'check_usage' || recovery === 'check_agent' ? (
+          ) : !accessBlocked && recovery === 'check_agent' ? (
             <Link to="/settings/agents" className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4">
-              {t(recovery === 'check_usage' ? 'Check usage' : 'Check agent')}
+              {t('Check agent')}
             </Link>
-          ) : !autoPending && onCheckStatus ? (
-            <button type="button" disabled={recovering}
+          ) : !accessBlocked && !autoPending && onCheckStatus ? (
+            <button
+              type="button"
+              disabled={recovering}
               className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4 disabled:opacity-50"
-              onClick={() => void recover(onCheckStatus)}>
+              onClick={() => void recover(onCheckStatus)}
+            >
               {t(recovering ? 'Checking…' : 'Check status')}
             </button>
           ) : null}
-          {recovery === 'try_again' && error && onCheckStatus && (
-            <button type="button" disabled={recovering}
-              className="ml-4 inline-flex min-h-11 items-center text-xs underline underline-offset-4 disabled:opacity-50"
-              onClick={() => void recover(onCheckStatus)}>{t('Check status')}</button>
+          {accessBlocked && onRetry && (
+            <button
+              type="button"
+              disabled={recovering}
+              className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+              onClick={() => void recover(onRetry)}
+            >
+              {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
+              {t(recovering ? 'Trying again…' : 'Try again anyway')}
+            </button>
           )}
           {recoveryStatus && <p role="status" className="text-xs text-muted-foreground">{recoveryStatus}</p>}
         </div>

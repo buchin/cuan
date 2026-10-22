@@ -104,6 +104,12 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			continue
 		}
 		if !isInboxQuotaFailure(failure) {
+			if len(routes) > 0 {
+				continue
+			}
+			if attempts > 1 {
+				return "", inboxQuotaNoBackup
+			}
 			return "", failure
 		}
 		if route.accountID != "" {

@@ -11,6 +11,7 @@ func TestInboxRecoveryPolicy(t *testing.T) {
 	for _, item := range []struct{ name, state, failure, kind, want string }{
 		{"setup", "failed", "The chat sandbox is unavailable.", "", "try_again"},
 		{"provider", "failed", "The provider could not reply.", "recovery_safe", "try_again"},
+		{"cooldown_safe", "failed", "The provider could not reply.", "provider_cooldown", "check_usage"},
 		{"quota", "failed", "Provider quota is limited.", "recovery_safe", "check_usage"},
 		{"login", "failed", "Check the provider's sign-in status.", "", "check_agent"},
 		{"unknown", "failed", "The result is unknown.", "recovery_safe", "check_status"},
