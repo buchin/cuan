@@ -1069,6 +1069,10 @@ func (s *Server) routes() {
 	s.router.Post("/api/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 	s.router.Post("/api/v1/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 	s.router.Post("/api/v1/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	s.router.Post("/api/tasks/{id}/apply", s.handleApplyTask)
+	s.router.Post("/api/projects/tasks/{id}/apply", s.handleApplyTask)
+	s.router.Post("/api/v1/tasks/{id}/apply", s.handleApplyTask)
+	s.router.Post("/api/v1/projects/tasks/{id}/apply", s.handleApplyTask)
 
 	// WebSocket Pseudo-Terminal (PTY) Engine (Sprint 9 S09.3)
 	s.router.Get("/api/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
@@ -1431,6 +1435,8 @@ func (s *Server) routes() {
 		// In-Task Agentic Execution Engine in v1 (Sprint 10 S10.3)
 		r.Post("/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 		r.Post("/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+		r.Post("/tasks/{id}/apply", s.handleApplyTask)
+		r.Post("/projects/tasks/{id}/apply", s.handleApplyTask)
 
 		// WordPress CMS Integration & Task Publishing / Export in v1 (Sprint 11 S11.3)
 		r.Post("/projects/{id}/integrations/wordpress", s.handleSetupWordPressIntegration)
@@ -1580,6 +1586,7 @@ func (s *Server) routes() {
 			pr.Patch("/tasks/{id}/attempts/{attemptId}", s.handleUpdateAttempt)
 			pr.Post("/tasks/{id}/cancel", s.handleCancelTask)
 			pr.Post("/tasks/{id}/retry", s.handleRetryTask)
+			pr.Post("/tasks/{id}/apply", s.handleApplyTask)
 			pr.Get("/tasks/{id}/attempts/{attemptId}/logs", s.handleGetAttemptLogs)
 
 			// Runners & Infrastructure (T5)

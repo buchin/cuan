@@ -599,5 +599,13 @@
   "Check needed": "Perlu dicek",
   "Not checked": "Belum dicek",
   "Auto-failover for Inbox & tasks when primary quota is low.": "Cadangan otomatis untuk Inbox & tugas saat kuota utama habis.",
-  "Auto-switch between available Gemini and Claude models.": "Beralih otomatis antara model Gemini dan Claude yang tersedia."
+  "Auto-switch between available Gemini and Claude models.": "Beralih otomatis antara model Gemini dan Claude yang tersedia.",
+  "Apply to website": "Terapkan ke Website",
+  "Apply": "Terapkan",
+  "Applying...": "Menerapkan...",
+  "Applied to website": "Sudah Aktif di Website",
+  "Changes ready to apply": "Perubahan Siap Diterapkan",
+  "Agent work has been verified and is ready to be published directly to your live website.": "Pekerjaan agen telah diverifikasi dan siap diterbitkan langsung ke website Anda.",
+  "View technical details on GitHub": "Lihat rincian teknis di GitHub",
+  "Changes successfully applied to website!": "Perubahan berhasil diterapkan ke website!"
 }

@@ -13,6 +13,7 @@ import {
   Check,
   Terminal,
   MessageSquare,
+  Rocket,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -47,7 +48,24 @@ export function TaskSessionPage({
     [busy, setBusy] = useState(false),
     [showTerminal, setShowTerminal] = useState(false),
     [accept, setAccept] = useState(false),
-    [acceptNote, setAcceptNote] = useState('')
+    [acceptNote, setAcceptNote] = useState(''),
+    [applying, setApplying] = useState(false),
+    [applied, setApplied] = useState(false)
+
+  const handleApply = async () => {
+    if (applying || applied || !detail) return
+    setApplying(true)
+    setError('')
+    try {
+      await tasksApi.apply(detail.id)
+      setApplied(true)
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not apply changes to website.')
+    } finally {
+      setApplying(false)
+    }
+  }
   const [searchParams, setSearchParams] = useSearchParams()
   const showDetail = searchParams.get('panel') === 'detail'
   const setShowDetail = (open: boolean) => {
@@ -306,9 +324,20 @@ export function TaskSessionPage({
               )}
             </section>
             {(canAccept || !result) && <div className="flex flex-wrap items-center gap-2">
+              {detail.pr_url && !applied && canAccept && (
+                <button
+                  type="button"
+                  disabled={busy || applying}
+                  onClick={handleApply}
+                  className="action-primary bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm inline-flex items-center gap-1.5"
+                >
+                  <Rocket className="h-4 w-4" />
+                  <span>{applying ? t('Applying...') : t('Apply to website')}</span>
+                </button>
+              )}
               {canAccept && (
                 <button
-                  className="action-primary"
+                  className="action-secondary"
                   onClick={() => {
                     setAcceptNote('')
                     setAccept(true)

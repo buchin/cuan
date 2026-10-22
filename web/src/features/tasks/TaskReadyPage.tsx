@@ -13,6 +13,7 @@ import {
   Terminal,
   MessageSquare,
   CheckSquare,
+  Rocket,
 } from 'lucide-react'
 import { agentsApi, type Agent } from '../../api/agents'
 import type { TaskDetail } from '../../api/types'
@@ -31,8 +32,26 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
     [agentError, setAgentError] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
-    [copied, setCopied] = useState(false)
+    [copied, setCopied] = useState(false),
+    [applying, setApplying] = useState(false),
+    [applied, setApplied] = useState(
+      task.status === 'done' && (task.complete_note?.includes('diterapkan') || !!task.pr_url),
+    )
   const [cancelled, setCancelled] = useState(false)
+
+  const handleApply = async () => {
+    if (applying || applied) return
+    setApplying(true)
+    setError('')
+    try {
+      await tasksApi.apply(task.id)
+      setApplied(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not apply changes to website.')
+    } finally {
+      setApplying(false)
+    }
+  }
 
   const copyResult = () => {
     const text = task.summary || task.complete_note || ''
@@ -228,6 +247,23 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
 
               {/* Action Toolbar */}
               <div className="flex flex-wrap items-center gap-2 pt-2">
+                {task.pr_url && !applied && (
+                  <button
+                    type="button"
+                    disabled={busy || applying}
+                    onClick={handleApply}
+                    className="action-primary text-xs px-3.5 py-2 inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all"
+                  >
+                    <Rocket className="h-3.5 w-3.5" />
+                    <span>{applying ? t('Applying...') : t('Apply to website')}</span>
+                  </button>
+                )}
+                {applied && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/20">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>{t('Applied to website')}</span>
+                  </span>
+                )}
                 {back.startsWith('/inbox/') ? (
                   <Link
                     to={back}

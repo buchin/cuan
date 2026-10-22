@@ -12,7 +12,10 @@ import {
   Trash2,
   RefreshCw,
   ExternalLink,
+  Rocket,
+  CheckCircle2,
 } from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
 import type {
   Task,
   TaskDetail,
@@ -107,6 +110,7 @@ function TaskDetailView({
   onDelete,
   onRunAgent,
 }: Props & { task: Task }) {
+  const { t } = useLanguage()
   const dialog = useRef<HTMLDialogElement>(null),
     [params, setParams] = useSearchParams(),
     full = params.get('view') === 'full'
@@ -121,7 +125,8 @@ function TaskDetailView({
     [notice, setNotice] = useState(''),
     [agents, setAgents] = useState<Agent[]>([]),
     [live, setLive] = useState<LiveTaskSession | null>(null),
-    [runtimeError, setRuntimeError] = useState('')
+    [runtimeError, setRuntimeError] = useState(''),
+    [applying, setApplying] = useState(false)
   const [tab, setTab] = useState<'overview' | 'sessions' | 'activity'>(
       'overview',
     ),
@@ -199,6 +204,23 @@ function TaskDetailView({
       }
     }
   }, [initial.id])
+
+  const handleApplyToWebsite = async () => {
+    if (applying || !detail) return
+    setApplying(true)
+    try {
+      await tasksApi.apply(detail.id)
+      setNotice(t('Changes successfully applied to website!'))
+      await reload()
+      if (onUpdate) {
+        await onUpdate(detail.id, { status: 'done' })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not apply changes to website.')
+    } finally {
+      setApplying(false)
+    }
+  }
   useEffect(() => {
     mounted.current = true
     void reload()
@@ -766,21 +788,54 @@ function TaskDetailView({
                       ) || 'Unassigned'}
                     </p>
                   </div>
-                  {detail.branch_name && (
-                    <p className="col-span-2 break-all text-xs">
-                      Branch: {detail.branch_name}
-                    </p>
-                  )}
                   {detail.pr_url && /^https?:\/\//i.test(detail.pr_url) && (
-                    <a
-                      href={detail.pr_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="col-span-2 inline-flex min-h-11 items-center gap-2 text-primary underline"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Open pull request
-                    </a>
+                    <div className="col-span-2 mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Rocket className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-xs font-semibold text-foreground">
+                            {detail.status === 'done' || detail.complete_note?.includes('diterapkan')
+                              ? t('Applied to website')
+                              : t('Changes ready to apply')}
+                          </span>
+                        </div>
+                        {detail.status === 'done' || detail.complete_note?.includes('diterapkan') ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            {t('Applied to website')}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {detail.status !== 'done' && !detail.complete_note?.includes('diterapkan') ? (
+                        <>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {t('Agent work has been verified and is ready to be published directly to your live website.')}
+                          </p>
+                          <button
+                            type="button"
+                            disabled={busy || applying}
+                            onClick={handleApplyToWebsite}
+                            className="action-primary w-full text-xs py-2 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all"
+                          >
+                            <Rocket className="h-3.5 w-3.5" />
+                            <span>{applying ? t('Applying...') : t('Apply to website')}</span>
+                          </button>
+                        </>
+                      ) : null}
+
+                      <div className="pt-1 border-t border-border/40">
+                        <a
+                          href={detail.pr_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          <span>{t('View technical details on GitHub')}</span>
+                        </a>
+                      </div>
+                    </div>
                   )}
                 </section>
                 <section>

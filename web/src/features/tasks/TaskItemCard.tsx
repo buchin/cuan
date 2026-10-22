@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   Folder,
   Terminal,
   CheckCircle2,
   Play,
+  Rocket,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
+import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import {
@@ -51,6 +54,26 @@ export function TaskItemCard({
   const agent =
     task.latest_attempt?.agent_name || task.assignee_id || task.assignee
   const statusBadgeClass = workStatusBadgeClass(status)
+  const [applying, setApplying] = useState(false)
+  const [applied, setApplied] = useState(
+    task.status === 'done' && (task.complete_note?.includes('diterapkan') || !!task.pr_url)
+  )
+
+  const handleApply = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (applying || applied) return
+    setApplying(true)
+    try {
+      await tasksApi.apply(task.id)
+      setApplied(true)
+      onNavigate?.()
+    } catch {
+      // ignore
+    } finally {
+      setApplying(false)
+    }
+  }
 
   if (variant === 'row') {
     return (
@@ -261,6 +284,23 @@ export function TaskItemCard({
 
         {showActions && (
           <div className="flex items-center gap-2 ml-auto">
+            {task.pr_url && !applied && status === 'Ready for review' && (
+              <button
+                type="button"
+                disabled={applying}
+                onClick={handleApply}
+                className="action-primary text-xs px-2.5 py-1 inline-flex items-center gap-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all"
+              >
+                <Rocket className="h-3.5 w-3.5" />
+                <span>{applying ? t('Applying...') : t('Apply to website')}</span>
+              </button>
+            )}
+            {applied && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>{t('Applied to website')}</span>
+              </span>
+            )}
             <Link
               to={`${targetUrl}?view=detail`}
               state={{ taskReturnTo: currentReturnTo }}

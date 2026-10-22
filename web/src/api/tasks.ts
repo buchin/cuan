@@ -117,4 +117,10 @@ export const tasksApi = {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
+  apply: (
+    id: string,
+  ): Promise<{ applied: boolean; sha?: string; message?: string; task?: Task }> =>
+    apiFetch(path(id) + '/apply', {
+      method: 'POST',
+    }),
 }
