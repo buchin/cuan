@@ -232,6 +232,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							} else {
 								output = approvedPlanDelegation(plan, q.MessageID)
 							}
+						} else if autoDelegation, ok := s.inboxAutoDelegationPrompt(ctx, q); ok {
+							step("auto_delegation", "Advancing to the next approved phase automatically.")
+							output = autoDelegation
 						} else {
 							inferenceCtx := ctx
 							if snapshot, ok := s.inboxTaskReviewPrompt(ctx, q); ok {

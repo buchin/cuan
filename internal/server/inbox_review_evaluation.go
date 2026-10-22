@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
@@ -113,6 +116,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			decision.Decision = "revise"
 			decision.Revision = "Gap: the canonical task is not verified complete or acceptance items remain unfinished. Area: original approved task and existing workspace. Inspect saved work, finish only missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
 		} else {
+			if target, ok := s.detectNextMultiPhase(d); ok {
+				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
+			}
 			return "Based on the work session's verification report:\n\n" + decision.Explanation
 		}
 	}
@@ -126,4 +132,155 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		return "The result still needs review. Its task and reported evidence are saved."
 	}
 	return decision.Explanation
+}
+
+type multiPhaseTarget struct {
+	CurrentPhase int
+	NextPhase    int
+	TotalPhases  int
+	NextTitle    string
+}
+
+var multiPhaseRegex = regexp.MustCompile(`(?i)(?:Phase|Fase)\s*(\d+)[:\-\s]+([^|\n\r]+)`)
+var activePhaseRegex = regexp.MustCompile(`(?i)(?:Active|Current)\s*Phase:\s*(\d+)`)
+
+func (s *Server) detectNextMultiPhase(d *task.TaskDetailResponse) (*multiPhaseTarget, bool) {
+	if d == nil || strings.TrimSpace(d.Instructions) == "" {
+		return nil, false
+	}
+	matches := multiPhaseRegex.FindAllStringSubmatch(d.Instructions, -1)
+	if len(matches) < 2 {
+		return nil, false
+	}
+
+	phases := make(map[int]string)
+	for _, m := range matches {
+		num, err := strconv.Atoi(m[1])
+		if err != nil || num <= 0 {
+			continue
+		}
+		if _, exists := phases[num]; !exists {
+			title := strings.TrimSpace(m[2])
+			title = strings.Trim(title, `"':;., `)
+			phases[num] = title
+		}
+	}
+	if len(phases) < 2 {
+		return nil, false
+	}
+
+	currentPhase := 0
+	if titleMatch := multiPhaseRegex.FindStringSubmatch(d.Title); len(titleMatch) >= 2 {
+		if num, err := strconv.Atoi(titleMatch[1]); err == nil {
+			currentPhase = num
+		}
+	}
+	if currentPhase == 0 {
+		if activeMatch := activePhaseRegex.FindStringSubmatch(d.Instructions); len(activeMatch) >= 2 {
+			if num, err := strconv.Atoi(activeMatch[1]); err == nil {
+				currentPhase = num
+			}
+		}
+	}
+	if currentPhase == 0 {
+		currentPhase = 1
+	}
+
+	nextNum := currentPhase + 1
+	nextTitle, exists := phases[nextNum]
+	if !exists {
+		return nil, false
+	}
+
+	return &multiPhaseTarget{
+		CurrentPhase: currentPhase,
+		NextPhase:    nextNum,
+		TotalPhases:  len(phases),
+		NextTitle:    nextTitle,
+	}, true
+}
+
+func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, explanation string, target *multiPhaseTarget) string {
+	nextTitle := fmt.Sprintf("Phase %d: %s", target.NextPhase, target.NextTitle)
+	key := fmt.Sprintf("auto-phase:%s:%d", d.ID, target.NextPhase)
+	requestID := delegationMessageID(key)
+	inputMsgID := delegationMessageID(key + ":input")
+	replyMsgID := delegationMessageID(key + ":reply")
+	now := time.Now().UTC()
+
+	systemContent := fmt.Sprintf("Autonomous Sprint Execution: Phase %d verified complete.\n\nAutomatically advancing to **%s**.\n\nProject: %s", target.CurrentPhase, nextTitle, d.ProjectID)
+
+	var nextTaskID string
+	if s.taskSvc != nil {
+		nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\nPhase %d of %d: %s\n\nPart of approved multi-phase plan:\n%s\n\nApproval message: %s\nConversation: %s\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized.", target.NextPhase, target.NextPhase, target.TotalPhases, target.NextTitle, d.Instructions, d.SourceMessageID, q.RoomID)
+		created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{
+			SourceRoomID:  q.RoomID,
+			ProjectID:     d.ProjectID,
+			Title:         nextTitle,
+			Instructions:  nextInstructions,
+			AssignedAgent: q.AgentID,
+		})
+		if err == nil && created != nil {
+			nextTaskID = created.ID
+			launchID := delegationMessageID("task-run:" + q.RoomID + ":" + inputMsgID)
+			if detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID); err == nil {
+				_ = s.startAuthorizedLaunch(ctx, db.InboxRequest{
+					OwnerID:   q.OwnerID,
+					AgentID:   q.AgentID,
+					RoomID:    q.RoomID,
+					RequestID: requestID,
+				}, detail, launchID, requestID, "")
+			}
+		}
+	}
+
+	if nextTaskID != "" {
+		systemContent += fmt.Sprintf("\n\n[View work](/tasks/%s)", nextTaskID)
+	}
+
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		nextReq := db.InboxRequest{
+			OwnerID:     q.OwnerID,
+			AgentID:     q.AgentID,
+			RoomID:      q.RoomID,
+			RequestID:   requestID,
+			MessageID:   inputMsgID,
+			ReplyID:     replyMsgID,
+			PayloadHash: requestID,
+			State:       "completed",
+			CreatedAt:   now,
+			Deadline:    now.Add(10 * time.Minute),
+		}
+		msg := &db.ProjectMessage{
+			ID:         inputMsgID,
+			RoomID:     q.RoomID,
+			AuthorType: "system",
+			AuthorID:   "cuan_auto_delegation",
+			AuthorName: "Cuan",
+			Content:    systemContent,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		if _, fresh, err := store.AcceptInboxRequest(ctx, nextReq, msg); err == nil && fresh {
+			s.publishInbox(q.RoomID)
+			s.kickInboxRoom(q.RoomID)
+		}
+	}
+
+	link := ""
+	if nextTaskID != "" {
+		link = fmt.Sprintf("\n\n[View work](/tasks/%s)", nextTaskID)
+	}
+	return fmt.Sprintf("Based on the work session's verification report:\n\n%s\n\nPhase %d verified complete. Automatically advancing to **%s** without stopping.%s", explanation, target.CurrentPhase, nextTitle, link)
+}
+
+func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxRequest) (string, bool) {
+	if s.projectStudioRepo == nil {
+		return "", false
+	}
+	m, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+	if err != nil || m == nil || m.RoomID != q.RoomID || m.AuthorType != "system" || m.AuthorID != "cuan_auto_delegation" {
+		return "", false
+	}
+	return m.Content, true
 }
