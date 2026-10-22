@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/buchin/cuan/internal/config"
+	"github.com/buchin/cuan/internal/workflow"
 )
 
 func coordinatorJSON(reply, kind string, payload any) string {
@@ -251,5 +252,25 @@ func TestCoordinatorResponseSynthesizesApprovalForConfirmationQuestions(t *testi
 	}
 	if plan.ProjectName != "Cuan" {
 		t.Errorf("expected project Cuan, got %q", plan.ProjectName)
+	}
+}
+
+func TestCoordinatorInstructionAutonomousErrorTriage(t *testing.T) {
+	for name, prompt := range map[string]string{
+		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
+		"workflow.Coordinator":       workflow.Coordinator,
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, required := range []string{
+				"AUTONOMOUS ERROR TRIAGE",
+				"NEVER deflect",
+				"NEVER offload manual troubleshooting checklists",
+				"Emit a delegation action immediately",
+			} {
+				if !strings.Contains(strings.ToLower(prompt), strings.ToLower(required)) {
+					t.Fatalf("%s missing required directive %q", name, required)
+				}
+			}
+		})
 	}
 }
