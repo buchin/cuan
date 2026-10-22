@@ -48,7 +48,7 @@ func (d *cliSetupDriver) advance() {
 	compact := strings.Join(strings.Fields(plain), " ")
 	switch d.stage {
 	case 0:
-		if !d.themeSelected && strings.Contains(plain, "Choose your color scheme:") && strings.Contains(plain, "[Next]") {
+		if !d.themeSelected && strings.Contains(plain, "Choose your color scheme:") {
 			d.themeSelected = true
 			d.send("\r", 0)
 			return
@@ -86,4 +86,41 @@ func antigravityOnboardingComplete(home string) bool {
 		Complete bool `json:"onboardingComplete"`
 	}
 	return json.Unmarshal(data, &state) == nil && state.Complete
+}
+
+// AntigravityOnboardingComplete reports whether onboardingComplete=true is set in the profile cache.
+func AntigravityOnboardingComplete(home string) bool {
+	return antigravityOnboardingComplete(home)
+}
+
+// EnsureAntigravityOnboarding ensures that cache/onboarding.json is populated with
+// onboardingComplete=true if the profile has valid saved credentials.
+func EnsureAntigravityOnboarding(home string) error {
+	var loggedIn bool
+	if home != "" {
+		loggedIn = IsAntigravityLoggedInInDir(home)
+	} else {
+		loggedIn = IsAntigravityLoggedIn()
+	}
+	if !loggedIn {
+		return nil
+	}
+	if antigravityOnboardingComplete(home) {
+		return nil
+	}
+	dir := filepath.Join(AntigravityConfigDirPath(home), "cache")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "onboarding.json")
+	state := map[string]bool{
+		"consumerOnboardingComplete":   true,
+		"enterpriseOnboardingComplete": false,
+		"onboardingComplete":           true,
+	}
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0600)
 }

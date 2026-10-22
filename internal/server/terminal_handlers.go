@@ -597,6 +597,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		runCfg.AttemptID = attempt.ID
 	}
 	if profileHome != "" {
+		if payload.Binary == "agy" || payload.Binary == "antigravity" || payload.Binary == "" {
+			_ = agent.PrepareAntigravitySettings(profileHome, workDir)
+			_ = agent.EnsureAntigravityOnboarding(profileHome)
+		}
 		runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
 	}
 	runCfg.Env = append(runCfg.Env, reportEnv...)

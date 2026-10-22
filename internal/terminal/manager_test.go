@@ -358,3 +358,64 @@ func TestManagerStopsOnlyMatchingQuotaAttempt(t *testing.T) {
 		t.Fatal("duplicate quota stop accepted")
 	}
 }
+
+func TestRunTaskAgentAutoProvisionsOnboardingAndTrustedWorkspaces(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+
+	homeDir := filepath.Join(root, "account_home")
+	tokenPath := filepath.Join(homeDir, ".gemini", "antigravity-cli", "antigravity-oauth-token")
+	if err := os.MkdirAll(filepath.Dir(tokenPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tokenPath, []byte("fake-token-with-at-least-16-bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	workDir := filepath.Join(root, "task_workspace")
+	if err := os.MkdirAll(workDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewManager(ManagerConfig{WorkspacesDir: t.TempDir()})
+	defer mgr.CloseAll()
+
+	sess, err := mgr.RunTaskAgent(context.Background(), TaskAgentRunConfig{
+		TaskID:  "task-autoprovision",
+		Command: "agy",
+		Prompt:  "do work",
+		WorkDir: workDir,
+		Env:     []string{"HOME=" + homeDir},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+
+	// Verify settings.json was provisioned with trustedWorkspaces including workDir
+	settingsFile := filepath.Join(homeDir, ".gemini", "antigravity-cli", "settings.json")
+	data, err := os.ReadFile(settingsFile)
+	if err != nil {
+		t.Fatalf("settings.json not created: %v", err)
+	}
+	if !strings.Contains(string(data), workDir) {
+		t.Fatalf("settings.json missing workDir %s, got: %s", workDir, string(data))
+	}
+
+	// Verify onboarding.json was created with onboardingComplete true
+	onboardingFile := filepath.Join(homeDir, ".gemini", "antigravity-cli", "cache", "onboarding.json")
+	onboardingData, err := os.ReadFile(onboardingFile)
+	if err != nil {
+		t.Fatalf("onboarding.json not created: %v", err)
+	}
+	if !strings.Contains(string(onboardingData), `"onboardingComplete": true`) {
+		t.Fatalf("onboarding.json missing onboardingComplete: true, got: %s", string(onboardingData))
+	}
+}

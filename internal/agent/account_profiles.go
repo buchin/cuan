@@ -273,6 +273,14 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 		} else if strings.Contains(strings.ToLower(a.Message), "quota") {
 			a.State = "quota_limited"
 		}
+	} else if a.CredentialsPresent {
+		_ = prepareAntigravitySettings(home)
+		_ = EnsureAntigravityOnboarding(home)
+		if !a.Legacy && !antigravityOnboardingComplete(home) {
+			a.VerifiedAt = nil
+			a.State = "setup_incomplete"
+			a.Message = "Google sign-in is saved, but provider setup is incomplete. Finish provider setup before using this account."
+		}
 	}
 	if !a.Legacy {
 		accountProfileMu.Lock()

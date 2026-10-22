@@ -159,7 +159,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		if len(candidates) >= 8 {
 			break
 		}
-		if candidate.Legacy || !candidate.AllowFailover || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
+		if candidate.Legacy || !candidate.AllowFailover || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.State == "setup_incomplete" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
 			continue
 		}
 		bound, err := s.agentRepo.GetAgentByID(ctx, candidate.AgentID)
@@ -168,6 +168,11 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		}
 		candidateHome, err := s.ownedAgentProfileHome(ctx, owner, bound)
 		if err == nil && candidateHome != "" {
+			_ = agent.PrepareAntigravitySettings(candidateHome)
+			_ = agent.EnsureAntigravityOnboarding(candidateHome)
+			if !agent.AntigravityOnboardingComplete(candidateHome) {
+				continue
+			}
 			candidates = append(candidates, candidateRoute{candidate, candidateHome, false})
 		}
 	}

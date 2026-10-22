@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -13,8 +14,9 @@ var cliSettingsMu sync.Mutex
 // prepareAntigravitySettings uses the provider's documented settings.json keys
 // before first sign-in. It never records acceptance of provider terms or opts in
 // to interaction sharing. Existing explicit preferences remain unchanged.
+// If trustedWorkspaces are provided, they are registered to avoid interactive trust prompts.
 // Reference: https://antigravity.google/docs/cli/reference#configuration-keys-settingsjson
-func prepareAntigravitySettings(home string) error {
+func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error {
 	cliSettingsMu.Lock()
 	defer cliSettingsMu.Unlock()
 	dir := AntigravityConfigDirPath(home)
@@ -48,6 +50,32 @@ func prepareAntigravitySettings(home string) error {
 		if _, exists := settings[key]; !exists {
 			settings[key] = value
 			changed = true
+		}
+	}
+	if len(trustedWorkspaces) > 0 {
+		var currentWorkspaces []string
+		if raw, ok := settings["trustedWorkspaces"]; ok {
+			_ = json.Unmarshal(raw, &currentWorkspaces)
+		}
+		trustedSet := make(map[string]bool)
+		for _, w := range currentWorkspaces {
+			trustedSet[w] = true
+		}
+		workspacesChanged := false
+		for _, w := range trustedWorkspaces {
+			w = strings.TrimSpace(w)
+			if w != "" && !trustedSet[w] {
+				currentWorkspaces = append(currentWorkspaces, w)
+				trustedSet[w] = true
+				workspacesChanged = true
+			}
+		}
+		if workspacesChanged {
+			data, err := json.Marshal(currentWorkspaces)
+			if err == nil {
+				settings["trustedWorkspaces"] = data
+				changed = true
+			}
 		}
 	}
 	if !changed {
@@ -84,4 +112,9 @@ func prepareAntigravitySettings(home string) error {
 	}
 	defer d.Close()
 	return d.Sync()
+}
+
+// PrepareAntigravitySettings configures settings.json defaults and trusts the given workspaces.
+func PrepareAntigravitySettings(home string, trustedWorkspaces ...string) error {
+	return prepareAntigravitySettings(home, trustedWorkspaces...)
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/taskprocess"
 	"io"
 	"os"
@@ -372,6 +373,17 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 			// Inbox uses its own restricted launcher and does not inherit this flag.
 			ptyArgs = []string{"--dangerously-skip-permissions", "--prompt-interactive", cfg.Prompt, "--add-dir", workDir}
 			cfg.Env = append(cfg.Env, "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+			var homeDir string
+			for _, e := range cfg.Env {
+				if strings.HasPrefix(e, "HOME=") {
+					homeDir = strings.TrimPrefix(e, "HOME=")
+					break
+				}
+			}
+			if homeDir != "" {
+				_ = agent.PrepareAntigravitySettings(homeDir, workDir)
+				_ = agent.EnsureAntigravityOnboarding(homeDir)
+			}
 		}
 	case "codex":
 		executable, err = exec.LookPath("codex")

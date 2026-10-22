@@ -61,6 +61,43 @@ func TestCLISetupDriverDoesNotToggleAlreadyDisabledSharing(t *testing.T) {
 		t.Fatal("unrecognized consent UI received input")
 	}
 }
+
+func TestCLISetupDriverHandlesThemeScreenWithoutNextTag(t *testing.T) {
+	var input bytes.Buffer
+	d := &cliSetupDriver{writer: &input}
+	// Simulate mobile screen where [Next] is cut off / below fold
+	d.feed("Choose your color scheme:\n> terminal\nlight\ndark")
+	if input.String() != "\r" {
+		t.Fatalf("expected \\r on color scheme screen, got %q", input.String())
+	}
+}
+
+func TestEnsureAntigravityOnboarding(t *testing.T) {
+	home := t.TempDir()
+	// No token -> no-op
+	if err := EnsureAntigravityOnboarding(home); err != nil {
+		t.Fatal(err)
+	}
+	if AntigravityOnboardingComplete(home) {
+		t.Fatal("expected onboarding not complete without login")
+	}
+
+	// Create token
+	tokenPath := filepath.Join(AntigravityConfigDirPath(home), "antigravity-oauth-token")
+	if err := os.MkdirAll(filepath.Dir(tokenPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tokenPath, []byte("fake-token-with-at-least-16-bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := EnsureAntigravityOnboarding(home); err != nil {
+		t.Fatal(err)
+	}
+	if !AntigravityOnboardingComplete(home) {
+		t.Fatal("expected onboarding to be complete after EnsureAntigravityOnboarding")
+	}
+}
 func TestAccountOAuthFinishesWizardBeforeAcceptingSavedCredentials(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	bin := t.TempDir()

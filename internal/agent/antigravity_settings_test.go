@@ -103,3 +103,46 @@ func TestProfileLoginPreparesSettingsBeforeLaunchingCLI(t *testing.T) {
 		t.Fatal("settings initialization fabricated credentials")
 	}
 }
+
+func TestCLISettingsPrepareTrustedWorkspaces(t *testing.T) {
+	home := t.TempDir()
+	ws1 := "/opt/cuan/data/workspaces/ws1"
+	ws2 := "/opt/cuan/data/workspaces/ws2"
+
+	if err := PrepareAntigravitySettings(home, ws1); err != nil {
+		t.Fatal(err)
+	}
+
+	p := filepath.Join(AntigravityConfigDirPath(home), "settings.json")
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var settings map[string]any
+	if err = json.Unmarshal(raw, &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings["colorScheme"] != "terminal" || settings["enableTelemetry"] != false {
+		t.Fatalf("unexpected defaults: %v", settings)
+	}
+	trusted, ok := settings["trustedWorkspaces"].([]any)
+	if !ok || len(trusted) != 1 || trusted[0] != ws1 {
+		t.Fatalf("expected trustedWorkspaces [%s], got %v", ws1, settings["trustedWorkspaces"])
+	}
+
+	// Adding duplicate ws1 and new ws2
+	if err := PrepareAntigravitySettings(home, ws1, ws2); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(raw, &settings); err != nil {
+		t.Fatal(err)
+	}
+	trusted, ok = settings["trustedWorkspaces"].([]any)
+	if !ok || len(trusted) != 2 || trusted[0] != ws1 || trusted[1] != ws2 {
+		t.Fatalf("expected trustedWorkspaces [%s, %s], got %v", ws1, ws2, settings["trustedWorkspaces"])
+	}
+}
