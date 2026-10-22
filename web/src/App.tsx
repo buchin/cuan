@@ -598,6 +598,7 @@ export function App() {
           currentTab === 'studio' ||
           currentTab === 'notifications' ||
           projectDetail ||
+          (currentTab === 'inbox' && (!!subParam || isMobileChatActive)) ||
           (currentTab === 'contacts' && !!new URLSearchParams(location.search).get('contact')) ||
           (currentTab === 'settings' && subParam !== 'agents')
             ? undefined
