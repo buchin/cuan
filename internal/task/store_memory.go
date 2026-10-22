@@ -483,3 +483,27 @@ func (m *MemoryStore) Wipe() {
 	m.activities = make(map[string]*TaskActivity)
 	m.logs = make(map[string][]*LogRecord)
 }
+
+func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[string]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := map[string]string{}
+	latestTime := map[string]time.Time{}
+	idSet := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idSet[id] = true
+	}
+	for _, act := range m.activities {
+		if idSet[act.TaskID] && act.ActivityType == "agent_report" && act.NewStatus == "progress" {
+			if prev, ok := latestTime[act.TaskID]; !ok || act.CreatedAt.After(prev) {
+				latestTime[act.TaskID] = act.CreatedAt
+				msg := act.Message
+				if idx := strings.Index(msg, "\n"); idx != -1 {
+					msg = msg[:idx]
+				}
+				result[act.TaskID] = strings.TrimSpace(msg)
+			}
+		}
+	}
+	return result, nil
+}

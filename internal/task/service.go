@@ -277,16 +277,32 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 		}
 	}
 
+	latestProgress := ""
+	var latestProgressTime time.Time
+	for _, a := range activities {
+		if a.ActivityType == "agent_report" && a.NewStatus == "progress" {
+			if a.CreatedAt.After(latestProgressTime) {
+				latestProgressTime = a.CreatedAt
+				msg := a.Message
+				if idx := strings.Index(msg, "\n"); idx != -1 {
+					msg = msg[:idx]
+				}
+				latestProgress = strings.TrimSpace(msg)
+			}
+		}
+	}
+
 	return &TaskDetailResponse{
-		ResultKind:    resultKindForAttempt(classifyResult(activities), latestAttempt),
-		Launch:        s.launchInfo(ctx, id),
-		Task:          *t,
-		ProjectName:   projectName,
-		ProjectNames:  projectNamesList,
-		RepoURL:       repoURL,
-		LatestAttempt: latestAttempt,
-		Attempts:      attempts,
-		Activities:    activities,
+		ResultKind:     resultKindForAttempt(classifyResult(activities), latestAttempt),
+		Launch:         s.launchInfo(ctx, id),
+		Task:           *t,
+		ProjectName:    projectName,
+		ProjectNames:   projectNamesList,
+		RepoURL:        repoURL,
+		LatestAttempt:  latestAttempt,
+		LatestProgress: latestProgress,
+		Attempts:       attempts,
+		Activities:     activities,
 	}, nil
 }
 
@@ -308,6 +324,16 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 		if err != nil {
 			return nil, fmt.Errorf("list task result classifications: %w", err)
 		}
+	}
+	progresses := map[string]string{}
+	if reader, ok := s.store.(interface {
+		LatestProgresses(context.Context, []string) (map[string]string, error)
+	}); ok {
+		ids := make([]string, 0, len(tasks))
+		for _, t := range tasks {
+			ids = append(ids, t.ID)
+		}
+		progresses, _ = reader.LatestProgresses(ctx, ids)
 	}
 	// Cache project names to avoid duplicate lookups
 	projectNames := make(map[string]string)
@@ -340,11 +366,12 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 
 		latestAttempt, _ := s.store.GetLatestAttempt(ctx, t.ID)
 		items = append(items, &TaskItemResponse{
-			ResultKind:    resultKindForAttempt(classifications[t.ID], latestAttempt),
-			Task:          *t,
-			ProjectName:   pName,
-			ProjectNames:  pNames,
-			LatestAttempt: latestAttempt,
+			ResultKind:     resultKindForAttempt(classifications[t.ID], latestAttempt),
+			Task:           *t,
+			ProjectName:    pName,
+			ProjectNames:   pNames,
+			LatestAttempt:  latestAttempt,
+			LatestProgress: progresses[t.ID],
 		})
 	}
 

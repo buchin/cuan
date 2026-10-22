@@ -774,3 +774,31 @@ func checklistJSON(items []DoDItem) string {
 	data, _ := json.Marshal(items)
 	return string(data)
 }
+
+func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[string]string, error) {
+	result := map[string]string{}
+	if len(ids) == 0 {
+		return result, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT ON (task_id) task_id, message
+		FROM task_activities
+		WHERE task_id = ANY($1::text[]) AND activity_type = 'agent_report' AND new_status = 'progress'
+		ORDER BY task_id, created_at DESC, id DESC
+	`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, msg string
+		if err := rows.Scan(&id, &msg); err != nil {
+			return nil, err
+		}
+		if idx := strings.Index(msg, "\n"); idx != -1 {
+			msg = msg[:idx]
+		}
+		result[id] = strings.TrimSpace(msg)
+	}
+	return result, rows.Err()
+}

@@ -257,33 +257,6 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		if err != nil || detail.LatestAttempt == nil {
 			continue
 		}
-		messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, item.SourceRoomID)
-		if err != nil {
-			continue
-		}
-		existing := map[string]bool{}
-		for _, m := range messages {
-			existing[m.ID] = true
-		}
-		for _, a := range detail.Activities {
-			if a.ActivityType != "agent_report" || a.AttemptID == nil || *a.AttemptID != detail.LatestAttempt.ID {
-				continue
-			}
-			if a.NewStatus != "progress" {
-				continue
-			}
-			id := delegationMessageID("update:" + a.ID)
-			if existing[id] {
-				continue
-			}
-			text := a.Message
-			text += "\n\n[View work](/tasks/" + item.ID + ")"
-			now := time.Now().UTC()
-			msg := &db.ProjectMessage{ID: id, RoomID: item.SourceRoomID, AuthorType: "agent", AuthorID: detail.AssignedAgent, AuthorName: "Cuan", Content: text, CreatedAt: now, UpdatedAt: now}
-			if s.projectStudioRepo.CreateMessage(ctx, msg) == nil {
-				s.publishInbox(item.SourceRoomID)
-			}
-		}
 		if detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
 			s.queueInboxTaskReview(ctx, detail)
 		}

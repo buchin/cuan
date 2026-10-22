@@ -134,11 +134,21 @@ export function TaskItemCard({
             </span>
           </Link>
 
-          {summary && (
+          {isRunning && (task.latest_progress || summary) ? (
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600"></span>
+              </span>
+              <span className="line-clamp-1 truncate text-[11px] font-medium">
+                {task.latest_progress || summary}
+              </span>
+            </div>
+          ) : summary ? (
             <p className="mt-0.5 line-clamp-1 break-words text-xs text-muted-foreground">
               {summary}
             </p>
-          )}
+          ) : null}
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
             {agent && (
@@ -265,11 +275,21 @@ export function TaskItemCard({
             {task.title}
           </h4>
         </Link>
-        {summary && (
+        {isRunning && (task.latest_progress || summary) ? (
+          <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300 animate-in fade-in duration-200">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+            </span>
+            <span className="line-clamp-2 break-words text-[11px] font-medium leading-tight">
+              {task.latest_progress || summary}
+            </span>
+          </div>
+        ) : summary ? (
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
             {summary}
           </p>
-        )}
+        ) : null}
       </div>
 
       {/* Footer: Agent info & Action buttons */}

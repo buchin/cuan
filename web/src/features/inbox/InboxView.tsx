@@ -884,6 +884,19 @@ export function InboxView({
                 </div>
               )}
               {messages.map((msg, index) => {
+                // Intermediate runner progress reports are displayed live inside the TaskItemCard
+                // (overwriting in-place), so suppress redundant intermediate progress chat bubbles.
+                const msgContent = msg.content || msg.message || ''
+                if (
+                  (msg.author_name === 'Cuan' || msg.author_type === 'agent') &&
+                  msgContent.includes('[View work](/tasks/') &&
+                  !msgContent.includes('Work marked completed') &&
+                  !msgContent.includes('stopped') &&
+                  !msgContent.includes('cancelled')
+                ) {
+                  return null
+                }
+
                 // In WhatsApp/Telegram: User is right-aligned, Contact (Agent/Customer) is left-aligned
                 const isUser =
                   msg.author_type === 'user' && activeContact.type === 'agent'

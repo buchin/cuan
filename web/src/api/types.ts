@@ -123,6 +123,7 @@ export interface Task {
   dod_checklist?: (DoDItem | string)[]
   tags?: string[]
   runner_state?: string
+  latest_progress?: string
   execution_status?: 'idle' | 'running' | 'completed' | 'failed' | string
   created_at: string
   updated_at: string

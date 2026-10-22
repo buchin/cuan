@@ -119,6 +119,51 @@ func TestAgentExplicitCompletion(t *testing.T) {
 	}
 }
 
+func TestAgentReportLatestProgressOverwrites(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore(), nil)
+	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{Title: "Feature Task", Instructions: "Build a button"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := TaskStatusDoing
+	svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Status: &doing})
+	svc.UpdateAttemptStatus(ctx, a.ID, "runner", UpdateAttemptRequest{Status: AttemptStatusRunning})
+	svc.RequireAgentReport(ctx, created.ID, a.ID, "fixture")
+
+	// 1. Initial progress checkpoint
+	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "progress", Progress: "Analyzing codebase layout"}); err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.GetTaskDetail(ctx, created.ID)
+	if err != nil || detail.LatestProgress != "Analyzing codebase layout" {
+		t.Fatalf("expected progress 'Analyzing codebase layout', got %q", detail.LatestProgress)
+	}
+	list, err := svc.ListTasks(ctx, TaskFilter{})
+	if err != nil || len(list) != 1 || list[0].LatestProgress != "Analyzing codebase layout" {
+		t.Fatalf("expected list progress 'Analyzing codebase layout', got %+v", list)
+	}
+
+	// 2. Overwrite with subsequent progress update
+	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "progress", Progress: "Implementing scroll to bottom button component"}); err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err = svc.GetTaskDetail(ctx, created.ID)
+	if err != nil || detail.LatestProgress != "Implementing scroll to bottom button component" {
+		t.Fatalf("expected overwritten progress 'Implementing scroll to bottom button component', got %q", detail.LatestProgress)
+	}
+	list, err = svc.ListTasks(ctx, TaskFilter{})
+	if err != nil || len(list) != 1 || list[0].LatestProgress != "Implementing scroll to bottom button component" {
+		t.Fatalf("expected overwritten list progress, got %+v", list)
+	}
+}
+
 func TestDefaultProjectKeepsLegacyCreationReplay(t *testing.T) {
 	ctx := context.Background()
 	svc := NewService(NewMemoryStore(), nil)

@@ -130,24 +130,26 @@ type LogRecord struct {
 
 // TaskItemResponse is returned in task listings.
 type TaskItemResponse struct {
-	ResultKind string `json:"result_kind,omitempty"`
+	ResultKind     string       `json:"result_kind,omitempty"`
 	Task
-	ProjectName   string       `json:"project_name,omitempty"`
-	ProjectNames  []string     `json:"project_names,omitempty"`
-	LatestAttempt *TaskAttempt `json:"latest_attempt,omitempty"`
+	ProjectName    string       `json:"project_name,omitempty"`
+	ProjectNames   []string     `json:"project_names,omitempty"`
+	LatestAttempt  *TaskAttempt `json:"latest_attempt,omitempty"`
+	LatestProgress string       `json:"latest_progress,omitempty"`
 }
 
 // TaskDetailResponse contains full detail including history and attempts.
 type TaskDetailResponse struct {
-	ResultKind string      `json:"result_kind,omitempty"`
-	Launch     *LaunchInfo `json:"launch,omitempty"`
+	ResultKind     string          `json:"result_kind,omitempty"`
+	Launch         *LaunchInfo     `json:"launch,omitempty"`
 	Task
-	ProjectName   string          `json:"project_name,omitempty"`
-	ProjectNames  []string        `json:"project_names,omitempty"`
-	RepoURL       string          `json:"repo_url,omitempty"`
-	LatestAttempt *TaskAttempt    `json:"latest_attempt,omitempty"`
-	Attempts      []*TaskAttempt  `json:"attempts"`
-	Activities    []*TaskActivity `json:"activities"`
+	ProjectName    string          `json:"project_name,omitempty"`
+	ProjectNames   []string        `json:"project_names,omitempty"`
+	RepoURL        string          `json:"repo_url,omitempty"`
+	LatestAttempt  *TaskAttempt    `json:"latest_attempt,omitempty"`
+	LatestProgress string          `json:"latest_progress,omitempty"`
+	Attempts       []*TaskAttempt  `json:"attempts"`
+	Activities     []*TaskActivity `json:"activities"`
 }
 
 // Request and filter types

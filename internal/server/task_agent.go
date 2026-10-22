@@ -249,6 +249,9 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": "Result is reconciled after process exit"})
+	if updated != nil && updated.SourceRoomID != "" {
+		s.publishInbox(updated.SourceRoomID)
+	}
 	if report.State == "review" || report.State == "blocked" || report.State == "done" {
 		// Return the tool response before closing its parent PTY. Never stop a later
 		// attempt or convert an independently failed process into successful work.
