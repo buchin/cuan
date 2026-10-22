@@ -80,6 +80,9 @@ export function InboxActivity({
     : t('Working…')
   const autoRecovery = q.steps?.some((step) => step.kind === 'retry_auto')
   const compact = q.state === 'completed' && !bubble
+  if (compact) {
+    return null
+  }
   const active = ['queued', 'running', 'cancelling'].includes(q.state)
   useEffect(() => {
     if (!active) return

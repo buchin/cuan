@@ -1118,11 +1118,11 @@ export function InboxView({
                         <button
                           type="button"
                           onClick={() => setConvTab('tasks')}
-                          className="mt-1.5 inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
                           title={t('View in Work Monitor')}
                         >
                           <CheckSquare className="h-3 w-3" />
-                          <span>{t('Escalated to task')}</span>
+                          <span>{t('Assigned to task')}</span>
                         </button>
                       )}
                       {isFormattedMessage && (

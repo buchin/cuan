@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import { CheckSquare, ArrowRight } from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
 import { ChatMarkdown } from './ChatMarkdown'
 
 // Promote a trailing paragraph of known navigation links. Never interpret model
@@ -26,6 +28,7 @@ export function MessageContent({
   content: string
   hideTaskActions?: boolean
 }) {
+  const { t } = useLanguage()
   const { body, actions } = messageNavigation(content)
   const visibleActions = hideTaskActions
     ? actions.filter(
@@ -37,9 +40,11 @@ export function MessageContent({
     {body && <ChatMarkdown content={body} />}
     {visibleActions.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Message actions">
       {visibleActions.map((action) => <Link key={action.href} to={action.href} className={action.primary
-        ? 'inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-        : 'inline-flex min-h-11 items-center px-2 text-sm underline underline-offset-4 hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring'}>
-        {action.label}
+        ? 'inline-flex min-h-9 items-center justify-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring shadow-xs'
+        : 'inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-background/80 px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted/70 transition-colors shadow-xs'}>
+        {!action.primary && <CheckSquare className="h-3.5 w-3.5 text-primary" />}
+        <span>{t(action.label)}</span>
+        {!action.primary && <ArrowRight className="h-3 w-3 opacity-60 ml-0.5" />}
       </Link>)}
     </div>}
   </>
