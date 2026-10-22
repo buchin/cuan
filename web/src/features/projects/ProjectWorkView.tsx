@@ -6,12 +6,13 @@ import {
 } from '../../extensions/sdk'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
-import { relativeTime, tasksForProject, workStatus, taskRef, agentDisplayName } from '../tasks/task-ui'
+import { TaskItemCard } from '../tasks/TaskItemCard'
+import { tasksForProject, workStatus, taskRef, taskSummaryText } from '../tasks/task-ui'
 
 export function ProjectWorkView({
   project,
@@ -47,12 +48,8 @@ export function ProjectWorkView({
     { id: 'attention', label: 'Needs attention', matches: (task: Task) => ['Needs attention', 'Not running', 'Ready for review'].includes(workStatus(task)) },
     { id: 'completed', label: 'Completed', matches: (task: Task) => ['Completed', 'Answered'].includes(workStatus(task)) },
   ]
-  const summaryFor = (task: Task) => {
-    const text = (workStatus(task) === 'Completed' ? task.complete_note || task.summary : task.launch?.safe_error || task.summary) || ''
-    return text.replace(/\s+/g, ' ').trim()
-  }
   const searched = scoped.filter(task =>
-    [task.title, taskRef(task.id), task.status, workStatus(task), summaryFor(task), task.latest_attempt?.agent_name]
+    [task.title, taskRef(task.id), task.status, workStatus(task), taskSummaryText(task), task.latest_attempt?.agent_name]
       .join(' ').toLowerCase().includes(query.toLowerCase().trim()))
   const visible = searched.filter(task => (filters.find(item => item.id === filter) || filters[0]).matches(task))
   const selected = scoped.find((t) => t.id === taskId)
@@ -208,30 +205,34 @@ export function ProjectWorkView({
             )}
           </p>
         ) : (
-          visible.map((item) => (
-            <ItemActions key={item.id} label={item.title} actions={[
-              { label: 'Open task', run: () => navigate(base + '/' + encodeURIComponent(item.id), { state: { ...location.state, taskReturnTo: base } }) },
-              { label: 'Copy link', run: () => copyItemLink(base + '/' + encodeURIComponent(item.id)) },
-            ]}>
-            <Link
-              key={item.id}
-              to={base + '/' + encodeURIComponent(item.id)}
-              state={{ ...location.state, taskReturnTo: base }}
-              className="flex min-h-16 items-center gap-3 border-b px-2 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring hover:bg-muted"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-2 break-words text-sm font-medium leading-5">{item.title}</span>
-                {summaryFor(item) && <span className="mt-1 line-clamp-1 break-words text-xs leading-5 text-muted-foreground">{summaryFor(item)}</span>}
-                <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${['Needs attention', 'Not running'].includes(workStatus(item)) ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : workStatus(item) === 'Working' ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>{t(workStatus(item))}</span>
-                                    {item.latest_attempt?.agent_name && <span>{agentDisplayName(item.latest_attempt.agent_name)}</span>}
-                  <time className="sm:ml-auto" dateTime={item.updated_at} title={new Date(item.updated_at).toLocaleString()}>{t(relativeTime(item.updated_at))}</time>
-                </span>
-
-              </span>
-            </Link>
-            </ItemActions>
-          ))
+          <div className="space-y-3 pt-3">
+            {visible.map((item) => (
+              <ItemActions
+                key={item.id}
+                label={item.title}
+                actions={[
+                  {
+                    label: 'Open task',
+                    run: () =>
+                      navigate(base + '/' + encodeURIComponent(item.id), {
+                        state: { ...location.state, taskReturnTo: base },
+                      }),
+                  },
+                  {
+                    label: 'Copy link',
+                    run: () => copyItemLink(base + '/' + encodeURIComponent(item.id)),
+                  },
+                ]}
+              >
+                <TaskItemCard
+                  task={item}
+                  showProject={false}
+                  showActions={true}
+                  returnTo={base}
+                />
+              </ItemActions>
+            ))}
+          </div>
         )}
       </div>
     </section>

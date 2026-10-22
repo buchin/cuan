@@ -575,5 +575,9 @@
   "This task is delegated to the dev team or AI agent in the background. No messages or notifications are sent to the visitor.": "Tugas ini didelegasikan ke tim dev atau agen AI di latar belakang. Tidak ada pesan atau notifikasi yang dikirimkan ke lawan bicara.",
   "Switch to chat": "Beralih ke obrolan",
   "Loading older messages…": "Memuat pesan sebelumnya…",
-  "Load older messages": "Muat pesan sebelumnya"
+  "Load older messages": "Muat pesan sebelumnya",
+  "Start session": "Mulai sesi",
+  "Answered": "Terjawab",
+  "Not started": "Belum dimulai",
+  "Not running": "Tidak berjalan"
 }

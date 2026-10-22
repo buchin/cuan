@@ -91,3 +91,50 @@ export function tasksForProject(tasks: Task[], projectId: string) {
 }
 
 export const agentDisplayName = (value?: string) => value?.startsWith('agent_') ? '@' + value.slice(6) : value || 'Agent'
+
+export function isTaskRunning(task: Task) {
+  const attempt = task.latest_attempt?.status || task.execution_status
+  return (
+    attempt === 'running' ||
+    attempt === 'queued' ||
+    task.launch?.state === 'queued' ||
+    task.launch?.state === 'claimed'
+  )
+}
+
+export function workStatusBadgeClass(status: string) {
+  switch (status) {
+    case 'Working':
+      return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+    case 'Waiting to start':
+      return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+    case 'Completed':
+    case 'Answered':
+      return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+    case 'Ready for review':
+      return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+    case 'Needs attention':
+      return 'bg-destructive/10 text-destructive border-destructive/20'
+    case 'Cancelled':
+    case 'Not running':
+    case 'Not started':
+    default:
+      return 'bg-muted text-muted-foreground border-border'
+  }
+}
+
+export function taskTargetUrl(task: { id: string; project_id?: string | null }) {
+  return task.project_id
+    ? `/projects/${encodeURIComponent(task.project_id)}/tasks/${encodeURIComponent(task.id)}`
+    : `/tasks/${encodeURIComponent(task.id)}`
+}
+
+export function taskSummaryText(task: Task) {
+  const status = workStatus(task)
+  const text =
+    (status === 'Completed' || status === 'Answered'
+      ? task.complete_note || task.summary
+      : task.launch?.safe_error || task.summary || task.description || task.body) || ''
+  return text.replace(/\s+/g, ' ').trim()
+}
+

@@ -18,10 +18,10 @@ import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import {
   TASK_STATUSES,
   taskStatus,
-  statusLabel,
   taskRef,
   relativeTime,
 } from './task-ui'
+import { TaskItemCard } from './TaskItemCard'
 import { cn } from '../../lib/utils'
 import { tasksApi } from '../../api/tasks'
 interface Props {
@@ -690,57 +690,14 @@ export function TaskBoardView({
               </tbody>
             </table>
           </div>
-          <div role="list" className="divide-y border-y lg:hidden">
+          <div className="space-y-3 p-3 lg:hidden">
             {rows.slice(0, limit).map((t) => (
-              <div key={t.id} role="listitem">
-                <button
-                  className="block min-h-24 w-full px-1 py-3 text-left hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-                  onClick={() => onSelectTask(t)}
-                >
-                  <span className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {taskRef(t.id)}
-                    </span>
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1.5 text-xs',
-                        statusTone(t.status),
-                      )}
-                    >
-                      {statusIcon(t.status)}
-                      {statusLabel(t.status)}
-                    </span>
-                  </span>
-                  <span className="line-clamp-2 break-words text-[15px] font-medium leading-snug">
-                    {t.title}
-                  </span>
-                  {requestPreview(t) && (
-                    <span className="mt-1 block truncate text-xs text-muted-foreground">
-                      Request: {requestPreview(t)}
-                    </span>
-                  )}
-                  <span className="mt-2 block truncate text-xs text-muted-foreground">
-                    {!activeProject &&
-                      projectName(t) !== 'No project' &&
-                      `${projectName(t)} · `}
-                    {name(t)} ·{' '}
-                    <span
-                      className={
-                        t.priority === 'urgent' ? 'text-destructive' : ''
-                      }
-                    >
-                      {t.priority}
-                    </span>
-                  </span>
-                  <time
-                    className="mt-1 block text-xs text-muted-foreground"
-                    dateTime={t.updated_at}
-                    title={new Date(t.updated_at).toLocaleString('en-US')}
-                  >
-                    Updated {relativeTime(t.updated_at)}
-                  </time>
-                </button>
-              </div>
+              <TaskItemCard
+                key={t.id}
+                task={t}
+                showProject={!activeProject}
+                onClick={onSelectTask}
+              />
             ))}
           </div>
           {rows.length > limit && (
