@@ -282,6 +282,28 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						} else {
 							output = clean
 						}
+						if output == "" && ctx.Err() == nil && (strings.Contains(strings.ToLower(failure), "tool permission") || strings.Contains(strings.ToLower(failure), "action outside the chat workflow")) {
+							step("response_recovery", "A tool action was restricted by the security sandbox. Answering directly from conversation context with structured actions.")
+							directCtx, directCancel := context.WithTimeout(ctx, 30*time.Second)
+							directCtx = context.WithValue(directCtx, inboxCoordinatorDirectKey{}, true)
+							directCtx = context.WithValue(directCtx, inboxSchemaRetryKey{}, true)
+							directPrompt, contextErr := s.inboxContext(directCtx, q)
+							if contextErr == nil {
+								recOutput, recFailure := s.executeInboxWithFailover(directCtx, q.OwnerID, registered, directPrompt, home, "", false, step)
+								if recOutput != "" {
+									output = recOutput
+									failure = ""
+									if clean, suggestion := extractTopicTitle(output); suggestion != "" {
+										output, topicTitle = clean, suggestion
+									} else {
+										output = clean
+									}
+								} else if recFailure != "" {
+									failure = recFailure
+								}
+							}
+							directCancel()
+						}
 						if output == "" {
 							if failure == "" {
 								failure = "Provider did not return a useful reply. Your message is saved."
