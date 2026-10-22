@@ -210,13 +210,13 @@ function TaskDetailView({
     setApplying(true)
     try {
       await tasksApi.apply(detail.id)
-      setNotice(t('Changes successfully applied to website!'))
+      setNotice(t('Changes successfully applied!'))
       await reload()
       if (onUpdate) {
         await onUpdate(detail.id, { status: 'done' })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not apply changes to website.')
+      setError(err instanceof Error ? err.message : t('Could not apply changes.'))
     } finally {
       setApplying(false)
     }
@@ -795,14 +795,14 @@ function TaskDetailView({
                           <Rocket className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           <span className="text-xs font-semibold text-foreground">
                             {detail.status === 'done' || detail.complete_note?.includes('diterapkan')
-                              ? t('Applied to website')
+                              ? t('Changes applied')
                               : t('Changes ready to apply')}
                           </span>
                         </div>
                         {detail.status === 'done' || detail.complete_note?.includes('diterapkan') ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                             <CheckCircle2 className="h-3.5 w-3.5" />
-                            {t('Applied to website')}
+                            {t('Changes applied')}
                           </span>
                         ) : null}
                       </div>
@@ -810,7 +810,7 @@ function TaskDetailView({
                       {detail.status !== 'done' && !detail.complete_note?.includes('diterapkan') ? (
                         <>
                           <p className="text-xs text-muted-foreground leading-relaxed">
-                            {t('Agent work has been verified and is ready to be published directly to your live website.')}
+                            {t('Agent work has been verified and is ready to be applied to your project.')}
                           </p>
                           <button
                             type="button"
@@ -819,7 +819,7 @@ function TaskDetailView({
                             className="action-primary w-full text-xs py-2 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all"
                           >
                             <Rocket className="h-3.5 w-3.5" />
-                            <span>{applying ? t('Applying...') : t('Apply to website')}</span>
+                            <span>{applying ? t('Applying...') : t('Apply changes')}</span>
                           </button>
                         </>
                       ) : null}

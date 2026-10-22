@@ -125,7 +125,7 @@ func TestHandleApplyTask_Success(t *testing.T) {
 	if updatedTask.Status != "done" {
 		t.Fatalf("expected task status 'done', got '%s'", updatedTask.Status)
 	}
-	if !strings.Contains(updatedTask.CompleteNote, "Perubahan telah berhasil diterapkan ke website") {
-		t.Fatalf("expected completion note to mention applied to website, got '%s'", updatedTask.CompleteNote)
+	if !strings.Contains(updatedTask.CompleteNote, "Perubahan telah berhasil diterapkan") {
+		t.Fatalf("expected completion note to mention applied, got '%s'", updatedTask.CompleteNote)
 	}
 }

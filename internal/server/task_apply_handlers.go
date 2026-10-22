@@ -39,11 +39,11 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 	var mergeResult *git.MergePullRequestResult
 	if taskDetail.PRNumber > 0 {
 		commitTitle := fmt.Sprintf("Apply Task %s: %s", taskDetail.ID, taskDetail.Title)
-		commitMessage := fmt.Sprintf("Applied via Cuan One-Click Apply to Website.\n\nTask: %s\nSummary: %s", taskDetail.ID, taskDetail.Summary)
+		commitMessage := fmt.Sprintf("Applied via Cuan One-Click Apply.\n\nTask: %s\nSummary: %s", taskDetail.ID, taskDetail.Summary)
 
 		res, err := s.projectSvc.ApplyTaskPullRequest(r.Context(), taskDetail.ProjectID, taskDetail.PRNumber, commitTitle, commitMessage)
 		if err != nil {
-			respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Gagal menerapkan perubahan ke website: %v", err))
+			respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Gagal menerapkan perubahan: %v", err))
 			return
 		}
 		mergeResult = res
@@ -60,9 +60,9 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		appliedSHA = mergeResult.SHA
 	}
 	if appliedSHA != "" {
-		note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan ke website (Commit %s).", appliedSHA)
+		note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan (Commit %s).", appliedSHA)
 	} else {
-		note += "🚀 Perubahan telah berhasil diterapkan ke website."
+		note += "🚀 Perubahan telah berhasil diterapkan."
 	}
 
 	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{
@@ -76,7 +76,7 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"applied": true,
 		"sha":     appliedSHA,
-		"message": "Perubahan berhasil diterapkan ke website!",
+		"message": "Perubahan berhasil diterapkan!",
 		"task":    updated,
 	})
 }

@@ -602,10 +602,15 @@
   "Auto-switch between available Gemini and Claude models.": "Beralih otomatis antara model Gemini dan Claude yang tersedia.",
   "Apply to website": "Terapkan ke Website",
   "Apply": "Terapkan",
+  "Apply changes": "Terapkan Perubahan",
   "Applying...": "Menerapkan...",
   "Applied to website": "Sudah Aktif di Website",
+  "Changes applied": "Perubahan Diterapkan",
   "Changes ready to apply": "Perubahan Siap Diterapkan",
   "Agent work has been verified and is ready to be published directly to your live website.": "Pekerjaan agen telah diverifikasi dan siap diterbitkan langsung ke website Anda.",
+  "Agent work has been verified and is ready to be applied to your project.": "Pekerjaan agen telah diverifikasi dan siap diterapkan ke proyek Anda.",
   "View technical details on GitHub": "Lihat rincian teknis di GitHub",
-  "Changes successfully applied to website!": "Perubahan berhasil diterapkan ke website!"
+  "Changes successfully applied to website!": "Perubahan berhasil diterapkan ke website!",
+  "Changes successfully applied!": "Perubahan berhasil diterapkan!",
+  "Could not apply changes.": "Gagal menerapkan perubahan."
 }

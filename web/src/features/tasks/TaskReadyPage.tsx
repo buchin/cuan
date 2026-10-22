@@ -255,13 +255,13 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
                     className="action-primary text-xs px-3.5 py-2 inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all"
                   >
                     <Rocket className="h-3.5 w-3.5" />
-                    <span>{applying ? t('Applying...') : t('Apply to website')}</span>
+                    <span>{applying ? t('Applying...') : t('Apply changes')}</span>
                   </button>
                 )}
                 {applied && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/20">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span>{t('Applied to website')}</span>
+                    <span>{t('Changes applied')}</span>
                   </span>
                 )}
                 {back.startsWith('/inbox/') ? (

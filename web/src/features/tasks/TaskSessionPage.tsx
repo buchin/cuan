@@ -332,7 +332,7 @@ export function TaskSessionPage({
                   className="action-primary bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm inline-flex items-center gap-1.5"
                 >
                   <Rocket className="h-4 w-4" />
-                  <span>{applying ? t('Applying...') : t('Apply to website')}</span>
+                  <span>{applying ? t('Applying...') : t('Apply changes')}</span>
                 </button>
               )}
               {canAccept && (
