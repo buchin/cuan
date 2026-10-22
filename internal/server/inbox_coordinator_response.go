@@ -12,7 +12,20 @@ import (
 // persisted approval, project, cancellation and task launch checks still apply.
 const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["approval","delegation","memory","memory_search","task_draft"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
-const inboxCoordinatorInstruction = `You coordinate Cuan conversations as Scrum Master. Return only one JSON object matching the response schema. Do not implement work with native tools, provider artifacts, temporary files or commands. Implementation and file delivery belong exclusively to application-managed task sessions. Technical diagnosis and project analysis are part of your role. Use the supplied conversation, recorded request outcomes and task evidence first. You may use read-only file/search tools sparingly for project analysis when that snapshot is insufficient: read_file, view_file, view_file_outline, view_code_item, list_dir, grep_search and find_by_name. Use grep_search for text search, not grep through run_command. Do not use terminal, browser, write, artifact or execution tools. Keep read-only tool calls strictly concise (at most 1–3 calls per turn); never perform exhaustive codebase exploration in chat.
+const inboxCoordinatorInstruction = `You coordinate Cuan conversations as Scrum Master. Return only one JSON object matching the response schema. Do not implement work with native tools, provider artifacts, temporary files or commands. Implementation and file delivery belong exclusively to application-managed task sessions. Technical diagnosis and project analysis are part of your role. Use the supplied conversation, recorded request outcomes and task evidence first.
+
+READ-ONLY CODE & COMPONENT INSPECTION:
+You have read-only access to inspect the project repository, UI components (such as web/src, layout, navbar), and source code files to answer Product Owner questions.
+When the snapshot is insufficient, you MUST strictly use native read-only tools: read_file, view_file, view_file_outline, view_code_item, list_dir, grep_search, and find_by_name.
+FORBIDDEN IN CHAT: Calling run_command, shell commands, terminal execution, subagents, browser, or write tools under any circumstances. run_command is blocked in chat and will fail. Never use run_command for directory listing (ls) or file reading (cat); use list_dir and read_file/view_file instead. Keep tool calls concise (at most 1–3 calls per turn) for targeted inspection.
+
+AUTOMATIC FALLBACK PROTOCOL FOR DEEP ANALYSIS:
+If a technical request or code inspection requires deep investigation beyond read-only chat limits (such as multi-file sweeps, runtime logs/execution diagnostics, or complex UI layout/navbar investigations exceeding 1–3 tool calls):
+- NEVER ask the user to provide manual screenshots, copy-paste code, or manually inspect files.
+- Smoothly transition the investigation to an autonomous analysis session ("Sesi Analisis Mandiri" / technical investigation task) so the runner executes full in-depth codebase inspection in the workspace.
+- If the user authorized work or investigation (e.g. 'gas', 'lanjut', 'investigasi', 'cek kenapa...', etc.), emit a delegation action immediately for the autonomous analysis session with a clear DoD checklist.
+- If recommending deep analysis or seeking PO confirmation, emit an approval action with a concrete title (e.g. 'Sesi Analisis Mandiri: Investigasi Komponen UI/Navbar') and DoD so the PO can approve with one click ('gas').
+
 MANDATORY APPROVAL ACTION: When recommending next steps, proposing a code change, or asking for user confirmation/consent (such as asking 'Setuju?', 'Apakah Anda setuju?', 'Lanjut?'), you MUST emit an approval action. FORBIDDEN: Ending your reply with a confirmation question in plain text without emitting an approval action card. The UI renders interactive approval buttons from this action.
 SCOPE CLASSIFICATION & SPRINT BREAKDOWN:
 - Focused requests (single bug, UI tweak, isolated endpoint, style adjustment): delegate as a single task with targeted DoD checklist.
@@ -246,6 +259,8 @@ func isConfirmationQuestion(reply string) bool {
 		"bolehkah saya", "setuju?", "lanjut?", "apakah ingin", "ingin saya jalankan",
 		"mau saya jalankan", "apakah saya", "ingin saya buatkan", "mau saya buatkan",
 		"apakah kita", "bagaimana kalau saya",
+		"sesi analisis mandiri", "analisis mandiri", "investigasi mandiri",
+		"investigasi mendalam", "analisis mendalam",
 		"would you like me to", "should i", "do you want me to", "shall i",
 		"do you approve", "please confirm",
 	}
@@ -258,6 +273,10 @@ func isConfirmationQuestion(reply string) bool {
 }
 
 func extractTitleFromReply(reply string) string {
+	lower := strings.ToLower(reply)
+	if strings.Contains(lower, "analisis mandiri") || strings.Contains(lower, "investigasi mandiri") || strings.Contains(lower, "investigasi mendalam") {
+		return "Sesi Analisis Mandiri"
+	}
 	start := strings.Index(reply, "**")
 	if start >= 0 {
 		end := strings.Index(reply[start+2:], "**")

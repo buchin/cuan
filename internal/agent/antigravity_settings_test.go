@@ -146,3 +146,52 @@ func TestCLISettingsPrepareTrustedWorkspaces(t *testing.T) {
 		t.Fatalf("expected trustedWorkspaces [%s, %s], got %v", ws1, ws2, settings["trustedWorkspaces"])
 	}
 }
+
+func TestCLISettingsPrepareReadOnlyPermissions(t *testing.T) {
+	home := t.TempDir()
+	if err := PrepareAntigravityReadOnlyPermissions(home); err != nil {
+		t.Fatal(err)
+	}
+
+	p := filepath.Join(AntigravityConfigDirPath(home), "settings.json")
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var settings map[string]any
+	if err = json.Unmarshal(raw, &settings); err != nil {
+		t.Fatal(err)
+	}
+	perms, ok := settings["permissions"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected permissions object, got %v", settings["permissions"])
+	}
+	allow, ok := perms["allow"].([]any)
+	if !ok || len(allow) < 7 {
+		t.Fatalf("expected allow list with at least 7 read-only tool rules, got %v", perms["allow"])
+	}
+	rules := map[string]bool{}
+	for _, rule := range allow {
+		if s, ok := rule.(string); ok {
+			rules[s] = true
+		}
+	}
+	for _, expected := range []string{"read_file(*)", "view_file(*)", "list_dir(*)", "grep_search(*)", "find_by_name(*)"} {
+		if !rules[expected] {
+			t.Fatalf("missing expected permission rule %s in %v", expected, rules)
+		}
+	}
+
+	// Idempotent: calling again does not duplicate rules
+	if err := PrepareAntigravityReadOnlyPermissions(home); err != nil {
+		t.Fatal(err)
+	}
+	raw2, _ := os.ReadFile(p)
+	var settings2 map[string]any
+	_ = json.Unmarshal(raw2, &settings2)
+	perms2 := settings2["permissions"].(map[string]any)
+	allow2 := perms2["allow"].([]any)
+	if len(allow2) != len(allow) {
+		t.Fatalf("expected idempotent permissions, got len %d vs %d", len(allow2), len(allow))
+	}
+}
