@@ -150,10 +150,12 @@ export function InboxView({
   const activeConvRef = useRef('')
   activeConvRef.current =
     activeContact?.conversation_id || activeContact?.id || ''
-  const [messageLimit, setMessageLimit] = useState(50)
+  const [hasMoreOlder, setHasMoreOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const olderAnchor = useRef<{ height: number; top: number } | null>(null)
   useEffect(() => {
-    setMessageLimit(50)
+    setHasMoreOlder(false)
+    setLoadingOlder(false)
     olderAnchor.current = null
   }, [activeContact?.id])
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -188,14 +190,18 @@ export function InboxView({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const loadConversation = useCallback(
-    async (convId: string, showSpinner = false) => {
+    async (convId: string, showSpinner = false, all = false) => {
       if (showSpinner) setLoading(true)
       const version = ++loadVersion.current
       try {
-        const data = await chatApi.getConversation(convId)
+        const data = await chatApi.getConversation(
+          convId,
+          all ? { all: true } : { limit: 50 },
+        )
         if (activeConvRef.current !== convId || version !== loadVersion.current)
           return
         setMessages(data.messages || [])
+        setHasMoreOlder(!!data.has_more)
         markConversationSeen(convId, data.messages || [])
         setRequests(data.requests || [])
         setLinkedTasks(data.tasks || [])
@@ -230,6 +236,42 @@ export function InboxView({
     },
     [t],
   )
+
+  const loadOlderMessages = useCallback(async () => {
+    if (loadingOlder || !activeContact || messages.length === 0) return
+    const convId = activeContact.conversation_id || activeContact.id
+    const oldest = messages[0]
+    if (!oldest?.uuid && !oldest?.id) return
+    setLoadingOlder(true)
+    const list = messageListRef.current
+    if (list) {
+      olderAnchor.current = {
+        height: list.scrollHeight,
+        top: list.scrollTop,
+      }
+    }
+    followTail.current = false
+    try {
+      const data = await chatApi.getConversation(convId, {
+        limit: 50,
+        before_id: oldest.uuid || String(oldest.id),
+      })
+      if (data.messages && data.messages.length > 0) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.uuid || String(m.id)))
+          const newOlder = data.messages.filter(
+            (m) => !existingIds.has(m.uuid || String(m.id)),
+          )
+          return [...newOlder, ...prev]
+        })
+      }
+      setHasMoreOlder(!!data.has_more)
+    } catch (err) {
+      console.error('Failed to load older messages', err)
+    } finally {
+      setLoadingOlder(false)
+    }
+  }, [loadingOlder, activeContact, messages])
 
   // Auto-resize textarea
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
@@ -311,7 +353,16 @@ export function InboxView({
           failures = 0
           setStreamState('live')
           setLoading(false)
-          setMessages(data.messages || [])
+          setMessages((prev) => {
+            if (prev.length === 0) return data.messages || []
+            const byUuid = new Map(prev.map((m) => [m.uuid || String(m.id), m]))
+            for (const m of data.messages || []) {
+              byUuid.set(m.uuid || String(m.id), m)
+            }
+            return Array.from(byUuid.values()).sort(
+              (a, b) => (a.id || 0) - (b.id || 0),
+            )
+          })
         markConversationSeen(convId, data.messages || [])
           setRequests(data.requests || [])
           setLinkedTasks(data.tasks || [])
@@ -374,13 +425,12 @@ export function InboxView({
     const index = messages.findIndex(
       (message) => message.uuid === requestedMessageId,
     )
-    if (index < 0) return
-    followTail.current = false
-    const needed = messages.length - Math.max(0, index - 3)
-    if (messageLimit < needed) {
-      setMessageLimit(needed)
+    if (index < 0) {
+      const convId = activeContact.conversation_id || activeContact.id
+      void loadConversation(convId, false, true)
       return
     }
+    followTail.current = false
     const element = Array.from(
       messageListRef.current?.querySelectorAll<HTMLElement>(
         '[data-message-id]',
@@ -390,7 +440,7 @@ export function InboxView({
       element.scrollIntoView({ block: 'center' })
       openedSearchMessage.current = key
     }
-  }, [requestedMessageId, activeContact?.id, messages, messageLimit])
+  }, [requestedMessageId, activeContact?.id, messages, loadConversation])
 
   const lastMessageKey =
     messages[messages.length - 1]?.uuid || messages[messages.length - 1]?.id
@@ -564,7 +614,6 @@ export function InboxView({
     }
     return index
   }, [messages, requests])
-  const messageStart = Math.max(0, messages.length - messageLimit)
   useLayoutEffect(() => {
     const list = messageListRef.current
     if (list && olderAnchor.current) {
@@ -572,7 +621,7 @@ export function InboxView({
         olderAnchor.current.top + list.scrollHeight - olderAnchor.current.height
       olderAnchor.current = null
     }
-  }, [messageLimit])
+  }, [messages.length])
   return (
     <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
       {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
@@ -816,28 +865,24 @@ export function InboxView({
                 </div>
               )}
 
-              {messageStart > 0 && (
+              {hasMoreOlder && (
                 <div className="flex justify-center py-2">
                   <button
                     type="button"
-                    className="min-h-11 rounded-md border px-3 text-xs hover:bg-muted"
-                    onClick={() => {
-                      const list = messageListRef.current
-                      if (list)
-                        olderAnchor.current = {
-                          height: list.scrollHeight,
-                          top: list.scrollTop,
-                        }
-                      followTail.current = false
-                      setMessageLimit((limit) => limit + 50)
-                    }}
+                    disabled={loadingOlder}
+                    className="min-h-11 rounded-md border border-border bg-card px-4 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-95 transition-all inline-flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    onClick={loadOlderMessages}
                   >
-                    {t('Load older messages')}
+                    {loadingOlder && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                    <span>
+                      {loadingOlder
+                        ? t('Loading older messages…')
+                        : t('Load older messages')}
+                    </span>
                   </button>
                 </div>
               )}
-              {messages.slice(messageStart).map((msg, offset) => {
-                const index = messageStart + offset
+              {messages.map((msg, index) => {
                 // In WhatsApp/Telegram: User is right-aligned, Contact (Agent/Customer) is left-aligned
                 const isUser =
                   msg.author_type === 'user' && activeContact.type === 'agent'
@@ -852,7 +897,7 @@ export function InboxView({
                 const date = new Date(msg.created_at)
                 const showDate =
                   Number.isFinite(date.getTime()) &&
-                  (!offset ||
+                  (!index ||
                     date.toDateString() !==
                       new Date(messages[index - 1].created_at).toDateString())
                 const today = new Date(),

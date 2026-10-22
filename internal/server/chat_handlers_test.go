@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -346,5 +347,109 @@ func TestS25InboxOnlyRegisteredAgents(t *testing.T) {
 	resolved = srv.resolveConversationContext(context.Background(), response.Contacts[0].ConversationID, "")
 	if resolved.IsAgent {
 		t.Fatal("deleted agent still active through its old Inbox URL")
+	}
+}
+
+func TestChatHandlers_Pagination(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	roomID := cuanDB.GenerateUUID()
+
+	// 1. Send 5 messages into this room
+	for i := 1; i <= 5; i++ {
+		body := fmt.Sprintf(`{"message":"Message number %d"}`, i)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+roomID+"/messages", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("failed to post message %d: %d %s", i, rec.Code, rec.Body.String())
+		}
+	}
+
+	// 2. Fetch with limit=2 (should return messages 4 and 5, has_more=true)
+	req1 := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+roomID+"/messages?limit=2", nil)
+	req1.Header.Set("Authorization", "Bearer "+token)
+	rec1 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("failed to get messages: %d %s", rec1.Code, rec1.Body.String())
+	}
+	var page1 struct {
+		Messages []ChatMessageDTO `json:"messages"`
+		HasMore  bool             `json:"has_more"`
+	}
+	if err := json.Unmarshal(rec1.Body.Bytes(), &page1); err != nil {
+		t.Fatal(err)
+	}
+	if len(page1.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(page1.Messages))
+	}
+	if !page1.HasMore {
+		t.Fatalf("expected has_more=true for page 1")
+	}
+	if page1.Messages[0].Message != "Message number 4" || page1.Messages[1].Message != "Message number 5" {
+		t.Fatalf("unexpected page 1 messages: %+v", page1.Messages)
+	}
+
+	// 3. Fetch earlier 2 with before_id = message 4's UUID (should return messages 2 and 3, has_more=true)
+	oldestUUID := page1.Messages[0].UUID
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+roomID+"/messages?limit=2&before_id="+oldestUUID, nil)
+	req2.Header.Set("Authorization", "Bearer "+token)
+	rec2 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec2, req2)
+	var page2 struct {
+		Messages []ChatMessageDTO `json:"messages"`
+		HasMore  bool             `json:"has_more"`
+	}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &page2); err != nil {
+		t.Fatal(err)
+	}
+	if len(page2.Messages) != 2 {
+		t.Fatalf("expected 2 messages in page 2, got %d", len(page2.Messages))
+	}
+	if !page2.HasMore {
+		t.Fatalf("expected has_more=true for page 2")
+	}
+	if page2.Messages[0].Message != "Message number 2" || page2.Messages[1].Message != "Message number 3" {
+		t.Fatalf("unexpected page 2 messages: %+v", page2.Messages)
+	}
+
+	// 4. Fetch earliest with before_id = message 2's UUID (should return message 1, has_more=false)
+	oldestUUID2 := page2.Messages[0].UUID
+	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+roomID+"/messages?limit=2&before_id="+oldestUUID2, nil)
+	req3.Header.Set("Authorization", "Bearer "+token)
+	rec3 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec3, req3)
+	var page3 struct {
+		Messages []ChatMessageDTO `json:"messages"`
+		HasMore  bool             `json:"has_more"`
+	}
+	if err := json.Unmarshal(rec3.Body.Bytes(), &page3); err != nil {
+		t.Fatal(err)
+	}
+	if len(page3.Messages) != 1 {
+		t.Fatalf("expected 1 message in page 3, got %d", len(page3.Messages))
+	}
+	if page3.HasMore {
+		t.Fatalf("expected has_more=false for page 3")
+	}
+	if page3.Messages[0].Message != "Message number 1" {
+		t.Fatalf("unexpected page 3 messages: %+v", page3.Messages)
+	}
+
+	// 5. Fetch all messages (limit=all)
+	reqAll := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+roomID+"/messages?limit=all", nil)
+	reqAll.Header.Set("Authorization", "Bearer "+token)
+	recAll := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recAll, reqAll)
+	var pageAll struct {
+		Messages []ChatMessageDTO `json:"messages"`
+		HasMore  bool             `json:"has_more"`
+	}
+	if err := json.Unmarshal(recAll.Body.Bytes(), &pageAll); err != nil {
+		t.Fatal(err)
+	}
+	if len(pageAll.Messages) != 5 || pageAll.HasMore {
+		t.Fatalf("expected 5 messages and has_more=false for limit=all, got %d (has_more=%v)", len(pageAll.Messages), pageAll.HasMore)
 	}
 }

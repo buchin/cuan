@@ -497,6 +497,9 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return false
 		}
+		if len(messages) > 50 {
+			messages = messages[len(messages)-50:]
+		}
 		linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID)
 		if err != nil {
 			return false

@@ -931,6 +931,51 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		return
 	}
 
+	limit := 50
+	if l := strings.TrimSpace(r.URL.Query().Get("limit")); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 200 {
+				limit = 200
+			}
+		} else if l == "all" || l == "-1" {
+			limit = 0
+		}
+	} else if r.URL.Query().Get("all") == "1" {
+		limit = 0
+	}
+	beforeID := strings.TrimSpace(r.URL.Query().Get("before_id"))
+	if beforeID == "" {
+		beforeID = strings.TrimSpace(r.URL.Query().Get("before"))
+	}
+
+	hasMore := false
+	if limit > 0 && len(messages) > limit {
+		if beforeID != "" {
+			idx := -1
+			for i, m := range messages {
+				if m.UUID == beforeID || strconv.FormatInt(m.ID, 10) == beforeID {
+					idx = i
+					break
+				}
+			}
+			if idx > 0 {
+				start := idx - limit
+				if start < 0 {
+					start = 0
+				}
+				hasMore = start > 0
+				messages = messages[start:idx]
+			} else {
+				hasMore = false
+				messages = []ChatMessageDTO{}
+			}
+		} else {
+			hasMore = len(messages) > limit
+			messages = messages[len(messages)-limit:]
+		}
+	}
+
 	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID)
 	if err != nil {
 		respondJSONError(w, 503, "Could not read conversation tasks")
@@ -943,6 +988,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		"room_id":         resolved.RoomID,
 		"contact":         contact,
 		"messages":        messages,
+		"has_more":        hasMore,
 	})
 }
 

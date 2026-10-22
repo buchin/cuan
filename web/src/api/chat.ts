@@ -88,6 +88,7 @@ export interface ConversationDetail {
   conversation_id: string
   contact: ChatContact
   messages: ChatMessage[]
+  has_more?: boolean
 }
 
 export interface SendChatMessageRequest {
@@ -122,9 +123,17 @@ export const chatApi = {
     return res.contacts || []
   },
 
-  getConversation: async (id: string): Promise<ConversationDetail> => {
+  getConversation: async (
+    id: string,
+    params?: { limit?: number; before_id?: string; all?: boolean },
+  ): Promise<ConversationDetail> => {
+    const q = new URLSearchParams()
+    if (params?.limit) q.set('limit', String(params.limit))
+    if (params?.before_id) q.set('before_id', params.before_id)
+    if (params?.all) q.set('all', '1')
+    const query = q.toString() ? `?${q.toString()}` : ''
     return apiFetch<ConversationDetail>(
-      `/api/v1/chat/conversations/${id}/messages`,
+      `/api/v1/chat/conversations/${id}/messages${query}`,
     )
   },
 
