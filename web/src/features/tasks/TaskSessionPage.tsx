@@ -21,7 +21,8 @@ import { TaskReadyPage } from './TaskReadyPage'
 import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
-import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime } from './task-ui'
+import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime, workStatusBadgeClass } from './task-ui'
+import { cn } from '../../lib/utils'
 import { useLanguage } from '../../context/LanguageContext'
 
 export function TaskSessionPage({
@@ -43,6 +44,7 @@ export function TaskSessionPage({
     [terminalControls, setTerminalControls] = useState<HTMLDivElement | null>(
       null,
     ),
+    [terminalConnection, setTerminalConnection] = useState(''),
     [followup, setFollowup] = useState(''),
     [cancel, setCancel] = useState(false),
     [busy, setBusy] = useState(false),
@@ -218,57 +220,108 @@ export function TaskSessionPage({
     }
   }
 
+  const status = workStatus(detail)
+  const statusLabel = answer ? 'Answered' : !latest ? attemptLabel(attempt) : status
+  const isWorking = status === 'Working'
+  const isConnected = terminalConnection === 'connected'
+  const isConnecting = terminalConnection === 'connecting' || terminalConnection === 'loading'
+
+  const statusBadge = (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-xs transition-colors',
+        workStatusBadgeClass(status)
+      )}
+      title={terminalConnection ? `${statusLabel} (${terminalConnection})` : statusLabel}
+    >
+      <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+        {isWorking && isConnected && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        )}
+        <span
+          className={cn(
+            'relative inline-flex h-2 w-2 rounded-full',
+            isConnected
+              ? 'bg-emerald-500'
+              : isConnecting
+                ? 'bg-amber-500 animate-pulse'
+                : isWorking
+                  ? 'bg-blue-500'
+                  : status === 'Completed' || status === 'Answered'
+                    ? 'bg-emerald-500'
+                    : status === 'Needs attention'
+                      ? 'bg-destructive'
+                      : 'bg-muted-foreground'
+          )}
+        />
+      </span>
+      <span className="truncate max-w-[120px] min-[400px]:max-w-none">{statusLabel}</span>
+    </span>
+  )
+
   return (
     <section
       aria-label="Task session"
       className="flex h-full min-h-0 flex-col bg-background"
     >
       <GitHubPrerequisite task={detail} />
-      <header className="flex h-11 shrink-0 items-center gap-1.5 sm:gap-2 border-b px-2 sm:px-3">
-        <Link
-          to={backURL}
-          state={state}
-          className="icon-action shrink-0"
-          aria-label={
-            backURL.startsWith('/inbox/')
-              ? 'Back to conversation'
-              : 'Back to tasks'
-          }
-          title={
-            backURL.startsWith('/inbox/')
-              ? 'Back to conversation'
-              : 'Back to tasks'
-          }
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
-          <h2 className="truncate text-sm font-semibold" title={detail.title}>
-            {detail.title}
-          </h2>
-          <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 text-[10px] sm:text-xs font-medium text-muted-foreground border border-border/40">
-            {answer ? 'Answered' : !latest ? attemptLabel(attempt) : workStatus(detail)}
-          </span>
-        </div>
-        <div ref={setTerminalControls} className="flex shrink-0 items-center" />
-        <button
-          className="icon-action shrink-0"
-          aria-label="Detail"
-          title="Detail"
-          onClick={() => setShowDetail(true)}
-        >
-          <Info className="h-4 w-4" />
-        </button>
-        {active && (
-          <button
-            className="icon-action shrink-0 text-destructive"
-            aria-label="Cancel session"
-            title="Cancel session"
-            onClick={() => setCancel(true)}
+      <header className="flex flex-col sm:flex-row shrink-0 border-b bg-background sm:h-12 sm:items-center sm:justify-between px-2 sm:px-3">
+        {/* Primary Row: Navigation & Task Title */}
+        <div className="flex h-11 sm:h-full sm:flex-1 min-w-0 items-center gap-1.5 sm:gap-2">
+          <Link
+            to={backURL}
+            state={state}
+            className="icon-action shrink-0"
+            aria-label={
+              backURL.startsWith('/inbox/')
+                ? 'Back to conversation'
+                : 'Back to tasks'
+            }
+            title={
+              backURL.startsWith('/inbox/')
+                ? 'Back to conversation'
+                : 'Back to tasks'
+            }
           >
-            <Square className="h-4 w-4" />
-          </button>
-        )}
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <h2 className="truncate text-sm sm:text-base font-semibold text-foreground" title={detail.title}>
+              {detail.title}
+            </h2>
+            <div className="hidden sm:inline-flex items-center">
+              {statusBadge}
+            </div>
+          </div>
+        </div>
+
+        {/* Secondary Row on Mobile (Navbar Terminal) / Inline Actions on Desktop */}
+        <div className="flex h-11 sm:h-full items-center justify-between sm:justify-end gap-1.5 sm:gap-2 border-t border-border/40 sm:border-t-0">
+          <div className="sm:hidden flex min-w-0 items-center">
+            {statusBadge}
+          </div>
+          <div className="relative flex shrink-0 items-center gap-1">
+            <div ref={setTerminalControls} className="flex shrink-0 items-center gap-1" />
+            <button
+              className="icon-action shrink-0"
+              aria-label="Detail"
+              title="Detail"
+              onClick={() => setShowDetail(true)}
+            >
+              <Info className="h-4 w-4" />
+            </button>
+            {active && (
+              <button
+                className="icon-action shrink-0 text-destructive hover:bg-destructive/10"
+                aria-label="Cancel session"
+                title="Cancel session"
+                onClick={() => setCancel(true)}
+              >
+                <Square className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
       </header>
       {(error || runtimeError) && (
         <p role="alert" className="shrink-0 px-3 text-xs text-destructive">
@@ -302,6 +355,7 @@ export function TaskSessionPage({
               live={live}
               onRefresh={() => void refresh()}
               controlsTarget={terminalControls}
+              onConnectionChange={setTerminalConnection}
             />
           </div>
         </div>

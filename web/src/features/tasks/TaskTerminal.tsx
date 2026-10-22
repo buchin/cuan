@@ -23,12 +23,14 @@ export function TaskTerminal({
   live,
   onRefresh,
   controlsTarget,
+  onConnectionChange,
 }: {
   taskId: string
   attempt: TaskAttempt
   live: LiveTaskSession | null
   onRefresh: () => void
   controlsTarget?: HTMLElement | null
+  onConnectionChange?: (connection: string) => void
 }) {
   const menu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null),
@@ -53,6 +55,9 @@ export function TaskTerminal({
   const liveId = isLive ? live.session_id : ''
   const refreshRef = useRef(onRefresh)
   refreshRef.current = onRefresh
+  useEffect(() => {
+    onConnectionChange?.(connection)
+  }, [connection, onConnectionChange])
   const bufferText = useCallback(() => {
     const t = term.current
     if (!t) return logs.current.map((l) => l.line).join('\n')
@@ -367,7 +372,7 @@ export function TaskTerminal({
           )[connection]
         }
       </span>
-      {controlsTarget && (
+      {!controlsTarget && (
         <span
           aria-hidden
           className={
@@ -394,7 +399,7 @@ export function TaskTerminal({
           </button>
         )}
       </div>
-      <details ref={menu} className="relative shrink-0">
+      <details ref={menu} className="static sm:relative shrink-0">
         <summary
           aria-label="Terminal tools"
           title="Terminal tools"
@@ -402,7 +407,7 @@ export function TaskTerminal({
         >
           <MoreHorizontal className="h-4 w-4" />
         </summary>
-        <div className="absolute right-0 top-full z-20 w-[min(360px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
+        <div className="absolute right-0 top-full z-20 w-[min(320px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
           <div className="flex flex-wrap justify-end gap-1">
             <button
               className="icon-action"
