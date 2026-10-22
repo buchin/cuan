@@ -51,6 +51,7 @@ import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ConversationWorkMonitor } from './ConversationWorkMonitor'
+import { TaskItemCard } from '../tasks/TaskItemCard'
 import { EscalateTaskDialog } from './EscalateTaskDialog'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
@@ -894,6 +895,23 @@ export function InboxView({
  const isFormattedMessage=isAgentMessage||msg.author_type==='system'
 
                 const isOutgoing = isUser || isOperatorReply
+                const linkedTaskForMsg = msg.uuid
+                  ? linkedTasks.find(
+                      (task) =>
+                        (task.source_message_id === msg.uuid ||
+                          requests.some(
+                            (q) =>
+                              q.reply_id === msg.uuid &&
+                              q.message_id === task.source_message_id,
+                          )) &&
+                        (isAgentMessage ||
+                          !requests.some(
+                            (q) =>
+                              q.message_id === msg.uuid &&
+                              visibleMessageIds.has(q.reply_id),
+                          )),
+                    )
+                  : undefined
                 const date = new Date(msg.created_at)
                 const showDate =
                   Number.isFinite(date.getTime()) &&
@@ -986,7 +1004,10 @@ export function InboxView({
 
                       {/* Message Body */}
                       {isFormattedMessage ? (
-                        <MessageContent content={msg.content || msg.message} />
+                        <MessageContent
+                          content={msg.content || msg.message}
+                          hideTaskActions={!!linkedTaskForMsg}
+                        />
                       ) : (
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
                           <span>{msg.content || msg.message}</span>
@@ -1085,21 +1106,7 @@ export function InboxView({
 
                       {msg.uuid && (
                         <InboxTaskAction
-                          linkedTask={linkedTasks.find(
-                            (task) =>
-                              (task.source_message_id === msg.uuid ||
-                                requests.some(
-                                  (q) =>
-                                    q.reply_id === msg.uuid &&
-                                    q.message_id === task.source_message_id,
-                                )) &&
-                              (isAgentMessage ||
-                                !requests.some(
-                                  (q) =>
-                                    q.message_id === msg.uuid &&
-                                    visibleMessageIds.has(q.reply_id),
-                                )),
-                          )}
+                          linkedTask={linkedTaskForMsg}
                           conversationId={
                             activeContact.conversation_id || activeContact.id
                           }
@@ -1342,52 +1349,14 @@ export function InboxView({
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
+            <div className="space-y-3">
               {linkedTasks.map((task) => (
-                <div key={task.id} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-sm truncate">{task.title}</p>
-                      <span className={cn(
-                        "shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border",
-                        task.status === 'done' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
-                        task.status === 'doing' ? "bg-blue-500/10 text-blue-500 border-blue-500/20" :
-                        task.status === 'review' ? "bg-purple-500/10 text-purple-500 border-purple-500/20" :
-                        task.status === 'blocked' ? "bg-destructive/10 text-destructive border-destructive/20" :
-                        "bg-muted text-muted-foreground border-border"
-                      )}>
-                        {task.status === 'doing'
-                          ? t('Work in progress')
-                          : task.status === 'done'
-                            ? t('Completed')
-                            : task.status === 'blocked'
-                              ? t('Needs attention')
-                              : task.status === 'review'
-                                ? t('Result ready')
-                                : t('Ready')}
-                      </span>
-                    </div>
-                    {task.project_name && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {task.project_name}
-                      </p>
-                    )}
-                  </div>
-                  <Link
-                    to={
-                      task.project_id
-                        ? `/projects/${encodeURIComponent(task.project_id)}/tasks/${encodeURIComponent(task.id)}`
-                        : `/tasks/${task.id}`
-                    }
-                    state={{ taskReturnTo: location.pathname }}
-                    onClick={() => setShowTasksModal(false)}
-                    className="action-secondary shrink-0 text-xs px-2.5 py-1.5 inline-flex items-center gap-1"
-                  >
-                    {task.latest_attempt && ['running', 'queued'].includes(task.latest_attempt.status)
-                      ? t('View progress')
-                      : t('View result')}
-                  </Link>
-                </div>
+                <TaskItemCard
+                  key={task.id}
+                  task={task}
+                  returnTo={location.pathname}
+                  onNavigate={() => setShowTasksModal(false)}
+                />
               ))}
             </div>
           )}

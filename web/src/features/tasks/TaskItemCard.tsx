@@ -27,6 +27,7 @@ export interface TaskItemCardProps {
   variant?: 'card' | 'row'
   className?: string
   onClick?: (task: Task) => void
+  onNavigate?: () => void
 }
 
 export function TaskItemCard({
@@ -37,6 +38,7 @@ export function TaskItemCard({
   variant = 'card',
   className,
   onClick,
+  onNavigate,
 }: TaskItemCardProps) {
   const { t } = useLanguage()
   const location = useLocation()
@@ -100,7 +102,7 @@ export function TaskItemCard({
                     e.preventDefault()
                     onClick(task)
                   }
-                : undefined
+                : onNavigate
             }
             className="mt-1 block focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
@@ -146,7 +148,7 @@ export function TaskItemCard({
                       e.preventDefault()
                       onClick(task)
                     }
-                  : undefined
+                  : onNavigate
               }
               className="action-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
             >
@@ -232,7 +234,7 @@ export function TaskItemCard({
                   e.stopPropagation()
                   onClick(task)
                 }
-              : undefined
+              : onNavigate
           }
           className="block group-hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
@@ -262,7 +264,10 @@ export function TaskItemCard({
             <Link
               to={`${targetUrl}?view=detail`}
               state={{ taskReturnTo: currentReturnTo }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                onNavigate?.()
+              }}
               className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1"
             >
               {t('Detail')}
@@ -277,7 +282,10 @@ export function TaskItemCard({
                       e.stopPropagation()
                       onClick(task)
                     }
-                  : undefined
+                  : (e) => {
+                      e.stopPropagation()
+                      onNavigate?.()
+                    }
               }
               className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
             >

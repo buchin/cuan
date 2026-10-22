@@ -5,6 +5,7 @@ import { apiFetch } from '../../api/client'
 import { InboxTaskDraft } from '../../api/chat'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
+import { TaskItemCard } from '../tasks/TaskItemCard'
 
 export function InboxTaskAction({
   conversationId,
@@ -71,37 +72,14 @@ export function InboxTaskAction({
   if (!draft && !existing) return null
   if (existing)
     return (
-      <div
-        className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground"
-        aria-label="Task from conversation"
-      >
-        <p className="font-medium">{existing.title}</p>
-        <p className="text-muted-foreground">
-          {existing.status === 'doing'
-            ? 'Work in progress'
-            : existing.status === 'done'
-              ? 'Completed'
-              : existing.status === 'blocked'
-                ? 'Needs attention'
-                : existing.status === 'review'
-                  ? 'Result ready'
-                  : 'Ready'}
-        </p>
-        <Link
-          className="inline-flex min-h-11 items-center underline"
-          to={
-            existing.project_id
-              ? `/projects/${encodeURIComponent(existing.project_id)}/tasks/${encodeURIComponent(existing.id)}`
-              : `/tasks/${existing.id}`
-          }
-          state={{ taskReturnTo: `/inbox/${conversationId}` }}
-        >
-          {existing.latest_attempt
-            ? ['running', 'queued'].includes(existing.latest_attempt.status)
-              ? t('View progress')
-              : t('View result')
-            : 'View details'}
-        </Link>
+      <div className="mt-2.5 w-full min-w-0" aria-label="Task from conversation">
+        <TaskItemCard
+          task={existing}
+          returnTo={`/inbox/${encodeURIComponent(conversationId)}`}
+          showProject={true}
+          showActions={true}
+          className="p-3 sm:p-3.5 bg-background/80 dark:bg-background/40 border-border/70"
+        />
       </div>
     )
   return (

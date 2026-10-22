@@ -19,12 +19,24 @@ export function messageNavigation(content: string) {
   return { body: boundary >= 0 ? content.slice(0, boundary).trimEnd() : '', actions: actions.filter((action) => action !== null) }
 }
 
-export function MessageContent({ content }: { content: string }) {
+export function MessageContent({
+  content,
+  hideTaskActions = false,
+}: {
+  content: string
+  hideTaskActions?: boolean
+}) {
   const { body, actions } = messageNavigation(content)
+  const visibleActions = hideTaskActions
+    ? actions.filter(
+        (action) =>
+          !/^\/tasks\/[A-Za-z0-9_-]+$/.test(action.href.split(/[?#]/)[0]),
+      )
+    : actions
   return <>
     {body && <ChatMarkdown content={body} />}
-    {actions.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Message actions">
-      {actions.map((action) => <Link key={action.href} to={action.href} className={action.primary
+    {visibleActions.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Message actions">
+      {visibleActions.map((action) => <Link key={action.href} to={action.href} className={action.primary
         ? 'inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
         : 'inline-flex min-h-11 items-center px-2 text-sm underline underline-offset-4 hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring'}>
         {action.label}
