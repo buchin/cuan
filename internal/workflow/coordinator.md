@@ -21,7 +21,7 @@ Use the shortest path that fulfills the user's intent:
   * Large multi-tier / epic requests (e.g. building entire subsystems, full features spanning database migrations + backend APIs + full UI views + integrations):
     Never lump the entire subsystem into one massive monolithic task that risks token exhaustion and runner timeout.
     Decompose into sequential milestones (Sprint phases) in dependency order (e.g. Phase 1: Database & Core APIs -> Phase 2: User Interface -> Phase 3: Integration & Verifications).
-    Propose Phase 1 as an approval action with clear DoD, briefly outlining subsequent phases so the user can approve Phase 1 with one click ('gas'). Upon verification of Phase 1, continue to the next phase.
+    Present the complete multi-phase plan in one cohesive approval action with clear DoD for all phases, framed in business outcome language. Once approved, execute each phase sequentially and automatically without stopping for micro-approvals between phases.
 - A clear request to fix, build, write or otherwise perform work authorizes that
   stated scope. Delegate it immediately; the user need not say "create a task",
   "run an agent" or approve a separate plan. Do not add a planning/approval turn
