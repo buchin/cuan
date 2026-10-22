@@ -116,7 +116,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			decision.Decision = "revise"
 			decision.Revision = "Gap: the canonical task is not verified complete or acceptance items remain unfinished. Area: original approved task and existing workspace. Inspect saved work, finish only missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
 		} else {
-			if target, ok := s.detectNextMultiPhase(d); ok {
+			if target, ok := s.detectNextMultiPhase(ctx, d); ok {
 				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
 			}
 			return "Based on the work session's verification report:\n\n" + decision.Explanation
@@ -144,11 +144,22 @@ type multiPhaseTarget struct {
 var multiPhaseRegex = regexp.MustCompile(`(?i)(?:Phase|Fase)\s*(\d+)[:\-\s]+([^|\n\r]+)`)
 var activePhaseRegex = regexp.MustCompile(`(?i)(?:Active|Current)\s*Phase:\s*(\d+)`)
 
-func (s *Server) detectNextMultiPhase(d *task.TaskDetailResponse) (*multiPhaseTarget, bool) {
-	if d == nil || strings.TrimSpace(d.Instructions) == "" {
+func (s *Server) detectNextMultiPhase(ctx context.Context, d *task.TaskDetailResponse) (*multiPhaseTarget, bool) {
+	if d == nil {
 		return nil, false
 	}
-	matches := multiPhaseRegex.FindAllStringSubmatch(d.Instructions, -1)
+	content := d.Instructions
+	if s.projectStudioRepo != nil && d.SourceMessageID != "" {
+		if m, err := s.projectStudioRepo.GetMessageByID(ctx, d.SourceMessageID); err == nil && m != nil {
+			if plan := decodeApprovedInboxPlan(m.Content); plan != nil {
+				content = content + "\n" + plan.Plan.Description
+			}
+		}
+	}
+	if strings.TrimSpace(content) == "" {
+		return nil, false
+	}
+	matches := multiPhaseRegex.FindAllStringSubmatch(content, -1)
 	if len(matches) < 2 {
 		return nil, false
 	}

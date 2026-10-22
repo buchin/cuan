@@ -41,13 +41,14 @@ func TestInboxReviewEvaluationRejectsConflictingAndExecutableFields(t *testing.T
 
 func TestDetectNextMultiPhase(t *testing.T) {
 	s := &Server{}
+	ctx := context.Background()
 
 	// Single task without phases
 	singleTask := &task.TaskDetailResponse{
 		Title:        "Fix button styling",
 		Instructions: "Change button background to primary and add margin.",
 	}
-	if _, ok := s.detectNextMultiPhase(singleTask); ok {
+	if _, ok := s.detectNextMultiPhase(ctx, singleTask); ok {
 		t.Fatal("expected ok=false for single task without phases")
 	}
 
@@ -56,7 +57,7 @@ func TestDetectNextMultiPhase(t *testing.T) {
 		Title:        "Phase 1: Setup",
 		Instructions: "Phase 1: Setup database.",
 	}
-	if _, ok := s.detectNextMultiPhase(onePhaseTask); ok {
+	if _, ok := s.detectNextMultiPhase(ctx, onePhaseTask); ok {
 		t.Fatal("expected ok=false for task with only 1 phase")
 	}
 
@@ -68,7 +69,7 @@ func TestDetectNextMultiPhase(t *testing.T) {
 		Title:        "Phase 1: Database Schema",
 		Instructions: plan3Phases,
 	}
-	target, ok := s.detectNextMultiPhase(p1Task)
+	target, ok := s.detectNextMultiPhase(ctx, p1Task)
 	if !ok {
 		t.Fatal("expected ok=true for Phase 1 of 3-phase plan")
 	}
@@ -81,7 +82,7 @@ func TestDetectNextMultiPhase(t *testing.T) {
 		Title:        "Phase 2: Core APIs",
 		Instructions: plan3Phases,
 	}
-	target, ok = s.detectNextMultiPhase(p2Task)
+	target, ok = s.detectNextMultiPhase(ctx, p2Task)
 	if !ok {
 		t.Fatal("expected ok=true for Phase 2 of 3-phase plan")
 	}
@@ -94,7 +95,7 @@ func TestDetectNextMultiPhase(t *testing.T) {
 		Title:        "Phase 3: Web UI",
 		Instructions: plan3Phases,
 	}
-	if _, ok = s.detectNextMultiPhase(p3Task); ok {
+	if _, ok = s.detectNextMultiPhase(ctx, p3Task); ok {
 		t.Fatal("expected ok=false for final Phase 3 of 3-phase plan")
 	}
 
@@ -104,7 +105,7 @@ func TestDetectNextMultiPhase(t *testing.T) {
 		Title:        "Fase 1: Migrasi Database",
 		Instructions: faseIndo,
 	}
-	target, ok = s.detectNextMultiPhase(fase1Task)
+	target, ok = s.detectNextMultiPhase(ctx, fase1Task)
 	if !ok {
 		t.Fatal("expected ok=true for Fase 1 in Indonesian format")
 	}
@@ -117,7 +118,7 @@ func TestDetectNextMultiPhase(t *testing.T) {
 		Title:        "Building Authentication System",
 		Instructions: "Active Phase: 2\n" + plan3Phases,
 	}
-	target, ok = s.detectNextMultiPhase(activePhaseTask)
+	target, ok = s.detectNextMultiPhase(ctx, activePhaseTask)
 	if !ok {
 		t.Fatal("expected ok=true for task with Active Phase in instructions")
 	}
