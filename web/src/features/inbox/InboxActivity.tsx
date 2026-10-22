@@ -39,6 +39,7 @@ export function InboxActivity({
   const [recoveryStatus, setRecoveryStatus] = useState('')
   const [connectSetup, setConnectSetup] = useState(false)
   const [connectRequested, setConnectRequested] = useState(false)
+  const [accountJustConnected, setAccountJustConnected] = useState(false)
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
@@ -433,26 +434,58 @@ export function InboxActivity({
                   : (q.safe_error || 'Your reply stopped. Your message is saved.'))}
           </p>
           {accessBlocked && (
-            <div className="my-2.5 space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-              <p className="text-xs font-medium text-foreground">
-                {t('To continue sooner, connect another account with available AI access. Your saved work stays in this conversation.')}
-              </p>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-                  onClick={() => { setConnectSetup(true); setConnectRequested(true) }}
-                >
-                  {t('Connect another account')}
-                </button>
-                <Link
-                  to="/settings/agents"
-                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
-                >
-                  {t('Open account settings')}
-                </Link>
+            accountJustConnected ? (
+              <div className="my-2.5 space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>{t('New AI account connected!')}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('Your saved message is being retried with the newly connected account.')}
+                </p>
+                {onRetry && (
+                  <button
+                    type="button"
+                    disabled={recovering}
+                    className="action-primary text-xs px-3 py-1.5 inline-flex items-center gap-1.5 shadow"
+                    onClick={() => void recover(onRetry)}
+                  >
+                    {recovering ? (
+                      <>
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        <span>{t('Sending…')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span>{t('Send saved message now')}</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
-            </div>
+            ) : (
+              <div className="my-2.5 space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+                <p className="text-xs font-medium text-foreground">
+                  {t('To continue sooner, connect another account with available AI access. Your saved work stays in this conversation.')}
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                    onClick={() => { setConnectSetup(true); setConnectRequested(true) }}
+                  >
+                    {t('Connect another account')}
+                  </button>
+                  <Link
+                    to="/settings/agents"
+                    className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {t('Open account settings')}
+                  </Link>
+                </div>
+              </div>
+            )
           )}
           {connectSetup && (
             <TeamView
@@ -461,7 +494,11 @@ export function InboxActivity({
               onCreateHandled={() => setConnectRequested(false)}
               onAgentConnected={() => {
                 setConnectSetup(false)
-                setRecoveryStatus(t('Account connected. Your saved message has not been sent again.'))
+                setAccountJustConnected(true)
+                setRecoveryStatus(t('Account connected. Retrying your saved message…'))
+                if (onRetry) {
+                  void recover(onRetry)
+                }
               }}
             />
           )}
@@ -489,7 +526,7 @@ export function InboxActivity({
               {t(recovering ? 'Checking…' : 'Check status')}
             </button>
           ) : null}
-          {accessBlocked && onRetry && (
+          {accessBlocked && !accountJustConnected && onRetry && (
             <button
               type="button"
               disabled={recovering}

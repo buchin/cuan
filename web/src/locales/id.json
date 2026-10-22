@@ -591,5 +591,13 @@
   "Terminal log": "Log terminal",
   "Detail / Reopen": "Detail / Buka Kembali",
   "The result has been accepted and verified.": "Hasil pekerjaan telah diterima dan diverifikasi.",
-  "Acceptance note": "Catatan penerimaan"
+  "Acceptance note": "Catatan penerimaan",
+  "New AI account connected!": "Akun AI baru terhubung!",
+  "Your saved message is being retried with the newly connected account.": "Pesan tersimpan Anda sedang dikirim ulang menggunakan akun baru.",
+  "Account connected. Retrying your saved message…": "Akun terhubung. Mengirim ulang pesan Anda yang tersimpan…",
+  "Send saved message now": "Kirim pesan tersimpan sekarang",
+  "Check needed": "Perlu dicek",
+  "Not checked": "Belum dicek",
+  "Auto-failover for Inbox & tasks when primary quota is low.": "Cadangan otomatis untuk Inbox & tugas saat kuota utama habis.",
+  "Auto-switch between available Gemini and Claude models.": "Beralih otomatis antara model Gemini dan Claude yang tersedia."
 }

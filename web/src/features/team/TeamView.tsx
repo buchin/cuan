@@ -1,6 +1,15 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bot, Plus, RefreshCw, Trash2, MoreVertical, X } from 'lucide-react'
+import {
+  Bot,
+  Plus,
+  RefreshCw,
+  Trash2,
+  MoreVertical,
+  X,
+  BarChart2,
+  Search,
+} from 'lucide-react'
 import { connectionStatus } from '../agents/connection'
 import {
   accountsApi,
@@ -440,7 +449,7 @@ export function TeamView({
       <div className="flex items-center justify-between gap-3">
         <div>
           {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground hidden sm:block">
             {t(
               'Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.',
             )}
@@ -453,22 +462,25 @@ export function TeamView({
             className={`${primary} shrink-0`}
           >
             <Plus className="h-4 w-4" />
-            Add agent
+            {t('Add agent')}
           </button>
         )}
       </div>
       {visibleAgents.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            className="field-control min-w-0 flex-1"
-            aria-label="Search agents"
-            placeholder="Search by name or agent type"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="field-control pl-9 w-full"
+              aria-label="Search agents"
+              placeholder={t('Search by name or agent type')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           {search.trim() && (
-            <button className="action-secondary" onClick={() => setSearch('')}>
-              Clear search
+            <button className="action-secondary text-xs px-2.5 py-1.5" onClick={() => setSearch('')}>
+              {t('Clear')}
             </button>
           )}
         </div>
@@ -553,7 +565,7 @@ export function TeamView({
                 id={`settings-agent-${a.id}`}
                 className="p-4"
               >
-                <div className="grid grid-cols-[minmax(0,1fr)_44px] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_auto_44px]">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 gap-3">
                     <Bot className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
                     <div className="min-w-0">
@@ -567,15 +579,28 @@ export function TeamView({
                           </span>
                         )}
                       </div>
-                      <p
-                        className={`mt-1 text-sm ${state.verified ? 'text-emerald-700 dark:text-emerald-400' : ['login_required','quota_limited','unavailable'].includes(state.state) ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
-                      >
-                        {state.state === 'unknown'
-                          ? a.last_checked_at || a.verified_at
-                            ? 'Connection status needs to be checked again'
-                            : 'Connection status has not been checked'
-                          : state.label}
-                      </p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold border ${
+                            state.verified
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                              : state.state === 'quota_limited'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                : state.state === 'login_required'
+                                  ? 'bg-destructive/10 text-destructive border-destructive/20'
+                                  : 'bg-muted text-muted-foreground border-border'
+                          }`}
+                        >
+                          {state.verified && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          )}
+                          {state.state === 'unknown'
+                            ? a.last_checked_at || a.verified_at
+                              ? t('Check needed')
+                              : t('Not checked')
+                            : t(state.label)}
+                        </span>
+                      </div>
                       {state.state === 'quota_limited' && (
                         <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
                           <p className="font-medium">{t('Individual account quota reached')}</p>
@@ -586,34 +611,20 @@ export function TeamView({
                       )}
                     </div>
                   </div>
-                  <div className="col-start-2 row-start-1 sm:col-start-3">
+                  <div className="shrink-0">
                     <AgentActions
                       name={a.name}
                       disabled={!!checking || !!removing}
                       onRemove={() => void remove(a.id)}
                     />
                   </div>
-                  {(a.harness === 'agy' ||
-                    a.provider === 'agy' ||
-                    a.provider === 'antigravity') && (
-                    <button
-                      onClick={() => void check(a.id)}
-                      disabled={!!checking || !!removing}
-                      aria-label={`Check connection ${a.name}`}
-                      className="action-secondary col-span-2 justify-self-start sm:col-span-1 sm:col-start-2 sm:row-start-1"
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 ${checking === a.id ? 'animate-spin' : ''}`}
-                      />
-                      {checking === a.id ? 'Checking…' : 'Check connection'}
-                    </button>
-                  )}
                 </div>
                 {account && (
-                  <div className="mt-3 border-t border-border pt-3">
-                    <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+                  <div className="mt-3 border-t border-border/60 pt-3 space-y-2.5">
+                    <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
                       <input
                         type="checkbox"
+                        className="mt-0.5 rounded border-input"
                         checked={!!account.allow_failover}
                         disabled={!!backupBusy}
                         onChange={async (e) => {
@@ -639,16 +650,18 @@ export function TeamView({
                           }
                         }}
                       />
-                      {t('Use this AI account as a backup')}
+                      <div className="min-w-0">
+                        <span>{t('Use this AI account as a backup')}</span>
+                        <p className="text-[11px] text-muted-foreground font-normal leading-normal">
+                          {t('Auto-failover for Inbox & tasks when primary quota is low.')}
+                        </p>
+                      </div>
                     </label>
-                    <p className="text-xs text-muted-foreground">
-                      {t(
-                        'Allows your agents to use this account for Inbox replies and new task sessions. Cuan checks available model quota before starting. Primary connections stay unchanged.',
-                      )}
-                    </p>
-                    <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+
+                    <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
                       <input
                         type="checkbox"
+                        className="mt-0.5 rounded border-input"
                         checked={!!account.allow_model_fallback}
                         disabled={!!backupBusy}
                         onChange={async (e) => {
@@ -674,45 +687,63 @@ export function TeamView({
                           }
                         }}
                       />
-                      {t('Allow available text models on this account')}
+                      <div className="min-w-0">
+                        <span>{t('Allow available text models on this account')}</span>
+                        <p className="text-[11px] text-muted-foreground font-normal leading-normal">
+                          {t('Auto-switch between available Gemini and Claude models.')}
+                        </p>
+                      </div>
                     </label>
-                    <p className="text-xs text-muted-foreground">
-                      {t(
-                        'Cuan can choose another Gemini or Claude text model using reported quota. Model capabilities and usage limits may differ. Your agent stays the same.',
+
+                    {/* Compact action buttons row */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+                      {(a.harness === 'agy' ||
+                        a.provider === 'agy' ||
+                        a.provider === 'antigravity') && (
+                        <button
+                          onClick={() => void check(a.id)}
+                          disabled={!!checking || !!removing}
+                          aria-label={`Check connection ${a.name}`}
+                          className="action-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1.5"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 ${checking === a.id ? 'animate-spin' : ''}`}
+                          />
+                          <span>{checking === a.id ? t('Checking…') : t('Check connection')}</span>
+                        </button>
                       )}
-                    </p>
-                    <button
-                      type="button"
-                      className="action-secondary mt-3"
-                      disabled={!!usageBusy}
-                      onClick={async () => {
-                        setUsageBusy(account.id)
-                        setBackupError('')
-                        try {
-                          setUsage((old) => ({
-                            ...old,
-                            [account.id]: {
-                              available: false,
-                              checked_at: '',
-                              models: [],
-                              message: '',
-                            },
-                          }))
-                          const result = await accountsApi.usage(account.id)
-                          setUsage((old) => ({ ...old, [account.id]: result }))
-                        } catch {
-                          setBackupError(
-                            'Could not check model usage. Try again.',
-                          )
-                        } finally {
-                          setUsageBusy('')
-                        }
-                      }}
-                    >
-                      {usageBusy === account.id
-                        ? t('Checking…')
-                        : t('Check model usage')}
-                    </button>
+                      <button
+                        type="button"
+                        className="action-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1.5"
+                        disabled={!!usageBusy}
+                        onClick={async () => {
+                          setUsageBusy(account.id)
+                          setBackupError('')
+                          try {
+                            setUsage((old) => ({
+                              ...old,
+                              [account.id]: {
+                                available: false,
+                                checked_at: '',
+                                models: [],
+                                message: '',
+                              },
+                            }))
+                            const result = await accountsApi.usage(account.id)
+                            setUsage((old) => ({ ...old, [account.id]: result }))
+                          } catch {
+                            setBackupError(
+                              'Could not check model usage. Try again.',
+                            )
+                          } finally {
+                            setUsageBusy('')
+                          }
+                        }}
+                      >
+                        <BarChart2 className="h-3.5 w-3.5" />
+                        <span>{usageBusy === account.id ? t('Checking…') : t('Check model usage')}</span>
+                      </button>
+                    </div>
                     {usage[account.id] && !usageBusy && (
                       <div
                         className="mt-3 space-y-2 text-xs text-muted-foreground"
