@@ -9,6 +9,8 @@ import {
   AttachmentFile,
   useAttachments,
 } from './Attachments'
+import { CannedResponsesPicker } from './CannedResponsesPicker'
+import { CannedResponsesDialog } from './CannedResponsesDialog'
 import { Link, useLocation } from 'react-router-dom'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import type { Agent } from '../../api/agents'
@@ -171,6 +173,7 @@ export function InboxView({
   const [approvedTasks, setApprovedTasks] = useState<Record<string, boolean>>(
     {},
   )
+  const [showCannedManageModal, setShowCannedManageModal] = useState(false)
 
   // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
   const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
@@ -474,7 +477,10 @@ export function InboxView({
             convId,
             text,
             id: approvalRequestId || crypto.randomUUID(),
-            attachmentIds: approveMessageId ? [] : uploads.items.map((a) => a.id),
+            attachmentIds:
+              approveMessageId || activeContact.type !== 'agent'
+                ? []
+                : uploads.items.map((a) => a.id),
             approveMessageId,
             planAction,
           }
@@ -1013,6 +1019,17 @@ export function InboxView({
                       {msg.attachments?.map((a) => (
                         <AttachmentFile key={a.id} attachment={a} />
                       ))}
+                      {msg.attachment_url && !msg.attachments?.length && (
+                        <AttachmentFile
+                          attachment={{
+                            id: msg.attachment_url,
+                            name: msg.attachment_name || 'Customer file',
+                            type: msg.attachment_type || 'application/octet-stream',
+                            size: msg.attachment_size || 0,
+                            url: msg.attachment_url,
+                          }}
+                        />
+                      )}
                       {msg.product && (
                         <p className="mb-1 text-xs font-medium opacity-80">
                           {msg.product}
@@ -1307,6 +1324,16 @@ export function InboxView({
                       compact
                     />
                   )}
+                  <CannedResponsesPicker
+                    inputMessage={inputMessage}
+                    onSelect={(content) => {
+                      setInputMessage(content)
+                      textareaRef.current?.focus()
+                      if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                    }}
+                    onOpenManage={() => setShowCannedManageModal(true)}
+                    disabled={sending}
+                  />
                   <textarea
                     ref={textareaRef}
  data-primary-composer
@@ -1332,7 +1359,8 @@ export function InboxView({
                     type="button"
                     onClick={() => handleSendMessage()}
                     disabled={
-                      (!inputMessage.trim() && !uploads.items.length) ||
+                      (!inputMessage.trim() &&
+                        (activeContact.type !== 'agent' || !uploads.items.length)) ||
                       sending ||
                       uploads.busy
                     }
@@ -1388,6 +1416,16 @@ export function InboxView({
         onTaskCreated={(newTask) => {
           setLinkedTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)])
           setConvTab('tasks')
+        }}
+      />
+
+      <CannedResponsesDialog
+        open={showCannedManageModal}
+        onClose={() => setShowCannedManageModal(false)}
+        onSelect={(content) => {
+          setInputMessage(content)
+          textareaRef.current?.focus()
+          if (textareaRef.current) autoResizeTextarea(textareaRef.current)
         }}
       />
     </div>

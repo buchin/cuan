@@ -291,6 +291,35 @@
       align-items: flex-end;
       gap: 8px;
     }
+    .dojo-attach-btn {
+      width: 44px;
+      height: 48px;
+      border-radius: 10px;
+      background: none;
+      color: #71717a;
+      border: 1px solid #d4d4d8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .dojo-attach-btn:hover {
+      background-color: #f4f4f5;
+      color: #18181b;
+    }
+    .dojo-attach-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .dojo-attach-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+    }
     .dojo-textarea {
       flex: 1;
       resize: none;
@@ -385,6 +414,12 @@
       </div>
 
       <div class="dojo-composer">
+        <button class="dojo-attach-btn" id="attach-btn" title="Attach file" type="button" aria-label="Attach file">
+          <svg viewBox="0 0 24 24">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+          </svg>
+        </button>
+        <input type="file" id="file-input" style="display:none;" accept="image/png,image/jpeg,image/gif,application/pdf,text/plain,.txt,.md,.csv" />
         <textarea class="dojo-textarea" id="input-textarea" aria-label="Message" placeholder="Write a message…" rows="1"></textarea>
         <button class="dojo-send-btn" id="send-btn" title="Send message">
           <svg viewBox="0 0 24 24">
@@ -407,6 +442,8 @@
   const messagesStreamEl = shadow.getElementById('messages-stream');
   const textareaEl = shadow.getElementById('input-textarea');
   const sendBtnEl = shadow.getElementById('send-btn');
+  const attachBtnEl = shadow.getElementById('attach-btn');
+  const fileInputEl = shadow.getElementById('file-input');
 
   function escapeHTML(str) {
     if (!str) return '';
@@ -523,9 +560,19 @@
 
       const text = m.message || m.content || '';
       const timeStr = formatTime(m.created_at);
+      let attachmentHtml = '';
+      if (m.attachment_url || m.has_attachment) {
+        const url = (m.attachment_url || '').startsWith('http') ? m.attachment_url : apiBase + (m.attachment_url || '');
+        const isImg = (m.attachment_type || '').startsWith('image/');
+        if (isImg) {
+          attachmentHtml = `<div style="margin-top:6px;"><a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${escapeHTML(m.attachment_name || 'Attachment')}" style="max-width:100%;max-height:160px;border-radius:8px;display:block;" /></a></div>`;
+        } else {
+          attachmentHtml = `<div style="margin-top:6px;"><a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:13px;text-decoration:underline;color:inherit;">📎 ${escapeHTML(m.attachment_name || 'Download file')}</a></div>`;
+        }
+      }
 
       div.innerHTML = `
-        <div class="dojo-msg-bubble">${escapeHTML(text)}</div>
+        <div class="dojo-msg-bubble">${escapeHTML(text)}${attachmentHtml}</div>
         <span class="dojo-msg-meta">${timeStr}</span>
       `;
       messagesStreamEl.appendChild(div);
@@ -550,9 +597,9 @@
   function showError(text) { errorEl.textContent = text; errorEl.style.display = text ? 'block' : 'none'; }
 
   // Send Message
-  async function sendMessage(text) {
+  async function sendMessage(text, attachment) {
     const clean = (text || '').trim();
-    if (!clean || isSending) return;
+    if ((!clean && !attachment) || isSending) return;
 
     if (!sessionUUID) {
       await initSession();
@@ -563,14 +610,21 @@
     sendBtnEl.disabled = true;
 
     try {
+      const payload = {
+        session_uuid: sessionUUID,
+        text: clean || (attachment ? attachment.name : ''),
+        product: defaultProduct,
+      };
+      if (attachment) {
+        payload.attachment_url = attachment.url;
+        payload.attachment_name = attachment.name;
+        payload.attachment_type = attachment.type;
+        payload.attachment_size = attachment.size;
+      }
       const res = await fetch(`${apiBase}/api/chat/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_uuid: sessionUUID,
-          text: clean,
-          product: defaultProduct,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error('send failed');
@@ -586,6 +640,66 @@
       isSending = false;
       sendBtnEl.disabled = false;
     }
+  }
+
+  // Attach button and file input handling (Customer-to-operator only)
+  if (attachBtnEl && fileInputEl) {
+    attachBtnEl.addEventListener('click', () => {
+      fileInputEl.click();
+    });
+
+    fileInputEl.addEventListener('change', async () => {
+      const file = fileInputEl.files && fileInputEl.files[0];
+      if (!file) return;
+      fileInputEl.value = '';
+
+      if (file.size > 10 * 1024 * 1024) {
+        showError('File is too large. Maximum size is 10 MB.');
+        return;
+      }
+
+      if (!sessionUUID) {
+        await initSession();
+      }
+      if (!sessionUUID) {
+        showError('Live chat is not connected. Try sending again.');
+        return;
+      }
+
+      attachBtnEl.disabled = true;
+      showError('Uploading ' + file.name + '…');
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('session_uuid', sessionUUID);
+        formData.append('guest_uuid', guestUUID);
+
+        const uploadRes = await fetch(`${apiBase}/api/chat/attachments`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Upload failed');
+        }
+
+        const uploaded = await uploadRes.json();
+        showError('');
+
+        await sendMessage(textareaEl.value.trim() || ('Shared: ' + file.name), {
+          url: uploaded.url,
+          name: uploaded.name,
+          type: uploaded.type,
+          size: uploaded.size,
+        });
+      } catch (err) {
+        showError(err.message || 'Could not upload file. Try again.');
+      } finally {
+        attachBtnEl.disabled = false;
+      }
+    });
   }
 
   function autoResizeTextarea() {

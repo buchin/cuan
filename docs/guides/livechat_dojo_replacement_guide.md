@@ -213,7 +213,9 @@ Semua endpoint berikut mendukung `Access-Control-Allow-Origin: *` dan tidak meme
 | :--- | :--- | :--- |
 | `POST` | `/api/chat/session` | Inisialisasi atau pemulihan sesi pengunjung berdasarkan `guest_uuid` |
 | `GET` | `/api/chat/messages` | Mengambil pesan percakapan berdasarkan `session_uuid` dan `after_id` |
-| `POST` | `/api/chat/messages` | Mengirim pesan baru dari pengunjung |
+| `POST` | `/api/chat/messages` | Mengirim pesan baru dari pengunjung (mendukung berkas lampiran) |
+| `POST` | `/api/chat/attachments` | Upload lampiran berkas dari pengunjung (1 arah: customer ke operator, maks 10 MB) |
+| `GET` | `/api/chat/attachments/{id}` | Mengunduh lampiran yang diunggah pengunjung |
 | `POST` | `/api/chat/sessions/{uuid}/page` | Mengirim telemetri URL dan judul halaman yang sedang dikunjungi |
 | `POST` | `/api/chat/receipts` | Mengirim tanda terima pesan telah dibaca |
 | `GET` | `/chat/widget.js` | Mengambil bundle Vanilla JS widget Shadow DOM |
@@ -225,7 +227,32 @@ Endpoint berikut digunakan oleh SPA Cuan dan dilindungi oleh otentikasi JWT:
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/chat/contacts` | Mengambil daftar kontak (filter: `all`, `agents`, `customers`) |
 | `GET` | `/api/v1/chat/conversations/{id}/messages` | Mengambil riwayat percakapan kontak |
-| `POST` | `/api/v1/chat/conversations/{id}/messages` | Mengirim balasan operator ke pengunjung atau agen |
+| `POST` | `/api/v1/chat/conversations/{id}/messages` | Mengirim balasan operator ke pengunjung atau agen (lampiran dilarang jika ke customer) |
+| `GET` | `/api/v1/chat/canned-responses` | Mengambil daftar balasan cepat / template pesan tersimpan |
+| `POST` | `/api/v1/chat/canned-responses` | Membuat template balasan cepat baru |
+| `GET` | `/api/v1/chat/canned-responses/{id}` | Mengambil detail satu template balasan cepat |
+| `PUT` | `/api/v1/chat/canned-responses/{id}` | Memperbarui template balasan cepat |
+| `DELETE` | `/api/v1/chat/canned-responses/{id}` | Menghapus template balasan cepat |
+| `POST` | `/api/v1/chat/attachments` | Upload lampiran operator (hanya diizinkan pada sesi internal agent; dilarang untuk percakapan customer) |
+| `GET` | `/api/v1/chat/attachments/{id}` | Mengunduh lampiran berkas percakapan |
+
+---
+
+## 5.3 Kebijakan Lampiran (Attachment Policy - Fase 3)
+1. **Satu Arah (Customer ke Operator)**:
+   - Pengunjung dapat mengunggah berkas gambar (PNG, JPG, GIF), dokumen PDF, teks, Markdown, atau CSV hingga 10 MB melalui tombol lampiran pada widget live chat.
+   - Operator dapat melihat dan mengunduh berkas tersebut di antarmuka Inbox Cuan.
+2. **Larangan Attachment Operator ke Customer**:
+   - Operator dilarang keras mengirimkan berkas lampiran ke pelanggan.
+   - Tombol lampiran, drag-and-drop, dan paste berkas dinonaktifkan di antarmuka percakapan customer.
+   - Server menolak percobaan upload operator pada percakapan customer dengan status HTTP `403 Forbidden`.
+
+## 5.4 Canned Responses (Saved Replies / Pesan Tersimpan - Fase 3)
+1. **Shortcut & Autocomplete di Composer**:
+   - Operator cukup mengetik `/` (misalnya `/halo`, `/harga`, `/tunggu`, `/terimakasih`) untuk memunculkan daftar rekomendasi template secara instan.
+   - Tombol ikon petir (*Saved Replies*) di kolom input menyediakan pemilih visual responsif untuk desktop dan mobile.
+2. **Manajemen Template (CRUD)**:
+   - Operator dapat menambah template baru, mengedit pintasan, judul, kategori, serta isi pesan, dan menghapus template yang sudah usang.
 
 ---
 
