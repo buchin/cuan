@@ -9,6 +9,7 @@ import {
   X,
   BarChart2,
   Search,
+  AlertCircle,
 } from 'lucide-react'
 import { connectionStatus } from '../agents/connection'
 import {
@@ -499,12 +500,27 @@ export function TeamView({
         </div>
       )}
       {backupError && (
-        <p role="alert" className="text-sm text-destructive">
-          {t(backupError)}{' '}
-          <button className="underline" onClick={() => void load()}>
-            {t('Try again')}
-          </button>
-        </p>
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center justify-between gap-2"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t(backupError)}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button className="underline font-medium hover:opacity-80" onClick={() => void load()}>
+              {t('Try again')}
+            </button>
+            <button
+              className="text-muted-foreground hover:text-foreground p-0.5"
+              onClick={() => setBackupError('')}
+              aria-label="Dismiss error"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       )}
       {loading ? (
         <p role="status" className="text-sm text-muted-foreground">
@@ -540,9 +556,18 @@ export function TeamView({
           className="divide-y divide-border rounded-lg border border-border"
         >
           {visibleAgents.map((agent) => {
-            const account = accounts.find(
-              (item) => item.agent_id === agent.id && !item.legacy,
-            )
+            const account =
+              accounts.find(
+                (item) =>
+                  !item.legacy &&
+                  item.agent_id === agent.id &&
+                  (agent.connection_id
+                    ? item.connection_id === agent.connection_id
+                    : true),
+              ) ||
+              accounts.find(
+                (item) => !item.legacy && item.agent_id === agent.id,
+              )
             const expiry = agent.verified_at
               ? Date.parse(agent.verified_at) + 5 * 60_000
               : NaN
@@ -567,21 +592,16 @@ export function TeamView({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 gap-3">
-                    <Bot className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+                      <Bot className="h-5 w-5" />
+                    </div>
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-baseline gap-2">
-                        <h3 className="break-words text-base font-medium">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
                           {a.name}
                         </h3>
-                        {account?.email && (
-                          <span className="text-xs text-muted-foreground font-mono">
-                            ({account.email})
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold border ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold border shrink-0 ${
                             state.verified
                               ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                               : state.state === 'quota_limited'
@@ -601,6 +621,11 @@ export function TeamView({
                             : t(state.label)}
                         </span>
                       </div>
+                      {account?.email && (
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
+                          {account.email}
+                        </p>
+                      )}
                       {state.state === 'quota_limited' && (
                         <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
                           <p className="font-medium">{t('Individual account quota reached')}</p>
@@ -695,8 +720,8 @@ export function TeamView({
                       </div>
                     </label>
 
-                    {/* Compact action buttons row */}
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+                    {/* Compact action buttons grid */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40">
                       {(a.harness === 'agy' ||
                         a.provider === 'agy' ||
                         a.provider === 'antigravity') && (
@@ -704,17 +729,17 @@ export function TeamView({
                           onClick={() => void check(a.id)}
                           disabled={!!checking || !!removing}
                           aria-label={`Check connection ${a.name}`}
-                          className="action-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1.5"
+                          className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
                         >
                           <RefreshCw
-                            className={`h-3.5 w-3.5 ${checking === a.id ? 'animate-spin' : ''}`}
+                            className={`h-3.5 w-3.5 shrink-0 ${checking === a.id ? 'animate-spin' : ''}`}
                           />
-                          <span>{checking === a.id ? t('Checking…') : t('Check connection')}</span>
+                          <span className="truncate">{checking === a.id ? t('Checking…') : t('Check connection')}</span>
                         </button>
                       )}
                       <button
                         type="button"
-                        className="action-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1.5"
+                        className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
                         disabled={!!usageBusy}
                         onClick={async () => {
                           setUsageBusy(account.id)
