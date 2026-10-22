@@ -8,26 +8,26 @@ import (
 )
 
 type Config struct {
-	Environment       string
-	ServerPort        string
-	DatabaseURL       string
-	DBMaxOpenConns    int
-	DBMaxIdleConns    int
-	DBConnMaxLifetime time.Duration
-	DBConnMaxIdleTime time.Duration
-	AutoMigrate       bool
-	StaticDir         string
-	RunnerInterval      time.Duration
-	RunnerID            string
-	RunnerToken         string
-	RunnerServerURL     string
-	RunnerLeaseDuration time.Duration
-	RunnerMaxLogLines   int
-	AuthSecret          string
-	GitAuthorName       string
-	GitAuthorEmail      string
-	WorkspacesDir       string
-	AppVersion          string
+	Environment               string
+	ServerPort                string
+	DatabaseURL               string
+	DBMaxOpenConns            int
+	DBMaxIdleConns            int
+	DBConnMaxLifetime         time.Duration
+	DBConnMaxIdleTime         time.Duration
+	AutoMigrate               bool
+	StaticDir                 string
+	RunnerInterval            time.Duration
+	RunnerID                  string
+	RunnerToken               string
+	RunnerServerURL           string
+	RunnerLeaseDuration       time.Duration
+	RunnerMaxLogLines         int
+	AuthSecret                string
+	GitAuthorName             string
+	GitAuthorEmail            string
+	WorkspacesDir             string
+	AppVersion                string
 	DojoWebhookSecret         string
 	DojoWaitingListWebhookURL string
 	DojoCheckoutURL           string
@@ -50,8 +50,8 @@ func Load() *Config {
 	runnerToken := getEnv("CUAN_RUNNER_TOKEN", authSecret)
 	serverURL := getEnv("CUAN_SERVER_URL", "http://localhost:"+port)
 	staticDir := getEnv("CUAN_STATIC_DIR", "web/dist")
-	gitAuthorName := getEnv("GIT_AUTHOR_NAME", "Buchin")
-	gitAuthorEmail := getEnv("GIT_AUTHOR_EMAIL", "buchin@dropsugar.com")
+	gitAuthorName := getEnv("GIT_AUTHOR_NAME", "")
+	gitAuthorEmail := getEnv("GIT_AUTHOR_EMAIL", "")
 	workspacesDir := getEnv("CUAN_WORKSPACES_DIR", "data/workspaces")
 	appVersion := getEnv("CUAN_APP_VERSION", "0.1.0")
 	dojoWebhookSecret := getEnv("DOJO_WEBHOOK_SECRET", "dev-dojo-secret")
@@ -107,25 +107,25 @@ func Load() *Config {
 	autoMigrate := getEnv("CUAN_AUTO_MIGRATE", "true") != "false"
 
 	return &Config{
-		Environment:         env,
-		ServerPort:          port,
-		DatabaseURL:         dbURL,
-		DBMaxOpenConns:      maxOpenConns,
-		DBMaxIdleConns:      maxIdleConns,
-		DBConnMaxLifetime:   connMaxLifetime,
-		DBConnMaxIdleTime:   connMaxIdleTime,
-		AutoMigrate:         autoMigrate,
-		StaticDir:           staticDir,
-		RunnerInterval:      time.Duration(intervalSec) * time.Second,
-		RunnerID:            runnerID,
-		RunnerToken:         runnerToken,
-		RunnerServerURL:     serverURL,
-		RunnerLeaseDuration: time.Duration(leaseSec) * time.Second,
-		RunnerMaxLogLines:   maxLogLines,
-		AuthSecret:          authSecret,
-		GitAuthorName:       gitAuthorName,
-		GitAuthorEmail:      gitAuthorEmail,
-		WorkspacesDir:       workspacesDir,
+		Environment:               env,
+		ServerPort:                port,
+		DatabaseURL:               dbURL,
+		DBMaxOpenConns:            maxOpenConns,
+		DBMaxIdleConns:            maxIdleConns,
+		DBConnMaxLifetime:         connMaxLifetime,
+		DBConnMaxIdleTime:         connMaxIdleTime,
+		AutoMigrate:               autoMigrate,
+		StaticDir:                 staticDir,
+		RunnerInterval:            time.Duration(intervalSec) * time.Second,
+		RunnerID:                  runnerID,
+		RunnerToken:               runnerToken,
+		RunnerServerURL:           serverURL,
+		RunnerLeaseDuration:       time.Duration(leaseSec) * time.Second,
+		RunnerMaxLogLines:         maxLogLines,
+		AuthSecret:                authSecret,
+		GitAuthorName:             gitAuthorName,
+		GitAuthorEmail:            gitAuthorEmail,
+		WorkspacesDir:             workspacesDir,
 		AppVersion:                appVersion,
 		DojoWebhookSecret:         dojoWebhookSecret,
 		DojoWaitingListWebhookURL: dojoWaitingListWebhookURL,

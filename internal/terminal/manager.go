@@ -6,10 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/taskprocess"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,11 +30,13 @@ var validTaskIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
 type TaskRunHistory struct {
 	ID         string    `json:"id"`
 	TaskID     string    `json:"task_id"`
+	AttemptID  string    `json:"attempt_id,omitempty"`
 	SessionID  string    `json:"session_id"`
 	AgentID    string    `json:"agent_id"`
 	AgentName  string    `json:"agent_name"`
 	Command    string    `json:"command"`
 	ExitCode   int       `json:"exit_code"`
+	EndReason  string    `json:"end_reason,omitempty"`
 	Status     string    `json:"status"` // "running", "completed", "failed"
 	StartedAt  time.Time `json:"started_at"`
 	FinishedAt time.Time `json:"finished_at,omitempty"`
@@ -39,18 +45,22 @@ type TaskRunHistory struct {
 
 // TaskAgentRunConfig specifies parameters for launching an agent process in a task workspace.
 type TaskAgentRunConfig struct {
-	TaskID    string
-	AgentID   string
-	AgentName string
-	Command   string // "agy", "claude", "shell", or auto
-	Args      []string
-	Prompt    string
-	WorkDir   string
-	Env       []string
-	Cols      uint16
-	Rows      uint16
-	Mode      Mode
-	OnExit    func(history *TaskRunHistory)
+	Model           string
+	AttachmentPaths []string
+	AttemptID       string
+	TaskID          string
+	AgentID         string
+	AgentName       string
+	Command         string // "agy", "claude", "shell", or auto
+	Args            []string
+	Prompt          string
+	WorkDir         string
+	Env             []string
+	Cols            uint16
+	Rows            uint16
+	Mode            Mode
+	OnOutput        func([]byte)
+	OnExit          func(history *TaskRunHistory)
 }
 
 // ManagerConfig defines configuration parameters for the terminal session manager.
@@ -276,7 +286,9 @@ func (m *Manager) CleanIdleSessions(maxIdle time.Duration) int {
 
 	m.mu.RLock()
 	for taskID, s := range m.sessions {
-		if s.IsClosed() || (s.SubscriberCount() == 0 && s.LastActivity().Before(threshold)) {
+		runs := m.histories[taskID]
+		activeAgent := len(runs) > 0 && runs[len(runs)-1].Status == "running"
+		if s.IsClosed() || (!activeAgent && s.SubscriberCount() == 0 && s.LastActivity().Before(threshold)) {
 			toClose = append(toClose, taskID)
 		}
 	}
@@ -354,19 +366,50 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	switch commandLabel {
 	case "agy", "claude":
 		executable, err = exec.LookPath(commandLabel)
-		ptyArgs = []string{"-p", cfg.Prompt}
+		ptyArgs = []string{cfg.Prompt}
 		if commandLabel == "agy" {
-			ptyArgs = append(ptyArgs, "--print-timeout", "9m")
+			// Task execution is explicitly authorized by Start/Create. Keep the
+			// interactive conversation alive between turns, as in Fural.
+			// Inbox uses its own restricted launcher and does not inherit this flag.
+			ptyArgs = []string{"--dangerously-skip-permissions", "--prompt-interactive", cfg.Prompt, "--add-dir", workDir}
 			cfg.Env = append(cfg.Env, "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+			var homeDir string
+			for _, e := range cfg.Env {
+				if strings.HasPrefix(e, "HOME=") {
+					homeDir = strings.TrimPrefix(e, "HOME=")
+					break
+				}
+			}
+			if homeDir != "" {
+				_ = agent.PrepareAntigravitySettings(homeDir, workDir)
+				_ = agent.EnsureAntigravityOnboarding(homeDir)
+			}
 		}
 	case "codex":
 		executable, err = exec.LookPath("codex")
-		ptyArgs = []string{"exec", cfg.Prompt}
+		ptyArgs = []string{"--full-auto", cfg.Prompt}
 	case "shell":
 		executable = FindShell(m.cfg.DefaultShell)
 		ptyArgs = []string{"-i"}
 	default:
 		return nil, fmt.Errorf("unsupported task harness %q", commandLabel)
+	}
+	if commandLabel == "agy" && cfg.Model != "" {
+		if !regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$`).MatchString(cfg.Model) {
+			return nil, fmt.Errorf("invalid model identifier")
+		}
+		ptyArgs = append(ptyArgs, "--model", cfg.Model)
+	}
+	for _, file := range cfg.AttachmentPaths {
+		if commandLabel == "agy" || commandLabel == "claude" {
+			ptyArgs = append(ptyArgs, "--add-dir", filepath.Dir(file))
+		}
+		if commandLabel == "codex" {
+			ext := strings.ToLower(filepath.Ext(file))
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" {
+				ptyArgs = append(ptyArgs, "--image", file)
+			}
+		}
 	}
 	if err != nil || executable == "" {
 		return nil, fmt.Errorf("task harness %s is not installed", commandLabel)
@@ -383,31 +426,52 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		_ = existing.Close()
 		delete(m.sessions, taskID)
 	}
-	m.mu.Unlock()
+	// Keep launch reservation until process and history are installed.
 
+	lockPath, lockErr := m.taskLockPath(taskID)
+	if lockErr != nil {
+		m.mu.Unlock()
+		return nil, lockErr
+	}
+	active, lockErr := taskprocess.Active(lockPath)
+	if lockErr != nil || active {
+		m.mu.Unlock()
+		if active {
+			return nil, taskprocess.ErrActive
+		}
+		return nil, fmt.Errorf("task execution ownership unavailable: %w", lockErr)
+	}
+	supervisor, supervisorErr := os.Executable()
+	if supervisorErr != nil {
+		m.mu.Unlock()
+		return nil, supervisorErr
+	}
+	supervisedArgs := append([]string{taskprocess.Command, lockPath, strconv.Itoa(os.Getpid()), "--", executable}, ptyArgs...)
 	sessionID := generateSessionID()
 	ptyCfg := PTYConfig{
 		TaskID:      taskID,
 		WorkDir:     workDir,
-		Shell:       executable,
-		Args:        ptyArgs,
+		Shell:       supervisor,
+		Args:        supervisedArgs,
 		Env:         cfg.Env,
 		InitialCols: cols,
 		InitialRows: rows,
 	}
 
 	// A task outlives the HTTP request that starts it, with a bounded lifetime.
-	runContext, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	runContext, cancel := context.WithTimeout(context.Background(), 8*time.Hour)
 	proc, err := SpawnPTY(runContext, ptyCfg)
 	if err != nil {
 		cancel()
+		m.mu.Unlock()
 		return nil, fmt.Errorf("spawn agent pty for task %s: %w", taskID, err)
 	}
 
-	sess := NewSession(sessionID, taskID, proc, mode)
+	sess := NewSession(sessionID, taskID, proc, mode, cfg.OnOutput)
 
 	history := &TaskRunHistory{
 		ID:        generateSessionID(),
+		AttemptID: cfg.AttemptID,
 		TaskID:    taskID,
 		SessionID: sessionID,
 		AgentID:   agentID,
@@ -417,7 +481,6 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		StartedAt: time.Now().UTC(),
 	}
 
-	m.mu.Lock()
 	m.sessions[taskID] = sess
 	m.histories[taskID] = append(m.histories[taskID], history)
 	m.mu.Unlock()
@@ -426,12 +489,16 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	go func() {
 		defer cancel()
 		_ = proc.Wait()
+		select {
+		case <-sess.readerDone:
+		case <-time.After(3 * time.Second):
+		}
 		exitCode := proc.ExitCode()
 		m.mu.Lock()
 		history.FinishedAt = time.Now().UTC()
 		history.DurationMs = history.FinishedAt.Sub(history.StartedAt).Milliseconds()
 		history.ExitCode = exitCode
-		if exitCode == 0 {
+		if (exitCode == 0 && history.EndReason != "provider_quota" && history.EndReason != "provider_restricted") || history.EndReason == "agent_report" {
 			history.Status = "completed"
 		} else {
 			history.Status = "failed"
@@ -445,6 +512,55 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	}()
 
 	return sess, nil
+}
+
+// FinishReportedSession closes only the exact active attempt that submitted a
+// validated final report. The actual signal exit code remains in history.
+func (m *Manager) FinishReportedSession(taskID, attemptID string, acceptedAt time.Time) bool {
+	m.mu.Lock()
+	runs := m.histories[taskID]
+	sess := m.sessions[taskID]
+	if len(runs) == 0 || sess == nil {
+		m.mu.Unlock()
+		return false
+	}
+	h := runs[len(runs)-1]
+	if h.AttemptID != attemptID || h.SessionID != sess.ID() || h.Status != "running" || sess.IsClosed() || sess.LastInputAt().After(acceptedAt) {
+		m.mu.Unlock()
+		return false
+	}
+	h.EndReason = "agent_report"
+	delete(m.sessions, taskID)
+	m.mu.Unlock()
+	_ = sess.Close()
+	return true
+}
+
+// StopQuotaAttempt closes only the attempt whose output reported a usage limit.
+func (m *Manager) StopQuotaAttempt(taskID, attemptID string) bool {
+	return m.stopProviderAttempt(taskID, attemptID, "provider_quota")
+}
+func (m *Manager) StopRestrictedAttempt(taskID, attemptID string) bool {
+	return m.stopProviderAttempt(taskID, attemptID, "provider_restricted")
+}
+func (m *Manager) stopProviderAttempt(taskID, attemptID, reason string) bool {
+	m.mu.Lock()
+	runs := m.histories[taskID]
+	sess := m.sessions[taskID]
+	if len(runs) == 0 || sess == nil {
+		m.mu.Unlock()
+		return false
+	}
+	h := runs[len(runs)-1]
+	if h.AttemptID != attemptID || h.SessionID != sess.ID() || h.Status != "running" {
+		m.mu.Unlock()
+		return false
+	}
+	h.EndReason = reason
+	delete(m.sessions, taskID)
+	m.mu.Unlock()
+	_ = sess.Close()
+	return true
 }
 
 // GetTaskHistory returns all execution history records for a task.
@@ -462,4 +578,39 @@ func (m *Manager) GetTaskHistory(taskID string) []*TaskRunHistory {
 		result[i] = &clone
 	}
 	return result
+}
+
+func (m *Manager) taskLockPath(taskID string) (string, error) {
+	if !validTaskIDRegex.MatchString(taskID) {
+		return "", ErrInvalidTaskID
+	}
+	root, err := filepath.Abs(filepath.Join(m.cfg.WorkspacesDir, ".task-execution-locks"))
+	if err != nil {
+		return "", err
+	}
+	if err = os.MkdirAll(root, 0700); err != nil {
+		return "", err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, taskID+".lock"), nil
+}
+func (m *Manager) TaskExecutionActive(taskID string) (bool, error) {
+	path, err := m.taskLockPath(taskID)
+	if err != nil {
+		return false, err
+	}
+	return taskprocess.Active(path)
+}
+
+// AcquireTaskExecutionLease prevents a provider process starting during cleanup.
+// The caller must close the lease; active or uncertain ownership refuses cleanup.
+func (m *Manager) AcquireTaskExecutionLease(taskID string) (io.Closer, error) {
+	path, err := m.taskLockPath(taskID)
+	if err != nil {
+		return nil, err
+	}
+	return taskprocess.Acquire(path)
 }

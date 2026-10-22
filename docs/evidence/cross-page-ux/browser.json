@@ -1,0 +1,415 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "checks": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/appearance",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/appearance",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/appearance",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/appearance",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "inbox",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "contacts",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "noOverflow": true
+    }
+  ],
+  "workflows": [
+    "Inbox mobile logo24px without taller header",
+    "Contacts consistent padding/title and empty CTA",
+    "Tasks long title readable on mobile, scoped board and modal",
+    "Tasks empty CTA and filter recovery",
+    "Projects accurate search empty state and keyboard list navigation",
+    "Settings single-row scrollable44px links"
+  ],
+  "errors": [],
+  "unknown": [],
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/tasks/new_fixture"
+    }
+  ],
+  "providerInvocations": 0
+}

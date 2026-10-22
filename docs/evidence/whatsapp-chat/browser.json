@@ -1,0 +1,163 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "checks": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 197,
+        "textTop": 193,
+        "radius": "8px",
+        "background": "rgb(217, 253, 211)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 197,
+        "textTop": 193,
+        "radius": "8px",
+        "background": "rgb(0, 92, 75)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 197,
+        "textTop": 193,
+        "radius": "8px",
+        "background": "rgb(217, 253, 211)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 197,
+        "textTop": 193,
+        "radius": "8px",
+        "background": "rgb(0, 92, 75)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 121,
+        "textTop": 117,
+        "radius": "8px",
+        "background": "rgb(217, 253, 211)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 121,
+        "textTop": 117,
+        "radius": "8px",
+        "background": "rgb(0, 92, 75)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 121,
+        "textTop": 117,
+        "radius": "8px",
+        "background": "rgb(217, 253, 211)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "ping": {
+        "width": 110.078125,
+        "height": 37,
+        "metaTop": 121,
+        "textTop": 117,
+        "radius": "8px",
+        "background": "rgb(0, 92, 75)"
+      },
+      "send": {
+        "width": 48,
+        "height": 48,
+        "radius": "9999px"
+      },
+      "noOverflow": true
+    }
+  ],
+  "workflows": [
+    "inline timestamps on short bubbles",
+    "compact tail/radius/spacing",
+    "light/dark WhatsApp palette scoped to chat",
+    "context task action still opens",
+    "markdown quote/code copy retained",
+    "16px multiline composer and48px circular send",
+    "Back restores navigation"
+  ],
+  "errors": [],
+  "unknown": [],
+  "writes": [],
+  "providerInvocations": 0
+}

@@ -180,3 +180,54 @@ func TestCreateOrUpdatePullRequest_Cycle(t *testing.T) {
 		t.Fatalf("expected exactly 1 PR in database, got %d (duplicate created!)", len(prDatabase))
 	}
 }
+
+func TestMergePullRequest(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/buchin/cuan/pulls/101/merge", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		var payload map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+
+		if payload["merge_method"] != "squash" {
+			t.Errorf("expected merge_method 'squash', got %v", payload["merge_method"])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"sha":     "sha1234567890abcdef",
+			"merged":  true,
+			"message": "Pull Request successfully merged",
+		})
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := NewClient()
+	client.SetAPIBaseURL(server.URL)
+
+	ctx := context.Background()
+	result, err := client.MergePullRequest(ctx, MergePullRequestRequest{
+		Owner:         "buchin",
+		Repo:          "cuan",
+		PullNumber:    101,
+		CommitTitle:   "feat: squash merge task work",
+		CommitMessage: "Applied via Cuan one-click apply",
+		MergeMethod:   "squash",
+	})
+	if err != nil {
+		t.Fatalf("MergePullRequest failed: %v", err)
+	}
+
+	if !result.Merged {
+		t.Errorf("expected Merged=true, got false")
+	}
+	if result.SHA != "sha1234567890abcdef" {
+		t.Errorf("expected SHA 'sha1234567890abcdef', got '%s'", result.SHA)
+	}
+}

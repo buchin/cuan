@@ -1,0 +1,11 @@
+{
+  "actualStagingHTMLMatchesBuiltAssets": true,
+  "publishedSourceCommit": "a467710",
+  "includesAncestor": "b8f9c7a",
+  "stagedSourcesMatchWorkspace": true,
+  "stagedAssetsSHA256": {
+    "/assets/index-B3gcrLxH.js": "6401ed8f5249f68e19102fefcfbab6d300a1ad3745bb9c93b090e3d7f62f9c82",
+    "/assets/index-4q1PcOsG.css": "cbc4e54f4fa594f3f418d9fd2f0c9cd7961c52f069916ab7b83aec580035de42"
+  },
+  "productionStillAcceptedS25": true
+}

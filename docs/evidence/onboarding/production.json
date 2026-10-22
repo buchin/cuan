@@ -1,0 +1,28 @@
+{
+  "release": "49f89ec68d8ca35e8fe61ca247ac251f526336a1",
+  "schema": 25,
+  "englishDefaultOnIndonesianBrowser": true,
+  "explicitIndonesianPreferencePreserved": true,
+  "approvalClicks": 0,
+  "optionalActionAssetsVerified": true,
+  "waitingLaunchAssetsVerified": true,
+  "onboardingAssetsVerified": true,
+  "existingOwnerSignsIn": true,
+  "rollbackReactivationVerified": true,
+  "checkedAgentConversations": 7,
+  "recoveryActions": {
+    "check_status": 5,
+    "check_usage": 1
+  },
+  "mobileDesktopRecoveryUI": true,
+  "retainedApplicationTables": 37,
+  "retainedProfileFiles": 878,
+  "providerCalls": 0,
+  "retriesStarted": 0,
+  "nonLoginWrites": [],
+  "limitations": [
+    "Native provider checkpoint resume is not implemented."
+  ],
+  "newOwnerSetupPerformedInProduction": false,
+  "productionProviderCalls": 0
+}

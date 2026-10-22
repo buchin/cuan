@@ -1,0 +1,25 @@
+{
+  "responsiveWidths": [
+    360,
+    390,
+    820,
+    1440
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "pages": [
+    "contacts",
+    "projects",
+    "notifications",
+    "settings/profile",
+    "settings/notifications",
+    "settings/general"
+  ],
+  "noOverflow": true,
+  "archiveInlineWithSearch": true,
+  "touchTarget44": true,
+  "existingCrossPageRegression": true,
+  "providerCalls": 0
+}

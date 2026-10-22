@@ -1,0 +1,35 @@
+{
+  "release": "f724cb760a1dc4b858adb840c3d9d9a5042abb20",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "migration": false,
+  "baselineAuditPairs": 21,
+  "fixtureViewportThemeRouteChecks": 64,
+  "productionViewportThemeRouteChecks": 64,
+  "fixtureFormSaveFailureRetryPassed": true,
+  "productionProductWrites": 0,
+  "providerInvocations": 0,
+  "retention": {
+    "retainedTablesVerified": 35,
+    "authSessionsExcluded": true,
+    "profileFilesVerified": 493,
+    "differentTables": [],
+    "changedProfileFiles": 0,
+    "schema": 22,
+    "autoMigrate": false,
+    "release": "f724cb760a1dc4b858adb840c3d9d9a5042abb20",
+    "readiness": {
+      "database": "connected",
+      "migrations": "applied",
+      "migrations_count": 22,
+      "owner_configured": true,
+      "status": "ready"
+    },
+    "remainingSmokeContacts": "0"
+  },
+  "rollback": "sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22",
+  "limitations": [
+    "Chromium emulation, not physical Safari/device certification",
+    "Mobile task titles show up to3 lines; full text in detail"
+  ]
+}

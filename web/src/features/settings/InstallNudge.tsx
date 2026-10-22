@@ -1,0 +1,103 @@
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Download, Pin, X } from 'lucide-react'
+import { usePWA } from '../../context/PWAContext'
+import { useLanguage } from '../../context/LanguageContext'
+import { ActionDialog } from '../../components/dialogs/ActionDialog'
+
+export function InstallNudge() {
+  const { installed, canInstall, install, error } = usePWA(),
+    { t } = useLanguage()
+  const [dismissed, setDismissed] = useState(() => {
+      try {
+        return (
+          localStorage.getItem('cuan-install-suggestion-dismissed') ===
+            'true' ||
+          Number(localStorage.getItem('cuan-install-dismissed-until') || 0) >
+            Date.now()
+        )
+      } catch {
+        return false
+      }
+    }),
+    [instructions, setInstructions] = useState(false)
+  const ios =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  if (installed || dismissed || (!canInstall && !ios)) return null
+  return (
+    <aside
+      aria-label={t('Install Cuan')}
+      className="rounded-xl border border-border p-3"
+    >
+      <div className="flex items-start gap-2">
+        <Download className="mt-3 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1 pt-2">
+          <p className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <Pin className="h-3 w-3" aria-hidden="true" />
+            {t('Pinned')}
+          </p>
+          <p className="text-sm font-medium">{t('Install Cuan')}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {t('Access Cuan directly from your home screen.')}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="icon-action shrink-0"
+          aria-label={t('Dismiss install suggestion')}
+          onClick={() => {
+            try {
+              localStorage.setItem('cuan-install-suggestion-dismissed', 'true')
+            } catch {
+              /* Dismiss for this visit when storage is unavailable. */
+            }
+            setDismissed(true)
+          }}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <button
+        type="button"
+        className="action-secondary mt-3 w-full sm:w-auto"
+        onClick={() => {
+          if (canInstall) void install()
+          else setInstructions(true)
+        }}
+      >
+        {t('Install Cuan')}
+        <Download className="h-4 w-4" />
+      </button>
+      <p className="mt-3 text-xs text-muted-foreground">
+        <Link
+          className="underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          to="/settings#install-cuan"
+        >
+          {t('Find this later in Settings → General.')}
+        </Link>
+      </p>
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-destructive">
+          {t(error)}
+        </p>
+      )}
+      <ActionDialog
+        open={instructions}
+        title={t('Install Cuan')}
+        onClose={() => setInstructions(false)}
+      >
+        <p className="text-sm leading-relaxed">
+          {t('In Safari, open Share → Add to Home Screen → Add.')}
+        </p>
+        <button
+          type="button"
+          className="action-primary mt-5"
+          onClick={() => setInstructions(false)}
+        >
+          {t('Got it')}
+        </button>
+      </ActionDialog>
+    </aside>
+  )
+}

@@ -1,0 +1,11 @@
+{
+  "release": "40938eafec78bbfb16934bb158156cb67a823e9a",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "migration": false,
+  "nativeAtomicActivation": true,
+  "productionViewportRouteChecks": 16,
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "pendingRecommendation": "Remove redundant mobile navigation drawer; not implemented because latest human prompt asks for opinion."
+}

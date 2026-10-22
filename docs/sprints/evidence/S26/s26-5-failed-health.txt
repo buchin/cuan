@@ -1,0 +1,3 @@
+{"release": "fb83e133a6ed7babc1ff603568b1e03897139035", "previous": "b3cd134832121df920c43262b8d367a410fd35d7", "health": "healthy", "migrations": 20}
+{"release": "b3cd134832121df920c43262b8d367a410fd35d7", "previous": "fb83e133a6ed7babc1ff603568b1e03897139035", "health": "healthy", "migrations": 20}
+PASS actual valid-checksum executable failure: native automatic rollback healthy, S25 schema20, no restore/down migration.

@@ -1,0 +1,2 @@
+{"nginxValidationPassed": true, "reload": "graceful", "workerFileLimit": 16384, "existingWorkerConnections": 4096, "backupRetained": true, "cuanRestarted": false}
+

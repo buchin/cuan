@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/crypto"
@@ -17,10 +18,12 @@ import (
 )
 
 type Service struct {
-	store      Store
-	gitClient  *git.Client
-	authSecret string
-	baseDir    string
+	accessMu     sync.RWMutex
+	sharedAccess func(context.Context) (string, error)
+	store        Store
+	gitClient    *git.Client
+	authSecret   string
+	baseDir      string
 }
 
 func NewService(store Store, gitClient *git.Client, authSecret, baseDir string) *Service {
@@ -61,6 +64,12 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 	}
 
 	token := strings.TrimSpace(req.Token)
+	if token == "" {
+		token, err = s.repositoryToken(ctx, "")
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// 2. Pre-flight verification with GitHub (validates permissions & existence)
 	repoInfo, err := s.gitClient.ValidateRepository(ctx, fmt.Sprintf("%s/%s", owner, repo), token)
@@ -82,11 +91,11 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 	}
 
 	// 3. Encrypt GitHub access token for safe storage
-	encryptedToken, err := crypto.Encrypt(token, s.authSecret)
+	encryptedToken, err := crypto.Encrypt(strings.TrimSpace(req.Token), s.authSecret)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt token: %w", err)
 	}
-	tokenPreview := crypto.TokenPreview(token)
+	tokenPreview := crypto.TokenPreview(strings.TrimSpace(req.Token))
 
 	// Generate project ID
 	randBytes := make([]byte, 6)
@@ -185,13 +194,9 @@ func (s *Service) Sync(ctx context.Context, id string) (*ProjectResponse, error)
 		return nil, err
 	}
 
-	var token string
-	if p.EncryptedToken != "" {
-		decrypted, err := crypto.Decrypt(p.EncryptedToken, s.authSecret)
-		if err != nil {
-			return nil, fmt.Errorf("decrypt credentials: %w", err)
-		}
-		token = decrypted
+	token, err := s.repositoryToken(ctx, p.EncryptedToken)
+	if err != nil {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
@@ -222,13 +227,9 @@ func (s *Service) GetBranches(ctx context.Context, id string) ([]string, string,
 		return nil, "", err
 	}
 
-	var token string
-	if p.EncryptedToken != "" {
-		decrypted, err := crypto.Decrypt(p.EncryptedToken, s.authSecret)
-		if err != nil {
-			return nil, "", fmt.Errorf("decrypt credentials: %w", err)
-		}
-		token = decrypted
+	token, err := s.repositoryToken(ctx, p.EncryptedToken)
+	if err != nil {
+		return nil, "", err
 	}
 
 	branches, err := s.gitClient.FetchRemoteBranches(ctx, p.RepoOwner, p.RepoName, token)
@@ -319,4 +320,70 @@ func (s *Service) Unarchive(ctx context.Context, id string) (*ProjectResponse, e
 	}
 
 	return p.ToResponse(), nil
+}
+
+// EnsureDefault makes first-run general work usable without replacing an existing
+// project's repository, workspace, archive state or configuration.
+func (s *Service) EnsureDefault(ctx context.Context) (*ProjectResponse, error) {
+	if p, err := s.Get(ctx, "default"); err == nil {
+		return p, nil
+	} else if !errors.Is(err, ErrProjectNotFound) {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	p := &Project{ID: "default", Name: "Default", ProjectType: "custom", DefaultBranch: "main", CreatedAt: now, UpdatedAt: now}
+	if err := s.store.CreateProject(ctx, p); err != nil {
+		return s.Get(ctx, "default")
+	}
+	return s.Get(ctx, "default")
+}
+
+// CreateManagedWorkspace creates a local project for an approved delegated goal.
+// IDs are application-generated; neither a repository URL nor a user path is accepted.
+func (s *Service) CreateManagedWorkspace(ctx context.Context, id, name string) (*ProjectResponse, error) {
+	name = strings.TrimSpace(name)
+	if len([]rune(name)) < 1 || len([]rune(name)) > 100 || !strings.HasPrefix(id, "proj_") || len(id) != 37 {
+		return nil, errors.New("invalid managed project")
+	}
+	for _, r := range id[5:] {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return nil, errors.New("invalid managed project ID")
+		}
+	}
+	if existing, err := s.Get(ctx, id); err == nil {
+		if existing.Name != name || existing.IsArchived {
+			return nil, ErrProjectAlreadyExists
+		}
+		return existing, nil
+	} else if !errors.Is(err, ErrProjectNotFound) {
+		return nil, err
+	}
+	projects, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range projects {
+		if strings.EqualFold(p.Name, name) {
+			if p.IsArchived {
+				return nil, ErrProjectAlreadyExists
+			}
+			return p, nil
+		}
+	}
+	dir, err := filepath.Abs(filepath.Join(s.baseDir, id))
+	if err != nil {
+		return nil, err
+	}
+	if info, e := os.Lstat(dir); e == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
+		return nil, errors.New("project workspace is unavailable")
+	}
+	if err = os.MkdirAll(dir, 0700); err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	p := &Project{ID: id, Name: name, ProjectType: "custom", DefaultBranch: "main", LocalPath: dir, CreatedAt: now, UpdatedAt: now}
+	if err = s.store.CreateProject(ctx, p); err != nil {
+		return s.Get(ctx, id)
+	}
+	return s.Get(ctx, id)
 }

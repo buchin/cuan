@@ -1,0 +1,12 @@
+{
+  "release": "3258b97ecf8c43306d53a2b4bf6f93aa095e6c9a",
+  "assets": "production",
+  "messages": "isolated fixture",
+  "production_messages_sent": false,
+  "checks": [
+    {"width":390,"detail_width":278,"context_menu":true,"simulated_long_press":true,"simulated_swipe_quote":true,"menu_trigger_hidden_without_interaction":true},
+    {"width":820,"detail_width":400.296875,"context_menu":true},
+    {"width":1440,"detail_width":400.296875,"context_menu":true}
+  ],
+  "page_errors": []
+}

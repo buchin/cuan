@@ -1,0 +1,898 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "checks": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "inbox",
+      "title": "Inbox",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "contacts",
+      "title": "Contacts",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "tasks",
+      "title": "Tasks",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects",
+      "title": "Projects",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/agents",
+      "title": "Agents",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/integrations",
+      "title": "Integrations",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/appearance",
+      "title": "Tampilan",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/integrations/live-chat",
+      "title": "Live Chat",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects/p1",
+      "title": "Cuan fixture",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects/p1/settings",
+      "title": "Settings",
+      "oneHeading": true,
+      "fontSize": 20,
+      "primaryBreadcrumbsAbsent": false,
+      "noOverflow": true
+    }
+  ],
+  "workflows": [
+    "one page title across all viewports",
+    "logo mobile/sidebar desktop",
+    "no primary breadcrumbs",
+    "useful project and settings parent links",
+    "mobile parent Back controls",
+    "Contacts detail retains one h1"
+  ],
+  "errors": [],
+  "unknown": [],
+  "writes": [],
+  "providerInvocations": 0
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -413,5 +414,150 @@ func (c *Client) ghUpdatePR(ctx context.Context, owner, repo string, prNumber in
 		HTMLURL: prURL,
 		Title:   title,
 		State:   "OPEN",
+	}, nil
+}
+
+// MergePullRequestRequest defines the inputs for merging a GitHub Pull Request.
+type MergePullRequestRequest struct {
+	Owner         string `json:"owner"`
+	Repo          string `json:"repo"`
+	PullNumber    int    `json:"pull_number"`
+	CommitTitle   string `json:"commit_title,omitempty"`
+	CommitMessage string `json:"commit_message,omitempty"`
+	MergeMethod   string `json:"merge_method,omitempty"` // "squash", "merge", "rebase" (default "squash")
+	Token         string `json:"token,omitempty"`
+}
+
+// MergePullRequestResult contains the details of the merge result.
+type MergePullRequestResult struct {
+	SHA     string `json:"sha"`
+	Merged  bool   `json:"merged"`
+	Message string `json:"message"`
+}
+
+// MergePullRequest merges an open GitHub Pull Request into the default base branch.
+// It prioritizes the official GitHub REST API with squash merge, falling back to gh CLI.
+func (c *Client) MergePullRequest(ctx context.Context, req MergePullRequestRequest) (*MergePullRequestResult, error) {
+	if req.Owner == "" || req.Repo == "" {
+		return nil, errors.New("owner and repo are required to merge pull request")
+	}
+	if req.PullNumber <= 0 {
+		return nil, errors.New("pull_number must be greater than 0")
+	}
+	if req.MergeMethod == "" {
+		req.MergeMethod = "squash"
+	}
+
+	// Step 1: Try GitHub REST API
+	res, err := c.mergePullRequestREST(ctx, req)
+	if err == nil && res != nil && res.Merged {
+		return res, nil
+	}
+
+	// Step 2: Fallback to gh CLI
+	ghRes, ghErr := c.ghMergePR(ctx, req)
+	if ghErr == nil && ghRes != nil && ghRes.Merged {
+		return ghRes, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("merge pull request failed: %w (gh fallback: %v)", err, ghErr)
+	}
+	return nil, fmt.Errorf("gh pr merge failed: %w", ghErr)
+}
+
+func (c *Client) mergePullRequestREST(ctx context.Context, req MergePullRequestRequest) (*MergePullRequestResult, error) {
+	apiURL := fmt.Sprintf("%s/repos/%s/%s/pulls/%d/merge", c.apiBaseURL, req.Owner, req.Repo, req.PullNumber)
+
+	payload := map[string]string{
+		"merge_method": req.MergeMethod,
+	}
+	if req.CommitTitle != "" {
+		payload["commit_title"] = req.CommitTitle
+	}
+	if req.CommitMessage != "" {
+		payload["commit_message"] = req.CommitMessage
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal merge payload: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPut, apiURL, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("User-Agent", "Cuan-Engine/1.0")
+	httpReq.Header.Set("Accept", "application/vnd.github.v3+json")
+	httpReq.Header.Set("Content-Type", "application/json")
+	token := strings.TrimSpace(req.Token)
+	if token == "" {
+		token = os.Getenv("GH_TOKEN")
+		if token == "" {
+			token = os.Getenv("GITHUB_TOKEN")
+		}
+	}
+	if token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		var out struct {
+			SHA     string `json:"sha"`
+			Merged  bool   `json:"merged"`
+			Message string `json:"message"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&out); err == nil {
+			return &MergePullRequestResult{
+				SHA:     out.SHA,
+				Merged:  out.Merged,
+				Message: out.Message,
+			}, nil
+		}
+	}
+
+	var errResp map[string]interface{}
+	_ = json.NewDecoder(resp.Body).Decode(&errResp)
+	errMsg := fmt.Sprintf("status %d", resp.StatusCode)
+	if msg, ok := errResp["message"].(string); ok {
+		errMsg = fmt.Sprintf("status %d: %s", resp.StatusCode, msg)
+	}
+	return nil, fmt.Errorf("github api merge PR failed (%s)", errMsg)
+}
+
+func (c *Client) ghMergePR(ctx context.Context, req MergePullRequestRequest) (*MergePullRequestResult, error) {
+	repoFullName := fmt.Sprintf("%s/%s", req.Owner, req.Repo)
+	args := []string{"pr", "merge", fmt.Sprintf("%d", req.PullNumber), "--repo", repoFullName}
+	switch req.MergeMethod {
+	case "merge":
+		args = append(args, "--merge")
+	case "rebase":
+		args = append(args, "--rebase")
+	default:
+		args = append(args, "--squash")
+	}
+
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	if token := strings.TrimSpace(req.Token); token != "" {
+		cmd.Env = append(os.Environ(), "GH_TOKEN="+token, "GITHUB_TOKEN="+token)
+	}
+
+	out, err := cmd.CombinedOutput()
+	cleanOut := agent.MaskSecrets(string(out), nil)
+	if err != nil {
+		return nil, fmt.Errorf("gh pr merge: %s", cleanOut)
+	}
+
+	return &MergePullRequestResult{
+		Merged:  true,
+		Message: strings.TrimSpace(cleanOut),
 	}, nil
 }

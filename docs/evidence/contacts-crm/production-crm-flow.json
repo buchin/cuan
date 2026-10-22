@@ -1,0 +1,26 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "product": "__crm_release_smoke_20261019",
+  "contactIds": [
+    "513c9ebf-0b60-44bb-b7ab-90b33755ab0a",
+    "753b035c-86ee-4251-af96-c04ea5b96a29"
+  ],
+  "sessionIds": [
+    "262c65dc-1eb4-4218-9e8a-950672dfdc60",
+    "877b514e-7b76-4e29-895f-1ddd801b6392"
+  ],
+  "checks": [
+    "actual PostgreSQL contact creation",
+    "reconnect same contact",
+    "same email separate visitors",
+    "visitor message persisted",
+    "UI tag save and reload",
+    "Contacts to Inbox real history",
+    "public session history",
+    "widget exact release bytes"
+  ],
+  "providerInvocations": 0,
+  "fixtureContacts": 2,
+  "fixtureMessages": 1,
+  "fixtureTagUpdates": 1
+}

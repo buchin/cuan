@@ -1,0 +1,22 @@
+{
+  "staging": "PASS",
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "systemMarkdown": true,
+  "primaryNavigationCTA": true,
+  "secondaryWorkLink": true,
+  "keyboard": {
+    "navigation": true,
+    "composerFocus": true,
+    "typingSafe": true,
+    "modalSafe": true,
+    "terminalSafe": true,
+    "contextualNew": true,
+    "universalSearch": true
+  },
+  "providerCalls": 0,
+  "fixtureOnlyMessage": true
+}

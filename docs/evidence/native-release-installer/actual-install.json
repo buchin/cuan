@@ -1,0 +1,20 @@
+{
+  "actualBinaries": true,
+  "serverSha256": "6892e39821067b4dbe8e7eead3f57895f43ddc30289b2aa9b0d4dd62e58cd2fb",
+  "freshMigration25": true,
+  "applicationReadiness": true,
+  "staticAssetsServed": true,
+  "ownerSetup": true,
+  "neutralDefault": true,
+  "reinstallAndRestart": true,
+  "previousReleaseRetained": true,
+  "configurationUnchanged": true,
+  "configurationMode": "0600",
+  "ownerSessionRetained": true,
+  "renamedProjectRetained": true,
+  "workspaceRetained": true,
+  "providerInvocations": 0,
+  "productionDatabaseWrites": 0,
+  "disposableDatabaseDropped": true,
+  "temporaryHomeRemoved": true
+}

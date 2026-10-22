@@ -1,0 +1,26 @@
+{
+  "candidate": "d030a0b",
+  "fixtureWebSocket": true,
+  "realDeviceKeyboardNotVerified": true,
+  "productionInputSent": false,
+  "results": [
+    {
+      "width": 390,
+      "synchronousFocus": true,
+      "defaultInteractive": true,
+      "typedIntoMockOnly": true
+    },
+    {
+      "width": 820,
+      "synchronousFocus": true,
+      "defaultInteractive": true,
+      "typedIntoMockOnly": true
+    },
+    {
+      "width": 1440,
+      "synchronousFocus": true,
+      "defaultInteractive": true,
+      "typedIntoMockOnly": true
+    }
+  ]
+}

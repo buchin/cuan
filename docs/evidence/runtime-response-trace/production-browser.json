@@ -1,0 +1,192 @@
+{
+  "release": "73cc916c59c033b072c630fe4c0f225a33f6188c",
+  "production": "https://cuan.dojo.cc",
+  "apiMocked": false,
+  "fixtureRoom": "a1504a90-a303-4a66-aa82-dbdb079f9306",
+  "fixtureRequest": "ad7a7e27-1940-4679-99dd-7ddc34c4b28e",
+  "observedWhileRunning": true,
+  "measurements": [
+    {
+      "width": 1440,
+      "realRuntimeToolTrace": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "realRuntimeToolTrace": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "realRuntimeToolTrace": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "realRuntimeToolTrace": true,
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "real authenticated request uses bound agent profile",
+    "actual read tool start/finish persisted and shown",
+    "runtime session ID technical-only",
+    "final answer persisted",
+    "copy metadata",
+    "reload creates no duplicate request",
+    "exact assets"
+  ],
+  "request": {
+    "agent_id": "agent_pin2",
+    "room_id": "a1504a90-a303-4a66-aa82-dbdb079f9306",
+    "request_id": "ad7a7e27-1940-4679-99dd-7ddc34c4b28e",
+    "message_id": "7e5e2ef2-4b63-4496-b8f2-a6660f65cc09",
+    "reply_id": "87d65475-32ac-454e-b4a1-25d3e877e37b",
+    "state": "completed",
+    "created_at": "2026-10-19T18:40:56.331678+08:00",
+    "deadline": "2026-10-19T18:44:56.380661+08:00",
+    "started_at": "2026-10-19T18:40:56.380661+08:00",
+    "steps": [
+      {
+        "seq": 1,
+        "kind": "accepted",
+        "text": "Pesan diterima.",
+        "at": "2026-10-19T18:40:56.434765+08:00"
+      },
+      {
+        "seq": 2,
+        "kind": "context",
+        "text": "Konteks project diperiksa untuk analisis.",
+        "at": "2026-10-19T18:40:56.575732+08:00"
+      },
+      {
+        "seq": 3,
+        "kind": "provider",
+        "text": "Proses agen berjalan; menunggu respons provider.",
+        "at": "2026-10-19T18:40:56.598805+08:00"
+      },
+      {
+        "seq": 4,
+        "kind": "runtime_init",
+        "text": "Sesi runtime dimulai.",
+        "at": "2026-10-19T18:41:04.943841+08:00"
+      },
+      {
+        "seq": 5,
+        "kind": "runtime_session",
+        "text": "ID sesi runtime: d399f43b-4f77-493c-a3ae-d3f5f5b92d9e",
+        "at": "2026-10-19T18:41:04.946766+08:00"
+      },
+      {
+        "seq": 6,
+        "kind": "runtime_provider_finished",
+        "text": "Tahap respons provider selesai (10.6 dtk).",
+        "at": "2026-10-19T18:41:16.809663+08:00"
+      },
+      {
+        "seq": 7,
+        "kind": "runtime_tool_started",
+        "text": "Tool #2 · Baca file dimulai.",
+        "at": "2026-10-19T18:41:16.822635+08:00"
+      },
+      {
+        "seq": 8,
+        "kind": "runtime_tool_finished",
+        "text": "Tool #2 · Baca file selesai (0.1 dtk).",
+        "at": "2026-10-19T18:41:16.853505+08:00"
+      },
+      {
+        "seq": 9,
+        "kind": "runtime_provider_finished",
+        "text": "Tahap respons provider selesai (3.1 dtk).",
+        "at": "2026-10-19T18:41:20.023315+08:00"
+      },
+      {
+        "seq": 10,
+        "kind": "provider_result",
+        "text": "Proses provider selesai: exit 0, durasi 24.1 dtk.",
+        "at": "2026-10-19T18:41:20.651163+08:00"
+      },
+      {
+        "seq": 11,
+        "kind": "result_validation",
+        "text": "Balasan provider tervalidasi.",
+        "at": "2026-10-19T18:41:20.669195+08:00"
+      },
+      {
+        "seq": 12,
+        "kind": "persistence",
+        "text": "Menyimpan status akhir percakapan.",
+        "at": "2026-10-19T18:41:20.677626+08:00"
+      }
+    ]
+  },
+  "providerInvocations": 1,
+  "syntheticApplicationWrites": {
+    "rooms": 1,
+    "requests": 1,
+    "messages": 2
+  },
+  "readiness": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 22,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "assets": [
+    {
+      "file": "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+      "sha256": "2317fa4bb293c9c0b110e18315d529235c47a0ddd3338cea3d8c7955e927899e"
+    },
+    {
+      "file": "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+      "sha256": "6894439694946a589d157ece003086960a6a4013d74a813dab7602efdb3d8c09"
+    },
+    {
+      "file": "geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+      "sha256": "824f485b5d26e2f2da3c2b236132ece1bc8e4e43373452950bb0e40548b4313f"
+    },
+    {
+      "file": "geist-latin-wght-normal-BgDaEnEv.woff2",
+      "sha256": "19f9c92546aa300c312235e3125af1b81394d8db9a4bc4a425cd5b641d2d54e1"
+    },
+    {
+      "file": "geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+      "sha256": "cd8800999070b729e1cc0bf7a48da6c3ac096a044251171b9a7574b56d96d4b4"
+    },
+    {
+      "file": "geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+      "sha256": "4866787fc952dbdbd591d6923d67bc21c2d894b93f34ab69d0cdf25d47bfb2df"
+    },
+    {
+      "file": "geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+      "sha256": "1a189eb997c3e2ece68373e387afaec9e8617424186c4b1ab3cff7c54ba6223b"
+    },
+    {
+      "file": "geist-mono-latin-wght-normal-XN7g48iV.woff2",
+      "sha256": "684ad5b531f81d43c1e8c7038262d5db7cdc1f68006e04d6c7769efa8d33c8cc"
+    },
+    {
+      "file": "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+      "sha256": "5bb66d8319ba1602bb2eb67dce8d79c2b4687be8ce183a0574433e949b3c60ad"
+    },
+    {
+      "file": "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+      "sha256": "d39b60889a94a527a7f73c7988a2d6efb6c081614aef683b0b386c02d74c2175"
+    },
+    {
+      "file": "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+      "sha256": "8fa40e5d248247735eb97a0bd593b8852440430600d6ba01364c31fe0abc1fe1"
+    },
+    {
+      "file": "index-CZN4eE8F.js",
+      "sha256": "7e0701cab586b3ebe2da48eedbb93fa61eb97891bcaac50a7c114bcbf2cf7b38"
+    },
+    {
+      "file": "index-DVx7Xrr1.css",
+      "sha256": "833589aa08defa755c802e175dc367b6027073777970b930d8e66b56716f2f71"
+    }
+  ],
+  "errors": []
+}

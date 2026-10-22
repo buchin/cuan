@@ -1,0 +1,10 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "mobileAndDesktop": true,
+  "originQueryAndHashPreserved": true,
+  "filterAndReload": true,
+  "directLinkStudioFallback": true,
+  "providerCalls": 0,
+  "notificationReadWrites": 0,
+  "errors": []
+}

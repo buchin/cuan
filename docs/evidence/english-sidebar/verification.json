@@ -1,0 +1,21 @@
+{
+  "fixtureCombinations": 80,
+  "targetedGoPackages": [
+    "server",
+    "agent",
+    "task",
+    "db",
+    "runner",
+    "sponsorship",
+    "inspector"
+  ],
+  "targetedGoTests": "passed",
+  "chatStreamTests": "passed",
+  "widgetTests": "passed",
+  "providerInvocations": 0,
+  "backupValidated": true,
+  "retainedTableSnapshots": 36,
+  "profileFilesBackedUp": 493,
+  "schema": 22,
+  "autoMigration": false
+}

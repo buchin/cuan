@@ -48,7 +48,7 @@
 
   // State & LocalStorage
   const STORAGE_GUEST_KEY = 'dojo_chat_guest_uuid';
-  const STORAGE_SESSION_KEY = 'dojo_chat_session_uuid';
+  const STORAGE_SESSION_KEY = 'dojo_chat_session_v2:' + apiBase + ':' + defaultProduct;
 
   let guestUUID = localStorage.getItem(STORAGE_GUEST_KEY);
   if (!guestUUID) {
@@ -57,6 +57,8 @@
   }
 
   let sessionUUID = localStorage.getItem(STORAGE_SESSION_KEY) || null;
+  let identity = { email: (currentScript && currentScript.getAttribute('data-email')) || '', name: (currentScript && currentScript.getAttribute('data-name')) || '' };
+  let initPromise = null;
   let isOpen = false;
   let messages = [];
   let lastMessageId = 0;
@@ -77,7 +79,7 @@
     :host {
       all: initial;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      font-size: 14px;
+      font-size: 16px;
       line-height: 1.5;
       color: #09090b;
       -webkit-font-smoothing: antialiased;
@@ -125,7 +127,7 @@
       right: -3px;
       background-color: #ef4444;
       color: #ffffff;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
       min-width: 20px;
       height: 20px;
@@ -148,6 +150,7 @@
       height: 580px;
       max-width: calc(100vw - 40px);
       max-height: calc(100vh - 120px);
+      max-height: calc(100dvh - 120px);
       background-color: #ffffff;
       border-radius: 16px;
       box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -180,8 +183,8 @@
       gap: 10px;
     }
     .dojo-avatar {
-      width: 34px;
-      height: 34px;
+      width: 44px;
+      height: 44px;
       border-radius: 17px;
       background-color: #27272a;
       display: flex;
@@ -195,7 +198,7 @@
       flex-direction: column;
     }
     .dojo-header-title {
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 600;
       color: #fafafa;
     }
@@ -203,7 +206,7 @@
       display: flex;
       align-items: center;
       gap: 5px;
-      font-size: 11px;
+      font-size: 12px;
       color: #a1a1aa;
     }
     .dojo-status-dot {
@@ -258,7 +261,7 @@
     }
     .dojo-msg-bubble {
       padding: 10px 14px;
-      font-size: 13.5px;
+      font-size: 16px;
       line-height: 1.45;
       word-break: break-word;
       white-space: pre-wrap;
@@ -275,7 +278,7 @@
       border: 1px solid #d4d4d8;
     }
     .dojo-msg-meta {
-      font-size: 10.5px;
+      font-size: 12px;
       color: #71717a;
       margin-top: 3px;
       padding: 0 4px;
@@ -294,14 +297,14 @@
       border: 1px solid #d4d4d8;
       border-radius: 10px;
       padding: 9px 12px;
-      font-size: 13px;
+      font-size: 16px;
       line-height: 1.4;
       font-family: inherit;
       color: #09090b;
       background-color: #ffffff;
       outline: none;
       max-height: 120px;
-      min-height: 40px;
+      min-height: 48px;
       box-sizing: border-box;
       transition: border-color 0.15s;
     }
@@ -309,8 +312,8 @@
       border-color: #18181b;
     }
     .dojo-send-btn {
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       border-radius: 10px;
       background-color: #18181b;
       color: #ffffff;
@@ -344,7 +347,7 @@
   // Widget Markup
   const container = document.createElement('div');
   container.innerHTML = `
-    <div class="dojo-launcher" id="launcher" title="Buka Live Chat">
+    <button type="button" class="dojo-launcher" id="launcher" title="Open live chat" aria-label="Open live chat" aria-expanded="false" aria-controls="window">
       <svg id="icon-chat" viewBox="0 0 24 24">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
       </svg>
@@ -352,22 +355,21 @@
         <line x1="18" y1="6" x2="6" y2="18"></line>
         <line x1="6" y1="6" x2="18" y2="18"></line>
       </svg>
-      <div class="dojo-badge" id="badge">0</div>
-    </div>
+      <span class="dojo-badge" id="badge">0</span>
+    </button>
 
-    <div class="dojo-window closed" id="window">
+    <section class="dojo-window closed" id="window" aria-label="Live chat">
       <div class="dojo-header">
         <div class="dojo-header-left">
           <div class="dojo-avatar">💬</div>
           <div class="dojo-header-info">
             <span class="dojo-header-title">Live Chat Support</span>
             <span class="dojo-header-status">
-              <span class="dojo-status-dot"></span>
-              Online
+              Message our team
             </span>
           </div>
         </div>
-        <button class="dojo-close-btn" id="close-btn" title="Tutup">
+        <button class="dojo-close-btn" id="close-btn" title="Close">
           <svg viewBox="0 0 24 24">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -377,21 +379,21 @@
 
       <div class="dojo-messages" id="messages-stream">
         <div class="dojo-msg operator">
-          <div class="dojo-msg-bubble">Halo! Ada yang bisa kami bantu seputar ${escapeHTML(defaultProduct)}?</div>
-          <span class="dojo-msg-meta">Baru saja</span>
+          <div class="dojo-msg-bubble">Hi! How can we help you with ${escapeHTML(defaultProduct)}?</div>
+          <span class="dojo-msg-meta">Just now</span>
         </div>
       </div>
 
       <div class="dojo-composer">
-        <textarea class="dojo-textarea" id="input-textarea" placeholder="Ketik pesan..." rows="1"></textarea>
-        <button class="dojo-send-btn" id="send-btn" title="Kirim Pesan">
+        <textarea class="dojo-textarea" id="input-textarea" aria-label="Message" placeholder="Write a message…" rows="1"></textarea>
+        <button class="dojo-send-btn" id="send-btn" title="Send message">
           <svg viewBox="0 0 24 24">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
         </button>
       </div>
-    </div>
+    </section>
   `;
   shadow.appendChild(container);
 
@@ -412,17 +414,17 @@
   }
 
   function formatTime(iso) {
-    if (!iso) return 'Baru saja';
+    if (!iso) return 'Just now';
     try {
       const d = new Date(iso);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       return '';
     }
   }
 
   // Session Initialization
-  async function initSession() {
+  async function initializeSession() {
     try {
       const res = await fetch(`${apiBase}/api/chat/session`, {
         method: 'POST',
@@ -430,11 +432,14 @@
         body: JSON.stringify({
           guest_uuid: guestUUID,
           product: defaultProduct,
-          url: window.location.href,
-          referrer: document.referrer || '',
+          email: identity.email,
+          name: identity.name,
+          current_url: window.location.href,
+          referrer_url: document.referrer || '',
         }),
       });
       if (res.ok) {
+        const data = await res.json();
         const sid = data.session_uuid || (data.session && data.session.uuid);
         if (sid) {
           sessionUUID = sid;
@@ -456,8 +461,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: window.location.href,
-          title: document.title || '',
+          current_url: window.location.href,
+          page_title: document.title || '',
         }),
       });
     } catch (e) {
@@ -506,8 +511,8 @@
     const welcomeDiv = document.createElement('div');
     welcomeDiv.className = 'dojo-msg operator';
     welcomeDiv.innerHTML = `
-      <div class="dojo-msg-bubble">Halo! Ada yang bisa kami bantu seputar ${escapeHTML(defaultProduct)}?</div>
-      <span class="dojo-msg-meta">Bantuan Langsung</span>
+      <div class="dojo-msg-bubble">Hi! How can we help you with ${escapeHTML(defaultProduct)}?</div>
+      <span class="dojo-msg-meta">Live support</span>
     `;
     messagesStreamEl.appendChild(welcomeDiv);
 
@@ -538,6 +543,12 @@
     }
   }
 
+  const errorEl = document.createElement('p');
+  errorEl.setAttribute('role', 'alert');
+  errorEl.style.cssText = 'font-size:14px;line-height:1.5;color:#b91c1c;padding:0 12px 8px;display:none';
+  textareaEl.parentNode.parentNode.appendChild(errorEl);
+  function showError(text) { errorEl.textContent = text; errorEl.style.display = text ? 'block' : 'none'; }
+
   // Send Message
   async function sendMessage(text) {
     const clean = (text || '').trim();
@@ -546,7 +557,7 @@
     if (!sessionUUID) {
       await initSession();
     }
-    if (!sessionUUID) return;
+    if (!sessionUUID) { showError('Live chat is not connected. Try sending again.'); return; }
 
     isSending = true;
     sendBtnEl.disabled = true;
@@ -562,13 +573,15 @@
         }),
       });
 
+      if (!res.ok) throw new Error('send failed');
       if (res.ok) {
+        showError('');
         textareaEl.value = '';
         autoResizeTextarea();
         await fetchMessages();
       }
     } catch (err) {
-      console.warn('[DojoLiveChat] Send error:', err);
+      showError('Message not sent. Your text is saved. Try again.');
     } finally {
       isSending = false;
       sendBtnEl.disabled = false;
@@ -582,9 +595,11 @@
 
   function openChat() {
     isOpen = true;
+    launcherEl.setAttribute("aria-expanded", "true");
     windowEl.classList.remove('closed');
     iconChatEl.style.display = 'none';
     iconCloseEl.style.display = 'block';
+    initSession();
     unreadCount = 0;
     updateBadge();
     sendPageTelemetry();
@@ -597,6 +612,8 @@
 
   function closeChat() {
     isOpen = false;
+    launcherEl.setAttribute("aria-expanded", "false");
+    launcherEl.focus();
     windowEl.classList.add('closed');
     iconChatEl.style.display = 'block';
     iconCloseEl.style.display = 'none';
@@ -615,6 +632,7 @@
   // Event Listeners
   launcherEl.addEventListener('click', toggleChat);
   closeBtnEl.addEventListener('click', closeChat);
+  shadow.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen) closeChat(); });
 
   textareaEl.addEventListener('input', autoResizeTextarea);
   textareaEl.addEventListener('keydown', (e) => {
@@ -635,11 +653,20 @@
   }
 
   // Initialize
-  initSession();
   startPolling();
+
+  function initSession() {
+    if (!initPromise) initPromise = initializeSession().finally(() => { initPromise = null; });
+    return initPromise;
+  }
 
   // Shims: window.$dojoChat
   window.$dojoChat = {
+    identify: async function(value) {
+      identity = { email: (value && value.email) || '', name: (value && value.name) || '' };
+      if (initPromise) await initPromise;
+      if (sessionUUID || isOpen) await initSession();
+    },
     open: openChat,
     close: closeChat,
     toggle: toggleChat,
@@ -669,7 +696,10 @@
         if (text) sendMessage(text);
       }
     } else if (action === 'set') {
-      if (cmd === 'message:text') {
+      if (cmd === 'user:email' || cmd === 'user:nickname') {
+        identity[cmd === 'user:email' ? 'email' : 'name'] = (params && params[0]) || '';
+        if (sessionUUID || isOpen) Promise.resolve(initPromise).then(initSession);
+      } else if (cmd === 'message:text') {
         const text = params && params[0];
         if (text) setInputText(text);
       }
@@ -687,4 +717,5 @@
       handleCrispCommand(crispQueue[i]);
     }
   }
+  if (sessionUUID) initSession();
 })();

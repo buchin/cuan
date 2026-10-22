@@ -1,0 +1,43 @@
+{
+  "connectionFailureRetainsDraft": true,
+  "connectHidesToken": true,
+  "disconnect": true,
+  "pickerPagination": true,
+  "failedPageRetainsRows": true,
+  "defaultBranchFromGitHub": true,
+  "layouts": [
+    {
+      "theme": "light",
+      "width": 360,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 820,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 820,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "noOverflow": true
+    }
+  ],
+  "projectMobileNoOverflow": true,
+  "providerCalls": 0,
+  "liveGitHubWrites": 0
+}

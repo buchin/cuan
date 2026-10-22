@@ -1,0 +1,20 @@
+{
+  "ownerConsent": "explicit approval in task conversation",
+  "interactionSharing": "deselected before Done",
+  "sameTask": "task_b186cfdf7cded14ee1292fff5f1fe546",
+  "attemptCount": 1,
+  "onboardingComplete": true,
+  "accountPlanRecognized": "Google AI Pro",
+  "initialGeminiOutcome": "FAILED_PRECONDITION 400: User location is not supported for the API use",
+  "testTaskFinalState": "blocked",
+  "activeAttemptClosed": true,
+  "sonnetDiagnostic": {
+    "model": "claude-sonnet-4-6",
+    "exitCode": 0,
+    "structuredFinalStatus": "SUCCESS",
+    "exactExpectedReply": true,
+    "toolEvents": 0,
+    "originalUserMessageReplayed": false
+  },
+  "fullGoalVerified": false
+}

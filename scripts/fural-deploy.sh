@@ -1,14 +1,53 @@
 #!/usr/bin/env bash
 # Native SSH release: versioned payload, checksums, atomic switch, health rollback.
 set -euo pipefail
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'Usage: scripts/fural-deploy.sh (from main, clean tree). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass.'
-  exit 0
-fi
+
+approved_branch=main
+frontend_only=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --branch)
+      approved_branch="$2"
+      shift 2
+      ;;
+    --frontend-only|--assets-only)
+      frontend_only=1
+      shift
+      ;;
+    --help)
+      echo 'Usage: scripts/fural-deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] (clean tree; default main). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass. Schema25 must be explicitly prepared after private backup; activation never migrates.'
+      exit 0
+      ;;
+    *)
+      echo "Invalid argument: $1; use --help." >&2
+      exit 1
+      ;;
+  esac
+done
+
 cd "$(dirname "$0")/.."
-[[ "$(git branch --show-current)" == main ]] || { echo 'Release must run from main.' >&2; exit 1; }
+[[ "$(git branch --show-current)" == "$approved_branch" ]] || { echo 'Release must run from the explicitly approved branch.' >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
 release_sha="$(git rev-parse HEAD)"
+
+export SSHPASS="$DOJO_TERMAPI_VPS_PASSWORD"
+release_host="$DOJO_TERMAPI_VPS_USERNAME@$DOJO_TERMAPI_VPS_PUBLIC_IP"
+
+if [[ "$frontend_only" == 1 ]]; then
+  echo "==> Building frontend assets for $release_sha..."
+  npm run build --prefix web
+  echo "==> Syncing static assets to production ($release_host)..."
+  sshpass -e ssh "$release_host" "mkdir -p .local/share/cuan-releases/$release_sha/web"
+  sshpass -e scp -q -r web/dist "$release_host:.local/share/cuan-releases/$release_sha/web/"
+  sshpass -e ssh "$release_host" "sudo -n rsync -a --delete .local/share/cuan-releases/$release_sha/web/dist/ /opt/cuan/current/web/dist/"
+  unset SSHPASS
+  echo "==> Verifying production health..."
+  curl -sSf https://cuan.dojo.cc/healthz >/dev/null
+  echo "Frontend assets updated to $release_sha. Zero downtime; active runner sessions uninterrupted."
+  exit 0
+fi
+
 release_dir="$HOME/.local/share/cuan-releases/$release_sha"
 mkdir -p "$release_dir/bin" "$release_dir/web"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$release_dir/bin/cuan-server" ./cmd/server
@@ -20,10 +59,9 @@ python3 - "$release_dir" "$release_sha" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1])
 checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file() and p.name!='release.json'}
-(root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks})+'\n')
+(root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks,'features':{'project_workspace_revisions':1,'task_execution_worktrees':1}})+'\n')
 PY
-export SSHPASS="$DOJO_TERMAPI_VPS_PASSWORD"
-release_host="$DOJO_TERMAPI_VPS_USERNAME@$DOJO_TERMAPI_VPS_PUBLIC_IP"
+
 sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha"
 # Use native remote rsync; sandbox rsync wrappers may alter SSH authentication.
 sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'

@@ -1,0 +1,17 @@
+{
+  "fixture": true,
+  "checks": [
+    "no contact from passive view",
+    "queued Crisp identity",
+    "session response parsed",
+    "identify API",
+    "Crisp email update",
+    "failed send keeps input and shows error",
+    "retry sends",
+    "desktop/tablet/mobile bounds",
+    "16px input and 48px send",
+    "Escape closes"
+  ],
+  "providerInvocations": 0,
+  "errors": []
+}

@@ -152,3 +152,14 @@ func (s *MemoryStore) Wipe() {
 	s.owner = nil
 	s.sessions = make(map[string]*Session)
 }
+
+func (s *MemoryStore) UpdateOwnerUsername(ctx context.Context, id, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.owner == nil || s.owner.ID != id {
+		return ErrOwnerNotFound
+	}
+	s.owner.Username = name
+	s.owner.UpdatedAt = time.Now().UTC()
+	return nil
+}

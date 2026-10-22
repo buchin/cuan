@@ -429,7 +429,7 @@ func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttemp
 				$1, $2, $3, $4, $5, $6, $7, $8, $9
 			)
 		`, actID, a.TaskID, a.ID, task.ActivityTypeInterrupted, "system", task.AttemptStatusRunning, task.AttemptStatusInterrupted,
-			fmt.Sprintf("Attempt %s terputus (lease expired). Task dalam status review dan dapat di-retry secara eksplisit.", a.ID), now)
+			fmt.Sprintf("Attempt %s interrupted (lease expired). Task is in review and can be retried explicitly.", a.ID), now)
 	}
 
 	return expired, nil

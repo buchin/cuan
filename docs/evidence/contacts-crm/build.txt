@@ -1,0 +1,41 @@
+
+> cuan-web@0.1.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+(node:1851) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+transforming...
+node_modules/react-router/dist/development/index.mjs (11:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-router/dist/development/index.mjs" was ignored.
+node_modules/react-router/dist/development/dom-export.mjs (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-router/dist/development/dom-export.mjs" was ignored.
+✓ 1902 modules transformed.
+warnings when minifying css:
+▲ [WARNING] Expected identifier but found "-" [css-syntax-error]
+
+    <stdin>:2751:2:
+      2751 │   -: \s;
+           ╵   ^
+
+
+rendering chunks...
+computing gzip size...
+dist/index.html                                                   0.56 kB │ gzip:   0.37 kB
+dist/assets/geist-mono-symbols2-wght-normal-CO5SzqOn.woff2        5.81 kB
+dist/assets/geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2    6.18 kB
+dist/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2         7.42 kB
+dist/assets/geist-mono-vietnamese-wght-normal-DadHysG0.woff2      7.70 kB
+dist/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2           8.00 kB
+dist/assets/geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2       12.94 kB
+dist/assets/geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2      14.70 kB
+dist/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2            15.08 kB
+dist/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2           16.51 kB
+dist/assets/geist-mono-latin-wght-normal-XN7g48iV.woff2          23.13 kB
+dist/assets/geist-latin-wght-normal-BgDaEnEv.woff2               29.40 kB
+dist/assets/index-ASbZon90.css                                   61.38 kB │ gzip:  12.06 kB
+dist/assets/index-kmXOob5n.js                                   848.55 kB │ gzip: 239.46 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.42s

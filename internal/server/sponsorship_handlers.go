@@ -17,7 +17,7 @@ import (
 // Verifies webhook secret, performs idempotency check, and transitions order and sponsor status.
 func (s *Server) handleDojoWebhook(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -42,7 +42,7 @@ func (s *Server) handleDojoWebhook(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024) // 1MB limit
 	var payload sponsorship.DojoWebhookPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "format json webhook tidak valid: "+err.Error())
+		respondJSONError(w, http.StatusBadRequest, "Invalid webhook JSON: "+err.Error())
 		return
 	}
 
@@ -57,7 +57,7 @@ func (s *Server) handleDojoWebhook(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusBadRequest, "missing order_id")
 			return
 		}
-		respondJSONError(w, http.StatusInternalServerError, "gagal memproses webhook: "+err.Error())
+		respondJSONError(w, http.StatusInternalServerError, "Could not process webhook: "+err.Error())
 		return
 	}
 
@@ -67,14 +67,14 @@ func (s *Server) handleDojoWebhook(w http.ResponseWriter, r *http.Request) {
 // handleUploadSponsorLogo handles isolated logo upload with MIME validation & SVG anti-XSS sanitization.
 func (s *Server) handleUploadSponsorLogo(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
 	// Limit body to 2MB + multipart overhead
 	r.Body = http.MaxBytesReader(w, r.Body, sponsorship.MaxLogoSizeBytes+1024*64)
 	if err := r.ParseMultipartForm(sponsorship.MaxLogoSizeBytes); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "ukuran upload melebihi batas maksimal 2MB")
+		respondJSONError(w, http.StatusBadRequest, "Upload exceeds the 2 MB limit")
 		return
 	}
 
@@ -83,29 +83,29 @@ func (s *Server) handleUploadSponsorLogo(w http.ResponseWriter, r *http.Request)
 		file, header, err = r.FormFile("file")
 	}
 	if err != nil {
-		respondJSONError(w, http.StatusBadRequest, "file logo wajib disertakan dalam form-data (field 'logo' atau 'file')")
+		respondJSONError(w, http.StatusBadRequest, "Include a logo file in form-data (field 'logo' or 'file')")
 		return
 	}
 	defer file.Close()
 
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
-		respondJSONError(w, http.StatusBadRequest, "gagal membaca file upload: "+err.Error())
+		respondJSONError(w, http.StatusBadRequest, "Could not read uploaded file: "+err.Error())
 		return
 	}
 
 	relPath, mimeType, err := s.sponsorshipSvc.SaveLogo(fileBytes, header.Filename)
 	if err != nil {
 		if errors.Is(err, sponsorship.ErrMaliciousSVG) {
-			respondJSONError(w, http.StatusBadRequest, "upload file berbahaya ditolak: terdeteksi skrip berbahaya atau payload XSS")
+			respondJSONError(w, http.StatusBadRequest, "Upload rejected. Unsafe scripts or an XSS payload were detected")
 			return
 		}
 		if errors.Is(err, sponsorship.ErrUnsupportedMimeType) {
-			respondJSONError(w, http.StatusBadRequest, "tipe file tidak didukung: hanya SVG, PNG, dan WebP yang diizinkan")
+			respondJSONError(w, http.StatusBadRequest, "Unsupported file type. Only SVG, PNG, and WebP are allowed")
 			return
 		}
 		if errors.Is(err, sponsorship.ErrFileTooLarge) {
-			respondJSONError(w, http.StatusBadRequest, "ukuran file logo melebihi batas maksimal 2MB")
+			respondJSONError(w, http.StatusBadRequest, "Logo file exceeds the 2 MB limit")
 			return
 		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
@@ -151,13 +151,13 @@ func (s *Server) handleServeSponsorLogo(w http.ResponseWriter, r *http.Request) 
 // handleSponsorIntake handles prospective founding sponsor submission.
 func (s *Server) handleSponsorIntake(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
 	var req sponsorship.CreateSponsorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "format json tidak valid: "+err.Error())
+		respondJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
 		return
 	}
 
@@ -173,13 +173,13 @@ func (s *Server) handleSponsorIntake(w http.ResponseWriter, r *http.Request) {
 // handleSponsorCheckout handles PWYW sponsorship intake and creates checkout session.
 func (s *Server) handleSponsorCheckout(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
 	var req sponsorship.CreateCheckoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "format json tidak valid: "+err.Error())
+		respondJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
 		return
 	}
 
@@ -195,7 +195,7 @@ func (s *Server) handleSponsorCheckout(w http.ResponseWriter, r *http.Request) {
 // handleGetSponsorshipStatus returns real-time order and sponsor curation status.
 func (s *Server) handleGetSponsorshipStatus(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -204,7 +204,7 @@ func (s *Server) handleGetSponsorshipStatus(w http.ResponseWriter, r *http.Reque
 
 	status, err := s.sponsorshipSvc.GetSponsorshipStatus(r.Context(), orderID, sponsorID)
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "gagal memeriksa status sponsorship: "+err.Error())
+		respondJSONError(w, http.StatusInternalServerError, "Could not check sponsorship status: "+err.Error())
 		return
 	}
 
@@ -219,13 +219,13 @@ func (s *Server) handleGetSponsorshipStatus(w http.ResponseWriter, r *http.Reque
 // handleListBatches returns all sponsorship batches for directory archive filtering.
 func (s *Server) handleListBatches(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
 	batches, err := s.sponsorshipSvc.ListBatches(r.Context())
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "gagal memuat daftar batch: "+err.Error())
+		respondJSONError(w, http.StatusInternalServerError, "Could not load batches: "+err.Error())
 		return
 	}
 
@@ -238,7 +238,7 @@ func (s *Server) handleListBatches(w http.ResponseWriter, r *http.Request) {
 // handleListCurrentSponsors lists approved sponsors for public leaderboard (ORDER BY amount DESC, paid_at ASC).
 func (s *Server) handleListCurrentSponsors(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -249,7 +249,7 @@ func (s *Server) handleListCurrentSponsors(w http.ResponseWriter, r *http.Reques
 
 	sponsors, err := s.sponsorshipSvc.ListApprovedSponsors(r.Context(), batchSlug)
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "gagal mengambil daftar sponsor: "+err.Error())
+		respondJSONError(w, http.StatusInternalServerError, "Could not load sponsors: "+err.Error())
 		return
 	}
 
@@ -263,7 +263,7 @@ func (s *Server) handleListCurrentSponsors(w http.ResponseWriter, r *http.Reques
 // handleCreateLead handles waiting list signups.
 func (s *Server) handleCreateLead(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -272,7 +272,7 @@ func (s *Server) handleCreateLead(w http.ResponseWriter, r *http.Request) {
 		Source string `json:"source"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "format json tidak valid: "+err.Error())
+		respondJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
 		return
 	}
 
@@ -293,7 +293,7 @@ func (s *Server) handleCreateLead(w http.ResponseWriter, r *http.Request) {
 // handleAdminListSponsors lists all sponsors with status filter and status counters for owner curation.
 func (s *Server) handleAdminListSponsors(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -341,7 +341,7 @@ func (s *Server) handleAdminListSponsors(w http.ResponseWriter, r *http.Request)
 // handleAdminApproveSponsor approves sponsor and publishes to leaderboard.
 func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -353,7 +353,7 @@ func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Reques
 
 	if err := s.sponsorshipSvc.ApproveSponsor(r.Context(), id, actor); err != nil {
 		if errors.Is(err, sponsorship.ErrSponsorNotFound) {
-			respondJSONError(w, http.StatusNotFound, "sponsor tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Sponsor not found")
 			return
 		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
@@ -364,7 +364,7 @@ func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Reques
 		"status":        "approved",
 		"id":            id,
 		"actor":         actor,
-		"message":       "Sponsor berhasil disetujui dan live di leaderboard",
+		"message":       "Sponsor approved and published to the leaderboard",
 		"readme_synced": s.sponsorshipSvc.Syncer() != nil,
 	})
 }
@@ -372,7 +372,7 @@ func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Reques
 // handleAdminSyncReadme manually triggers README.md and permanent archive directory synchronization.
 func (s *Server) handleAdminSyncReadme(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -383,7 +383,7 @@ func (s *Server) handleAdminSyncReadme(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.sponsorshipSvc.SyncReadmeAndArchive(r.Context(), batchSlug)
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "gagal melakukan sinkronisasi README: "+err.Error())
+		respondJSONError(w, http.StatusInternalServerError, "Could not sync README: "+err.Error())
 		return
 	}
 
@@ -393,7 +393,7 @@ func (s *Server) handleAdminSyncReadme(w http.ResponseWriter, r *http.Request) {
 // handleAdminRejectSponsor rejects sponsor with anti-judol violation reason.
 func (s *Server) handleAdminRejectSponsor(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -410,7 +410,7 @@ func (s *Server) handleAdminRejectSponsor(w http.ResponseWriter, r *http.Request
 
 	if err := s.sponsorshipSvc.RejectSponsor(r.Context(), id, req.Reason, actor); err != nil {
 		if errors.Is(err, sponsorship.ErrSponsorNotFound) {
-			respondJSONError(w, http.StatusNotFound, "sponsor tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Sponsor not found")
 			return
 		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
@@ -422,14 +422,14 @@ func (s *Server) handleAdminRejectSponsor(w http.ResponseWriter, r *http.Request
 		"id":      id,
 		"reason":  req.Reason,
 		"actor":   actor,
-		"message": "Sponsor berhasil ditolak",
+		"message": "Sponsor rejected",
 	})
 }
 
 // handleAdminListSponsorActivities returns audit activity logs for a sponsor.
 func (s *Server) handleAdminListSponsorActivities(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 
@@ -450,7 +450,7 @@ func (s *Server) handleAdminListSponsorActivities(w http.ResponseWriter, r *http
 // handleAdminListLeads lists all registered leads for owner inspection.
 func (s *Server) handleAdminListLeads(w http.ResponseWriter, r *http.Request) {
 	if s.sponsorshipSvc == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "layanan sponsorship belum diinisialisasi")
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
 		return
 	}
 

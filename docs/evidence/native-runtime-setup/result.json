@@ -1,0 +1,2 @@
+{"exit": 0, "stdout": "{\"sandboxReady\": true, \"providerInvocations\": 0}\n{\"runtimeReady\": true, \"sandboxReady\": true, \"cliStartsInSandbox\": true, \"providerInvocations\": 0, \"nextStep\": \"Connect an AI account in Settings > Agents, then submit a goal in Studio\"}\n", "stderr": "", "scriptSha256": "0b4e910433fe3b1c4da1d186b6f0990e80e044ae24a7599b23c42728b3c59e79"}
+

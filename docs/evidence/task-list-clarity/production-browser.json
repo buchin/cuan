@@ -1,0 +1,101 @@
+{
+  "release": "b92470e683acd671a216a50100e2494bf9baca17",
+  "production": "https://cuan.dojo.cc",
+  "measurements": [
+    {
+      "width": 360,
+      "theme": "light",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "originalRequestVisible": true,
+      "noDuplicateFinishedLabel": true,
+      "consistentSortHeight": true,
+      "noOverflow": true
+    }
+  ],
+  "assets": [
+    "addon-fit-YJmn1quW.js",
+    "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+    "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+    "geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+    "geist-latin-wght-normal-BgDaEnEv.woff2",
+    "geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+    "geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+    "geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+    "geist-mono-latin-wght-normal-XN7g48iV.woff2",
+    "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+    "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+    "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+    "index-Cd2WBbOt.js",
+    "index-Cg68nd9J.css",
+    "xterm-BT7tBf8A.js"
+  ],
+  "errors": [],
+  "providerInvocations": 0,
+  "syntheticTasksCleaned": 1,
+  "syntheticAttemptsCleaned": 1,
+  "approvalOriginalRequest": true,
+  "noResultApproved": true,
+  "filterRetained": true,
+  "ready": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 23,
+    "owner_configured": true,
+    "status": "ready"
+  }
+}

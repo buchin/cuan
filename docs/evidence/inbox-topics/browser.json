@@ -1,0 +1,78 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "newTopic": true,
+      "recipientDeduplicated": true,
+      "customerConversationUnchanged": true,
+      "noPTY": true
+    }
+  ],
+  "idempotentTopicRetry": true,
+  "workProgressInAgentBubble": true,
+  "returnToConversation": true,
+  "scopedProjectWorkspaces": true,
+  "projectSidebarResponsive": true,
+  "advancedWorkMonitor": true,
+  "providerInvocations": 0,
+  "errors": [],
+  "unknown": []
+}

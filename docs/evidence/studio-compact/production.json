@@ -1,0 +1,31 @@
+{
+  "release": "79c04c0",
+  "checks": [
+    {
+      "width": 390,
+      "initialHeight": 104,
+      "autoGrow": true,
+      "shrinks": true,
+      "draftRetained": true,
+      "ctaOutside": true
+    },
+    {
+      "width": 820,
+      "initialHeight": 104,
+      "autoGrow": true,
+      "shrinks": true,
+      "draftRetained": true,
+      "ctaOutside": true
+    },
+    {
+      "width": 1440,
+      "initialHeight": 104,
+      "autoGrow": true,
+      "shrinks": true,
+      "draftRetained": true,
+      "ctaOutside": true
+    }
+  ],
+  "productionInference": false,
+  "postLoginWritesBlocked": true
+}

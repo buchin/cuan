@@ -1,0 +1,96 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "measurements": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "editableDraft": true,
+      "noOverflow": true,
+      "noAutoCreate": true
+    }
+  ],
+  "checks": [
+    "no task buttons on ordinary messages",
+    "editable title/description/project",
+    "archived project excluded",
+    "no writes before confirmation",
+    "save failure preserves edits",
+    "confirmed task in backlog",
+    "reload links existing task",
+    "load failure retry",
+    "no execution calls"
+  ],
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/v1/chat/conversations/room0/messages/m2/task",
+      "body": {
+        "project_id": "p3",
+        "title": "Judul yang sudah diedit",
+        "description": "Scope diedit. Kriteria selesai: Back kembali ke Inbox."
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/chat/conversations/room0/messages/m2/task",
+      "body": {
+        "project_id": "p3",
+        "title": "Judul yang sudah diedit",
+        "description": "Scope diedit. Kriteria selesai: Back kembali ke Inbox."
+      }
+    }
+  ],
+  "errors": [],
+  "unknown": [],
+  "providerInvocations": 0
+}

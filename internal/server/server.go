@@ -6,11 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	extensionSDK "github.com/buchin/cuan/pkg/extensions"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -39,57 +43,67 @@ import (
 )
 
 type Server struct {
-	cfg                 *config.Config
-	db                  *sql.DB
-	authSvc             *auth.Service
-	projectSvc          *project.Service
-	taskSvc             *task.Service
-	runnerSvc           *runner.RunnerService
-	sponsorshipSvc      *sponsorship.Service
-	deployerDriver      deployer.DeployDriver
-	serverRepo          cuanDB.ServerRepository
-	domainRepo          cuanDB.DomainRepository
-	dnsVerifier         *domain.DNSVerifier
-	dnsPoller           *domain.DNSHealthPoller
-	keyVault            *crypto.KeyVault
-	sshManager          deployer.SSHManager
-	healthPoller        *deployer.ProcessHealthPoller
-	caddyRouter         *deployer.CaddyRouter
-	obsRepo             cuanDB.ObservabilityRepository
-	obsHealthPoller     *observability.HealthPoller
-	obsMetricsCollector *observability.MetricsCollector
-	obsAlertDispatcher  *observability.AlertDispatcher
-	projectStudioRepo   cuanDB.ProjectStudioRepository
-	batchCampaignRepo   cuanDB.BatchCampaignRepository
-	agentRepo           cuanDB.AgentRepository
-	blueprintEngine     *creator.BlueprintEngine
-	taskExecutionEngine *creator.TaskExecutionEngine
-	inspectorEngine     *inspector.Engine
-	providerRegistry    *agent.ProviderRegistry
-	distillerEngine     *studio.DistillerEngine
-	agentExecutionHook  studio.AgentExecutionHook
-	campaignDecompiler  *campaign.DecompilerEngine
-	campaignRunner      *campaign.MultiProjectRunner
-	campaignAggregator  *campaign.RollupAggregator
-	roomEventBroker     *RoomEventBroker
-	terminalManager     *terminal.Manager
-	terminalHandler     *terminal.Handler
+	extensions             *extensionSDK.Registry
+	crm                    *crmStore
+	cfg                    *config.Config
+	db                     *sql.DB
+	authSvc                *auth.Service
+	projectSvc             *project.Service
+	taskSvc                *task.Service
+	runnerSvc              *runner.RunnerService
+	sponsorshipSvc         *sponsorship.Service
+	deployerDriver         deployer.DeployDriver
+	serverRepo             cuanDB.ServerRepository
+	domainRepo             cuanDB.DomainRepository
+	dnsVerifier            *domain.DNSVerifier
+	dnsPoller              *domain.DNSHealthPoller
+	keyVault               *crypto.KeyVault
+	sshManager             deployer.SSHManager
+	healthPoller           *deployer.ProcessHealthPoller
+	caddyRouter            *deployer.CaddyRouter
+	obsRepo                cuanDB.ObservabilityRepository
+	obsHealthPoller        *observability.HealthPoller
+	obsMetricsCollector    *observability.MetricsCollector
+	obsAlertDispatcher     *observability.AlertDispatcher
+	projectStudioRepo      cuanDB.ProjectStudioRepository
+	batchCampaignRepo      cuanDB.BatchCampaignRepository
+	agentRepo              cuanDB.AgentRepository
+	blueprintEngine        *creator.BlueprintEngine
+	taskExecutionEngine    *creator.TaskExecutionEngine
+	inspectorEngine        *inspector.Engine
+	providerRegistry       *agent.ProviderRegistry
+	distillerEngine        *studio.DistillerEngine
+	agentExecutionHook     studio.AgentExecutionHook
+	campaignDecompiler     *campaign.DecompilerEngine
+	campaignRunner         *campaign.MultiProjectRunner
+	campaignAggregator     *campaign.RollupAggregator
+	inboxSlots             chan struct{}
+	inboxStopping          atomic.Bool
+	inboxWorkers           sync.Map
+	taskLaunches           sync.Map
+	taskAgentGrants        sync.Map
+	taskAgentURL           string
+	inboxCancels           sync.Map
+	githubDeviceMu         sync.Mutex
+	githubDeviceJobs       map[string]*githubDeviceLogin
+	roomEventBroker        *RoomEventBroker
+	terminalManager        *terminal.Manager
+	terminalHandler        *terminal.Handler
 	projectIntegrationRepo cuanDB.ProjectIntegrationRepository
-	publisherEngine     *publisher.Engine
-	scriptDeployRepo    cuanDB.ScriptDeploymentRepository
-	provisionedDBRepo   cuanDB.ProvisionedDatabaseRepository
-	provisionerEngine   *deployer.DatabaseProvisioner
-	scriptRunner          *deployer.ScriptRunner
-	processSupervisor     *deployer.ProcessSupervisor
-	wordpressRepo         cuanDB.WordPressRepository
-	wordpressOrchestrator *wordpress.Orchestrator
-	wordpressWebmaster    *wordpress.WebmasterEngine
-	projectRepo           cuanDB.ProjectRepository
-	taskProjectRepo       cuanDB.TaskProjectRepository
-	agentSessionStore     agent.SessionStore
-	router                *chi.Mux
+	publisherEngine        *publisher.Engine
+	scriptDeployRepo       cuanDB.ScriptDeploymentRepository
+	provisionedDBRepo      cuanDB.ProvisionedDatabaseRepository
+	provisionerEngine      *deployer.DatabaseProvisioner
+	scriptRunner           *deployer.ScriptRunner
+	processSupervisor      *deployer.ProcessSupervisor
+	wordpressRepo          cuanDB.WordPressRepository
+	wordpressOrchestrator  *wordpress.Orchestrator
+	wordpressWebmaster     *wordpress.WebmasterEngine
+	projectRepo            cuanDB.ProjectRepository
+	taskProjectRepo        cuanDB.TaskProjectRepository
+	agentSessionStore      agent.SessionStore
+	router                 *chi.Mux
 }
-
 
 func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server {
 	r := chi.NewRouter()
@@ -115,6 +129,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		pSvc = project.NewService(project.NewDBStore(db), git.NewClient(), cfg.AuthSecret, projectBaseDir)
 	} else {
 		pSvc = project.NewService(project.NewMemoryStore(), git.NewClient(), cfg.AuthSecret, projectBaseDir)
+	}
+	if _, err := pSvc.EnsureDefault(context.Background()); err != nil {
+		log.Print("Default project initialization unavailable")
 	}
 
 	var tStore task.Store
@@ -321,6 +338,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	})
 	termHandler := terminal.NewHandler(terminal.HandlerConfig{
 		Manager:     termMgr,
+		AttachOnly:  true,
 		AuthService: svc,
 	})
 
@@ -439,59 +457,65 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 
 	s := &Server{
-		cfg:                 cfg,
-		db:                  db,
-		authSvc:             svc,
-		projectSvc:          pSvc,
-		taskSvc:             tSvc,
-		runnerSvc:           rSvc,
-		sponsorshipSvc:      spSvc,
-		deployerDriver:      depDriver,
-		serverRepo:          srvRepo,
-		domainRepo:          domRepo,
-		dnsVerifier:         dnsVerifier,
-		dnsPoller:           dnsPoller,
-		keyVault:            vault,
-		sshManager:          sshMgr,
-		healthPoller:        healthPoller,
-		caddyRouter:         caddyRouter,
-		obsRepo:             obsRepo,
-		obsHealthPoller:     obsHealthPoller,
-		obsMetricsCollector: obsMetricsCollector,
-		obsAlertDispatcher:  obsAlertDispatcher,
-		projectStudioRepo:   studioRepo,
-		batchCampaignRepo:   batchRepo,
-		agentRepo:           agentRepo,
-		blueprintEngine:     bpEngine,
-		taskExecutionEngine: taskExecEngine,
-		inspectorEngine:     inspEngine,
-		providerRegistry:    agent.DefaultRegistry(),
-		distillerEngine:     distiller,
-		agentExecutionHook:  agentHook,
-		campaignDecompiler:  campaignDecompiler,
-		campaignRunner:      campaignRunner,
-		campaignAggregator:  campaignAggregator,
-		roomEventBroker:     roomBroker,
-		terminalManager:     termMgr,
-		terminalHandler:     termHandler,
+		extensions:             extensionSDK.New(),
+		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
+		cfg:                    cfg,
+		db:                     db,
+		authSvc:                svc,
+		projectSvc:             pSvc,
+		taskSvc:                tSvc,
+		runnerSvc:              rSvc,
+		sponsorshipSvc:         spSvc,
+		deployerDriver:         depDriver,
+		serverRepo:             srvRepo,
+		domainRepo:             domRepo,
+		dnsVerifier:            dnsVerifier,
+		dnsPoller:              dnsPoller,
+		keyVault:               vault,
+		sshManager:             sshMgr,
+		healthPoller:           healthPoller,
+		caddyRouter:            caddyRouter,
+		obsRepo:                obsRepo,
+		obsHealthPoller:        obsHealthPoller,
+		obsMetricsCollector:    obsMetricsCollector,
+		obsAlertDispatcher:     obsAlertDispatcher,
+		projectStudioRepo:      studioRepo,
+		batchCampaignRepo:      batchRepo,
+		agentRepo:              agentRepo,
+		blueprintEngine:        bpEngine,
+		taskExecutionEngine:    taskExecEngine,
+		inspectorEngine:        inspEngine,
+		providerRegistry:       agent.DefaultRegistry(),
+		distillerEngine:        distiller,
+		agentExecutionHook:     agentHook,
+		campaignDecompiler:     campaignDecompiler,
+		campaignRunner:         campaignRunner,
+		campaignAggregator:     campaignAggregator,
+		roomEventBroker:        roomBroker,
+		inboxSlots:             make(chan struct{}, 4),
+		terminalManager:        termMgr,
+		terminalHandler:        termHandler,
 		projectIntegrationRepo: intRepo,
-		publisherEngine:     pubEngine,
-		scriptDeployRepo:    scriptDeployRepo,
-		provisionedDBRepo:   provisionedDBRepo,
-		provisionerEngine:   provEngine,
-		scriptRunner:        scriptRunner,
-		processSupervisor:   processSupervisor,
-		wordpressRepo:       wpRepo,
-		wordpressOrchestrator: wpOrchestrator,
-		wordpressWebmaster:  wpWebmaster,
-		projectRepo:         projRepo,
-		taskProjectRepo:     tpRepo,
-		agentSessionStore:   agent.NewMemorySessionStore(),
-		router:              r,
+		publisherEngine:        pubEngine,
+		scriptDeployRepo:       scriptDeployRepo,
+		provisionedDBRepo:      provisionedDBRepo,
+		provisionerEngine:      provEngine,
+		scriptRunner:           scriptRunner,
+		processSupervisor:      processSupervisor,
+		wordpressRepo:          wpRepo,
+		wordpressOrchestrator:  wpOrchestrator,
+		wordpressWebmaster:     wpWebmaster,
+		projectRepo:            projRepo,
+		taskProjectRepo:        tpRepo,
+		agentSessionStore:      agent.NewMemorySessionStore(),
+		router:                 r,
 	}
 
+	tSvc.SetProjectFinder(liveProjectFinder{server: s})
+	s.configureSharedGitHubAccess()
 	s.routes()
 	s.setupStaticRoutes()
+	s.SetExtensionRegistry(s.extensions)
 	return s
 }
 
@@ -509,6 +533,7 @@ func (s *Server) ProjectService() *project.Service {
 
 func (s *Server) SetProjectService(svc *project.Service) {
 	s.projectSvc = svc
+	s.configureSharedGitHubAccess()
 }
 
 func (s *Server) ProjectRepository() cuanDB.ProjectRepository {
@@ -533,6 +558,9 @@ func (s *Server) TaskService() *task.Service {
 
 func (s *Server) SetTaskService(svc *task.Service) {
 	s.taskSvc = svc
+	if svc != nil {
+		svc.SetExtensionRegistry(s.extensions)
+	}
 }
 
 func (s *Server) RunnerService() *runner.RunnerService {
@@ -827,6 +855,7 @@ func (s *Server) SetTerminalManager(m *terminal.Manager) {
 	if m != nil {
 		s.terminalHandler = terminal.NewHandler(terminal.HandlerConfig{
 			Manager:     m,
+			AttachOnly:  true,
 			AuthService: s.authSvc,
 		})
 	}
@@ -896,6 +925,9 @@ func (s *Server) SetWordPressWebmaster(w *wordpress.WebmasterEngine) {
 }
 
 func (s *Server) routes() {
+	s.router.Get("/api/v1/task-agent/{id}", s.handleTaskAgent)
+	s.router.Post("/api/v1/task-agent/{id}", s.handleTaskAgent)
+ s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
@@ -1012,6 +1044,10 @@ func (s *Server) routes() {
 		cr.Get("/contacts", s.handleInternalListContacts)
 		cr.Get("/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 		cr.Post("/conversations/{id}/messages", s.handleInternalSendConversationMessage)
+		cr.Get("/conversations/{id}/events", s.handleInboxStream)
+		cr.Post("/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
+		cr.Post("/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
+		cr.Post("/conversations/{id}/requests/{requestID}/retry", s.handleRetryInboxRequest)
 	})
 
 	// Project Tasks
@@ -1033,6 +1069,10 @@ func (s *Server) routes() {
 	s.router.Post("/api/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 	s.router.Post("/api/v1/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 	s.router.Post("/api/v1/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	s.router.Post("/api/tasks/{id}/apply", s.handleApplyTask)
+	s.router.Post("/api/projects/tasks/{id}/apply", s.handleApplyTask)
+	s.router.Post("/api/v1/tasks/{id}/apply", s.handleApplyTask)
+	s.router.Post("/api/v1/projects/tasks/{id}/apply", s.handleApplyTask)
 
 	// WebSocket Pseudo-Terminal (PTY) Engine (Sprint 9 S09.3)
 	s.router.Get("/api/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
@@ -1276,6 +1316,20 @@ func (s *Server) routes() {
 		cr.Post("/{id}/execute", s.handleExecuteBatchCampaign)
 	})
 
+	s.router.Get("/api/v1/item-preferences", s.handleItemPreferences)
+	s.router.Patch("/api/v1/item-preferences", s.handleItemPreferences)
+
+	s.router.Route("/api/v1/provider-accounts", func(ar chi.Router) {
+		ar.Get("/", s.handleListProviderAccounts)
+		ar.Post("/", s.handleCreateProviderAccount)
+		ar.Post("/{accountID}/auth-init", s.handleProviderAccountAuthInit)
+		ar.Post("/{accountID}/auth-code", s.handleProviderAccountAuthCode)
+		ar.Post("/{accountID}/verify", s.handleVerifyProviderAccount)
+		ar.Patch("/{accountID}/failover", s.handleProviderAccountFailover)
+		ar.Patch("/{accountID}/model-fallback", s.handleProviderAccountFailover)
+		ar.Get("/{accountID}/usage", s.handleProviderAccountUsage)
+	})
+
 	// Agent Personas route group in /api/v1 (Sprint 9 S09.2)
 	s.router.Route("/api/v1/agents", func(ar chi.Router) {
 		ar.Get("/", s.handleListAgents)
@@ -1284,6 +1338,7 @@ func (s *Server) routes() {
 		ar.Post("/auth-init", s.handleInitHarnessAuth)
 		ar.Post("/auth-code", s.handleSubmitHarnessAuthCode)
 		ar.Post("/connect-cli", s.handleConnectCLIAgent)
+		ar.Post("/{id}/connection/verify", s.handleVerifyAgentProfile)
 		ar.Get("/{id}", s.handleGetAgent)
 		ar.Put("/{id}", s.handleUpdateAgent)
 		ar.Patch("/{id}", s.handlePatchAgent)
@@ -1308,6 +1363,7 @@ func (s *Server) routes() {
 
 	s.router.Route("/api/v1", func(r chi.Router) {
 		// Public endpoints
+		r.Get("/integrations/github/oauth/callback", s.handleGitHubOAuthCallback)
 		r.Get("/info", s.handleInfo)
 		r.Get("/system/mode", s.handleGetSystemMode)
 		r.Get("/auth/status", s.handleAuthStatus)
@@ -1379,6 +1435,8 @@ func (s *Server) routes() {
 		// In-Task Agentic Execution Engine in v1 (Sprint 10 S10.3)
 		r.Post("/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
 		r.Post("/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+		r.Post("/tasks/{id}/apply", s.handleApplyTask)
+		r.Post("/projects/tasks/{id}/apply", s.handleApplyTask)
 
 		// WordPress CMS Integration & Task Publishing / Export in v1 (Sprint 11 S11.3)
 		r.Post("/projects/{id}/integrations/wordpress", s.handleSetupWordPressIntegration)
@@ -1497,6 +1555,24 @@ func (s *Server) routes() {
 			pr.Use(auth.Middleware(s.authSvc))
 
 			pr.Get("/auth/me", s.handleAuthMe)
+			pr.Patch("/auth/username", s.handleUsername)
+			pr.Get("/integrations/github/oauth", s.handleGitHubOAuth)
+			pr.Post("/integrations/github/oauth", s.handleGitHubOAuth)
+			pr.Get("/integrations/github/device/{loginID}", s.handleGitHubDeviceLogin)
+			pr.Post("/integrations/github/device/{loginID}/cancel", s.handleGitHubDeviceLogin)
+			pr.Get("/integrations/github", s.handleGitHubConnection)
+			pr.Put("/integrations/github", s.handleGitHubConnection)
+			pr.Delete("/integrations/github", s.handleGitHubConnection)
+			pr.Get("/integrations/github/repositories", s.handleGitHubRepositories)
+			pr.Get("/profile", s.handleProfile)
+			pr.Patch("/profile", s.handleProfile)
+			pr.Get("/notifications", s.handleNotifications)
+			pr.Patch("/notifications", s.handleNotifications)
+			pr.Get("/notifications/preferences", s.handleNotificationPreferences)
+			pr.Patch("/notifications/preferences", s.handleNotificationPreferences)
+			pr.Get("/notifications/push", s.handlePushSubscription)
+			pr.Post("/notifications/push", s.handlePushSubscription)
+			pr.Delete("/notifications/push", s.handlePushSubscription)
 			pr.Post("/auth/password", s.handleAuthPassword)
 
 			// Tasks endpoints (T4 & T5)
@@ -1510,6 +1586,7 @@ func (s *Server) routes() {
 			pr.Patch("/tasks/{id}/attempts/{attemptId}", s.handleUpdateAttempt)
 			pr.Post("/tasks/{id}/cancel", s.handleCancelTask)
 			pr.Post("/tasks/{id}/retry", s.handleRetryTask)
+			pr.Post("/tasks/{id}/apply", s.handleApplyTask)
 			pr.Get("/tasks/{id}/attempts/{attemptId}/logs", s.handleGetAttemptLogs)
 
 			// Runners & Infrastructure (T5)
@@ -1521,6 +1598,7 @@ func (s *Server) routes() {
 			pr.Get("/projects", s.handleListProjects)
 			pr.Post("/projects", s.handleConnectProject)
 			pr.Get("/projects/{id}", s.handleGetProject)
+			pr.Patch("/projects/{id}/settings", s.handleProjectSettings)
 			pr.Post("/projects/{id}/sync", s.handleSyncProject)
 			pr.Delete("/projects/{id}", s.handleDeleteProject)
 			pr.Get("/projects/{id}/branches", s.handleGetProjectBranches)
@@ -1554,13 +1632,31 @@ func (s *Server) routes() {
 			pr.Post("/inbox/{id}/approve", s.handleApproveInboxThread)
 
 			// Direct Messenger Hub (Sprint 18)
+			pr.Get("/extensions", s.handleExtensions)
+			pr.Post("/extensions/{extensionID}/actions/{action}", s.handleExtensionAction)
+			pr.Get("/search", s.handleUniversalSearch)
+			pr.Get("/contacts/search", s.handleCRMSearch)
+			pr.Get("/contacts/{id}/memory", s.handleContactMemory)
+			pr.Post("/contacts/{id}/memory", s.handleContactMemory)
+			pr.Patch("/contacts/{id}/memory/{memoryID}", s.handleContactMemoryChange)
+			pr.Delete("/contacts/{id}/memory/{memoryID}", s.handleContactMemoryChange)
+			pr.Get("/contacts", s.handleCRMList)
+			pr.Post("/contacts", s.handleCRMCreate)
+			pr.Patch("/contacts/{id}", s.handleCRMUpdate)
 			pr.Get("/chat/contacts", s.handleInternalListContacts)
+			pr.Post("/chat/conversations", s.handleCreateAgentTopic)
+			pr.Post("/studio/goals", s.handleStudioGoal)
+			pr.Post("/chat/attachments", s.handleUploadConversationAttachment)
+			pr.Get("/chat/attachments/{id}", s.handleDownloadConversationAttachment)
 			pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 			pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)
+			pr.Get("/chat/conversations/{id}/events", s.handleInboxStream)
+			pr.Post("/chat/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
+			pr.Post("/chat/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
+			pr.Post("/chat/conversations/{id}/requests/{requestID}/retry", s.handleRetryInboxRequest)
 		})
 	})
 }
-
 
 func (s *Server) setupStaticRoutes() {
 	staticDir := s.cfg.StaticDir
@@ -1579,10 +1675,18 @@ func (s *Server) setupStaticRoutes() {
 
 			filePath := filepath.Join(staticDir, path)
 			if f, err := os.Stat(filePath); err == nil && !f.IsDir() {
+				if path == "/sw.js" {
+					w.Header().Set("Cache-Control", "no-store")
+					w.Header().Set("Service-Worker-Allowed", "/")
+				}
+				if path == "/manifest.webmanifest" {
+					w.Header().Set("Content-Type", "application/manifest+json")
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}
 
+			w.Header().Set("Cache-Control", "no-store")
 			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 		})
 	} else {
@@ -1832,11 +1936,15 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ownerPreferencesMu.Lock()
+	preferences, _ := readOwnerPreferences(owner.ID)
+	ownerPreferencesMu.Unlock()
 	userData := map[string]interface{}{
-		"id":         owner.ID,
-		"username":   owner.Username,
-		"email":      owner.Email,
-		"created_at": owner.CreatedAt,
+		"display_name": preferences.DisplayName,
+		"id":           owner.ID,
+		"username":     owner.Username,
+		"email":        owner.Email,
+		"created_at":   owner.CreatedAt,
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -1924,6 +2032,24 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.TrimSpace(req.ProjectID) == "" && len(req.ProjectIDs) == 0 {
+		if s.projectSvc == nil {
+			respondJSONError(w, 503, "Projects are unavailable")
+			return
+		}
+		p, err := s.projectSvc.EnsureDefault(r.Context())
+		if err != nil {
+			respondJSONError(w, 503, "Default project is unavailable")
+			return
+		}
+		if p.IsArchived {
+			respondJSONError(w, 409, "Default project is archived. Choose an active project.")
+			return
+		}
+		req.ProjectID = "default"
+		req.ProjectIDs = []string{"default"}
+	}
+
 	author := "owner"
 	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
 		author = owner.Email
@@ -1931,6 +2057,10 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	created, err := s.taskSvc.CreateTask(r.Context(), author, req)
 	if err != nil {
+		if errors.Is(err, task.ErrRequestConflict) {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
 			respondJSONError(w, http.StatusBadRequest, err.Error())
 			return
@@ -1959,7 +2089,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get task: %v", err))
@@ -1984,8 +2114,12 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := s.taskSvc.UpdateTask(r.Context(), id, author, req)
 	if err != nil {
+		if errors.Is(err, task.ErrTaskActive) || errors.Is(err, task.ErrRequestConflict) {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
@@ -2007,8 +2141,12 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	err := s.taskSvc.DeleteTask(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, task.ErrTaskActive) {
+			respondJSONError(w, 409, "Cancel the active session before deleting this task")
+			return
+		}
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete task: %v", err))
@@ -2016,7 +2154,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Task berhasil dihapus",
+		"message": "Task deleted",
 		"id":      id,
 	})
 }
@@ -2037,7 +2175,7 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 	act, err := s.taskSvc.AddComment(r.Context(), id, author, req.Message)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
@@ -2067,7 +2205,7 @@ func (s *Server) handleCreateAttempt(w http.ResponseWriter, r *http.Request) {
 	att, err := s.taskSvc.CreateAttempt(r.Context(), id, author, req)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create attempt: %v", err))
@@ -2085,6 +2223,10 @@ func (s *Server) handleUpdateAttempt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := s.taskSvc.AttemptForTask(r.Context(), chi.URLParam(r, "id"), attemptId); err != nil {
+		respondJSONError(w, http.StatusNotFound, "Attempt not found for this task")
+		return
+	}
 	author := "owner"
 	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
 		author = owner.Email
@@ -2093,7 +2235,7 @@ func (s *Server) handleUpdateAttempt(w http.ResponseWriter, r *http.Request) {
 	att, err := s.taskSvc.UpdateAttemptStatus(r.Context(), attemptId, author, req)
 	if err != nil {
 		if errors.Is(err, task.ErrAttemptNotFound) {
-			respondJSONError(w, http.StatusNotFound, "attempt tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Attempt not found")
 			return
 		}
 		if errors.Is(err, task.ErrInvalidTaskInput) {
@@ -2104,6 +2246,12 @@ func (s *Server) handleUpdateAttempt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if att.Status != task.AttemptStatusRunning && att.Status != task.AttemptStatusQueued {
+		if err := s.taskSvc.ReconcileLocalTask(r.Context(), att.TaskID, att.ID); err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "Execution status saved; task status could not be refreshed. Retry the same update.")
+			return
+		}
+	}
 	respondJSON(w, http.StatusOK, att)
 }
 
@@ -2156,7 +2304,7 @@ func (s *Server) handleArchiveProject(w http.ResponseWriter, r *http.Request) {
 	res, err := s.projectSvc.Archive(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to archive project: %v", err))
@@ -2180,7 +2328,7 @@ func (s *Server) handleUnarchiveProject(w http.ResponseWriter, r *http.Request) 
 	res, err := s.projectSvc.Unarchive(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to unarchive project: %v", err))
@@ -2208,22 +2356,22 @@ func (s *Server) handleConnectProject(w http.ResponseWriter, r *http.Request) {
 	res, err := s.projectSvc.Connect(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, git.ErrInvalidRepoURL) {
-			respondJSONError(w, http.StatusBadRequest, "URL repository GitHub tidak valid. Gunakan format 'https://github.com/owner/repo' atau 'owner/repo'.")
+			respondJSONError(w, http.StatusBadRequest, "Invalid GitHub repository URL. Use 'https://github.com/owner/repo' or 'owner/repo'.")
 			return
 		}
 		if errors.Is(err, git.ErrRepoNotFound) {
-			respondJSONError(w, http.StatusNotFound, "Repository tidak ditemukan di GitHub. Pastikan nama owner/repo sudah benar dan jika repo bersifat private, sertakan Personal Access Token (PAT).")
+			respondJSONError(w, http.StatusNotFound, "Repository not found. Check its name and make sure the GitHub account connected in Settings > Integrations has access.")
 			return
 		}
 		if errors.Is(err, git.ErrAccessDenied) {
-			respondJSONError(w, http.StatusForbidden, "Akses ke repository GitHub ditolak (401/403). Periksa kevalidan Personal Access Token (PAT) dan izin scope 'repo'.")
+			respondJSONError(w, http.StatusForbidden, "GitHub could not grant access to this repository. Reconnect GitHub in Settings > Integrations with an account that has access, then try again.")
 			return
 		}
 		if errors.Is(err, project.ErrProjectAlreadyExists) {
-			respondJSONError(w, http.StatusConflict, "Repository GitHub ini sudah pernah dihubungkan sebagai proyek di Cuan.")
+			respondJSONError(w, http.StatusConflict, "This GitHub repository is already connected to a Cuan project.")
 			return
 		}
-		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("gagal menghubungkan repository: %v", err))
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Could not connect repository: %v", err))
 		return
 	}
 
@@ -2235,7 +2383,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	p, err := s.projectSvc.Get(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get project: %v", err))
@@ -2249,11 +2397,11 @@ func (s *Server) handleSyncProject(w http.ResponseWriter, r *http.Request) {
 	res, err := s.projectSvc.Sync(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error":   fmt.Sprintf("sinkronisasi gagal: %v", err),
+			"error":   fmt.Sprintf("Sync failed: %v", err),
 			"project": res,
 		})
 		return
@@ -2266,14 +2414,14 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	err := s.projectSvc.Delete(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete project: %v", err))
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Proyek berhasil dihapus dari Cuan. Repository GitHub remote tetap aman dan tidak disentuh.",
+		"message": "Project removed from Cuan. The remote GitHub repository is preserved.",
 		"id":      id,
 	})
 }
@@ -2283,7 +2431,7 @@ func (s *Server) handleGetProjectBranches(w http.ResponseWriter, r *http.Request
 	branches, defaultBranch, err := s.projectSvc.GetBranches(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get branches: %v", err))
@@ -2319,7 +2467,7 @@ func (s *Server) handleUpdateProjectModules(w http.ResponseWriter, r *http.Reque
 	res, err := s.projectSvc.UpdateModules(r.Context(), id, mods)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
-			respondJSONError(w, http.StatusNotFound, "proyek tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update project modules: %v", err))
@@ -2328,7 +2476,6 @@ func (s *Server) handleUpdateProjectModules(w http.ResponseWriter, r *http.Reque
 
 	respondJSON(w, http.StatusOK, res)
 }
-
 
 func setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
 	isTLS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
@@ -2488,7 +2635,7 @@ func (s *Server) handleGetRunner(w http.ResponseWriter, r *http.Request) {
 	rInfo, err := s.runnerSvc.GetRunner(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, runner.ErrRunnerNotFound) {
-			respondJSONError(w, http.StatusNotFound, "runner tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Runner not found")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get runner: %v", err))
@@ -2500,6 +2647,10 @@ func (s *Server) handleGetRunner(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetAttemptLogs(w http.ResponseWriter, r *http.Request) {
 	attemptID := chi.URLParam(r, "attemptId")
+	if _, err := s.taskSvc.AttemptForTask(r.Context(), chi.URLParam(r, "id"), attemptID); err != nil {
+		respondJSONError(w, 404, "Attempt not found for this task")
+		return
+	}
 	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 {
@@ -2528,20 +2679,40 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		author = owner.Email
 	}
 
+	cancelledLaunches, launchErr := s.taskSvc.CancelLaunches(r.Context(), taskID, time.Now().UTC())
+	if launchErr != nil {
+		respondJSONError(w, 503, "Could not save cancellation. Check the launch status before retrying.")
+		return
+	}
 	att, err := s.taskSvc.CancelTask(r.Context(), taskID, author)
+	if cancelledLaunches > 0 && (errors.Is(err, task.ErrAttemptNotFound) || errors.Is(err, task.ErrInvalidTaskInput)) {
+		blocked := task.TaskStatusBlocked
+		_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, author, task.UpdateTaskRequest{Status: &blocked})
+		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil {
+			s.publishInbox(detail.SourceRoomID)
+		}
+		respondJSON(w, 200, map[string]string{"status": "cancelled"})
+		return
+	}
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		if errors.Is(err, task.ErrAttemptNotFound) {
-			respondJSONError(w, http.StatusNotFound, "tidak ada attempt yang dapat dibatalkan")
+			respondJSONError(w, http.StatusNotFound, "No attempt is available to cancel")
 			return
 		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
+	if s.terminalManager != nil {
+		_ = s.terminalManager.CloseSession(taskID)
+	}
+	if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail.SourceRoomID != "" {
+		s.publishInbox(detail.SourceRoomID)
+	}
 	respondJSON(w, http.StatusOK, att)
 }
 
@@ -2561,7 +2732,7 @@ func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 	att, err := s.taskSvc.RetryTask(r.Context(), taskID, author, req.RunnerID, req.AgentName)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
-			respondJSONError(w, http.StatusNotFound, "task tidak ditemukan")
+			respondJSONError(w, http.StatusNotFound, "Task not found")
 			return
 		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())

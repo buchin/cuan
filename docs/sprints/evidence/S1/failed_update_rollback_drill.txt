@@ -1,11 +1,11 @@
 === CUAN SPRINT 1 (T7) EVIDENCE: FAILED UPDATE & ROLLBACK DRILL ===
-Timestamp: 2026-10-16T08:52:48Z
+Timestamp: 2026-10-21T13:52:08Z
 DoD Requirement: Uji 1 kegagalan update dan rollback/pemulihan database teruji.
 Core Principle: Rollback image saja tidak dianggap rollback database.
 
 1. Operational State Prior to Upgrade:
    - Running Version: 0.1.0
-   - Active Task: task_2f098b2ac6c2 (Pre-Upgrade Work Order)
+   - Active Task: task_a1271fcb3228 (Pre-Upgrade Work Order)
    - Automated Step: Pre-update snapshot secured via ./scripts/backup.sh --tag pre-update
 
 2. Deploying Faulty Update (v0.2.1-broken):
@@ -25,6 +25,6 @@ Core Principle: Rollback image saja tidak dianggap rollback database.
 4. Post-Rollback Audit & Verification:
    - Liveness (/healthz): Healthy (Version: 0.1.0)
    - Readiness (/readyz): Ready (Database operational)
-   - Original Task Restored: task_2f098b2ac6c2 (Pre-Upgrade Work Order) — 100% Intact
+   - Original Task Restored: task_a1271fcb3228 (Pre-Upgrade Work Order) — 100% Intact
    - Corrupted State Purged: Confirmed (HTTP 404 on malformed records)
 === RESULT: PASS (Uji kegagalan update dan rollback database sukses terbukti) ===

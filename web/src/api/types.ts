@@ -64,12 +64,55 @@ export interface DoDItem {
   completed?: boolean
 }
 
+export interface TaskAttempt {
+  id: string
+  task_id: string
+  runner_id: string
+  agent_name: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'interrupted'
+  attempt_number: number
+  exit_code?: number
+  error_message?: string
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  lease_expires_at?: string
+}
+export interface TaskActivity {
+  id: string
+  task_id: string
+  attempt_id?: string
+  activity_type: string
+  author: string
+  message: string
+  old_status?: string
+  new_status?: string
+  created_at: string
+}
+export interface TaskDetail extends Task {
+  attempts: TaskAttempt[]
+  activities: TaskActivity[]
+}
 export interface Task {
+  result_kind?: 'answer' | 'implementation'
+  launch?: { state: 'queued' | 'claimed' | 'started' | 'stopped' | 'cancelled'; safe_error?: string; available_at: string }
+  latest_attempt?: TaskAttempt
+  source_room_id?: string
+  source_message_id?: string
   id: string
   project_id?: string
   project_ids?: string[]
   title: string
   description?: string
+  summary?: string
+  complete_note?: string
+  project_name?: string
+  project_names?: string[]
+  branch_name?: string
+  pr_url?: string
+  commit_sha?: string
+  diff_summary?: string
+  test_summary?: string
   body?: string
   prompt?: string
   status: TaskStatus
@@ -80,12 +123,14 @@ export interface Task {
   dod_checklist?: (DoDItem | string)[]
   tags?: string[]
   runner_state?: string
+  latest_progress?: string
   execution_status?: 'idle' | 'running' | 'completed' | 'failed' | string
   created_at: string
   updated_at: string
 }
 
 export interface CreateTaskRequest {
+  request_id?: string
   title: string
   description?: string
   project_ids?: string[]
@@ -99,6 +144,9 @@ export interface CreateTaskRequest {
 }
 
 export interface UpdateTaskRequest {
+  expected_updated_at?: string
+  summary?: string
+  complete_note?: string
   title?: string
   description?: string
   project_ids?: string[]

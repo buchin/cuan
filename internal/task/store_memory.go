@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -10,6 +9,7 @@ import (
 )
 
 type MemoryStore struct {
+	launches     map[string]*TaskLaunch
 	mu           sync.RWMutex
 	tasks        map[string]*Task
 	attempts     map[string]*TaskAttempt
@@ -21,6 +21,7 @@ type MemoryStore struct {
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
+		launches:     make(map[string]*TaskLaunch),
 		tasks:        make(map[string]*Task),
 		attempts:     make(map[string]*TaskAttempt),
 		activities:   make(map[string]*TaskActivity),
@@ -34,7 +35,11 @@ func (m *MemoryStore) CreateTask(ctx context.Context, t *Task) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, exists := m.tasks[t.ID]; exists {
+		return ErrTaskDuplicate
+	}
 	cp := *t
+	cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 	if cp.CreatedAt.IsZero() {
 		cp.CreatedAt = time.Now().UTC()
 	}
@@ -62,6 +67,7 @@ func (m *MemoryStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		return nil, ErrTaskNotFound
 	}
 	cp := *t
+	cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 	if pids, ok := m.taskProjects[cp.ID]; ok && len(pids) > 0 {
 		cp.ProjectIDs = append([]string{}, pids...)
 	} else if cp.ProjectID != "" {
@@ -78,6 +84,9 @@ func (m *MemoryStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task
 	searchLower := strings.ToLower(strings.TrimSpace(filter.Search))
 
 	for _, t := range m.tasks {
+		if filter.SourceRoomID != "" && t.SourceRoomID != filter.SourceRoomID {
+			continue
+		}
 		pids := m.taskProjects[t.ID]
 		if len(pids) == 0 && t.ProjectID != "" {
 			pids = []string{t.ProjectID}
@@ -131,6 +140,7 @@ func (m *MemoryStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task
 			}
 		}
 		cp := *t
+		cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 		cp.ProjectIDs = append([]string{}, pids...)
 		result = append(result, &cp)
 	}
@@ -152,6 +162,7 @@ func (m *MemoryStore) UpdateTask(ctx context.Context, t *Task) error {
 	}
 
 	cp := *t
+	cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 	cp.CreatedAt = existing.CreatedAt
 	cp.UpdatedAt = time.Now().UTC()
 
@@ -174,8 +185,19 @@ func (m *MemoryStore) DeleteTask(ctx context.Context, id string) error {
 		return ErrTaskNotFound
 	}
 
+	for _, a := range m.attempts {
+		if a.TaskID == id && (a.Status == AttemptStatusRunning || a.Status == AttemptStatusQueued) {
+			return ErrTaskActive
+		}
+	}
 	delete(m.tasks, id)
 	delete(m.taskProjects, id)
+
+	for launchID, j := range m.launches {
+		if j.TaskID == id {
+			delete(m.launches, launchID)
+		}
+	}
 
 	// Cascade delete attempts and activities
 	for attID, att := range m.attempts {
@@ -196,6 +218,32 @@ func (m *MemoryStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, exists := m.attempts[a.ID]; exists {
+		return ErrTaskDuplicate
+	}
+	for _, j := range m.launches {
+		if attemptRequestID(j.TaskID, j.RequestID) == a.ID {
+			t := m.tasks[a.TaskID]
+			if j.State != "claimed" || j.LeaseUntil == nil || !j.LeaseUntil.After(time.Now()) || t == nil || j.ProjectID != t.ProjectID || j.AgentID != a.AgentName || j.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
+				return ErrInvalidTaskInput
+			}
+		}
+	}
+	if a.AttemptNumber <= 0 {
+		a.AttemptNumber = 1
+	}
+	if a.RunnerID == "local_terminal" {
+		maxAttempt := 0
+		for _, old := range m.attempts {
+			if old.TaskID == a.TaskID && old.AttemptNumber > maxAttempt {
+				maxAttempt = old.AttemptNumber
+			}
+			if old.TaskID == a.TaskID && (old.Status == "running" || old.Status == "queued") {
+				return ErrTaskActive
+			}
+		}
+		a.AttemptNumber = maxAttempt + 1
+	}
 	cp := *a
 	if cp.CreatedAt.IsZero() {
 		cp.CreatedAt = time.Now().UTC()
@@ -264,6 +312,9 @@ func (m *MemoryStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 		return ErrAttemptNotFound
 	}
 
+	if existing.Status != "queued" && existing.Status != "running" && a.Status != existing.Status {
+		return ErrAttemptFinal
+	}
 	cp := *a
 	cp.CreatedAt = existing.CreatedAt
 	m.attempts[a.ID] = &cp
@@ -311,34 +362,32 @@ func (m *MemoryStore) AppendLogs(ctx context.Context, attemptID string, logs []L
 	}
 
 	for _, entry := range logs {
-		if maxLines > 0 && len(existing) >= maxLines {
-			// Append truncation marker if not already the last line
-			if len(existing) > 0 && !strings.Contains(existing[len(existing)-1].Line, "[LOG TRUNCATED") {
-				m.nextLogID++
-				marker := &LogRecord{
-					ID:        m.nextLogID,
-					AttemptID: attemptID,
-					Stream:    "system",
-					Line:      fmt.Sprintf("[LOG TRUNCATED: maximum log buffer of %d lines reached]", maxLines),
-					LoggedAt:  time.Now().UTC(),
-				}
-				existing = append(existing, marker)
-			}
-			break
-		}
-
 		m.nextLogID++
 		rec := &LogRecord{
 			ID:        m.nextLogID,
 			AttemptID: attemptID,
 			Stream:    entry.Stream,
-			Line:      entry.Line,
+			Line:      boundedLogLine(entry.Line),
 			LoggedAt:  entry.LoggedAt,
 		}
 		if rec.LoggedAt.IsZero() {
 			rec.LoggedAt = time.Now().UTC()
 		}
 		existing = append(existing, rec)
+	}
+
+	if maxLines > 0 {
+		start, size := len(existing), 0
+		for start > 0 && len(existing)-start < maxLines {
+			n := len(existing[start-1].Line) + 1
+			if size+n > maxRetainedLogBytes {
+				break
+			}
+			size += n
+			start--
+		}
+		// Copy so discarded records are not held by the backing array.
+		existing = append([]*LogRecord(nil), existing[start:]...)
 	}
 
 	m.logs[attemptID] = existing
@@ -385,6 +434,7 @@ func (m *MemoryStore) Snapshot() *TaskSnapshot {
 	snap := &TaskSnapshot{}
 	for _, t := range m.tasks {
 		cp := *t
+		cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 		snap.Tasks = append(snap.Tasks, &cp)
 	}
 	for _, a := range m.attempts {
@@ -412,6 +462,7 @@ func (m *MemoryStore) Restore(snap *TaskSnapshot) {
 
 	for _, t := range snap.Tasks {
 		cp := *t
+		cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
 		m.tasks[cp.ID] = &cp
 	}
 	for _, a := range snap.Attempts {
@@ -433,3 +484,26 @@ func (m *MemoryStore) Wipe() {
 	m.logs = make(map[string][]*LogRecord)
 }
 
+func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[string]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := map[string]string{}
+	latestTime := map[string]time.Time{}
+	idSet := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idSet[id] = true
+	}
+	for _, act := range m.activities {
+		if idSet[act.TaskID] && act.ActivityType == "agent_report" && act.NewStatus == "progress" {
+			if prev, ok := latestTime[act.TaskID]; !ok || act.CreatedAt.After(prev) {
+				latestTime[act.TaskID] = act.CreatedAt
+				msg := act.Message
+				if idx := strings.Index(msg, "\n"); idx != -1 {
+					msg = msg[:idx]
+				}
+				result[act.TaskID] = strings.TrimSpace(msg)
+			}
+		}
+	}
+	return result, nil
+}

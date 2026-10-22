@@ -1,0 +1,89 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "defaultStudio": true,
+      "inboxNewToStudio": true,
+      "noSelectors": true,
+      "noOverflow": true
+    }
+  ],
+  "exactAssets": [
+    "addon-fit-YJmn1quW.js",
+    "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+    "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+    "geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+    "geist-latin-wght-normal-BgDaEnEv.woff2",
+    "geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+    "geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+    "geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+    "geist-mono-latin-wght-normal-XN7g48iV.woff2",
+    "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+    "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+    "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+    "index-DFlFmiQp.css",
+    "index-hIAj6Bla.js",
+    "xterm-BT7tBf8A.js"
+  ],
+  "providerInvocations": 0,
+  "goalSubmissions": 0,
+  "errors": []
+}

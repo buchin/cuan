@@ -1,0 +1,37 @@
+{
+  "syntheticMessages": 200,
+  "syntheticRequests": 100,
+  "stepsPerRequest": 32,
+  "historyBytes": 403789,
+  "readyMs": 455,
+  "domNodes": 2325,
+  "renderedMessages": 50,
+  "collapsedTimelineNodes": 0,
+  "idleScriptMs": 31.049999999999994,
+  "idleTaskMs": 52.96099999999998,
+  "jsHeapBytes": 9089712,
+  "providerCalls": 0,
+  "regressions": {
+    "lazyDetail": true,
+    "olderHistory": true,
+    "scrollAnchor": true
+  },
+  "otherPages": [
+    {
+      "route": "/contacts",
+      "idleScriptMs": 0
+    },
+    {
+      "route": "/projects",
+      "idleScriptMs": 0
+    },
+    {
+      "route": "/notifications",
+      "idleScriptMs": 0
+    },
+    {
+      "route": "/settings",
+      "idleScriptMs": 0
+    }
+  ]
+}

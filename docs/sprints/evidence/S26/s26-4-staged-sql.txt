@@ -1,0 +1,48 @@
+=== RUN   TestS264PostgresProcessRestart
+    inbox_request_sql_test.go:162: {"CLIExecutions":1,"actualPostgreSQL":true,"distinctOSProcesses":true,"messages":2,"provider":"FIXTURE; no real provider invocation","requestID":"f3526281-06e7-42f9-b0f6-a2bcf99a94e4","scenario":"completed","state":"completed","userMessageID":"0e0fe803-ba11-4eeb-b226-a4f2d54ba81e"}
+    inbox_request_sql_test.go:162: {"CLIExecutions":1,"actualPostgreSQL":true,"distinctOSProcesses":true,"messages":1,"provider":"FIXTURE; no real provider invocation","requestID":"30d05772-3b7d-4661-9607-ad48a2f00f65","scenario":"crash","state":"interrupted","userMessageID":"b543f718-608e-41df-b76e-c92252867954"}
+--- PASS: TestS264PostgresProcessRestart (2.67s)
+=== RUN   TestS264TimeoutAfterAcceptanceSafeRetry
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000001] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 52.037739ms
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000002] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 950B in 963.073µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000003] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 372B in 343.085µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000004] "POST http://127.0.0.1:37817/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 127.0.0.1:57208 - 202 688B in 322.083µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000005] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 688B in 79.995µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000006] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 688B in 36.463µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000007] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 688B in 27.291µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000008] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 34.737µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000009] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 155.121µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000010] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 79.911µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000011] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 100.396µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000012] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 81.704µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000013] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 65.307µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000014] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 68.399µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000015] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 68.337µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000016] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 64.029µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000017] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 63.221µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000018] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 55.113µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000019] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1036B in 90.605µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000020] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1393B in 70.532µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000021] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 48.405318ms
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000022] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 1393B in 80.15µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000023] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 409 62B in 48.09µs
+    inbox_request_test.go:120: FIXTURE: HTTP timeout after committed acceptance; three concurrent-lifetime retries, refresh and handler restart preserve one user, one reply, one CLI execution and original correlation
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000024] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 668B in 69.153µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000025] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2039B in 27.858µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000026] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2158B in 65.731µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000027] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 787B in 38.265µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000028] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 668B in 42.292µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000029] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2804B in 29.836µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000030] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 2933B in 74.574µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000031] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 797B in 42.512µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000032] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 202 668B in 104.836µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000033] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 3579B in 83.77µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000034] "GET http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 3736B in 83.908µs
+2026/10/19 10:54:54 [avolut/K8FsZ6oVME-000035] "POST http://example.com/api/v1/chat/conversations/agent_fixture/messages HTTP/1.1" from 192.0.2.1:1234 - 200 825B in 48.422µs
+    inbox_request_test.go:162: FIXTURE: quota, expired login, unknown provider error and deadline map to safe durable failure text; no failed request replay
+--- PASS: TestS264TimeoutAfterAcceptanceSafeRetry (0.46s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	3.140s
+
+targeted_sql_exit=0
+exit_code=0

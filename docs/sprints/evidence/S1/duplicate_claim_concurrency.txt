@@ -1,11 +1,11 @@
 === CUAN SPRINT 1 (T5) EVIDENCE: DUPLICATE-CLAIM CONCURRENCY PROTECTION ===
-Timestamp: 2026-10-16T08:52:46Z
+Timestamp: 2026-10-21T13:52:07Z
 DoD Requirement: Tidak ada dua runner mengeksekusi attempt sama secara konkuren (Atomic claim / optimistic lock).
 
 1. Concurrent Claim Race:
    - Total Concurrent Runners: 12
-   - Queued Attempt ID: att_d8d9e6d98b8f
+   - Queued Attempt ID: att_3cf371ae6f52
    - Successful Claims: 1 (Expected: Exactly 1)
-   - Winning Runner: runner-node-01
+   - Winning Runner: runner-node-10
 
 === RESULT: PASS (Zero duplicate claims, atomic single-winner claim confirmed) ===

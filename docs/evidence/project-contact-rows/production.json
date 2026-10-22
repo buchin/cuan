@@ -1,0 +1,27 @@
+{
+  "release": "f6ea56039f0e2497318575b07daaa72f4ef450aa",
+  "checks": [
+    {
+      "width": 360,
+      "connectionFormVisible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "connectionFormVisible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "connectionFormVisible": true,
+      "noOverflow": true
+    }
+  ],
+  "assetsMatch": true,
+  "projectAndContactRowsContinuous": true,
+  "selectedConversationRowContinuous": true,
+  "projectPickerVisible": true,
+  "readOnly": true,
+  "providerCalls": 0,
+  "errors": []
+}

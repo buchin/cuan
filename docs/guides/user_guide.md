@@ -1,101 +1,40 @@
-# Cuan User & Operational Guide
+# Using Cuan
 
-Panduan lengkap penggunaan Cuan bagi Product Owner dan tim pengembang. Dokumen ini menjelaskan alur kerja harian, siklus hidup task, peninjauan Pull Request, mekanisme revisi terpadu, dan manajemen runner agent.
+## Start with an outcome
 
----
+Open **Studio**, describe what you want done, optionally attach supporting files,
+and submit. Cuan keeps a conversation in **Inbox**, chooses the relevant project,
+and creates execution work when needed. Informational chats do not require tasks.
+You can also continue an existing conversation to preserve its context.
 
-## 1. Konsep Inti (*Core Concepts*)
+Clear instructions can start work directly. If a necessary choice is missing,
+answer the agent in the conversation. Optional proposal buttons show the actual
+scope before **Approve and start**. **Change plan** opens the composer;
+**Not now** defers that proposal without starting work.
 
-```d2
-direction: right
+## Follow work
 
-project: Project Repository {
-  label: "Connected GitHub Repo\n(buchin/cuan)"
-}
+Inbox reports current activity and results. **Detail** opens response diagnostics;
+a task message links to its execution session for progress and terminal output.
+The agent should report verification and remaining blockers. Human monitoring is
+optional, but you can intervene when needed. Project tasks remain available under
+**Projects**; they are supporting records, not a mandatory daily form workflow.
 
-task: Task Item {
-  label: "Task\n(Title & Instructions)"
-}
+## Organize relationships
 
-runner: Runner Daemon {
-  label: "cuan-runner\n(Claims attempt)"
-}
+**Contacts** holds customer conversations, tags, and notes for later recall.
+Use **Settings → Integrations** to configure live chat. **Settings → Agents**
+contains provider accounts. Language, appearance, account, installation, and
+notification preferences are in Settings. English is the initial UI language;
+changing UI language does not rewrite user content.
 
-workspace: Isolated Workspace {
-  label: "Task Workspace\n(task/<id> branch)"
-}
+## When work stops
 
-pr: GitHub Pull Request {
-  label: "Pull Request\n(Formatted Diff & Tests)"
-}
+Do not submit the same instruction repeatedly. Known safe failures may recover
+once automatically; uncertain outcomes require reconciliation. Use available
+**Retry** or **Check status** actions rather than copying a request into a new
+conversation. Capacity-waiting work resumes automatically when a route becomes
+available; its waiting view offers cancellation. See [recovery details](message_task_lifecycle.md).
 
-project -> task: "has many"
-task -> runner: "assigned & claimed"
-runner -> workspace: "executes agent"
-workspace -> pr: "commits & pushes"
-```
-
-1. **Project**: Entitas repositori GitHub yang dihubungkan ke Cuan. Menyimpan konfigurasi branch default (`main`) dan kredensial akses terenkripsi.
-2. **Task**: Satuan pekerjaan atau fitur yang ditentukan oleh owner. Memiliki instruksi teknis, prioritas, status (`backlog`, `doing`, `review`, `done`), serta branch task terisolasi.
-3. **Attempt**: Siklus eksekusi fisik dari sebuah task oleh runner agent. Memiliki status tersendiri (`queued`, `running`, `succeeded`, `failed`, `canceled`, `interrupted`) sehingga kegagalan satu attempt tidak merusak riwayat task.
-4. **Task Workspace**: Direktori klon terisolasi per task (`data/workspaces/<task_id>`). Mencegah kontaminasi antar-task dan melindungi repositori utama / instalasi server dari modifikasi sembarangan.
-5. **Human Author Identity**: Seluruh commit Git yang dihasilkan oleh agent menggunakan identitas pengembang manusia yang terkonfigurasi (`Buchin <buchin@dropsugar.com>`), tanpa menggunakan identitas bot sintetis.
-
----
-
-## 2. Siklus Hidup Task (*Task State Transitions*)
-
-Cuan memisahkan status konseptual task dari status operasional attempt:
-
-### A. Status Task:
-- **`backlog`**: Task baru dibuat, belum ada runner yang mengeksekusi.
-- **`doing`**: Sedang dalam proses eksekusi aktif oleh runner agent.
-- **`review`**: Agent telah menyelesaikan pekerjaan, targeted test lulus (exit code 0), commit telah dibuat, dan PR di GitHub telah terbuka. Menunggu review owner.
-- **`done`**: Owner menerima hasil kerja agent dan memverifikasi penggabungan ke branch utama.
-
-### B. Status Attempt (Operasional):
-- **`queued`**: Menunggu giliran runner yang cocok dan tidak sibuk.
-- **`running`**: Runner sedang menjalankan subprocess agent dalam workspace task.
-- **`succeeded`**: Agent selesai dengan exit code 0 dan verifikasi targeted test lulus.
-- **`failed`**: Agent menghasilkan error atau exit code bukan nol. Detail error tercatat di log attempt.
-- **`canceled`**: Owner menekan tombol batalkan; runner menghentikan process tree agent seketika melalui sinyal `SIGTERM`/`SIGKILL`.
-- **`interrupted`**: Runner kehilangan koneksi jaringan atau mati mendadak saat tugas berjalan. Attempt ditandai terputus secara aman tanpa auto-retry liar yang berisiko duplikasi commit.
-
----
-
-## 3. Meninjau Hasil Kerja Agent (Review Phase)
-
-Ketika task berpindah ke status **`review`**, antarmuka Cuan menampilkan panel observabilitas lengkap pada Task Detail:
-1. **GitHub Pull Request URL**: Tautan langsung menuju PR resmi di repositori GitHub (contoh: `https://github.com/buchin/cuan/pull/1`).
-2. **Commit SHA & Author**: Checkpoint commit Git yang dihasilkan beserta identitas human committer.
-3. **Branch Task**: Nama branch kerja (`task/<task_id>`).
-4. **Diff Summary**: Ringkasan perubahan berkas (`git diff --stat`) yang menunjukkan berkas baru, berkas terubah, dan baris kode.
-5. **Targeted Test Status**: Status pengujian otomatis beserta exit code (contoh: `Targeted validation executed (exit 0)`).
-6. **Execution Logs**: Log streaming terstruktur dari stdout dan stderr agent dengan sensor rahasia otomatis (`[REDACTED]`).
-
----
-
-## 4. Siklus Revisi Terpadu (*Revision Cycle: Review -> Doing*)
-
-Jika hasil kerja agent memerlukan perbaikan tambahan atau ada instruksi review dari owner:
-
-1. Buka task yang berstatus `review`.
-2. Klik tombol **Minta Revisi** (atau ubah status kembali ke **`doing`**).
-3. Masukkan arahan revisi konkret pada catatan perbaikan (contoh: *"Perbaiki validasi email dan tambahkan unit test untuk domain invalid"*).
-4. **Apa yang Terjadi di Balik Layar?**
-   - Task kembali ke status `doing` dan attempt baru (Attempt #2) dijadwalkan.
-   - Runner mengklaim attempt revisi dan **melanjutkan workspace yang sama** (`data/workspaces/<task_id>`) pada branch yang sama.
-   - Perubahan sebelumnya dipertahankan (*zero work loss*).
-   - Agent menerapkan perbaikan revisi dan membuat commit baru.
-   - Runner melakukan push ke branch task yang sama.
-   - **Zero Duplicate PR**: Alih-alih membuat PR baru, Cuan memperbarui PR GitHub yang sudah ada dengan checkpoint revisi terbaru.
-   - Task kembali ke status `review` dengan histori attempt yang lengkap dan dapat dilacak.
-
----
-
-## 5. Pemantauan Server & Resource Agent
-
-Pada tab **Servers & Runners**:
-- **Host Metrics**: Menampilkan utilisasi CPU, persentase RAM, dan sisa kapasitas SSD.
-- **Agent Leases**: Runner memperbarui sewa (*lease*) aktif setiap 3 detik. Jika runner terputus selama lebih dari 30 detik, lease kedaluwarsa dan status attempt dicatat secara transparan.
-- **Concurrency Guard**: Cuan menerapkan batas default 1 task aktif per runner untuk mencegah kehabisan memori (*OOM Killer*) pada VPS kecil.
+For hosting and backups, use [onboarding](onboarding.md) and the
+[deployment guide](deployment_recovery_guide.md).

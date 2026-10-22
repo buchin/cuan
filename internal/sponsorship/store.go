@@ -6,13 +6,13 @@ import (
 )
 
 var (
-	ErrBatchNotFound        = errors.New("batch sponsorship tidak ditemukan")
-	ErrSponsorNotFound      = errors.New("sponsor tidak ditemukan")
-	ErrOrderNotFound        = errors.New("order sponsorship tidak ditemukan")
-	ErrLeadNotFound         = errors.New("waiting list lead tidak ditemukan")
-	ErrDuplicateDojoOrderID = errors.New("dojo_order_id sudah terdaftar")
-	ErrInvalidOrderInput    = errors.New("input order tidak valid")
-	ErrInvalidSponsorInput  = errors.New("input sponsor tidak valid")
+	ErrBatchNotFound        = errors.New("Sponsorship batch not found")
+	ErrSponsorNotFound      = errors.New("Sponsor not found")
+	ErrOrderNotFound        = errors.New("Sponsorship order not found")
+	ErrLeadNotFound         = errors.New("Waiting list lead not found")
+	ErrDuplicateDojoOrderID = errors.New("dojo_order_id is already registered")
+	ErrInvalidOrderInput    = errors.New("Invalid order input")
+	ErrInvalidSponsorInput  = errors.New("Invalid sponsor input")
 )
 
 type Store interface {

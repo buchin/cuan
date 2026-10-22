@@ -107,7 +107,7 @@ func TestFormatSafeMarkdownLink(t *testing.T) {
 func TestRenderSponsorsMarkdown(t *testing.T) {
 	// Empty sponsors
 	emptyOut := RenderSponsorsMarkdown(nil, "v1.0 Founding Backers")
-	if !strings.Contains(emptyOut, "Belum ada sponsor terdaftar") {
+	if !strings.Contains(emptyOut, "No sponsors are registered") {
 		t.Errorf("expected empty state message in empty render, got: %s", emptyOut)
 	}
 
@@ -295,7 +295,7 @@ Apache-2.0
 	if !strings.Contains(readmeStr, MarkerSponsorsStart) {
 		t.Fatalf("missing start marker in readme")
 	}
-	if !strings.Contains(readmeStr, "Belum ada sponsor terdaftar") {
+	if !strings.Contains(readmeStr, "No sponsors are registered") {
 		t.Fatalf("expected empty state message in readme")
 	}
 

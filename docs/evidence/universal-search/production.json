@@ -1,0 +1,11 @@
+{
+  "universalAPI": true,
+  "allFiveCategoriesAvailable": true,
+  "sidebarSearchAPI": true,
+  "unauthenticatedSearchRejected": true,
+  "mobileDesktopDialog": true,
+  "noHorizontalOverflow": true,
+  "pageErrors": [],
+  "nonLoginWrites": [],
+  "providerCalls": 0
+}

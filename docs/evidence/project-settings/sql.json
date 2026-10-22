@@ -1,0 +1,18 @@
+{
+  "actualBinaries": true,
+  "serverSha256": "e6248b8f4af0822993bc705fdfea3eef30f45ad717439ebb04b8aee7f737bd7e",
+  "projectSettingsSqlRoundTrip": true,
+  "twoConsecutiveSaves": true,
+  "staleVersionRejected": true,
+  "taskGuidanceFrozen": true,
+  "blankWorkspaceRevisionPersisted": true,
+  "freshMigration25": true,
+  "reinstallAndRestart": true,
+  "ownerSessionRetained": true,
+  "renamedProjectRetained": true,
+  "workspaceRetained": true,
+  "providerInvocations": 0,
+  "productionDatabaseWrites": 0,
+  "disposableDatabaseDropped": true,
+  "temporaryHomeRemoved": true
+}

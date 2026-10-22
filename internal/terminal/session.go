@@ -37,16 +37,19 @@ type Session struct {
 	defaultMode   Mode
 	createdAt     time.Time
 	lastActivity  time.Time
+	lastInput     time.Time
 	mu            sync.RWMutex
 	subscribers   map[string]*Subscriber
 	historyBuffer *ringBuffer
 	closed        bool
 	closeChan     chan struct{}
 	onEmpty       func(s *Session)
+	onOutput      func([]byte)
+	readerDone    chan struct{}
 }
 
 // NewSession creates and starts a managed terminal session for a spawned PTY process.
-func NewSession(id, taskID string, proc *PTYProcess, defaultMode Mode) *Session {
+func NewSession(id, taskID string, proc *PTYProcess, defaultMode Mode, output ...func([]byte)) *Session {
 	if defaultMode == "" {
 		defaultMode = ModeInteractive
 	}
@@ -63,6 +66,10 @@ func NewSession(id, taskID string, proc *PTYProcess, defaultMode Mode) *Session 
 		closeChan:     make(chan struct{}),
 	}
 
+	s.readerDone = make(chan struct{})
+	if len(output) > 0 {
+		s.onOutput = output[0]
+	}
 	// Start background reader loop pumping PTY output to all subscribers
 	go s.readPump()
 
@@ -192,9 +199,17 @@ func (s *Session) WriteInput(subID string, data []byte) (int, error) {
 	}
 
 	s.lastActivity = time.Now().UTC()
+	s.lastInput = s.lastActivity
 	s.mu.Unlock()
 
 	return s.pty.Write(data)
+}
+
+// LastInputAt tracks user input separately from output, resize and viewers.
+func (s *Session) LastInputAt() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastInput
 }
 
 // Resize updates the terminal size.
@@ -239,6 +254,7 @@ func (s *Session) IsClosed() bool {
 
 // readPump continuously reads from the PTY master descriptor and fans out to all subscribers.
 func (s *Session) readPump() {
+	defer close(s.readerDone)
 	buf := make([]byte, 4096)
 	for {
 		n, err := s.pty.Read(buf)
@@ -258,6 +274,9 @@ func (s *Session) readPump() {
 				}
 			}
 			s.mu.Unlock()
+			if s.onOutput != nil {
+				s.onOutput(chunk)
+			}
 		}
 
 		if err != nil {

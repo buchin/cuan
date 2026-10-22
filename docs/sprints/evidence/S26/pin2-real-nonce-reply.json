@@ -1,0 +1,11 @@
+{
+  "fixture": false,
+  "scope": "Actual existing developer-context path; initial friendly-context nonce request yielded a greeting and is not counted as nonce proof.",
+  "reply": {
+    "uuid": "78ae1c66-af3d-40ed-9a5d-378f8d9d0f42",
+    "content": "[@pin2] S26_REAL_0503e8ea73 = 437 (19 multiplied by 23)"
+  },
+  "conversation_id": "e7ae31a0-6fcc-4543-bddd-1728a8d8cebd",
+  "actualProviderReply": true,
+  "independentlyPersisted": true
+}

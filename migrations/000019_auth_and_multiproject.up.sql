@@ -20,11 +20,9 @@ CREATE INDEX IF NOT EXISTS idx_task_projects_task_id ON task_projects(task_id);
 ALTER TABLE owners ADD COLUMN IF NOT EXISTS username VARCHAR(100);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_owners_username ON owners(username);
 
--- 4. Default admin credentials auto-seed: username 'admin', password 'whosyourdaddy'
--- Bcrypt hash generated via golang.org/x/crypto/bcrypt with DefaultCost
-INSERT INTO owners (id, email, username, password_hash, is_setup, created_at, updated_at)
-SELECT 'owner_admin', 'admin@cuan.local', 'admin', '$2a$10$sGcQkuIKOs1j7.lrnh.HzO.5/nm.8sPY2gHjofWzd.vxdyTw3F6/u', true, NOW(), NOW()
-WHERE NOT EXISTS (SELECT 1 FROM owners);
+-- Fresh installs must create their own owner through authenticated setup.
+-- Do not seed shared credentials. Already-applied migrations are skipped, so this
+-- does not remove or modify an existing installation's owner.
 
 -- Backfill username for existing owners without username
 UPDATE owners SET username = 'admin' WHERE (username IS NULL OR username = '') AND id = 'owner_admin';

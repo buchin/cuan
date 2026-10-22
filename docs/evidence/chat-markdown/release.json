@@ -1,0 +1,35 @@
+{
+  "verified_at": "2026-10-19T06:44:06.100049+00:00",
+  "production": "https://cuan.dojo.cc",
+  "release": "dedf65dc384055c0aa846146ed9b73a4b543b7b5",
+  "previous_release": "ccc45c88c0b948a1c1263818a6c9a42f1687dc76",
+  "schema": 21,
+  "new_migration": false,
+  "auto_migrate": false,
+  "pre_release": {
+    "active_inbox_and_attempts": 0,
+    "private_database_backup_validated": true,
+    "profile_files_backed_up": 378
+  },
+  "activation": {
+    "native_release": true,
+    "checksums_and_exact_file_manifest": true,
+    "exclusive_lock": true,
+    "atomic_switch": true,
+    "health_readiness_exact_html": true
+  },
+  "workspace_sync": {
+    "fast_forward_only": true,
+    "checkout": "dedf65dc384055c0aa846146ed9b73a4b543b7b5",
+    "credential_transfer": false
+  },
+  "production_browser": "production-browser.json",
+  "fixture_browser": "browser.json",
+  "transport_test": "node web/src/api/chat-stream.test.cjs passed",
+  "provider_requests": 0,
+  "limitations": [
+    "Repo file preview not included; file:// links render as text",
+    "Code has no syntax highlighting",
+    "Existing CSS/chunk build warnings and development-tool audit advisories remain; no Markdown-package advisory found"
+  ]
+}

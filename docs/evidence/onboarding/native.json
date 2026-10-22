@@ -1,0 +1,12 @@
+{
+  "actualNativeBinary": true,
+  "emptyDatabaseMigratedTo25": true,
+  "ownerSetupRequired": true,
+  "neutralDefaultProject": true,
+  "sessionAndRenamedProjectSurviveProcessRestart": true,
+  "owners": 1,
+  "projects": 1,
+  "providerInvocations": 0,
+  "productionDatabaseWrites": 0,
+  "temporaryDatabaseAndHomeRemoved": true
+}

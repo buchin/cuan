@@ -1,0 +1,28 @@
+{
+  "release": "ff9c621242a259fa5b7debf4e7a37cd6aecfd858",
+  "url": "https://cuan.dojo.cc",
+  "schema": 22,
+  "migration": false,
+  "productionChecks": 8,
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "retention": {
+    "retainedTablesVerified": 35,
+    "authSessionsExcluded": true,
+    "profileFilesVerified": 445,
+    "differentTables": [],
+    "changedProfileFiles": 0,
+    "schema": 22,
+    "autoMigrate": false,
+    "release": "ff9c621242a259fa5b7debf4e7a37cd6aecfd858",
+    "readiness": {
+      "database": "connected",
+      "migrations": "applied",
+      "migrations_count": 22,
+      "owner_configured": true,
+      "status": "ready"
+    },
+    "remainingSmokeContacts": "0"
+  },
+  "rollback": "sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22"
+}

@@ -1,0 +1,69 @@
+{
+  "release": "7c54fa0fb7a18732bb7b065a56932addf43b6877",
+  "runtime": {
+    "cli_available": true,
+    "execution_verified": false,
+    "installation_supported": true,
+    "sandbox_available": true
+  },
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "setupAvailable": true,
+      "draftEditable": true,
+      "noOverflow": true
+    }
+  ],
+  "nonLoginWrites": [],
+  "providerCalls": 0
+}

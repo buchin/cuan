@@ -1,0 +1,43 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "exactScopeVisible": true,
+      "changePlanPreservesDraftAndFocus": true,
+      "deferralAction": true,
+      "minimumTouchHeight44": true,
+      "approveAction": true,
+      "stableRequestId": true,
+      "approvedButtonDisabled": true,
+      "draftPreserved": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "exactScopeVisible": true,
+      "changePlanPreservesDraftAndFocus": true,
+      "deferralAction": true,
+      "minimumTouchHeight44": true,
+      "approveAction": true,
+      "stableRequestId": true,
+      "approvedButtonDisabled": true,
+      "draftPreserved": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "exactScopeVisible": true,
+      "changePlanPreservesDraftAndFocus": true,
+      "deferralAction": true,
+      "minimumTouchHeight44": true,
+      "approveAction": true,
+      "stableRequestId": true,
+      "approvedButtonDisabled": true,
+      "draftPreserved": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "englishDefaultOnIndonesianBrowser": true,
+  "explicitLanguageAndAutoPreserved": true,
+  "providerCalls": 0
+}

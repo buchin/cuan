@@ -1,0 +1,29 @@
+{
+  "release": "b85d444ce07d49166ff4ded06ce0cd71ce0890d6",
+  "environment": "dedicated staging",
+  "conversation_id": "5e17aef2-89b4-47c7-947c-3dd2eedfcb6f",
+  "provider": "actual saved Cuan Google AI account with permitted account/model routing",
+  "initial_request": {
+    "state": "failed",
+    "result": "empty reply; no tool activity",
+    "automatic_recovery": true
+  },
+  "final_request": {
+    "id": "97e3809a-9c1f-ab7f-e612-18f80a563be1",
+    "state": "completed",
+    "account_failover": true,
+    "model_failover": true,
+    "native_read_tool_succeeded": true,
+    "tool_permission_denied": false,
+    "analysis_recovery_branch_exercised": false
+  },
+  "task_count": 0,
+  "independent_file_check": {
+    "module": "github.com/buchin/cuan",
+    "go_version": "1.27.0",
+    "sha256": "69b6fa78e8614e452c4de351917574b84a3a739d6bb5102bafb3f1967146bb3f",
+    "answer_matches": true
+  },
+  "production_messages_sent": 0,
+  "limits": "Actual native file analysis and permitted failover verified; bounded denied-tool continuation separately verified with deterministic child-process tests."
+}

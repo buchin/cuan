@@ -1,0 +1,19 @@
+{
+  "tagAddAutosave": true,
+  "tagRemoveAutosave": true,
+  "tagFailureRetry": true,
+  "notesSearchHiddenWhenEmpty": true,
+  "responsiveWidths": [
+    360,
+    390,
+    820,
+    1440
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "desktopMenuHoverFocus": true,
+  "noOverflow": true,
+  "providerCalls": 0
+}

@@ -1,0 +1,13 @@
+{
+  "release": "0eb1aea1f7e619a6cc33ca3e6a5fef8879563613",
+  "healthy": true,
+  "rollbackReactivationVerified": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "unchangedTables": 37,
+  "unchangedProfileFiles": 930,
+  "unchangedItemStates": 7,
+  "unchangedReadFlags": 11,
+  "oauthAppConfigured": false,
+  "verifierProviderCalls": 0
+}

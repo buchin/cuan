@@ -1,0 +1,38 @@
+{
+  "release": "93247cdb1f60421903bf8802f97a2519943c71dd",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "migration": false,
+  "fixtureChecks": 32,
+  "productionChecks": 32,
+  "productionTemporaryContacts": 2,
+  "productionTemporaryTagUpdates": 1,
+  "fixtureCleanupVerified": true,
+  "realCustomerWrites": 0,
+  "providerInvocations": 0,
+  "retention": {
+    "retainedTablesVerified": 35,
+    "authSessionsExcluded": true,
+    "profileFilesVerified": 493,
+    "differentTables": [],
+    "changedProfileFiles": 0,
+    "schema": 22,
+    "autoMigrate": false,
+    "release": "93247cdb1f60421903bf8802f97a2519943c71dd",
+    "readiness": {
+      "database": "connected",
+      "migrations": "applied",
+      "migrations_count": 22,
+      "owner_configured": true,
+      "status": "ready"
+    },
+    "remainingSmokeContacts": "0"
+  },
+  "rollback": "sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22",
+  "limits": [
+    "Unsaved local tag edits do not survive reload/leaving Contacts",
+    "Manual identity editing and broadcast remain unavailable",
+    "Chromium emulation, not physical Safari/device certification"
+  ],
+  "productionSmokeNote": "The first run verified real PATCH and reload; its immediate Back visibility assertion ran before React rendered the list. The resumed run waited for list visibility and reused the persisted fixture without issuing another PATCH."
+}

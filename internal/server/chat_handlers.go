@@ -1,14 +1,14 @@
 package server
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -18,11 +18,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
 
 // ChatContact represents a contact in the direct messenger hub (agent or customer).
 type ChatContact struct {
+	AgentID        string    `json:"agent_id,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
 	ID             string    `json:"id"`
 	Type           string    `json:"type"` // "agent" or "customer"
 	Name           string    `json:"name"`
@@ -49,23 +53,31 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
-	ID              int64            `json:"id"`
-	UUID            string           `json:"uuid,omitempty"`
-	ChatSessionUUID string           `json:"chat_session_uuid,omitempty"`
-	RoomID          string           `json:"room_id,omitempty"`
-	SenderType      string           `json:"sender_type"` // "visitor" or "operator"
-	AuthorType      string           `json:"author_type"` // "user", "agent", "system"
-	AuthorName      string           `json:"author_name"`
-	Message         string           `json:"message"`
-	Content         string           `json:"content"`
-	Product         string           `json:"product,omitempty"`
-	AttachmentURL   string           `json:"attachment_url,omitempty"`
-	AttachmentType  string           `json:"attachment_type,omitempty"`
-	AttachmentName  string           `json:"attachment_name,omitempty"`
-	AttachmentSize  int64            `json:"attachment_size,omitempty"`
-	HasAttachment   bool             `json:"has_attachment,omitempty"`
-	ActionCard      *AgentActionCard `json:"action_card,omitempty"`
-	CreatedAt       time.Time        `json:"created_at"`
+	PlanDeferred       bool                     `json:"plan_deferred,omitempty"`
+	PlanDeferRequestID string                   `json:"plan_defer_request_id,omitempty"`
+	ApprovalRequestID  string                   `json:"approval_request_id,omitempty"`
+	ApprovalAccepted   bool                     `json:"approval_accepted,omitempty"`
+	ApprovalPlan       *inboxApprovalPlan       `json:"approval_plan,omitempty"`
+	ApprovalTitle      string                   `json:"approval_title,omitempty"`
+	Attachments        []conversationAttachment `json:"attachments,omitempty"`
+	ID                 int64                    `json:"id"`
+	UUID               string                   `json:"uuid,omitempty"`
+	ChatSessionUUID    string                   `json:"chat_session_uuid,omitempty"`
+	RoomID             string                   `json:"room_id,omitempty"`
+	SenderType         string                   `json:"sender_type"` // "visitor" or "operator"
+	AuthorType         string                   `json:"author_type"` // "user", "agent", "system"
+	AuthorName         string                   `json:"author_name"`
+	Message            string                   `json:"message"`
+	Content            string                   `json:"content"`
+	Product            string                   `json:"product,omitempty"`
+	AttachmentURL      string                   `json:"attachment_url,omitempty"`
+	AttachmentType     string                   `json:"attachment_type,omitempty"`
+	AttachmentName     string                   `json:"attachment_name,omitempty"`
+	AttachmentSize     int64                    `json:"attachment_size,omitempty"`
+	HasAttachment      bool                     `json:"has_attachment,omitempty"`
+	ActionCard         *AgentActionCard         `json:"action_card,omitempty"`
+	TaskDraft          *InboxTaskDraft          `json:"task_draft,omitempty"`
+	CreatedAt          time.Time                `json:"created_at"`
 }
 
 // LiveChatSession stores visitor session metadata for the Dojo live chat widget.
@@ -89,6 +101,8 @@ type ChatSessionManager struct {
 	sessions       map[string]*LiveChatSession
 	sessionByGuest map[string]*LiveChatSession
 }
+
+var inboxRoomResolutionMu sync.Mutex
 
 var globalChatManager = &ChatSessionManager{
 	sessions:       make(map[string]*LiveChatSession),
@@ -125,18 +139,18 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 	if s.db != nil {
 		_, _ = s.db.ExecContext(ctx, `
 			INSERT INTO projects (id, name, repo_url, default_branch, clone_status, project_type, created_at, updated_at)
-			VALUES ('default', 'cuan', 'https://github.com/buchin/cuan', 'main', 'connected', 'custom', NOW(), NOW())
-			ON CONFLICT (id) DO UPDATE SET name = 'cuan' WHERE projects.name != 'cuan';
+			VALUES ('default', 'Default', '', 'main', 'pending', 'custom', NOW(), NOW())
+			ON CONFLICT (id) DO NOTHING;
 		`)
 	}
 	if s.projectRepo != nil {
 		if proj, err := s.projectRepo.GetProjectByID(ctx, "default"); err != nil || proj == nil {
 			_ = s.projectRepo.CreateProject(ctx, &db.Project{
 				ID:            "default",
-				Name:          "cuan",
-				RepoURL:       "https://github.com/buchin/cuan",
+				Name:          "Default",
+				RepoURL:       "",
 				DefaultBranch: "main",
-				CloneStatus:   "connected",
+				CloneStatus:   "pending",
 				ProjectType:   "custom",
 			})
 		}
@@ -162,7 +176,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 		Message     string `json:"message"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
@@ -172,34 +186,31 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 		guestUUID = db.GenerateUUID()
 	}
 
-	sessionUUID := strings.TrimSpace(payload.SessionUUID)
-	if sessionUUID == "" {
-		globalChatManager.RLock()
-		if existing, ok := globalChatManager.sessionByGuest[guestUUID]; ok && existing != nil {
-			sessionUUID = existing.UUID
-		}
-		globalChatManager.RUnlock()
+	email, err := normalizeCRMEmail(payload.Email)
+	if err != nil || strings.HasPrefix(guestUUID, "manual_") || len(guestUUID) > 128 || len(payload.Product) > 100 || len(payload.Name) > 200 {
+		respondJSONError(w, 400, "Invalid visitor identity")
+		return
 	}
-	if sessionUUID == "" {
-		sessionUUID = db.GenerateUUID()
-	}
-
+	product := strings.TrimSpace(payload.Product)
 	name := strings.TrimSpace(payload.Name)
-	if name == "" {
-		if payload.Product != "" {
-			name = fmt.Sprintf("Customer (%s)", payload.Product)
-		} else {
-			name = fmt.Sprintf("Visitor #%s", guestUUID[:6])
-		}
+	contact, err := s.crmUpsert(r.Context(), guestUUID, product, name, email)
+	if err != nil {
+		respondJSONError(w, 503, "Could not save the session")
+		return
 	}
-
+	sessionUUID := contact.SessionUUID
+	name = contact.Name
+	if name == "" {
+		name = "Visitor #" + contact.ID[:6]
+	}
+	email = contact.Email
 	now := time.Now().UTC()
 	liveSession := &LiveChatSession{
 		UUID:        sessionUUID,
 		GuestUUID:   guestUUID,
 		Product:     strings.TrimSpace(payload.Product),
 		Name:        name,
-		Email:       strings.TrimSpace(payload.Email),
+		Email:       email,
 		CurrentURL:  payload.CurrentURL,
 		PageTitle:   payload.PageTitle,
 		ReferrerURL: payload.ReferrerURL,
@@ -216,19 +227,22 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 	// Ensure backing database room
 	if s.projectStudioRepo != nil {
 		if _, err := s.projectStudioRepo.GetRoomByID(r.Context(), sessionUUID); err != nil {
-			_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+			if err := s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
 				ID:        sessionUUID,
 				ProjectID: "default",
 				Title:     name,
 				Topic:     liveSession.Product,
 				CreatedAt: now,
 				UpdatedAt: now,
-			})
+			}); err != nil {
+				respondJSONError(w, 503, "Could not save the conversation")
+				return
+			}
 		}
 
 		// If initial message provided in session payload
 		if text := strings.TrimSpace(payload.Message); text != "" {
-			_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 				ID:         db.GenerateUUID(),
 				RoomID:     sessionUUID,
 				AuthorType: "user",
@@ -237,7 +251,10 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 				Content:    text,
 				CreatedAt:  now,
 				UpdatedAt:  now,
-			})
+			}); err != nil {
+				respondJSONError(w, 503, "Message could not be saved")
+				return
+			}
 		}
 	}
 
@@ -267,6 +284,10 @@ func (s *Server) handleVisitorGetMessages(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if _, err := s.crmSession(r.Context(), sessionUUID); err != nil {
+		respondJSONError(w, 404, "Session not found")
+		return
+	}
 	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
 
 	product := ""
@@ -305,7 +326,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 		AttachmentSize int64  `json:"attachment_size"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
@@ -328,10 +349,11 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	globalChatManager.RLock()
-	sess := globalChatManager.sessions[sessionUUID]
-	globalChatManager.RUnlock()
-
+	sess, err := s.crmSession(r.Context(), sessionUUID)
+	if err != nil {
+		respondJSONError(w, 404, "Session not found. Reopen live chat")
+		return
+	}
 	authorName := "Customer"
 	product := ""
 	if sess != nil {
@@ -345,26 +367,32 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 	if s.projectStudioRepo != nil {
 		// Ensure room exists
 		if _, err := s.projectStudioRepo.GetRoomByID(r.Context(), sessionUUID); err != nil {
-			_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+			if err := s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
 				ID:        sessionUUID,
 				ProjectID: "default",
 				Title:     authorName,
 				Topic:     product,
 				CreatedAt: now,
 				UpdatedAt: now,
-			})
+			}); err != nil {
+				respondJSONError(w, 503, "Could not save the conversation")
+				return
+			}
 		}
 
-		_ = s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+		if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
 			ID:         msgUUID,
 			RoomID:     sessionUUID,
 			AuthorType: "user",
-			AuthorID:   payload.GuestUUID,
+			AuthorID:   sess.GuestUUID,
 			AuthorName: authorName,
 			Content:    text,
 			CreatedAt:  now,
 			UpdatedAt:  now,
-		})
+		}); err != nil {
+			respondJSONError(w, 503, "Message could not be saved")
+			return
+		}
 	}
 
 	// Determine new message index
@@ -453,11 +481,41 @@ func (s *Server) handleVisitorReceipts(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/chat/contacts
 func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Request) {
+	inboxRoomResolutionMu.Lock()
+	defer inboxRoomResolutionMu.Unlock()
 	s.ensureDefaultAgentRooms(r.Context())
 
 	typeFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
 	searchQuery := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
+	preferences := itemPreferences{}
+	if s.authSvc != nil {
+		if owner, e := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); e == nil {
+			itemPreferencesMu.Lock()
+			saved, readError := readItemPreferences(owner.ID)
+			itemPreferencesMu.Unlock()
+			if readError != nil {
+				respondJSONError(w, 503, "Could not load conversation state. Try again.")
+				return
+			}
+			preferences = saved
+		}
+	}
+	countUnread := func(id string, messages []db.ProjectMessage, isAgent bool) int {
+		state := preferences["conversation:"+id]
+		cutoff, _ := time.Parse(time.RFC3339Nano, state.ReadAt)
+		count := 0
+		for _, message := range messages {
+			incoming := (isAgent && message.AuthorType == "agent") || (!isAgent && message.AuthorType == "user")
+			if incoming && message.CreatedAt.After(cutoff) {
+				count++
+			}
+		}
+		if state.Unread && count == 0 {
+			return 1
+		}
+		return count
+	}
 	contacts := make([]ChatContact, 0)
 
 	if typeFilter != "customers" {
@@ -469,8 +527,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						continue
 					}
 					roomID := ""
-					lastMsg := "Belum ada percakapan."
+					lastMsg := "No conversations yet."
 					lastAt := a.UpdatedAt
+					unread := 0
 					if s.projectStudioRepo != nil {
 						if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
 							for _, rm := range allRooms {
@@ -484,6 +543,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID); len(msgs) > 0 {
 								lastMsg = msgs[len(msgs)-1].Content
 								lastAt = msgs[len(msgs)-1].CreatedAt
+								unread = countUnread(roomID, msgs, true)
 							}
 						}
 					}
@@ -501,14 +561,15 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						}
 					}
 					c := ChatContact{
-						ID:             "contact_" + a.ID,
+						ID:      "contact_" + a.ID,
+						AgentID: a.ID, AgentName: a.Name,
 						Type:           "agent",
 						Name:           a.Name,
 						Avatar:         a.Avatar,
 						Status:         "idle",
 						ConversationID: roomID,
-						UnreadCount:    0,
-						LastMessage:    lastMsg,
+						UnreadCount:    unread,
+						LastMessage:    attachmentPreview(lastMsg),
 						LastMessageAt:  lastAt,
 						UpdatedAt:      lastAt,
 					}
@@ -518,35 +579,57 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	if typeFilter != "customers" && s.projectStudioRepo != nil && s.agentRepo != nil {
+		if rooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+			for _, room := range rooms {
+				if !strings.HasPrefix(room.Topic, "agent-topic:") {
+					continue
+				}
+				a, err := s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
+				if err != nil || a == nil || !a.Enabled {
+					continue
+				}
+				last := "No messages yet."
+				at := room.UpdatedAt
+				unread := 0
+				if messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID); err == nil && len(messages) > 0 {
+					last = messages[len(messages)-1].Content
+					at = messages[len(messages)-1].CreatedAt
+					unread = countUnread(room.ID, messages, true)
+				}
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at})
+			}
+		}
+	}
+
 	// 3. Customer Live Chat Sessions (from Dojo Live Chat visitors)
 	if typeFilter != "agents" {
-		globalChatManager.RLock()
-		sessionList := make([]*LiveChatSession, 0, len(globalChatManager.sessions))
-		for _, sess := range globalChatManager.sessions {
-			sessionList = append(sessionList, sess)
+		sessionList := []*LiveChatSession{}
+		saved, err := s.crmList(r.Context())
+		if err != nil {
+			respondJSONError(w, 503, "Could not load customer conversations")
+			return
 		}
-		globalChatManager.RUnlock()
+		for _, c := range saved {
+			if c.IsManual {
+				continue
+			}
+			name := c.Name
+			if name == "" {
+				name = "Visitor #" + c.ID[:6]
+			}
+			sessionList = append(sessionList, &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: name, Email: c.Email, Status: "offline", CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt})
+		}
 
-		// Also read any rooms from DB that belong to visitors
 		if s.projectStudioRepo != nil {
-			if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
-				for _, rm := range allRooms {
-					if rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && !strings.HasPrefix(rm.Topic, "agent:") && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
-						globalChatManager.Lock()
-						if _, exists := globalChatManager.sessions[rm.ID]; !exists {
-							sess := &LiveChatSession{
-								UUID:      rm.ID,
-								GuestUUID: rm.ID,
-								Product:   rm.Topic,
-								Name:      rm.Title,
-								Status:    "online",
-								CreatedAt: rm.CreatedAt,
-								UpdatedAt: rm.UpdatedAt,
-							}
-							globalChatManager.sessions[rm.ID] = sess
-							sessionList = append(sessionList, sess)
-						}
-						globalChatManager.Unlock()
+			known := map[string]bool{}
+			for _, v := range sessionList {
+				known[v.UUID] = true
+			}
+			if rooms, e := s.projectStudioRepo.ListAllRooms(r.Context()); e == nil {
+				for _, rm := range rooms {
+					if !known[rm.ID] && rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && roomAgentID(rm.Topic) == "" && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
+						sessionList = append(sessionList, &LiveChatSession{UUID: rm.ID, GuestUUID: rm.ID, Product: rm.Topic, Name: rm.Title, Status: "offline", CreatedAt: rm.CreatedAt, UpdatedAt: rm.UpdatedAt})
 					}
 				}
 			}
@@ -557,7 +640,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		})
 
 		for _, sess := range sessionList {
-			lastMsg := "Sesi percakapan baru dimulai."
+			lastMsg := "A new conversation session has started."
 			lastAt := sess.UpdatedAt
 			unread := 0
 
@@ -565,11 +648,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), sess.UUID); len(msgs) > 0 {
 					lastMsg = msgs[len(msgs)-1].Content
 					lastAt = msgs[len(msgs)-1].CreatedAt
-					for _, m := range msgs {
-						if m.AuthorType == "user" {
-							unread++
-						}
-					}
+					unread = countUnread(sess.UUID, msgs, false)
 				}
 			}
 
@@ -578,12 +657,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				Type:           "customer",
 				Name:           sess.Name,
 				Avatar:         "👤",
-				Status:         "online",
+				Status:         "offline",
 				Product:        sess.Product,
 				GuestUUID:      sess.GuestUUID,
 				ConversationID: sess.UUID,
 				UnreadCount:    unread,
-				LastMessage:    lastMsg,
+				LastMessage:    attachmentPreview(lastMsg),
 				LastMessageAt:  lastAt,
 				UpdatedAt:      lastAt,
 			}
@@ -595,7 +674,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	if searchQuery != "" {
 		filtered := make([]ChatContact, 0)
 		for _, c := range contacts {
-			if strings.Contains(strings.ToLower(c.Name), searchQuery) ||
+			if strings.Contains(strings.ToLower(c.Name+" "+c.AgentName), searchQuery) ||
 				strings.Contains(strings.ToLower(c.LastMessage), searchQuery) ||
 				strings.Contains(strings.ToLower(c.Product), searchQuery) {
 				filtered = append(filtered, c)
@@ -604,6 +683,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		contacts = filtered
 	}
 
+	for i := range contacts {
+		if preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {
+			contacts[i].UnreadCount = 1
+		}
+	}
+	sort.SliceStable(contacts, func(i, j int) bool { return contacts[i].UpdatedAt.After(contacts[j].UpdatedAt) })
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"contacts": contacts,
 		"total":    len(contacts),
@@ -622,6 +707,9 @@ type ResolvedConversation struct {
 // resolveConversationContext resolves any conversation identifier (room UUID, agent ID, contact alias, handle)
 // into a valid room UUID in project_rooms and the target agent persona.
 func (s *Server) resolveConversationContext(ctx context.Context, convID string, messageText string) ResolvedConversation {
+	inboxRoomResolutionMu.Lock()
+	defer inboxRoomResolutionMu.Unlock()
+
 	s.ensureDefaultAgentRooms(ctx)
 
 	result := ResolvedConversation{
@@ -689,9 +777,9 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if s.projectStudioRepo != nil {
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
-			if strings.HasPrefix(rm.Topic, "agent:") && s.agentRepo != nil {
+			if roomAgentID(rm.Topic) != "" && s.agentRepo != nil {
 				result.IsAgent = true
-				result.TargetAgentID = strings.TrimPrefix(rm.Topic, "agent:")
+				result.TargetAgentID = roomAgentID(rm.Topic)
 				result.TargetAgentName = rm.Title
 				if s.agentRepo != nil {
 					if ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil && ag != nil {
@@ -762,6 +850,9 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 
 // GET /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r *http.Request) {
+	if s.accountOwner(w, r) == "" {
+		return
+	}
 	convID := chi.URLParam(r, "id")
 	if convID == "" {
 		respondJSONError(w, http.StatusBadRequest, "conversation id is required")
@@ -781,12 +872,17 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			}
 		}
 		contact = ChatContact{
-			ID:             "contact_" + resolved.TargetAgentID,
+			ID:      "contact_" + resolved.TargetAgentID,
+			AgentID: resolved.TargetAgentID, AgentName: resolved.TargetAgentName,
 			Type:           "agent",
 			Name:           resolved.TargetAgentName,
 			Avatar:         avatar,
 			Status:         "online",
 			ConversationID: resolved.RoomID,
+		}
+		if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); e == nil && room != nil && strings.HasPrefix(room.Topic, "agent-topic:") {
+			contact.ID = "topic_" + room.ID
+			contact.Name = room.Title
 		}
 	} else {
 		// Customer contact
@@ -821,138 +917,245 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	}
 
 	product := contact.Product
-	messages := s.getFormattedMessages(r.Context(), resolved.RoomID, product)
+	var requests []db.InboxRequest
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		var err error
+		requests, err = store.ListInboxRequests(r.Context(), resolved.RoomID)
+		if err != nil {
+			respondJSONError(w, 503, "Could not read Inbox status. Refresh again.")
+			return
+		}
+	}
+	messages, err := s.getFormattedMessagesResult(r.Context(), resolved.RoomID, product)
+	if err != nil {
+		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
+		return
+	}
 
+	limit := 50
+	if l := strings.TrimSpace(r.URL.Query().Get("limit")); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 200 {
+				limit = 200
+			}
+		} else if l == "all" || l == "-1" {
+			limit = 0
+		}
+	} else if r.URL.Query().Get("all") == "1" {
+		limit = 0
+	}
+	beforeID := strings.TrimSpace(r.URL.Query().Get("before_id"))
+	if beforeID == "" {
+		beforeID = strings.TrimSpace(r.URL.Query().Get("before"))
+	}
+
+	hasMore := false
+	if limit > 0 && len(messages) > limit {
+		if beforeID != "" {
+			idx := -1
+			for i, m := range messages {
+				if m.UUID == beforeID || strconv.FormatInt(m.ID, 10) == beforeID {
+					idx = i
+					break
+				}
+			}
+			if idx > 0 {
+				start := idx - limit
+				if start < 0 {
+					start = 0
+				}
+				hasMore = start > 0
+				messages = messages[start:idx]
+			} else {
+				hasMore = false
+				messages = []ChatMessageDTO{}
+			}
+		} else {
+			hasMore = len(messages) > limit
+			messages = messages[len(messages)-limit:]
+		}
+	}
+
+	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID)
+	if err != nil {
+		respondJSONError(w, 503, "Could not read conversation tasks")
+		return
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"tasks":           linked,
+		"requests":        inboxRecoveryRequests(requests),
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,
 		"contact":         contact,
 		"messages":        messages,
+		"has_more":        hasMore,
 	})
 }
 
 // POST /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r *http.Request) {
-	convID := chi.URLParam(r, "id")
-	if convID == "" {
-		respondJSONError(w, http.StatusBadRequest, "conversation id is required")
+	ownerID := s.accountOwner(w, r)
+	if ownerID == "" {
 		return
 	}
-
 	var payload struct {
-		Message    string `json:"message"`
-		Content    string `json:"content"`
-		AuthorType string `json:"author_type"`
-		AuthorName string `json:"author_name"`
+		AttachmentIDs    []string `json:"attachment_ids"`
+		AuthorType       string   `json:"author_type"`
+		AuthorName       string   `json:"author_name"`
+		Message          string   `json:"message"`
+		Content          string   `json:"content"`
+		RequestID        string   `json:"request_id"`
+		ApproveMessageID string   `json:"approve_message_id"`
+		PlanAction       string   `json:"plan_action"`
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload) != nil {
+		respondJSONError(w, 400, "Invalid request")
 		return
 	}
-
+	if payload.PlanAction != "" && payload.PlanAction != "approve" && payload.PlanAction != "defer" {
+		respondJSONError(w, 400, "Unknown plan action")
+		return
+	}
+	if payload.PlanAction != "" && payload.ApproveMessageID == "" {
+		respondJSONError(w, 400, "Choose a plan for this action")
+		return
+	}
 	text := strings.TrimSpace(payload.Message)
 	if text == "" {
 		text = strings.TrimSpace(payload.Content)
 	}
-	if text == "" {
-		respondJSONError(w, http.StatusBadRequest, "message cannot be empty")
+	if text == "" && len(payload.AttachmentIDs) == 0 {
+		respondJSONError(w, 400, "Message cannot be empty")
 		return
 	}
-
-	resolved := s.resolveConversationContext(r.Context(), convID, text)
-
-	now := time.Now().UTC()
-	msgUUID := db.GenerateUUID()
-
-	authorType := strings.TrimSpace(payload.AuthorType)
-	if authorType == "" {
-		authorType = "user"
+	if len([]rune(text)) > 6000 || strings.HasPrefix(text, attachmentEnvelope) {
+		respondJSONError(w, 400, "Use a message up to 6000 characters")
+		return
 	}
-	authorName := strings.TrimSpace(payload.AuthorName)
-	if authorName == "" {
-		authorName = "Buchin"
+	if err := validateAttachmentIDs(ownerID, payload.AttachmentIDs); err != nil {
+		respondJSONError(w, 400, err.Error())
+		return
 	}
-
-	// Save the user message to the resolved room
-	if s.projectStudioRepo != nil {
-		if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-			ID:         msgUUID,
-			RoomID:     resolved.RoomID,
-			AuthorType: authorType,
-			AuthorID:   "operator_user",
-			AuthorName: authorName,
-			Content:    text,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}); err != nil {
-			respondJSONError(w, http.StatusInternalServerError, "Failed to save user message")
+	text = encodeAttachmentMessage(text, payload.AttachmentIDs)
+	legacy := payload.RequestID == ""
+	if legacy {
+		payload.RequestID = db.GenerateUUID()
+	}
+	if !db.IsValidUUID(payload.RequestID) {
+		respondJSONError(w, 400, "request_id must be a UUID")
+		return
+	}
+	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
+	if !ok {
+		respondJSONError(w, 503, "Inbox storage is not ready")
+		return
+	}
+	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
+	if len(payload.AttachmentIDs) > 0 && !resolved.IsAgent {
+		respondJSONError(w, 400, "Attachments are currently supported in agent conversations")
+		return
+	}
+	if payload.ApproveMessageID == "" && resolved.IsAgent && len(payload.AttachmentIDs) == 0 {
+		payload.ApproveMessageID = s.conversationalApprovalID(r.Context(), resolved.RoomID, text)
+	}
+	if payload.ApproveMessageID != "" {
+		if !resolved.IsAgent || len(payload.AttachmentIDs) > 0 {
+			respondJSONError(w, 400, "Approve a plan in an agent conversation without new attachments")
 			return
 		}
-	}
-
-	var agentMsgDTO *ChatMessageDTO
-
-	if resolved.IsAgent {
-		role := ClassifyMessageContext(text)
-
-		// Contextual response based on dynamic persona (Scrum Master, Developer, or Friendly)
-		agentReplyText := s.executeAgentContextualResponse(r.Context(), resolved.TargetAgentName, resolved.TargetHarness, text, role)
-		if agentReplyText == "" {
-			respondJSON(w, http.StatusBadGateway, map[string]any{"error": "Provider unavailable or login expired. User message saved; no agent reply was generated.", "user_message_saved": true})
+		plan, err := s.persistedInboxPlan(r.Context(), resolved.RoomID, ownerID, resolved.TargetAgentID, payload.ApproveMessageID)
+		if err != nil {
+			respondJSONError(w, 409, err.Error())
 			return
 		}
-		agentUUID := db.GenerateUUID()
-		agentNow := now.Add(100 * time.Millisecond)
-
-		if s.projectStudioRepo != nil {
-			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-				ID:         agentUUID,
-				RoomID:     resolved.RoomID,
-				AuthorType: "agent",
-				AuthorID:   resolved.TargetAgentID,
-				AuthorName: resolved.TargetAgentName,
-				Content:    agentReplyText,
-				CreatedAt:  agentNow,
-				UpdatedAt:  agentNow,
-			}); err != nil {
-				respondJSONError(w, http.StatusInternalServerError, "Provider replied but saving the reply failed")
+		payload.RequestID = delegationMessageID("approve-plan:" + resolved.RoomID + ":" + plan.MessageID)
+		decisionText := "Approved: " + plan.Plan.Title
+		if payload.PlanAction == "defer" {
+			messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), resolved.RoomID)
+			if err != nil {
+				respondJSONError(w, 503, "Could not verify the plan status")
 				return
 			}
+			for _, m := range messages {
+				if m.AuthorType == "user" {
+					if decision := decodeApprovedInboxPlan(m.Content); decision != nil && decision.MessageID == plan.MessageID {
+						respondJSONError(w, 409, "This plan is already approved. Use its work controls to stop active execution.")
+						return
+					}
+				}
+			}
+
+			payload.RequestID = delegationMessageID("defer-plan:" + resolved.RoomID + ":" + plan.MessageID)
+			plan.Action = "defer"
+			decisionText = "Not now: " + plan.Plan.Title
 		}
-
-		agentMsgDTO = &ChatMessageDTO{
-			ID:         2,
-			UUID:       agentUUID,
-			RoomID:     resolved.RoomID,
-			SenderType: "operator",
-			AuthorType: "agent",
-			AuthorName: resolved.TargetAgentName,
-			Message:    agentReplyText,
-			Content:    agentReplyText,
-			CreatedAt:  agentNow,
+		raw, _ := json.Marshal(attachmentMessage{Text: decisionText, Approval: plan})
+		text = attachmentEnvelope + string(raw)
+	}
+	now := time.Now().UTC()
+	q := db.InboxRequest{RoomID: resolved.RoomID, RequestID: payload.RequestID, PayloadHash: fmt.Sprintf("%x", sha256.Sum256([]byte(text))), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: ownerID, AgentID: resolved.TargetAgentID, State: "queued", CreatedAt: now, Deadline: now.Add(24 * time.Hour)}
+	user := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", AuthorID: "operator_user", AuthorName: "Owner", Content: text, CreatedAt: now, UpdatedAt: now}
+	if !resolved.IsAgent {
+		if kind, e := db.NormalizeAuthorType(payload.AuthorType); e == nil {
+			user.AuthorType = kind
+		}
+		if name := strings.TrimSpace(payload.AuthorName); name != "" {
+			user.AuthorName = name
 		}
 	}
-	userDTO := ChatMessageDTO{
-		ID:         1,
-		UUID:       msgUUID,
-		RoomID:     resolved.RoomID,
-		SenderType: "visitor",
-		AuthorType: authorType,
-		AuthorName: authorName,
-		Message:    text,
-		Content:    text,
-		CreatedAt:  now,
+	q, fresh, err := store.AcceptInboxRequest(r.Context(), q, user)
+	if errors.Is(err, db.ErrInboxQueueFull) {
+		respondJSONError(w, 429, "Queue full (20 messages). Wait or cancel a queued message.")
+		return
 	}
-
-	resp := map[string]interface{}{
-		"message": userDTO,
+	if errors.Is(err, db.ErrInboxRequestConflict) {
+		respondJSONError(w, 409, "Request ID has already been used for a different message")
+		return
 	}
-	if agentMsgDTO != nil {
-		resp["agent_reply"] = agentMsgDTO
+	if err != nil {
+		respondJSONError(w, 503, "Message not accepted. Inbox storage is not ready. Try again using the same ID.")
+		return
 	}
-
-	respondJSON(w, http.StatusOK, resp)
+	if fresh {
+		s.nameAgentTopic(r.Context(), q.RoomID, text)
+		s.publishInbox(q.RoomID)
+		if legacy {
+			s.drainInboxRoom(q.RoomID)
+		} else {
+			s.kickInboxRoom(q.RoomID)
+		}
+	}
+	requests, err := store.ListInboxRequests(r.Context(), q.RoomID)
+	if err != nil {
+		respondJSONError(w, 503, "Message accepted. Refresh history to check the result. Do not create a new ID.")
+		return
+	}
+	for _, item := range requests {
+		if item.RequestID == q.RequestID {
+			q = item
+		}
+	}
+	messages := s.getFormattedMessages(r.Context(), q.RoomID, "")
+	response := map[string]any{"request": q}
+	for _, m := range messages {
+		if m.UUID == q.MessageID {
+			response["message"] = m
+		}
+		if m.UUID == q.ReplyID {
+			response["agent_reply"] = m
+		}
+	}
+	status := http.StatusOK
+	if q.State == "running" || q.State == "queued" {
+		status = http.StatusAccepted
+	}
+	if legacy && q.State == "failed" {
+		response["error"] = q.SafeError
+		response["user_message_saved"] = true
+		status = http.StatusBadGateway
+	}
+	respondJSON(w, status, response)
 }
 
 // ChatContextRole defines the dynamic contextual persona an agent adopts in chat.
@@ -1026,62 +1229,37 @@ func extractMentionHandle(msg string) string {
 
 // executeAgentContextualResponse returns only actual CLI output; an empty result means provider failure.
 // based on dynamic role (RoleScrumMaster, RoleDeveloper, RoleFriendly).
-func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole) string {
-	// Execute the real CLI in development, staging and production.
-	if s.cfg == nil || s.cfg.Environment != "testing" {
-		binName := "agy"
-		if harness == "claude" {
-			binName = "claude"
-		} else if harness == "codex" {
-			binName = "codex"
-		}
+func (s *Server) executeAgentContextualResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole, profileHomes ...string) string {
+	out, _ := s.executeAgentInboxResponse(ctx, agentName, harness, userPrompt, role, profileHomes...)
+	return out
+}
 
-		binPath, err := exec.LookPath(binName)
-		if err != nil && binName == "agy" {
-			candidate := "/home/dev/.local/bin/agy"
-			if _, statErr := os.Stat(candidate); statErr == nil {
-				binPath = candidate
-				err = nil
-			}
-		}
-
-		if err == nil && binPath != "" {
-			execCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
-			defer cancel()
-
-			var systemContext string
-			switch role {
-			case RoleScrumMaster:
-				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah sebagai Scrum Master yang memfasilitasi koordinasi sprint, evaluasi backlog, Definition of Done (DoD), dan alur kerja tim. Pengguna mengatakan: \"%s\". Berikan respon profesional terarah dalam Bahasa Indonesia.", agentName, userPrompt)
-			case RoleDeveloper:
-				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah sebagai Developer handal yang berfokus pada implementasi teknis, coding, arsitektur, debugging, dan unit testing. Pengguna mengatakan: \"%s\". Berikan respon teknis yang solutif dalam Bahasa Indonesia.", agentName, userPrompt)
-			default:
-				systemContext = fmt.Sprintf("Anda adalah %s di sistem Cuan. Dalam konteks ini, bertindaklah ramah dan natural sebagai rekan kerja tim. Pengguna mengatakan: \"%s\". Berikan respon sapaan hangat, natural, dan ringkas (1-2 kalimat) dalam Bahasa Indonesia tanpa template kaku.", agentName, userPrompt)
-			}
-
-			systemContext += " Jawab hanya dalam percakapan; jangan gunakan tools atau menjalankan perintah."
-			cmd := exec.CommandContext(execCtx, binPath, "-p", systemContext, "--print-timeout", "40s")
-			if binName == "agy" {
-				cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
-			}
-			var stdoutBuf, stderrBuf bytes.Buffer
-			cmd.Stdout = &stdoutBuf
-			cmd.Stderr = &stderrBuf
-
-			if cmdErr := cmd.Run(); cmdErr == nil {
-				out := strings.TrimSpace(stdoutBuf.String())
-				if out != "" {
-					if !strings.Contains(out, agentName) && !strings.Contains(out, "Antigravity") {
-						out = fmt.Sprintf("[%s] %s", agentName, out)
-					}
-					return out
-				}
-			}
-		}
+func (s *Server) executeAgentInboxResponse(ctx context.Context, agentName string, harness string, userPrompt string, role ChatContextRole, profileHomes ...string) (string, string) {
+	home, _ := os.UserHomeDir()
+	if len(profileHomes) > 0 && profileHomes[0] != "" {
+		home = profileHomes[0]
 	}
+	return s.executeInboxCLI(ctx, agentName, harness, userPrompt, home, "", nil)
+}
 
-	// Provider failure is reported by the caller; never fabricate a reply.
-	return ""
+func safeInboxProviderFailure(ctxErr error, raw string) string {
+	lower := strings.ToLower(raw)
+	if ctxErr != nil || strings.Contains(lower, "timeout") {
+		return "Provider timed out. Your message is saved, but the result is unknown. Refresh history. The request will not be rerun automatically."
+	}
+	if strings.Contains(lower, "user location is not supported for the api use") {
+		return "The provider rejected AI execution from this environment because of a location restriction. Google sign-in may still be saved. Your message is saved; signing in again will not resolve this restriction. No automatic retry was started."
+	}
+	if strings.Contains(lower, "quota") || strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") {
+		if dur, resetStr, ok := agent.ParseProviderQuotaResetDuration(raw); ok && dur > 0 {
+			return fmt.Sprintf("Provider quota is limited (Resets in %s). Your message is saved. Wait for the quota to reset; accounts will not be switched automatically.", resetStr)
+		}
+		return "Provider quota is limited. Your message is saved. Wait for the quota to reset; accounts will not be switched automatically."
+	}
+	if strings.Contains(lower, "unauthorized") || strings.Contains(lower, "login") || strings.Contains(lower, "401") || strings.Contains(lower, "invalid_grant") {
+		return "Check the provider's sign-in status. Your message is saved. Open the agent's status. The request will not be rerun automatically."
+	}
+	return "The provider could not reply. Your message is saved. Check the agent's status and refresh history. The request will not be rerun automatically."
 }
 
 // ============================================================================
@@ -1095,13 +1273,16 @@ func (s *Server) handleChatWidgetJS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 
-	// Try reading from web/public/chat/widget.js
+	// Production widget must come from the same atomic release as the SPA.
 	candidatePaths := []string{
 		filepath.Join("web", "public", "chat", "widget.js"),
 		filepath.Join("..", "..", "web", "public", "chat", "widget.js"),
-		"/opt/cuan/web/dist/chat/widget.js",
+		filepath.Join("web", "dist", "chat", "widget.js"),
 	}
 
+	if root := strings.TrimSpace(os.Getenv("CUAN_STATIC_DIR")); root != "" {
+		candidatePaths = append([]string{filepath.Join(root, "chat", "widget.js")}, candidatePaths...)
+	}
 	for _, p := range candidatePaths {
 		if data, err := os.ReadFile(p); err == nil && len(data) > 0 {
 			_, _ = w.Write(data)
@@ -1118,15 +1299,35 @@ func (s *Server) handleChatWidgetJS(w http.ResponseWriter, r *http.Request) {
 // ============================================================================
 
 func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string) []ChatMessageDTO {
+	messages, _ := s.getFormattedMessagesResult(ctx, roomID, product)
+	return messages
+}
+func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product string) ([]ChatMessageDTO, error) {
 	if s.projectStudioRepo == nil {
-		return []ChatMessageDTO{}
+		return []ChatMessageDTO{}, nil
 	}
 
 	rawMsgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, roomID)
-	if err != nil || len(rawMsgs) == 0 {
-		return []ChatMessageDTO{}
+	if err != nil {
+		return nil, err
+	}
+	if len(rawMsgs) == 0 {
+		return []ChatMessageDTO{}, nil
 	}
 
+	approved := map[string]bool{}
+	deferred := map[string]bool{}
+	for _, m := range rawMsgs {
+		if m.AuthorType == "user" {
+			if p := decodeInboxPlanDecision(m.Content); p != nil {
+				if p.Action == "defer" {
+					deferred[p.MessageID] = true
+				} else {
+					approved[p.MessageID] = true
+				}
+			}
+		}
+	}
 	dtos := make([]ChatMessageDTO, len(rawMsgs))
 	for i, m := range rawMsgs {
 		senderType := "visitor"
@@ -1135,39 +1336,62 @@ func (s *Server) getFormattedMessages(ctx context.Context, roomID string, produc
 		}
 
 		var actionCard *AgentActionCard
-		if m.AuthorType == "agent" && strings.Contains(m.Content, "Definition of Done (DoD)") {
-			// Extract DoD items
-			cardDoD := []db.DoDItem{
-				{Text: "Selesaikan instruksi spesifik", Completed: false},
-				{Text: "Lulus automated test & audit evidence", Completed: false},
+		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
+		content, approvalTitle := splitInboxApproval(m.AuthorType, content)
+		var approvalPlan *inboxApprovalPlan
+		approvalRequestID := ""
+		if m.AuthorType == "agent" {
+			approvalPlan = parseInboxApprovalPlan(m.Content)
+			if approvalPlan != nil {
+				approvalRequestID = delegationMessageID("approve-plan:" + roomID + ":" + m.ID)
 			}
-			actionCard = &AgentActionCard{
-				TaskTitle:      "Sprint Task: " + m.AuthorName,
-				DoDChecklist:   cardDoD,
-				WorkerAgent:    "antigravity-flash",
-				Recommended:    true,
-				ApproveURL:     fmt.Sprintf("/api/v1/inbox/%s/approve", roomID),
-				ExecutionState: "ready",
+		}
+		var attached []conversationAttachment
+		if m.AuthorType == "user" || m.AuthorType == "agent" {
+			var ids []string
+			content, ids = decodeAttachmentMessage(content)
+			for _, id := range ids {
+				// Owner-only APIs share the account context; files remain private.
+				a, _, err := loadAttachmentForMessage(ctx, s, roomID, m.ID, id)
+				if err == nil {
+					attached = append(attached, a)
+				}
 			}
+		}
+		if m.AuthorType == "system" && m.AuthorID == "cuan_work_review" {
+			content = "I’m checking the latest work update. " + strings.TrimPrefix(strings.SplitN(m.Content, "\n", 2)[0], "Review the result for ")
 		}
 
 		dtos[i] = ChatMessageDTO{
-			ID:              int64(i + 1), // Monotonic numeric ID for Dojo widget
-			UUID:            m.ID,
+			ID:                int64(i + 1), // Monotonic numeric ID for Dojo widget
+			UUID:              m.ID,
+			ApprovalRequestID: approvalRequestID,
+			ApprovalAccepted:  approved[m.ID],
+			PlanDeferred:      deferred[m.ID],
+			PlanDeferRequestID: func() string {
+				if approvalPlan != nil {
+					return delegationMessageID("defer-plan:" + roomID + ":" + m.ID)
+				}
+				return ""
+			}(),
 			ChatSessionUUID: roomID,
 			RoomID:          roomID,
 			SenderType:      senderType,
 			AuthorType:      m.AuthorType,
 			AuthorName:      m.AuthorName,
-			Message:         m.Content,
-			Content:         m.Content,
+			Message:         content,
+			Content:         content,
 			Product:         product,
 			ActionCard:      actionCard,
+			TaskDraft:       draft,
+			ApprovalTitle:   approvalTitle,
+			ApprovalPlan:    approvalPlan,
+			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
 		}
 	}
 
-	return dtos
+	return dtos, nil
 }
 
 // SMTriageResult holds distilled problem analysis and DoD.
@@ -1219,36 +1443,36 @@ func generateSMTriageResponse(userMessage string) SMTriageResult {
 
 	if strings.Contains(lowerPrompt, "bug") || strings.Contains(lowerPrompt, "error") || strings.Contains(lowerPrompt, "perbaiki") || strings.Contains(lowerPrompt, "fix") {
 		dodList = []db.DoDItem{
-			{Text: "Investigasi root cause & isolasi bug pada modul terkait", Completed: false},
-			{Text: "Implementasikan perbaikan bug & patch di repositori", Completed: false},
-			{Text: "Targeted automated test PASS & zero regression verifikasi", Completed: false},
+			{Text: "Investigate the root cause and isolate the affected module", Completed: false},
+			{Text: "Implement the bug fix in the repository", Completed: false},
+			{Text: "Targeted automated tests pass with no regressions", Completed: false},
 		}
 	} else if strings.Contains(lowerPrompt, "deploy") || strings.Contains(lowerPrompt, "vps") || strings.Contains(lowerPrompt, "rilis") || strings.Contains(lowerPrompt, "release") {
 		dodList = []db.DoDItem{
-			{Text: "Build frontend bundle & kompilasi binary produksi", Completed: false},
-			{Text: "Sinkronisasi ke /opt/cuan di VPS target & restart service", Completed: false},
-			{Text: "Public smoke test HTTP 200 OK & verifikasi live pass", Completed: false},
+			{Text: "Build the frontend bundle and production binary", Completed: false},
+			{Text: "Sync the release to the target server and restart the service", Completed: false},
+			{Text: "Public smoke test returns HTTP 200 and live verification passes", Completed: false},
 		}
 	} else {
 		dodList = []db.DoDItem{
-			{Text: "Rancang spesifikasi teknis & breakdown task di repositori", Completed: false},
-			{Text: "Implementasikan solusi fitur sesuai standar arsitektur", Completed: false},
+			{Text: "Write technical specifications and break down the repository tasks", Completed: false},
+			{Text: "Implement the feature using the project architecture", Completed: false},
 			{Text: "Targeted automated unit test PASS & audit evidence", Completed: false},
 		}
 	}
 
-	respText := fmt.Sprintf(`Halo Buchin! Saya telah menganalisis kebutuhan Anda:
+	respText := fmt.Sprintf(`Here is a proposed plan for your request:
 
 **Problem Statement:**
 %s
 
-**Rencana Eksekusi & Definition of Done (DoD):**
+**Execution plan & definition of done:**
 1. %s
 2. %s
 3. %s
 
-**Rekomendasi Worker Agent:** %s (Limit kuota mencukupi).
-Silakan klik tombol **Mulai Kerjakan** di bawah untuk memulai eksekusi sprint.`, title, dodList[0].Text, dodList[1].Text, dodList[2].Text, worker)
+**Recommended worker agent:** %s (check quota before starting).
+Select **Approve and start task** below to begin execution.`, title, dodList[0].Text, dodList[1].Text, dodList[2].Text, worker)
 
 	return SMTriageResult{
 		ProblemTitle: title,

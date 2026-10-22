@@ -1,0 +1,318 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "providerInvocations": 0,
+  "contactsDeferred": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "route": "inbox",
+      "nav": 200,
+      "main": 960,
+      "context": 280,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "tasks",
+      "nav": 200,
+      "main": 1240,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "projects",
+      "nav": 200,
+      "main": 1240,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "settings",
+      "nav": 200,
+      "main": 1240,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "settings/agents",
+      "nav": 200,
+      "main": 1240,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1280,
+      "route": "inbox",
+      "nav": 200,
+      "main": 800,
+      "context": 280,
+      "noOverflow": true
+    },
+    {
+      "width": 1280,
+      "route": "tasks",
+      "nav": 200,
+      "main": 1080,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1280,
+      "route": "projects",
+      "nav": 200,
+      "main": 1080,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1280,
+      "route": "settings",
+      "nav": 200,
+      "main": 1080,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1280,
+      "route": "settings/agents",
+      "nav": 200,
+      "main": 1080,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "inbox",
+      "nav": 64,
+      "main": 960,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "tasks",
+      "nav": 64,
+      "main": 960,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "projects",
+      "nav": 64,
+      "main": 960,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "settings",
+      "nav": 64,
+      "main": 960,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "settings/agents",
+      "nav": 64,
+      "main": 960,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "inbox",
+      "nav": 64,
+      "main": 756,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "tasks",
+      "nav": 64,
+      "main": 756,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "projects",
+      "nav": 64,
+      "main": 756,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "settings",
+      "nav": 64,
+      "main": 756,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "settings/agents",
+      "nav": 64,
+      "main": 756,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "inbox",
+      "nav": 64,
+      "main": 704,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "tasks",
+      "nav": 64,
+      "main": 704,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "projects",
+      "nav": 64,
+      "main": 704,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "settings",
+      "nav": 64,
+      "main": 704,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "settings/agents",
+      "nav": 64,
+      "main": 704,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "inbox",
+      "nav": 0,
+      "main": 390,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "tasks",
+      "nav": 0,
+      "main": 390,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "projects",
+      "nav": 0,
+      "main": 390,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "settings",
+      "nav": 0,
+      "main": 390,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "settings/agents",
+      "nav": 0,
+      "main": 390,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "inbox",
+      "nav": 0,
+      "main": 360,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "tasks",
+      "nav": 0,
+      "main": 360,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "projects",
+      "nav": 0,
+      "main": 360,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "settings",
+      "nav": 0,
+      "main": 360,
+      "context": 0,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "settings/agents",
+      "nav": 0,
+      "main": 360,
+      "context": 0,
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "legacy Team redirect",
+    "Settings→Agents without auth probes",
+    "project URL settings/reload",
+    "honest repository read-only details",
+    "archive/restore contract",
+    "project-scoped tasks",
+    "task modal focus/Escape/source return",
+    "mobile list/chat/return",
+    "factual agent status",
+    "16px message/composer and 48px send",
+    "closed drawer unmounted",
+    "native focus trap/Escape/backdrop/focus restore",
+    "drawer closes on breakpoint",
+    "navigation preference",
+    "dark persistence",
+    "contacts fetch failure and retry"
+  ],
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/v1/projects/p1/archive"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/projects/p1/unarchive"
+    }
+  ],
+  "unknown": [],
+  "errors": []
+}

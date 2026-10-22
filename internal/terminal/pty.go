@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	ErrPTYClosed       = errors.New("pty process is closed")
-	ErrInvalidWorkDir  = errors.New("invalid or insecure working directory")
-	ErrShellNotFound   = errors.New("shell executable not found")
+	ErrPTYClosed      = errors.New("pty process is closed")
+	ErrInvalidWorkDir = errors.New("invalid or insecure working directory")
+	ErrShellNotFound  = errors.New("shell executable not found")
 )
 
 // PTYConfig defines parameters for spawning an isolated pseudo-terminal process.
@@ -81,6 +81,12 @@ func FindShell(preferred string) string {
 // IsSensitiveKey returns true if an environment variable key is considered sensitive.
 func IsSensitiveKey(key string) bool {
 	upper := strings.ToUpper(key)
+	// Git author identity is human attribution, not an authentication secret.
+	switch upper {
+	case "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL":
+		return false
+	}
+
 	sensitivePatterns := []string{
 		"SECRET", "PASSWORD", "PASSWD", "TOKEN", "KEY", "CREDENTIAL",
 		"AUTH", "PRIVATE", "AWS_", "DOJO_", "DATABASE_URL", "RESEND",
@@ -189,6 +195,17 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 	cmd := exec.CommandContext(ctx, shellPath, cfg.Args...)
 	cmd.Dir = canonicalDir
 	cmd.Env = env
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		if err == syscall.ESRCH {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	cmd.WaitDelay = 3 * time.Second
 
 	ws := &pty.Winsize{
 		Cols: cols,

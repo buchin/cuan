@@ -1,20 +1,39 @@
 import { useState, useRef, useEffect } from 'react'
-import { Project, TaskPriority, TaskStatus, DoDItem } from '../../api/types'
-import { X, CheckSquare, AlertCircle, FolderGit2, Flag, CornerDownLeft } from 'lucide-react'
+import { X, AlertCircle } from 'lucide-react'
+import type { Project, CreateTaskRequest } from '../../api/types'
+import { agentsApi, type Agent } from '../../api/agents'
+import { trapDialogFocus } from '../../lib/dialog'
 
-interface CreateTaskModalProps {
+interface Props {
   isOpen: boolean
   projects: Project[]
   activeProjectId?: string
   onClose: () => void
-  onSubmit: (data: {
-    title: string
-    description?: string
-    project_ids?: string[]
-    priority: TaskPriority
-    status: TaskStatus
-    dod_checklist?: DoDItem[]
-  }) => Promise<void>
+  onSubmit: (data: CreateTaskRequest, startAgentId?: string) => Promise<void>
+}
+interface Draft {
+  prompt: string
+  project: string
+  agent: string
+  requestId: string
+}
+function readDraft(key: string, project: string): Draft {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(key) || 'null')
+    if (
+      d &&
+      typeof d.prompt === 'string' &&
+      typeof d.project === 'string' &&
+      typeof d.agent === 'string' &&
+      /^[0-9a-f-]{36}$/i.test(d.requestId)
+    )
+      return d
+  } catch {}
+  let agent = ''
+  try {
+    agent = localStorage.getItem('cuan-new-task-agent') || ''
+  } catch {}
+  return { prompt: '', project, agent, requestId: crypto.randomUUID() }
 }
 
 export function CreateTaskModal({
@@ -23,195 +42,289 @@ export function CreateTaskModal({
   activeProjectId,
   onClose,
   onSubmit,
-}: CreateTaskModalProps) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState<TaskPriority>('normal')
-  const [status] = useState<TaskStatus>('todo')
-  const [selectedProjectId, setSelectedProjectId] = useState(activeProjectId || (projects[0]?.id || ''))
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const titleInputRef = useRef<HTMLInputElement>(null)
-
-  // Reset and autofocus title whenever modal opens
+}: Props) {
+  const key = 'cuan-new-task:' + (activeProjectId || 'global')
+  const [draft, setDraft] = useState<Draft>(() =>
+      readDraft(key, activeProjectId || ''),
+    ),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState(''),
+    [agents, setAgents] = useState<Agent[]>([]),
+    [agentsError, setAgentsError] = useState(false),
+    [agentsLoading, setAgentsLoading] = useState(true)
+  const dialog = useRef<HTMLDialogElement>(null),
+    input = useRef<HTMLTextAreaElement>(null),
+    submitting = useRef(false),
+    mounted = useRef(false)
   useEffect(() => {
-    if (isOpen) {
-      setTitle('')
-      setDescription('')
-      setError(null)
-      setSelectedProjectId(activeProjectId || (projects[0]?.id || ''))
-      setPriority('normal')
-      setTimeout(() => {
-        titleInputRef.current?.focus()
-      }, 50)
-    }
-  }, [isOpen, activeProjectId, projects])
-
-  // Handle escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
-
-  const submitForm = async () => {
-    if (!title.trim() || loading) {
-      if (!title.trim()) setError('Judul task tidak boleh kosong')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
+    if (!isOpen) return
+    mounted.current = true
+    setLoading(false)
+    submitting.current = false
+    let preferredProject = activeProjectId || ''
     try {
-      await onSubmit({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        project_ids: selectedProjectId ? [selectedProjectId] : undefined,
-        priority,
-        status,
+      if (!preferredProject) {
+        const p = localStorage.getItem('cuan-new-task-project')
+        if (
+          projects.some((project) => project.id === p && !project.is_archived)
+        )
+          preferredProject = p || ''
+      }
+    } catch {}
+    setDraft(readDraft(key, preferredProject))
+    setError('')
+    setAgentsLoading(true)
+    let alive = true
+    agentsApi
+      .list()
+      .then((list) => {
+        if (alive) {
+          setAgents(list)
+          setAgentsError(false)
+          setAgentsLoading(false)
+          let preference: string | null = null
+          try {
+            preference = localStorage.getItem('cuan-new-task-agent')
+          } catch {}
+          setDraft((d) => {
+            if (
+              d.agent &&
+              list.some(
+                (a) =>
+                  a.id === d.agent &&
+                  a.enabled !== false &&
+                  a.status !== 'inactive',
+              )
+            )
+              return d
+            if (preference === '') return { ...d, agent: '' }
+            const available = list.filter(
+              (a) => a.enabled !== false && a.status !== 'inactive',
+            )
+            const selected =
+              available.find((a) => a.id === preference) ||
+              available.find((a) => a.connection_state === 'verified') ||
+              available[0]
+            const next = { ...d, agent: selected?.id || '' }
+            try {
+              sessionStorage.setItem(key, JSON.stringify(next))
+            } catch {}
+            return next
+          })
+        }
       })
-      onClose()
-    } catch (err: any) {
-      setError(err.message || 'Gagal membuat task')
-    } finally {
-      setLoading(false)
+      .catch(() => {
+        if (alive) {
+          setAgents([])
+          setAgentsError(true)
+          setAgentsLoading(false)
+          setDraft((d) => ({ ...d, agent: '' }))
+        }
+      })
+    const previous = document.activeElement as HTMLElement | null
+    dialog.current?.showModal()
+    input.current?.focus()
+    return () => {
+      mounted.current = false
+      alive = false
+      dialog.current?.close()
+      if (previous?.isConnected) previous.focus()
     }
+  }, [isOpen, key, activeProjectId])
+  const change = (patch: Partial<Draft>) =>
+    setDraft((d) => {
+      const next = { ...d, ...patch }
+      try {
+        if (patch.agent !== undefined)
+          localStorage.setItem('cuan-new-task-agent', patch.agent)
+        if (patch.project !== undefined)
+          localStorage.setItem('cuan-new-task-project', patch.project)
+        sessionStorage.setItem(key, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  const close = () => {
+    if (loading) return
+    if (draft.prompt.trim() && !window.confirm('Discard this task draft?'))
+      return
+    try {
+      sessionStorage.removeItem(key)
+    } catch {}
+    onClose()
   }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    submitForm()
-  }
-
+  if (!isOpen) return null
+  const eligible = agents.filter(
+    (a) => a.enabled !== false && a.status !== 'inactive',
+  )
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 select-none">
-      <div className="w-full max-w-lg bg-card border border-border shadow-2xl rounded-xl p-5 text-card-foreground animate-in fade-in-0 zoom-in-95 duration-150">
-        {/* Header: Minimal title & Close */}
-        <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
-          <div className="flex items-center gap-2">
-            <CheckSquare className="h-4 w-4 text-primary" />
-            <h2 className="text-xs font-bold tracking-tight text-foreground uppercase">
-              Tugas Baru (Quick Task)
-            </h2>
+    <dialog
+      ref={dialog}
+      aria-labelledby="create-task-heading"
+      onKeyDown={trapDialogFocus}
+      onCancel={(e) => {
+        e.preventDefault()
+        close()
+      }}
+      className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-xl overflow-y-auto rounded-2xl border bg-card p-4 text-card-foreground shadow-2xl backdrop:bg-black/50 sm:p-6"
+    >
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <h2 id="create-task-heading" className="text-lg font-semibold">
+          New task
+        </h2>
+        <button
+          type="button"
+          aria-label="Close task form"
+          className="icon-action -mr-1"
+          onClick={close}
+          disabled={loading}
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </header>
+      <label className="mb-4 flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Project</span>
+        <select
+          aria-label="Project"
+          className="min-h-11 min-w-0 max-w-[70%] rounded-md border border-input bg-background px-3 text-sm"
+          value={draft.project}
+          onChange={(e) => change({ project: e.target.value })}
+          disabled={loading}
+        >
+          <option value="">No project</option>
+          {draft.project && !projects.some((p) => p.id === draft.project) && (
+            <option value={draft.project}>Project unavailable</option>
+          )}
+          {projects
+            .filter((p) => !p.is_archived)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      {error && (
+        <p
+          role="alert"
+          className="mb-3 flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
+        </p>
+      )}
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault()
+          if (submitting.current || !draft.prompt.trim()) return
+          if (
+            draft.project &&
+            !projects.some((p) => p.id === draft.project && !p.is_archived)
+          ) {
+            setError('Choose an available project or No project.')
+            return
+          }
+          if (draft.agent && !eligible.some((a) => a.id === draft.agent)) {
+            setError('Choose an available agent or No agent.')
+            return
+          }
+          submitting.current = true
+          setLoading(true)
+          setError('')
+          try {
+            await onSubmit(
+              {
+                title: '',
+                description: draft.prompt.trim(),
+                project_ids: draft.project ? [draft.project] : undefined,
+                assignee_id: draft.agent,
+                status: 'backlog',
+                request_id: draft.requestId,
+              },
+              draft.agent || undefined,
+            )
+            try {
+              sessionStorage.removeItem(key)
+            } catch {}
+            onClose()
+          } catch (e) {
+            if (mounted.current)
+              setError(
+                e instanceof Error
+                  ? e.message
+                  : 'Could not create task. Your draft is retained; try again.',
+              )
+          } finally {
+            submitting.current = false
+            if (mounted.current) setLoading(false)
+          }
+        }}
+      >
+        <div className="overflow-hidden rounded-xl border bg-background focus-within:ring-2 focus-within:ring-ring">
+          <textarea
+            ref={input}
+            aria-label="Task instructions"
+            aria-describedby={agentsError ? 'new-task-help' : undefined}
+            placeholder="Describe your task…"
+            className="block min-h-32 w-full resize-y border-0 bg-transparent p-4 text-base leading-relaxed outline-none focus:ring-0 sm:text-[15px]"
+            data-primary-composer
+            rows={4}
+            required
+            maxLength={24000}
+            value={draft.prompt}
+            disabled={loading}
+            onChange={(e) => change({ prompt: e.target.value })}
+            onKeyDown={(e) => {
+              if (
+                !e.nativeEvent.isComposing &&
+                e.key === 'Enter' &&
+                (e.ctrlKey || e.metaKey)
+              ) {
+                e.preventDefault()
+                e.currentTarget.form?.requestSubmit()
+              }
+            }}
+          />
+          <div className="flex items-center justify-between gap-2 px-3 pb-3">
+            <label className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+              <span className="sr-only">Agent</span>
+              <select
+                aria-label="Agent"
+                className="min-h-11 min-w-0 max-w-[150px] rounded-md border border-input bg-card px-2 text-xs sm:max-w-[240px]"
+                value={draft.agent}
+                onChange={(e) => change({ agent: e.target.value })}
+                disabled={loading || agentsLoading}
+              >
+                <option value="">No agent</option>
+                {draft.agent && !eligible.some((a) => a.id === draft.agent) && (
+                  <option value={draft.agent}>Agent unavailable</option>
+                )}
+                {eligible.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              aria-label="Create task"
+              className="action-primary shrink-0"
+              disabled={loading || agentsLoading || !draft.prompt.trim()}
+            >
+              {loading ? 'Creating…' : 'Create'}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
-
-        {error && (
-          <div className="mb-3 p-2 bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2 rounded-md">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            <span>{error}</span>
-          </div>
+        {agentsError && (
+          <p
+            id="new-task-help"
+            role="status"
+            className="mt-3 text-xs text-muted-foreground"
+          >
+            Agents unavailable. You can still save this task.
+          </p>
         )}
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Title Input with autofocus & Enter shortcut */}
-          <div>
-            <input
-              ref={titleInputRef}
-              type="text"
-              autoFocus
-              required
-              placeholder="Apa yang ingin dikerjakan?..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  submitForm()
-                }
-              }}
-              className="w-full px-3.5 py-2.5 text-sm font-medium bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-lg shadow-2xs"
-            />
-          </div>
-
-          {/* Description Textarea (Optional, Ctrl+Enter to submit) */}
-          <div>
-            <textarea
-              rows={3}
-              placeholder="Deskripsi atau instruksi tambahan (opsional)..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault()
-                  submitForm()
-                }
-              }}
-              className="w-full px-3.5 py-2 text-xs bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-lg resize-none leading-relaxed"
-            />
-          </div>
-
-          {/* Sub-panel Controls: Project dropdown & Priority */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border">
-            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              {/* Project selector */}
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <FolderGit2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => setSelectedProjectId(e.target.value)}
-                  className="w-full px-2 py-1 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-md truncate cursor-pointer"
-                >
-                  <option value="">(Global / Tanpa Project)</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Priority selector */}
-              <div className="flex items-center gap-1 shrink-0">
-                <Flag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                  className="px-2 py-1 text-xs bg-background border border-input text-foreground focus:outline-none focus:ring-1 focus:ring-ring rounded-md cursor-pointer"
-                >
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 ml-auto shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !title.trim()}
-                className="px-3.5 py-1.5 bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-all disabled:opacity-50 rounded-md flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <span>{loading ? 'Menyimpan...' : 'Buat Tugas'}</span>
-                <CornerDownLeft className="h-3 w-3 opacity-70" />
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </dialog>
   )
 }

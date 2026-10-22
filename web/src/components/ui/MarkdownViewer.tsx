@@ -8,7 +8,18 @@ interface MarkdownViewerProps {
 }
 
 interface Block {
-  type: 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'code' | 'quote' | 'ul' | 'ol' | 'hr' | 'table'
+  type:
+    | 'h1'
+    | 'h2'
+    | 'h3'
+    | 'h4'
+    | 'p'
+    | 'code'
+    | 'quote'
+    | 'ul'
+    | 'ol'
+    | 'hr'
+    | 'table'
   text?: string
   lang?: string
   items?: string[]
@@ -16,7 +27,11 @@ interface Block {
   rows?: string[][]
 }
 
-export function MarkdownViewer({ content, className = '', showCopyButton = true }: MarkdownViewerProps) {
+export function MarkdownViewer({
+  content,
+  className = '',
+  showCopyButton = true,
+}: MarkdownViewerProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -62,7 +77,11 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
 
   const flushTable = () => {
     if (inTable) {
-      blocks.push({ type: 'table', headers: [...tableHeaders], rows: [...tableRows] })
+      blocks.push({
+        type: 'table',
+        headers: [...tableHeaders],
+        rows: [...tableRows],
+      })
       tableHeaders = []
       tableRows = []
       inTable = false
@@ -76,7 +95,11 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
     // Code blocks toggle
     if (trimmed.startsWith('```')) {
       if (inCodeBlock) {
-        blocks.push({ type: 'code', text: codeBuffer.join('\n'), lang: codeLang })
+        blocks.push({
+          type: 'code',
+          text: codeBuffer.join('\n'),
+          lang: codeLang,
+        })
         codeBuffer = []
         codeLang = ''
         inCodeBlock = false
@@ -174,7 +197,11 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
     if (str.startsWith('[ ] ')) {
       return (
         <span className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-          <input type="checkbox" disabled className="rounded text-emerald-600 h-3.5 w-3.5 mt-0.5" />
+          <input
+            type="checkbox"
+            disabled
+            className="rounded text-emerald-600 h-3.5 w-3.5 mt-0.5"
+          />
           <span>{renderInline(str.slice(4))}</span>
         </span>
       )
@@ -182,7 +209,12 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
     if (str.startsWith('[x] ') || str.startsWith('[X] ')) {
       return (
         <span className="flex items-center gap-2 text-slate-400 line-through">
-          <input type="checkbox" checked disabled className="rounded text-emerald-600 h-3.5 w-3.5 mt-0.5" />
+          <input
+            type="checkbox"
+            checked
+            disabled
+            className="rounded text-emerald-600 h-3.5 w-3.5 mt-0.5"
+          />
           <span>{renderInline(str.slice(4))}</span>
         </span>
       )
@@ -211,7 +243,10 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
       // Bold
       if (part.startsWith('**') && part.endsWith('**') && part.length > 3) {
         return (
-          <strong key={pIdx} className="font-bold text-slate-900 dark:text-white">
+          <strong
+            key={pIdx}
+            className="font-bold text-slate-900 dark:text-white"
+          >
             {part.slice(2, -2)}
           </strong>
         )
@@ -247,24 +282,28 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
   }
 
   return (
-    <div className={`space-y-4 text-xs leading-relaxed text-slate-800 dark:text-slate-200 ${className}`}>
+    <div
+      className={`space-y-4 text-xs leading-relaxed text-slate-800 dark:text-slate-200 ${className}`}
+    >
       {showCopyButton && (
         <div className="flex justify-end mb-2">
           <button
             type="button"
             onClick={handleCopy}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors shadow-xs"
-            title="Salin seluruh draf konten ke clipboard"
+            title="Copy the entire content draft"
           >
             {copied ? (
               <>
                 <Check className="h-3.5 w-3.5 text-emerald-500" />
-                <span className="text-emerald-600 dark:text-emerald-400">Tersalin ke Clipboard!</span>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  Copied to clipboard!
+                </span>
               </>
             ) : (
               <>
                 <Copy className="h-3.5 w-3.5 text-slate-500" />
-                <span>Salin Draf Konten</span>
+                <span>Copy content draft</span>
               </>
             )}
           </button>
@@ -274,42 +313,60 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
       {blocks.map((block, idx) => {
         if (block.type === 'h1') {
           return (
-            <h1 key={idx} className="text-lg sm:text-xl font-black text-slate-900 dark:text-white pt-3 pb-1 border-b border-slate-200 dark:border-slate-800">
+            <h1
+              key={idx}
+              className="text-lg sm:text-xl font-black text-slate-900 dark:text-white pt-3 pb-1 border-b border-slate-200 dark:border-slate-800"
+            >
               {block.text}
             </h1>
           )
         }
         if (block.type === 'h2') {
           return (
-            <h2 key={idx} className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white pt-2.5 pb-0.5 border-b border-slate-100 dark:border-slate-800/60">
+            <h2
+              key={idx}
+              className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white pt-2.5 pb-0.5 border-b border-slate-100 dark:border-slate-800/60"
+            >
               {block.text}
             </h2>
           )
         }
         if (block.type === 'h3') {
           return (
-            <h3 key={idx} className="text-sm sm:text-base font-bold text-slate-900 dark:text-white pt-2">
+            <h3
+              key={idx}
+              className="text-sm sm:text-base font-bold text-slate-900 dark:text-white pt-2"
+            >
               {block.text}
             </h3>
           )
         }
         if (block.type === 'h4') {
           return (
-            <h4 key={idx} className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 pt-1">
+            <h4
+              key={idx}
+              className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 pt-1"
+            >
               {block.text}
             </h4>
           )
         }
         if (block.type === 'quote') {
           return (
-            <blockquote key={idx} className="border-l-4 border-emerald-500 pl-3.5 py-1.5 my-2 italic bg-slate-50/80 dark:bg-slate-900/60 rounded-r-lg text-slate-700 dark:text-slate-300">
+            <blockquote
+              key={idx}
+              className="border-l-4 border-emerald-500 pl-3.5 py-1.5 my-2 italic bg-slate-50/80 dark:bg-slate-900/60 rounded-r-lg text-slate-700 dark:text-slate-300"
+            >
               {renderInline(block.text || '')}
             </blockquote>
           )
         }
         if (block.type === 'ul') {
           return (
-            <ul key={idx} className="space-y-1.5 pl-4 list-disc marker:text-emerald-500 my-2">
+            <ul
+              key={idx}
+              className="space-y-1.5 pl-4 list-disc marker:text-emerald-500 my-2"
+            >
               {block.items?.map((item, itemIdx) => (
                 <li key={itemIdx} className="leading-relaxed">
                   {renderInline(item)}
@@ -320,7 +377,10 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
         }
         if (block.type === 'ol') {
           return (
-            <ol key={idx} className="space-y-1.5 pl-4 list-decimal marker:text-emerald-500 marker:font-semibold my-2">
+            <ol
+              key={idx}
+              className="space-y-1.5 pl-4 list-decimal marker:text-emerald-500 marker:font-semibold my-2"
+            >
               {block.items?.map((item, itemIdx) => (
                 <li key={itemIdx} className="leading-relaxed">
                   {renderInline(item)}
@@ -330,17 +390,28 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
           )
         }
         if (block.type === 'hr') {
-          return <hr key={idx} className="my-4 border-slate-200 dark:border-slate-800" />
+          return (
+            <hr
+              key={idx}
+              className="my-4 border-slate-200 dark:border-slate-800"
+            />
+          )
         }
         if (block.type === 'table') {
           return (
-            <div key={idx} className="my-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+            <div
+              key={idx}
+              className="my-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800"
+            >
               <table className="w-full text-left text-xs border-collapse">
                 {block.headers && block.headers.length > 0 && (
                   <thead className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       {block.headers.map((h, hIdx) => (
-                        <th key={hIdx} className="py-2 px-3 font-bold text-slate-800 dark:text-slate-200">
+                        <th
+                          key={hIdx}
+                          className="py-2 px-3 font-bold text-slate-800 dark:text-slate-200"
+                        >
                           {renderInline(h)}
                         </th>
                       ))}
@@ -349,9 +420,15 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
                 )}
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-950">
                   {block.rows?.map((row, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                    <tr
+                      key={rIdx}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-900/50"
+                    >
                       {row.map((cell, cIdx) => (
-                        <td key={cIdx} className="py-2 px-3 text-slate-700 dark:text-slate-300">
+                        <td
+                          key={cIdx}
+                          className="py-2 px-3 text-slate-700 dark:text-slate-300"
+                        >
                           {renderInline(cell)}
                         </td>
                       ))}
@@ -364,7 +441,10 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
         }
         if (block.type === 'code') {
           return (
-            <div key={idx} className="my-3 rounded-xl overflow-hidden border border-slate-700/80 bg-slate-950 shadow-md">
+            <div
+              key={idx}
+              className="my-3 rounded-xl overflow-hidden border border-slate-700/80 bg-slate-950 shadow-md"
+            >
               <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-900/90 border-b border-slate-800 text-[11px] font-mono text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5 text-emerald-400" />
@@ -376,10 +456,10 @@ export function MarkdownViewer({ content, className = '', showCopyButton = true 
                     navigator.clipboard.writeText(block.text || '')
                   }}
                   className="hover:text-white transition-colors flex items-center gap-1"
-                  title="Salin cuplikan kode"
+                  title="Copy code"
                 >
                   <Copy className="h-3 w-3" />
-                  <span>Salin</span>
+                  <span>Copy</span>
                 </button>
               </div>
               <pre className="p-3.5 overflow-x-auto text-emerald-400 font-mono text-[11px] leading-relaxed">

@@ -1,0 +1,28 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "checks": [
+    {
+      "width": 360,
+      "fieldHeight": 144,
+      "ctaBottom": 456.75
+    },
+    {
+      "width": 390,
+      "fieldHeight": 144,
+      "ctaBottom": 456.75
+    },
+    {
+      "width": 820,
+      "fieldHeight": 176,
+      "ctaBottom": 616.375
+    },
+    {
+      "width": 1440,
+      "fieldHeight": 176,
+      "ctaBottom": 616.375
+    }
+  ],
+  "providerCalls": 0,
+  "goalSubmissions": 0,
+  "errors": []
+}

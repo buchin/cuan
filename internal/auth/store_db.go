@@ -45,11 +45,29 @@ func (s *DBStore) CreateOwner(ctx context.Context, owner *Owner) error {
 	}
 	owner.Username = username
 
+	// First-owner setup may race across browsers or server processes. Serialize
+	// creation in PostgreSQL, then check within the same transaction.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin owner setup: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, "LOCK TABLE owners IN SHARE ROW EXCLUSIVE MODE"); err != nil {
+		return fmt.Errorf("lock owner setup: %w", err)
+	}
+	var exists bool
+	if err = tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM owners)").Scan(&exists); err != nil {
+		return fmt.Errorf("check owner setup: %w", err)
+	}
+	if exists {
+		return ErrSetupAlreadyCompleted
+	}
+
 	query := `
 		INSERT INTO owners (id, email, username, password_hash, is_setup, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := s.db.ExecContext(ctx, query,
+	_, err = tx.ExecContext(ctx, query,
 		owner.ID,
 		owner.Email,
 		owner.Username,
@@ -61,7 +79,7 @@ func (s *DBStore) CreateOwner(ctx context.Context, owner *Owner) error {
 	if err != nil {
 		return fmt.Errorf("create owner: %w", err)
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *DBStore) GetOwner(ctx context.Context) (*Owner, error) {
@@ -178,4 +196,16 @@ func (s *DBStore) DeleteExpiredSessions(ctx context.Context) error {
 		return fmt.Errorf("delete expired sessions: %w", err)
 	}
 	return nil
+}
+
+func (s *DBStore) UpdateOwnerUsername(ctx context.Context, id, name string) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE owners SET username=$2,updated_at=$3 WHERE id=$1`, id, name, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("update username: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err == nil && rows == 0 {
+		return ErrOwnerNotFound
+	}
+	return err
 }

@@ -1,0 +1,176 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "scan": [
+    {
+      "width": 1440,
+      "route": "/contacts",
+      "overflow": false,
+      "headings": [
+        "Contacts"
+      ]
+    },
+    {
+      "width": 1440,
+      "route": "/tasks",
+      "overflow": false,
+      "headings": [
+        "Tasks"
+      ]
+    },
+    {
+      "width": 1440,
+      "route": "/projects",
+      "overflow": false,
+      "headings": [
+        "Projects"
+      ]
+    },
+    {
+      "width": 1440,
+      "route": "/settings",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 1440,
+      "route": "/settings/agents",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 1440,
+      "route": "/settings/integrations",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 1440,
+      "route": "/settings/appearance",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 820,
+      "route": "/contacts",
+      "overflow": false,
+      "headings": [
+        "Contacts"
+      ]
+    },
+    {
+      "width": 820,
+      "route": "/tasks",
+      "overflow": false,
+      "headings": [
+        "Tasks"
+      ]
+    },
+    {
+      "width": 820,
+      "route": "/projects",
+      "overflow": false,
+      "headings": [
+        "Projects"
+      ]
+    },
+    {
+      "width": 820,
+      "route": "/settings",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 820,
+      "route": "/settings/agents",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 820,
+      "route": "/settings/integrations",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 820,
+      "route": "/settings/appearance",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 390,
+      "route": "/contacts",
+      "overflow": false,
+      "headings": [
+        "Contacts"
+      ]
+    },
+    {
+      "width": 390,
+      "route": "/tasks",
+      "overflow": false,
+      "headings": [
+        "Tasks"
+      ]
+    },
+    {
+      "width": 390,
+      "route": "/projects",
+      "overflow": false,
+      "headings": [
+        "Projects"
+      ]
+    },
+    {
+      "width": 390,
+      "route": "/settings",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 390,
+      "route": "/settings/agents",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 390,
+      "route": "/settings/integrations",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    },
+    {
+      "width": 390,
+      "route": "/settings/appearance",
+      "overflow": false,
+      "headings": [
+        "Settings"
+      ]
+    }
+  ],
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "errors": []
+}

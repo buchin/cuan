@@ -1,0 +1,21 @@
+{
+  "release": "a882d239b057023018e792dfd0737b351e678235",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "newMigration": false,
+  "layers": [
+    "compact status summary",
+    "recorded process timeline/error",
+    "nested technical diagnostics and copy"
+  ],
+  "productionViewportChecks": 4,
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "originalRequestUnchanged": true,
+  "limits": [
+    "Only actual application trace events; detailed AGY tool-call tracing not implemented",
+    "Missing historical metadata is explicitly unavailable",
+    "No automatic retry or replay",
+    "Chromium viewport emulation, existing CSS/chunk warnings"
+  ]
+}

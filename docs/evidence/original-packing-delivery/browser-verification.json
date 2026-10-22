@@ -1,0 +1,19 @@
+{
+  "downloadedFromRealInbox": true,
+  "checks": {
+    "addButton": true,
+    "addEnter": true,
+    "markPacked": true,
+    "removeItem": true,
+    "reloadPreservesItemsAndPacked": true,
+    "clearAllPersists": true,
+    "noNetworkRequests": true,
+    "noPageErrors": true,
+    "noOverflowAt": [
+      390,
+      820,
+      1440
+    ]
+  },
+  "result": "PASS"
+}

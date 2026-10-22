@@ -1,0 +1,34 @@
+{
+  "count": 2,
+  "history": [
+    {
+      "id": "pty_b6600dde41e8fda9",
+      "task_id": "s26-2-isolation-check",
+      "session_id": "pty_c17a15d46390fff4",
+      "agent_id": "agent_pin2",
+      "agent_name": "@pin2",
+      "command": "agy",
+      "exit_code": 0,
+      "status": "completed",
+      "started_at": "2026-10-19T02:36:05.429742938Z",
+      "finished_at": "2026-10-19T02:36:12.595764133Z",
+      "duration_ms": 7166
+    },
+    {
+      "id": "pty_79bf60a5c6bad1d8",
+      "task_id": "s26-2-isolation-check",
+      "session_id": "pty_ee8b8ef79f13904f",
+      "agent_id": "agent_pin2",
+      "agent_name": "@pin2",
+      "command": "agy",
+      "exit_code": 0,
+      "status": "completed",
+      "started_at": "2026-10-19T02:36:53.722006587Z",
+      "finished_at": "2026-10-19T02:37:00.592531273Z",
+      "duration_ms": 6870
+    }
+  ],
+  "task_id": "s26-2-isolation-check",
+  "fixture": false,
+  "limits": "Actual registered pin2 AGY task PTYs, exit 0. No provider reply content or live child HOME observed; cross-profile HOME selection is proven by explicitly labeled child/PTY fixture tests. Separate sandbox exec /proc probes found no matching process and do not count as runtime proof."
+}

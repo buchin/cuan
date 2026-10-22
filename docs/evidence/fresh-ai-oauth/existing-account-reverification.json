@@ -1,0 +1,10 @@
+{
+  "accountId": "acct_c033fb0ffc63fbd90105b1c88c52a06a",
+  "state": "verified",
+  "credentialsPresent": true,
+  "verifiedAt": "2026-10-21T02:51:48.227260839Z",
+  "lastCheckedAt": "2026-10-21T02:51:48.227260839Z",
+  "message": "Provider connection verified using claude-sonnet-4-6",
+  "source": "dedicated staging Cuan verification API",
+  "productionRequestsReplayed": false
+}

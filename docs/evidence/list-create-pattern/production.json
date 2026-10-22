@@ -1,0 +1,61 @@
+{
+  "release": "9fecf67",
+  "checks": [
+    {
+      "width": 390,
+      "path": "projects",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 390,
+      "path": "contacts",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 390,
+      "path": "inbox",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 820,
+      "path": "projects",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 820,
+      "path": "contacts",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 820,
+      "path": "inbox",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 1440,
+      "path": "projects",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 1440,
+      "path": "contacts",
+      "actionCount": 1,
+      "actionWorks": true
+    },
+    {
+      "width": 1440,
+      "path": "inbox",
+      "actionCount": 1,
+      "actionWorks": true
+    }
+  ],
+  "productionInference": false,
+  "postLoginWritesBlocked": true
+}

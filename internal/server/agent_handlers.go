@@ -50,7 +50,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 	agents, err := s.agentRepo.ListAgents(r.Context(), filter)
 	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "failed to list agents: "+err.Error())
+		respondJSONError(w, http.StatusInternalServerError, "Agent list is unavailable. Try again later")
 		return
 	}
 
@@ -59,9 +59,44 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 		total = len(agents)
 	}
 
-	dtos := make([]db.AgentDTO, len(agents))
+	type rosterAgent struct {
+		db.AgentDTO
+		ConnectionState string     `json:"connection_state"`
+		LastCheckedAt   *time.Time `json:"last_checked_at,omitempty"`
+		VerifiedAt      *time.Time `json:"verified_at,omitempty"`
+	}
+	dtos := make([]rosterAgent, len(agents))
+	ownerID := ""
+	if s.authSvc != nil {
+		if owner, err := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); err == nil {
+			ownerID = owner.ID
+		}
+	}
 	for i, a := range agents {
-		dtos[i] = a.ToDTO()
+		status := agent.LegacyConnectionVerification(ownerID, a.ID, a.ConnectionID)
+		state := status.State
+		checkedAt, verifiedAt := status.LastCheckedAt, status.VerifiedAt
+		if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
+			state = "login_required"
+			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID); err == nil && conn.UserID == ownerID {
+				_, bindingErr := s.agentProfileHome(r.Context(), &a)
+				if profile, err := agent.ProviderAccountForConnection(ownerID, a.ID, conn.ID); err == nil && bindingErr == nil {
+					state = profile.State
+					checkedAt, verifiedAt = profile.LastCheckedAt, profile.VerifiedAt
+					if state == "quota_limited" {
+						if profiles, err := agent.ListProviderAccounts(ownerID); err == nil {
+							for _, p := range profiles {
+								if p.ID != conn.ID && p.AllowFailover && p.CredentialsPresent && p.State != "quota_limited" && p.State != "login_required" && p.State != "unavailable" {
+									state = "verified"
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		dtos[i] = rosterAgent{AgentDTO: a.ToDTO(), ConnectionState: state, LastCheckedAt: checkedAt, VerifiedAt: verifiedAt}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -92,14 +127,12 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if input.Harness == "agy" {
+	if input.Harness == "agy" || input.Provider == "agy" || input.Provider == "antigravity" {
 		if !s.requireOAuthOwner(w, r) {
 			return
 		}
-		if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
-			respondJSONError(w, http.StatusConflict, err.Error())
-			return
-		}
+		respondJSONError(w, http.StatusConflict, "Use Add agent to connect this agent account")
+		return
 	}
 	entity, err := input.ToEntity()
 	if err != nil {
@@ -130,16 +163,16 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	var encryptedCred string
 
-	planHint := "Sesi Host Server (Tanpa API Key)"
+	planHint := "Host server session (no API key)"
 	switch entity.Harness {
 	case "agy":
-		planHint = "Sesi Antigravity CLI"
+		planHint = "Antigravity CLI session"
 	case "claude":
-		planHint = "Sesi Claude CLI"
+		planHint = "Claude CLI session"
 	case "codex":
-		planHint = "Sesi Codex CLI"
+		planHint = "Codex CLI session"
 	case "custom":
-		planHint = "Sesi Custom Model"
+		planHint = "Custom model session"
 	}
 
 	conn := &db.AgentConnection{
@@ -182,7 +215,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 				AuthorType: "agent",
 				AuthorID:   entity.ID,
 				AuthorName: entity.Name,
-				Content:    fmt.Sprintf("Halo Buchin! Saya %s. Sesi agen telah terhubung via UI (%s). Saya siap menerima instruksi.", entity.Name, entity.Harness),
+				Content:    fmt.Sprintf("Hello! I am %s. My agent session is connected through the UI (%s) and ready for instructions.", entity.Name, entity.Harness),
 				CreatedAt:  now,
 				UpdatedAt:  now,
 			})
@@ -473,7 +506,7 @@ func (s *Server) handleCreateAgentConnection(w http.ResponseWriter, r *http.Requ
 			rawSecret = "cuan_cli_session_" + db.GenerateUUID()
 		}
 		if req.PlanHint == "" {
-			req.PlanHint = "Sesi Host Server (Tanpa API Key)"
+			req.PlanHint = "Host server session (no API key)"
 		}
 	}
 
@@ -748,6 +781,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		SystemPrompt string `json:"system_prompt"`
 		AuthType     string `json:"auth_type"`
 		SessionToken string `json:"session_token"`
+		AccountID    string `json:"account_id"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -774,9 +808,17 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		provider = "antigravity"
 	}
 
+	ownerID := "default"
+	var profile *agent.ProviderAccount
 	if provider == "agy" || provider == "antigravity" {
-		if err := agent.VerifyAntigravityConnection(r.Context()); err != nil {
-			respondJSONError(w, http.StatusConflict, err.Error())
+		ownerID = s.accountOwner(w, r)
+		if ownerID == "" {
+			return
+		}
+		var err error
+		profile, err = agent.GetProviderAccount(ownerID, req.AccountID)
+		if err != nil || profile.Legacy || !profile.CredentialsPresent {
+			respondJSONError(w, http.StatusConflict, "Complete Google sign-in for this agent first")
 			return
 		}
 	}
@@ -805,7 +847,11 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	cleanHandle := strings.TrimPrefix(handle, "@")
 	cleanHandle = strings.ReplaceAll(cleanHandle, "-", "_")
 	agentID := "agent_" + cleanHandle
-	connID := "conn_" + agentID
+	// A deleted persona may leave a retained connection/history. Do not reuse its ID.
+	connID := "conn_" + db.GenerateUUID()
+	if profile != nil {
+		connID = "conn_profile_" + db.GenerateUUID()
+	}
 	// The existing 19-migration schema persists the CLI connection link in model_id.
 	// The CLI itself selects its configured provider model.
 	if provider == "agy" || provider == "antigravity" {
@@ -815,9 +861,44 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	if name != handle {
 		agentDisplayName = fmt.Sprintf("%s (%s)", name, handle)
 	}
-	if _, err := s.agentRepo.GetAgentByID(r.Context(), agentID); err == nil {
-		respondJSONError(w, http.StatusConflict, "Nama agen sudah digunakan. Pilih nama lain.")
+	if existing, err := s.agentRepo.GetAgentByID(r.Context(), agentID); err == nil {
+		// A client may retry after the successful response was lost. Reconcile
+		// only the same dedicated binding, never another agent or account.
+		if profile != nil && profile.AgentID == agentID && profile.ConnectionID == existing.ConnectionID {
+			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), existing.ConnectionID); err == nil && conn.UserID == ownerID {
+				rooms, err := s.projectStudioRepo.ListAllRooms(r.Context())
+				if err == nil {
+					for _, room := range rooms {
+						if room.Topic == "agent:"+agentID {
+							respondJSON(w, http.StatusOK, map[string]any{"status": "success", "agent": existing.ToDTO(), "connection": conn.ToDTO(), "conversation_id": room.ID, "room_id": room.ID, "provider": provider, "handle": handle, "message": "Agent already saved"})
+							return
+						}
+					}
+				}
+			}
+		}
+		respondJSONError(w, http.StatusConflict, "Agent name is already in use. Choose another name.")
 		return
+	}
+
+	committed := false
+	if profile != nil {
+		if err := agent.BindProviderAccount(ownerID, profile.ID, agentID, connID); err != nil {
+			respondJSONError(w, http.StatusConflict, err.Error())
+			return
+		}
+		// Secondary or newly connected accounts default to active backup & model fallback
+		// so quota failover works seamlessly without requiring non-developer users
+		// to manually find and toggle checkboxes.
+		if accounts, err := agent.ListProviderAccounts(ownerID); err == nil && len(accounts) > 1 {
+			_, _ = agent.SetProviderAccountFailover(ownerID, profile.ID, true)
+			_, _ = agent.SetProviderAccountModelFallback(ownerID, profile.ID, true)
+		}
+		defer func() {
+			if !committed {
+				agent.UnbindProviderAccount(ownerID, profile.ID, agentID, connID)
+			}
+		}()
 	}
 
 	agentEntity := &db.Agent{
@@ -844,17 +925,17 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	// 2. Create / Persist Connection
 	connEntity := &db.AgentConnection{
 		ID:                   connID,
-		UserID:               "default",
+		UserID:               ownerID,
 		Provider:             provider,
 		CredentialsEncrypted: encryptedToken,
-		PlanHint:             "Sesi Host Server (Tanpa API Key)",
+		PlanHint:             "Host server session (no API key)",
 		Status:               db.ConnectionStatusActive,
 		CreatedAt:            time.Now().UTC(),
 		UpdatedAt:            time.Now().UTC(),
 	}
 	if err := s.agentRepo.CreateConnection(r.Context(), connEntity); err != nil {
-		_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
-		respondJSONError(w, http.StatusInternalServerError, "Failed to save agent connection")
+		s.rollbackAgentRegistration(agentID, connID, false)
+		respondJSONError(w, http.StatusInternalServerError, "Could not save the agent. Try again.")
 		return
 	}
 
@@ -880,9 +961,8 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 				CreatedAt: now,
 				UpdatedAt: now,
 			}); err != nil {
-				_ = s.agentRepo.DeleteConnection(r.Context(), connID)
-				_ = s.agentRepo.DeleteAgent(r.Context(), agentID)
-				respondJSONError(w, http.StatusInternalServerError, "Agen gagal disimpan ke Inbox. Coba lagi.")
+				s.rollbackAgentRegistration(agentID, connID, true)
+				respondJSONError(w, http.StatusInternalServerError, "Could not save the agent to Inbox. Try again.")
 				return
 			}
 		}
@@ -890,6 +970,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		roomID = db.GenerateUUID()
 	}
 
+	committed = true
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"status":          "success",
 		"agent":           agentEntity.ToDTO(),
@@ -926,6 +1007,7 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 
 	if harness == "agy" {
 		status := agent.GetAntigravityAuthStatus()
+		status["runtime_prerequisites"] = onboardingRuntimePrerequisites()
 		if r.URL.Query().Get("verify") == "true" {
 			if !s.requireOAuthOwner(w, r) {
 				return
@@ -936,7 +1018,7 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 			if err != nil {
 				status["message"] = err.Error()
 			} else {
-				status["message"] = "Koneksi provider Antigravity terverifikasi"
+				status["message"] = "Antigravity provider connection verified"
 			}
 		}
 		respondJSON(w, http.StatusOK, status)
@@ -985,7 +1067,7 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 				"status":        "success",
 				"harness":       "agy",
 				"authenticated": true,
-				"message":       "Sesi Antigravity server aktif & siap digunakan",
+				"message":       "Antigravity server session is active and ready",
 				"auth_url":      "",
 				"verified":      true,
 			})
@@ -1035,7 +1117,10 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 	}
 
 	if req.Code == "" && req.SessionID != "" && r.URL.Query().Get("cancel") == "true" {
-		agent.CancelAntigravityAuthSession(req.SessionID)
+		if !agent.CancelLegacyAntigravityAuthSession(req.SessionID) {
+			respondJSONError(w, http.StatusNotFound, "Sign-in session is unavailable")
+			return
+		}
 		respondJSON(w, http.StatusOK, map[string]any{"status": "cancelled", "authenticated": false})
 		return
 	}
@@ -1058,6 +1143,6 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 		"verified":      true,
 		"status":        "success",
 		"authenticated": true,
-		"message":       "Otentikasi berhasil! Sesi Antigravity server aktif & siap digunakan.",
+		"message":       "Signed in successfully. Antigravity server session is active and ready.",
 	})
 }

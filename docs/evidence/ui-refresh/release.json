@@ -1,0 +1,38 @@
+{
+  "verified_at": "2026-10-19T07:52:28.720728+00:00",
+  "production": "https://cuan.dojo.cc",
+  "release": "48c2d68b3adc1c6dcc95fd2058b1668706fed946",
+  "previous_release": "9708a0d69f6ec800923356d1607b08db9fa13f32",
+  "schema": 21,
+  "auto_migrate": false,
+  "new_migration": false,
+  "pre_release": {
+    "active_inbox_and_attempts": 0,
+    "private_database_backup_validated": true,
+    "profile_files_backed_up": 378
+  },
+  "native_activation": "healthy; manifest/checksums, exclusive lock, atomic pointer, readiness/schema21 and exact HTML",
+  "workspace": {
+    "checkout": "48c2d68b3adc1c6dcc95fd2058b1668706fed946",
+    "fast_forward_only": true,
+    "credential_transfer": false
+  },
+  "contacts_crm": "Deferred by PO; future live-chat capture, widget email identifier, tags and broadcast foundation recorded in docs/plans/contacts-crm.md",
+  "verification": {
+    "fixture": "browser.json",
+    "production": "production-browser.json",
+    "viewport_route_checks_each": 35,
+    "browser_errors": 0,
+    "production_product_writes": 0,
+    "provider_invocations": 0,
+    "targeted_go_archive_unarchive": "passed",
+    "authenticated_stream_transport": "passed",
+    "typescript_vite_build": "passed"
+  },
+  "limits": [
+    "Chromium viewport emulation, not physical iPad/iPhone or Safari keyboard certification",
+    "Repository edit and domain/server/env settings hidden because unsupported by current API; project repository details read-only",
+    "Contacts/CRM and broadcast not implemented",
+    "Existing CSS/chunk build warnings and tooling audit advisories remain"
+  ]
+}

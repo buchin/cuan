@@ -15,7 +15,7 @@ import (
 
 var (
 	ErrEmptyTaskID          = errors.New("task id cannot be empty")
-	ErrMissingGeminiKey     = errors.New("Google Gemini Pro API key belum terhubung. Silakan hubungkan API key Anda melalui Agent Hub di menu Settings / Agent Hub (/studio/agents) terlebih dahulu.")
+	ErrMissingGeminiKey     = errors.New("Google Gemini Pro API key is not configured. Connect your API key in Settings → Agent Hub (/studio/agents) first.")
 	ErrAgentExecutionFailed = errors.New("agent execution failed")
 )
 

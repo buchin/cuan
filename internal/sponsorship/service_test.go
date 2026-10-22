@@ -3,6 +3,7 @@ package sponsorship
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -436,7 +437,7 @@ func TestCreateCheckoutSession(t *testing.T) {
 		ContactEmail: "founder@indie.co",
 		AmountIDR:    5000,
 	})
-	if err == nil || !strings.Contains(err.Error(), "minimal Rp 10.000") {
+	if !errors.Is(err, ErrAmountTooLow) {
 		t.Fatalf("expected ErrAmountTooLow, got %v", err)
 	}
 

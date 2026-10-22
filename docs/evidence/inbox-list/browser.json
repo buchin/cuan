@@ -1,0 +1,108 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "measurements": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "typography": {
+        "name": "16px",
+        "preview": "14px",
+        "time": "12px",
+        "height": 80
+      },
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "compact header",
+    "normal statuses omitted",
+    "blocking warnings retained",
+    "plain preview without agent prefix or draft JSON",
+    "search and filters",
+    "real unread counts only",
+    "Back restores navigation",
+    "error/retry and empty state",
+    "44px targets"
+  ],
+  "errors": [],
+  "writes": [],
+  "unknown": []
+}

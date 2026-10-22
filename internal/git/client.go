@@ -54,7 +54,6 @@ func (c *Client) SetAPIBaseURL(url string) {
 	c.apiBaseURL = strings.TrimRight(url, "/")
 }
 
-
 // ParseGitHubURL parses various URL formats (HTTPS, github.com shorthand, owner/repo)
 // and extracts the owner and repo name.
 func ParseGitHubURL(rawURL string) (owner string, repo string, err error) {
@@ -154,7 +153,6 @@ func (c *Client) ValidateRepository(ctx context.Context, repoInput, token string
 			}
 			return nil, ErrRepoNotFound
 		}
-
 
 		if resp.StatusCode == http.StatusOK {
 			var ghResp struct {
@@ -283,12 +281,21 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 		secretsToMask = append(secretsToMask, token, "x-access-token:"+token)
 	}
 
-	authURL := BuildAuthURL(owner, repo, token)
+	repoURL := BuildAuthURL(owner, repo, "")
+	authenticate := func(cmd *exec.Cmd) { cmd.Env = repositoryEnvironment(token) }
 
 	gitDir := filepath.Join(targetDir, ".git")
 	if fi, err := os.Stat(gitDir); err == nil && fi.IsDir() {
-		// Existing clone -> fetch updates
-		cmd := exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "fetch", "--all", "--prune")
+		// Remove credentials left by older clones and fetch only the intended remote.
+		if exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "remote", "set-url", "origin", repoURL).Run() != nil {
+			// Older provisioned caches can be an empty git init without origin. Adding
+			// the intended remote does not checkout or discard existing local files.
+			if exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "remote", "add", "origin", repoURL).Run() != nil {
+				return errors.New("Could not prepare the repository connection")
+			}
+		}
+		cmd := exec.CommandContext(ctx, c.gitBinary, "-C", targetDir, "fetch", "origin", "--prune")
+		authenticate(cmd)
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		if err := cmd.Run(); err != nil {
@@ -303,7 +310,8 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 		return fmt.Errorf("create parent directory: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", authURL, targetDir)
+	cmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", repoURL, targetDir)
+	authenticate(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 

@@ -18,12 +18,12 @@ import (
 )
 
 var (
-	ErrInvalidWebhookSecret = errors.New("secret webhook Dojo tidak valid")
-	ErrMissingOrderID        = errors.New("order_id tidak boleh kosong")
-	ErrInvalidEmail          = errors.New("format email tidak valid")
-	ErrInvalidBrandName      = errors.New("nama brand tidak boleh kosong")
-	ErrInvalidWebsiteURL     = errors.New("URL website tidak valid")
-	ErrAmountTooLow          = errors.New("nominal Pay-What-You-Want minimal Rp 10.000")
+	ErrInvalidWebhookSecret = errors.New("Invalid Dojo webhook secret")
+	ErrMissingOrderID       = errors.New("order_id cannot be empty")
+	ErrInvalidEmail         = errors.New("Invalid email format")
+	ErrInvalidBrandName     = errors.New("Brand name cannot be empty")
+	ErrInvalidWebsiteURL    = errors.New("Invalid website URL")
+	ErrAmountTooLow         = errors.New("Pay-What-You-Want amount must be at least IDR 10,000")
 )
 
 type WebhookResult struct {
@@ -199,7 +199,7 @@ func (s *Service) SyncReadmeAndArchive(ctx context.Context, batchSlug string) (*
 	if s.syncer == nil {
 		return &SyncResult{
 			Success: false,
-			Message: "syncer belum diinisialisasi",
+			Message: "Sync service is not initialized",
 		}, nil
 	}
 	return s.syncer.Sync(ctx, batchSlug)
@@ -325,7 +325,7 @@ func (s *Service) CreateCheckoutSession(ctx context.Context, req CreateCheckoutR
 		SponsorID: sp.ID,
 		OrderID:   &order.ID,
 		Action:    ActivityActionOrderCreated,
-		Details:   fmt.Sprintf("Order checkout PWYW dibuat senilai Rp %d (dojo: %s)", order.AmountIDR, dojoOrderID),
+		Details:   fmt.Sprintf("PWYW checkout order created for IDR %d (Dojo: %s)", order.AmountIDR, dojoOrderID),
 		Actor:     "checkout_flow",
 		CreatedAt: now,
 	})
@@ -359,7 +359,7 @@ func (s *Service) CreateCheckoutSession(ctx context.Context, req CreateCheckoutR
 		Order:        order,
 		MinAmountIDR: MinSponsorAmountIDR,
 		PendingURL:   "/sponsor/pending?order_id=" + dojoOrderID,
-		Message:      "Sesi checkout Dojo berhasil disiapkan",
+		Message:      "Dojo checkout session is ready",
 	}, nil
 }
 
@@ -389,24 +389,24 @@ func (s *Service) GetSponsorshipStatus(ctx context.Context, orderID, sponsorID s
 		return &SponsorshipStatusResult{
 			Found:   false,
 			Status:  "not_found",
-			Message: "Order atau sponsor tidak ditemukan",
+			Message: "Order or sponsor not found",
 		}, nil
 	}
 
 	status := "pending_payment"
-	message := "Menunggu konfirmasi pembayaran dari Dojo"
+	message := "Waiting for payment confirmation from Dojo"
 
 	if ord != nil && ord.Status == OrderStatusPaid {
 		status = "pending_review"
-		message = "Pembayaran sukses terverifikasi. Profil sponsor dalam tahap kurasi owner anti-judol."
+		message = "Payment verified. The sponsor profile is awaiting owner moderation."
 	}
 	if sp != nil {
 		if sp.Status == SponsorStatusApproved {
 			status = "approved"
-			message = "Profil sponsor telah disetujui owner dan aktif di Leaderboard publik!"
+			message = "Sponsor profile approved and published on the public leaderboard."
 		} else if sp.Status == SponsorStatusRejected {
 			status = "rejected"
-			message = "Profil sponsor ditolak: " + sp.RejectionReason
+			message = "Sponsor profile rejected: " + sp.RejectionReason
 		}
 	}
 
@@ -479,7 +479,7 @@ func (s *Service) RejectSponsor(ctx context.Context, id, reason, actor string) e
 	act := &ActivityLog{
 		SponsorID: id,
 		Action:    ActivityActionSponsorReject,
-		Details:   fmt.Sprintf("Sponsor %s ditolak oleh %s. Alasan: %s", sp.BrandName, actor, reason),
+		Details:   fmt.Sprintf("Sponsor %s rejected by %s. Reason: %s", sp.BrandName, actor, reason),
 		Actor:     actor,
 		CreatedAt: now,
 	}
@@ -510,7 +510,7 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 		return nil, ErrMissingOrderID
 	}
 	if req.AmountIDR <= 0 {
-		return nil, errors.New("nominal order harus lebih besar dari 0")
+		return nil, errors.New("Order amount must be greater than 0")
 	}
 
 	status := strings.TrimSpace(req.Status)
@@ -540,7 +540,7 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 			SponsorID: *ord.SponsorID,
 			OrderID:   &ord.ID,
 			Action:    ActivityActionOrderCreated,
-			Details:   fmt.Sprintf("Order %s dibuat senilai Rp %d (status: %s)", ord.DojoOrderID, ord.AmountIDR, ord.Status),
+			Details:   fmt.Sprintf("Order %s created for IDR %d (status: %s)", ord.DojoOrderID, ord.AmountIDR, ord.Status),
 			Actor:     "system",
 			CreatedAt: now,
 		})
@@ -556,7 +556,7 @@ func (s *Service) GetOrderByDojoID(ctx context.Context, dojoOrderID string) (*Or
 // ProcessDojoWebhook verifies secret, performs idempotency check, and transitions order and sponsor status.
 func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string, payload *DojoWebhookPayload) (*WebhookResult, error) {
 	if payload == nil {
-		return nil, errors.New("payload webhook kosong")
+		return nil, errors.New("Webhook payload is empty")
 	}
 
 	// 1. Verify Secret using constant-time comparison
@@ -588,7 +588,7 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 				AmountIDR:        existingOrder.AmountIDR,
 				Status:           existingOrder.Status,
 				SponsorStatus:    SponsorStatusPendingReview,
-				Message:          "Order sudah pernah diproses sebelumnya (idempotent)",
+				Message:          "Order has already been processed (idempotent)",
 			}, nil
 		}
 
@@ -610,7 +610,7 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 				SponsorID: *existingOrder.SponsorID,
 				OrderID:   &existingOrder.ID,
 				Action:    ActivityActionOrderPaid,
-				Details:   fmt.Sprintf("Order %s berhasil dibayar Rp %d via Dojo webhook", existingOrder.DojoOrderID, existingOrder.AmountIDR),
+				Details:   fmt.Sprintf("Order %s paid IDR %d through the Dojo webhook", existingOrder.DojoOrderID, existingOrder.AmountIDR),
 				Actor:     "dojo_webhook",
 				CreatedAt: now,
 			})
@@ -624,7 +624,7 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 			AmountIDR:        existingOrder.AmountIDR,
 			Status:           existingOrder.Status,
 			SponsorStatus:    SponsorStatusPendingReview,
-			Message:          "Order berhasil diperbarui ke status paid",
+			Message:          "Order status updated to paid",
 		}, nil
 	}
 
@@ -671,7 +671,7 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 		AmountIDR:        newOrder.AmountIDR,
 		Status:           newOrder.Status,
 		SponsorStatus:    SponsorStatusPendingReview,
-		Message:          "Order berhasil dibuat dan ditandai paid",
+		Message:          "Order created and marked as paid",
 	}, nil
 }
 
@@ -721,7 +721,7 @@ func (s *Service) ListWaitingListLeads(ctx context.Context) ([]*WaitingListLead,
 // Logo saving helper
 func (s *Service) SaveLogo(data []byte, filename string) (string, string, error) {
 	if s.logoStorage == nil {
-		return "", "", errors.New("penyimpanan logo belum terkonfigurasi")
+		return "", "", errors.New("Logo storage is not configured")
 	}
 	return s.logoStorage.SaveLogo(data, filename)
 }

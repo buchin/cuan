@@ -2,8 +2,11 @@ package terminal
 
 import (
 	"context"
+	"errors"
+	"github.com/buchin/cuan/internal/taskprocess"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -202,7 +205,7 @@ func TestS25AgentOutlivesRequestAndPromptIsNotShellCode(t *testing.T) {
 	root := t.TempDir()
 	marker := filepath.Join(root, "must-not-exist")
 	bin := filepath.Join(root, "agy")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$2\"\nsleep 0.2\nprintf 'PROCESS_COMPLETED\\n'\n"
+	script := "#!/bin/sh\n[ \"$1\" = --dangerously-skip-permissions ] || exit 21\n[ \"$2\" = --prompt-interactive ] || exit 22\n[ \"$4\" = --add-dir ] && [ \"$5\" = \"$PWD\" ] || exit 23\nprintf '%s\\n' \"$3\"\nsleep 0.2\nprintf 'PROCESS_COMPLETED\\n'\n"
 	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -228,5 +231,191 @@ func TestS25AgentOutlivesRequestAndPromptIsNotShellCode(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatal("prompt was evaluated as shell code")
+	}
+}
+
+func TestManager_ReportedFinishIgnoresStaleInputAndAttempt(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "agy"), []byte("#!/bin/sh\nwhile read -r line; do printf '%s\\n' \"$line\"; done\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	mgr := NewManager(ManagerConfig{WorkspacesDir: filepath.Join(root, "work")})
+	defer mgr.CloseAll()
+	exited := make(chan *TaskRunHistory, 1)
+	sess, err := mgr.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "reported-task", AttemptID: "attempt-current", Command: "agy", Prompt: "interactive", OnExit: func(h *TaskRunHistory) { exited <- h }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now().Add(-time.Second)
+	sub, _, err := sess.Subscribe("writer", ModeInteractive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = sess.WriteInput(sub.ID, []byte("later instruction\n")); err != nil {
+		t.Fatal(err)
+	}
+	if mgr.FinishReportedSession("reported-task", "attempt-old", time.Now()) {
+		t.Fatal("stopped another attempt")
+	}
+	if mgr.FinishReportedSession("reported-task", "attempt-current", before) {
+		t.Fatal("stopped a later user turn")
+	}
+	if !mgr.FinishReportedSession("reported-task", "attempt-current", time.Now()) {
+		t.Fatal("matching final report did not close session")
+	}
+	select {
+	case h := <-exited:
+		if h.EndReason != "agent_report" {
+			t.Fatal(h.EndReason)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("reported process did not terminate")
+	}
+}
+
+func TestManagerExecutionOwnershipSurvivesReconstruction(t *testing.T) {
+	base := t.TempDir()
+	bin := t.TempDir()
+	workspace := t.TempDir()
+	script := "#!/bin/sh\necho LIVE_OWNERSHIP\ntrap '' HUP TERM\nwhile :; do sleep 0.05; done\n"
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	first := NewManager(ManagerConfig{WorkspacesDir: base})
+	defer first.CloseAll()
+	ready := make(chan struct{}, 1)
+	_, err := first.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "ownership-task", Command: "agy", WorkDir: workspace, OnOutput: func(data []byte) {
+		if strings.Contains(string(data), "LIVE_OWNERSHIP") {
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ready:
+	case <-time.After(3 * time.Second):
+		t.Fatal("agent did not become active")
+	}
+	second := NewManager(ManagerConfig{WorkspacesDir: base})
+	defer second.CloseAll()
+	if active, err := second.TaskExecutionActive("ownership-task"); err != nil || !active {
+		t.Fatal("reconstructed manager lost live process ownership", err)
+	}
+	if _, err := second.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "ownership-task", Command: "agy", WorkDir: workspace}); !errors.Is(err, taskprocess.ErrActive) {
+		t.Fatal("replacement overlapped live agent", err)
+	}
+	first.CloseAll()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		active, err := second.TaskExecutionActive("ownership-task")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !active {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("execution ownership did not release")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestManagerStopsOnlyMatchingQuotaAttempt(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nwhile :; do sleep .1; done\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	mgr := NewManager(ManagerConfig{WorkspacesDir: t.TempDir()})
+	defer mgr.CloseAll()
+	exits := make(chan *TaskRunHistory, 1)
+	_, err := mgr.RunTaskAgent(context.Background(), TaskAgentRunConfig{TaskID: "quota-task", AttemptID: "current", Command: "agy", WorkDir: t.TempDir(), OnExit: func(h *TaskRunHistory) { exits <- h }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mgr.StopQuotaAttempt("quota-task", "old") {
+		t.Fatal("stale attempt stopped current work")
+	}
+	if !mgr.StopQuotaAttempt("quota-task", "current") {
+		t.Fatal("quota attempt not stopped")
+	}
+	select {
+	case h := <-exits:
+		if h.EndReason != "provider_quota" || h.Status != "failed" {
+			t.Fatal(h)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("quota process not terminated")
+	}
+	if mgr.StopQuotaAttempt("quota-task", "current") {
+		t.Fatal("duplicate quota stop accepted")
+	}
+}
+
+func TestRunTaskAgentAutoProvisionsOnboardingAndTrustedWorkspaces(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+
+	homeDir := filepath.Join(root, "account_home")
+	tokenPath := filepath.Join(homeDir, ".gemini", "antigravity-cli", "antigravity-oauth-token")
+	if err := os.MkdirAll(filepath.Dir(tokenPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tokenPath, []byte("fake-token-with-at-least-16-bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	workDir := filepath.Join(root, "task_workspace")
+	if err := os.MkdirAll(workDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewManager(ManagerConfig{WorkspacesDir: t.TempDir()})
+	defer mgr.CloseAll()
+
+	sess, err := mgr.RunTaskAgent(context.Background(), TaskAgentRunConfig{
+		TaskID:  "task-autoprovision",
+		Command: "agy",
+		Prompt:  "do work",
+		WorkDir: workDir,
+		Env:     []string{"HOME=" + homeDir},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+
+	// Verify settings.json was provisioned with trustedWorkspaces including workDir
+	settingsFile := filepath.Join(homeDir, ".gemini", "antigravity-cli", "settings.json")
+	data, err := os.ReadFile(settingsFile)
+	if err != nil {
+		t.Fatalf("settings.json not created: %v", err)
+	}
+	if !strings.Contains(string(data), workDir) {
+		t.Fatalf("settings.json missing workDir %s, got: %s", workDir, string(data))
+	}
+
+	// Verify onboarding.json was created with onboardingComplete true
+	onboardingFile := filepath.Join(homeDir, ".gemini", "antigravity-cli", "cache", "onboarding.json")
+	onboardingData, err := os.ReadFile(onboardingFile)
+	if err != nil {
+		t.Fatalf("onboarding.json not created: %v", err)
+	}
+	if !strings.Contains(string(onboardingData), `"onboardingComplete": true`) {
+		t.Fatalf("onboarding.json missing onboardingComplete: true, got: %s", string(onboardingData))
 	}
 }

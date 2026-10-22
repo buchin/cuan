@@ -1,7 +1,14 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react'
 
 export interface OwnerInfo {
   id: string
+  display_name?: string
   username?: string
   email: string
 }
@@ -13,8 +20,12 @@ interface AuthContextType {
   isLoading: boolean
   setupRequired: boolean | null
   login: (identifier: string, password: string) => Promise<void>
+  setup: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<void>
   refreshUser: () => Promise<void>
   getAuthHeaders: () => HeadersInit
 }
@@ -59,7 +70,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const meRes = await fetch('/api/v1/auth/me', {
           headers: {
             'Content-Type': 'application/json',
-            ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+            ...(currentToken
+              ? { Authorization: `Bearer ${currentToken}` }
+              : {}),
           },
         })
 
@@ -88,53 +101,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser()
   }, [refreshUser])
 
-  const login = async (identifier: string, password: string) => {
-    setIsLoading(true)
-    try {
-      const payload = {
-        username: identifier.trim(),
-        email: identifier.trim(),
-        password: password.trim(),
+  // Form progress stays local: changing global boot loading would unmount the
+  // form and discard its draft/error on an authentication failure.
+  const authenticate = async (path: string, payload: Record<string, string>) => {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      if (path.endsWith('/setup') && res.status === 403) {
+        setSetupRequired(false)
+        throw new Error('This workspace already has an owner. Sign in to continue.')
       }
-
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Username/email atau password salah')
-      }
-
-      const receivedToken = data.token
-      const receivedUser: OwnerInfo = data.user || data.owner || {
-        id: 'owner_admin',
-        username: identifier,
-        email: identifier,
-      }
-
-      localStorage.setItem(TOKEN_KEY, receivedToken)
-      setToken(receivedToken)
-      setUser(receivedUser)
-      setSetupRequired(false)
-    } finally {
-      setIsLoading(false)
+      throw new Error(data.error || 'Could not sign in. Try again.')
     }
+    const receivedUser = data.user || data.owner
+    if (!data.token || !receivedUser?.id) throw new Error('Could not confirm your account. Try signing in.')
+    localStorage.setItem(TOKEN_KEY, data.token)
+    setToken(data.token)
+    setUser(receivedUser)
+    setSetupRequired(false)
   }
+
+  const login = (identifier: string, password: string) =>
+    authenticate('/api/v1/auth/login', {
+      username: identifier.trim(), email: identifier.trim(), password: password.trim(),
+    })
+
+  const setup = (email: string, password: string) =>
+    authenticate('/api/v1/auth/setup', { email: email.trim(), password: password.trim() })
 
   const logout = async () => {
     try {
       const currentToken = localStorage.getItem(TOKEN_KEY) || token
       if (currentToken) {
+        if ('serviceWorker' in navigator) {
+          try {
+            const registration = await navigator.serviceWorker.getRegistration()
+            const sub = await registration?.pushManager?.getSubscription()
+            if (sub) {
+              const abort = new AbortController()
+              const timeout = setTimeout(() => abort.abort(), 3000)
+              try {
+                await fetch('/api/v1/notifications/push', {
+                  method: 'DELETE',
+                  headers: {
+                    Authorization: 'Bearer ' + currentToken,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(sub.toJSON()),
+                  signal: abort.signal,
+                })
+              } finally {
+                clearTimeout(timeout)
+                await sub.unsubscribe()
+              }
+            }
+          } catch {
+            /* Clear the local session even if the push service is unavailable. */
+          }
+        }
         await fetch('/api/v1/auth/logout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentToken}`,
+            Authorization: `Bearer ${currentToken}`,
           },
         })
       }
@@ -147,13 +180,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const changePassword = async (currentPassword: string, newPassword: string) => {
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+  ) => {
     const currentToken = localStorage.getItem(TOKEN_KEY) || token
     const res = await fetch('/api/v1/auth/password', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+        ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
       },
       body: JSON.stringify({
         current_password: currentPassword.trim(),
@@ -163,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json()
     if (!res.ok) {
-      throw new Error(data.error || 'Gagal mengubah password')
+      throw new Error(data.error || 'Could not change password')
     }
   }
 
@@ -176,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         setupRequired,
         login,
+        setup,
         logout,
         changePassword,
         refreshUser,

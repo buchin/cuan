@@ -71,9 +71,9 @@ while [[ $# -gt 0 ]]; do
     --standalone) MODE="standalone"; shift ;;
     --existing-proxy) MODE="existing-proxy"; shift ;;
     --staging) TARGET_ENV="staging"; shift ;;
-    --domain) DOMAIN="$2"; shift 2 ;;
-    --email) EMAIL="$2"; shift 2 ;;
-    --port) PORT="$2"; shift 2 ;;
+    --domain) [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo "Missing value for --domain" >&2; exit 1; }; DOMAIN="$2"; shift 2 ;;
+    --email) [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo "Missing value for --email" >&2; exit 1; }; EMAIL="$2"; shift 2 ;;
+    --port) [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo "Missing value for --port" >&2; exit 1; }; PORT="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
     --skip-preflight) SKIP_PREFLIGHT=true; shift ;;
     --help|-h) show_help; exit 0 ;;
@@ -96,6 +96,18 @@ if [[ "$TARGET_ENV" == "staging" ]]; then
 fi
 
 APP_PORT="${PORT:-$DEFAULT_PORT}"
+if [[ ! "$APP_PORT" =~ ^[0-9]+$ ]] || (( 10#$APP_PORT < 1 || 10#$APP_PORT > 65535 )); then
+  echo "Invalid --port: expected an integer from 1 to 65535." >&2
+  exit 1
+fi
+# Skipping detection requires a predictable proxy mode.
+if [[ "$SKIP_PREFLIGHT" == "true" && "$MODE" == "auto" ]]; then MODE="existing-proxy"; fi
+for value in "$DOMAIN" "$EMAIL"; do
+  if [[ "$value" == *[$'\n\r&|/']* ]]; then
+    echo "Invalid domain or email value." >&2
+    exit 1
+  fi
+done
 
 # ------------------------------------------------------------------------------
 # 1. PREFLIGHT CHECKS
@@ -155,8 +167,7 @@ run_preflight() {
   fi
 
   if [[ "$has_docker" != "true" || "$has_compose" != "true" ]]; then
-    echo "    [INFO] Native Docker daemon or compose plugin not active in this sandbox."
-    echo "           Preflight acknowledges containerised environment / mock runner."
+    echo "    [INFO] Docker Compose is unavailable. An actual installation requires Docker Engine and Compose."
   fi
 
   # 1.5 Port conflict & proxy detection
@@ -215,7 +226,7 @@ generate_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 24
   else
-    head -c 32 /dev/urandom | tr -dc 'a-zA-Z0-9' || echo "cuan_secret_fallback_key_32_chars!"
+    od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
   fi
 }
 
@@ -225,13 +236,13 @@ setup_environment() {
     echo "    [INFO] Existing ${ENV_FILE} found. Retaining existing configuration and secrets."
   else
     echo "    [INIT] Creating new ${ENV_FILE} from template..."
-    cp .env.example "$ENV_FILE"
-    
+    # Generate secrets before writing any configuration.
     # Generate secure random secrets
     local db_secret
     db_secret="$(generate_secret)"
     local auth_secret
     auth_secret="$(generate_secret)"
+    (umask 077; cp .env.example "$ENV_FILE")
 
     sed -i "s/replace_with_strong_password_min_16_chars/${db_secret}/g" "$ENV_FILE"
     sed -i "s/replace_with_random_32_character_auth_secret_key/${auth_secret}/g" "$ENV_FILE"
@@ -244,8 +255,13 @@ setup_environment() {
     fi
   fi
 
+  chmod 600 "$ENV_FILE"
+
   if [[ -n "$DOMAIN" ]]; then
-    sed -i "s/^CUAN_DOMAIN=.*/CUAN_DOMAIN=${DOMAIN}/" "$ENV_FILE"
+    local domain_key=CUAN_DOMAIN
+    if [[ "$TARGET_ENV" == "staging" ]]; then domain_key=CUAN_STAGING_DOMAIN; fi
+    if ! grep -q "^${domain_key}=" "$ENV_FILE"; then echo "${domain_key}=" >> "$ENV_FILE"; fi
+    sed -i "s|^${domain_key}=.*|${domain_key}=${DOMAIN}|" "$ENV_FILE"
     echo "    [CONFIG] CUAN_DOMAIN set to: ${DOMAIN}"
   fi
 
@@ -260,7 +276,6 @@ setup_environment() {
   fi
 }
 
-setup_environment
 
 # ------------------------------------------------------------------------------
 # 3. DRY RUN / PLAN OUTPUT
@@ -282,6 +297,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
   fi
   echo " Health Probe:        http://127.0.0.1:${APP_PORT}/healthz"
   echo " Readiness Probe:     http://127.0.0.1:${APP_PORT}/readyz"
+  echo " AI execution:        Not included in the stock Docker image; native Linux is the verified AI path."
   echo "--------------------------------------------------------------------------------"
   echo "Dry-run verification completed successfully."
   exit 0
@@ -297,55 +313,57 @@ if [[ "$MODE" == "standalone" ]]; then
   PROFILE_FLAG="--profile proxy"
 fi
 
-if [[ -n "${COMPOSE_CMD:-}" ]]; then
-  echo "==> Executing: ${COMPOSE_CMD} -f ${COMPOSE_FILE} --env-file ${ENV_FILE} ${PROFILE_FLAG} up -d"
-  ${COMPOSE_CMD} -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" ${PROFILE_FLAG} up -d
-else
-  echo "    [SANDBOX NOTICE] Docker daemon not directly running. Building and verifying binaries..."
-  mkdir -p bin
-  go build -o bin/cuan-server ./cmd/server
-  go build -o bin/cuan-runner ./cmd/runner
-  go build -o bin/cuan-migrate ./cmd/migrate
-
-  if command -v systemctl >/dev/null 2>&1 && [[ -d /etc/systemd/system ]] && [[ $EUID -eq 0 ]]; then
-    echo "==> Configuring systemd service (/etc/systemd/system/cuan.service)..."
-    cat << EOF > /etc/systemd/system/cuan.service
-[Unit]
-Description=Cuan Server — Self-Hosted AI Project Studio
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=${SUDO_USER:-root}
-WorkingDirectory=${ROOT_DIR}
-EnvironmentFile=-${ROOT_DIR}/${ENV_FILE}
-ExecStart=${ROOT_DIR}/bin/cuan-server
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    systemctl daemon-reload
-    systemctl enable cuan.service || true
-    systemctl restart cuan.service || true
-    echo "    [OK] cuan.service registered, enabled, and started."
-  fi
+if ! command -v docker >/dev/null 2>&1; then
+  echo "[ERROR] Docker Engine is required for this installer. See docs/guides/onboarding.md for native setup." >&2
+  exit 1
 fi
+if ! docker info >/dev/null 2>&1; then
+  echo "[ERROR] Docker Engine is not reachable. Start the daemon and check permissions, then retry." >&2
+  exit 1
+fi
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+else
+  echo "[ERROR] Docker Compose is required. Install the Compose plugin, then retry." >&2
+  exit 1
+fi
+setup_environment
+if grep -Eq '^(POSTGRES_PASSWORD|CUAN_AUTH_SECRET)=.*(replace_with_|change_me|default_)' "$ENV_FILE"; then
+  echo "[ERROR] Replace placeholder database and authentication secrets in ${ENV_FILE}, then retry." >&2
+  exit 1
+fi
+echo "==> Starting application and database with ${COMPOSE_CMD}..."
+${COMPOSE_CMD} -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ${PROFILE_FLAG} up -d --build
 
 # ------------------------------------------------------------------------------
 # 5. POST-INSTALL READINESS VERIFICATION
 # ------------------------------------------------------------------------------
-echo "==> Verifying service health..."
-if command -v curl >/dev/null 2>&1; then
-  echo "    Checking http://127.0.0.1:${APP_PORT}/healthz ..."
-  # If local server is running, probe it; otherwise note successful configuration
-  curl -s -f "http://127.0.0.1:${APP_PORT}/healthz" || echo "    [INFO] Service boot initiated. Inspect via ./scripts/install.sh --dry-run or curl."
+echo "==> Waiting for application health and database readiness..."
+ready=false
+for attempt in {1..30}; do
+  if ${COMPOSE_CMD} -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T app /app/cuan-server --healthcheck >/dev/null 2>&1 &&
+     ${COMPOSE_CMD} -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T app /app/cuan-server --readycheck >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$ready" != "true" ]]; then
+  echo "[ERROR] Application readiness was not confirmed. Configuration and data are retained." >&2
+  echo "Inspect: ${COMPOSE_CMD} -f ${COMPOSE_FILE} --env-file ${ENV_FILE} logs app db" >&2
+  exit 1
 fi
+echo "    [OK] Application health and database readiness confirmed."
+echo "    [NEXT] Open Cuan and create your owner account."
+echo "    [AI] The stock Docker image does not yet provide supported AI execution."
+echo "         For the verified native AI setup, follow docs/guides/onboarding.md."
+echo "         Web/database health does not verify an AI account or completed work."
 
 echo ""
 echo "================================================================================"
-echo " Cuan ${TARGET_ENV} installation completed successfully!"
+echo " Cuan ${TARGET_ENV} web application installation completed successfully!"
 echo " Deployment Mode: ${MODE}"
 echo " App Port:        ${APP_PORT}"
 echo " Health Checks:   /healthz (liveness), /readyz (readiness)"

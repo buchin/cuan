@@ -1,0 +1,20 @@
+{
+  "statusFilters": true,
+  "savedSummarySearch": true,
+  "completedResultPreferred": true,
+  "agentWhenAvailable": true,
+  "compactProjectRows": true,
+  "responsiveWidths": [
+    360,
+    390,
+    820,
+    1440
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "noOverflow": true,
+  "noTaskLaunches": true,
+  "providerCalls": 0
+}

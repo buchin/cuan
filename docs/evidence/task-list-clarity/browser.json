@@ -1,0 +1,75 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "noOverflow": true,
+      "originalRequestVisible": true,
+      "noDuplicateProcessLabel": true,
+      "consistentSortControl": true
+    }
+  ],
+  "approvalShowsOriginalRequest": true,
+  "scopeAlignmentCopy": true,
+  "searchSortAndFilterRetention": true,
+  "providerInvocations": 0,
+  "errors": [],
+  "unknown": []
+}

@@ -1,0 +1,6 @@
+{
+  "request_id": "5eb042d5-9cd1-47a3-8d09-02b14acaaeb1",
+  "state": "completed",
+  "reply": "Berikut hasil verifikasi berdasarkan isi berkas [inbox_project.go](file:///opt/cuan/data/projects/default/internal/server/inbox_project.go):\n\n1. **Dua nama fungsi yang didefinisikan**:\n   - [`inboxProjectContext`](file:///opt/cuan/data/projects/default/internal/server/inbox_project.go#L22) (method receiver `*Server`)\n   - [`truncateProjectText`](file:///opt/cuan/data/projects/default/internal/server/inbox_project.go#L172)\n\n2. **Nilai variabel `budget`**:\n   - `32000` (ditetapkan pada baris 130: `budget := 32000`).\n\n3. **Aturan pemilihan project pada room non-agent**:\n   - Jika room valid dan bukan room agen (`room != nil && !strings.HasPrefix(room.Topic, \"agent:\")`), project dipilih langsung dengan mencocokkan ID project yang terikat pada room (`p.ID == room.ProjectID`) dan memastikan project tersebut tidak diarsipkan (`!p.IsArchived`).",
+  "readSourceVerified": true
+}

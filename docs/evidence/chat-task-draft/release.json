@@ -1,0 +1,35 @@
+{
+  "release": "4c7a5dfdaeb83f04694329d96ddcc900a9836f82",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "autoMigrate": false,
+  "targetedTestsPassed": true,
+  "liveCLI": "Actual executeInboxCLI used bound profile and contextual history to return validated draft; no task created",
+  "productionSmoke": "Synthetic persisted agent draft, real authenticated UI/API, 8 viewport/theme combinations, edited confirmation, duplicate POST same task, reload, exact assets",
+  "cleanup": "Temporary room/message/task/activities removed; no attempts",
+  "retention": {
+    "retainedTablesVerified": 35,
+    "authSessionsExcluded": true,
+    "profileFilesVerified": 493,
+    "differentTables": [],
+    "changedProfileFiles": 0,
+    "schema": 22,
+    "autoMigrate": false,
+    "release": "4c7a5dfdaeb83f04694329d96ddcc900a9836f82",
+    "readiness": {
+      "database": "connected",
+      "migrations": "applied",
+      "migrations_count": 22,
+      "owner_configured": true,
+      "status": "ready"
+    },
+    "remainingSmokeContacts": "0"
+  },
+  "rollback": "sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22",
+  "limits": [
+    "Context bounded to recent20 messages/size budget",
+    "Local unsaved field edits reset on reload",
+    "Malformed model drafts stay text and do not create tasks",
+    "Chromium emulation, not physical Safari certification"
+  ]
+}

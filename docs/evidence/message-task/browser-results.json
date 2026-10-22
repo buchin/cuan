@@ -1,0 +1,54 @@
+{
+  "fixtureProvider": true,
+  "responseMocks": false,
+  "assetOverlay": false,
+  "errors": [],
+  "viewports": [
+    {
+      "width": 360,
+      "height": 844,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "noOverflow": true
+    },
+    {
+      "width": 1280,
+      "height": 844,
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "live SSE",
+    "FIFO follow-up",
+    "queued cancellation",
+    "same-key reconciliation",
+    "refresh preserves messages",
+    "source task linkage",
+    "canonical task capture",
+    "single active session",
+    "durable attempt success requires review",
+    "retained output",
+    "task cancellation stays cancelled",
+    "task status returns to chat"
+  ],
+  "assets": [
+    {
+      "file": "index-CkonocOr.js",
+      "bytes": 691998,
+      "sha256": "b88f353c51cc829f2191f9b4711858ea8c21d1a152f14f280573453f40dc8c3a"
+    },
+    {
+      "file": "index-JHZALVE7.css",
+      "bytes": 46284,
+      "sha256": "5f9d8f384d70e955c958651fd07d12a0ef020cb928320b9f49a0fd6152059c9c"
+    }
+  ],
+  "stream": {
+    "status": 200,
+    "bytes": 4335,
+    "firstChunkMs": 453
+  }
+}

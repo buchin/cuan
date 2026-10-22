@@ -8,7 +8,7 @@ interface AuthGateProps {
   onNavigate?: (path: string) => void
 }
 
-export function AuthGate({ children, onNavigate }: AuthGateProps) {
+export function AuthGate({ children }: AuthGateProps) {
   const { isAuthenticated, isLoading } = useAuth()
 
   if (isLoading) {
@@ -17,7 +17,7 @@ export function AuthGate({ children, onNavigate }: AuthGateProps) {
         <div className="flex flex-col items-center gap-3">
           <RefreshCw className="h-8 w-8 text-primary animate-spin" />
           <p className="text-xs font-mono font-medium text-muted-foreground tracking-wider uppercase">
-            Memeriksa Sesi Cuan...
+            Checking your session…
           </p>
         </div>
       </div>
@@ -25,7 +25,7 @@ export function AuthGate({ children, onNavigate }: AuthGateProps) {
   }
 
   if (!isAuthenticated) {
-    return <LoginScreen onNavigate={onNavigate} />
+    return <LoginScreen />
   }
 
   return <>{children}</>

@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "answerLeft": true,
+      "detailAccessible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "answerLeft": true,
+      "detailAccessible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "answerLeft": true,
+      "detailAccessible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "answerLeft": true,
+      "detailAccessible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "answerLeft": true,
+      "detailAccessible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "answerLeft": true,
+      "detailAccessible": true,
+      "noOverflow": true
+    }
+  ],
+  "hiddenEmptyFilters": true,
+  "answeredNotReviewRequired": true,
+  "liveChatEmptyState": true,
+  "liveChatMenu": true,
+  "noTaskLaunches": true,
+  "relocatedTaskLinkPreserved": true,
+  "completedWithoutAttemptShown": true
+}

@@ -1,0 +1,19 @@
+{
+  "release": "d8a09a549ef253004207c84fcccb590905c97d58",
+  "previous": "ff99938549c00c967e3d7130eb789088b1d2e9a8",
+  "beforeEnglishUI": "3a904dbc6dbe0ad1bb01158af242ed2703e4555e",
+  "health": "healthy",
+  "schema": 22,
+  "autoMigration": false,
+  "fixtureCombinations": 80,
+  "productionCombinations": 96,
+  "retainedTablesVerified": 35,
+  "authSessionsExcluded": true,
+  "profileFilesVerified": 493,
+  "changedTables": [],
+  "changedProfiles": 0,
+  "workspaceFastForwarded": true,
+  "productMutationsDuringSmoke": 0,
+  "providerInvocations": 0,
+  "localizationFrameworkAdded": false
+}

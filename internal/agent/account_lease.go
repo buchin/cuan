@@ -1,0 +1,112 @@
+package agent
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strconv"
+	"sync"
+	"syscall"
+)
+
+var ErrAccountBusy = errors.New("All configured session slots for this account are in use")
+
+// ProviderAccountSessionLimit permits independent native sessions to share one
+// account. They still share provider quota. Limits bound local concurrency only.
+func ProviderAccountSessionLimit() int {
+	n, err := strconv.Atoi(os.Getenv("CUAN_ACCOUNT_MAX_SESSIONS"))
+	if err != nil || n < 1 || n > 16 {
+		return 4
+	}
+	return n
+}
+func accountLeaseFile(path string) (*os.File, error) {
+	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0600)
+	if err != nil {
+		return nil, err
+	}
+	return os.NewFile(uintptr(fd), path), nil
+}
+func accountLeaseDirectory(owner, id string) (string, error) {
+	profile, err := GetProviderAccount(owner, id)
+	if err != nil || profile.Legacy {
+		return "", ErrAccountNotFound
+	}
+	return accountDirectory(id)
+}
+func releaseAccountFiles(files ...*os.File) func() {
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			for _, f := range files {
+				syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				f.Close()
+			}
+		})
+	}
+}
+
+// Sessions share the existing gate, then claim one cross-process slot. Keeping
+// the old gate path also prevents overlap with old exclusive-lease releases.
+func TryLeaseProviderAccount(owner, id string) (func(), error) {
+	if id == "" {
+		return func() {}, nil
+	}
+	dir, err := accountLeaseDirectory(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	gate, err := accountLeaseFile(filepath.Join(dir, ".execution.lock"))
+	if err != nil {
+		return nil, err
+	}
+	if err = syscall.Flock(int(gate.Fd()), syscall.LOCK_SH|syscall.LOCK_NB); err != nil {
+		gate.Close()
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			return nil, err
+		}
+		return nil, ErrAccountBusy
+	}
+	for i := 0; i < ProviderAccountSessionLimit(); i++ {
+		slot, err := accountLeaseFile(filepath.Join(dir, ".session-"+strconv.Itoa(i)+".lock"))
+		if err != nil {
+			releaseAccountFiles(gate)()
+			return nil, err
+		}
+		err = syscall.Flock(int(slot.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			return releaseAccountFiles(slot, gate), nil
+		}
+		slot.Close()
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			releaseAccountFiles(gate)()
+			return nil, err
+		}
+	}
+	releaseAccountFiles(gate)()
+	return nil, ErrAccountBusy
+}
+
+// Backend token refresh remains exclusive: it must not rewrite credentials
+// while an active native session is using the profile.
+func TryLeaseProviderAccountRefresh(owner, id string) (func(), error) {
+	if id == "" {
+		return nil, ErrAccountNotFound
+	}
+	dir, err := accountLeaseDirectory(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	gate, err := accountLeaseFile(filepath.Join(dir, ".execution.lock"))
+	if err != nil {
+		return nil, err
+	}
+	if err = syscall.Flock(int(gate.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		gate.Close()
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			return nil, err
+		}
+		return nil, ErrAccountBusy
+	}
+	return releaseAccountFiles(gate), nil
+}

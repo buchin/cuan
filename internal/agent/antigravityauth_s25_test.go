@@ -80,11 +80,11 @@ func TestS25ProbeErrorsDoNotExposeProviderOutput(t *testing.T) {
 		if strings.Contains(err.Error(), "secret-account-token") {
 			t.Fatal("raw provider output leaked")
 		}
-		if !strings.Contains(err.Error(), "Kredensial tetap tersimpan") {
+		if !strings.Contains(err.Error(), "Credentials are saved") {
 			t.Fatal("missing factual credential state")
 		}
 	}
-	if !strings.Contains(antigravityProbeError("quota 429").Error(), "Kuota") {
+	if !strings.Contains(antigravityProbeError("quota 429").Error(), "quota") {
 		t.Fatal("quota not classified")
 	}
 }

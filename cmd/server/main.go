@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/buchin/cuan/internal/taskprocess"
 	"log"
 	"net/http"
 	"os"
@@ -21,9 +22,16 @@ import (
 	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/server"
 	"github.com/buchin/cuan/internal/sponsorship"
+	"github.com/buchin/cuan/internal/taskcli"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == taskprocess.Command {
+		os.Exit(taskprocess.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "task" {
+		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	showHelp := flag.Bool("help", false, "Show help message")
 	showVersion := flag.Bool("version", false, "Show Cuan server version")
 	showInfo := flag.Bool("info", false, "Show Cuan server metadata and release information")
@@ -172,7 +180,6 @@ func main() {
 			if cfg.AutoMigrate {
 				runAutoMigration(dbConn)
 			}
-			ensureDefaultProjectSeed(dbConn)
 		}
 	}
 
@@ -187,6 +194,13 @@ func main() {
 	if srv.DNSPoller() != nil {
 		_ = srv.DNSPoller().Start(context.Background())
 	}
+
+	inboxCtx, stopInbox := context.WithCancel(context.Background())
+	defer stopInbox()
+	srv.StartInboxDispatcher(inboxCtx)
+	srv.StartNotificationDispatcher(inboxCtx)
+	srv.StartWorkspaceRetention(inboxCtx)
+	srv.StartGitHubRecovery(inboxCtx)
 
 	addr := ":" + cfg.ServerPort
 	httpServer := &http.Server{
@@ -213,6 +227,7 @@ func main() {
 		log.Fatalf("Server error: %v", err)
 	case sig := <-shutdown:
 		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+		stopInbox()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -267,25 +282,6 @@ func runAutoMigration(database *sql.DB) {
 		log.Printf("Warning: auto-migration failed: %v", err)
 	} else {
 		log.Println("PostgreSQL connected and schema migrations applied successfully.")
-	}
-}
-
-func ensureDefaultProjectSeed(database *sql.DB) {
-	if database == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	query := `
-		INSERT INTO projects (id, name, repo_url, default_branch, clone_status, project_type, created_at, updated_at)
-		VALUES ('default', 'cuan', 'https://github.com/buchin/cuan', 'main', 'connected', 'custom', NOW(), NOW())
-		ON CONFLICT (id) DO UPDATE SET name = 'cuan' WHERE projects.name != 'cuan';
-	`
-	if _, err := database.ExecContext(ctx, query); err != nil {
-		log.Printf("Warning: failed to seed default project: %v", err)
-	} else {
-		log.Println("Default project seed verified in database.")
 	}
 }
 

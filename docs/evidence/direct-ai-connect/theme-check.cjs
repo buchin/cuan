@@ -1,0 +1,25 @@
+const fs=require('fs'),path=require('path');
+let setup=fs.readFileSync('docs/evidence/landing/browser-check.cjs','utf8').split(' const checks=[];')[0];
+setup+=`
+await page.goto(base+'/about');
+await page.evaluate(()=>localStorage.removeItem('cuan-theme'));
+await page.emulateMedia({colorScheme:'dark'});await page.reload();
+await page.waitForFunction(()=>document.documentElement.classList.contains('dark'));
+assert.equal(await page.evaluate(()=>localStorage.getItem('cuan-theme')),null);
+await page.emulateMedia({colorScheme:'light'});
+await page.waitForFunction(()=>!document.documentElement.classList.contains('dark'));
+await page.evaluate(()=>localStorage.setItem('cuan-theme','light'));
+await page.emulateMedia({colorScheme:'dark'});await page.reload();
+assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('dark')),false);
+await page.evaluate(()=>localStorage.setItem('cuan-theme','dark'));
+await page.emulateMedia({colorScheme:'light'});await page.reload();
+await page.waitForFunction(()=>document.documentElement.classList.contains('dark'));
+assert.equal(await page.locator('link[rel=icon]').getAttribute('href'),'/brand/cuan-favicon.svg');
+const icon=await page.request.get(base+'/brand/cuan-favicon.svg');assert.equal(icon.status(),200);
+assert.equal(await icon.text(),fs.readFileSync('web/public/favicon.svg','utf8'));
+assert.deepEqual(errors,[]);
+fs.writeFileSync('docs/evidence/direct-ai-connect/theme.json',JSON.stringify({defaultSystem:true,liveSystemChanges:true,savedLightHonored:true,savedDarkHonored:true,dedicatedKepengFavicon:true},null,2));
+console.log('PASS system theme and dedicated favicon');
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{if(browser)await browser.close();if(server)await new Promise(r=>server.close(r))});
+`;
+new Function('require','process','__dirname',setup)(require,process,path.resolve('docs/evidence/landing'));

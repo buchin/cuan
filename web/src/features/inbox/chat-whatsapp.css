@@ -1,0 +1,93 @@
+/* Chat-only palette; the rest of Cuan keeps its Muse theme. */
+.wa-chat {
+  --wa-bg: #efeae2;
+  --wa-header: #f0f2f5;
+  --wa-incoming: #ffffff;
+  --wa-outgoing: #d9fdd3;
+  --wa-text: #111b21;
+  --wa-meta: #667781;
+  --wa-outgoing-meta: #52635b;
+  --wa-send: #008069;
+  --wa-send-text: #ffffff;
+  --wa-pattern: rgb(86 103 99 / .045);
+  background: var(--wa-bg);
+  color: var(--wa-text);
+}
+.dark .wa-chat {
+  --wa-bg: #121212;
+  --wa-header: #1a1a1a;
+  --wa-incoming: #2b2b2b;
+  --wa-outgoing: #005c4b;
+  --wa-text: #ededed;
+  --wa-meta: #b5b5b5;
+  --wa-outgoing-meta: #b5d6ce;
+  --wa-send: #00a884;
+  --wa-send-text: #121212;
+  --wa-pattern: rgb(180 180 180 / .04);
+}
+.wa-chat-header { background: var(--wa-header); color: var(--wa-text); }
+.wa-conversation { background-color: var(--wa-bg); background-image: radial-gradient(var(--wa-pattern) 1px, transparent 1px); background-size: 20px 20px; }
+.wa-message-bubble { max-width: calc(100% - 44px); width: fit-content; padding: 6px 9px 7px; border-radius: 8px; box-shadow: 0 1px 1px rgb(0 0 0 / .12); color: var(--wa-text); }
+.wa-incoming { background: var(--wa-incoming); border-top-left-radius: 0; }
+.wa-outgoing { background: var(--wa-outgoing); border-top-right-radius: 0; }
+.wa-message-bubble::before { content: ''; position: absolute; top: 0; width: 7px; height: 10px; }
+.wa-incoming::before { left: -6px; background: var(--wa-incoming); clip-path: polygon(0 0,100% 0,100% 100%); }
+.wa-outgoing::before { right: -6px; background: var(--wa-outgoing); clip-path: polygon(0 0,100% 0,0 100%); }
+.wa-chat .wa-plain-text { font-size: 16px; line-height: 1.55; overflow-wrap: anywhere; }
+.wa-plain-text::after { content: ''; display: table; clear: both; }
+.wa-message-meta { display: inline-flex; float: right; align-items: center; gap: 3px; margin: 5px 0 0 12px; white-space: nowrap; color: var(--wa-meta); font-size: 12px; line-height: 16px; }
+.wa-outgoing .wa-message-meta { color: var(--wa-outgoing-meta); }
+.wa-markdown-footer { min-height: 18px; }
+.wa-markdown-footer::after { content: ''; display: table; clear: both; }
+.wa-markdown-footer .wa-message-meta { margin-top: 2px; }
+.wa-day-label { background: var(--wa-header); color: var(--wa-meta); box-shadow: 0 1px 1px rgb(0 0 0 / .08); }
+.wa-composer { background: var(--wa-bg); padding: 6px 8px max(6px, env(safe-area-inset-bottom)); }
+.wa-input-capsule { background: var(--wa-incoming); color: var(--wa-text); border: 1px solid color-mix(in srgb, var(--wa-meta) 35%, transparent); }
+.wa-input-capsule:focus-within { border-color: var(--wa-send); }
+.wa-input { background: transparent; color: var(--wa-text); border: 0; box-shadow: none; }
+.wa-input::placeholder { color: var(--wa-meta); }
+.wa-input:focus-visible { outline: none; }
+.wa-send { background: var(--wa-send); color: var(--wa-send-text); }
+.wa-send:hover { filter: brightness(.95); }
+.wa-chat .chat-markdown { font-size: 16px; line-height: 1.55; }
+.wa-chat .chat-markdown h1 { font-size: 18px; }
+.wa-chat .chat-markdown h2 { font-size: 17px; }
+.wa-chat .chat-markdown h3, .wa-chat .chat-markdown h4,
+.wa-chat .chat-markdown h5, .wa-chat .chat-markdown h6 { font-size: 16px; }
+.wa-chat .chat-markdown h1, .wa-chat .chat-markdown h2,
+.wa-chat .chat-markdown h3, .wa-chat .chat-markdown h4,
+.wa-chat .chat-markdown h5, .wa-chat .chat-markdown h6 { margin: .75em 0 .3em; }
+.wa-chat .chat-markdown p, .wa-chat .chat-markdown ul,
+.wa-chat .chat-markdown ol { margin: .5em 0; }
+.wa-chat .chat-markdown li, .wa-chat .chat-markdown li > p,
+.wa-chat .chat-markdown li > ul, .wa-chat .chat-markdown li > ol { margin: .15em 0; }
+.wa-chat .chat-markdown > :first-child { margin-top: 0; }
+.wa-chat .chat-markdown > :last-child { margin-bottom: 0; }
+@media (min-width: 768px) {
+  .wa-chat .chat-markdown, .wa-chat .wa-plain-text { font-size: 15px; }
+}
+.wa-chat .chat-markdown blockquote { border-left-color: var(--wa-send); background: rgb(128 128 128 / .08); padding: .4em .65em; border-radius: 4px; }
+@media (min-width: 1200px) { .wa-message-bubble { max-width: min(75%, 72ch); } }
+/* Reserve the end of a final paragraph so its timestamp can share that line.
+   Lists, code and tables keep a separate compact footer. */
+.wa-message-bubble > .chat-markdown > p:last-child::after { content: ''; display: inline-block; width: 64px; height: 1px; }
+.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer { position: absolute; right: 9px; bottom: 7px; min-height: 0; }
+.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer .wa-message-meta { float: none; margin: 0; }
+
+/* Conversation list uses the same neutral surfaces as the chat. */
+.inbox-list { background: #ffffff; }
+.inbox-search { background: #f0f2f5; }
+.dark .inbox-list { background: #121212; }
+.dark .inbox-search, .dark .app-page-header { background: #1a1a1a; }
+
+.message-actions .wa-message-bubble { max-width: 100%; }
+
+/* Message actions never reserve a permanent column beside the bubble. */
+@media (hover: hover) and (pointer: fine) {
+  .message-actions:hover .message-menu-trigger,
+  .message-actions:focus-within .message-menu-trigger {
+    opacity: 1;
+    pointer-events: auto;
+    background: var(--wa-incoming);
+  }
+}

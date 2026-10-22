@@ -15,20 +15,20 @@ import (
 )
 
 var (
-	ErrRoomNotFound        = errors.New("project room not found")
-	ErrMessageNotFound     = errors.New("project message not found")
-	ErrTaskNotFound        = errors.New("project task not found")
-	ErrInvalidUUID         = errors.New("invalid uuid format")
-	ErrInvalidAuthorType   = errors.New("invalid author type: must be user, agent, or system")
+	ErrRoomNotFound           = errors.New("project room not found")
+	ErrMessageNotFound        = errors.New("project message not found")
+	ErrTaskNotFound           = errors.New("project task not found")
+	ErrInvalidUUID            = errors.New("invalid uuid format")
+	ErrInvalidAuthorType      = errors.New("invalid author type: must be user, agent, or system")
 	ErrInvalidTaskStatus      = errors.New("invalid task status: must be backlog, todo, doing, review, or done")
 	ErrInvalidTaskPriority    = errors.New("invalid task priority: must be low, normal, high, or urgent")
 	ErrInvalidExecutionStatus = errors.New("invalid execution status: must be idle, running, completed, or failed")
-	ErrEmptyRoomTitle      = errors.New("room title cannot be empty")
-	ErrEmptyTaskTitle      = errors.New("task title cannot be empty")
-	ErrEmptyMessageContent = errors.New("message content cannot be empty")
-	ErrDuplicateRoom       = errors.New("project room already exists")
-	ErrDuplicateMessage    = errors.New("project message already exists")
-	ErrDuplicateTask       = errors.New("project task already exists")
+	ErrEmptyRoomTitle         = errors.New("room title cannot be empty")
+	ErrEmptyTaskTitle         = errors.New("task title cannot be empty")
+	ErrEmptyMessageContent    = errors.New("message content cannot be empty")
+	ErrDuplicateRoom          = errors.New("project room already exists")
+	ErrDuplicateMessage       = errors.New("project message already exists")
+	ErrDuplicateTask          = errors.New("project task already exists")
 )
 
 var uuidRegex = regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`)
@@ -197,12 +197,12 @@ type ProjectTask struct {
 	AssigneeID      *string    `json:"assignee_id,omitempty"`
 	ParentTaskID    *string    `json:"parent_task_id,omitempty"` // For fan-out hierarchy
 	BatchID         *string    `json:"batch_id,omitempty"`       // For multi-project batch grouping
-	Tags            []string   `json:"tags"`                   // For tag selectors e.g. ["wordpress", "adsense"]
-	AgentOutput     string     `json:"agent_output"`           // Generated agent output/deliverables
-	ExecutionStatus string     `json:"execution_status"`       // 'idle', 'running', 'completed', 'failed'
-	ScheduledAt     *time.Time `json:"scheduled_at,omitempty"`  // Publication schedule
-	PublishedAt     *time.Time `json:"published_at,omitempty"`  // Publication timestamp
-	PublicationURL  string     `json:"publication_url"`        // URL of published post/article
+	Tags            []string   `json:"tags"`                     // For tag selectors e.g. ["wordpress", "adsense"]
+	AgentOutput     string     `json:"agent_output"`             // Generated agent output/deliverables
+	ExecutionStatus string     `json:"execution_status"`         // 'idle', 'running', 'completed', 'failed'
+	ScheduledAt     *time.Time `json:"scheduled_at,omitempty"`   // Publication schedule
+	PublishedAt     *time.Time `json:"published_at,omitempty"`   // Publication timestamp
+	PublicationURL  string     `json:"publication_url"`          // URL of published post/article
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }
@@ -1283,6 +1283,7 @@ type MemoryProjectStudioRepository struct {
 	rooms    map[string]*ProjectRoom
 	messages map[string]*ProjectMessage
 	tasks    map[string]*ProjectTask
+	requests map[string]InboxRequest
 }
 
 // NewMemoryProjectStudioRepository creates a new thread-safe in-memory ProjectStudioRepository.
@@ -1291,6 +1292,7 @@ func NewMemoryProjectStudioRepository() *MemoryProjectStudioRepository {
 		rooms:    make(map[string]*ProjectRoom),
 		messages: make(map[string]*ProjectMessage),
 		tasks:    make(map[string]*ProjectTask),
+		requests: make(map[string]InboxRequest),
 	}
 }
 
@@ -1997,4 +1999,32 @@ func (m *MemoryProjectStudioRepository) DeleteTask(ctx context.Context, id strin
 		}
 	}
 	return nil
+}
+
+// UpdateRoomDisplayTitle changes only a display label, with a compare-and-swap
+// guard. It never changes message activity time, topic binding or project.
+func (r *SQLProjectStudioRepository) UpdateRoomDisplayTitle(ctx context.Context, id, topic, previous, title string) (bool, error) {
+	if !IsValidUUID(id) || strings.TrimSpace(title) == "" {
+		return false, ErrEmptyRoomTitle
+	}
+	result, err := r.db.ExecContext(ctx, "UPDATE project_rooms SET title=$4 WHERE id=$1 AND topic=$2 AND title=$3", id, topic, previous, title)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count == 1, err
+}
+
+func (m *MemoryProjectStudioRepository) UpdateRoomDisplayTitle(ctx context.Context, id, topic, previous, title string) (bool, error) {
+	if !IsValidUUID(id) || strings.TrimSpace(title) == "" {
+		return false, ErrEmptyRoomTitle
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	room := m.rooms[id]
+	if room == nil || room.Topic != topic || room.Title != previous {
+		return false, nil
+	}
+	room.Title = title
+	return true, nil
 }

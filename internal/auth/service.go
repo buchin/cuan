@@ -302,3 +302,50 @@ func isValidEmail(email string) bool {
 	parts := strings.Split(email, "@")
 	return len(parts) == 2 && strings.Contains(parts[1], ".")
 }
+
+// UpdateUsername preserves account IDs, credentials and sessions.
+func (s *Service) UpdateUsername(ctx context.Context, ownerID, username, password string) error {
+	username = strings.ToLower(strings.TrimSpace(username))
+	if len(username) < 3 || len(username) > 32 {
+		return fmt.Errorf("%w: username must contain 3–32 letters, numbers, dots, underscores or hyphens", ErrInvalidInput)
+	}
+	for _, r := range username {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.' || r == '_' || r == '-') {
+			return fmt.Errorf("%w: username must contain letters, numbers, dots, underscores or hyphens", ErrInvalidInput)
+		}
+	}
+	owner, err := s.store.GetOwner(ctx)
+	if err != nil {
+		return err
+	}
+	if owner.ID != ownerID {
+		return ErrUnauthorized
+	}
+	if bcrypt.CompareHashAndPassword([]byte(owner.PasswordHash), []byte(strings.TrimSpace(password))) != nil {
+		return ErrInvalidCredentials
+	}
+	store, ok := s.store.(interface {
+		UpdateOwnerUsername(context.Context, string, string) error
+	})
+	if !ok {
+		return fmt.Errorf("username editing is unavailable")
+	}
+	return store.UpdateOwnerUsername(ctx, ownerID, username)
+}
+
+func (s *Service) OwnerID(ctx context.Context) (string, error) {
+	owner, err := s.store.GetOwner(ctx)
+	if err != nil {
+		return "", err
+	}
+	return owner.ID, nil
+}
+
+// OwnerIdentity returns only public identity fields, never password/session data.
+func (s *Service) OwnerIdentity(ctx context.Context) (OwnerInfo, error) {
+	owner, err := s.store.GetOwner(ctx)
+	if err != nil {
+		return OwnerInfo{}, err
+	}
+	return OwnerInfo{ID: owner.ID, Username: owner.Username, Email: owner.Email}, nil
+}

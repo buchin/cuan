@@ -8,18 +8,21 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "${STAGING_PORT:-8081}:8080"
+      - "${PORT:-8081}:8080"
     environment:
       CUAN_ENV: staging
       CUAN_APP_VERSION: ${CUAN_APP_VERSION:-0.1.0-staging}
       PORT: 8080
-      DATABASE_URL: postgres://${POSTGRES_USER:-cuan_staging}:${POSTGRES_PASSWORD:-cuan_staging_secret_change_me}@db-staging:5432/${POSTGRES_DB:-cuan_staging}?sslmode=disable
-      CUAN_AUTH_SECRET: ${CUAN_AUTH_SECRET:-default_staging_secret_change_me}
+      DATABASE_URL: postgres://${POSTGRES_USER:-cuan_staging}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}@db:5432/${POSTGRES_DB:-cuan_staging}?sslmode=disable
+      CUAN_AUTH_SECRET: ${CUAN_AUTH_SECRET:?Set CUAN_AUTH_SECRET in your environment file}
       CUAN_STATIC_DIR: /app/web/dist
       CUAN_AUTO_MIGRATE: "true"
       CUAN_DB_MAX_OPEN_CONNS: ${CUAN_DB_MAX_OPEN_CONNS:-15}
       CUAN_DB_MAX_IDLE_CONNS: ${CUAN_DB_MAX_IDLE_CONNS:-5}
       CUAN_DB_CONN_MAX_LIFETIME: ${CUAN_DB_CONN_MAX_LIFETIME:-5m}
+    volumes:
+      - cuan_staging_app_data:/app/data
+      - cuan_staging_app_home:/home/cuan
     depends_on:
       db:
         condition: service_healthy
@@ -42,7 +45,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-cuan_staging}
       POSTGRES_USER: ${POSTGRES_USER:-cuan_staging}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cuan_staging_secret_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - cuan_staging_postgres_data:/var/lib/postgresql/data
@@ -78,6 +81,10 @@ services:
       - cuan-staging-network
 
 volumes:
+  cuan_staging_app_data:
+    name: cuan_staging_app_data
+  cuan_staging_app_home:
+    name: cuan_staging_app_home
   cuan_staging_postgres_data:
     name: cuan_staging_postgres_data
   cuan_staging_caddy_data:

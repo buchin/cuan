@@ -1,0 +1,85 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "compactSearch": true,
+      "workingAndBlockedCounts": true,
+      "archiveFilter": true,
+      "projectNavigation": true,
+      "noHorizontalOverflow": true,
+      "createButtonHeight": 40
+    }
+  ],
+  "providerCalls": 0
+}

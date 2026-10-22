@@ -1,0 +1,38 @@
+{
+  "localBuildOverlay": false,
+  "proof": [
+    {
+      "width": 360,
+      "height": 800,
+      "actualPin1Quota": true,
+      "timestampsVisible": true,
+      "noAutomaticProbe": true,
+      "noAccountInventory": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "actualPin1Quota": true,
+      "timestampsVisible": true,
+      "noAutomaticProbe": true,
+      "noAccountInventory": true,
+      "noOverflow": true
+    },
+    {
+      "fixtureOnly": true,
+      "openPageExpiresAfterFiveMinutes": true,
+      "noLoginOrProviderRequest": true
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "actualPin1Quota": true,
+      "timestampsVisible": true,
+      "noAutomaticProbe": true,
+      "noAccountInventory": true,
+      "noOverflow": true
+    }
+  ],
+  "limits": "When localBuildOverlay=true: local built static assets intercepted over real staging API, NOT staged deployment proof. Real roster/layout and persisted quota; clock/verified response is labeled FIXTURE for expiry rendering only. No fresh consent/provider request, physical keyboard or live verification claimed."
+}

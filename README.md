@@ -4,15 +4,33 @@
 
 ## Status
 
-**Sprint 14: Running (S14.1 — Auth Layer, Session Management & Multi-Project Schema Migration (000019))**.
-Sprints 1–13 are completed and production-verified at `cuan.dojo.cc` (Core Engine, Deployment, BYOS, Domains, Observability, Studio Discussions, Batch Campaigns, Native Agent Hub & Interactive Terminal, Creator Blueprints, Modular Workspace OS with AI Script Onboarding, Automated Environment Provisioner & 1-Click Script Deployer, and Turnkey WordPress Cloud & Agentic Webmaster Engine). Sprint 14 develops Cuan into **Multi-Project Workspace & Multi-Agent Collaboration Engine** (Universal Session & Cookie-Header Auth Layer, Multi-Project Task Assignment Schema 000019, Cross-Project Kanban Matrix, Subagent Orchestrator & Delegated Dispatcher, and Project Archival & Lifecycle Management).
+Cuan provides a self-hosted, single-owner workspace for projects, tasks, agent
+conversations, and live chat contacts. The interface and new system messages use
+English by default; UI language can be changed in Settings. User content retains its language.
 
-Single Source of Truth (SSOT): [docs/sprints/S14.md](docs/sprints/S14.md) | [docs/sprints/S13.md](docs/sprints/S13.md) | [docs/product-vision.md](docs/product-vision.md).
+Start with the [English workspace guide](docs/guides/navigation.md) and
+[Contacts & live chat](docs/guides/contacts-crm.md). Historical sprint plans and
+release evidence remain under `docs/sprints/` and `docs/evidence/` and may use
+Indonesian. They describe earlier releases rather than current product behavior.
 
-### Documentation & Guides
+### AGY chat sandbox prerequisite
 
-- [Onboarding & Self-Hosting Guide](docs/guides/onboarding.md) — 5-minute setup, system requirements, initial configuration.
-- [User & Operational Guide](docs/guides/user_guide.md) — Task lifecycle, review phase, revision cycles, and runner monitoring.
+Native Linux AGY chat analysis now requires an external Bubblewrap sandbox.
+Run `sudo python3 scripts/setup-agent-runtime.py --user cuan` with the actual
+non-root Linux service user before enabling chat. This installs the official
+verified CLI and sandbox, then checks CLI startup inside isolation without using
+an AI account. Use `--check` to verify an existing installation. See [setup, checks, container limitations,
+and rollback](docs/guides/chat-sandbox.md). Docker AGY readiness is not yet verified;
+application health alone does not prove chat readiness.
+
+## Documentation & Guides
+
+- [Notifications](docs/guides/notifications.md) — Context, read state, handled updates, and notification settings.
+
+- [Navigation & Responsive UI](docs/guides/navigation.md) — Inbox, Settings → Agents, project settings, keyboard controls, and device layouts.
+- [Messages & Tasks Guide](docs/guides/message_task_lifecycle.md) — Durable chat, follow-up queue, live activity, message-to-task capture, execution attempts, and recovery.
+- [Onboarding & Self-Hosting Guide](docs/guides/onboarding.md) — deployment prerequisites, persistent storage, and agent readiness.
+- [User & Operational Guide](docs/guides/user_guide.md) — Studio, Inbox, agent-managed work, and recovery.
 - [Troubleshooting & Recovery Playbook](docs/guides/troubleshooting.md) — Container issues, runner recovery, database locks, and disaster mitigation.
 - [Deployment & Recovery Guide](docs/guides/deployment_recovery_guide.md) — Production staging, automated backup, and rollback drill procedures.
 - [GitHub PAT Setup Guide](docs/guides/github_token_guide.md) — Generating, configuring, and revoking GitHub Personal Access Tokens.
@@ -35,7 +53,7 @@ Cuan is organized as a Go and React TypeScript monorepo:
 - **Single-Owner Authentication (`internal/auth`)**:
   Secure single-owner system with bcrypt password hashing, cryptographic session tokens, HttpOnly cookies, and strict takeover protection (subsequent setup attempts return `403 Forbidden`).
 - **Database & Persistent Storage (`internal/db`, `migrations/`, Docker Volume)**:
-  PostgreSQL 16 with versioned embedded migrations (`000001_baseline`, `000002_owner_sessions`, `000003_projects_github`). Auto-migration executes safely on server boot. Data is persisted in named Docker volume `cuan_postgres_data`.
+  PostgreSQL 16 with versioned embedded migrations. Controlled production upgrades require release-specific migration and rollback checks. Docker persists PostgreSQL, application data, and account HOME in separate named volumes.
 - **Network Isolation & Security**:
   PostgreSQL port 5432 is **strictly internal** to the Docker container network (`cuan-network`) and is never published to public host ports.
 - **Task Runner Daemon (`cmd/runner`, `internal/runner`)**:
@@ -50,103 +68,27 @@ Cuan is organized as a Go and React TypeScript monorepo:
 
 ---
 
-## Clean Environment Installation & Automated Deployment
+## Installation
 
-Cuan provides an automated installer with system preflight checks (hardware, ports, reverse proxy detection) as well as direct Docker Compose support.
+Follow the [onboarding guide](docs/guides/onboarding.md) for native Linux or Docker
+application setup, owner creation, and agent readiness checks. Native Linux is the
+verified AGY execution path; the stock Docker image does not provide a turnkey
+AI runtime.
 
-### Option A: Automated Installer (Recommended)
-
-```bash
+```sh
 git clone https://github.com/buchin/cuan.git
 cd cuan
-
-# Run preflight checks and interactive/automated installation:
-./scripts/install.sh --domain cuan.example.com --email admin@example.com
-
-# For staging environment:
-./scripts/install.sh --staging --domain staging.cuan.example.com
+./scripts/install.sh --dry-run
+./scripts/install.sh --existing-proxy
 ```
 
-### Option B: Manual Docker Compose Setup
+The Docker installer requires a reachable Docker Engine and Compose, creates
+private configuration with random secrets, preserves existing configuration,
+and checks application/database readiness. Persist the database, application-data,
+and account-HOME volumes. Export existing container data before adding mounts to
+an older installation. Do not use `down -v` to upgrade.
 
-```bash
-git clone https://github.com/buchin/cuan.git
-cd cuan
-
-# Copy environment template
-cp .env.example .env
-```
-
-Edit `.env` to configure your settings (passwords, domain, and secret key):
-
-```bash
-# Set your domain and notification email for Let's Encrypt
-CUAN_DOMAIN=cuan.example.com
-ACME_EMAIL=admin@example.com
-
-# Set secure database and authentication secrets
-POSTGRES_PASSWORD=your_strong_random_database_password
-CUAN_AUTH_SECRET=your_strong_random_32_character_secret_key
-```
-
-> **Note**: `.env.example` contains sanitized placeholders only. Real secrets are never committed to version control.
-
----
-
-### Step 2: Start Cuan Services
-
-#### Mode A: Standalone VPS with Automatic HTTPS (Caddy)
-
-If your server does not have an existing web server on ports 80/443:
-
-```bash
-docker compose --profile proxy up -d
-```
-
-Caddy will automatically obtain TLS certificates from Let's Encrypt and forward HTTPS traffic to the Cuan container.
-
-#### Mode B: Behind Existing Reverse Proxy (Nginx / Traefik / Cloudflare)
-
-If you already have Nginx or another reverse proxy managing ports 80/443:
-
-```bash
-docker compose up -d
-```
-
-The Cuan application server will listen on `http://127.0.0.1:8080`. Point your reverse proxy to this port. See [docs/sprints/evidence/S1/https_proxy_guide.md](docs/sprints/evidence/S1/https_proxy_guide.md) for full Nginx and Traefik configuration examples.
-
----
-
-### Step 3: First-Time Single-Owner Setup
-
-1. Open your browser and navigate to `https://cuan.example.com` (or `http://localhost:8080` for local testing).
-2. The UI shell detects that no owner exists and displays the **First-Time Owner Setup Wizard**.
-3. Enter your email and a strong password (minimum 8 characters).
-4. Click **Inisialisasi & Amankan Instance**.
-
-> **Crucial Security Gate**: Once the owner account is established, public registration is **permanently locked**. Any subsequent setup attempts (by malicious third parties or public visitors) will be rejected with `403 Forbidden`.
-
----
-
-### Step 4: Verification of Data Persistence across Container Restart
-
-PostgreSQL data is stored in the Docker volume `cuan_postgres_data`. To verify persistence across container restarts or host updates:
-
-```bash
-# Restart containers
-docker compose restart
-
-# Or recreate containers completely:
-docker compose down
-docker compose up -d
-```
-
-Open the web UI:
-- Your owner account, active sessions, and sprint tasks remain intact.
-- No re-initialization is required.
-- The setup endpoint remains permanently locked (`403 Forbidden`).
-
----
+For production changes, use the [deployment and recovery guide](docs/guides/deployment_recovery_guide.md).
 
 ## Health & Readiness Probes
 
@@ -192,7 +134,7 @@ Automated, verified PostgreSQL dumps with SHA256 integrity checksums, gzip strea
 ```
 
 ### 4. Rollback & Disaster Recovery Playbook
-> **Core Principle**: *Rollback image saja tidak dianggap rollback database.*
+> **Core Principle**: *Rolling back an application image does not roll back its database.*
 If an update encounters a failing migration or degraded state, `rollback.sh` reverts the application version AND restores the database from the pre-update backup snapshot:
 ```bash
 # Execute safe rollback:
@@ -289,7 +231,7 @@ All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S
 
 ### v1.0 Founding Backers
 
-_Belum ada sponsor terdaftar pada batch ini. Jadilah Founding Backer pertama di [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_
+_No sponsors are registered for this batch yet. Become the first founding backer at [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_
 
 <!-- SPONSORS:END -->
 
@@ -299,3 +241,6 @@ _Belum ada sponsor terdaftar pada batch ini. Jadilah Founding Backer pertama di 
 
 Licensed under the [Apache License, Version 2.0](LICENSE).
 Copyright 2026 Buchin and Cuan contributors. See [NOTICE](NOTICE) for details.
+
+- [Contacts CRM dan integrasi live chat](docs/guides/contacts-crm.md)
+- [Tasks workspace, sessions, terminal, and release procedure](docs/guides/tasks-workspace.md)

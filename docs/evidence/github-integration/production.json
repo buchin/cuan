@@ -1,0 +1,25 @@
+{
+  "release": "8641f5c45ad4f9dd15baa0a03e6e825d97b82e3c",
+  "checks": [
+    {
+      "width": 360,
+      "connectionFormVisible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "connectionFormVisible": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "connectionFormVisible": true,
+      "noOverflow": true
+    }
+  ],
+  "assetsMatch": true,
+  "projectPickerVisible": true,
+  "readOnly": true,
+  "providerCalls": 0,
+  "errors": []
+}

@@ -1,0 +1,22 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "checks": [
+    {
+      "width": 390,
+      "filtersInitiallyCollapsed": true,
+      "noOverflow": true,
+      "installBelowFold": true
+    },
+    {
+      "width": 1440,
+      "filtersInitiallyCollapsed": true,
+      "noOverflow": true,
+      "installBelowFold": true
+    }
+  ],
+  "indonesian": true,
+  "providerCalls": 0,
+  "contactWrites": 0,
+  "goalSubmissions": 0,
+  "errors": []
+}

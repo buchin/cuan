@@ -1,0 +1,41 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "closedHeight": 44,
+      "nestedLayers": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "closedHeight": 44,
+      "nestedLayers": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "closedHeight": 44,
+      "nestedLayers": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "closedHeight": 44,
+      "nestedLayers": true,
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "compact status summary",
+    "process timeline and error behind disclosure",
+    "technical IDs/exit/copy in nested disclosure",
+    "all request states",
+    "legacy missing metadata",
+    "no retry or provider calls"
+  ],
+  "errors": [],
+  "writes": [],
+  "unknown": []
+}

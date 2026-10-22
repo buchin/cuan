@@ -1,0 +1,288 @@
+package project
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/buchin/cuan/internal/crypto"
+	"github.com/buchin/cuan/internal/git"
+)
+
+var ErrSettingsConflict = errors.New("Project changed elsewhere. Reload before saving.")
+var settingsMu sync.Mutex
+
+type Settings struct {
+	Goal              string `json:"goal"`
+	Instructions      string `json:"instructions"`
+	WorkspaceRevision string `json:"workspace_revision,omitempty"`
+}
+type UpdateSettingsRequest struct {
+	Name              string    `json:"name"`
+	Goal              string    `json:"goal"`
+	Instructions      string    `json:"instructions"`
+	RepoURL           string    `json:"repo_url"`
+	DefaultBranch     string    `json:"default_branch"`
+	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
+}
+type workspaceBinding struct {
+	LocalPath string `json:"local_path"`
+	RepoURL   string `json:"repo_url"`
+	Branch    string `json:"branch"`
+}
+type taskProjectSnapshot struct {
+	IsolatedRepository bool   `json:"isolated_repository,omitempty"`
+	ProjectID          string `json:"project_id"`
+	Revision           string `json:"workspace_revision"`
+	Goal               string `json:"goal,omitempty"`
+	Instructions       string `json:"instructions,omitempty"`
+}
+
+func SettingsFromMetadata(raw json.RawMessage) Settings {
+	var metadata struct {
+		Settings Settings `json:"cuan_settings"`
+	}
+	_ = json.Unmarshal(raw, &metadata)
+	if metadata.Settings.WorkspaceRevision == "" {
+		metadata.Settings.WorkspaceRevision = "initial"
+	}
+	return metadata.Settings
+}
+
+const snapshotMarker = "\n\nProject guidance snapshot (context only; does not expand task authorization):\n```cuan-project-context\n"
+
+// SnapshotProjectGuidance freezes guidance and repository identity at task
+// creation. Historical workspace paths never come from task text.
+func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
+	settings := SettingsFromMetadata(p.Metadata)
+	raw, _ := json.Marshal(taskProjectSnapshot{IsolatedRepository: p.RepoURL != "", ProjectID: p.ID, Revision: settings.WorkspaceRevision, Goal: settings.Goal, Instructions: settings.Instructions})
+	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
+}
+
+func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*ProjectResponse, error) {
+	p, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	revision := "initial"
+	if start := strings.LastIndex(instructions, snapshotMarker); start >= 0 {
+		value := strings.TrimSuffix(instructions[start+len(snapshotMarker):], "\n```")
+		var snapshot taskProjectSnapshot
+		if json.Unmarshal([]byte(value), &snapshot) != nil {
+			return nil, errors.New("Task project context is invalid")
+		}
+		if !historicalProjectID(p, snapshot.ProjectID) {
+			return p, nil
+		} // Explicit project reassignment.
+		revision = snapshot.Revision
+	}
+	settings := SettingsFromMetadata(p.Metadata)
+	if revision == settings.WorkspaceRevision {
+		return p, nil
+	}
+	var source map[string]json.RawMessage
+	if json.Unmarshal(p.SourceMetadata, &source) != nil {
+		return nil, errors.New("Project workspace history is invalid")
+	}
+	var versions map[string]string
+	if json.Unmarshal(source["cuan_workspace_versions"], &versions) != nil || versions[revision] == "" {
+		return nil, errors.New("Original task workspace is unavailable")
+	}
+	encrypted := versions[revision]
+	raw, err := crypto.Decrypt(encrypted, s.authSecret)
+	if err != nil {
+		return nil, errors.New("Original task workspace could not be verified")
+	}
+	var original struct {
+		ProjectID string           `json:"project_id"`
+		Revision  string           `json:"revision"`
+		Binding   workspaceBinding `json:"binding"`
+	}
+	if json.Unmarshal([]byte(raw), &original) != nil || !historicalProjectID(p, original.ProjectID) || original.Revision != revision {
+		return nil, errors.New("Original task workspace binding is invalid")
+	}
+	p.LocalPath = original.Binding.LocalPath
+	p.RepoURL = original.Binding.RepoURL
+	p.DefaultBranch = original.Binding.Branch
+	return p, nil
+}
+
+func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSettingsRequest) (*ProjectResponse, error) {
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
+	current, err := s.store.GetProject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if req.ExpectedUpdatedAt.IsZero() || !req.ExpectedUpdatedAt.Equal(current.UpdatedAt) {
+		return nil, ErrSettingsConflict
+	}
+	if id == "default" && (strings.TrimSpace(req.Name) != "Default" || strings.TrimSpace(req.RepoURL) != "") {
+		return nil, errors.New("Default is for general work. Use a separate project for a name or repository.")
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" || len([]rune(name)) > 120 {
+		return nil, errors.New("Project name must contain 1–120 characters.")
+	}
+	if len([]rune(req.Goal)) > 2000 || len([]rune(req.Instructions)) > 4000 {
+		return nil, errors.New("Goal or instructions exceed the allowed length.")
+	}
+	branch := strings.TrimSpace(req.DefaultBranch)
+	if branch != "" && (len(branch) > 200 || strings.HasPrefix(branch, "-") || exec.CommandContext(ctx, "git", "check-ref-format", "--branch", branch).Run() != nil) {
+		return nil, errors.New("Enter a valid branch name.")
+	}
+	repo := strings.TrimSpace(req.RepoURL)
+	owner, repoName := "", ""
+	if repo != "" {
+		if strings.Contains(repo, "@") || strings.Contains(repo, "?") || strings.Contains(repo, "#") {
+			return nil, errors.New("Use a GitHub repository URL without credentials or query parameters.")
+		}
+		owner, repoName, err = git.ParseGitHubURL(repo)
+		if err != nil {
+			return nil, errors.New("Enter a GitHub repository URL, or leave it empty.")
+		}
+		repo = "https://github.com/" + owner + "/" + repoName
+	}
+	// An omitted branch preserves the current choice for the same repository.
+	// A newly selected repository uses GitHub's default rather than assuming main.
+	if branch == "" {
+		if repo == strings.TrimSuffix(current.RepoURL, ".git") {
+			branch = current.DefaultBranch
+		} else if repo != "" {
+			token, accessErr := s.repositoryToken(ctx, current.EncryptedToken)
+			if accessErr != nil {
+				return nil, accessErr
+			}
+			info, lookupErr := s.gitClient.ValidateRepository(ctx, owner+"/"+repoName, token)
+			if lookupErr != nil {
+				return nil, errors.New("Could not access this repository. No changes were saved.")
+			}
+			branch = info.DefaultBranch
+		}
+		if branch == "" {
+			branch = "main"
+		}
+	}
+	metadata := map[string]json.RawMessage{}
+	if len(current.Metadata) > 0 && json.Unmarshal(current.Metadata, &metadata) != nil || metadata == nil {
+		return nil, errors.New("Project metadata is invalid; no changes were saved.")
+	}
+	settings := SettingsFromMetadata(current.Metadata)
+	settings.Goal = strings.TrimSpace(req.Goal)
+	settings.Instructions = strings.TrimSpace(req.Instructions)
+	next := *current
+	next.Name = name
+	oldBranch := current.DefaultBranch
+	if oldBranch == "" {
+		oldBranch = "main"
+	}
+	connectionChanged := repo != strings.TrimSuffix(current.RepoURL, ".git") || branch != oldBranch
+	newPath := ""
+	if connectionChanged {
+		var source map[string]json.RawMessage
+		if len(current.SourceMetadata) == 0 {
+			source = map[string]json.RawMessage{}
+		} else if json.Unmarshal(current.SourceMetadata, &source) != nil || source == nil {
+			return nil, errors.New("Project connection metadata is invalid.")
+		}
+		versions := map[string]string{}
+		if raw, ok := source["cuan_workspace_versions"]; ok {
+			if json.Unmarshal(raw, &versions) != nil || versions == nil {
+				return nil, errors.New("Project workspace history is invalid.")
+			}
+		}
+		if len(versions) >= 100 {
+			return nil, errors.New("Workspace history needs administrator review before another connection change.")
+		}
+		original, _ := json.Marshal(struct {
+			ProjectID string           `json:"project_id"`
+			Revision  string           `json:"revision"`
+			Binding   workspaceBinding `json:"binding"`
+		}{id, settings.WorkspaceRevision, workspaceBinding{current.LocalPath, current.RepoURL, current.DefaultBranch}})
+		protected, err := crypto.Encrypt(string(original), s.authSecret)
+		if err != nil {
+			return nil, errors.New("Could not retain the original workspace.")
+		}
+		versions[settings.WorkspaceRevision] = protected
+		random := make([]byte, 12)
+		if _, err = rand.Read(random); err != nil {
+			return nil, err
+		}
+		revision := hex.EncodeToString(random)
+		if err = os.MkdirAll(s.baseDir, 0700); err != nil {
+			return nil, errors.New("Project workspace directory is unavailable.")
+		}
+		newPath, err = os.MkdirTemp(s.baseDir, "workspace-")
+		if err != nil {
+			return nil, errors.New("Could not prepare the project workspace.")
+		}
+		committed := false
+		defer func() {
+			if !committed {
+				_ = os.RemoveAll(newPath)
+			}
+		}()
+		if repo != "" {
+			token, accessErr := s.repositoryToken(ctx, current.EncryptedToken)
+			if accessErr != nil {
+				return nil, accessErr
+			}
+			if _, err = s.gitClient.ValidateRepository(ctx, owner+"/"+repoName, token); err != nil {
+				return nil, errors.New("Could not access this repository. Check its URL and saved GitHub access. No changes were saved.")
+			}
+			if err = s.gitClient.CloneOrFetch(ctx, owner, repoName, token, newPath); err != nil {
+				return nil, errors.New("Could not prepare the repository. No changes were saved.")
+			}
+			if exec.CommandContext(ctx, "git", "-C", newPath, "checkout", "--detach", "refs/remotes/origin/"+branch).Run() != nil {
+				return nil, errors.New("Branch was not found in this repository. No changes were saved.")
+			}
+		}
+		next.LocalPath = newPath
+		next.RepoURL = repo
+		next.RepoOwner = owner
+		next.RepoName = repoName
+		next.DefaultBranch = branch
+		next.CloneStatus = "connected"
+		next.LastError = ""
+		settings.WorkspaceRevision = revision
+		source["cuan_workspace_versions"], _ = json.Marshal(versions)
+		next.SourceMetadata, _ = json.Marshal(source)
+		metadata["cuan_settings"], _ = json.Marshal(settings)
+		next.Metadata, _ = json.Marshal(metadata)
+		next.UpdatedAt = time.Now().UTC()
+		if err = s.saveSettings(ctx, &next, current.UpdatedAt); err != nil {
+			return nil, err
+		}
+		committed = true
+		return next.ToResponse(), nil
+	}
+	metadata["cuan_settings"], _ = json.Marshal(settings)
+	next.Metadata, _ = json.Marshal(metadata)
+	next.UpdatedAt = time.Now().UTC()
+	if err = s.saveSettings(ctx, &next, current.UpdatedAt); err != nil {
+		return nil, err
+	}
+	return next.ToResponse(), nil
+}
+
+// PreserveProjectGuidance keeps the original task binding when the human or
+// coordinator revises task instructions. A project reassignment is handled by
+// TaskWorkspace using the snapshot's explicit project ID.
+func PreserveProjectGuidance(previous, next string) string {
+	start := strings.LastIndex(previous, snapshotMarker)
+	if start < 0 {
+		return strings.TrimSpace(next)
+	}
+	saved := previous[start:]
+	if at := strings.LastIndex(next, snapshotMarker); at >= 0 {
+		next = next[:at]
+	}
+	return strings.TrimSpace(next) + saved
+}

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"net/url"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,13 +36,19 @@ const (
 
 // AntigravityAuthSession tracks an in-flight agy interactive login process.
 type AntigravityAuthSession struct {
-	ID        string         `json:"session_id"`
-	AuthURL   string         `json:"auth_url"`
-	CreatedAt time.Time      `json:"created_at"`
-	Cmd       *exec.Cmd      `json:"-"`
-	Stdin     io.WriteCloser `json:"-"`
-	Done      chan struct{}  `json:"-"`
-	Failure   chan struct{}  `json:"-"`
+	ID                 string         `json:"session_id"`
+	AuthURL            string         `json:"auth_url"`
+	CreatedAt          time.Time      `json:"created_at"`
+	Cmd                *exec.Cmd      `json:"-"`
+	Stdin              io.WriteCloser `json:"-"`
+	Done               chan struct{}  `json:"-"`
+	credentialBaseline map[string][32]byte
+	setup              *cliSetupDriver
+	Failure            chan struct{} `json:"-"`
+	ProfileHome        string        `json:"-"`
+	OwnerID            string        `json:"-"`
+	AccountID          string        `json:"-"`
+	submitMu           sync.Mutex
 }
 
 // ConfigHome returns the base configuration directory for the user.
@@ -181,9 +189,9 @@ func jsonHasCredentialValue(val any) bool {
 // GetAntigravityAuthStatus returns current authentication status for the Antigravity harness.
 func GetAntigravityAuthStatus() map[string]interface{} {
 	_, loggedIn := ResolveAntigravityTokenPath()
-	msg := "Sesi Antigravity server belum terotentikasi"
+	msg := "Antigravity server session is not signed in"
 	if loggedIn {
-		msg = "Kredensial server tersedia; koneksi provider belum diverifikasi"
+		msg = "Server credentials are available. Provider connection has not been verified"
 	}
 	return map[string]interface{}{
 		"status":              "success",
@@ -198,6 +206,15 @@ func GetAntigravityAuthStatus() map[string]interface{} {
 // StartAntigravityAuthSession starts the interactive headless OAuth flow.
 // Its lifetime is independent of the HTTP request and is bounded to five minutes.
 func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, error) {
+	return startAntigravityAuthSession(ctx, "", "", "")
+}
+
+func startAntigravityAuthSession(ctx context.Context, home, ownerID, accountID string) (*AntigravityAuthSession, error) {
+	if home != "" {
+		if err := prepareAntigravitySettings(home); err != nil {
+			return nil, errors.New("Could not prepare the AI connection settings. Existing settings were preserved; check the service's file permissions and settings format.")
+		}
+	}
 	authSessionsMu.Lock()
 	defer authSessionsMu.Unlock()
 	for _, existing := range authSessions {
@@ -206,7 +223,7 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 			continue
 		default:
 		}
-		if time.Since(existing.CreatedAt) < 5*time.Minute {
+		if existing.ProfileHome == home && existing.OwnerID == ownerID && existing.AccountID == accountID && time.Since(existing.CreatedAt) < 5*time.Minute {
 			return existing, nil
 		}
 	}
@@ -220,13 +237,29 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 	}
 	lifetime, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	cmd := exec.CommandContext(lifetime, bin)
-	cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0", "TERM=xterm-256color", "CI=", "DBUS_SESSION_BUS_ADDRESS=", "GNOME_KEYRING_CONTROL=")
-	terminal, err := pty.Start(cmd)
+	cmd.Env = AntigravityProfileEnvironment(home)
+	if home != "" {
+		cmd.Dir = home
+		cmd.Cancel = func() error { _ = KillProcessTree(cmd.Process.Pid); return cmd.Process.Kill() }
+	}
+	credentialBaseline := map[string][32]byte{}
+	for _, path := range []string{AntigravityCredentialsFilePath(home), AntigravityLegacyCredentialsFilePath(home)} {
+		previous, e := os.ReadFile(path)
+		if e == nil {
+			credentialBaseline[path] = sha256.Sum256(previous)
+		} else if !os.IsNotExist(e) {
+			cancel()
+			return nil, errors.New("Existing sign-in state could not be checked; no login process was started")
+		}
+	}
+	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 120})
 	if err != nil {
 		cancel()
 		return nil, errors.New("cannot start Antigravity login terminal")
 	}
-	session := &AntigravityAuthSession{ID: hex.EncodeToString(nonce), Cmd: cmd, Stdin: terminal, CreatedAt: time.Now().UTC(), Done: make(chan struct{}), Failure: make(chan struct{}, 1)}
+	session := &AntigravityAuthSession{ProfileHome: home, OwnerID: ownerID, AccountID: accountID, ID: hex.EncodeToString(nonce), Cmd: cmd, Stdin: terminal, CreatedAt: time.Now().UTC(), Done: make(chan struct{}), Failure: make(chan struct{}, 1)}
+	session.credentialBaseline = credentialBaseline
+	session.setup = &cliSetupDriver{writer: terminal}
 	urls := make(chan string, 1)
 	go func() {
 		defer terminal.Close()
@@ -236,6 +269,7 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 		selectedGoogle := false
 		for {
 			n, readErr := terminal.Read(buf)
+			session.setup.feed(string(buf[:n]))
 			tail += string(buf[:n])
 			// Classify only explicit provider rejection; never retain/log raw CLI errors.
 			lower := strings.ToLower(tail)
@@ -272,6 +306,15 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 	select {
 	case url := <-urls:
 		session.AuthURL = url
+		if ownerID != "" && accountID != "" {
+			// A new profile must let the owner choose another signed-in Google account.
+			if parsed, err := neturl.Parse(url); err == nil {
+				q := parsed.Query()
+				q.Set("prompt", "select_account consent")
+				parsed.RawQuery = q.Encode()
+				session.AuthURL = parsed.String()
+			}
+		}
 		authSessions[session.ID] = session
 		return session, nil
 	case <-session.Done:
@@ -289,6 +332,10 @@ func StartAntigravityAuthSession(ctx context.Context) (*AntigravityAuthSession, 
 // SubmitAntigravityAuthCode passes a code only to a live OAuth terminal.
 // Raw credential JSON is never accepted as an authorization code.
 func SubmitAntigravityAuthCode(sessionID, code string) error {
+	return submitAntigravityAuthCode(sessionID, code, "", "")
+}
+
+func submitAntigravityAuthCode(sessionID, code, ownerID, accountID string, acceptTerms ...bool) error {
 	code = strings.TrimSpace(code)
 	if code == "" || strings.ContainsAny(code, "\r\n{}") || len(code) > 4096 {
 		return errors.New("invalid authorization code")
@@ -296,9 +343,11 @@ func SubmitAntigravityAuthCode(sessionID, code string) error {
 	authSessionsMu.Lock()
 	session := authSessions[sessionID]
 	authSessionsMu.Unlock()
-	if session == nil {
+	if session == nil || session.OwnerID != ownerID || session.AccountID != accountID {
 		return errors.New("login session expired or cancelled; start login again")
 	}
+	session.submitMu.Lock()
+	defer session.submitMu.Unlock()
 	if time.Since(session.CreatedAt) >= 5*time.Minute {
 		CancelAntigravityAuthSession(sessionID)
 		return errors.New("login session expired; start login again")
@@ -308,8 +357,13 @@ func SubmitAntigravityAuthCode(sessionID, code string) error {
 		return errors.New("login ended; start login again")
 	default:
 	}
-	if _, err := session.Stdin.Write([]byte(code + "\r")); err != nil {
-		return errors.New("login terminal closed; start login again")
+	if len(acceptTerms) > 0 && acceptTerms[0] && session.setup != nil {
+		session.setup.accept()
+	}
+	if !sessionCredentialsSaved(session) {
+		if _, err := session.Stdin.Write([]byte(code + "\r")); err != nil {
+			return errors.New("login terminal closed; start login again")
+		}
 	}
 	deadline := time.NewTimer(20 * time.Second)
 	defer deadline.Stop()
@@ -318,27 +372,42 @@ func SubmitAntigravityAuthCode(sessionID, code string) error {
 	for {
 		select {
 		case <-tick.C:
-			if sessionCredentialsSaved(session) {
+			if sessionCredentialsSaved(session) && (session.AccountID == "" || antigravityOnboardingComplete(session.ProfileHome)) {
 				CancelAntigravityAuthSession(sessionID)
 				return nil
 			}
 		case <-session.Done:
-			if sessionCredentialsSaved(session) {
+			if sessionCredentialsSaved(session) && (session.AccountID == "" || antigravityOnboardingComplete(session.ProfileHome)) {
 				return nil
+			}
+			if sessionCredentialsSaved(session) {
+				return errors.New("Google sign-in was saved, but AI setup is incomplete. Finish the provider setup before using this account.")
 			}
 			return errors.New("authorization failed; restart login")
 		case <-session.Failure:
 			CancelAntigravityAuthSession(sessionID)
-			return errors.New("Google menolak kode otorisasi. Mulai ulang login untuk mendapatkan kode baru.")
+			return errors.New("Google rejected the authorization code. Restart sign-in to get a new code.")
 		case <-deadline.C:
-			return errors.New("CLI belum menyimpan kredensial; hasil login belum terkonfirmasi. Coba verifikasi lagi atau mulai ulang login.")
+			return errors.New("AI setup is not complete. Your sign-in may be saved; finish the provider setup before using this account.")
 		}
 	}
 }
 
 // An old credential file is not evidence that this authorization code succeeded.
 func sessionCredentialsSaved(session *AntigravityAuthSession) bool {
-	for _, path := range []string{AntigravityCredentialsFilePath(ConfigHome()), AntigravityLegacyCredentialsFilePath(ConfigHome())} {
+	home := session.ProfileHome
+	if home == "" {
+		home = ConfigHome()
+	}
+	for _, path := range []string{AntigravityCredentialsFilePath(home), AntigravityLegacyCredentialsFilePath(home)} {
+		if session.credentialBaseline != nil {
+			data, err := os.ReadFile(path)
+			previous, existed := session.credentialBaseline[path]
+			if err == nil && (!existed || sha256.Sum256(data) != previous) && hasValidCredential(path) {
+				return true
+			}
+			continue
+		}
 		info, err := os.Stat(path)
 		if err == nil && !info.ModTime().Before(session.CreatedAt) && hasValidCredential(path) {
 			return true
@@ -354,6 +423,9 @@ func CancelAntigravityAuthSession(id string) {
 	authSessionsMu.Unlock()
 	if session != nil {
 		if session.Cmd != nil && session.Cmd.Process != nil {
+			if session.ProfileHome != "" {
+				_ = KillProcessTree(session.Cmd.Process.Pid)
+			}
 			_ = session.Cmd.Process.Kill()
 		}
 		if session.Stdin != nil {
@@ -364,13 +436,29 @@ func CancelAntigravityAuthSession(id string) {
 
 // VerifyAntigravityConnection distinguishes stored credentials from a working provider.
 func VerifyAntigravityConnection(ctx context.Context) error {
-	if !IsAntigravityLoggedIn() {
+	return VerifyAntigravityProfile(ctx, "")
+}
+
+func VerifyAntigravityProfile(ctx context.Context, home string, models ...string) error {
+	var loggedIn bool
+	if home == "" {
+		loggedIn = IsAntigravityLoggedIn()
+	} else {
+		loggedIn = IsAntigravityLoggedInInDir(home)
+	}
+	if !loggedIn {
 		return errors.New("Google login required")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 35*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "agy", "--print", "Reply with exactly CUAN_AUTH_OK. Do not use tools.", "--print-timeout", "30s")
-	cmd.Env = append(os.Environ(), "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+	if len(models) > 0 && IsTextModel(models[0]) {
+		cmd.Args = append(cmd.Args, "--model", models[0])
+	}
+	cmd.Env = AntigravityProfileEnvironment(home)
+	if home != "" {
+		cmd.Dir = home
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -384,13 +472,16 @@ func VerifyAntigravityConnection(ctx context.Context) error {
 func antigravityProbeError(output string) error {
 	lower := strings.ToLower(output)
 	if strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "quota") {
-		return errors.New("Kuota provider Antigravity sedang dibatasi. Kredensial tetap tersimpan; tunggu kuota pulih lalu coba verifikasi lagi. Login Google ulang tidak menambah kuota.")
+		if dur, resetStr, ok := ParseProviderQuotaResetDuration(output); ok && dur > 0 {
+			return fmt.Errorf("Antigravity provider quota is limited (Resets in %s). Credentials are saved. Wait for the quota to reset and verify again. Signing in to Google again does not increase quota.", resetStr)
+		}
+		return errors.New("Antigravity provider quota is limited. Credentials are saved. Wait for the quota to reset and verify again. Signing in to Google again does not increase quota.")
 	}
-	return errors.New("Koneksi provider Antigravity belum dapat diverifikasi. Kredensial tetap tersimpan; coba verifikasi lagi. Jangan ulangi login hanya karena gangguan provider.")
+	return errors.New("Could not verify the Antigravity provider connection. Credentials are saved. Verify again. A provider outage does not require signing in again.")
 }
 
 func validGoogleAuthURL(raw string) bool {
-	parsed, err := url.Parse(raw)
+	parsed, err := neturl.Parse(raw)
 	if err != nil || parsed.Scheme != "https" || parsed.Host != "accounts.google.com" {
 		return false
 	}

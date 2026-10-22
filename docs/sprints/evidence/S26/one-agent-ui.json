@@ -1,0 +1,55 @@
+{
+  "proof": [
+    {
+      "width": 360,
+      "height": 800,
+      "theme": "dark",
+      "actualRosterCount": 1,
+      "accountPanelAbsent": true,
+      "accountInventoryRequests": 0,
+      "legacyAuthRequests": 0,
+      "cancelOrFixtureDoesNotCreateRealRosterRows": true,
+      "officialOAuth": {
+        "host": "accounts.google.com",
+        "prompt": "select_account consent"
+      },
+      "fixtureFlow": null
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "theme": "light",
+      "actualRosterCount": 1,
+      "accountPanelAbsent": true,
+      "accountInventoryRequests": 0,
+      "legacyAuthRequests": 0,
+      "cancelOrFixtureDoesNotCreateRealRosterRows": true,
+      "officialOAuth": {
+        "host": "accounts.google.com",
+        "prompt": "select_account consent"
+      },
+      "fixtureFlow": {
+        "syntheticExchange": 1,
+        "syntheticRegistrationAttempts": 2,
+        "sameDedicatedProfile": true,
+        "noCodeResubmission": true
+      }
+    },
+    {
+      "width": 1280,
+      "height": 900,
+      "theme": "dark",
+      "actualRosterCount": 1,
+      "accountPanelAbsent": true,
+      "accountInventoryRequests": 0,
+      "legacyAuthRequests": 0,
+      "cancelOrFixtureDoesNotCreateRealRosterRows": true,
+      "officialOAuth": {
+        "host": "accounts.google.com",
+        "prompt": "select_account consent"
+      },
+      "fixtureFlow": null
+    }
+  ],
+  "limits": "Actual staging roster, isolated CLI OAuth URL and cancellation. 390px exchange/registration responses are explicitly intercepted FIXTURES to verify automatic save/retry UI only; no code/consent/credential/agent created on backend. Profile/backend binding and child execution separately tested with Go fixtures. No real second-account response claimed."
+}

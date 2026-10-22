@@ -23,7 +23,7 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
     <h3 className="font-semibold text-sm">Discussion</h3>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {comments.length === 0 && <p className="text-sm text-muted-foreground">No comments yet.</p>}
-    {comments.map(comment => <article key={comment.id} className="rounded border border-border p-3 text-sm"><header className="mb-2 text-xs text-muted-foreground">{comment.author} · {new Date(comment.created_at).toLocaleString()}</header><p className="whitespace-pre-wrap break-words">{comment.message}</p></article>)}
+    {comments.map(comment => <article key={comment.id} className="rounded border border-border p-3 text-sm"><header className="mb-2 text-xs text-muted-foreground">{comment.author} · {new Date(comment.created_at).toLocaleString('en-US')}</header><p className="whitespace-pre-wrap break-words">{comment.message}</p></article>)}
     <form onSubmit={send} className="space-y-2"><label htmlFor="task-comment" className="text-sm">Add a comment</label><textarea id="task-comment" value={message} onChange={event => setMessage(event.target.value)} className="w-full rounded border border-input bg-background p-3 text-sm" rows={3} /><button disabled={busy || !message.trim()} className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50">{busy ? 'Saving…' : 'Send comment'}</button></form>
   </div>
 }
