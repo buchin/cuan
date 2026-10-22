@@ -221,7 +221,7 @@ export function TaskSessionPage({
   return (
     <section
       aria-label="Task session"
-      className="flex h-full min-h-0 flex-col bg-background"
+      className="flex h-full min-h-0 flex-col bg-background overscroll-contain"
     >
       <GitHubPrerequisite task={detail} />
       <header className="flex h-11 shrink-0 items-center gap-1.5 sm:gap-2 border-b px-2 sm:px-3">
@@ -285,7 +285,7 @@ export function TaskSessionPage({
         </button>
       )}
       {active || showTerminal ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overscroll-contain">
           {!active && (
             <button
               className="action-secondary m-2 text-xs"
@@ -294,7 +294,7 @@ export function TaskSessionPage({
               Back to result
             </button>
           )}
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overscroll-contain">
             <TaskTerminal
               key={sessionId}
               taskId={taskId}
