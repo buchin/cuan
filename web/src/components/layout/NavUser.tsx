@@ -2,6 +2,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { ReloadButton } from '../ui/ReloadButton'
 import {
   Keyboard,
   LogOut,
@@ -163,6 +164,11 @@ export function NavUser({
                   {email}
                 </span>
               </div>
+              <ReloadButton
+                className="h-8 w-8 rounded hover:bg-accent text-muted-foreground hover:text-foreground shrink-0"
+                iconClassName="h-4 w-4"
+                title={t('Reload app')}
+              />
             </div>
 
             {onWork && (
@@ -206,6 +212,11 @@ export function NavUser({
               <KeyRound className="h-4 w-4 text-primary shrink-0" />
               <span>{t('Profile & password')}</span>
             </button>
+
+            <ReloadButton
+              variant="menu-item"
+              label={t('Reload app')}
+            />
 
             <div className="h-px bg-border my-1" />
 

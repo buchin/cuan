@@ -1,4 +1,5 @@
 import { GitHubPrerequisite } from './GitHubPrerequisite'
+import { ReloadButton } from '../../components/ui/ReloadButton'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import {
@@ -425,6 +426,11 @@ function TaskDetailView({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <ReloadButton
+              className="icon-action shrink-0"
+              iconClassName="h-4 w-4"
+              title={t('Reload app')}
+            />
             <button
               className="icon-action hidden sm:inline-flex"
               aria-label={full ? 'Collapse task view' : 'Expand task view'}

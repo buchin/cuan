@@ -613,5 +613,8 @@
   "Changes successfully applied to website!": "Perubahan berhasil diterapkan ke website!",
   "Changes successfully applied!": "Perubahan berhasil diterapkan!",
   "Could not apply changes.": "Gagal menerapkan perubahan.",
-  "Assigned to task": "Sedang dikerjakan tim"
+  "Assigned to task": "Sedang dikerjakan tim",
+  "Reload": "Muat ulang",
+  "Reload app": "Muat ulang aplikasi",
+  "Reload application and refresh cache": "Muat ulang aplikasi dan bersihkan cache"
 }

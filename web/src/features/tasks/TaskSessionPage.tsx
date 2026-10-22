@@ -21,6 +21,7 @@ import { TaskReadyPage } from './TaskReadyPage'
 import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { ReloadButton } from '../../components/ui/ReloadButton'
 import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime } from './task-ui'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -251,6 +252,11 @@ export function TaskSessionPage({
           </span>
         </div>
         <div ref={setTerminalControls} className="flex shrink-0 items-center" />
+        <ReloadButton
+          className="icon-action shrink-0"
+          iconClassName="h-4 w-4"
+          title={t('Reload app')}
+        />
         <button
           className="icon-action shrink-0"
           aria-label="Detail"
