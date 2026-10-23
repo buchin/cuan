@@ -679,7 +679,12 @@ export function TeamView({
                   </div>
                 </div>
                 {account && (
-                  <div className="mt-3 border-t border-border/60 pt-3 space-y-2.5">
+                  <details className="mt-3 border-t border-border/60 pt-2">
+                    <summary className="flex min-h-11 cursor-pointer items-center justify-between text-sm font-medium text-foreground">
+                      <span>{t('Agent details')}</span>
+                      <span className="text-xs text-muted-foreground">{t('Quota, routing and usage')}</span>
+                    </summary>
+                  <div className="space-y-2.5 pb-1">
                     <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
                       <input
                         type="checkbox"
@@ -857,6 +862,7 @@ export function TeamView({
                       </div>
                     )}
                   </div>
+                  </details>
                 )}
                 {(a.last_checked_at || a.verified_at || state.state === 'unknown' || state.state === 'unavailable' || state.state === 'login_required') && (
                   <details className="mt-2 text-xs text-muted-foreground">

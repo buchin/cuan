@@ -590,6 +590,8 @@
   "Check connection": "Periksa koneksi",
   "Use as backup": "Gunakan sebagai backup",
   "Allow model fallback": "Izinkan fallback model",
+  "Agent details": "Detail agent",
+  "Quota, routing and usage": "Quota, routing, dan penggunaan",
   "The last connection check has expired. Check the connection before routing new work here.": "Pemeriksaan koneksi terakhir sudah kedaluwarsa. Periksa koneksi sebelum merutekan pekerjaan baru ke sini.",
   "This agent has not been checked yet. Check the connection to confirm whether it is available.": "Agent ini belum diperiksa. Periksa koneksi untuk memastikan agent tersedia.",
   "Answered": "Terjawab",
