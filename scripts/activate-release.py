@@ -92,16 +92,17 @@ def assert_no_github_login(control_group=None, proc_root=Path('/proc'), cgroup_r
         raise RuntimeError('Could not verify pending GitHub sign-in; release was not switched') from error
 
 
-def assert_idle_work():
+def assert_idle_work(no_restart=False):
     # A pre-switch gate, not a lock on HTTP admission. Queued requests that arrive
     # after this check retain their normal durable restart/recovery semantics.
-    env=database_environment()
-    for table, states in [('inbox_requests',"'running','queued','cancelling'"),('task_attempts',"'running','queued'"),('task_launches',"'queued','claimed'")]:
-        if database_scalar("SELECT to_regclass('public."+table+"') IS NOT NULL",env) != 't':
-            continue
-        column='state' if table!='task_attempts' else 'status'
-        if int(database_scalar('SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')',env)):
-            raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
+    if not no_restart:
+        env=database_environment()
+        for table, states in [('inbox_requests',"'running','queued','cancelling'"),('task_attempts',"'running','queued'"),('task_launches',"'queued','claimed'")]:
+            if database_scalar("SELECT to_regclass('public."+table+"') IS NOT NULL",env) != 't':
+                continue
+            column='state' if table!='task_attempts' else 'status'
+            if int(database_scalar('SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')',env)):
+                raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
 
     assert_no_github_login()
 
@@ -126,6 +127,43 @@ def assert_task_worktree_support(manifest, retained_environment=None):
     count = database_scalar("SELECT count(*) FROM tasks WHERE instructions LIKE '%\"isolated_repository\":true%'", env)
     if int(count):
         raise RuntimeError('This release cannot resume isolated task worktrees. Activate a worktree-aware release; no data was changed.')
+
+
+def assert_no_accidental_downgrade(old_dir, target_dir, base, allow_divergent=False):
+    if allow_divergent or not old_dir.exists() or not target_dir.exists():
+        return
+    old_manifest_path = old_dir / 'release.json'
+    target_manifest_path = target_dir / 'release.json'
+    if not old_manifest_path.exists() or not target_manifest_path.exists():
+        return
+    try:
+        old_sha = json.loads(old_manifest_path.read_text()).get('sha', '')
+        target_sha = json.loads(target_manifest_path.read_text()).get('sha', '')
+        if old_sha and target_sha and old_sha != target_sha:
+            git_dir = base / 'data/projects/default/.git'
+            if git_dir.exists():
+                has_old = subprocess.run(
+                    ['git', '--git-dir', str(git_dir), 'cat-file', '-e', old_sha + '^{commit}'],
+                    capture_output=True
+                ).returncode == 0
+                has_target = subprocess.run(
+                    ['git', '--git-dir', str(git_dir), 'cat-file', '-e', target_sha + '^{commit}'],
+                    capture_output=True
+                ).returncode == 0
+                if has_old and has_target:
+                    res = subprocess.run(
+                        ['git', '--git-dir', str(git_dir), 'merge-base', '--is-ancestor', old_sha, target_sha],
+                        capture_output=True
+                    )
+                    if res.returncode != 0:
+                        raise RuntimeError(
+                            f'Regression guard: target release {target_sha[:10]} does not contain active release {old_sha[:10]}. '
+                            'Activation aborted to prevent overwriting merged production state. Use --allow-divergent to override.'
+                        )
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
 
 
 def backup_database(release):
@@ -157,6 +195,8 @@ def main():
     parser.add_argument('--service', default=SERVICE, help='Existing systemd service')
     parser.add_argument('--port', type=int, default=PORT, help='Loopback health port')
     parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22, 23, 24, 25), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
+    parser.add_argument('--allow-divergent', action='store_true', help='Allow activating a release that does not contain active release commits')
+    parser.add_argument('--no-restart', action='store_true', help='Skip service restart for zero-downtime static asset releases')
     args = parser.parse_args()
     BASE, SERVICE, PORT, SCHEMA_COUNT = args.base.resolve(), args.service, args.port, args.schema_count
     if not re.fullmatch(r'[a-zA-Z0-9_-]+', SERVICE) or not 1 <= PORT <= 65535:
@@ -203,9 +243,11 @@ def main():
                 parser.error('Release payload checksum mismatch')
         if not (target / 'bin/cuan-server').is_file() or not (target / 'web/dist/index.html').is_file():
             parser.error('Incomplete release')
-        assert_idle_work()
+        assert_idle_work(args.no_restart)
         assert_project_workspace_support(manifest)
         assert_task_worktree_support(manifest)
+        if args.release and not args.rollback:
+            assert_no_accidental_downgrade(old, target, BASE, args.allow_divergent)
         if args.release:
             backup_database(args.release)
         for release in (old, target):
@@ -227,13 +269,14 @@ def main():
             'Environment=CUAN_AUTO_MIGRATE=false\n')
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         retained_environment = database_environment()
-        assert_idle_work()  # Recheck after backup and unit preparation.
+        assert_idle_work(args.no_restart)  # Recheck after backup and unit preparation.
         switch(current, target)
-        if not restart_and_check():
+        check_healthy = healthy if args.no_restart else restart_and_check
+        if not check_healthy():
             assert_project_workspace_support(json.loads((old / 'release.json').read_text()), retained_environment)
             assert_task_worktree_support(json.loads((old / 'release.json').read_text()), retained_environment)
             switch(current, old)
-            recovered = restart_and_check()
+            recovered = check_healthy()
             raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
         switch(previous, old)
         print(json.dumps({'release': target.name, 'previous': old.name, 'health': 'healthy', 'migrations': SCHEMA_COUNT}))
