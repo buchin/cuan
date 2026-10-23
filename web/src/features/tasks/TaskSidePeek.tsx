@@ -157,6 +157,7 @@ function TaskDetailView({
     if (!id) return
     const next = new URLSearchParams(location.search)
     next.delete('view')
+    next.delete('retry')
     navigate(
       `/tasks/${encodeURIComponent(initial.id)}/sessions/${encodeURIComponent(id)}${next.toString() ? '?' + next.toString() : ''}`,
       { state: location.state },
@@ -366,6 +367,28 @@ function TaskDetailView({
       throw e
     }
   }
+  const autoRetryStarted = useRef(false)
+  useEffect(() => {
+    if (
+      autoRetryStarted.current ||
+      !loaded ||
+      !params.get('retry') ||
+      launching ||
+      busyRef.current ||
+      pending ||
+      running ||
+      !agentId ||
+      detail.status === 'done'
+    )
+      return
+    autoRetryStarted.current = true
+    void working(() =>
+      launch({
+        request_id: crypto.randomUUID(),
+        agent_id: agentId,
+      }),
+    )
+  }, [agentId, detail.status, launch, loaded, launching, params, pending, running])
   const openRun = () => {
     setAgentId(detail.assignee_id || detail.assignee || '')
     setFeedback('')
