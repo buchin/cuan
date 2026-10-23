@@ -608,6 +608,8 @@ export function TeamView({
                                 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                                 : state.state === 'login_required'
                                   ? 'bg-destructive/10 text-destructive border-destructive/20'
+                                  : state.state === 'unavailable'
+                                    ? 'bg-destructive/10 text-destructive border-destructive/20'
                                   : 'bg-muted text-muted-foreground border-border'
                           }`}
                         >
@@ -639,6 +641,14 @@ export function TeamView({
                               {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
                             </p>
                           )}
+                        </div>
+                      )}
+                      {state.state === 'unavailable' && (
+                        <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
+                          <p className="font-medium">{t('Agent unavailable')}</p>
+                          <p className="mt-0.5 text-muted-foreground">
+                            {t('The provider could not be reached. Check the connection and try again; Inbox will not route new work here while it is unavailable.')}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -831,7 +841,7 @@ export function TeamView({
                     )}
                   </div>
                 )}
-                {(a.last_checked_at || a.verified_at) && (
+                {(a.last_checked_at || a.verified_at || state.state === 'unavailable' || state.state === 'login_required') && (
                   <details className="mt-2 text-xs text-muted-foreground">
                     <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
                       Connection details

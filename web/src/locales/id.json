@@ -584,6 +584,8 @@
   "Load older messages": "Muat pesan sebelumnya",
   "Start session": "Mulai sesi",
   "Open task": "Buka task",
+  "Agent unavailable": "Agent tidak tersedia",
+  "The provider could not be reached. Check the connection and try again; Inbox will not route new work here while it is unavailable.": "Provider tidak dapat dihubungi. Periksa koneksi dan coba lagi; Inbox tidak akan merutekan pekerjaan baru ke agent ini saat tidak tersedia.",
   "Answered": "Terjawab",
   "Not started": "Belum dimulai",
   "Not running": "Tidak berjalan",
