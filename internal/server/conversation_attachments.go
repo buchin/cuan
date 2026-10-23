@@ -90,7 +90,11 @@ func decodeAttachmentMessage(content string) (string, []string) {
 	if strings.HasPrefix(content, attachmentEnvelope) {
 		var m attachmentMessage
 		if json.Unmarshal([]byte(strings.TrimPrefix(content, attachmentEnvelope)), &m) == nil {
-			return m.Text, m.IDs
+			text := m.Text
+			if text == "" && m.Approval != nil && m.Approval.Plan.Title != "" {
+				text = fmt.Sprintf("[Rencana Disetujui: %s] %s", m.Approval.Plan.Title, m.Approval.Plan.Description)
+			}
+			return text, m.IDs
 		}
 	}
 	return content, nil

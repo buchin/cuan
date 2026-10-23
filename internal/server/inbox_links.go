@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	cuanURLRegex      = regexp.MustCompile(`https?://[^\s]+`)
 	cuanRoomLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?/(?:inbox|chat|conversations|studio)/([a-fA-F0-9-]{36})`)
 	cuanTaskLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?(?:/projects/[^/\s]+)?/tasks/([a-zA-Z0-9_-]{8,})`)
 	cuanBareTaskRegex = regexp.MustCompile(`\b(task_[a-zA-Z0-9]{8,}|task-[a-zA-Z0-9]{8,})\b`)
@@ -43,8 +44,8 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 			continue
 		}
 		sort.SliceStable(messages, func(i, j int) bool { return messages[i].CreatedAt.Before(messages[j].CreatedAt) })
-		if len(messages) > 8 {
-			messages = messages[len(messages)-8:]
+		if len(messages) > 15 {
+			messages = messages[len(messages)-15:]
 		}
 		fmt.Fprintf(&b, "\n[Referenced Internal Cuan Conversation: Room %s, Title: %q]\n", roomID, room.Title)
 		b.WriteString("(This is an internal Cuan conversation from this application, NOT an external link. Analyze it directly):\n")

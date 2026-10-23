@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -92,5 +93,88 @@ func TestResolveInternalCuanLinksInConversation(t *testing.T) {
 	resolvedOSSTask := s.resolveInternalCuanLinks(ctx, ossProjectTaskPrompt, currentRoomID)
 	if !strings.Contains(resolvedOSSTask, "Referenced Internal Cuan Task: ID "+createdTask.ID) {
 		t.Fatalf("expected resolved project task link on custom domain, got: %s", resolvedOSSTask)
+	}
+}
+
+func TestInboxProjectContextResolvesLinksAndRetry(t *testing.T) {
+	s, _ := setupTestChatServer(t)
+	ctx := context.Background()
+	root := t.TempDir()
+
+	// 1. Projects: default, cuan, dojo (matching live server!)
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", root)
+	_ = store.CreateProject(ctx, &project.Project{ID: "default", Name: "Default", LocalPath: root})
+	_ = store.CreateProject(ctx, &project.Project{ID: "cuan", Name: "cuan", LocalPath: root})
+	_ = store.CreateProject(ctx, &project.Project{ID: "dojo", Name: "dojo", LocalPath: root})
+
+	// 2. Referenced conversation room
+	refRoomID := db.GenerateUUID()
+	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        refRoomID,
+		ProjectID: "default",
+		Title:     "Ui ux navbar cuan terminal ini bisa better ga?",
+		Topic:     "agent-topic:agent_sm",
+	})
+	s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     refRoomID,
+		AuthorType: "user",
+		Content:    "Ui ux navbar cuan terminal ini bisa better ga?",
+		CreatedAt:  time.Now().Add(-10 * time.Minute),
+	})
+	s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     refRoomID,
+		AuthorType: "agent",
+		Content:    "Bisa banget. Dari tangkapan layar di tampilan mobile...",
+		CreatedAt:  time.Now().Add(-9 * time.Minute),
+	})
+
+	// 3. Current room (agent topic)
+	currentRoomID := db.GenerateUUID()
+	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        currentRoomID,
+		ProjectID: "default",
+		Title:     "Uji Coba SM Link Resolver",
+		Topic:     "agent-topic:agent_sm",
+	})
+
+	// First user message containing domain URL https://cuan.dojo.cc/inbox/<refRoomID>
+	firstMsg := db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     currentRoomID,
+		AuthorType: "user",
+		Content:    "Tolong cek masalah di percakapan ini https://cuan.dojo.cc/inbox/" + refRoomID + " apa yang dibahas dan apa tindakan tim selanjutnya?",
+		CreatedAt:  time.Now().Add(-5 * time.Minute),
+	}
+	s.projectStudioRepo.CreateMessage(ctx, &firstMsg)
+
+	// Test 1: Snapshot for the first message resolves the link and does not get stuck in ambiguous project selection
+	_, snapshot := s.inboxProjectContext(ctx, db.InboxRequest{RoomID: currentRoomID, MessageID: firstMsg.ID})
+	if !strings.Contains(snapshot, "Referenced Internal Cuan Conversation: Room "+refRoomID) {
+		t.Fatalf("expected referenced conversation in snapshot, got: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Ui ux navbar cuan terminal ini bisa better ga?") {
+		t.Fatalf("expected message text from referenced room in snapshot, got: %s", snapshot)
+	}
+
+	// Test 2: User clicks "Retry" (message is literally just "Retry")
+	retryMsg := db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     currentRoomID,
+		AuthorType: "user",
+		Content:    "Retry",
+		CreatedAt:  time.Now(),
+	}
+	s.projectStudioRepo.CreateMessage(ctx, &retryMsg)
+
+	// Snapshot for retry request must STILL include the referenced conversation!
+	_, snapshotRetry := s.inboxProjectContext(ctx, db.InboxRequest{RoomID: currentRoomID, MessageID: retryMsg.ID})
+	if !strings.Contains(snapshotRetry, "Referenced Internal Cuan Conversation: Room "+refRoomID) {
+		t.Fatalf("expected referenced conversation on retry, got: %s", snapshotRetry)
+	}
+	if !strings.Contains(snapshotRetry, "Ui ux navbar cuan terminal ini bisa better ga?") {
+		t.Fatalf("expected message text on retry, got: %s", snapshotRetry)
 	}
 }
