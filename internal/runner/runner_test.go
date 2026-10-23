@@ -3,6 +3,9 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,6 +13,22 @@ import (
 
 	"github.com/buchin/cuan/internal/task"
 )
+
+func TestRunProjectVerificationUsesRepositoryVerifier(t *testing.T) {
+	root := t.TempDir()
+	testDir := filepath.Join(root, "scripts")
+	if err := os.Mkdir(testDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(testDir, "test.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nprintf 'verification-pass\\n'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	result := runProjectVerification(context.Background(), root)
+	if !result.Passed || !strings.Contains(result.Summary, "verification-pass") {
+		t.Fatalf("unexpected verification result: %+v", result)
+	}
+}
 
 func TestRunner_Metrics(t *testing.T) {
 	metrics := CollectHostMetrics()

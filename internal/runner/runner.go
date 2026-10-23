@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -301,6 +302,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				compReq.Status = task.AttemptStatusFailed
 				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
 			}
+			if compReq.Status == task.AttemptStatusSucceeded {
+				verification := runProjectVerification(ctx, workingDir)
+				compReq.TestSummary = verification.Summary
+				if !verification.Passed {
+					compReq.Status = task.AttemptStatusFailed
+					compReq.ErrorMessage = verification.Error
+				}
+			}
 		}
 	} else {
 		compReq.Status = task.AttemptStatusFailed
@@ -326,7 +335,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		// 2. Diff summary
 		diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, defaultBranch)
 		compReq.DiffSummary = diffSummary
-		compReq.TestSummary = fmt.Sprintf("Targeted validation executed (exit %d)", compReq.ExitCode)
+		if compReq.TestSummary == "" {
+			compReq.TestSummary = "No project verifier was available; agent report evidence retained."
+		}
 
 		// 3. Push branch & generate/update Pull Request if remote repo info is present
 		if claim.RepoOwner != "" && claim.RepoName != "" {
@@ -378,6 +389,51 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/complete", att.ID)
 	_, _ = r.doRequest(context.Background(), http.MethodPost, urlPath, compReq)
 	log.Printf("[Runner %s] Attempt %s finalized with status '%s' (exit %d)", r.cfg.RunnerID, att.ID, compReq.Status, compReq.ExitCode)
+}
+
+type verificationResult struct {
+	Passed  bool
+	Summary string
+	Error   string
+}
+
+// runProjectVerification uses only repository-local, fixed commands. It never
+// executes a command supplied by the agent or task text.
+func runProjectVerification(parent context.Context, workingDir string) verificationResult {
+	if workingDir == "" {
+		return verificationResult{Passed: true, Summary: "No workspace was assigned; no project verifier available."}
+	}
+	command := ""
+	args := []string{}
+	testScript := filepath.Join(workingDir, "scripts", "test.sh")
+	if info, err := os.Stat(testScript); err == nil && !info.IsDir() && info.Mode()&0111 != 0 {
+		command, args = testScript, []string{"--fast"}
+	} else if _, err := os.Stat(filepath.Join(workingDir, "go.mod")); err == nil {
+		command, args = "go", []string{"test", "./..."}
+	} else {
+		return verificationResult{Passed: true, Summary: "No supported project verifier was available; agent report evidence retained."}
+	}
+	ctx, cancel := context.WithTimeout(parent, 5*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Dir = workingDir
+	output, err := cmd.CombinedOutput()
+	const maxOutput = 12000
+	if len(output) > maxOutput {
+		output = output[len(output)-maxOutput:]
+	}
+	exitCode := 0
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	}
+	summary := fmt.Sprintf("Project verification: %s %s (exit %d)\n%s", filepath.Base(command), strings.Join(args, " "), exitCode, strings.TrimSpace(string(output)))
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return verificationResult{Passed: false, Summary: summary, Error: "Project verification timed out after 5 minutes"}
+		}
+		return verificationResult{Passed: false, Summary: summary, Error: "Project verification failed"}
+	}
+	return verificationResult{Passed: true, Summary: summary}
 }
 
 func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse) bool {
