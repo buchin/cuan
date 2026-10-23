@@ -290,7 +290,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			runtime.unsafeTool = runtime.unsafeTool || !repairSafe
 			return output, err
 		}
-		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || reason == "coordinator_tool_rejected" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && runErr == nil && !runtime.invalid && !runtime.overflow {
+		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
 			if step != nil {
 				step("response_recovery", "The previous tool attempt exceeded budget or encountered an issue. Answering directly from conversation context with structured actions.")
 			}

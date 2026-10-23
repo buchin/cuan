@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,6 +34,8 @@ func TestCoordinatorResponseActionsUseExistingContracts(t *testing.T) {
 		{"memory", inboxMemoryAction{ContactID: "contact", Kind: "note", Body: "Enjoys hiking", AuthorizationID: "owner-message"}, "cuan-memory"},
 		{"memory_search", inboxMemorySearch{Query: "hiking", AuthorizationID: "owner-message"}, "cuan-search"},
 		{"task_draft", InboxTaskDraft{Title: "Draft calculator", Description: "Draft only", ProjectID: "default"}, "cuan-task"},
+		{"task_cancel", inboxTaskCancelAction{TaskID: "task-123", Reason: "User decided to cancel"}, "cuan-task-cancel"},
+		{"task_reopen", inboxTaskReopenAction{TaskID: "task-123", Reason: "User wants to retry"}, "cuan-task-reopen"},
 	}
 	for _, c := range cases {
 		t.Run(c.kind+c.marker, func(t *testing.T) {
@@ -122,7 +125,15 @@ func TestCoordinatorCLIRequiresSchemaAndRejectsNativeExecution(t *testing.T) {
 // Fixtures describe the persisted UI contract; emit the new provider transport
 // independently so lifecycle tests still assert real application effects.
 func coordinatorFixtureResponse(content string) string {
-	kinds := map[string]string{"cuan-approval": "approval", "cuan-delegate": "delegation", "cuan-memory": "memory", "cuan-search": "memory_search", "cuan-task": "task_draft"}
+	kinds := map[string]string{
+		"cuan-approval":    "approval",
+		"cuan-delegate":    "delegation",
+		"cuan-memory":      "memory",
+		"cuan-search":      "memory_search",
+		"cuan-task":        "task_draft",
+		"cuan-task-cancel": "task_cancel",
+		"cuan-task-reopen": "task_reopen",
+	}
 	for marker, kind := range kinds {
 		start := strings.Index(content, "```"+marker+"\n")
 		if start < 0 {
@@ -200,22 +211,24 @@ func TestCoordinatorInvalidSchemaRetriesOnlyOnceWithoutEffects(t *testing.T) {
 func TestCoordinatorToolBudgetRecovery(t *testing.T) {
 	home, bin := t.TempDir(), t.TempDir()
 	// Script:
-	// Call 1: outputs 4 tools (exceeding max 3). Note: tool 4 triggers SIGKILL from cancel(),
+	// Call 1: outputs 13 tools (exceeding coordinator max 12). Note: tool 13 triggers SIGKILL from cancel(),
 	// but if the shell continues it would output invalid.
 	// Call 2 (recovery): direct coordinator response with structured approval action.
+	var firstBuilder strings.Builder
+	firstBuilder.WriteString("{\"event\":\"init\",\"conversation_id\":\"11111111-2222-3333-4444-555555555555\"}\n")
+	for i := 1; i <= 12; i++ {
+		num := strconv.Itoa(i)
+		firstBuilder.WriteString("{\"event\":\"step_update\",\"step_update\":{\"step_index\":" + num + ",\"state\":\"ACTIVE\",\"step_type\":\"tool\",\"tool_name\":\"read_file\"}}\n")
+		firstBuilder.WriteString("{\"event\":\"step_update\",\"step_update\":{\"step_index\":" + num + ",\"state\":\"DONE\",\"step_type\":\"tool\",\"tool_name\":\"read_file\"}}\n")
+	}
+	firstBuilder.WriteString("{\"event\":\"step_update\",\"step_update\":{\"step_index\":13,\"state\":\"ACTIVE\",\"step_type\":\"tool\",\"tool_name\":\"read_file\"}}\n")
+	firstOutput := firstBuilder.String()
+
 	script := `#!/bin/sh
 printf x >> "$HOME/calls"
 if [ "$(cat "$HOME/calls")" = x ]; then
   cat <<'FIRST'
-{"event":"init","conversation_id":"11111111-2222-3333-4444-555555555555"}
-{"event":"step_update","step_update":{"step_index":1,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}
-{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"read_file"}}
-{"event":"step_update","step_update":{"step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"view_file"}}
-{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"view_file"}}
-{"event":"step_update","step_update":{"step_index":3,"state":"ACTIVE","step_type":"tool","tool_name":"grep_search"}}
-{"event":"step_update","step_update":{"step_index":3,"state":"DONE","step_type":"tool","tool_name":"grep_search"}}
-{"event":"step_update","step_update":{"step_index":4,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}
-FIRST
+` + firstOutput + `FIRST
   sleep 10
 else
   cat <<'SECOND'

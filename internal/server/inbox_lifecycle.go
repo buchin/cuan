@@ -296,6 +296,10 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								output = s.applyInboxReviewEvaluation(ctx, q, output)
 							} else if strings.Contains(output, "```cuan-memory") {
 								output = s.applyInboxContactMemory(ctx, q, output)
+							} else if strings.Contains(output, "```cuan-task-cancel") {
+								output = s.applyInboxTaskCancel(ctx, q, output)
+							} else if strings.Contains(output, "```cuan-task-reopen") {
+								output = s.applyInboxTaskReopen(ctx, q, output)
 							} else {
 								output = s.applyInboxDelegation(ctx, q, output)
 							}
