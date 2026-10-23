@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trapDialogFocus } from '../../lib/dialog'
 
-const destinations: Record<string, string> = { h: '/studio', i: '/inbox', p: '/projects', c: '/contacts', n: '/notifications', s: '/settings' }
-const shortcuts = [['G then H', 'Studio'], ['G then I', 'Inbox'], ['G then P', 'Projects'], ['G then C', 'Contacts'], ['G then N', 'Notifications'], ['G then S', 'Settings'], ['C', 'Focus message input'], ['N', 'Create in this page'], ['Ctrl / Cmd + K', 'Search everything'], ['?', 'Keyboard shortcuts']]
+const destinations: Record<string, string> = { h: '/studio', i: '/inbox', t: '/tasks', p: '/projects', c: '/contacts', n: '/notifications', s: '/settings', a: '/account' }
+const shortcuts = [['G then H', 'Studio'], ['G then I', 'Inbox'], ['G then T', 'Tasks'], ['G then P', 'Projects'], ['G then C', 'Contacts'], ['G then N', 'Notifications'], ['G then S', 'Settings'], ['G then A', 'Account'], ['C', 'Focus message input'], ['N', 'Create in this page'], ['Ctrl / Cmd + K', 'Search everything'], ['?', 'Keyboard shortcuts']]
 
 export function KeyboardShortcuts() {
   const navigate = useNavigate()
