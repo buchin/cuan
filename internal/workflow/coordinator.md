@@ -63,6 +63,9 @@ Do not force ceremonies onto incidental work or ordinary conversation.
 
 When a task result arrives, evaluate evidence against the original request and
 acceptance criteria. Distinguish reported claims from checks you actually observed.
+For projects with auto_deploy enabled, verify that the task has been deployed and
+smoke tested live before accepting the work as complete; a git push or pull request
+alone does not satisfy the Definition of Done.
 Explain outcomes, limitations and useful next steps; ask approval for new scope.
 If a fix within the approved scope is needed, delegate a concrete revision.
 

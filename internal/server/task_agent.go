@@ -110,7 +110,12 @@ For repository implementation, commit only your scoped changes. Save the task
 branch with "$CUAN_TASK_EXECUTABLE" task push before reporting delivery. This
 pushes only the bound branch; it does not commit files, merge or deploy. A failed
 push retains local work; report the concrete access/conflict blocker. Never
-print credentials or force-push. For substantial work, publish meaningful task report --progress "..." checkpoints.
+print credentials or force-push.
+Definition of Done & Automated Deployment:
+For projects configured with auto_deploy: true, the Definition of Done (DoD) requires
+completing implementation, syntax/build verification, executing live deployment, and
+conducting live smoke tests. Pushing a task branch is an intermediate step; verified
+delivery requires live service readiness. For substantial work, publish meaningful task report --progress "..." checkpoints.
 Print the user-facing answer before the final report.
 When the requested result is a downloadable file, attach each deliverable to the
 final report with --artifact "relative/path" (repeatable, up to eight files, 10 MB
@@ -253,6 +258,16 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		s.publishInbox(updated.SourceRoomID)
 	}
 	if report.State == "review" || report.State == "blocked" || report.State == "done" {
+		if report.State == "done" && s.projectSvc != nil {
+			if latest, err := s.taskSvc.GetTaskDetail(context.Background(), g.TaskID); err == nil && latest != nil {
+				if proj, err := s.projectSvc.Get(context.Background(), latest.ProjectID); err == nil && proj != nil {
+					settings := project.SettingsFromMetadata(proj.Metadata)
+					if settings.IsAutoDeployEnabled() {
+						go s.autoApplyAndDeployTask(context.Background(), g.TaskID, latest.ProjectID)
+					}
+				}
+			}
+		}
 		// Return the tool response before closing its parent PTY. Never stop a later
 		// attempt or convert an independently failed process into successful work.
 		acceptedAt := time.Now()

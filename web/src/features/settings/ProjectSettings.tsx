@@ -19,6 +19,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
     name: p.name, goal: String(p.metadata?.cuan_settings?.goal || ''),
     instructions: String(p.metadata?.cuan_settings?.instructions || ''),
     repo_url: p.repo_url || '', default_branch: p.default_branch || '',
+    auto_deploy: p.metadata?.cuan_settings?.auto_deploy !== false,
   })
   const [baseline, setBaseline] = useState(() => values(project))
   const [form, setForm] = useState(baseline)
@@ -62,6 +63,20 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <label htmlFor="project-instructions" className="text-sm font-medium">{t('Instructions for Cuan')}</label>
         <textarea id="project-instructions" className="field-control min-h-28 resize-y py-3" rows={4} maxLength={4000} disabled={busy} value={form.instructions} onChange={event => change('instructions', event.target.value)} placeholder={t('Preferences, constraints, or context Cuan should remember.')} />
         <p className="text-xs text-muted-foreground">{t('Applies to new tasks. Existing tasks keep their original instructions.')}</p>
+      </div>
+      <div className="flex items-center justify-between rounded-lg border bg-muted/10 p-3 sm:p-4">
+        <div className="space-y-0.5">
+          <label htmlFor="project-auto-deploy" className="text-sm font-medium">{t('Auto Deploy')}</label>
+          <p className="text-xs text-muted-foreground">{t('Otomatis deploy ke lingkungan live setelah task selesai diverifikasi.')}</p>
+        </div>
+        <input
+          id="project-auto-deploy"
+          type="checkbox"
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          checked={form.auto_deploy}
+          disabled={busy}
+          onChange={event => { setForm(old => ({ ...old, auto_deploy: event.target.checked })); setNotice(''); setError('') }}
+        />
       </div>
       {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
       </>}

@@ -23,13 +23,23 @@ type Settings struct {
 	Goal              string `json:"goal"`
 	Instructions      string `json:"instructions"`
 	WorkspaceRevision string `json:"workspace_revision,omitempty"`
+	AutoDeploy        *bool  `json:"auto_deploy,omitempty"`
 }
+
+func (s Settings) IsAutoDeployEnabled() bool {
+	if s.AutoDeploy == nil {
+		return true
+	}
+	return *s.AutoDeploy
+}
+
 type UpdateSettingsRequest struct {
 	Name              string    `json:"name"`
 	Goal              string    `json:"goal"`
 	Instructions      string    `json:"instructions"`
 	RepoURL           string    `json:"repo_url"`
 	DefaultBranch     string    `json:"default_branch"`
+	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
 }
 type workspaceBinding struct {
@@ -43,6 +53,7 @@ type taskProjectSnapshot struct {
 	Revision           string `json:"workspace_revision"`
 	Goal               string `json:"goal,omitempty"`
 	Instructions       string `json:"instructions,omitempty"`
+	AutoDeploy         *bool  `json:"auto_deploy,omitempty"`
 }
 
 func SettingsFromMetadata(raw json.RawMessage) Settings {
@@ -62,7 +73,15 @@ const snapshotMarker = "\n\nProject guidance snapshot (context only; does not ex
 // creation. Historical workspace paths never come from task text.
 func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 	settings := SettingsFromMetadata(p.Metadata)
-	raw, _ := json.Marshal(taskProjectSnapshot{IsolatedRepository: p.RepoURL != "", ProjectID: p.ID, Revision: settings.WorkspaceRevision, Goal: settings.Goal, Instructions: settings.Instructions})
+	autoDeploy := settings.IsAutoDeployEnabled()
+	raw, _ := json.Marshal(taskProjectSnapshot{
+		IsolatedRepository: p.RepoURL != "",
+		ProjectID:          p.ID,
+		Revision:           settings.WorkspaceRevision,
+		Goal:               settings.Goal,
+		Instructions:       settings.Instructions,
+		AutoDeploy:         &autoDeploy,
+	})
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
 }
 
@@ -177,6 +196,9 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	settings := SettingsFromMetadata(current.Metadata)
 	settings.Goal = strings.TrimSpace(req.Goal)
 	settings.Instructions = strings.TrimSpace(req.Instructions)
+	if req.AutoDeploy != nil {
+		settings.AutoDeploy = req.AutoDeploy
+	}
 	next := *current
 	next.Name = name
 	oldBranch := current.DefaultBranch
