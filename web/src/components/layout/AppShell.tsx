@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
-import { Inbox, CheckSquare, FolderGit2, PanelLeft, Settings } from 'lucide-react'
+import { Inbox, CheckSquare, FolderGit2, PanelLeft } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export type AppTab =
