@@ -64,7 +64,8 @@ export function StudioView({
     return () => window.removeEventListener('resize', resize)
   }, [goal])
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState('')
+    [error, setError] = useState(''),
+    [retryCount, setRetryCount] = useState(0)
   const update = (text: string) => {
     setGoal(text)
     try {
@@ -114,10 +115,13 @@ export function StudioView({
           ),
         )
       }
-      const result = await apiFetch<{ conversation_id: string }>(
+      const result = await apiFetch<{ conversation_id: string; retry_count?: number }>(
         '/api/v1/studio/goals',
         { method: 'POST', body: JSON.stringify(request) },
       )
+      if (result.retry_count != null) {
+        setRetryCount(result.retry_count)
+      }
       localStorage.removeItem('cuan-studio-pending')
       localStorage.removeItem('cuan-studio-draft')
       setGoal('')
@@ -125,11 +129,16 @@ export function StudioView({
       onAccepted()
       navigate('/inbox/' + encodeURIComponent(result.conversation_id))
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? t(e.message)
-          : t('Could not send your goal. Try again; your request is kept.'),
-      )
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('provider_quota_exhausted') || msg.includes('quota')) {
+        setError(
+          t('All available agents reached usage limits. Your message is saved. Try again after the limit resets.'),
+        )
+      } else {
+        setError(
+          t(msg)
+        )
+      }
     } finally {
       setBusy(false)
     }
@@ -243,6 +252,11 @@ export function StudioView({
               className="rounded-lg border border-destructive/30 p-3 text-sm"
             >
               <p>{error}</p>
+              {retryCount > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('Auto-retry attempted ' + retryCount + ' time(s) with available agents.')}
+                </p>
+              )}
               <Link
                 className="mt-2 inline-flex min-h-11 items-center underline"
                 to="/settings/agents"

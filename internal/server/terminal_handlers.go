@@ -20,6 +20,8 @@ import (
 	"github.com/buchin/cuan/internal/terminal"
 )
 
+const maxAgentRetries = 3
+
 // handleTaskTerminalWebSocket handles bidirectional WebSocket PTY streaming for tasks.
 // Supports both Watch Mode (?mode=watch) and Interactive Take-Over Mode (?mode=interactive).
 // GET /api/tasks/{id}/terminal or GET /api/v1/tasks/{id}/terminal
@@ -281,6 +283,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	payload.Binary = expectedBinary
 	selectedModel := ""
 	selectedAccountID := ""
+	var selected *inboxAccountRoute
 	routeNote := ""
 	routeRelease := func() {}
 	routeLaunched := false
@@ -297,7 +300,6 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			respondJSON(w, 409, map[string]string{"error": "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started.", "code": "provider_unavailable"})
 			return
 		}
-		var selected *inboxAccountRoute
 		for i := range routes {
 			release, err := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, routes[i])
 			if err == nil {
@@ -513,145 +515,206 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		reportEnv = append(reportEnv, gitEnv...)
 		taskPrompt += extra
 	}
+	quotaHit := false
+	retryCount := 0
 	launched := false
 	defer func() {
 		if !launched {
 			reportCleanup()
 		}
 	}()
-	launchSettled := make(chan struct{})
-	defer close(launchSettled)
-	var output *taskOutputRecorder
-	if attempt != nil {
-		output = newTaskOutputRecorder(s.taskSvc, attempt.ID)
-		output.secrets = append(output.secrets, reportToken)
-		output.onQuota = func() {
-			<-launchSettled
-			if selectedAccountID != "" {
-				_ = agent.RecordProviderModelQuota(ownerID, selectedAccountID, selectedModel)
+	for retryCount < maxAgentRetries {
+		launchSettled := make(chan struct{})
+		var output *taskOutputRecorder
+		if attempt != nil {
+			output = newTaskOutputRecorder(s.taskSvc, attempt.ID)
+			output.secrets = append(output.secrets, reportToken)
+			output.onQuota = func() {
+				<-launchSettled
+				if selectedAccountID != "" {
+					_ = agent.RecordProviderModelQuota(ownerID, selectedAccountID, selectedModel)
+				}
+				_ = s.terminalManager.StopQuotaAttempt(taskID, attempt.ID)
+				quotaHit = true
 			}
-			_ = s.terminalManager.StopQuotaAttempt(taskID, attempt.ID)
+			output.onRegion = func() {
+				<-launchSettled
+				if selectedAccountID != "" {
+					_ = agent.RecordProviderModelRestriction(ownerID, selectedAccountID, selectedModel)
+				}
+				_ = s.terminalManager.StopRestrictedAttempt(taskID, attempt.ID)
+			}
 		}
-		output.onRegion = func() {
-			<-launchSettled
-			if selectedAccountID != "" {
-				_ = agent.RecordProviderModelRestriction(ownerID, selectedAccountID, selectedModel)
-			}
-			_ = s.terminalManager.StopRestrictedAttempt(taskID, attempt.ID)
-		}
-	}
-	// 3. Spawn PTY process via Manager
-	runCfg := terminal.TaskAgentRunConfig{
-		Model:           selectedModel,
-		AttachmentPaths: attachmentPaths,
-		TaskID:          taskID,
-		AgentID:         agentID,
-		AgentName:       agentName,
-		Command:         payload.Binary,
-		Prompt:          taskPrompt,
-		WorkDir:         workDir,
-		Cols:            payload.Cols,
-		Rows:            payload.Rows,
-		Mode:            terminal.ModeInteractive,
-		OnOutput: func(chunk []byte) {
-			if output != nil {
-				output.append(chunk)
-			}
-		},
-		OnExit: func(h *terminal.TaskRunHistory) {
-			defer routeRelease()
-			defer reportCleanup()
-			defer func() {
-				if sourceRoom != "" {
-					s.publishInbox(sourceRoom)
+
+		// 3. Spawn PTY process via Manager
+		runCfg := terminal.TaskAgentRunConfig{
+			Model:           selectedModel,
+			AttachmentPaths: attachmentPaths,
+			TaskID:          taskID,
+			AgentID:         agentID,
+			AgentName:       agentName,
+			Command:         payload.Binary,
+			Prompt:          taskPrompt,
+			WorkDir:         workDir,
+			Cols:            payload.Cols,
+			Rows:            payload.Rows,
+			Mode:            terminal.ModeInteractive,
+			OnOutput: func(chunk []byte) {
+				if output != nil {
+					output.append(chunk)
 				}
-			}()
-			if output != nil {
-				output.flush()
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if s.projectStudioRepo != nil {
-				_ = s.projectStudioRepo.UpdateTaskExecution(ctx, taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s). Review the result and verification evidence.", h.ExitCode, h.Status))
-			}
-			if attempt != nil && s.taskSvc != nil {
-				state := task.AttemptStatusFailed
-				if (h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted") || h.EndReason == "agent_report" {
-					state = task.AttemptStatusSucceeded
+			},
+			OnExit: func(h *terminal.TaskRunHistory) {
+				defer routeRelease()
+				defer reportCleanup()
+				defer func() {
+					if sourceRoom != "" {
+						s.publishInbox(sourceRoom)
+					}
+				}()
+				if output != nil {
+					output.flush()
 				}
-				note := output.failureNote()
-				if h.EndReason == "agent_report" {
-					note = ""
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if s.projectStudioRepo != nil {
+					_ = s.projectStudioRepo.UpdateTaskExecution(ctx, taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s). Review the result and verification evidence.", h.ExitCode, h.Status))
 				}
-				if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
-					ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
-					if e != nil || !ready {
-						note = "No review-ready result was recorded. Check the agent report and saved output."
+				if attempt != nil && s.taskSvc != nil {
+					state := task.AttemptStatusFailed
+					if (h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted") || h.EndReason == "agent_report" {
+						state = task.AttemptStatusSucceeded
+					}
+					note := output.failureNote()
+					if h.EndReason == "agent_report" {
+						note = ""
+					}
+					if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
+						ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
+						if e != nil || !ready {
+							note = "No review-ready result was recorded. Check the agent report and saved output."
+						}
+					}
+					var e error
+					if h.EndReason == "agent_report" {
+						_, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)
+					} else {
+						_, e = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})
+					}
+					if e == nil {
+						_ = s.taskSvc.ReconcileLocalTask(r.Context(), taskID, attempt.ID)
 					}
 				}
-				var e error
-				if h.EndReason == "agent_report" {
-					_, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)
-				} else {
-					_, e = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})
-				}
-				if e == nil {
-					_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
-				}
-			}
-		},
-	}
-
-	if attempt != nil {
-		runCfg.AttemptID = attempt.ID
-	}
-	if profileHome != "" {
-		if payload.Binary == "agy" || payload.Binary == "antigravity" || payload.Binary == "" {
-			_ = agent.PrepareAntigravitySettings(profileHome, workDir)
-			_ = agent.EnsureAntigravityOnboarding(profileHome)
+			},
 		}
-		runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
-	}
-	runCfg.Env = append(runCfg.Env, reportEnv...)
-	if attempt != nil && routeNote != "" {
-		if _, err := s.taskSvc.AddComment(r.Context(), taskID, "runner", routeNote); err != nil {
-			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Provider route could not be recorded. Execution did not start."})
-			_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)
-			respondJSONError(w, 503, "Provider route could not be recorded. The task has not started.")
+
+		if attempt != nil {
+			runCfg.AttemptID = attempt.ID
+		}
+		if profileHome != "" {
+			if payload.Binary == "agy" || payload.Binary == "antigravity" || payload.Binary == "" {
+				_ = agent.PrepareAntigravitySettings(profileHome, workDir)
+				_ = agent.EnsureAntigravityOnboarding(profileHome)
+			}
+			runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
+		}
+		runCfg.Env = append(runCfg.Env, reportEnv...)
+		if attempt != nil && routeNote != "" {
+			if _, err := s.taskSvc.AddComment(r.Context(), taskID, "runner", routeNote); err != nil {
+				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Provider route could not be recorded. Execution did not start."})
+				_ = s.taskSvc.ReconcileLocalTask(r.Context(), taskID, attempt.ID)
+				respondJSONError(w, 503, "Provider route could not be recorded. The task has not started.")
+				return
+			}
+		}
+		close(launchSettled)
+		sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
+		if err != nil {
+			if attempt != nil {
+				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not start the CLI. Check its installation and the agent connection."})
+				status := task.TaskStatusBlocked
+				_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+			}
+			if s.projectStudioRepo != nil {
+				_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, "failed", "Could not start the CLI.")
+			}
+			respondJSONError(w, http.StatusInternalServerError, "Could not start the CLI. Check its installation and the agent connection.")
 			return
 		}
-	}
-	sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
-	if err != nil {
-		if attempt != nil {
-			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not start the CLI. Check its installation and the agent connection."})
-			status := task.TaskStatusBlocked
-			_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+
+		// Wait briefly to detect quota hit during early execution
+		<-launchSettled
+
+		if !quotaHit {
+			if sourceRoom != "" {
+				s.publishInbox(sourceRoom)
+			}
+			launched = true
+			routeLaunched = true
+
+			respondJSON(w, http.StatusOK, map[string]interface{}{
+				"status":       "running",
+				"session_id":   sess.ID(),
+				"task_id":      taskID,
+				"pid":          sess.PTY().PID(),
+				"terminal_url": fmt.Sprintf("/api/v1/tasks/%s/terminal", taskID),
+				"agent_id":     agentID,
+				"agent_name":   agentName,
+				"attempt":      attempt,
+			})
+			return
 		}
-		if s.projectStudioRepo != nil {
-			_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, "failed", "Could not start the CLI.")
+
+		// Quota hit - retry with next available agent
+		retryCount++
+		quotaHit = false
+		if retryCount >= maxAgentRetries {
+			break
 		}
-		respondJSONError(w, http.StatusInternalServerError, "Could not start the CLI. Check its installation and the agent connection.")
-		return
+
+		// Select next available route for retry
+		primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
+		limited := primary != nil && primary.State == "quota_limited"
+		routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
+		var nextSelected *inboxAccountRoute
+		for i := range routes {
+			release, err := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, routes[i])
+			if err == nil {
+				routeRelease = release
+				nextSelected = &routes[i]
+				break
+			}
+		}
+		if nextSelected == nil {
+			break
+		}
+		selected = nextSelected
+		profileHome = selected.home
+		selectedModel = selected.model
+		selectedAccountID = selected.accountID
+		source := "primary account"
+		if !selected.primary {
+			source = "allowed backup account"
+		}
+		model := selected.model
+		if model == "" {
+			model = "provider default"
+		}
+		routeNote = fmt.Sprintf("Auto-retry: provider preflight selected %s; model: %s. Agent identity and task scope are unchanged.", source, model)
 	}
 
-	if sourceRoom != "" {
-		s.publishInbox(sourceRoom)
+	// All retries exhausted - show informative error
+	if attempt != nil {
+		_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Provider quota reached on all available accounts. Your message is saved. Try again after the limit resets."})
+		status := task.TaskStatusBlocked
+		_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
 	}
-	launched = true
-	routeLaunched = true
-
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":       "running",
-		"session_id":   sess.ID(),
-		"task_id":      taskID,
-		"pid":          sess.PTY().PID(),
-		"terminal_url": fmt.Sprintf("/api/v1/tasks/%s/terminal", taskID),
-		"agent_id":     agentID,
-		"agent_name":   agentName,
-		"attempt":      attempt,
-	})
+	if s.projectStudioRepo != nil {
+		_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, "failed", "Provider quota reached on all available accounts.")
+	}
+	respondJSON(w, 409, map[string]string{"error": "All available agents reached usage limits. Your message is saved. Try again after the limit resets.", "code": "provider_quota_exhausted"})
 }
+
 
 // handleGetTaskRunHistory returns execution history of an agent runner on a task.
 // GET /api/v1/tasks/{id}/run-agent/history
