@@ -751,8 +751,8 @@ export function InboxView({
                 <button
                   type="button"
                   onClick={() => setConvTab(convTab === 'tasks' ? 'chat' : 'tasks')}
-                  title={convTab === 'tasks' ? t('Switch to chat') : t('Work Monitor')}
-                  aria-label={convTab === 'tasks' ? t('Switch to chat') : t('Work Monitor')}
+                  title={convTab === 'tasks' ? t('Switch to chat') : t('Tasks')}
+                  aria-label={convTab === 'tasks' ? t('Switch to chat') : t('Tasks')}
                   className={cn(
                     "icon-action relative transition-colors",
                     convTab === 'tasks'
@@ -775,7 +775,7 @@ export function InboxView({
               </div>
             </div>
 
-            {/* ── Sub-tabs: Obrolan (Chat) & Pekerjaan (Work Monitor) ── */}
+            {/* ── Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) ── */}
             <div className="flex shrink-0 items-center border-b border-border bg-background px-3 sm:px-4 text-xs font-medium">
               <button
                 type="button"
@@ -801,7 +801,7 @@ export function InboxView({
                 )}
               >
                 <CheckSquare className="h-4 w-4" />
-                <span>{t('Work Monitor')}</span>
+                <span>{t('Tasks')}</span>
                 {linkedTasks.length > 0 && (
                   <span className={cn(
                     "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold",
@@ -1136,7 +1136,7 @@ export function InboxView({
                           type="button"
                           onClick={() => setConvTab('tasks')}
                           className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-                          title={t('View in Work Monitor')}
+                          title={t('View in Tasks')}
                         >
                           <CheckSquare className="h-3 w-3" />
                           <span>{t('Assigned to task')}</span>

@@ -557,6 +557,8 @@
   "Tasks created by agents during this conversation will appear here.": "Tugas yang dibuat oleh agen selama percakapan ini akan muncul di sini.",
   "Terminal keyboard shortcuts": "Pintasan keyboard terminal",
   "Open soft keyboard": "Buka keyboard virtual",
+  "Tasks": "Tugas",
+  "View in Tasks": "Lihat di Tugas",
   "Work Monitor": "Monitor Pekerjaan",
   "Internal · Invisible to visitor": "Internal · Tidak terlihat oleh lawan bicara",
   "Tasks and escalated work for this conversation are handled internally by developers or AI agents without displaying bubbles to the visitor.": "Pekerjaan dan tugas dari obrolan ini didelegasikan ke tim dev atau agen secara internal tanpa memunculkan bubble ke lawan bicara.",

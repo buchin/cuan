@@ -102,7 +102,7 @@ export function AppShell({
     currentTab === 'notifications'
       ? 'Notifications'
       : currentTab === 'tasks'
-        ? t('Work monitor')
+        ? t('Tasks')
         : currentTab === 'settings'
           ? t('Settings')
           : NAV_ITEMS.find((n) => n.id === currentTab)?.label
