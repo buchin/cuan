@@ -439,6 +439,8 @@ func VerifyAntigravityConnection(ctx context.Context) error {
 	return VerifyAntigravityProfile(ctx, "")
 }
 
+var verifyProfileMu sync.Mutex
+
 func VerifyAntigravityProfile(ctx context.Context, home string, models ...string) error {
 	var loggedIn bool
 	if home == "" {
@@ -449,6 +451,14 @@ func VerifyAntigravityProfile(ctx context.Context, home string, models ...string
 	if !loggedIn {
 		return errors.New("Google login required")
 	}
+
+	verifyProfileMu.Lock()
+	defer verifyProfileMu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 35*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "agy", "--print", "Reply with exactly CUAN_AUTH_OK. Do not use tools.", "--print-timeout", "30s")
@@ -463,7 +473,8 @@ func VerifyAntigravityProfile(ctx context.Context, home string, models ...string
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil || !strings.Contains(string(out), "CUAN_AUTH_OK") {
-		return antigravityProbeError(stderr.String())
+		combined := strings.TrimSpace(stderr.String() + "\n" + string(out))
+		return antigravityProbeError(combined)
 	}
 	return nil
 }
@@ -471,7 +482,7 @@ func VerifyAntigravityProfile(ctx context.Context, home string, models ...string
 // Never return raw CLI output: it can contain account or authorization material.
 func antigravityProbeError(output string) error {
 	lower := strings.ToLower(output)
-	if strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "quota") {
+	if strings.Contains(lower, "429") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "quota") || strings.Contains(lower, "rate limit") || strings.Contains(lower, "too many requests") || strings.Contains(lower, "limit reached") {
 		if dur, resetStr, ok := ParseProviderQuotaResetDuration(output); ok && dur > 0 {
 			return fmt.Errorf("Antigravity provider quota is limited (Resets in %s). Credentials are saved. Wait for the quota to reset and verify again. Signing in to Google again does not increase quota.", resetStr)
 		}

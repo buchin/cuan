@@ -334,8 +334,10 @@ export function TeamView({
   }
   const check = async (id: string, silent = false) => {
     setChecking(id)
-    setError('')
-    if (!silent) setNotice('')
+    if (!silent) {
+      setError('')
+      setNotice('')
+    }
     try {
       const result = await agentsApi.verifyConnection(id)
       setAgents((current) =>
@@ -365,17 +367,20 @@ export function TeamView({
         )
       }
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'Could not check the connection. Try again.',
-      )
+      if (!silent) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : 'Could not check the connection. Try again.',
+        )
+      }
     } finally {
-      setChecking('')
+      setChecking((prev) => (prev === id ? '' : prev))
     }
   }
-  // Refresh stale/unknown statuses once when the roster opens. This keeps the
-  // page useful without probing every account on every render.
+  // Refresh stale/unknown statuses sequentially once when the roster opens.
+  // Sequential execution avoids overloading host processes or triggering false
+  // connection errors across accounts.
   useEffect(() => {
     if (loading) return
     const stale = agents.filter((agent) => {
@@ -383,10 +388,19 @@ export function TeamView({
       const checked = Date.parse(agent.last_checked_at || agent.verified_at || '')
       return !Number.isFinite(checked) || checked + 5 * 60_000 <= Date.now()
     })
-    stale.slice(0, 4).forEach((agent) => {
-      autoChecked.current.add(agent.id)
-      void check(agent.id, true)
-    })
+    if (stale.length === 0) return
+    let cancelled = false
+    const runSequential = async () => {
+      for (const agent of stale.slice(0, 3)) {
+        if (cancelled) break
+        autoChecked.current.add(agent.id)
+        await check(agent.id, true)
+      }
+    }
+    void runSequential()
+    return () => {
+      cancelled = true
+    }
   }, [agents, loading])
   const verify = async () => {
     if (!active.current || !code.trim() || busy) return
