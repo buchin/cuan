@@ -171,8 +171,8 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			}
 		}
 	}
+	rel := "development"
 	if s.cfg != nil {
-		rel := "development"
 		for _, relPath := range []string{"/opt/cuan/current/release.json", filepath.Join(selected.LocalPath, "release.json")} {
 			if data, err := os.ReadFile(relPath); err == nil {
 				var rInfo struct {
@@ -216,14 +216,8 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		}
 		return truncateProjectText(out.String(), 12000)
 	}
-	branch := strings.TrimSpace(gitRead("branch", "--show-current"))
-	statusSummary := strings.TrimSpace(gitRead("status", "--short"))
-	if statusSummary == "" {
-		statusSummary = "clean"
-	} else {
-		statusSummary = truncateProjectText(statusSummary, 500)
-	}
-	fmt.Fprintf(&b, "Git Working State: branch=%s, status=%s\n", branch, statusSummary)
+	integrity := inspectGitIntegrity(ctx, dir, rel)
+	b.WriteString(integrity.Summary())
 	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
 	files := gitRead("ls-files")
 	b.WriteString("Tracked files (up to 6 KiB):\n" + truncateProjectText(files, 6000) + "\n")
