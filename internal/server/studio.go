@@ -24,6 +24,7 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 		AttachmentIDs []string `json:"attachment_ids"`
 		Goal          string   `json:"goal"`
 		RequestID     string   `json:"request_id"`
+		AgentID       string   `json:"agent_id,omitempty"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 32000)).Decode(&req) != nil || !db.IsValidUUID(req.RequestID) || (strings.TrimSpace(req.Goal) == "" && len(req.AttachmentIDs) == 0) || len([]rune(req.Goal)) > 6000 {
 		respondJSONError(w, 400, "Describe your goal in up to 6000 characters.")
@@ -39,9 +40,22 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 	}
 	topicID := delegationMessageID("studio:" + strings.ToLower(req.RequestID))
 	var selected *db.Agent
-	if s.projectStudioRepo != nil {
-		if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), topicID); e == nil && room != nil {
-			selected, _ = s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
+
+	// Honor an explicit agent pick when provided and available for execution.
+	if req.AgentID != "" {
+		a, err := s.agentRepo.GetAgentByID(r.Context(), req.AgentID)
+		if err == nil && a != nil && a.Enabled && a.Status != "inactive" {
+			if _, err := s.ownedAgentProfileHome(r.Context(), owner, a); err == nil {
+				selected = a
+			}
+		}
+	}
+
+	if selected == nil {
+		if s.projectStudioRepo != nil {
+			if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), topicID); e == nil && room != nil {
+				selected, _ = s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
+			}
 		}
 	}
 	if selected == nil {

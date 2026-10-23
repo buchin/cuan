@@ -5,6 +5,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
+import { agentsApi, type Agent } from '../../api/agents'
+import { connectionStatus } from '../agents/connection'
 
 export function StudioView({
   onAccepted, agentSetup, firstGoal, hasProject,
@@ -66,6 +68,10 @@ export function StudioView({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [retryCount, setRetryCount] = useState(0)
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [agentsLoading, setAgentsLoading] = useState(true)
+  const [selectedAgentId, setSelectedAgentId] = useState('')
+
   const update = (text: string) => {
     setGoal(text)
     try {
@@ -74,6 +80,17 @@ export function StudioView({
       /* Submission surfaces unavailable storage. */
     }
   }
+
+  useEffect(() => {
+    let active = true
+    setAgentsLoading(true)
+    agentsApi.list()
+      .then((list) => { if (active) setAgents(list) })
+      .catch(() => { if (active) setAgents([]) })
+      .finally(() => { if (active) setAgentsLoading(false) })
+    return () => { active = false }
+  }, [])
+
   async function submit() {
     if (busy || uploads.busy || installation !== 'available') return
     if (agentSetup === 'needed') {
@@ -98,6 +115,7 @@ export function StudioView({
       }
       const request =
         saved?.goal === goal.trim() &&
+        saved?.agent_id === selectedAgentId &&
         JSON.stringify(saved.attachment_ids || []) ===
           JSON.stringify(uploads.items.map((a) => a.id))
           ? saved
@@ -105,6 +123,7 @@ export function StudioView({
               goal: goal.trim(),
               request_id: crypto.randomUUID(),
               attachment_ids: uploads.items.map((a) => a.id),
+              ...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
             }
       try {
         localStorage.setItem('cuan-studio-pending', JSON.stringify(request))
@@ -221,6 +240,34 @@ export function StudioView({
               <AttachmentPicker uploads={uploads} disabled={busy} />
             </div>
           </div>
+          {agentSetup === 'ready' && !agentsLoading && (
+            <div className="mt-3">
+              <label htmlFor="studio-agent" className="text-sm font-medium text-foreground block mb-1">
+                {t('Agent')}
+              </label>
+              <select
+                id="studio-agent"
+                value={selectedAgentId}
+                onChange={(e) => setSelectedAgentId(e.target.value)}
+                disabled={busy}
+                className="field-control w-full"
+              >
+                <option value="">{t('Auto (choose best)')}</option>
+                {agents.map((agent) => {
+                  const state = connectionStatus(agent, Date.now())
+                  return (
+                    <option
+                      key={agent.id}
+                      value={agent.id}
+                      disabled={state.state !== 'verified'}
+                    >
+                      {agent.name} — {t(state.label)}
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+          )}
           <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="submit"

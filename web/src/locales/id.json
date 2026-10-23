@@ -632,5 +632,7 @@
   "Could not apply changes.": "Gagal menerapkan perubahan.",
   "Assigned to task": "Sedang dikerjakan tim",
   "Auto-deploy completed tasks to live server": "Otomatis deploy tugas yang selesai ke live server",
-  "When enabled (recommended), changes verified by Scrum Master are automatically deployed live. You can override this per task.": "Bila aktif (direkomendasikan), perubahan yang diverifikasi oleh Scrum Master otomatis diterapkan langsung ke server live. Anda tetap dapat menyesuaikannya per tugas."
+  "When enabled (recommended), changes verified by Scrum Master are automatically deployed live. You can override this per task.": "Bila aktif (direkomendasikan), perubahan yang diverifikasi oleh Scrum Master otomatis diterapkan langsung ke server live. Anda tetap dapat menyesuaikannya per tugas.",
+  "Agent": "Agent",
+  "Auto (choose best)": "Otomatis (pilih terbaik)"
 }
