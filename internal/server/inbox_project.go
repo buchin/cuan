@@ -252,6 +252,10 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	}
 	telem := s.getServerTelemetry(ctx, selected.LocalPath)
 	b.WriteString(telem.Summary())
+	if linkedContext != "" {
+		b.WriteString(linkedContext)
+		b.WriteByte('\n')
+	}
 	dir := selected.LocalPath
 	if dir == "" {
 		b.WriteString("Repository not connected: the project workspace is empty. Use available backlog data and explain that a repository must be connected through Projects to inspect files. Do not claim to have read code.\n")
@@ -353,10 +357,6 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		if budget <= 0 {
 			break
 		}
-	}
-	if linkedContext != "" {
-		b.WriteString(linkedContext)
-		b.WriteByte('\n')
 	}
 	b.WriteString("\nLimited snapshot. Use project read tools for more detail when available. Remote issues/PRs have not been fetched; do not invent GitHub status. Cite files, commits, or tasks actually inspected.\n")
 	return dir, b.String()

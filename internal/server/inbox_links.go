@@ -21,8 +21,9 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 	}
 	var b strings.Builder
 	// 1. Check for room / conversation links
-	roomMatches := cuanRoomLinkRegex.FindAllStringSubmatch(text, 3)
+	roomMatches := cuanRoomLinkRegex.FindAllStringSubmatch(text, -1)
 	seenRooms := map[string]bool{currentRoomID: true}
+	var processedRooms int
 	for _, m := range roomMatches {
 		if len(m) < 2 {
 			continue
@@ -32,6 +33,10 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 			continue
 		}
 		seenRooms[roomID] = true
+		processedRooms++
+		if processedRooms > 3 {
+			break
+		}
 		if s.projectStudioRepo == nil {
 			continue
 		}
@@ -69,11 +74,12 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 	}
 
 	// 2. Check for task links or task IDs
-	taskMatches := cuanTaskLinkRegex.FindAllStringSubmatch(text, 3)
-	for _, bm := range cuanBareTaskRegex.FindAllStringSubmatch(text, 3) {
+	taskMatches := cuanTaskLinkRegex.FindAllStringSubmatch(text, -1)
+	for _, bm := range cuanBareTaskRegex.FindAllStringSubmatch(text, -1) {
 		taskMatches = append(taskMatches, bm)
 	}
 	seenTasks := map[string]bool{}
+	var processedTasks int
 	for _, m := range taskMatches {
 		if len(m) < 2 {
 			continue
@@ -83,6 +89,10 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 			continue
 		}
 		seenTasks[taskID] = true
+		processedTasks++
+		if processedTasks > 3 {
+			break
+		}
 		if s.taskSvc == nil {
 			continue
 		}
