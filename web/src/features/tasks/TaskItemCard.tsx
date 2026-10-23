@@ -54,7 +54,7 @@ export function TaskItemCard({
   // start its retry flow immediately. Session routes only show saved output.
   const actionUrl =
     status === 'Needs attention'
-      ? `/tasks/${encodeURIComponent(task.id)}`
+      ? `/tasks/${encodeURIComponent(task.id)}?view=detail`
       : targetUrl
   const summary = taskSummaryText(task)
   const agent =
