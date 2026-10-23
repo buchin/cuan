@@ -200,7 +200,7 @@ export function TaskItemCard({
               ) : (
                 <>
                   <Play className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t('Start session')}</span>
+                  <span className="hidden sm:inline">{t('Open task')}</span>
                 </>
               )}
             </Link>
@@ -364,7 +364,7 @@ export function TaskItemCard({
               ) : (
                 <>
                   <Play className="h-3.5 w-3.5" />
-                  <span>{t('Start session')}</span>
+                  <span>{t('Open task')}</span>
                 </>
               )}
             </Link>
