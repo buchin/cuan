@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Settings,
   Activity,
+  Users,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -88,19 +89,22 @@ export function NavUser({
           ref={triggerRef}
           aria-label={t('Account menu')}
           aria-expanded={menuOpen}
-          aria-current={bottomNavigation && active ? 'page' : undefined}
+          aria-current={active ? 'page' : undefined}
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
             'flex min-h-11 w-full items-center gap-2 p-2 text-left transition-colors rounded-md',
             !bottomNavigation && 'hover:bg-accent hover:text-accent-foreground',
             compact && 'justify-center p-2',
             sidebar && 'sidebar-account',
+            sidebar &&
+              active &&
+              'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
             bottomNavigation &&
               'min-h-14 flex-col justify-center gap-1 rounded-none p-0 text-xs',
             bottomNavigation &&
               (active ? 'text-primary font-semibold' : 'text-muted-foreground'),
           )}
-          title={compact ? username : undefined}
+          title={compact ? `${username} · ${t('Account')}` : undefined}
         >
           {/* Avatar */}
           <div
@@ -119,6 +123,9 @@ export function NavUser({
             <div className="account-label grid min-w-0 flex-1 text-left leading-tight truncate">
               <span className="truncate font-semibold text-sm text-foreground">
                 {username}
+              </span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {t('Account')}
               </span>
             </div>
           )}
@@ -148,7 +155,22 @@ export function NavUser({
             )}
           >
             {/* User Identity Header */}
-            <div className="flex items-center gap-3 p-2 border-b border-border mb-1">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setMenuOpen(false)
+                navigate('/account')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  setMenuOpen(false)
+                  navigate('/account')
+                }
+              }}
+              className="flex items-center gap-3 p-2 border-b border-border mb-1 rounded-md hover:bg-accent cursor-pointer transition-colors"
+              title={t('Account overview')}
+            >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full">
                 {initials}
               </div>
@@ -165,6 +187,40 @@ export function NavUser({
               </div>
             </div>
 
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                navigate('/account/contacts')
+              }}
+              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
+            >
+              <Users className="h-4 w-4 text-primary shrink-0" />
+              <span>{t('Contacts')}</span>
+            </button>
+            <button
+              type="button"
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"
+              onClick={() => {
+                setMenuOpen(false)
+                if (onSettings) onSettings()
+                else navigate('/settings')
+              }}
+            >
+              <Settings className="h-4 w-4" />
+              <span>{t('Settings')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                navigate('/settings/profile')
+              }}
+              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
+            >
+              <KeyRound className="h-4 w-4 text-primary shrink-0" />
+              <span>{t('Profile & password')}</span>
+            </button>
             {onWork && (
               <button
                 type="button"
@@ -180,31 +236,6 @@ export function NavUser({
             )}
             <button type="button" className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('cuan:keyboard-shortcuts')) }}>
               <Keyboard className="h-4 w-4" /><span>{t('Keyboard shortcuts')}</span><kbd className="ml-auto text-xs text-muted-foreground">?</kbd>
-            </button>
-            {onSettings && (
-              <button
-                type="button"
-                className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"
-                onClick={() => {
-                  setMenuOpen(false)
-                  onSettings()
-                }}
-              >
-                <Settings className="h-4 w-4" />
-                <span>{t('Settings')}</span>
-              </button>
-            )}
-            {/* Menu Actions */}
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false)
-                navigate('/settings/profile')
-              }}
-              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
-            >
-              <KeyRound className="h-4 w-4 text-primary shrink-0" />
-              <span>{t('Profile & password')}</span>
             </button>
 
             <div className="h-px bg-border my-1" />
