@@ -92,6 +92,7 @@ func DefaultRegistry() *ProviderRegistry {
 	defaultRegistryOnce.Do(func() {
 		defaultRegistryInstance = NewProviderRegistry()
 		defaultRegistryInstance.Register("google", NewGeminiProvider())
+	defaultRegistryInstance.Register("commandcode", NewCommandCodeProvider())
 		defaultRegistryInstance.Register("mock", NewMockProvider())
 	})
 	return defaultRegistryInstance

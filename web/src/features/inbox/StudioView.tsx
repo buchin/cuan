@@ -259,7 +259,10 @@ export function StudioView({
                     <option
                       key={agent.id}
                       value={agent.id}
-                      disabled={state.state !== 'verified'}
+                      disabled={
+                        state.state !== 'verified' &&
+                        agent.provider !== 'commandcode'
+                      }
                     >
                       {agent.name} — {t(state.label)}
                     </option>

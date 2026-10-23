@@ -120,6 +120,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if model, _ := ctx.Value(inboxModelKey{}).(string); agent.IsTextModel(model) {
 			args = append(args, "--model", model)
 		}
+	case "commandcode":
+		binary = "commandcode"
+		args = []string{"--api-key", system, "--format", "text"}
 	default:
 		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, or Codex agent."
 	}
@@ -137,11 +140,19 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 	}
 	path, err := exec.LookPath(binary)
-	if err != nil && binary == "agy" {
-		candidate := "/home/dev/.local/bin/agy"
-		if _, e := os.Stat(candidate); e == nil {
-			path = candidate
-			err = nil
+	if err != nil {
+		if binary == "agy" {
+			candidate := "/home/dev/.local/bin/agy"
+			if _, e := os.Stat(candidate); e == nil {
+				path = candidate
+				err = nil
+			}
+		} else if binary == "commandcode" {
+			candidate := "/home/dev/.local/bin/commandcode"
+			if _, e := os.Stat(candidate); e == nil {
+				path = candidate
+				err = nil
+			}
 		}
 	}
 	if err != nil {

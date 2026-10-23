@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"os/exec"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -810,16 +811,22 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 
 	ownerID := "default"
 	var profile *agent.ProviderAccount
-	if provider == "agy" || provider == "antigravity" {
+	isCommandCode := provider == "commandcode"
+	if provider == "agy" || provider == "antigravity" || isCommandCode {
 		ownerID = s.accountOwner(w, r)
 		if ownerID == "" {
 			return
 		}
-		var err error
-		profile, err = agent.GetProviderAccount(ownerID, req.AccountID)
-		if err != nil || profile.Legacy || !profile.CredentialsPresent {
-			respondJSONError(w, http.StatusConflict, "Complete Google sign-in for this agent first")
-			return
+		if isCommandCode && req.AuthType == "byok" {
+			// Custom provider BYOK: store the user's API key encrypted in ProviderAccount.
+			// No CLI OAuth flow is involved; credentials belong to the user.
+		} else {
+			var err error
+			profile, err = agent.GetProviderAccount(ownerID, req.AccountID)
+			if err != nil || profile.Legacy || !profile.CredentialsPresent {
+				respondJSONError(w, http.StatusConflict, "Complete CommandCode sign-in for this agent first")
+				return
+			}
 		}
 	}
 	modelID := strings.TrimSpace(req.ModelID)
@@ -834,7 +841,19 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 
 	// OAuth credentials remain in the CLI-owned credential store; do not invent a token.
 	var encryptedToken string
-	if req.SessionToken != "" && provider != "agy" && provider != "antigravity" {
+	if isCommandCode && req.AuthType == "byok" {
+		apiKey := strings.TrimSpace(req.SessionToken)
+		if apiKey == "" {
+			respondJSONError(w, http.StatusBadRequest, "CommandCode API key is required for custom provider BYOK")
+			return
+		}
+		var err error
+		encryptedToken, err = agent.EncryptCredential(apiKey)
+		if err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "Failed to protect credential")
+			return
+		}
+	} else if req.SessionToken != "" && provider != "agy" && provider != "antigravity" {
 		var err error
 		encryptedToken, err = agent.EncryptCredential(strings.TrimSpace(req.SessionToken))
 		if err != nil {
@@ -854,7 +873,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	// The existing 19-migration schema persists the CLI connection link in model_id.
 	// The CLI itself selects its configured provider model.
-	if provider == "agy" || provider == "antigravity" {
+	if provider == "agy" || provider == "antigravity" || isCommandCode {
 		modelID = connID
 	}
 	agentDisplayName := handle
@@ -1025,13 +1044,39 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// For claude / codex / custom harnesses
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":        "success",
-		"harness":       harness,
-		"authenticated": false,
-		"message":       "Harness authentication is not verified by this integration",
-	})
+	switch harness {
+	case "commandcode":
+		status := map[string]interface{}{
+			"status":              "success",
+			"harness":             "commandcode",
+			"authenticated":       false,
+			"message":             "CommandCode CLI credentials are not configured",
+			"credentials_present": false,
+			"verified":            false,
+		}
+		if _, err := exec.LookPath("commandcode"); err == nil {
+			status["cli_available"] = true
+		}
+		status["runtime_prerequisites"] = onboardingRuntimePrerequisites()
+		respondJSON(w, http.StatusOK, status)
+		return
+	case "claude", "codex":
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":        "success",
+			"harness":       harness,
+			"authenticated": false,
+			"message":       "Harness authentication is not verified by this integration",
+		})
+		return
+	default:
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":        "success",
+			"harness":       harness,
+			"authenticated": false,
+			"message":       "Harness authentication is not verified by this integration",
+		})
+		return
+	}
 }
 
 // handleInitHarnessAuth initiates authentication flow for a CLI harness (e.g. agy Google OAuth).
@@ -1092,12 +1137,26 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":        "success",
-		"harness":       harness,
-		"authenticated": false,
-		"message":       "Harness authentication is not verified by this integration",
-	})
+	switch harness {
+	case "commandcode":
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":        "success",
+			"harness":       "commandcode",
+			"authenticated": false,
+			"message":       "CommandCode custom provider: provide your API key via Settings → Providers",
+			"auth_url":      "",
+			"cli_available": func() bool { _, err := exec.LookPath("commandcode"); return err == nil }(),
+		})
+		return
+	default:
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":        "success",
+			"harness":       harness,
+			"authenticated": false,
+			"message":       "Harness authentication is not verified by this integration",
+		})
+		return
+	}
 }
 
 // handleSubmitHarnessAuthCode exchanges the authorization code from browser Google OAuth.

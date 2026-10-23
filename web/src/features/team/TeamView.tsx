@@ -131,6 +131,9 @@ export function TeamView({
   const [checking, setChecking] = useState('')
   const [removing, setRemoving] = useState('')
   const [now, setNow] = useState(Date.now())
+  const [provider, setProvider] = useState<'agy' | 'commandcode'>('agy')
+  const [commandcodeMode, setCommandcodeMode] = useState<'subscription' | 'byok'>('subscription')
+  const [byokKey, setByokKey] = useState('')
   // Expire visible success even when this roster stays open or resumes from sleep.
   useEffect(() => {
     const update = () => setNow(Date.now())
@@ -227,6 +230,10 @@ export function TeamView({
     epoch.current++
     dialogActive.current = true
     accountScope.current = ''
+
+    setProvider('agy')
+    setCommandcodeMode('subscription')
+    setByokKey('')
     setStep(connectionOnly ? 'google' : 'name')
     setOpen(true)
     setAuth(null)
@@ -256,6 +263,7 @@ export function TeamView({
   }, [createRequested])
   const connect = async (name = handle) => {
     if (busy || name.length < 2) return
+    if (provider === 'commandcode') return connectCommandCode(name)
     const currentEpoch = epoch.current
     setBusy(true)
     setFormError('')
@@ -293,7 +301,74 @@ export function TeamView({
       if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
     }
   }
+
+  const connectCommandCode = async (name = handle) => {
+    if (busy || name.length < 2) return
+    const currentEpoch = epoch.current
+    setBusy(true)
+    setFormError('')
+    try {
+      if (!dialogActive.current || epoch.current !== currentEpoch) return
+      accountScope.current = ''
+      if (commandcodeMode === 'subscription') {
+        // Subscription connect: reuse agy-style Google sign-in flow.
+        const account = await accountsApi.create(`${name} · CommandCode`)
+        if (!dialogActive.current || epoch.current !== currentEpoch) return
+        accountScope.current = account.id
+        const session = await accountsApi.login(accountScope.current)
+        if (!dialogActive.current || epoch.current !== currentEpoch) {
+          if (session.session_id)
+            await accountsApi
+              .cancel(accountScope.current, session.session_id)
+              .catch(() => {})
+          return
+        }
+        if (!session.auth_url || !session.session_id)
+          throw new Error('The CommandCode sign-in link is unavailable. Try again.')
+        active.current = { accountId: accountScope.current, sessionId: session.session_id }
+        setAuth(session)
+        setStep('google')
+        return
+      }
+      // Custom provider BYOK: save API key encrypted in ProviderAccount.
+      const key = byokKey.trim()
+      if (key.length < 8) {
+        throw new Error('CommandCode API key is required')
+      }
+      await agentsApi.connectCLI({
+        name,
+        handle,
+        provider: 'commandcode',
+        auth_type: 'byok',
+        session_token: key,
+      })
+      if (!dialogActive.current || epoch.current !== currentEpoch) return
+      close()
+      setNotice(`${handle} was added.`)
+      await load()
+      onAgentAdded?.()
+      onAgentConnected?.()
+    } catch (err) {
+      if (dialogActive.current && epoch.current === currentEpoch)
+        setFormError(
+          err instanceof Error
+            ? err.message
+            : 'Could not connect to CommandCode. Try again.',
+        )
+    } finally {
+      if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
+    }
+  }
   const finish = async (currentEpoch: number) => {
+    if (provider === 'commandcode' && commandcodeMode === 'byok') {
+      // BYOK already saved in connectCommandCode via connectCLI.
+      close()
+      setNotice(`${handle} was added.`)
+      await load()
+      onAgentAdded?.()
+      onAgentConnected?.()
+      return
+    }
     if (accountScope.current) {
       try {
         await accountsApi.failover(accountScope.current, true)
@@ -305,7 +380,7 @@ export function TeamView({
     await agentsApi.connectCLI({
       name: handle,
       handle,
-      provider: 'agy',
+      provider: provider === 'commandcode' ? 'commandcode' : 'agy',
       account_id: accountScope.current,
     })
     if (!dialogActive.current || epoch.current !== currentEpoch) return
@@ -980,6 +1055,100 @@ export function TeamView({
               <div className="space-y-4 p-5">
                 {step === 'name' && (
                   <>
+                    {!connectionOnly && (
+                      <div>
+                        <label
+                          htmlFor="agent-provider"
+                          className="text-sm font-medium"
+                        >
+                          Provider
+                        </label>
+                        <div
+                          id="agent-provider"
+                          role="radiogroup"
+                          aria-label="Provider"
+                          className="mt-2 flex gap-3"
+                        >
+                          <label className="flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2">
+                            <input
+                              type="radio"
+                              name="provider"
+                              value="agy"
+                              checked={provider === 'agy'}
+                              onChange={() => setProvider('agy')}
+                              className="shrink-0"
+                            />
+                            Google (agy)
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2">
+                            <input
+                              type="radio"
+                              name="provider"
+                              value="commandcode"
+                              checked={provider === 'commandcode'}
+                              onChange={() => setProvider('commandcode')}
+                              className="shrink-0"
+                            />
+                            CommandCode
+                          </label>
+                        </div>
+                        {provider === 'commandcode' && (
+                          <div className="mt-2 flex gap-3">
+                            <label className="flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2">
+                              <input
+                                type="radio"
+                                name="commandcode-mode"
+                                value="subscription"
+                                checked={commandcodeMode === 'subscription'}
+                                onChange={() => setCommandcodeMode('subscription')}
+                                className="shrink-0"
+                              />
+                              Subscription connect
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2">
+                              <input
+                                type="radio"
+                                name="commandcode-mode"
+                                value="byok"
+                                checked={commandcodeMode === 'byok'}
+                                onChange={() => setCommandcodeMode('byok')}
+                                className="shrink-0"
+                              />
+                              Custom BYOK
+                            </label>
+                          </div>
+                        )}
+                        {provider === 'commandcode' && commandcodeMode === 'byok' && (
+                          <div>
+                            <label
+                              htmlFor="commandcode-api-key"
+                              className="text-sm font-medium"
+                            >
+                              CommandCode API key
+                            </label>
+                            <input
+                              id="commandcode-api-key"
+                              type="password"
+                              autoComplete="off"
+                              value={byokKey}
+                              onChange={(event) => setByokKey(event.target.value)}
+                              placeholder="cc_live_..."
+                              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Your API key is stored encrypted and used only for
+                              your account.
+                            </p>
+                          </div>
+                        )}
+                        {!connectionOnly && provider === 'commandcode' && commandcodeMode === 'subscription' && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Sign in to CommandCode via Google OAuth to use your
+                            subscription.
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div>
                       <label
                         htmlFor="agent-handle"
@@ -1013,7 +1182,7 @@ export function TeamView({
                       </p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Next, sign in to Google to connect this agent. Other agent
+                      Next, connect your AI account to use this agent. Other agent
                       connections are preserved.
                     </p>
                   </>
@@ -1121,18 +1290,25 @@ export function TeamView({
                   className={primary}
                   disabled={
                     busy ||
-                    (step === 'name' && handle.length < 2) ||
+                    (step === 'name' &&
+                      handle.length < 2) ||
+                    (step === 'name' &&
+                      provider === 'commandcode' &&
+                      commandcodeMode === 'byok' &&
+                      byokKey.trim().length < 8) ||
                     (step === 'google' && !!auth?.auth_url && !code.trim())
                   }
                 >
                   {busy && <RefreshCw className="h-4 w-4 animate-spin" />}
                   {step === 'save'
                     ? 'Save agent'
-                    : step === 'name'
-                      ? 'Connect Google'
-                      : auth?.auth_url
-                        ? 'Confirm sign-in'
-                        : 'Create a new link'}
+                    : step === 'name' && provider === 'commandcode' && commandcodeMode === 'byok'
+                      ? 'Save agent'
+                      : step === 'name'
+                        ? 'Connect Google'
+                        : auth?.auth_url
+                          ? 'Confirm sign-in'
+                          : 'Create a new link'}
                 </button>
               </footer>
             </form>

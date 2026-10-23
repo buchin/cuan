@@ -18,21 +18,21 @@ func (s *Server) agentProfileHome(ctx context.Context, a *db.Agent) (string, err
 	if !strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 		return "", nil
 	}
-	if a.Harness != "agy" && a.Harness != "antigravity" {
+	if a.Harness != "agy" && a.Harness != "antigravity" && a.Harness != "commandcode" {
 		return "", errors.New("Agent type does not match its connection")
 	}
 	conn, err := s.agentRepo.GetConnectionByID(ctx, a.ConnectionID)
 	if err != nil {
 		return "", errors.New("Agent connection not found. Reconnect this agent")
 	}
-	if conn.Provider != "agy" && conn.Provider != "antigravity" {
+	if conn.Provider != "agy" && conn.Provider != "antigravity" && conn.Provider != "commandcode" {
 		return "", errors.New("Connection type does not match the agent")
 	}
 	profile, err := agent.ProviderAccountForConnection(conn.UserID, a.ID, conn.ID)
 	if err != nil || !profile.CredentialsPresent {
 		return "", errors.New("The agent needs to sign in again")
 	}
-	if profile.Provider != "agy" && profile.Provider != "antigravity" {
+	if profile.Provider != "agy" && profile.Provider != "antigravity" && profile.Provider != "commandcode" {
 		return "", errors.New("Profile type does not match the agent")
 	}
 	return agent.ProviderAccountHome(conn.UserID, profile.ID)
