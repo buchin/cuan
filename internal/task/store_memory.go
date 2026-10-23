@@ -501,7 +501,30 @@ func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[s
 				if idx := strings.Index(msg, "\n"); idx != -1 {
 					msg = msg[:idx]
 				}
-				result[act.TaskID] = strings.TrimSpace(msg)
+				cleaned := CleanTerminalStatusLine(msg)
+				if cleaned != "" {
+					result[act.TaskID] = cleaned
+				}
+			}
+		}
+	}
+	// Fallback to recent runner logs if no agent_report progress exists
+	for _, id := range ids {
+		if result[id] == "" {
+			// Find running attempt for this task
+			for _, att := range m.attempts {
+				if att.TaskID == id && att.Status == AttemptStatusRunning {
+					if logRecs, ok := m.logs[att.ID]; ok && len(logRecs) > 0 {
+						lines := make([]string, 0, len(logRecs))
+						for _, rec := range logRecs {
+							lines = append(lines, rec.Line)
+						}
+						if extracted := ExtractRunnerLiveActivity(lines); extracted != "" {
+							result[id] = extracted
+							break
+						}
+					}
+				}
 			}
 		}
 	}

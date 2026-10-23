@@ -18,6 +18,7 @@ import {
   isTaskRunning,
   taskTargetUrl,
   taskSummaryText,
+  taskLiveActivityText,
   taskRef,
   relativeTime,
   agentDisplayName,
@@ -59,6 +60,35 @@ export function TaskItemCard({
   const isRunning = isTaskRunning(currentTask)
   const targetUrl = taskTargetUrl(currentTask)
   const summary = taskSummaryText(currentTask)
+  const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
+
+  useEffect(() => {
+    if (!isRunning) return
+    let active = true
+    const interval = setInterval(async () => {
+      try {
+        const updated = await tasksApi.get(currentTask.id)
+        if (active && updated) {
+          setCurrentTask((prev) => {
+            if (
+              prev.latest_progress !== updated.latest_progress ||
+              prev.status !== updated.status ||
+              prev.latest_attempt?.status !== updated.latest_attempt?.status
+            ) {
+              return { ...prev, ...updated }
+            }
+            return prev
+          })
+        }
+      } catch {
+        // ignore
+      }
+    }, 3000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [isRunning, currentTask.id])
   const agent =
     currentTask.latest_attempt?.agent_name || currentTask.assignee_id || currentTask.assignee
   const statusBadgeClass = workStatusBadgeClass(status)
@@ -180,14 +210,14 @@ export function TaskItemCard({
             </span>
           </Link>
 
-          {isRunning && (currentTask.latest_progress || summary) ? (
+          {isRunning ? (
             <div className="mt-1 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
               <span className="relative flex h-1.5 w-1.5 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600"></span>
               </span>
               <span className="line-clamp-1 truncate text-[11px] font-medium">
-                {currentTask.latest_progress || summary}
+                {liveActivity}
               </span>
             </div>
           ) : summary ? (
@@ -245,22 +275,35 @@ export function TaskItemCard({
                 </button>
               </>
             ) : isRunning ? (
-              <Link
-                to={targetUrl}
-                state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        onClick(currentTask)
-                      }
-                    : onNavigate
-                }
-                className="action-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
-              >
-                <Terminal className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{t('Live Terminal')}</span>
-              </Link>
+              <>
+                <Link
+                  to={`${targetUrl}?view=detail`}
+                  state={{ taskReturnTo: currentReturnTo }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onNavigate?.()
+                  }}
+                  className="action-secondary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
+                >
+                  <span className="hidden sm:inline">{t('Detail')}</span>
+                </Link>
+                <Link
+                  to={targetUrl}
+                  state={{ taskReturnTo: currentReturnTo }}
+                  onClick={
+                    onClick
+                      ? (e) => {
+                          e.preventDefault()
+                          onClick(currentTask)
+                        }
+                      : onNavigate
+                  }
+                  className="action-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
+                >
+                  <Terminal className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t('Live Terminal')}</span>
+                </Link>
+              </>
             ) : status === 'Ready for review' ||
               status === 'Completed' ||
               status === 'Answered' ? (
@@ -369,14 +412,14 @@ export function TaskItemCard({
             {currentTask.title}
           </h4>
         </Link>
-        {isRunning && (currentTask.latest_progress || summary) ? (
+        {isRunning ? (
           <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300 animate-in fade-in duration-200">
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
             </span>
             <span className="line-clamp-2 break-words text-[11px] font-medium leading-tight">
-              {currentTask.latest_progress || summary}
+              {liveActivity}
             </span>
           </div>
         ) : summary ? (
@@ -439,26 +482,39 @@ export function TaskItemCard({
                 </button>
               </>
             ) : isRunning ? (
-              <Link
-                to={targetUrl}
-                state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onClick(currentTask)
-                      }
-                    : (e) => {
-                        e.stopPropagation()
-                        onNavigate?.()
-                      }
-                }
-                className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
-              >
-                <Terminal className="h-3.5 w-3.5" />
-                <span>{t('Live Terminal')}</span>
-              </Link>
+              <>
+                <Link
+                  to={`${targetUrl}?view=detail`}
+                  state={{ taskReturnTo: currentReturnTo }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onNavigate?.()
+                  }}
+                  className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1"
+                >
+                  {t('Detail')}
+                </Link>
+                <Link
+                  to={targetUrl}
+                  state={{ taskReturnTo: currentReturnTo }}
+                  onClick={
+                    onClick
+                      ? (e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          onClick(currentTask)
+                        }
+                      : (e) => {
+                          e.stopPropagation()
+                          onNavigate?.()
+                        }
+                  }
+                  className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
+                >
+                  <Terminal className="h-3.5 w-3.5" />
+                  <span>{t('Live Terminal')}</span>
+                </Link>
+              </>
             ) : status === 'Ready for review' ||
               status === 'Completed' ||
               status === 'Answered' ? (

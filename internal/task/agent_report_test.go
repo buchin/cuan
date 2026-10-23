@@ -183,3 +183,45 @@ func TestDefaultProjectKeepsLegacyCreationReplay(t *testing.T) {
 		t.Fatal("changed request accepted")
 	}
 }
+
+func TestRunnerLogLiveActivityFallback(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore(), nil)
+	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{Title: "Live Task", Instructions: "Build a feature"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := TaskStatusDoing
+	svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Status: &doing})
+	svc.UpdateAttemptStatus(ctx, a.ID, "runner", UpdateAttemptRequest{Status: AttemptStatusRunning})
+
+	// Append raw terminal logs with ANSI, spinners, and narrative messages
+	logs := []LogRecord{
+		{AttemptID: a.ID, Stream: "stdout", Line: "• Scheduled 1 timer (ctrl+o to expand)"},
+		{AttemptID: a.ID, Stream: "stdout", Line: "Paket internal/server sedang dikompilasi... Menunggu proses linking biner akhir."},
+		{AttemptID: a.ID, Stream: "stdout", Line: "\x1B[16D\x1B[?25h\x1B[?25l\r\x1B[3A⢿  \x1B[90mRunning command..\x1B[m"},
+	}
+	if err := svc.AppendAttemptLogs(ctx, a.ID, logs, 100); err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.LatestProgress != "Paket internal/server sedang dikompilasi... Menunggu proses linking biner akhir." {
+		t.Fatalf("expected narrative progress from logs, got %q", detail.LatestProgress)
+	}
+
+	list, err := svc.ListTasks(ctx, TaskFilter{})
+	if err != nil || len(list) != 1 {
+		t.Fatalf("expected 1 task in list, got %+v", list)
+	}
+	if list[0].LatestProgress != "Paket internal/server sedang dikompilasi... Menunggu proses linking biner akhir." {
+		t.Fatalf("expected list progress from logs, got %q", list[0].LatestProgress)
+	}
+}
