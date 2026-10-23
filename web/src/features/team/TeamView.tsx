@@ -661,11 +661,11 @@ export function TeamView({
                         </div>
                       )}
                       {state.state === 'unavailable' && (
-                        <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
-                          <p className="font-medium">{t('Agent unavailable')}</p>
-                          <p className="mt-0.5 text-muted-foreground">
-                            {t('The provider could not be reached. Check the connection and try again; Inbox will not route new work here while it is unavailable.')}
-                          </p>
+                        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-xs">
+                          <span className="min-w-0 truncate text-destructive">
+                            {t('Agent unavailable')} · {t('Inbox will not route new work here.')}
+                          </span>
+                          <span className="shrink-0 text-muted-foreground">{t('Check connection')}</span>
                         </div>
                       )}
                     </div>
@@ -710,7 +710,7 @@ export function TeamView({
                         }}
                       />
                       <div className="min-w-0">
-                        <span>{t('Use this AI account as a backup')}</span>
+                        <span>{t('Use as backup')}</span>
                         <p className="text-[11px] text-muted-foreground font-normal leading-normal">
                           {t('Auto-failover for Inbox & tasks when primary quota is low.')}
                         </p>
@@ -747,7 +747,7 @@ export function TeamView({
                         }}
                       />
                       <div className="min-w-0">
-                        <span>{t('Allow available text models on this account')}</span>
+                        <span>{t('Allow model fallback')}</span>
                         <p className="text-[11px] text-muted-foreground font-normal leading-normal">
                           {t('Auto-switch between available Gemini and Claude models.')}
                         </p>
