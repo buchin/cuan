@@ -50,6 +50,12 @@ export function TaskItemCard({
   const status = workStatus(task)
   const isRunning = isTaskRunning(task)
   const targetUrl = taskTargetUrl(task)
+  // A blocked/failed task should open the task side peek so the owner can
+  // start its retry flow immediately. Session routes only show saved output.
+  const actionUrl =
+    status === 'Needs attention'
+      ? `/tasks/${encodeURIComponent(task.id)}`
+      : targetUrl
   const summary = taskSummaryText(task)
   const agent =
     task.latest_attempt?.agent_name || task.assignee_id || task.assignee
@@ -173,7 +179,7 @@ export function TaskItemCard({
         {showActions && (
           <div className="flex shrink-0 items-center gap-1.5 sm:flex">
             <Link
-              to={targetUrl}
+              to={actionUrl}
               state={{ taskReturnTo: currentReturnTo }}
               onClick={
                 onClick
@@ -189,6 +195,11 @@ export function TaskItemCard({
                 <>
                   <Terminal className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{t('Live Terminal')}</span>
+                </>
+              ) : status === 'Needs attention' ? (
+                <>
+                  <Play className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t('Retry')}</span>
                 </>
               ) : status === 'Ready for review' ||
                 status === 'Completed' ||
@@ -333,7 +344,7 @@ export function TaskItemCard({
               {t('Detail')}
             </Link>
             <Link
-              to={targetUrl}
+              to={actionUrl}
               state={{ taskReturnTo: currentReturnTo }}
               onClick={
                 onClick
@@ -353,6 +364,11 @@ export function TaskItemCard({
                 <>
                   <Terminal className="h-3.5 w-3.5" />
                   <span>{t('Live Terminal')}</span>
+                </>
+              ) : status === 'Needs attention' ? (
+                <>
+                  <Play className="h-3.5 w-3.5" />
+                  <span>{t('Retry')}</span>
                 </>
               ) : status === 'Ready for review' ||
                 status === 'Completed' ||
