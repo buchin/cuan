@@ -44,15 +44,27 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 			continue
 		}
 		sort.SliceStable(messages, func(i, j int) bool { return messages[i].CreatedAt.Before(messages[j].CreatedAt) })
-		if len(messages) > 15 {
-			messages = messages[len(messages)-15:]
-		}
 		fmt.Fprintf(&b, "\n[Referenced Internal Cuan Conversation: Room %s, Title: %q]\n", roomID, room.Title)
 		b.WriteString("(This is an internal Cuan conversation from this application, NOT an external link. Analyze it directly):\n")
-		for _, msg := range messages {
-			clean, _ := decodeAttachmentMessage(msg.Content)
-			clean = truncateProjectText(clean, 400)
-			fmt.Fprintf(&b, "- %s: %s\n", strings.ToUpper(msg.AuthorType), clean)
+		if len(messages) <= 25 {
+			for _, msg := range messages {
+				clean, _ := decodeAttachmentMessage(msg.Content)
+				clean = truncateProjectText(clean, 600)
+				fmt.Fprintf(&b, "- %s: %s\n", strings.ToUpper(msg.AuthorType), clean)
+			}
+		} else {
+			for _, msg := range messages[:2] {
+				clean, _ := decodeAttachmentMessage(msg.Content)
+				clean = truncateProjectText(clean, 600)
+				fmt.Fprintf(&b, "- %s: %s\n", strings.ToUpper(msg.AuthorType), clean)
+			}
+			omitted := len(messages) - 22
+			fmt.Fprintf(&b, "  [... %d pesan obrolan tengah disingkat ...]\n", omitted)
+			for _, msg := range messages[len(messages)-20:] {
+				clean, _ := decodeAttachmentMessage(msg.Content)
+				clean = truncateProjectText(clean, 600)
+				fmt.Fprintf(&b, "- %s: %s\n", strings.ToUpper(msg.AuthorType), clean)
+			}
 		}
 	}
 

@@ -42,7 +42,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			targetAt = m.CreatedAt
 		}
 	}
-	for i := len(messages) - 1; i >= 0 && len(linkSearchTexts) < 6; i-- {
+	for i := len(messages) - 1; i >= 0 && len(linkSearchTexts) < 40; i-- {
 		clean, _ := decodeAttachmentMessage(messages[i].Content)
 		if strings.TrimSpace(clean) != "" {
 			linkSearchTexts = append(linkSearchTexts, clean)
