@@ -176,6 +176,9 @@ func TestInboxProjectContextMetricsAndBlockerDiagnostics(t *testing.T) {
 	if !strings.Contains(snapshot, "Live Deployment Environment: env=staging") {
 		t.Fatalf("missing live deployment environment in snapshot: %s", snapshot)
 	}
+	if !strings.Contains(snapshot, "Server Infrastructure & Host Telemetry:") || !strings.Contains(snapshot, "- Host Disk:") {
+		t.Fatalf("missing server infrastructure telemetry in snapshot: %s", snapshot)
+	}
 	if !strings.Contains(snapshot, "Git Working State:") {
 		t.Fatalf("missing git working state in snapshot: %s", snapshot)
 	}

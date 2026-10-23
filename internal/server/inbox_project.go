@@ -186,6 +186,8 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		}
 		fmt.Fprintf(&b, "Live Deployment Environment: env=%s, active_release=%s, database=connected\n", s.cfg.Environment, rel)
 	}
+	telem := s.getServerTelemetry(ctx, selected.LocalPath)
+	b.WriteString(telem.Summary())
 	dir := selected.LocalPath
 	if dir == "" {
 		b.WriteString("Repository not connected: the project workspace is empty. Use available backlog data and explain that a repository must be connected through Projects to inspect files. Do not claim to have read code.\n")
