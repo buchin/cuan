@@ -147,6 +147,7 @@ export function TeamView({
   const accountScope = useRef('')
   const epoch = useRef(0)
   const dialogActive = useRef(false)
+  const autoChecked = useRef(new Set<string>())
   const addButton = useRef<HTMLButtonElement>(null)
   const createTrigger = useRef<HTMLElement | null>(null)
 
@@ -331,10 +332,10 @@ export function TeamView({
       if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
     }
   }
-  const check = async (id: string) => {
+  const check = async (id: string, silent = false) => {
     setChecking(id)
     setError('')
-    setNotice('')
+    if (!silent) setNotice('')
     try {
       const result = await agentsApi.verifyConnection(id)
       setAgents((current) =>
@@ -357,10 +358,12 @@ export function TeamView({
         login_required: 'The agent needs to sign in again.',
         unavailable: 'Connection interrupted. Try again later.',
       }
-      setNotice(
-        messages[result.connection_state] ||
-          'Could not confirm the connection. Try again later.',
-      )
+      if (!silent) {
+        setNotice(
+          messages[result.connection_state] ||
+            'Could not confirm the connection. Try again later.',
+        )
+      }
     } catch (e) {
       setError(
         e instanceof Error
@@ -371,6 +374,20 @@ export function TeamView({
       setChecking('')
     }
   }
+  // Refresh stale/unknown statuses once when the roster opens. This keeps the
+  // page useful without probing every account on every render.
+  useEffect(() => {
+    if (loading) return
+    const stale = agents.filter((agent) => {
+      if (autoChecked.current.has(agent.id) || agent.enabled === false || agent.status === 'inactive') return false
+      const checked = Date.parse(agent.last_checked_at || agent.verified_at || '')
+      return !Number.isFinite(checked) || checked + 5 * 60_000 <= Date.now()
+    })
+    stale.slice(0, 4).forEach((agent) => {
+      autoChecked.current.add(agent.id)
+      void check(agent.id, true)
+    })
+  }, [agents, loading])
   const verify = async () => {
     if (!active.current || !code.trim() || busy) return
     const currentEpoch = epoch.current
