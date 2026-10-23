@@ -169,16 +169,18 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	var t *task.TaskDetailResponse
 	if d.TaskID != "" {
 		t, err = s.taskSvc.GetTaskDetail(ctx, d.TaskID)
-		if err != nil || t.SourceRoomID != q.RoomID || t.ProjectID != d.ProjectID || !strings.Contains(t.Instructions, "Approval message: "+d.AuthorizationID) {
+		isOriginalApproval := err == nil && t != nil && strings.Contains(t.Instructions, "Approval message: "+d.AuthorizationID)
+		isRoomContinuation := err == nil && t != nil && t.SourceRoomID == q.RoomID && authorization != nil && authorization.AuthorType == "user"
+		if err != nil || t.SourceRoomID != q.RoomID || t.ProjectID != d.ProjectID || (!isOriginalApproval && !isRoomContinuation) {
 			return fail("the task is outside this approved conversation scope")
 		}
 		if !s.taskContinuationAfterCancel(ctx, q, t) {
 			return fail("the work was cancelled; a new user instruction is required to continue")
 		}
-		if taskRevisionAttemptCount(t) >= 3 {
+		if taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization.ID == t.SourceMessageID {
 			return fail("the task reached its retry limit; its blocker needs review")
 		}
-		if t.Status == task.TaskStatusDone {
+		if t.Status == task.TaskStatusDone || t.Status == task.TaskStatusBlocked {
 			review := task.TaskStatusReview
 			if _, err = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &review}); err != nil {
 				return fail("the task could not be returned for correction")
@@ -207,10 +209,21 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		return "The work is saved and has not been started.\n\n[View work](/tasks/" + t.ID + ")"
 	}
 	launchID := q.RequestID
-	if d.TaskID == "" {
+	sourceRequestID := authorizationRequestID
+	if d.TaskID != "" {
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
+				for _, request := range requests {
+					if request.MessageID == t.SourceMessageID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+						sourceRequestID = request.RequestID
+					}
+				}
+			}
+		}
+	} else {
 		launchID = delegationMessageID("task-run:" + q.RoomID + ":" + d.AuthorizationID)
 	}
-	return s.startAuthorizedLaunch(ctx, q, t, launchID, authorizationRequestID, d.Revision)
+	return s.startAuthorizedLaunch(ctx, q, t, launchID, sourceRequestID, d.Revision)
 
 }
 

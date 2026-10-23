@@ -203,7 +203,8 @@ func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
 		t.Fatal("retry crossed profile")
 	}
 	bin := t.TempDir()
-	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\n/bin/cat \"$HOME/fixture-marker\"\nprintf '%s' \"$HOME\" > \"$HOME/task-used-profile\"\n"), 0700)
+	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nmarker=\"$(/bin/cat \"$HOME/fixture-marker\")\"\nprintf '%s' \"$HOME\" > \"$HOME/task-used-profile\"\nprintf '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"{\\\\\"reply\\\\\":\\\\\"%s\\\\\",\\\\\"topic_title\\\\\":\\\\\"\\\\\",\\\\\"action\\\\\":null}\"}}\\n' \"$marker\"\n"), 0700)
+	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s.cfg.Environment = "staging"
 	for i, id := range []string{"agent_first", "agent_second"} {

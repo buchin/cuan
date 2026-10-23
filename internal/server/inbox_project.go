@@ -122,6 +122,13 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 					if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil {
 						fields["execution_state"] = string(detail.LatestAttempt.Status)
 						fields["execution_error"] = truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000)
+						for i := len(detail.Activities) - 1; i >= 0; i-- {
+							act := detail.Activities[i]
+							if act != nil && strings.TrimSpace(act.Message) != "" {
+								fields["latest_activity"] = truncateProjectText(act.Message, 1500)
+								break
+							}
+						}
 					}
 				}
 				row, _ := json.Marshal(fields)
@@ -161,6 +168,35 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
 	files := gitRead("ls-files")
 	b.WriteString("Tracked files (up to 6 KiB):\n" + truncateProjectText(files, 6000) + "\n")
+	sprintDir := filepath.Join(dir, "docs", "sprints")
+	if entries, err := os.ReadDir(sprintDir); err == nil {
+		var latestSprint string
+		var highestNum int
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasPrefix(entry.Name(), "S") && strings.HasSuffix(entry.Name(), ".md") {
+				numStr := strings.TrimSuffix(strings.TrimPrefix(entry.Name(), "S"), ".md")
+				var n int
+				if _, err := fmt.Sscanf(numStr, "%d", &n); err == nil && n >= highestNum {
+					highestNum = n
+					latestSprint = entry.Name()
+				}
+			}
+		}
+		if latestSprint != "" {
+			if data, err := os.ReadFile(filepath.Join(sprintDir, latestSprint)); err == nil {
+				lines := strings.Split(string(data), "\n")
+				var sprintHeader strings.Builder
+				for i, line := range lines {
+					if i > 25 {
+						break
+					}
+					sprintHeader.WriteString(line)
+					sprintHeader.WriteString("\n")
+				}
+				fmt.Fprintf(&b, "Latest sprint doc snapshot (%s):\n%s\n", latestSprint, truncateProjectText(sprintHeader.String(), 2000))
+			}
+		}
+	}
 	// Seed documents let providers answer even if their native read tool is absent.
 	// Only regular tracked text, no symlinks, environment files or credential stores.
 	budget := 32000

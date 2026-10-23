@@ -72,21 +72,23 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if e != nil {
 		return finish("queued", "Conversation storage is temporarily unavailable.")
 	}
-	authorized := false
-	for _, q := range requests {
-		if q.RequestID == job.SourceRequestID && q.MessageID == detail.SourceMessageID && q.OwnerID == job.OwnerID && q.AgentID == job.AgentID && q.State != "cancelled" && q.State != "canceled" && q.State != "cancelling" {
-			authorized = true
-		}
-	}
-	if !authorized {
-		return finish("stopped", "The original user authorization is unavailable or cancelled.")
-	}
 	var trigger db.InboxRequest
 	for _, q := range requests {
 		if q.RequestID == job.RequestID && q.OwnerID == job.OwnerID && q.AgentID == job.AgentID {
 			trigger = q
 			break
 		}
+	}
+	authorized := false
+	for _, q := range requests {
+		isOriginalMatch := q.RequestID == job.SourceRequestID && q.MessageID == detail.SourceMessageID
+		isContinuationMatch := (q.RequestID == job.RequestID || q.RequestID == job.SourceRequestID) && trigger.MessageID != "" && q.MessageID == trigger.MessageID
+		if (isOriginalMatch || isContinuationMatch) && q.OwnerID == job.OwnerID && q.AgentID == job.AgentID && q.State != "cancelled" && q.State != "canceled" && q.State != "cancelling" {
+			authorized = true
+		}
+	}
+	if !authorized {
+		return finish("stopped", "The original user authorization is unavailable or cancelled.")
 	}
 	if !s.taskContinuationAfterCancel(ctx, trigger, detail) {
 		return finish("stopped", "The work was cancelled. A new user instruction is required to continue.")

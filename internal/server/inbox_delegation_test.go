@@ -400,3 +400,74 @@ func TestInboxDelegationApprovalScopeIsStableAcrossTriggerMessages(t *testing.T)
 		t.Fatal("approval identity or save-only authorization lost")
 	}
 }
+
+func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
+	s, token, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	owner, err := s.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p1", Name: "One"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+
+	// Initial task created in the room
+	initMsgID := db.GenerateUUID()
+	initReq := db.InboxRequest{OwnerID: owner.ID, AgentID: "agent_lifecycle", RoomID: room.RoomID, RequestID: db.GenerateUUID(), MessageID: initMsgID, ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "init", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	initMsg := &db.ProjectMessage{ID: initMsgID, RoomID: room.RoomID, AuthorType: "user", Content: "Start initial task", CreatedAt: now}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, initReq, initMsg)
+
+	initDelegation := inboxDelegation{Action: "run", Title: "Initial Task", Description: "Initial task description", ProjectID: "p1", AuthorizationID: initMsgID}
+	raw, _ := json.Marshal(initDelegation)
+	out := s.applyInboxDelegation(ctx, initReq, "```cuan-delegate\n"+string(raw)+"\n```")
+	if !strings.Contains(out, "started") {
+		t.Fatalf("expected initial task to start, got: %s", out)
+	}
+
+	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	existingTaskID := tasks[0].ID
+
+	// Mark task as blocked (e.g. after attempts reached max or error)
+	statusBlocked := task.TaskStatusBlocked
+	s.taskSvc.UpdateTask(ctx, existingTaskID, "coordinator", task.UpdateTaskRequest{Status: &statusBlocked})
+	s.terminalManager.CloseSession(existingTaskID)
+
+	// User sends a new message in the same room ("Gas", "Lanjut")
+	continuationMsgID := db.GenerateUUID()
+	continuationReq := db.InboxRequest{OwnerID: owner.ID, AgentID: "agent_lifecycle", RoomID: room.RoomID, RequestID: db.GenerateUUID(), MessageID: continuationMsgID, ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "cont", CreatedAt: now.Add(time.Minute), Deadline: now.Add(2 * time.Hour)}
+	continuationMsg := &db.ProjectMessage{ID: continuationMsgID, RoomID: room.RoomID, AuthorType: "user", Content: "Gas", CreatedAt: now.Add(time.Minute)}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, continuationReq, continuationMsg)
+
+	// Coordinator delegates continuation for the existing task with new user message as AuthorizationID
+	continuationDelegation := inboxDelegation{
+		Action:          "run",
+		TaskID:          existingTaskID,
+		ProjectID:       "p1",
+		AuthorizationID: continuationMsgID,
+		Revision:        "Continue previous work with fixes",
+	}
+	rawCont, _ := json.Marshal(continuationDelegation)
+	contOut := s.applyInboxDelegation(ctx, continuationReq, "```cuan-delegate\n"+string(rawCont)+"\n```")
+
+	if strings.Contains(contOut, "outside this approved conversation scope") {
+		t.Fatalf("continuation wrongly rejected as outside scope: %s", contOut)
+	}
+	if strings.Contains(contOut, "retry limit") {
+		t.Fatalf("continuation wrongly rejected due to retry limit: %s", contOut)
+	}
+	if !strings.Contains(contOut, "started") {
+		t.Fatalf("expected continuation to start, got: %s", contOut)
+	}
+
+	// Verify task status was reset to doing or review
+	updatedDetail, _ := s.taskSvc.GetTaskDetail(ctx, existingTaskID)
+	if updatedDetail.Status != task.TaskStatusDoing && updatedDetail.Status != task.TaskStatusReview {
+		t.Fatalf("expected task status to be doing or review, got: %s", updatedDetail.Status)
+	}
+}

@@ -119,7 +119,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			if target, ok := s.detectNextMultiPhase(ctx, d); ok {
 				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
 			}
-			return "Based on the work session's verification report:\n\n" + decision.Explanation
+			return decision.Explanation
 		}
 	}
 	if decision.Decision == "revise" {
@@ -282,7 +282,7 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 	if nextTaskID != "" {
 		link = fmt.Sprintf("\n\n[View work](/tasks/%s)", nextTaskID)
 	}
-	return fmt.Sprintf("Based on the work session's verification report:\n\n%s\n\nPhase %d verified complete. Automatically advancing to **%s** without stopping.%s", explanation, target.CurrentPhase, nextTitle, link)
+	return fmt.Sprintf("%s\n\nPhase %d verified complete. Automatically advancing to **%s** without stopping.%s", explanation, target.CurrentPhase, nextTitle, link)
 }
 
 func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxRequest) (string, bool) {

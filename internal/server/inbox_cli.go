@@ -104,9 +104,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		timeout := "45s"
+		timeout := "60s"
 		if directCoordinator {
-			timeout = "25s"
+			timeout = "30s"
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
 		if answerOnly {
@@ -201,7 +201,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if binary == "agy" {
 		maxTools := 0
 		if coordinator && !directCoordinator {
-			maxTools = 3
+			maxTools = 12
 		}
 		runtime = &inboxRuntimeStream{
 			step:          step,
@@ -290,9 +290,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			runtime.unsafeTool = runtime.unsafeTool || !repairSafe
 			return output, err
 		}
-		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || reason == "coordinator_tool_rejected" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && runErr == nil && !runtime.invalid && !runtime.overflow {
 			if step != nil {
-				step("response_recovery", "The previous tool attempt exceeded budget or returned no reply. Answering directly from conversation context with structured actions.")
+				step("response_recovery", "The previous tool attempt exceeded budget or encountered an issue. Answering directly from conversation context with structured actions.")
 			}
 			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
 			repairCtx = context.WithValue(repairCtx, inboxCoordinatorDirectKey{}, true)
