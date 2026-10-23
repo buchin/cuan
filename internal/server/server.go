@@ -38,6 +38,7 @@ import (
 	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/studio"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/taskcli"
 	"github.com/buchin/cuan/internal/terminal"
 	"github.com/buchin/cuan/internal/wordpress"
 )
@@ -927,7 +928,7 @@ func (s *Server) SetWordPressWebmaster(w *wordpress.WebmasterEngine) {
 func (s *Server) routes() {
 	s.router.Get("/api/v1/task-agent/{id}", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}", s.handleTaskAgent)
- s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
+	s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
 	// Public Health, Readiness & System Mode (Sprint 3 S03.5)
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
@@ -2571,6 +2572,32 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 			resp.ProjectRepo = p.RepoURL
 			resp.WorkingDir = p.LocalPath
 		}
+	}
+	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {
+		env, prompt, _, _, err := s.issueTaskAgent(r.Context(), resp.Task.ID, resp.Attempt.ID, resp.Attempt.AgentName)
+		if err != nil {
+			respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("could not prepare task session: %v", err))
+			return
+		}
+		if len(env) == 0 {
+			respondJSONError(w, http.StatusInternalServerError, "could not prepare task capability")
+			return
+		}
+		capPath := strings.TrimPrefix(env[0], "CUAN_TASK_CAPABILITY_FILE=")
+		raw, err := os.ReadFile(capPath)
+		if err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "could not read task capability")
+			return
+		}
+		var cap taskcli.Capability
+		if err := json.Unmarshal(raw, &cap); err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "could not encode task capability")
+			return
+		}
+		resp.TaskAgent = &runner.TaskAgentCapability{API: cap.API, Token: cap.Token, TaskID: cap.TaskID, AttemptID: cap.AttemptID}
+		resp.AgentPrompt = prompt
+		_ = os.Remove(capPath)
+		_ = os.Remove(filepath.Dir(capPath))
 	}
 
 	respondJSON(w, http.StatusOK, resp)

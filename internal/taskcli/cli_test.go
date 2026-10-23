@@ -70,6 +70,25 @@ func TestTaskPushUsesBoundCapabilityEndpoint(t *testing.T) {
 	}
 }
 
+func TestTaskToolAcceptsRunnerInlineCapability(t *testing.T) {
+	called := false
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.Header.Get("Authorization") != "Bearer inline-token" {
+			t.Fatal("inline capability was not used")
+		}
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer api.Close()
+	raw, _ := json.Marshal(Capability{API: api.URL, Token: "inline-token", TaskID: "bound"})
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", "")
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", string(raw))
+	var out, errOut bytes.Buffer
+	if Run([]string{"get"}, &out, &errOut) != 0 || !called {
+		t.Fatal(errOut.String())
+	}
+}
+
 func TestTaskReportSendsRepeatedArtifactPaths(t *testing.T) {
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data map[string]any

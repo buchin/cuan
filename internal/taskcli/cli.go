@@ -60,19 +60,24 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 		fmt.Fprintln(errOut, "Only task report accepts artifacts")
 		return 2
 	}
-	path := os.Getenv("CUAN_TASK_CAPABILITY_FILE")
-	info, e := os.Stat(path)
-	if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
-		fmt.Fprintln(errOut, "Task capability is unavailable or not private. Run this tool inside the bound agent session.")
-		return 1
-	}
-	raw, e := os.ReadFile(path)
-	if e != nil {
-		fmt.Fprintln(errOut, "Cannot read task capability")
-		return 1
+	var raw []byte
+	if inline := os.Getenv("CUAN_TASK_CAPABILITY_JSON"); inline != "" {
+		raw = []byte(inline)
+	} else {
+		path := os.Getenv("CUAN_TASK_CAPABILITY_FILE")
+		info, e := os.Stat(path)
+		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+			fmt.Fprintln(errOut, "Task capability is unavailable or not private. Run this tool inside the bound agent session.")
+			return 1
+		}
+		raw, e = os.ReadFile(path)
+		if e != nil {
+			fmt.Fprintln(errOut, "Cannot read task capability")
+			return 1
+		}
 	}
 	var c Capability
-	if e = json.Unmarshal(raw, &c); e != nil || c.Token == "" || c.TaskID == "" {
+	if e := json.Unmarshal(raw, &c); e != nil || c.Token == "" || c.TaskID == "" {
 		fmt.Fprintln(errOut, "Invalid task capability")
 		return 1
 	}

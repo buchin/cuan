@@ -60,16 +60,27 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
-	Claimed       bool              `json:"claimed"`
-	Attempt       *task.TaskAttempt `json:"attempt,omitempty"`
-	Task          *task.Task        `json:"task,omitempty"`
-	ProjectRepo   string            `json:"project_repo,omitempty"`
-	RepoOwner     string            `json:"repo_owner,omitempty"`
-	RepoName      string            `json:"repo_name,omitempty"`
-	RepoURL       string            `json:"repo_url,omitempty"`
-	DefaultBranch string            `json:"default_branch,omitempty"`
-	WorkingDir    string            `json:"working_dir,omitempty"`
-	LeaseExpires  time.Time         `json:"lease_expires"`
+	Claimed       bool                 `json:"claimed"`
+	Attempt       *task.TaskAttempt    `json:"attempt,omitempty"`
+	Task          *task.Task           `json:"task,omitempty"`
+	ProjectRepo   string               `json:"project_repo,omitempty"`
+	RepoOwner     string               `json:"repo_owner,omitempty"`
+	RepoName      string               `json:"repo_name,omitempty"`
+	RepoURL       string               `json:"repo_url,omitempty"`
+	DefaultBranch string               `json:"default_branch,omitempty"`
+	WorkingDir    string               `json:"working_dir,omitempty"`
+	LeaseExpires  time.Time            `json:"lease_expires"`
+	TaskAgent     *TaskAgentCapability `json:"task_agent,omitempty"`
+	AgentPrompt   string               `json:"agent_prompt,omitempty"`
+}
+
+// TaskAgentCapability is scoped to one task attempt and is used by the
+// background runner to access the same reporting contract as interactive sessions.
+type TaskAgentCapability struct {
+	API       string `json:"api"`
+	Token     string `json:"token"`
+	TaskID    string `json:"task_id"`
+	AttemptID string `json:"attempt_id"`
 }
 
 // StreamLogsRequest is used by runner to stream batches of output lines to the server.
@@ -81,15 +92,17 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
-	RunnerID     string `json:"runner_id"`
-	Status       string `json:"status"` // succeeded, failed, canceled
-	ExitCode     int    `json:"exit_code"`
-	PeakRSSBytes int64  `json:"peak_rss_bytes"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	BranchName   string `json:"branch_name,omitempty"`
-	PRURL        string `json:"pr_url,omitempty"`
-	PRNumber     int    `json:"pr_number,omitempty"`
-	CommitSHA    string `json:"commit_sha,omitempty"`
-	DiffSummary  string `json:"diff_summary,omitempty"`
-	TestSummary  string `json:"test_summary,omitempty"`
+	RunnerID             string `json:"runner_id"`
+	Status               string `json:"status"` // succeeded, failed, canceled
+	ExitCode             int    `json:"exit_code"`
+	PeakRSSBytes         int64  `json:"peak_rss_bytes"`
+	ErrorMessage         string `json:"error_message,omitempty"`
+	BranchName           string `json:"branch_name,omitempty"`
+	PRURL                string `json:"pr_url,omitempty"`
+	PRNumber             int    `json:"pr_number,omitempty"`
+	CommitSHA            string `json:"commit_sha,omitempty"`
+	DiffSummary          string `json:"diff_summary,omitempty"`
+	TestSummary          string `json:"test_summary,omitempty"`
+	AgentReportConfirmed bool   `json:"agent_report_confirmed"`
+	AgentReportRequired  bool   `json:"agent_report_required"`
 }

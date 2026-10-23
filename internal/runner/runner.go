@@ -234,11 +234,20 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if prompt == "" {
 		prompt = t.Title
 	}
+	if claim.AgentPrompt != "" {
+		prompt += claim.AgentPrompt
+	}
+	env := map[string]string{}
+	if claim.TaskAgent != nil {
+		encoded, _ := json.Marshal(claim.TaskAgent)
+		env["CUAN_TASK_CAPABILITY_JSON"] = string(encoded)
+	}
 
 	req := agent.ExecutionRequest{
 		TaskID:       t.ID,
 		Prompt:       prompt,
 		WorkingDir:   workingDir,
+		Env:          env,
 		Timeout:      10 * time.Minute,
 		OutputFormat: "json",
 	}
@@ -248,6 +257,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	var compReq CompleteAttemptRequest
 	compReq.RunnerID = r.cfg.RunnerID
+	compReq.AgentReportRequired = claim.TaskAgent != nil
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {
@@ -286,6 +296,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		} else {
 			compReq.Status = task.AttemptStatusSucceeded
 			compReq.ExitCode = 0
+			compReq.AgentReportConfirmed = r.confirmAgentReport(ctx, claim)
+			if !compReq.AgentReportConfirmed {
+				compReq.Status = task.AttemptStatusFailed
+				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
+			}
 		}
 	} else {
 		compReq.Status = task.AttemptStatusFailed
@@ -363,6 +378,47 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/complete", att.ID)
 	_, _ = r.doRequest(context.Background(), http.MethodPost, urlPath, compReq)
 	log.Printf("[Runner %s] Attempt %s finalized with status '%s' (exit %d)", r.cfg.RunnerID, att.ID, compReq.Status, compReq.ExitCode)
+}
+
+func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse) bool {
+	if claim.TaskAgent == nil || claim.TaskAgent.API == "" || claim.TaskAgent.Token == "" || claim.Attempt == nil {
+		return false
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, claim.TaskAgent.API, nil)
+	if err != nil {
+		return false
+	}
+	request.Header.Set("Authorization", "Bearer "+claim.TaskAgent.Token)
+	response, err := r.httpClient.Do(request)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false
+	}
+	var snapshot struct {
+		Summary      string `json:"summary"`
+		CompleteNote string `json:"complete_note"`
+		Activities   []struct {
+			AttemptID    *string `json:"attempt_id"`
+			ActivityType string  `json:"activity_type"`
+			NewStatus    string  `json:"new_status"`
+		} `json:"activities"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
+		return false
+	}
+	if strings.TrimSpace(snapshot.Summary) == "" || strings.TrimSpace(snapshot.CompleteNote) == "" {
+		return false
+	}
+	for i := len(snapshot.Activities) - 1; i >= 0; i-- {
+		activity := snapshot.Activities[i]
+		if activity.AttemptID != nil && *activity.AttemptID == claim.Attempt.ID && activity.ActivityType == "agent_report" {
+			return activity.NewStatus == "review" || activity.NewStatus == "done"
+		}
+	}
+	return false
 }
 
 func (r *Runner) streamOutputLogs(ctx context.Context, attemptID, stdout, stderr string) {

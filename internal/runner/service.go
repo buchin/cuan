@@ -137,8 +137,14 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	if req.ExitCode != 0 && status != task.AttemptStatusCanceled {
 		status = task.AttemptStatusFailed
 	}
+	if status == task.AttemptStatusSucceeded && req.AgentReportRequired && !req.AgentReportConfirmed {
+		status = task.AttemptStatusFailed
+		att.ErrorMessage = "Agent finished without a confirmed final task report"
+	}
 	att.Status = status
-	att.ErrorMessage = req.ErrorMessage
+	if att.ErrorMessage == "" {
+		att.ErrorMessage = req.ErrorMessage
+	}
 
 	if err := s.taskStore.UpdateAttempt(ctx, att); err != nil {
 		return nil, fmt.Errorf("update attempt on complete: %w", err)
