@@ -88,24 +88,35 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 	}
 	base := "refs/remotes/origin/" + p.DefaultBranch
 	if _, err = run("-C", source, "rev-parse", "--verify", base+"^{commit}"); err != nil {
-		// Repair an empty/stale cache before reserving any execution attempt. Existing
-		// worktrees return above and never fetch or change their original base.
-		current, e := s.store.GetProject(ctx, p.ID)
-		if e != nil {
-			return "", errors.New("Project connection is unavailable. Your work is saved.")
-		}
-		token, e := s.repositoryToken(ctx, current.EncryptedToken)
-		if e != nil {
-			return "", e
-		}
-		fetch, cancel := context.WithTimeout(ctx, 20*time.Second)
-		e = s.gitClient.FetchBoundBranch(fetch, source, p.RepoURL, p.DefaultBranch, token)
-		cancel()
-		if e != nil {
-			return "", e
-		}
-		if _, e = run("-C", source, "rev-parse", "--verify", base+"^{commit}"); e != nil {
-			return "", errors.New("Project files could not be prepared. Your request is saved.")
+		if _, localErr := run("-C", source, "rev-parse", "--verify", "refs/heads/"+p.DefaultBranch+"^{commit}"); localErr == nil {
+			base = "refs/heads/" + p.DefaultBranch
+		} else {
+			// Repair an empty/stale cache before reserving any execution attempt. Existing
+			// worktrees return above and never fetch or change their original base.
+			current, e := s.store.GetProject(ctx, p.ID)
+			if e != nil {
+				return "", errors.New("Project connection is unavailable. Your work is saved.")
+			}
+			token, e := s.repositoryToken(ctx, current.EncryptedToken)
+			if e != nil {
+				return "", e
+			}
+			fetch, cancel := context.WithTimeout(ctx, 20*time.Second)
+			e = s.gitClient.FetchBoundBranch(fetch, source, p.RepoURL, p.DefaultBranch, token)
+			cancel()
+			if e != nil {
+				if _, fallbackErr := run("-C", source, "rev-parse", "--verify", "HEAD^{commit}"); fallbackErr == nil {
+					base = "HEAD"
+				} else {
+					return "", e
+				}
+			} else if _, e = run("-C", source, "rev-parse", "--verify", base+"^{commit}"); e != nil {
+				if _, fallbackErr := run("-C", source, "rev-parse", "--verify", "HEAD^{commit}"); fallbackErr == nil {
+					base = "HEAD"
+				} else {
+					return "", errors.New("Project files could not be prepared. Your request is saved.")
+				}
+			}
 		}
 	}
 	if _, err = run("-C", source, "show-ref", "--verify", "refs/heads/"+branch); err == nil {

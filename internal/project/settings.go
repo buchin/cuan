@@ -111,6 +111,16 @@ func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*
 	p.LocalPath = original.Binding.LocalPath
 	p.RepoURL = original.Binding.RepoURL
 	p.DefaultBranch = original.Binding.Branch
+	if p.LocalPath != "" {
+		if fi, err := os.Stat(p.LocalPath); err != nil || !fi.IsDir() {
+			if current, err := s.store.GetProject(ctx, p.ID); err == nil && current != nil {
+				s.ensureValidLocalPath(ctx, current)
+				if fi, err := os.Stat(current.LocalPath); err == nil && fi.IsDir() {
+					p.LocalPath = current.LocalPath
+				}
+			}
+		}
+	}
 	return p, nil
 }
 

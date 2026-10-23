@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ type Config struct {
 	GitAuthorName             string
 	GitAuthorEmail            string
 	WorkspacesDir             string
+	ProjectsDir               string
 	AppVersion                string
 	DojoWebhookSecret         string
 	DojoWaitingListWebhookURL string
@@ -53,6 +55,13 @@ func Load() *Config {
 	gitAuthorName := getEnv("GIT_AUTHOR_NAME", "")
 	gitAuthorEmail := getEnv("GIT_AUTHOR_EMAIL", "")
 	workspacesDir := getEnv("CUAN_WORKSPACES_DIR", "data/workspaces")
+	projectsDir := getEnv("CUAN_PROJECTS_DIR", "")
+	if projectsDir == "" && workspacesDir != "" {
+		projectsDir = filepath.Join(filepath.Dir(workspacesDir), "projects")
+	}
+	if projectsDir == "" {
+		projectsDir = filepath.Join("data", "projects")
+	}
 	appVersion := getEnv("CUAN_APP_VERSION", "0.1.0")
 	dojoWebhookSecret := getEnv("DOJO_WEBHOOK_SECRET", "dev-dojo-secret")
 	dojoWaitingListWebhookURL := getEnv("DOJO_WAITING_LIST_WEBHOOK_URL", "")
@@ -126,6 +135,7 @@ func Load() *Config {
 		GitAuthorName:             gitAuthorName,
 		GitAuthorEmail:            gitAuthorEmail,
 		WorkspacesDir:             workspacesDir,
+		ProjectsDir:               projectsDir,
 		AppVersion:                appVersion,
 		DojoWebhookSecret:         dojoWebhookSecret,
 		DojoWaitingListWebhookURL: dojoWaitingListWebhookURL,
