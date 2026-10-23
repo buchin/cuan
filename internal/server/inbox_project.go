@@ -110,6 +110,24 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		} else {
 			sort.Slice(items, func(i, j int) bool { return items[i].UpdatedAt.After(items[j].UpdatedAt) })
 			total := len(items)
+			var doneCount, reviewCount, doingCount, blockedCount, backlogCount int
+			for _, item := range items {
+				switch item.Status {
+				case task.TaskStatusDone:
+					doneCount++
+				case task.TaskStatusReview:
+					reviewCount++
+				case task.TaskStatusDoing:
+					doingCount++
+				case task.TaskStatusBlocked:
+					blockedCount++
+				default:
+					backlogCount++
+				}
+			}
+			fmt.Fprintf(&b, "Sprint & Backlog Metrics: Total=%d, Done=%d, Review=%d, Doing=%d, Blocked=%d, Backlog=%d.\n", total, doneCount, reviewCount, doingCount, blockedCount, backlogCount)
+
+			var activeBlockers []string
 			if len(items) > 40 {
 				items = items[:40]
 			}
@@ -131,11 +149,40 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 						}
 					}
 				}
+				if (t.Status == task.TaskStatusBlocked || fields["execution_error"] != "") && len(activeBlockers) < 5 {
+					errSummary := fields["execution_error"]
+					if errSummary == "" {
+						errSummary = "Status is blocked; needs root cause review"
+					}
+					activeBlockers = append(activeBlockers, fmt.Sprintf("- Task [%s] %q (status=%s): %s", t.ID, t.Title, t.Status, errSummary))
+				}
 				row, _ := json.Marshal(fields)
 				b.Write(row)
 				b.WriteByte('\n')
 			}
+			if len(activeBlockers) > 0 {
+				b.WriteString("Active Blockers / Failed Attempts Needing Review:\n")
+				for _, blk := range activeBlockers {
+					b.WriteString(blk)
+					b.WriteByte('\n')
+				}
+			}
 		}
+	}
+	if s.cfg != nil {
+		rel := "development"
+		for _, relPath := range []string{"/opt/cuan/current/release.json", filepath.Join(selected.LocalPath, "release.json")} {
+			if data, err := os.ReadFile(relPath); err == nil {
+				var rInfo struct {
+					Sha string `json:"sha"`
+				}
+				if json.Unmarshal(data, &rInfo) == nil && rInfo.Sha != "" {
+					rel = rInfo.Sha
+					break
+				}
+			}
+		}
+		fmt.Fprintf(&b, "Live Deployment Environment: env=%s, active_release=%s, database=connected\n", s.cfg.Environment, rel)
 	}
 	dir := selected.LocalPath
 	if dir == "" {
@@ -165,6 +212,14 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		}
 		return truncateProjectText(out.String(), 12000)
 	}
+	branch := strings.TrimSpace(gitRead("branch", "--show-current"))
+	statusSummary := strings.TrimSpace(gitRead("status", "--short"))
+	if statusSummary == "" {
+		statusSummary = "clean"
+	} else {
+		statusSummary = truncateProjectText(statusSummary, 500)
+	}
+	fmt.Fprintf(&b, "Git Working State: branch=%s, status=%s\n", branch, statusSummary)
 	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
 	files := gitRead("ls-files")
 	b.WriteString("Tracked files (up to 6 KiB):\n" + truncateProjectText(files, 6000) + "\n")

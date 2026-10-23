@@ -123,3 +123,60 @@ func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
 		t.Fatal(out, failure)
 	}
 }
+
+func TestInboxProjectContextMetricsAndBlockerDiagnostics(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	os.Mkdir(repo, 0700)
+	c := exec.Command("git", "-C", repo, "init", "-q")
+	_ = c.Run()
+	os.WriteFile(filepath.Join(repo, "README.md"), []byte("# Test Repo\n"), 0600)
+	_ = exec.Command("git", "-C", repo, "add", "README.md").Run()
+	_ = exec.Command("git", "-C", repo, "-c", "user.name=test", "-c", "user.email=test@test.local", "commit", "-m", "init").Run()
+
+	s, _ := setupTestChatServer(t)
+	s.cfg.Environment = "staging"
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", root)
+	_ = store.CreateProject(ctx, &project.Project{ID: "p_diag", Name: "Diagnostic Project", LocalPath: repo})
+
+	s.taskSvc = task.NewService(task.NewMemoryStore(), nil)
+	t1, _ := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: "p_diag", Title: "Completed work"})
+	statusDoing := task.TaskStatusDoing
+	statusReview := task.TaskStatusReview
+	statusDone := task.TaskStatusDone
+	note := "Verified completion evidence"
+	_, _ = s.taskSvc.UpdateTask(ctx, t1.ID, "user", task.UpdateTaskRequest{Status: &statusDoing})
+	_, _ = s.taskSvc.UpdateTask(ctx, t1.ID, "user", task.UpdateTaskRequest{Status: &statusReview, CompleteNote: &note})
+	_, _ = s.taskSvc.UpdateTask(ctx, t1.ID, "user", task.UpdateTaskRequest{Status: &statusDone})
+
+	t2, _ := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: "p_diag", Title: "Failing database migration"})
+	statusBlocked := task.TaskStatusBlocked
+	_, _ = s.taskSvc.UpdateTask(ctx, t2.ID, "user", task.UpdateTaskRequest{Status: &statusDoing})
+	_, _ = s.taskSvc.UpdateTask(ctx, t2.ID, "user", task.UpdateTaskRequest{Status: &statusBlocked})
+
+	room := db.GenerateUUID()
+	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room, ProjectID: "p_diag", Title: "SM Room", Topic: "discussion"})
+	msg := db.ProjectMessage{ID: db.GenerateUUID(), RoomID: room, AuthorType: "user", Content: "Status check", CreatedAt: time.Now()}
+	s.projectStudioRepo.CreateMessage(ctx, &msg)
+
+	q := db.InboxRequest{RoomID: room, MessageID: msg.ID}
+	dir, snapshot := s.inboxProjectContext(ctx, q)
+	if dir != repo {
+		t.Fatalf("expected workspace %s, got %s", repo, dir)
+	}
+
+	if !strings.Contains(snapshot, "Sprint & Backlog Metrics: Total=2, Done=1, Review=0, Doing=0, Blocked=1, Backlog=0") {
+		t.Fatalf("missing sprint metrics in snapshot: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Active Blockers / Failed Attempts Needing Review:") || !strings.Contains(snapshot, "Failing database migration") {
+		t.Fatalf("missing blocker diagnostics in snapshot: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Live Deployment Environment: env=staging") {
+		t.Fatalf("missing live deployment environment in snapshot: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Git Working State:") {
+		t.Fatalf("missing git working state in snapshot: %s", snapshot)
+	}
+}
