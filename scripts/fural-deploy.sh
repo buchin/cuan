@@ -27,9 +27,23 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$(dirname "$0")/.."
-[[ "$(git branch --show-current)" == "$approved_branch" ]] || { echo 'Release must run from the explicitly approved branch.' >&2; exit 1; }
+[[ "$(git branch --show-current)" == "$approved_branch" ]] || { echo "Release must run from the explicitly approved branch ($approved_branch)." >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
-release_sha="$(git rev-parse HEAD)"
+
+echo "==> Verifying branch sync with origin/$approved_branch..."
+git fetch origin "$approved_branch" --quiet
+local_sha="$(git rev-parse HEAD)"
+remote_sha="$(git rev-parse "origin/$approved_branch")"
+if [[ "$local_sha" != "$remote_sha" ]]; then
+  echo "ERROR: Local HEAD ($local_sha) is not synchronized with origin/$approved_branch ($remote_sha)." >&2
+  echo "Pull and push latest changes before releasing to avoid regressing production." >&2
+  exit 1
+fi
+
+echo "==> Running frontend test gate..."
+npm test --prefix web
+
+release_sha="$local_sha"
 
 export SSHPASS="$DOJO_TERMAPI_VPS_PASSWORD"
 release_host="$DOJO_TERMAPI_VPS_USERNAME@$DOJO_TERMAPI_VPS_PUBLIC_IP"
@@ -40,7 +54,7 @@ if [[ "$frontend_only" == 1 ]]; then
   echo "==> Syncing static assets to production ($release_host)..."
   sshpass -e ssh "$release_host" "mkdir -p .local/share/cuan-releases/$release_sha/web"
   sshpass -e scp -q -r web/dist "$release_host:.local/share/cuan-releases/$release_sha/web/"
-  sshpass -e ssh "$release_host" "sudo -n rsync -a --delete .local/share/cuan-releases/$release_sha/web/dist/ /opt/cuan/current/web/dist/"
+  sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/web/dist/ /opt/cuan/current/web/dist/"
   unset SSHPASS
   echo "==> Verifying production health..."
   curl -sSf https://cuan.dojo.cc/healthz >/dev/null
@@ -66,7 +80,7 @@ sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha
 # Use native remote rsync; sandbox rsync wrappers may alter SSH authentication.
 sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
 sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
-sshpass -e ssh "$release_host" "sudo -n rsync -a --delete .local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
+sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
 sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
 sshpass -e ssh "$release_host" "sudo -n python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
 unset SSHPASS
