@@ -179,4 +179,7 @@ func TestInboxProjectContextMetricsAndBlockerDiagnostics(t *testing.T) {
 	if !strings.Contains(snapshot, "Git Working State:") {
 		t.Fatalf("missing git working state in snapshot: %s", snapshot)
 	}
+	if !strings.Contains(snapshot, "Project auto_deploy setting: true") {
+		t.Fatalf("missing auto_deploy setting in snapshot: %s", snapshot)
+	}
 }

@@ -43,6 +43,31 @@ func TestProjectSettingsOwnerSaveAndTaskSnapshot(t *testing.T) {
 	if saved.Name != "Default" || project.SettingsFromMetadata(saved.Metadata).Goal != request.Goal {
 		t.Fatal("settings not persisted")
 	}
+	if !project.SettingsFromMetadata(saved.Metadata).IsAutoDeployEnabled() {
+		t.Fatal("expected default auto_deploy to be true")
+	}
+	disabled := false
+	request.AutoDeploy = &disabled
+	request.ExpectedUpdatedAt = saved.UpdatedAt
+	raw, _ = json.Marshal(request)
+	if response = call(true, string(raw)); response.Code != 200 {
+		t.Fatal(response.Body.String())
+	}
+	saved, _ = s.projectSvc.Get(ctx, p.ID)
+	if project.SettingsFromMetadata(saved.Metadata).IsAutoDeployEnabled() {
+		t.Fatal("expected auto_deploy to be false after override")
+	}
+	enabled := true
+	request.AutoDeploy = &enabled
+	request.ExpectedUpdatedAt = saved.UpdatedAt
+	raw, _ = json.Marshal(request)
+	if response = call(true, string(raw)); response.Code != 200 {
+		t.Fatal(response.Body.String())
+	}
+	saved, _ = s.projectSvc.Get(ctx, p.ID)
+	if !project.SettingsFromMetadata(saved.Metadata).IsAutoDeployEnabled() {
+		t.Fatal("expected auto_deploy to be true after re-enabling")
+	}
 	created, err := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: p.ID, Title: "Approved task", Instructions: "Approved work"})
 	if err != nil {
 		t.Fatal(err)

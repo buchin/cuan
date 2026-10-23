@@ -23,7 +23,16 @@ type Settings struct {
 	Goal              string `json:"goal"`
 	Instructions      string `json:"instructions"`
 	WorkspaceRevision string `json:"workspace_revision,omitempty"`
+	AutoDeploy        *bool  `json:"auto_deploy,omitempty"`
 }
+
+func (s Settings) IsAutoDeployEnabled() bool {
+	if s.AutoDeploy == nil {
+		return true
+	}
+	return *s.AutoDeploy
+}
+
 type UpdateSettingsRequest struct {
 	Name              string    `json:"name"`
 	Goal              string    `json:"goal"`
@@ -31,6 +40,7 @@ type UpdateSettingsRequest struct {
 	RepoURL           string    `json:"repo_url"`
 	DefaultBranch     string    `json:"default_branch"`
 	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
+	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 }
 type workspaceBinding struct {
 	LocalPath string `json:"local_path"`
@@ -177,6 +187,9 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	settings := SettingsFromMetadata(current.Metadata)
 	settings.Goal = strings.TrimSpace(req.Goal)
 	settings.Instructions = strings.TrimSpace(req.Instructions)
+	if req.AutoDeploy != nil {
+		settings.AutoDeploy = req.AutoDeploy
+	}
 	next := *current
 	next.Name = name
 	oldBranch := current.DefaultBranch

@@ -19,6 +19,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
     name: p.name, goal: String(p.metadata?.cuan_settings?.goal || ''),
     instructions: String(p.metadata?.cuan_settings?.instructions || ''),
     repo_url: p.repo_url || '', default_branch: p.default_branch || '',
+    auto_deploy: p.metadata?.cuan_settings?.auto_deploy !== false,
   })
   const [baseline, setBaseline] = useState(() => values(project))
   const [form, setForm] = useState(baseline)
@@ -32,7 +33,11 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
-  const change = (key: keyof typeof form, value: string) => { setForm(old => ({ ...old, [key]: value })); setNotice(''); setError('') }
+  const change = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
+    setForm(old => ({ ...old, [key]: value }))
+    setNotice('')
+    setError('')
+  }
   return <section className={`mx-auto w-full max-w-2xl space-y-6 ${embedded ? 'px-4 py-5 sm:px-5' : 'page-content'}`}>
     {!embedded && <Link to={'/projects/' + encodeURIComponent(project.id) + '/tasks'} className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">{t('← Back to project')}</Link>}
     <form aria-label={t(repositoryView ? 'Project repository' : 'Project settings')} className="space-y-5" onSubmit={async event => {
@@ -62,6 +67,24 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <label htmlFor="project-instructions" className="text-sm font-medium">{t('Instructions for Cuan')}</label>
         <textarea id="project-instructions" className="field-control min-h-28 resize-y py-3" rows={4} maxLength={4000} disabled={busy} value={form.instructions} onChange={event => change('instructions', event.target.value)} placeholder={t('Preferences, constraints, or context Cuan should remember.')} />
         <p className="text-xs text-muted-foreground">{t('Applies to new tasks. Existing tasks keep their original instructions.')}</p>
+      </div>
+      <div className="space-y-2 pt-1">
+        <label htmlFor="project-auto-deploy" className="flex items-start gap-3 cursor-pointer">
+          <input
+            id="project-auto-deploy"
+            type="checkbox"
+            className="mt-1 h-4 w-4 rounded border-gray-300"
+            checked={form.auto_deploy}
+            disabled={busy}
+            onChange={event => change('auto_deploy', event.target.checked)}
+          />
+          <div className="space-y-0.5">
+            <span className="text-sm font-medium text-foreground">{t('Auto-deploy completed tasks to live server')}</span>
+            <p className="text-xs text-muted-foreground leading-normal">
+              {t('When enabled (recommended), changes verified by Scrum Master are automatically deployed live. You can override this per task.')}
+            </p>
+          </div>
+        </label>
       </div>
       {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
       </>}
