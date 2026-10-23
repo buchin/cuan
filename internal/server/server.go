@@ -2595,12 +2595,50 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp.TaskAgent = &runner.TaskAgentCapability{API: cap.API, Token: cap.Token, TaskID: cap.TaskID, AttemptID: cap.AttemptID}
-		resp.AgentPrompt = prompt
+		resp.AgentPrompt = prompt + s.runnerRecoveryContext(r.Context(), resp.Task.ID, resp.Attempt.ID)
 		_ = os.Remove(capPath)
 		_ = os.Remove(filepath.Dir(capPath))
 	}
 
 	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) runnerRecoveryContext(ctx context.Context, taskID, currentAttemptID string) string {
+	detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
+	if err != nil || detail == nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, attempt := range detail.Attempts {
+		if attempt == nil || attempt.ID == currentAttemptID {
+			continue
+		}
+		b.WriteString("\n\n## Previous attempt context\n")
+		fmt.Fprintf(&b, "Attempt %s: status=%s", attempt.ID, attempt.Status)
+		if attempt.ErrorMessage != "" {
+			fmt.Fprintf(&b, "; error=%s", attempt.ErrorMessage)
+		}
+		b.WriteString("\n")
+		break
+	}
+	for i := len(detail.Activities) - 1; i >= 0; i-- {
+		activity := detail.Activities[i]
+		if activity == nil || activity.AttemptID == nil || *activity.AttemptID == currentAttemptID || activity.ActivityType != "agent_report" {
+			continue
+		}
+		message := strings.TrimSpace(activity.Message)
+		if len([]rune(message)) > 4000 {
+			message = string([]rune(message)[:4000]) + "…"
+		}
+		b.WriteString("Previous agent report:\n")
+		b.WriteString(message)
+		b.WriteString("\nContinue from this evidence; re-check it before relying on it.\n")
+		break
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	return b.String()
 }
 
 func (s *Server) handleRunnerStreamLogs(w http.ResponseWriter, r *http.Request) {
