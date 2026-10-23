@@ -11,6 +11,7 @@ import (
 var (
 	cuanRoomLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?/(?:inbox|chat|conversations|studio)/([a-fA-F0-9-]{36})`)
 	cuanTaskLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?(?:/projects/[^/\s]+)?/tasks/([a-zA-Z0-9_-]{8,})`)
+	cuanBareTaskRegex = regexp.MustCompile(`\b(task_[a-zA-Z0-9]{8,}|task-[a-zA-Z0-9]{8,})\b`)
 )
 
 func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, currentRoomID string) string {
@@ -54,8 +55,11 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 		}
 	}
 
-	// 2. Check for task links
+	// 2. Check for task links or task IDs
 	taskMatches := cuanTaskLinkRegex.FindAllStringSubmatch(text, 3)
+	for _, bm := range cuanBareTaskRegex.FindAllStringSubmatch(text, 3) {
+		taskMatches = append(taskMatches, bm)
+	}
 	seenTasks := map[string]bool{}
 	for _, m := range taskMatches {
 		if len(m) < 2 {
@@ -78,6 +82,9 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 		fmt.Fprintf(&b, "Summary: %s\n", truncateProjectText(detail.Summary, 600))
 		if detail.LatestAttempt != nil {
 			fmt.Fprintf(&b, "Latest Attempt Status: %s, Error: %s\n", detail.LatestAttempt.Status, truncateProjectText(detail.LatestAttempt.ErrorMessage, 500))
+			if logs := s.formatAttemptTerminalLogs(ctx, detail.LatestAttempt.ID, 50); logs != "" {
+				fmt.Fprintf(&b, "Recent Attempt Terminal Output (up to 50 lines):\n%s\n", indentLines(truncateProjectText(logs, 2500), "  | "))
+			}
 		}
 		for i := len(detail.Activities) - 1; i >= 0; i-- {
 			act := detail.Activities[i]

@@ -136,12 +136,17 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			fmt.Fprintf(&b, "Project backlog: %d tasks; up to 40 most recent.\n", total)
 			for _, t := range items {
 				fields := map[string]string{"id": t.ID, "title": truncateProjectText(t.Title, 300), "status": t.Status, "priority": t.Priority}
-				if t.SourceRoomID == q.RoomID {
-					fields["authorization_message_id"] = t.SourceMessageID
-					fields["summary"] = truncateProjectText(t.Summary, 1500)
-					if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil {
-						fields["execution_state"] = string(detail.LatestAttempt.Status)
-						fields["execution_error"] = truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000)
+				var taskLogs string
+				if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil {
+					fields["execution_state"] = string(detail.LatestAttempt.Status)
+					fields["execution_error"] = truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000)
+					if t.Status == task.TaskStatusBlocked || detail.LatestAttempt.Status == task.AttemptStatusFailed || fields["execution_error"] != "" {
+						taskLogs = s.formatAttemptTerminalLogs(ctx, detail.LatestAttempt.ID, 50)
+						if taskLogs != "" {
+							fields["terminal_failure_logs"] = truncateProjectText(taskLogs, 3000)
+						}
+					}
+					if t.SourceRoomID == q.RoomID {
 						for i := len(detail.Activities) - 1; i >= 0; i-- {
 							act := detail.Activities[i]
 							if act != nil && strings.TrimSpace(act.Message) != "" {
@@ -151,12 +156,20 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 						}
 					}
 				}
+				if t.SourceRoomID == q.RoomID {
+					fields["authorization_message_id"] = t.SourceMessageID
+					fields["summary"] = truncateProjectText(t.Summary, 1500)
+				}
 				if (t.Status == task.TaskStatusBlocked || fields["execution_error"] != "") && len(activeBlockers) < 5 {
 					errSummary := fields["execution_error"]
 					if errSummary == "" {
 						errSummary = "Status is blocked; needs root cause review"
 					}
-					activeBlockers = append(activeBlockers, fmt.Sprintf("- Task [%s] %q (status=%s): %s", t.ID, t.Title, t.Status, errSummary))
+					blkEntry := fmt.Sprintf("- Task [%s] %q (status=%s): %s", t.ID, t.Title, t.Status, errSummary)
+					if taskLogs != "" {
+						blkEntry += "\n  Recent Terminal Log Output:\n" + indentLines(truncateProjectText(taskLogs, 1500), "  | ")
+					}
+					activeBlockers = append(activeBlockers, blkEntry)
 				}
 				row, _ := json.Marshal(fields)
 				b.Write(row)
