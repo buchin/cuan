@@ -354,7 +354,16 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	if s.taskSvc != nil {
 		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
 			taskFound = true
-			if detail.Status == task.TaskStatusReview && payload.Revision == "" {
+			// A review produced by a successful attempt needs concrete feedback
+			// before it can become a revision. If the latest execution itself
+			// failed or was interrupted, however, the user is retrying that
+			// execution and should not have to invent revision instructions.
+			revision := strings.TrimSpace(payload.Revision)
+			retryableFailure := detail.LatestAttempt != nil &&
+				(detail.LatestAttempt.Status == task.AttemptStatusFailed ||
+					detail.LatestAttempt.Status == task.AttemptStatusInterrupted ||
+					detail.LatestAttempt.Status == task.AttemptStatusCanceled)
+			if detail.Status == task.TaskStatusReview && revision == "" && !retryableFailure {
 				respondJSONError(w, 400, "Describe the changes needed before starting a revision")
 				return
 			}
@@ -416,15 +425,15 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			sessionContext = fmt.Sprintf("## Bound task\nTask: %s\nTitle: %s\n", taskID, detail.Title)
 			for _, section := range []struct{ label, text string }{
 				{"Human instructions", detail.Instructions}, {"Acceptance criteria", criteria.String()}, {"Previous work summary", detail.Summary},
-				{"Previous completion notes", detail.CompleteNote}, {"Revision feedback", payload.Revision},
+				{"Previous completion notes", detail.CompleteNote}, {"Revision feedback", revision},
 			} {
 				if strings.TrimSpace(section.text) != "" {
 					sessionContext += "\n## " + section.label + "\n" + section.text + "\n"
 				}
 			}
 			sessionContext += taskRecoveryContext(detail)
-			if strings.TrimSpace(payload.Revision) != "" {
-				taskPrompt = payload.Revision
+			if revision != "" {
+				taskPrompt = revision
 			}
 			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash})
 			if errors.Is(err, task.ErrTaskActive) {
@@ -439,8 +448,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				respondJSONError(w, 503, "Could not save the attempt. Execution has not started.")
 				return
 			}
-			if payload.Revision != "" {
-				if _, e := s.taskSvc.AddComment(r.Context(), taskID, "owner", "Revision requested:\n"+payload.Revision); e != nil {
+			if revision != "" {
+				if _, e := s.taskSvc.AddComment(r.Context(), taskID, "owner", "Revision requested:\n"+revision); e != nil {
 					_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Revision feedback could not be saved. Execution did not start."})
 					respondJSONError(w, 503, "Could not save revision feedback. Execution did not start.")
 					return
