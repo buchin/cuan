@@ -841,7 +841,7 @@ export function TeamView({
                     )}
                   </div>
                 )}
-                {(a.last_checked_at || a.verified_at || state.state === 'unavailable' || state.state === 'login_required') && (
+                {(a.last_checked_at || a.verified_at || state.state === 'unknown' || state.state === 'unavailable' || state.state === 'login_required') && (
                   <details className="mt-2 text-xs text-muted-foreground">
                     <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
                       Connection details
@@ -850,6 +850,10 @@ export function TeamView({
                       <p className="text-sm">
                         {state.state === 'disabled'
                           ? 'This agent is disabled.'
+                          : state.state === 'unknown'
+                            ? (a.last_checked_at || a.verified_at
+                              ? 'The last connection check has expired. Check the connection before routing new work here.'
+                              : 'This agent has not been checked yet. Check the connection to confirm whether it is available.')
                           : details[a.connection_state || 'unknown'] ||
                             details.unknown}
                       </p>
