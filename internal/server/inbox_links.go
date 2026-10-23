@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	cuanRoomLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?/(?:inbox|chat|conversations)/([a-fA-F0-9-]{36})`)
-	cuanTaskLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?/tasks/([a-zA-Z0-9_-]{8,})`)
+	cuanRoomLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?/(?:inbox|chat|conversations|studio)/([a-fA-F0-9-]{36})`)
+	cuanTaskLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?(?:/projects/[^/\s]+)?/tasks/([a-zA-Z0-9_-]{8,})`)
 )
 
 func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, currentRoomID string) string {

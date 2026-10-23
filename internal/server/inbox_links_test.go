@@ -79,4 +79,18 @@ func TestResolveInternalCuanLinksInConversation(t *testing.T) {
 	if resolvedSelf != "" {
 		t.Fatalf("expected self room to not be duplicated, got: %s", resolvedSelf)
 	}
+
+	// Test case D: Open Source arbitrary self-hosted domain or localhost with studio route
+	ossStudioPrompt := "Lihat juga di http://localhost:3000/studio/" + targetRoomID
+	resolvedOSSStudio := s.resolveInternalCuanLinks(ctx, ossStudioPrompt, currentRoomID)
+	if !strings.Contains(resolvedOSSStudio, "Referenced Internal Cuan Conversation: Room "+targetRoomID) {
+		t.Fatalf("expected resolved studio link on localhost, got: %s", resolvedOSSStudio)
+	}
+
+	// Test case E: Open Source arbitrary domain with project-scoped task link
+	ossProjectTaskPrompt := "Task ini butuh review: https://my-cuan.internal.corp:8443/projects/default/tasks/" + createdTask.ID
+	resolvedOSSTask := s.resolveInternalCuanLinks(ctx, ossProjectTaskPrompt, currentRoomID)
+	if !strings.Contains(resolvedOSSTask, "Referenced Internal Cuan Task: ID "+createdTask.ID) {
+		t.Fatalf("expected resolved project task link on custom domain, got: %s", resolvedOSSTask)
+	}
 }
