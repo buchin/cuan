@@ -820,6 +820,9 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		if isCommandCode && req.AuthType == "byok" {
 			// Custom provider BYOK: store the user's API key encrypted in ProviderAccount.
 			// No CLI OAuth flow is involved; credentials belong to the user.
+		} else if isCommandCode && req.AuthType == "subscription" {
+			// Subscription connect: CommandCode CLI handles its own authentication.
+			// No provider account / Google OAuth flow is involved.
 		} else {
 			var err error
 			profile, err = agent.GetProviderAccount(ownerID, req.AccountID)
@@ -853,6 +856,8 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusInternalServerError, "Failed to protect credential")
 			return
 		}
+	} else if isCommandCode && req.AuthType == "subscription" {
+		// Subscription connect: no token to encrypt; CommandCode CLI handles auth.
 	} else if req.SessionToken != "" && provider != "agy" && provider != "antigravity" {
 		var err error
 		encryptedToken, err = agent.EncryptCredential(strings.TrimSpace(req.SessionToken))

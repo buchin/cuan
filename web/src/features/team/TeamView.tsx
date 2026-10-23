@@ -311,23 +311,20 @@ export function TeamView({
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       accountScope.current = ''
       if (commandcodeMode === 'subscription') {
-        // Subscription connect: reuse agy-style Google sign-in flow.
-        const account = await accountsApi.create(`${name} · CommandCode`)
+        // Subscription connect: CommandCode CLI handles its own authentication.
+        // No Google OAuth flow is involved; credentials stay CLI-owned.
+        await agentsApi.connectCLI({
+          name,
+          handle,
+          provider: 'commandcode',
+          auth_type: 'subscription',
+        })
         if (!dialogActive.current || epoch.current !== currentEpoch) return
-        accountScope.current = account.id
-        const session = await accountsApi.login(accountScope.current)
-        if (!dialogActive.current || epoch.current !== currentEpoch) {
-          if (session.session_id)
-            await accountsApi
-              .cancel(accountScope.current, session.session_id)
-              .catch(() => {})
-          return
-        }
-        if (!session.auth_url || !session.session_id)
-          throw new Error('The CommandCode sign-in link is unavailable. Try again.')
-        active.current = { accountId: accountScope.current, sessionId: session.session_id }
-        setAuth(session)
-        setStep('google')
+        close()
+        setNotice(`${handle} was added.`)
+        await load()
+        onAgentAdded?.()
+        onAgentConnected?.()
         return
       }
       // Custom provider BYOK: save API key encrypted in ProviderAccount.
