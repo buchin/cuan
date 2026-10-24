@@ -1,0 +1,17 @@
+{
+  "investigation": {
+    "issue": "Tool permission denied during coordinator runtime / tool execution",
+    "incident_request_id": "ae845ad2-93a2-418a-8ef7-da37ba0a92fa",
+    "conversation_id": "323e7ee1-aeba-4449-af3e-2379463529ca",
+    "root_cause": "Inbox coordinator executes agy with '--mode plan --sandbox' wrapped in Bubblewrap to enforce read-only safety. In plan mode, agy denies terminal execution tools ('run_command') and returns nonempty denied_actions. Because agy lacks native grep_search, the model attempted run_command for text search. When analysisRecovery repeated the denial or failed, inbox_lifecycle lacked a direct response recovery fallback, terminating the request in failed state and blocking the conversation with safe_error: 'The tool permission was denied, so the reply was not accepted as a completed result.'",
+    "sandbox_policy_verified": "Bubblewrap external sandbox strictly enforces read-only mounts (--ro-bind) on the project workspace, while agy CLI plan-mode restricts execution tools. Task execution remains authorized with --dangerously-skip-permissions in isolated task worktrees."
+  },
+  "remedy": {
+    "coordinator_instruction_updated": "Explicitly instructs the coordinator that run_command/terminal commands are blocked by sandbox security, prohibiting grep via run_command and directing the model to answer directly from context if specific file paths are unknown.",
+    "analysis_recovery_instruction_updated": "Reinforced in inboxAnalysisRecoveryInstruction and coordinator.md that terminal invocations are denied by the security sandbox.",
+    "lifecycle_graceful_recovery": "Added automated fallback in internal/server/inbox_lifecycle.go (runInboxRequest): when an execution returns tool permission denial or coordinator tool rejection, it recovers via direct coordinator response mode (inboxCoordinatorDirectKey) where tools are disallowed (disallowTools: true). The coordinator successfully produces a validated structured response with interactive actions from conversation context, preventing the request from failing or becoming blocked.",
+    "tested": true,
+    "test_name": "TestInboxLifecycleToolPermissionDeniedRecoversDirectly",
+    "result": "PASS (0.92s)"
+  }
+}
