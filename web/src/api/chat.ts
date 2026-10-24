@@ -98,6 +98,30 @@ export interface SendChatMessageRequest {
   author_name?: string
 }
 
+export interface CannedResponse {
+  id: string
+  shortcut: string
+  title: string
+  content: string
+  category: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateCannedResponseRequest {
+  shortcut: string
+  title: string
+  content: string
+  category?: string
+}
+
+export interface UpdateCannedResponseRequest {
+  shortcut?: string
+  title?: string
+  content?: string
+  category?: string
+}
+
 export interface ApproveThreadRequest {
   title?: string
   assignee?: string
@@ -105,6 +129,50 @@ export interface ApproveThreadRequest {
 }
 
 export const chatApi = {
+  listCannedResponses: async (filter?: {
+    q?: string
+    category?: string
+  }): Promise<CannedResponse[]> => {
+    const params = new URLSearchParams()
+    if (filter?.q) params.set('q', filter.q)
+    if (filter?.category && filter.category !== 'all')
+      params.set('category', filter.category)
+    const query = params.toString() ? `?${params.toString()}` : ''
+    const res = await apiFetch<{
+      canned_responses: CannedResponse[]
+      total: number
+    }>(`/api/v1/chat/canned-responses${query}`)
+    return res.canned_responses || []
+  },
+
+  getCannedResponse: async (id: string): Promise<CannedResponse> => {
+    return apiFetch<CannedResponse>(`/api/v1/chat/canned-responses/${id}`)
+  },
+
+  createCannedResponse: async (
+    data: CreateCannedResponseRequest,
+  ): Promise<CannedResponse> => {
+    return apiFetch<CannedResponse>('/api/v1/chat/canned-responses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  updateCannedResponse: async (
+    id: string,
+    data: UpdateCannedResponseRequest,
+  ): Promise<CannedResponse> => {
+    return apiFetch<CannedResponse>(`/api/v1/chat/canned-responses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  deleteCannedResponse: async (id: string): Promise<{ ok: boolean }> => {
+    return apiFetch<{ ok: boolean }>(`/api/v1/chat/canned-responses/${id}`, {
+      method: 'DELETE',
+    })
+  },
   listContacts: async (filter?: {
     type?: string
     q?: string
