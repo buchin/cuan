@@ -110,6 +110,22 @@
 .wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer { position: absolute; right: 9px; bottom: 7px; min-height: 0; }
 .wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer .wa-message-meta { float: none; margin: 0; }
 
+/* Result-based status report cards inside message bubbles */
+.wa-message-bubble:has(.status-report-card) {
+  width: 100%;
+  max-width: min(94%, 640px);
+  padding: 6px;
+}
+@media (min-width: 1024px) {
+  .wa-message-bubble:has(.status-report-card) {
+    max-width: min(85%, 680px);
+  }
+}
+.wa-message-bubble:has(.status-report-card) .wa-markdown-footer {
+  position: static;
+  margin-top: 4px;
+}
+
 /* Conversation list uses the same neutral surfaces as the chat. */
 .inbox-list { background: #ffffff; }
 .inbox-search { background: #f0f2f5; }

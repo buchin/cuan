@@ -166,9 +166,14 @@ func (r *MemoryProjectStudioRepository) retryInboxRequest(ctx context.Context, r
 		}
 		child.Steps[0].Kind = "retry_auto"
 		child.Steps[0].Text = "Recovering this reply automatically from the saved message."
-	}
-	if InboxRecoveryAction(q) != "try_again" {
-		return q, false, ErrInboxRetryUnavailable
+		if InboxRecoveryAction(q) != "try_again" {
+			return q, false, ErrInboxRetryUnavailable
+		}
+	} else {
+		action := InboxRecoveryAction(q)
+		if action != "try_again" && action != "check_usage" && action != "check_agent" {
+			return q, false, ErrInboxRetryUnavailable
+		}
 	}
 	count := 0
 	for _, other := range r.requests {
@@ -250,9 +255,14 @@ func (r *SQLProjectStudioRepository) retryInboxRequest(ctx context.Context, room
 		}
 		child.Steps[0].Kind = "retry_auto"
 		child.Steps[0].Text = "Recovering this reply automatically from the saved message."
-	}
-	if InboxRecoveryAction(q) != "try_again" {
-		return q, false, ErrInboxRetryUnavailable
+		if InboxRecoveryAction(q) != "try_again" {
+			return q, false, ErrInboxRetryUnavailable
+		}
+	} else {
+		action := InboxRecoveryAction(q)
+		if action != "try_again" && action != "check_usage" && action != "check_agent" {
+			return q, false, ErrInboxRetryUnavailable
+		}
 	}
 	var count int
 	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM inbox_requests WHERE room_id=$1 AND state IN ('queued','running','cancelling')`, room).Scan(&count); err != nil {
