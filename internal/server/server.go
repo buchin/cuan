@@ -125,7 +125,10 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 
 	var pSvc *project.Service
-	projectBaseDir := filepath.Join("data", "projects")
+	projectBaseDir := cfg.ProjectsDir
+	if projectBaseDir == "" {
+		projectBaseDir = filepath.Join("data", "projects")
+	}
 	if db != nil {
 		pSvc = project.NewService(project.NewDBStore(db), git.NewClient(), cfg.AuthSecret, projectBaseDir)
 	} else {

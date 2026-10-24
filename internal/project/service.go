@@ -170,6 +170,7 @@ func (s *Service) Get(ctx context.Context, id string) (*ProjectResponse, error) 
 	if err != nil {
 		return nil, err
 	}
+	s.ensureValidLocalPath(ctx, p)
 	return p.ToResponse(), nil
 }
 
@@ -182,6 +183,7 @@ func (s *Service) List(ctx context.Context) ([]*ProjectResponse, error) {
 
 	var res []*ProjectResponse
 	for _, p := range list {
+		s.ensureValidLocalPath(ctx, p)
 		res = append(res, p.ToResponse())
 	}
 	return res, nil
@@ -193,6 +195,8 @@ func (s *Service) Sync(ctx context.Context, id string) (*ProjectResponse, error)
 	if err != nil {
 		return nil, err
 	}
+
+	s.ensureValidLocalPath(ctx, p)
 
 	token, err := s.repositoryToken(ctx, p.EncryptedToken)
 	if err != nil {
@@ -218,6 +222,49 @@ func (s *Service) Sync(ctx context.Context, id string) (*ProjectResponse, error)
 	}
 
 	return p.ToResponse(), nil
+}
+
+func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
+	if p == nil || p.ID == "" {
+		return
+	}
+	if p.ID == "default" && p.RepoURL == "" && p.LocalPath == "" {
+		return
+	}
+	if p.LocalPath != "" {
+		if fi, err := os.Stat(p.LocalPath); err == nil && fi.IsDir() {
+			return
+		}
+	}
+
+	candidates := []string{
+		filepath.Join(s.baseDir, p.ID),
+	}
+	if p.LocalPath != "" {
+		candidates = append(candidates, filepath.Join(s.baseDir, filepath.Base(p.LocalPath)))
+		if idx := strings.Index(p.LocalPath, "data/projects/"); idx >= 0 {
+			rel := strings.TrimPrefix(p.LocalPath[idx:], "data/projects/")
+			candidates = append(candidates, filepath.Join(s.baseDir, rel))
+		}
+	}
+	persistentBase := "/opt/cuan/data/projects"
+	candidates = append(candidates, filepath.Join(persistentBase, p.ID))
+	if p.LocalPath != "" {
+		candidates = append(candidates, filepath.Join(persistentBase, filepath.Base(p.LocalPath)))
+	}
+
+	for _, candidate := range candidates {
+		if fi, err := os.Stat(candidate); err == nil && fi.IsDir() {
+			p.LocalPath = candidate
+			_ = s.store.UpdateProject(ctx, p)
+			return
+		}
+	}
+
+	if p.LocalPath == "" {
+		p.LocalPath = filepath.Join(s.baseDir, p.ID)
+		_ = s.store.UpdateProject(ctx, p)
+	}
 }
 
 // GetBranches returns the remote branch list from GitHub.

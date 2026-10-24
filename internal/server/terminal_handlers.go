@@ -412,6 +412,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				}
 				if project.RepoURL != "" || project.LocalPath != "" {
 					info, e := os.Stat(project.LocalPath)
+					if project.RepoURL != "" && (project.LocalPath == "" || e != nil || !info.IsDir() || project.CloneStatus != "synced") {
+						// Auto-sync repository workspace automatically before launching agent session
+						if synced, syncErr := s.projectSvc.Sync(r.Context(), detail.ProjectID); syncErr == nil && synced != nil {
+							project = synced
+							info, e = os.Stat(project.LocalPath)
+						}
+					}
 					if project.LocalPath == "" || e != nil || !info.IsDir() {
 						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 						return
