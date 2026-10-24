@@ -491,14 +491,14 @@ export function TeamView({
     }
   }, [agents, loading])
   const verify = async () => {
-    if (!active.current || !code.trim() || busy) return
+    if (!active.current || (provider !== 'commandcode' && !code.trim()) || busy) return
     const currentEpoch = epoch.current
     const session = active.current
     setBusy(true)
     setFormError('')
     try {
       if (session.harness === 'commandcode') {
-        const result = await agentsApi.authCode(session.sessionId, code.trim())
+        const result = await agentsApi.authCode(session.sessionId, code.trim() || 'browser-completed')
         if (!result.authenticated && !result.verified) throw new Error(result.message || 'CommandCode sign-in is incomplete. Try again.')
         active.current = null
         window.localStorage.removeItem('cuan.commandcode.auth')
@@ -1312,7 +1312,7 @@ export function TeamView({
                       <>
                         <div className="space-y-2">
                           <p className="text-sm font-medium">
-                            1. Sign in to your provider account
+                            1. {provider === 'commandcode' ? 'Sign in to CommandCode' : 'Sign in to your provider account'}
                           </p>
                           <a
                             href={auth.auth_url}
@@ -1327,7 +1327,7 @@ export function TeamView({
                             here.
                           </p>
                         </div>
-                        <div>
+                        {provider !== 'commandcode' && <div>
                           <label
                             htmlFor="oauth-code"
                             className="text-sm font-medium"
@@ -1347,14 +1347,14 @@ export function TeamView({
                             Paste the code here only. The link expires in five
                             minutes.
                           </p>
-                        </div>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
+                        </div>}
+                        {provider !== 'commandcode' && <p className="text-xs leading-relaxed text-muted-foreground">
                           By confirming sign-in, you agree to the{' '}
                           <a href="https://antigravity.google/terms" target="_blank" rel="noreferrer" className="underline">Antigravity terms</a>{' '}
                           and acknowledge Google's{' '}
                           <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="underline">privacy policy</a>.
                           Cuan won't opt you into optional interaction sharing.
-                        </p>
+                        </p>}
                         <button
                           type="button"
                           disabled={busy}
@@ -1390,7 +1390,7 @@ export function TeamView({
                     {step === 'save'
                       ? 'Adding agent…'
                       : step === 'name' || !auth?.auth_url
-                        ? 'Preparing Google sign-in…'
+                        ? (provider === 'commandcode' ? 'Preparing CommandCode sign-in…' : 'Preparing Google sign-in…')
                         : 'Checking code…'}
                   </p>
                 )}
@@ -1412,7 +1412,7 @@ export function TeamView({
                       provider === 'commandcode' &&
                       commandcodeMode === 'byok' &&
                       byokKey.trim().length < 8) ||
-                    (step === 'google' && !!auth?.auth_url && !code.trim())
+                    (step === 'google' && provider !== 'commandcode' && !!auth?.auth_url && !code.trim())
                   }
                 >
                   {busy && <RefreshCw className="h-4 w-4 animate-spin" />}
@@ -1423,7 +1423,7 @@ export function TeamView({
                       : step === 'name'
                         ? 'Connect Google'
                         : auth?.auth_url
-                          ? 'Confirm sign-in'
+                          ? provider === 'commandcode' ? 'I finished signing in' : 'Confirm sign-in'
                           : 'Create a new link'}
                 </button>
               </footer>
