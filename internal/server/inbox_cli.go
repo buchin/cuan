@@ -138,6 +138,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	case "commandcode":
 		binary = "commandcode"
 		args = []string{"-p", system, "--output-format", "text", "--permission-mode", "plan", "--trust", "--no-session"}
+		if key, _ := ctx.Value(commandCodeAPIKeyContext{}).(string); key != "" {
+			// BYOK keeps the CommandCode CLI as the runner while routing model
+			// requests through the user's configured provider key.
+			args = append(args, "--local-only")
+		}
 		if model, _ := ctx.Value(inboxModelKey{}).(string); model != "" {
 			args = append(args, "-m", model)
 		}
