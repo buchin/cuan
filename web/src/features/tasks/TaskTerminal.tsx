@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Keyboard,
   MoreHorizontal,
+  WifiOff,
 } from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
 import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
 import type { TaskAttempt } from '../../api/types'
@@ -33,6 +35,7 @@ export function TaskTerminal({
   controlsTarget?: HTMLElement | null
   onConnectionChange?: (connection: string) => void
 }) {
+  const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null),
     term = useRef<Terminal | null>(null),
@@ -49,16 +52,55 @@ export function TaskTerminal({
     interactive = useRef(false),
     searchIndex = useRef(-1),
     logs = useRef<TaskLog[]>([])
+  const isTaskActive = ['running', 'queued'].includes(attempt.status)
   const isLive =
     !!live &&
     live.attempt_id === attempt.id &&
-    ['running', 'queued'].includes(attempt.status)
+    isTaskActive
   const liveId = isLive ? live.session_id : ''
   const refreshRef = useRef(onRefresh)
   refreshRef.current = onRefresh
   useEffect(() => {
     onConnectionChange?.(connection)
   }, [connection, onConnectionChange])
+
+  const handleReconnect = useCallback(() => {
+    setError('')
+    setNotice('')
+    setConnection('connecting')
+    setRevision((n) => n + 1)
+    onRefresh()
+  }, [onRefresh])
+
+  const lastAutoRetry = useRef(0)
+  useEffect(() => {
+    const handleActive = () => {
+      if (document.visibilityState !== 'visible') return
+      if (!['running', 'queued'].includes(attempt.status)) return
+      if (connection !== 'disconnected' && connection !== 'error') return
+
+      const now = Date.now()
+      if (now - lastAutoRetry.current < 2000) return
+      lastAutoRetry.current = now
+
+      handleReconnect()
+    }
+
+    document.addEventListener('visibilitychange', handleActive)
+    window.addEventListener('focus', handleActive)
+    window.addEventListener('online', handleActive)
+    return () => {
+      document.removeEventListener('visibilitychange', handleActive)
+      window.removeEventListener('focus', handleActive)
+      window.removeEventListener('online', handleActive)
+    }
+  }, [attempt.status, connection, handleReconnect])
+
+  const showDisconnectBanner =
+    isTaskActive &&
+    (connection === 'disconnected' ||
+      (connection === 'connecting' && revision > 0) ||
+      (connection === 'error' && !logs.current.length))
   const bufferText = useCallback(() => {
     const t = term.current
     if (!t) return logs.current.map((l) => l.line).join('\n')
@@ -413,10 +455,9 @@ export function TaskTerminal({
           }
         }
         ws.onerror = () => {
-          if (!disposed)
-            setError(
-              'Could not connect to this terminal. The task was not restarted.',
-            )
+          if (!disposed) {
+            setConnection('disconnected')
+          }
         }
         ws.onclose = () => {
           if (disposed) return
@@ -510,14 +551,14 @@ export function TaskTerminal({
         {
           (
             {
-              loading: 'Loading output…',
-              connecting: 'Connecting to existing session…',
+              loading: t('Loading output…'),
+              connecting: t('Connecting to existing session…'),
               connected: input
-                ? 'Connected · input enabled'
-                : 'Connected · read-only',
-              saved: 'Saved output',
-              disconnected: 'Disconnected · task status is checked separately',
-              error: 'Output unavailable',
+                ? t('Connected · input enabled')
+                : t('Connected · read-only'),
+              saved: t('Saved output'),
+              disconnected: t('Disconnected · task status is checked separately'),
+              error: t('Output unavailable'),
             } as Record<string, string>
           )[connection]
         }
@@ -540,8 +581,8 @@ export function TaskTerminal({
         {liveId && (
           <button
             className="icon-action"
-            aria-label="Show keyboard"
-            title="Show keyboard"
+            aria-label={t('Show keyboard')}
+            title={t('Show keyboard')}
             disabled={connection !== 'connected'}
             onClick={showKeyboard}
           >
@@ -551,8 +592,8 @@ export function TaskTerminal({
       </div>
       <details ref={menu} className="static sm:relative shrink-0">
         <summary
-          aria-label="Terminal tools"
-          title="Terminal tools"
+          aria-label={t('Terminal tools')}
+          title={t('Terminal tools')}
           className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden"
         >
           <MoreHorizontal className="h-4 w-4" />
@@ -561,26 +602,23 @@ export function TaskTerminal({
           <div className="flex flex-wrap justify-end gap-1">
             <button
               className="icon-action"
-              aria-label="Reconnect terminal"
-              title="Reconnect to this session"
-              onClick={() => {
-                setRevision((n) => n + 1)
-                onRefresh()
-              }}
+              aria-label={t('Reconnect terminal')}
+              title={t('Reconnect to this session')}
+              onClick={handleReconnect}
             >
               <RefreshCw className="h-4 w-4" />
             </button>
             <button
               className="icon-action"
-              aria-label="Copy output"
-              title="Copy output"
+              aria-label={t('Copy output')}
+              title={t('Copy output')}
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(bufferText())
-                  setNotice('Output copied.')
+                  setNotice(t('Output copied.'))
                 } catch {
                   setError(
-                    'Could not copy output. Use Download output instead.',
+                    t('Could not copy output. Use Download output instead.'),
                   )
                 }
               }}
@@ -589,8 +627,8 @@ export function TaskTerminal({
             </button>
             <button
               className="icon-action"
-              aria-label="Download output"
-              title="Download output"
+              aria-label={t('Download output')}
+              title={t('Download output')}
               onClick={() => {
                 const url = URL.createObjectURL(
                   new Blob([bufferText()], {
@@ -615,8 +653,8 @@ export function TaskTerminal({
               />
               <input
                 className="field-control pl-8 text-sm"
-                aria-label="Search terminal output"
-                placeholder="Search output…"
+                aria-label={t('Search output…')}
+                placeholder={t('Search output…')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -637,14 +675,14 @@ export function TaskTerminal({
                 </span>
                 <button
                   className="icon-action"
-                  aria-label="Previous match"
+                  aria-label={t('Previous match')}
                   onClick={() => find(-1)}
                 >
                   <ChevronUp className="h-4 w-4" />
                 </button>
                 <button
                   className="icon-action"
-                  aria-label="Next match"
+                  aria-label={t('Next match')}
                   onClick={() => find(1)}
                 >
                   <ChevronDown className="h-4 w-4" />
@@ -662,7 +700,7 @@ export function TaskTerminal({
               }}
             >
               <ArrowDown className="h-4 w-4" />
-              Follow
+              {t('Follow')}
             </button>
           </div>
         </div>
@@ -671,17 +709,57 @@ export function TaskTerminal({
   )
   return (
     <section
-      aria-label="Session terminal"
+      aria-label={t('Session terminal')}
       className="task-terminal-container flex h-full min-h-0 min-w-0 flex-col bg-[#141414] overscroll-contain"
     >
       {controlsTarget ? createPortal(controls, controlsTarget) : controls}
-      {error && (
-        <p role="alert" className="shrink-0 text-sm text-destructive">
+      {showDisconnectBanner && (
+        <div
+          role="status"
+          className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <WifiOff className="h-4 w-4 shrink-0 text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-amber-200">
+                {connection === 'connecting'
+                  ? t('Reconnecting to terminal…')
+                  : t(
+                      'Terminal disconnected. The task is still running in the background.',
+                    )}
+              </p>
+              <p className="text-[11px] text-amber-300/80">
+                {connection === 'connecting'
+                  ? t('Connecting to active session…')
+                  : t('Auto-retry when tab becomes active')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={connection === 'connecting'}
+            onClick={handleReconnect}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50"
+            aria-label={language === 'id' ? 'Sambungkan Ulang' : t('Reconnect')}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${connection === 'connecting' ? 'animate-spin' : ''}`}
+            />
+            {connection === 'connecting'
+              ? t('Connecting…')
+              : language === 'id'
+                ? 'Sambungkan Ulang'
+                : t('Reconnect')}
+          </button>
+        </div>
+      )}
+      {error && !showDisconnectBanner && (
+        <p role="alert" className="shrink-0 px-3 py-1.5 text-xs text-destructive">
           {error}
         </p>
       )}
       {notice && (
-        <p role="status" className="shrink-0 text-xs text-muted-foreground">
+        <p role="status" className="shrink-0 px-3 py-1 text-xs text-muted-foreground">
           {notice}
         </p>
       )}
