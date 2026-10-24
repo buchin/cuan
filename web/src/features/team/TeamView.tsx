@@ -131,6 +131,8 @@ export function TeamView({
   const [checking, setChecking] = useState('')
   const [removing, setRemoving] = useState('')
   const [lifecycleBusy, setLifecycleBusy] = useState('')
+  const [replaceAgentId, setReplaceAgentId] = useState('')
+  const [replacementKey, setReplacementKey] = useState('')
   const [now, setNow] = useState(Date.now())
   const [provider, setProvider] = useState<'agy' | 'commandcode'>('agy')
   const [commandcodeMode, setCommandcodeMode] = useState<'subscription' | 'byok'>('byok')
@@ -529,9 +531,18 @@ export function TeamView({
         const session = await accountsApi.login(account.id)
         if (session.auth_url) window.open(session.auth_url, '_blank', 'noopener,noreferrer')
       }
+      await agentsApi.patch(agent.id, { enabled: true, status: 'active' })
       await agentsApi.verifyConnection(agent.id); await load()
       setNotice(`${agent.name} connection check started.`)
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not reconnect. Try again.') }
+    finally { setLifecycleBusy('') }
+  }
+  const replaceBYOK = async (agent: Agent) => {
+    const key = replacementKey.trim()
+    if (key.length < 8 || lifecycleBusy) return
+    setLifecycleBusy(agent.id); setError('')
+    try { await agentsApi.replaceCredentials(agent.id, key); setReplacementKey(''); setReplaceAgentId(''); await load(); setNotice(`${agent.name} BYOK credential was replaced.`) }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not replace the BYOK credential. Try again.') }
     finally { setLifecycleBusy('') }
   }
   const disconnect = async (agent: Agent) => {
@@ -787,9 +798,17 @@ export function TeamView({
                   <div className="flex shrink-0 items-center gap-1">
                     {state.state !== 'verified' && <button type="button" className="min-h-11 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-50" disabled={!!lifecycleBusy || !!removing} onClick={() => void reconnect(a, account)} aria-label={`Reconnect ${a.name}`}>{lifecycleBusy === a.id ? 'Working…' : 'Reconnect'}</button>}
                     {a.enabled !== false && <button type="button" className="min-h-11 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-50" disabled={!!lifecycleBusy || !!removing} onClick={() => void disconnect(a)} aria-label={`Disconnect ${a.name}`}>Disconnect</button>}
+                    {a.provider === 'commandcode' && <button type="button" className="min-h-11 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-50" disabled={!!lifecycleBusy} onClick={() => setReplaceAgentId(replaceAgentId === a.id ? '' : a.id)}>Replace BYOK</button>}
                     <AgentActions name={a.name} disabled={!!checking || !!removing || !!lifecycleBusy} onRemove={() => void remove(a.id)} />
                   </div>
                 </div>
+                {replaceAgentId === a.id && a.provider === 'commandcode' && (
+                  <div className="mt-3 flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-3 sm:flex-row">
+                    <label className="sr-only" htmlFor={`replace-key-${a.id}`}>New API key</label>
+                    <input id={`replace-key-${a.id}`} type="password" autoComplete="off" value={replacementKey} onChange={(e) => setReplacementKey(e.target.value)} placeholder="Enter a new API key" className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm" />
+                    <button type="button" className="min-h-11 rounded-md bg-primary px-3 text-xs text-primary-foreground disabled:opacity-50" disabled={replacementKey.trim().length < 8 || !!lifecycleBusy} onClick={() => void replaceBYOK(a)}>Save key</button>
+                  </div>
+                )}
                 {account && (
                   <details className="mt-3 border-t border-border/60 pt-2">
                     <summary className="flex min-h-11 cursor-pointer items-center justify-between text-sm font-medium text-foreground">

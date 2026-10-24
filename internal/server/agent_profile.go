@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"net/http"
@@ -162,4 +163,58 @@ func (s *Server) ownedAgentProfileHome(ctx context.Context, owner string, a *db.
 		}
 	}
 	return s.agentProfileHome(ctx, a)
+}
+
+// handleReplaceAgentCredentials atomically replaces a BYOK credential and marks
+// the connection active only after the encrypted value is persisted.
+func (s *Server) handleReplaceAgentCredentials(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" || s.agentRepo == nil {
+		return
+	}
+	a, err := s.agentRepo.GetAgentByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		respondJSONError(w, http.StatusNotFound, "Agent not found")
+		return
+	}
+	conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
+	if err != nil || conn.UserID != owner || conn.Provider != "commandcode" {
+		respondJSONError(w, http.StatusNotFound, "BYOK connection not found")
+		return
+	}
+	var req struct {
+		APIKey string `json:"api_key"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil || len(strings.TrimSpace(req.APIKey)) < 8 {
+		respondJSONError(w, http.StatusBadRequest, "A valid API key is required")
+		return
+	}
+	reg := s.ProviderRegistry()
+	if reg == nil {
+		reg = agent.DefaultRegistry()
+	}
+	probe, err := reg.Get("commandcode")
+	if err != nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "CommandCode provider is unavailable")
+		return
+	}
+	check, _ := probe.VerifyConnection(r.Context(), strings.TrimSpace(req.APIKey))
+	if check == nil || !check.Valid {
+		respondJSONError(w, http.StatusUnprocessableEntity, "The API key could not be verified")
+		return
+	}
+	encrypted, err := agent.EncryptCredential(strings.TrimSpace(req.APIKey))
+	if err != nil {
+		respondJSONError(w, 500, "Failed to protect credential")
+		return
+	}
+	conn.CredentialsEncrypted = encrypted
+	conn.Status = db.ConnectionStatusActive
+	conn.UpdatedAt = time.Now().UTC()
+	conn.PlanHint = check.PlanHint
+	if err := s.agentRepo.UpdateConnection(r.Context(), conn); err != nil {
+		respondJSONError(w, 500, "Could not save the connection")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"status": "success", "connection": conn.ToDTO()})
 }

@@ -1129,6 +1129,7 @@ func (s *Server) routes() {
 	s.router.Get("/api/agents/{id}", s.handleGetAgent)
 	s.router.Put("/api/agents/{id}", s.handleUpdateAgent)
 	s.router.Patch("/api/agents/{id}", s.handlePatchAgent)
+	s.router.Post("/api/agents/{id}/connection/credentials", s.handleReplaceAgentCredentials)
 	s.router.Delete("/api/agents/{id}", s.handleDeleteAgent)
 
 	s.router.Get("/api/agent-connections", s.handleListAgentConnections)
@@ -1345,6 +1346,7 @@ func (s *Server) routes() {
 		ar.Get("/{id}", s.handleGetAgent)
 		ar.Put("/{id}", s.handleUpdateAgent)
 		ar.Patch("/{id}", s.handlePatchAgent)
+		ar.Post("/{id}/connection/credentials", s.handleReplaceAgentCredentials)
 		ar.Delete("/{id}", s.handleDeleteAgent)
 
 		// Nested /api/v1/agents/connections
