@@ -11,6 +11,7 @@ export interface Agent {
   system_prompt?: string
   model_id?: string
   provider?: string
+  auth_type?: 'subscription' | 'byok' | 'oauth' | 'cli_login' | string
   status?: string
   created_at?: string
   updated_at?: string
@@ -38,10 +39,10 @@ export interface ConnectCLIAgentRequest {
   name: string
   handle?: string
   provider?: string
+  auth_type?: 'subscription' | 'byok' | 'oauth' | 'cli_login' | string
   model_id?: string
   role?: string
   system_prompt?: string
-  auth_type?: string
   session_token?: string
 }
 

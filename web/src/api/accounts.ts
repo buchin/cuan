@@ -11,6 +11,8 @@ export interface ProviderAccount {
   label: string
   email?: string
   provider: string
+  auth_type?: 'subscription' | 'byok' | 'oauth' | 'cli_login' | string
+  model_id?: string
   legacy: boolean
   credentials_present: boolean
   state:

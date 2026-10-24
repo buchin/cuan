@@ -130,6 +130,7 @@ export function TeamView({
   const [notice, setNotice] = useState('')
   const [checking, setChecking] = useState('')
   const [removing, setRemoving] = useState('')
+  const [lifecycleBusy, setLifecycleBusy] = useState('')
   const [now, setNow] = useState(Date.now())
   const [provider, setProvider] = useState<'agy' | 'commandcode'>('agy')
   const [commandcodeMode, setCommandcodeMode] = useState<'subscription' | 'byok'>('byok')
@@ -520,6 +521,26 @@ export function TeamView({
       }
     }
   }
+  const reconnect = async (agent: Agent, account?: ProviderAccount) => {
+    if (lifecycleBusy) return
+    setLifecycleBusy(agent.id); setError('')
+    try {
+      if (account && (account.provider === 'agy' || account.provider === 'antigravity')) {
+        const session = await accountsApi.login(account.id)
+        if (session.auth_url) window.open(session.auth_url, '_blank', 'noopener,noreferrer')
+      }
+      await agentsApi.verifyConnection(agent.id); await load()
+      setNotice(`${agent.name} connection check started.`)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not reconnect. Try again.') }
+    finally { setLifecycleBusy('') }
+  }
+  const disconnect = async (agent: Agent) => {
+    if (lifecycleBusy) return
+    setLifecycleBusy(agent.id); setError('')
+    try { await agentsApi.patch(agent.id, { enabled: false, status: 'inactive' }); await load(); setNotice(`${agent.name} was disconnected.`) }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not disconnect. Try again.') }
+    finally { setLifecycleBusy('') }
+  }
   const remove = async (id: string) => {
     if (removing) return
     setRemoving(id)
@@ -737,6 +758,7 @@ export function TeamView({
                           {account.email}
                         </p>
                       )}
+                      <p className="mt-1 text-xs text-muted-foreground">Source: {a.auth_type === 'byok' ? 'BYOK' : a.auth_type === 'subscription' ? 'Subscription' : account?.provider === 'agy' ? 'Google account' : 'Provider'}{' · '}Provider: {a.provider || account?.provider || 'Unknown'}{a.model_id && <> {' · '}Model: {a.model_id}</>}</p>
                       {state.state === 'quota_limited' && (
                         <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
                           <p className="font-medium">{t('Individual account quota reached')}</p>
@@ -762,12 +784,10 @@ export function TeamView({
                       )}
                     </div>
                   </div>
-                  <div className="shrink-0">
-                    <AgentActions
-                      name={a.name}
-                      disabled={!!checking || !!removing}
-                      onRemove={() => void remove(a.id)}
-                    />
+                  <div className="flex shrink-0 items-center gap-1">
+                    {state.state !== 'verified' && <button type="button" className="min-h-11 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-50" disabled={!!lifecycleBusy || !!removing} onClick={() => void reconnect(a, account)} aria-label={`Reconnect ${a.name}`}>{lifecycleBusy === a.id ? 'Working…' : 'Reconnect'}</button>}
+                    {a.enabled !== false && <button type="button" className="min-h-11 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-50" disabled={!!lifecycleBusy || !!removing} onClick={() => void disconnect(a)} aria-label={`Disconnect ${a.name}`}>Disconnect</button>}
+                    <AgentActions name={a.name} disabled={!!checking || !!removing || !!lifecycleBusy} onRemove={() => void remove(a.id)} />
                   </div>
                 </div>
                 {account && (
@@ -1186,22 +1206,7 @@ export function TeamView({
                             </p>
                           </div>
                         )}
-                        {!connectionOnly && provider === 'commandcode' && commandcodeMode === 'subscription' && (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Untuk koneksi tanpa terminal, buat API key di{' '}
-                            <a
-                              className="underline"
-                              href="https://commandcode.ai/studio/keys"
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              CommandCode Studio
-                            </a>
-                            , lalu pilih <strong>Custom BYOK</strong> dan tempelkan
-                            key tersebut. Mode subscription CLI memerlukan login
-                            interaktif di terminal.
-                          </p>
-                        )}
+                        {!connectionOnly && provider === 'commandcode' && commandcodeMode === 'subscription' && (<p className="mt-2 text-xs text-muted-foreground">Sign in securely with your CommandCode subscription. Cuan never displays or stores subscription secrets.</p>)}
                       </div>
                     )}
                     <div>
