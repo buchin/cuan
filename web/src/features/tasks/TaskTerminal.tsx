@@ -16,6 +16,7 @@ import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
 import type { TaskAttempt } from '../../api/types'
 import type { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
+import './task-workspace.css'
 
 export function TaskTerminal({
   taskId,
@@ -108,7 +109,8 @@ export function TaskTerminal({
   useEffect(() => {
     let disposed = false,
       resize: ResizeObserver | undefined,
-      refreshTimer: ReturnType<typeof setTimeout> | undefined
+      refreshTimer: ReturnType<typeof setTimeout> | undefined,
+      cleanupTouch: (() => void) | undefined
     let terminal: Terminal | undefined, ws: WebSocket | undefined
     setConnection('loading')
     setError('')
@@ -168,11 +170,158 @@ export function TaskTerminal({
         fitTerminal()
         resize = new ResizeObserver(fitTerminal)
         resize.observe(mount.current)
+
+        const mountEl = mount.current
+        let touchStartY = 0
+        let touchStartX = 0
+        let lastTouchY = 0
+        let accumulatedY = 0
+        let isTouchDragging = false
+        let momentumRaf: number | null = null
+        let lastTouchTime = 0
+        let touchVelocityY = 0
+
+        const cancelMomentum = () => {
+          if (momentumRaf !== null) {
+            cancelAnimationFrame(momentumRaf)
+            momentumRaf = null
+          }
+        }
+
+        const getRowHeight = () => {
+          if (terminal && terminal.rows > 0 && mountEl.clientHeight > 0) {
+            const computed = mountEl.clientHeight / terminal.rows
+            if (computed > 4 && computed < 100) return computed
+          }
+          const fontSize = (terminal?.options.fontSize as number) || 13
+          const lineHeight = (terminal?.options.lineHeight as number) || 1.25
+          return fontSize * lineHeight || 16.25
+        }
+
+        const onTouchStart = (e: TouchEvent) => {
+          cancelMomentum()
+          if (e.touches.length !== 1) return
+          const touch = e.touches[0]
+          touchStartY = touch.clientY
+          touchStartX = touch.clientX
+          lastTouchY = touch.clientY
+          accumulatedY = 0
+          isTouchDragging = false
+          lastTouchTime = Date.now()
+          touchVelocityY = 0
+        }
+
+        const onTouchMove = (e: TouchEvent) => {
+          if (e.touches.length !== 1 || !terminal) return
+          const touch = e.touches[0]
+          const deltaY = touch.clientY - lastTouchY
+          const totalY = touch.clientY - touchStartY
+          const totalX = touch.clientX - touchStartX
+
+          if (!isTouchDragging) {
+            if (Math.abs(totalY) > 3 && Math.abs(totalY) >= Math.abs(totalX)) {
+              isTouchDragging = true
+            }
+          }
+
+          if (isTouchDragging) {
+            if (e.cancelable) {
+              e.preventDefault()
+            }
+            const now = Date.now()
+            const dt = now - lastTouchTime
+            if (dt > 0) {
+              const currentVelocity = deltaY / dt
+              touchVelocityY = touchVelocityY * 0.4 + currentVelocity * 0.6
+            }
+            lastTouchTime = now
+            lastTouchY = touch.clientY
+            accumulatedY += deltaY
+
+            const rowHeight = getRowHeight()
+            const lines = Math.trunc(accumulatedY / rowHeight)
+            if (lines !== 0) {
+              terminal.scrollLines(-lines)
+              accumulatedY -= lines * rowHeight
+            }
+          }
+        }
+
+        const onTouchEnd = () => {
+          if (!isTouchDragging || !terminal) {
+            isTouchDragging = false
+            return
+          }
+          isTouchDragging = false
+
+          if (Date.now() - lastTouchTime > 120) {
+            touchVelocityY = 0
+            return
+          }
+
+          let remainingVelocity = touchVelocityY * 16
+          if (Math.abs(remainingVelocity) > 2) {
+            let momentumAccumulator = 0
+            const step = () => {
+              if (disposed || !terminal || Math.abs(remainingVelocity) < 0.3) {
+                momentumRaf = null
+                return
+              }
+              momentumAccumulator += remainingVelocity
+              const rowHeight = getRowHeight()
+              const lines = Math.trunc(momentumAccumulator / rowHeight)
+              if (lines !== 0) {
+                terminal.scrollLines(-lines)
+                momentumAccumulator -= lines * rowHeight
+              }
+              remainingVelocity *= 0.92
+              momentumRaf = requestAnimationFrame(step)
+            }
+            momentumRaf = requestAnimationFrame(step)
+          }
+        }
+
+        mountEl.addEventListener('touchstart', onTouchStart, {
+          capture: true,
+          passive: false,
+        })
+        mountEl.addEventListener('touchmove', onTouchMove, {
+          capture: true,
+          passive: false,
+        })
+        mountEl.addEventListener('touchend', onTouchEnd, {
+          capture: true,
+          passive: true,
+        })
+        mountEl.addEventListener('touchcancel', onTouchEnd, {
+          capture: true,
+          passive: true,
+        })
+
+        cleanupTouch = () => {
+          mountEl.removeEventListener('touchstart', onTouchStart, {
+            capture: true,
+          } as EventListenerOptions)
+          mountEl.removeEventListener('touchmove', onTouchMove, {
+            capture: true,
+          } as EventListenerOptions)
+          mountEl.removeEventListener('touchend', onTouchEnd, {
+            capture: true,
+          } as EventListenerOptions)
+          mountEl.removeEventListener('touchcancel', onTouchEnd, {
+            capture: true,
+          } as EventListenerOptions)
+          cancelMomentum()
+        }
+
         terminal.onScroll((position) => {
           if (disposed || !terminal) return
           if (position < terminal.buffer.active.baseY) {
             following.current = false
             setFollow(false)
+          } else {
+            following.current = true
+            setFollow(true)
           }
         })
         terminal.onData((data) => {
@@ -284,6 +433,7 @@ export function TaskTerminal({
     void connect()
     return () => {
       disposed = true
+      cleanupTouch?.()
       resize?.disconnect()
       if (refreshTimer) clearTimeout(refreshTimer)
       ws?.close()
@@ -517,7 +667,7 @@ export function TaskTerminal({
   return (
     <section
       aria-label="Session terminal"
-      className="flex h-full min-h-0 min-w-0 flex-col bg-[#141414]"
+      className="task-terminal-container flex h-full min-h-0 min-w-0 flex-col bg-[#141414] overscroll-contain"
     >
       {controlsTarget ? createPortal(controls, controlsTarget) : controls}
       {error && (
@@ -531,14 +681,17 @@ export function TaskTerminal({
         </p>
       )}
       <div
-        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-2"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-2 overscroll-contain"
         aria-label="Terminal output"
       >
-        <div ref={mount} className="h-full w-full" />
+        <div
+          ref={mount}
+          className="task-terminal-viewport h-full w-full overscroll-contain touch-none"
+        />
       </div>
       {liveId && (
         <div
-          className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-[#262626] bg-[#161616] px-2 py-1.5 select-none touch-pan-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-[#262626] bg-[#161616] px-2 py-1.5 select-none touch-pan-x overscroll-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           aria-label="Terminal keyboard shortcuts"
         >
           <button

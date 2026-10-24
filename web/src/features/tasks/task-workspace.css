@@ -1,6 +1,26 @@
 .task-workspace {
   z-index: 40;
 }
+
+/* Terminal mobile touch scrolling and pull-to-refresh containment */
+.task-terminal-container,
+.task-terminal-viewport,
+.task-workspace,
+.xterm,
+.xterm-viewport,
+.xterm-screen {
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+}
+
+.task-terminal-viewport {
+  touch-action: none;
+}
+
+.task-terminal-container .xterm-screen,
+.task-terminal-container .xterm-viewport {
+  touch-action: none;
+}
 .task-workspace .task-prose .chat-markdown {
   font-size: 15px;
   line-height: 1.6;
