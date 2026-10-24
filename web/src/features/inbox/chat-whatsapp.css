@@ -116,6 +116,29 @@
 .dark .inbox-list { background: #121212; }
 .dark .inbox-search, .dark .app-page-header { background: #1a1a1a; }
 
+/* Subtle inset divider between conversation list items */
+.inbox-item-divider {
+  position: absolute;
+  bottom: 0;
+  left: 3.75rem; /* 60px: 12px padding + 36px avatar + 12px gap, aligns with message text without cutting avatar */
+  right: 0;
+  inset-inline-start: 3.75rem;
+  inset-inline-end: 0;
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+
+.dark .inbox-item-divider {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Safety: ensure last item in container list never has a trailing border */
+.inbox-list .overflow-y-auto > :last-child .inbox-item-divider,
+.inbox-item-row:last-child .inbox-item-divider {
+  display: none !important;
+}
+
 .message-actions .wa-message-bubble { max-width: 100%; }
 
 /* Message actions never reserve a permanent column beside the bubble. */

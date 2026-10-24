@@ -10,6 +10,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
 import { Search, Bot, User, Archive } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import './chat-whatsapp.css'
 
 export function conversationPreview(message?: string) {
   if (!message?.trim()) return 'No messages yet.'
@@ -194,7 +195,7 @@ export function InboxSubPanel({
 
       {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
       {/* Contacts List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-border/20">
+      <div className="flex-1 overflow-y-auto">
         {loading ? (
           <p role="status" className="p-4 text-sm">
             Loading conversations…
@@ -215,10 +216,11 @@ export function InboxSubPanel({
             </div>}
           </div>
         ) : (
-          filteredContacts.map((contact) => {
+          filteredContacts.map((contact, index) => {
             const isSelected =
               activeContactId === contact.id ||
               activeContactId === contact.conversation_id
+            const isLast = index === filteredContacts.length - 1
             const status = connectionStatus(
               agentForContact(contact, agents),
               now,
@@ -239,7 +241,7 @@ export function InboxSubPanel({
             }
             const archiveAction = { label: showArchived ? 'Restore conversation' : 'Archive conversation', previewLabel: showArchived ? 'Restore' : 'Archive', disabled: !archive.loaded, run: () => archive.archive(id, !showArchived) }
             return (
-              <ItemActions key={contact.id} label={contact.name} swipeAction={archiveAction} actions={[
+              <ItemActions key={contact.id} label={contact.name} swipeAction={archiveAction} className={cn('inbox-item-row', !isLast && 'has-divider')} actions={[
                 { label: 'Open conversation', run: openContact },
                 { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
                 { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(id)) },
@@ -306,6 +308,12 @@ export function InboxSubPanel({
                   )}
                 </div>
               </button>
+              {!isLast && (
+                <div
+                  aria-hidden="true"
+                  className="inbox-item-divider"
+                />
+              )}
               </ItemActions>
             )
           })
