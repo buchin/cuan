@@ -544,6 +544,26 @@ export function TeamView({
     if (lifecycleBusy) return
     setLifecycleBusy(agent.id); setError('')
     try {
+      // Subscription agents need the same resumable provider-owned auth flow as
+      // Add agent. Reconnect used to only open Google account links, leaving
+      // CommandCode agents stuck with a failed roster check.
+      if (agent.provider === 'commandcode' && agent.auth_type === 'subscription') {
+        epoch.current++
+        dialogActive.current = true
+        setProvider('commandcode')
+        setCommandcodeMode('subscription')
+        setHandle(agent.name.split(' ')[0] || '@dev')
+        setOpen(true)
+        setStep('google')
+        setCode('')
+        setFormError('')
+        const session = await agentsApi.authInit('commandcode')
+        if (!session.session_id) throw new Error('The CommandCode sign-in session is unavailable. Try again.')
+        active.current = { accountId: '', sessionId: session.session_id, harness: 'commandcode' }
+        window.localStorage.setItem('cuan.commandcode.auth', JSON.stringify(session))
+        setAuth(session)
+        return
+      }
       if (account && (account.provider === 'agy' || account.provider === 'antigravity')) {
         const session = await accountsApi.login(account.id)
         if (session.auth_url) window.open(session.auth_url, '_blank', 'noopener,noreferrer')
