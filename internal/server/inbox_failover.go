@@ -31,15 +31,26 @@ type inboxAccountRoute struct {
 func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, registered *db.Agent, prompt, home, workspace string, limited bool, step func(string, string), attachments ...string) (string, string) {
 	if registered.Harness != "agy" && registered.Harness != "antigravity" {
 		execCtx := ctx
-		if registered.Harness == "commandcode" && registered.ConnectionID != "" {
-			if conn, err := s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID); err == nil && conn.CredentialsEncrypted != "" {
+		if registered.Harness == "commandcode" {
+			var conn *db.AgentConnection
+			if registered.ConnectionID != "" {
+				conn, _ = s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID)
+			}
+			if conn == nil && owner != "" {
+				conn, _ = s.agentRepo.GetConnectionByUserAndProvider(ctx, owner, "commandcode")
+			}
+			if conn != nil && conn.CredentialsEncrypted != "" {
 				if key, err := agent.DecryptCredential(conn.CredentialsEncrypted); err == nil {
 					execCtx = context.WithValue(execCtx, commandCodeAPIKeyContext{}, key)
 				}
 			}
 		}
-		if registered.ModelID != "" && !strings.HasPrefix(registered.ModelID, "conn_") {
-			execCtx = context.WithValue(execCtx, inboxModelKey{}, registered.ModelID)
+		modelID := registered.ModelID
+		if idx := strings.Index(modelID, "#"); idx != -1 {
+			modelID = modelID[idx+1:]
+		}
+		if modelID != "" && !strings.HasPrefix(modelID, "conn_") && modelID != "commandcode-default" && modelID != "default" {
+			execCtx = context.WithValue(execCtx, inboxModelKey{}, modelID)
 		}
 		return s.executeInboxCLI(execCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
 	}

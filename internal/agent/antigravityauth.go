@@ -120,6 +120,7 @@ func ResolveAntigravityTokenPath() (string, bool) {
 		if hasValidCredential(envPath) {
 			return envPath, true
 		}
+		return envPath, false
 	}
 
 	// 2. Candidate home directories

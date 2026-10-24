@@ -46,8 +46,18 @@ func (p *CommandCodeProvider) VerifyConnection(ctx context.Context, credentials 
 	trimmed := strings.TrimSpace(credentials)
 
 	if _, err := exec.LookPath("commandcode"); err != nil {
-		candidate := "/home/dev/.local/bin/commandcode"
-		if _, statErr := exec.LookPath(candidate); statErr != nil {
+		found := false
+		for _, candidate := range []string{
+			"/home/dev/.local/bin/commandcode",
+			"/home/ubuntu/.local/bin/commandcode",
+			"/usr/local/bin/commandcode",
+		} {
+			if _, statErr := exec.LookPath(candidate); statErr == nil {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return &ConnectionProbeResult{
 				Valid:        false,
 				Provider:     "commandcode",

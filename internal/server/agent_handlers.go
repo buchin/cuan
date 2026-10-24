@@ -78,7 +78,26 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 		status := agent.LegacyConnectionVerification(ownerID, a.ID, a.ConnectionID)
 		state := status.State
 		checkedAt, verifiedAt := status.LastCheckedAt, status.VerifiedAt
-		if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
+		dto := a.ToDTO()
+		if a.Harness == "commandcode" || a.Provider == "commandcode" {
+			var conn *db.AgentConnection
+			if a.ConnectionID != "" {
+				conn, _ = s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
+			}
+			if conn == nil && ownerID != "" {
+				conn, _ = s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, "commandcode")
+			}
+			if conn != nil && conn.CredentialsEncrypted != "" {
+				dto.AuthType = "byok"
+			} else {
+				dto.AuthType = "subscription"
+			}
+			if conn != nil && conn.Status == db.ConnectionStatusActive {
+				state = "verified"
+				checkedAt = &conn.UpdatedAt
+				verifiedAt = &conn.UpdatedAt
+			}
+		} else if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 			state = "login_required"
 			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID); err == nil && conn.UserID == ownerID {
 				_, bindingErr := s.agentProfileHome(r.Context(), &a)
@@ -98,7 +117,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		dtos[i] = rosterAgent{AgentDTO: a.ToDTO(), ConnectionState: state, LastCheckedAt: checkedAt, VerifiedAt: verifiedAt}
+		dtos[i] = rosterAgent{AgentDTO: dto, ConnectionState: state, LastCheckedAt: checkedAt, VerifiedAt: verifiedAt}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -1010,9 +1029,17 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	committed = true
+	dto := agentEntity.ToDTO()
+	if isCommandCode {
+		if encryptedToken != "" {
+			dto.AuthType = "byok"
+		} else {
+			dto.AuthType = "subscription"
+		}
+	}
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"status":          "success",
-		"agent":           agentEntity.ToDTO(),
+		"agent":           dto,
 		"connection":      connEntity.ToDTO(),
 		"handle":          handle,
 		"provider":        provider,
@@ -1070,8 +1097,16 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 			if _, err := exec.LookPath("commandcode"); err == nil {
 				return true
 			}
-			_, err := os.Stat("/home/dev/.local/bin/commandcode")
-			return err == nil
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/commandcode",
+				"/home/ubuntu/.local/bin/commandcode",
+				"/usr/local/bin/commandcode",
+			} {
+				if _, err := os.Stat(candidate); err == nil {
+					return true
+				}
+			}
+			return false
 		}()
 		status := map[string]interface{}{
 			"status":              "success",

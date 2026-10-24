@@ -105,6 +105,24 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
 		if err != nil {
+			if harness == "commandcode" && strings.TrimSpace(reply) != "" {
+				cleanRaw := strings.TrimSpace(reply)
+				if strings.HasPrefix(cleanRaw, "```json") {
+					cleanRaw = strings.TrimPrefix(cleanRaw, "```json")
+					cleanRaw = strings.TrimPrefix(cleanRaw, "\n")
+					if idx := strings.LastIndex(cleanRaw, "```"); idx != -1 {
+						cleanRaw = cleanRaw[:idx]
+					}
+					cleanRaw = strings.TrimSpace(cleanRaw)
+				}
+				var partial struct {
+					Reply string `json:"reply"`
+				}
+				if json.Unmarshal([]byte(cleanRaw), &partial) == nil && strings.TrimSpace(partial.Reply) != "" {
+					return strings.TrimSpace(partial.Reply), ""
+				}
+				return strings.TrimSpace(reply), ""
+			}
 			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 		}
 		return output, ""
@@ -138,12 +156,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	case "commandcode":
 		binary = "commandcode"
 		args = []string{"-p", system, "--output-format", "text", "--permission-mode", "plan", "--trust", "--no-session"}
-		if key, _ := ctx.Value(commandCodeAPIKeyContext{}).(string); key != "" {
-			// BYOK keeps the CommandCode CLI as the runner while routing model
-			// requests through the user's configured provider key.
-			args = append(args, "--local-only")
-		}
-		if model, _ := ctx.Value(inboxModelKey{}).(string); model != "" {
+		if model, _ := ctx.Value(inboxModelKey{}).(string); model != "" && model != "commandcode-default" && model != "default" {
 			args = append(args, "-m", model)
 		}
 	default:
@@ -165,16 +178,28 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	path, err := exec.LookPath(binary)
 	if err != nil {
 		if binary == "agy" {
-			candidate := "/home/dev/.local/bin/agy"
-			if _, e := os.Stat(candidate); e == nil {
-				path = candidate
-				err = nil
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/agy",
+				"/home/ubuntu/.local/bin/agy",
+				"/usr/local/bin/agy",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
 			}
 		} else if binary == "commandcode" {
-			candidate := "/home/dev/.local/bin/commandcode"
-			if _, e := os.Stat(candidate); e == nil {
-				path = candidate
-				err = nil
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/commandcode",
+				"/home/ubuntu/.local/bin/commandcode",
+				"/usr/local/bin/commandcode",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
 			}
 		}
 	}

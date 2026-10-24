@@ -77,6 +77,7 @@ type Agent struct {
 	SystemPrompt string    `json:"system_prompt,omitempty"`
 	ModelID      string    `json:"model_id,omitempty"`
 	Provider     string    `json:"provider,omitempty"`
+	AuthType     string    `json:"auth_type,omitempty"`
 	Status       string    `json:"status,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -87,17 +88,32 @@ func (a *Agent) Clone() *Agent {
 	if a == nil {
 		return nil
 	}
+	connID := a.ConnectionID
+	modelID := a.ModelID
+	if strings.HasPrefix(a.ModelID, "conn_") {
+		if idx := strings.Index(a.ModelID, "#"); idx != -1 {
+			if connID == "" {
+				connID = a.ModelID[:idx]
+			}
+			modelID = a.ModelID[idx+1:]
+		} else {
+			if connID == "" {
+				connID = a.ModelID
+			}
+		}
+	}
 	return &Agent{
 		ID:           a.ID,
 		Name:         a.Name,
 		Harness:      a.Harness,
-		ConnectionID: a.ConnectionID,
+		ConnectionID: connID,
 		Enabled:      a.Enabled,
 		Avatar:       a.Avatar,
 		Role:         a.Role,
 		SystemPrompt: a.SystemPrompt,
-		ModelID:      a.ModelID,
+		ModelID:      modelID,
 		Provider:     a.Provider,
+		AuthType:     a.AuthType,
 		Status:       a.Status,
 		CreatedAt:    a.CreatedAt,
 		UpdatedAt:    a.UpdatedAt,
@@ -116,6 +132,7 @@ type AgentDTO struct {
 	SystemPrompt string    `json:"system_prompt,omitempty"`
 	ModelID      string    `json:"model_id,omitempty"`
 	Provider     string    `json:"provider,omitempty"`
+	AuthType     string    `json:"auth_type,omitempty"`
 	Status       string    `json:"status,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -131,8 +148,18 @@ func (a *Agent) ToDTO() AgentDTO {
 		harness = "agy"
 	}
 	connID := strings.TrimSpace(a.ConnectionID)
-	if connID == "" && strings.HasPrefix(a.ModelID, "conn_") {
-		connID = a.ModelID
+	modelID := a.ModelID
+	if strings.HasPrefix(a.ModelID, "conn_") {
+		if idx := strings.Index(a.ModelID, "#"); idx != -1 {
+			if connID == "" {
+				connID = a.ModelID[:idx]
+			}
+			modelID = a.ModelID[idx+1:]
+		} else {
+			if connID == "" {
+				connID = a.ModelID
+			}
+		}
 	}
 	enabled := a.Enabled || a.Status == AgentStatusActive || a.Status == ""
 
@@ -154,8 +181,9 @@ func (a *Agent) ToDTO() AgentDTO {
 		Avatar:       a.Avatar,
 		Role:         a.Role,
 		SystemPrompt: a.SystemPrompt,
-		ModelID:      a.ModelID,
+		ModelID:      modelID,
 		Provider:     a.Provider,
+		AuthType:     a.AuthType,
 		Status:       status,
 		CreatedAt:    a.CreatedAt,
 		UpdatedAt:    a.UpdatedAt,
@@ -583,8 +611,12 @@ func (r *SQLAgentRepository) CreateAgent(ctx context.Context, agent *Agent) erro
 			agent.Harness = "agy"
 		}
 	}
-	if strings.TrimSpace(agent.ConnectionID) != "" && (agent.ModelID == "" || agent.ModelID == DefaultAgentModelID) {
-		agent.ModelID = agent.ConnectionID
+	if strings.TrimSpace(agent.ConnectionID) != "" {
+		if agent.ModelID != "" && agent.ModelID != agent.ConnectionID && !strings.HasPrefix(agent.ModelID, "conn_") {
+			agent.ModelID = agent.ConnectionID + "#" + agent.ModelID
+		} else if agent.ModelID == "" || agent.ModelID == DefaultAgentModelID {
+			agent.ModelID = agent.ConnectionID
+		}
 	}
 	if strings.TrimSpace(agent.ModelID) == "" {
 		agent.ModelID = DefaultAgentModelID
@@ -657,8 +689,17 @@ func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agen
 	if a.Harness == "" {
 		a.Harness = a.Provider
 	}
-	if a.ConnectionID == "" && strings.HasPrefix(a.ModelID, "conn_") {
-		a.ConnectionID = a.ModelID
+	if strings.HasPrefix(a.ModelID, "conn_") {
+		if idx := strings.Index(a.ModelID, "#"); idx != -1 {
+			if a.ConnectionID == "" {
+				a.ConnectionID = a.ModelID[:idx]
+			}
+			a.ModelID = a.ModelID[idx+1:]
+		} else {
+			if a.ConnectionID == "" {
+				a.ConnectionID = a.ModelID
+			}
+		}
 	}
 	a.Enabled = (a.Status == AgentStatusActive || a.Status == "")
 	return &a, nil
@@ -740,8 +781,17 @@ func (r *SQLAgentRepository) ListAgents(ctx context.Context, filter AgentFilter)
 		if a.Harness == "" {
 			a.Harness = a.Provider
 		}
-		if a.ConnectionID == "" && strings.HasPrefix(a.ModelID, "conn_") {
-			a.ConnectionID = a.ModelID
+		if strings.HasPrefix(a.ModelID, "conn_") {
+			if idx := strings.Index(a.ModelID, "#"); idx != -1 {
+				if a.ConnectionID == "" {
+					a.ConnectionID = a.ModelID[:idx]
+				}
+				a.ModelID = a.ModelID[idx+1:]
+			} else {
+				if a.ConnectionID == "" {
+					a.ConnectionID = a.ModelID
+				}
+			}
 		}
 		a.Enabled = (a.Status == AgentStatusActive || a.Status == "")
 		agents = append(agents, a)
@@ -763,7 +813,11 @@ func (r *SQLAgentRepository) UpdateAgent(ctx context.Context, agent *Agent) erro
 		agent.Provider = agent.Harness
 	}
 	if strings.TrimSpace(agent.ConnectionID) != "" {
-		agent.ModelID = agent.ConnectionID
+		if agent.ModelID != "" && agent.ModelID != agent.ConnectionID && !strings.HasPrefix(agent.ModelID, "conn_") {
+			agent.ModelID = agent.ConnectionID + "#" + agent.ModelID
+		} else {
+			agent.ModelID = agent.ConnectionID
+		}
 	}
 	if agent.Status == "" {
 		if agent.Enabled {
@@ -1176,8 +1230,12 @@ func (m *MemoryAgentRepository) CreateAgent(_ context.Context, agent *Agent) err
 			agent.Harness = "agy"
 		}
 	}
-	if strings.TrimSpace(agent.ConnectionID) != "" && (agent.ModelID == "" || agent.ModelID == DefaultAgentModelID) {
-		agent.ModelID = agent.ConnectionID
+	if strings.TrimSpace(agent.ConnectionID) != "" {
+		if agent.ModelID != "" && agent.ModelID != agent.ConnectionID && !strings.HasPrefix(agent.ModelID, "conn_") {
+			agent.ModelID = agent.ConnectionID + "#" + agent.ModelID
+		} else if agent.ModelID == "" || agent.ModelID == DefaultAgentModelID {
+			agent.ModelID = agent.ConnectionID
+		}
 	}
 	if agent.Status == "" {
 		if agent.Enabled {

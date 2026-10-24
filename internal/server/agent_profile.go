@@ -59,20 +59,28 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 	}
 	if a.Harness == "commandcode" || a.Provider == "commandcode" {
 		conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
-		if err != nil {
+		if (err != nil || conn == nil) && owner != "" {
+			conn, _ = s.agentRepo.GetConnectionByUserAndProvider(r.Context(), owner, "commandcode")
+		}
+		authType := "subscription"
+		if conn != nil && conn.CredentialsEncrypted != "" {
+			authType = "byok"
+		}
+		now := time.Now().UTC()
+		if conn == nil {
 			// Subscription agents do not persist a provider credential. Older
 			// rows can therefore outlive their empty connection record; the
 			// CommandCode CLI session is the source of truth for verification.
 			respondJSON(w, http.StatusOK, map[string]any{
 				"agent_id":         a.ID,
 				"connection_state": "verified",
+				"auth_type":        authType,
 				"message":          "CommandCode subscription connection verified",
-				"last_checked_at":  time.Now().UTC(),
-				"verified_at":      time.Now().UTC(),
+				"last_checked_at":  &now,
+				"verified_at":      &now,
 			})
 			return
 		}
-		now := time.Now().UTC()
 		reg := s.ProviderRegistry()
 		if reg == nil {
 			reg = agent.DefaultRegistry()
@@ -96,6 +104,7 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 		probe, err := prov.VerifyConnection(r.Context(), credentials)
 		if err != nil || (probe != nil && !probe.Valid) {
 			conn.Status = db.ConnectionStatusInvalid
+			conn.UpdatedAt = now
 			_ = s.agentRepo.UpdateConnection(r.Context(), conn)
 			errMsg := "Verification failed"
 			if probe != nil && probe.ErrorMessage != "" {
@@ -104,16 +113,19 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 			respondJSON(w, 200, map[string]any{
 				"agent_id":         a.ID,
 				"connection_state": "unavailable",
+				"auth_type":        authType,
 				"message":          errMsg,
 				"last_checked_at":  &now,
 			})
 			return
 		}
 		conn.Status = db.ConnectionStatusActive
+		conn.UpdatedAt = now
 		_ = s.agentRepo.UpdateConnection(r.Context(), conn)
 		respondJSON(w, 200, map[string]any{
 			"agent_id":         a.ID,
 			"connection_state": "verified",
+			"auth_type":        authType,
 			"message":          "CommandCode provider connection verified",
 			"last_checked_at":  &now,
 			"verified_at":      &now,
@@ -187,9 +199,16 @@ func (s *Server) handleReplaceAgentCredentials(w http.ResponseWriter, r *http.Re
 		return
 	}
 	conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
-	if err != nil || conn.UserID != owner || conn.Provider != "commandcode" {
+	if (err != nil || conn == nil) && owner != "" {
+		conn, err = s.agentRepo.GetConnectionByUserAndProvider(r.Context(), owner, "commandcode")
+	}
+	if err != nil || conn == nil || conn.UserID != owner || conn.Provider != "commandcode" {
 		respondJSONError(w, http.StatusNotFound, "BYOK connection not found")
 		return
+	}
+	if a.ConnectionID == "" || a.ConnectionID != conn.ID {
+		a.ConnectionID = conn.ID
+		_ = s.agentRepo.UpdateAgent(r.Context(), a)
 	}
 	var req struct {
 		APIKey string `json:"api_key"`
