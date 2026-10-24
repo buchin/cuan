@@ -76,11 +76,11 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		}
 		if len(matches) == 1 {
 			selected = matches[0]
-		} else if len(matches) == 0 && !targetAt.IsZero() {
+		} else if len(matches) == 0 {
 			// A follow-up need not repeat the project name. Use only prior work
 			// bound to this conversation, never another room or a future task.
 			bound := map[string]bool{}
-			if s.taskSvc != nil {
+			if s.taskSvc != nil && !targetAt.IsZero() {
 				if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: q.RoomID}); err == nil {
 					for _, item := range tasks {
 						if item.SourceRoomID == q.RoomID && !item.CreatedAt.After(targetAt) {
@@ -96,8 +96,18 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 					}
 				}
 			}
-			if selected == nil && len(bound) == 0 && len(active) == 1 {
-				selected = active[0]
+			if selected == nil && len(bound) == 0 {
+				var withRepo []*project.ProjectResponse
+				for _, p := range active {
+					if p.LocalPath != "" {
+						withRepo = append(withRepo, p)
+					}
+				}
+				if len(withRepo) == 1 {
+					selected = withRepo[0]
+				} else if len(active) == 1 {
+					selected = active[0]
+				}
 			}
 		}
 
@@ -273,7 +283,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		return "", b.String() + "Workspace unavailable.\n"
 	}
-	fmt.Fprintf(&b, "Project workspace: %s. Read-only analysis access; do not change files or deploy from analysis chat.\n", dir)
+	fmt.Fprintf(&b, "Project workspace: %s. Read-only code inspection enabled. Use native read-only tools (read_file, view_file, list_dir, grep_search, find_by_name) to inspect project source code and UI components (e.g. web/src/components, layout, navbar) in this workspace. Never call run_command.\n", dir)
 	gitRead := func(args ...string) string {
 		cmd := exec.CommandContext(ctx, "git", append([]string{"--no-pager", "-C", dir}, args...)...)
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")

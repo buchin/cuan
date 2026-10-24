@@ -4,8 +4,8 @@ import { MoreHorizontal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 
 export type ItemAction = { label: string; run: () => void | Promise<void>; disabled?: boolean; previewLabel?: string }
-export function ItemActions({ label, actions, swipeAction, children, subtle = false }: {
-  label: string; actions: ItemAction[]; swipeAction?: ItemAction; children: ReactNode; subtle?: boolean
+export function ItemActions({ label, actions, swipeAction, children, subtle = false, className }: {
+  label: string; actions: ItemAction[]; swipeAction?: ItemAction; children: ReactNode; subtle?: boolean; className?: string
 }) {
   const { t } = useLanguage()
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
@@ -52,7 +52,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
     finally { setBusy(false) }
   }
   return (
-    <div className={`relative min-w-0 ${subtle ? "message-actions max-w-[92%]" : "overflow-hidden"}`} style={swipeAction ? { touchAction: 'pan-y' } : undefined}
+    <div className={`relative min-w-0 ${subtle ? "message-actions max-w-[92%]" : "overflow-hidden"} ${className || ''}`} style={swipeAction ? { touchAction: 'pan-y' } : undefined}
       onContextMenu={event => {
         if (window.getSelection()?.toString() || (event.target as HTMLElement).closest('input,textarea,[contenteditable=true]')) return
         event.preventDefault(); open(event.clientX, event.clientY)

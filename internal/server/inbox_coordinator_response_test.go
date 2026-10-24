@@ -320,3 +320,18 @@ func TestCoordinatorInstructionAffirmativeTriggersAndProactivePlan(t *testing.T)
 		})
 	}
 }
+
+func TestCoordinatorResponseSynthesizesApprovalForAutonomousAnalysisSession(t *testing.T) {
+	raw := coordinatorJSON("Inspeksi mendalam pada komponen web/src/components/layout/AppShell.tsx memerlukan analisis menyeluruh di luar batas chat. Saya dapat mendelegasikan sesi analisis mandiri ke tim dev untuk mengaudit struktur layout dan navbar tanpa memerlukan tangkapan layar manual. Apakah Anda setuju?", "", nil)
+	out, err := decodeInboxCoordinatorResponse(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	plan := parseInboxApprovalPlan(out)
+	if plan == nil {
+		t.Fatalf("expected approval plan to be synthesized for deep analysis fallback, got %s", out)
+	}
+	if plan.Title != "Sesi Analisis Mandiri" {
+		t.Errorf("expected title 'Sesi Analisis Mandiri', got %q", plan.Title)
+	}
+}

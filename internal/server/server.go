@@ -46,6 +46,7 @@ import (
 type Server struct {
 	extensions             *extensionSDK.Registry
 	crm                    *crmStore
+	canned                 *cannedStore
 	cfg                    *config.Config
 	db                     *sql.DB
 	authSvc                *auth.Service
@@ -125,7 +126,10 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	}
 
 	var pSvc *project.Service
-	projectBaseDir := filepath.Join("data", "projects")
+	projectBaseDir := cfg.ProjectsDir
+	if projectBaseDir == "" {
+		projectBaseDir = filepath.Join("data", "projects")
+	}
 	if db != nil {
 		pSvc = project.NewService(project.NewDBStore(db), git.NewClient(), cfg.AuthSecret, projectBaseDir)
 	} else {
@@ -460,6 +464,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	s := &Server{
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
+		canned:                 newCannedStore(),
 		cfg:                    cfg,
 		db:                     db,
 		authSvc:                svc,
@@ -1040,9 +1045,12 @@ func (s *Server) routes() {
 		cr.Post("/session", s.handleVisitorChatSession)
 		cr.Get("/messages", s.handleVisitorGetMessages)
 		cr.Post("/messages", s.handleVisitorSendMessage)
+		cr.Post("/attachments", s.handleVisitorUploadAttachment)
+		cr.Get("/attachments/{id}", s.handleVisitorDownloadAttachment)
 		cr.Post("/sessions/{uuid}/page", s.handleVisitorPageTelemetry)
 		cr.Post("/receipts", s.handleVisitorReceipts)
 		cr.Get("/contacts", s.handleInternalListContacts)
+		cr.Get("/canned-responses", s.handleListCannedResponses)
 		cr.Get("/conversations/{id}/messages", s.handleInternalGetConversationMessages)
 		cr.Post("/conversations/{id}/messages", s.handleInternalSendConversationMessage)
 		cr.Get("/conversations/{id}/events", s.handleInboxStream)
@@ -1651,6 +1659,12 @@ func (s *Server) routes() {
 			pr.Post("/contacts", s.handleCRMCreate)
 			pr.Patch("/contacts/{id}", s.handleCRMUpdate)
 			pr.Get("/chat/contacts", s.handleInternalListContacts)
+			pr.Get("/chat/canned-responses", s.handleListCannedResponses)
+			pr.Post("/chat/canned-responses", s.handleCreateCannedResponse)
+			pr.Get("/chat/canned-responses/{id}", s.handleGetCannedResponse)
+			pr.Put("/chat/canned-responses/{id}", s.handleUpdateCannedResponse)
+			pr.Patch("/chat/canned-responses/{id}", s.handleUpdateCannedResponse)
+			pr.Delete("/chat/canned-responses/{id}", s.handleDeleteCannedResponse)
 			pr.Post("/chat/conversations", s.handleCreateAgentTopic)
 			pr.Post("/studio/goals", s.handleStudioGoal)
 			pr.Post("/chat/attachments", s.handleUploadConversationAttachment)
@@ -2101,6 +2115,19 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get task: %v", err))
 		return
+	}
+
+	if s.projectStudioRepo != nil && detail.SourceRoomID != "" && detail.LatestAttempt != nil {
+		if m, err := s.projectStudioRepo.GetMessageByID(r.Context(), delegationMessageID("task-delivery:"+detail.LatestAttempt.ID)); err == nil && m != nil && m.RoomID == detail.SourceRoomID && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == detail.SourceMessageID {
+			_, ids := decodeAttachmentMessage(m.Content)
+			if owner, err := s.taskArtifactOwner(r.Context(), detail); err == nil {
+				for _, aid := range ids {
+					if a, _, err := loadAttachment(owner, aid); err == nil {
+						detail.Attachments = append(detail.Attachments, a)
+					}
+				}
+			}
+		}
 	}
 
 	respondJSON(w, http.StatusOK, detail)

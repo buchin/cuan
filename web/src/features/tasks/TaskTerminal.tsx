@@ -10,12 +10,15 @@ import {
   RefreshCw,
   Keyboard,
   MoreHorizontal,
+  WifiOff,
 } from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
 import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
 import type { TaskAttempt } from '../../api/types'
 import type { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
+import './task-workspace.css'
 
 export function TaskTerminal({
   taskId,
@@ -23,13 +26,16 @@ export function TaskTerminal({
   live,
   onRefresh,
   controlsTarget,
+  onConnectionChange,
 }: {
   taskId: string
   attempt: TaskAttempt
   live: LiveTaskSession | null
   onRefresh: () => void
   controlsTarget?: HTMLElement | null
+  onConnectionChange?: (connection: string) => void
 }) {
+  const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null),
     term = useRef<Terminal | null>(null),
@@ -46,13 +52,55 @@ export function TaskTerminal({
     interactive = useRef(false),
     searchIndex = useRef(-1),
     logs = useRef<TaskLog[]>([])
+  const isTaskActive = ['running', 'queued'].includes(attempt.status)
   const isLive =
     !!live &&
     live.attempt_id === attempt.id &&
-    ['running', 'queued'].includes(attempt.status)
+    isTaskActive
   const liveId = isLive ? live.session_id : ''
   const refreshRef = useRef(onRefresh)
   refreshRef.current = onRefresh
+  useEffect(() => {
+    onConnectionChange?.(connection)
+  }, [connection, onConnectionChange])
+
+  const handleReconnect = useCallback(() => {
+    setError('')
+    setNotice('')
+    setConnection('connecting')
+    setRevision((n) => n + 1)
+    onRefresh()
+  }, [onRefresh])
+
+  const lastAutoRetry = useRef(0)
+  useEffect(() => {
+    const handleActive = () => {
+      if (document.visibilityState !== 'visible') return
+      if (!['running', 'queued'].includes(attempt.status)) return
+      if (connection !== 'disconnected' && connection !== 'error') return
+
+      const now = Date.now()
+      if (now - lastAutoRetry.current < 2000) return
+      lastAutoRetry.current = now
+
+      handleReconnect()
+    }
+
+    document.addEventListener('visibilitychange', handleActive)
+    window.addEventListener('focus', handleActive)
+    window.addEventListener('online', handleActive)
+    return () => {
+      document.removeEventListener('visibilitychange', handleActive)
+      window.removeEventListener('focus', handleActive)
+      window.removeEventListener('online', handleActive)
+    }
+  }, [attempt.status, connection, handleReconnect])
+
+  const showDisconnectBanner =
+    isTaskActive &&
+    (connection === 'disconnected' ||
+      (connection === 'connecting' && revision > 0) ||
+      (connection === 'error' && !logs.current.length))
   const bufferText = useCallback(() => {
     const t = term.current
     if (!t) return logs.current.map((l) => l.line).join('\n')
@@ -108,7 +156,8 @@ export function TaskTerminal({
   useEffect(() => {
     let disposed = false,
       resize: ResizeObserver | undefined,
-      refreshTimer: ReturnType<typeof setTimeout> | undefined
+      refreshTimer: ReturnType<typeof setTimeout> | undefined,
+      cleanupTouch: (() => void) | undefined
     let terminal: Terminal | undefined, ws: WebSocket | undefined
     setConnection('loading')
     setError('')
@@ -168,11 +217,158 @@ export function TaskTerminal({
         fitTerminal()
         resize = new ResizeObserver(fitTerminal)
         resize.observe(mount.current)
+
+        const mountEl = mount.current
+        let touchStartY = 0
+        let touchStartX = 0
+        let lastTouchY = 0
+        let accumulatedY = 0
+        let isTouchDragging = false
+        let momentumRaf: number | null = null
+        let lastTouchTime = 0
+        let touchVelocityY = 0
+
+        const cancelMomentum = () => {
+          if (momentumRaf !== null) {
+            cancelAnimationFrame(momentumRaf)
+            momentumRaf = null
+          }
+        }
+
+        const getRowHeight = () => {
+          if (terminal && terminal.rows > 0 && mountEl.clientHeight > 0) {
+            const computed = mountEl.clientHeight / terminal.rows
+            if (computed > 4 && computed < 100) return computed
+          }
+          const fontSize = (terminal?.options.fontSize as number) || 13
+          const lineHeight = (terminal?.options.lineHeight as number) || 1.25
+          return fontSize * lineHeight || 16.25
+        }
+
+        const onTouchStart = (e: TouchEvent) => {
+          cancelMomentum()
+          if (e.touches.length !== 1) return
+          const touch = e.touches[0]
+          touchStartY = touch.clientY
+          touchStartX = touch.clientX
+          lastTouchY = touch.clientY
+          accumulatedY = 0
+          isTouchDragging = false
+          lastTouchTime = Date.now()
+          touchVelocityY = 0
+        }
+
+        const onTouchMove = (e: TouchEvent) => {
+          if (e.touches.length !== 1 || !terminal) return
+          const touch = e.touches[0]
+          const deltaY = touch.clientY - lastTouchY
+          const totalY = touch.clientY - touchStartY
+          const totalX = touch.clientX - touchStartX
+
+          if (!isTouchDragging) {
+            if (Math.abs(totalY) > 3 && Math.abs(totalY) >= Math.abs(totalX)) {
+              isTouchDragging = true
+            }
+          }
+
+          if (isTouchDragging) {
+            if (e.cancelable) {
+              e.preventDefault()
+            }
+            const now = Date.now()
+            const dt = now - lastTouchTime
+            if (dt > 0) {
+              const currentVelocity = deltaY / dt
+              touchVelocityY = touchVelocityY * 0.4 + currentVelocity * 0.6
+            }
+            lastTouchTime = now
+            lastTouchY = touch.clientY
+            accumulatedY += deltaY
+
+            const rowHeight = getRowHeight()
+            const lines = Math.trunc(accumulatedY / rowHeight)
+            if (lines !== 0) {
+              terminal.scrollLines(-lines)
+              accumulatedY -= lines * rowHeight
+            }
+          }
+        }
+
+        const onTouchEnd = () => {
+          if (!isTouchDragging || !terminal) {
+            isTouchDragging = false
+            return
+          }
+          isTouchDragging = false
+
+          if (Date.now() - lastTouchTime > 120) {
+            touchVelocityY = 0
+            return
+          }
+
+          let remainingVelocity = touchVelocityY * 16
+          if (Math.abs(remainingVelocity) > 2) {
+            let momentumAccumulator = 0
+            const step = () => {
+              if (disposed || !terminal || Math.abs(remainingVelocity) < 0.3) {
+                momentumRaf = null
+                return
+              }
+              momentumAccumulator += remainingVelocity
+              const rowHeight = getRowHeight()
+              const lines = Math.trunc(momentumAccumulator / rowHeight)
+              if (lines !== 0) {
+                terminal.scrollLines(-lines)
+                momentumAccumulator -= lines * rowHeight
+              }
+              remainingVelocity *= 0.92
+              momentumRaf = requestAnimationFrame(step)
+            }
+            momentumRaf = requestAnimationFrame(step)
+          }
+        }
+
+        mountEl.addEventListener('touchstart', onTouchStart, {
+          capture: true,
+          passive: false,
+        })
+        mountEl.addEventListener('touchmove', onTouchMove, {
+          capture: true,
+          passive: false,
+        })
+        mountEl.addEventListener('touchend', onTouchEnd, {
+          capture: true,
+          passive: true,
+        })
+        mountEl.addEventListener('touchcancel', onTouchEnd, {
+          capture: true,
+          passive: true,
+        })
+
+        cleanupTouch = () => {
+          mountEl.removeEventListener('touchstart', onTouchStart, {
+            capture: true,
+          } as EventListenerOptions)
+          mountEl.removeEventListener('touchmove', onTouchMove, {
+            capture: true,
+          } as EventListenerOptions)
+          mountEl.removeEventListener('touchend', onTouchEnd, {
+            capture: true,
+          } as EventListenerOptions)
+          mountEl.removeEventListener('touchcancel', onTouchEnd, {
+            capture: true,
+          } as EventListenerOptions)
+          cancelMomentum()
+        }
+
         terminal.onScroll((position) => {
           if (disposed || !terminal) return
           if (position < terminal.buffer.active.baseY) {
             following.current = false
             setFollow(false)
+          } else {
+            following.current = true
+            setFollow(true)
           }
         })
         terminal.onData((data) => {
@@ -259,10 +455,9 @@ export function TaskTerminal({
           }
         }
         ws.onerror = () => {
-          if (!disposed)
-            setError(
-              'Could not connect to this terminal. The task was not restarted.',
-            )
+          if (!disposed) {
+            setConnection('disconnected')
+          }
         }
         ws.onclose = () => {
           if (disposed) return
@@ -284,6 +479,7 @@ export function TaskTerminal({
     void connect()
     return () => {
       disposed = true
+      cleanupTouch?.()
       resize?.disconnect()
       if (refreshTimer) clearTimeout(refreshTimer)
       ws?.close()
@@ -355,19 +551,19 @@ export function TaskTerminal({
         {
           (
             {
-              loading: 'Loading output…',
-              connecting: 'Connecting to existing session…',
+              loading: t('Loading output…'),
+              connecting: t('Connecting to existing session…'),
               connected: input
-                ? 'Connected · input enabled'
-                : 'Connected · read-only',
-              saved: 'Saved output',
-              disconnected: 'Disconnected · task status is checked separately',
-              error: 'Output unavailable',
+                ? t('Connected · input enabled')
+                : t('Connected · read-only'),
+              saved: t('Saved output'),
+              disconnected: t('Disconnected · task status is checked separately'),
+              error: t('Output unavailable'),
             } as Record<string, string>
           )[connection]
         }
       </span>
-      {controlsTarget && (
+      {!controlsTarget && (
         <span
           aria-hidden
           className={
@@ -385,8 +581,8 @@ export function TaskTerminal({
         {liveId && (
           <button
             className="icon-action"
-            aria-label="Show keyboard"
-            title="Show keyboard"
+            aria-label={t('Show keyboard')}
+            title={t('Show keyboard')}
             disabled={connection !== 'connected'}
             onClick={showKeyboard}
           >
@@ -394,38 +590,35 @@ export function TaskTerminal({
           </button>
         )}
       </div>
-      <details ref={menu} className="relative shrink-0">
+      <details ref={menu} className="static sm:relative shrink-0">
         <summary
-          aria-label="Terminal tools"
-          title="Terminal tools"
+          aria-label={t('Terminal tools')}
+          title={t('Terminal tools')}
           className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden"
         >
           <MoreHorizontal className="h-4 w-4" />
         </summary>
-        <div className="absolute right-0 top-full z-20 w-[min(360px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
+        <div className="absolute right-0 top-full z-20 w-[min(320px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
           <div className="flex flex-wrap justify-end gap-1">
             <button
               className="icon-action"
-              aria-label="Reconnect terminal"
-              title="Reconnect to this session"
-              onClick={() => {
-                setRevision((n) => n + 1)
-                onRefresh()
-              }}
+              aria-label={t('Reconnect terminal')}
+              title={t('Reconnect to this session')}
+              onClick={handleReconnect}
             >
               <RefreshCw className="h-4 w-4" />
             </button>
             <button
               className="icon-action"
-              aria-label="Copy output"
-              title="Copy output"
+              aria-label={t('Copy output')}
+              title={t('Copy output')}
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(bufferText())
-                  setNotice('Output copied.')
+                  setNotice(t('Output copied.'))
                 } catch {
                   setError(
-                    'Could not copy output. Use Download output instead.',
+                    t('Could not copy output. Use Download output instead.'),
                   )
                 }
               }}
@@ -434,8 +627,8 @@ export function TaskTerminal({
             </button>
             <button
               className="icon-action"
-              aria-label="Download output"
-              title="Download output"
+              aria-label={t('Download output')}
+              title={t('Download output')}
               onClick={() => {
                 const url = URL.createObjectURL(
                   new Blob([bufferText()], {
@@ -460,8 +653,8 @@ export function TaskTerminal({
               />
               <input
                 className="field-control pl-8 text-sm"
-                aria-label="Search terminal output"
-                placeholder="Search output…"
+                aria-label={t('Search output…')}
+                placeholder={t('Search output…')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -482,14 +675,14 @@ export function TaskTerminal({
                 </span>
                 <button
                   className="icon-action"
-                  aria-label="Previous match"
+                  aria-label={t('Previous match')}
                   onClick={() => find(-1)}
                 >
                   <ChevronUp className="h-4 w-4" />
                 </button>
                 <button
                   className="icon-action"
-                  aria-label="Next match"
+                  aria-label={t('Next match')}
                   onClick={() => find(1)}
                 >
                   <ChevronDown className="h-4 w-4" />
@@ -507,7 +700,7 @@ export function TaskTerminal({
               }}
             >
               <ArrowDown className="h-4 w-4" />
-              Follow
+              {t('Follow')}
             </button>
           </div>
         </div>
@@ -516,29 +709,72 @@ export function TaskTerminal({
   )
   return (
     <section
-      aria-label="Session terminal"
-      className="flex h-full min-h-0 min-w-0 flex-col bg-[#141414]"
+      aria-label={t('Session terminal')}
+      className="task-terminal-container flex h-full min-h-0 min-w-0 flex-col bg-[#141414] overscroll-contain"
     >
       {controlsTarget ? createPortal(controls, controlsTarget) : controls}
-      {error && (
-        <p role="alert" className="shrink-0 text-sm text-destructive">
+      {showDisconnectBanner && (
+        <div
+          role="status"
+          className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <WifiOff className="h-4 w-4 shrink-0 text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-amber-200">
+                {connection === 'connecting'
+                  ? t('Reconnecting to terminal…')
+                  : t(
+                      'Terminal disconnected. The task is still running in the background.',
+                    )}
+              </p>
+              <p className="text-[11px] text-amber-300/80">
+                {connection === 'connecting'
+                  ? t('Connecting to active session…')
+                  : t('Auto-retry when tab becomes active')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={connection === 'connecting'}
+            onClick={handleReconnect}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50"
+            aria-label={language === 'id' ? 'Sambungkan Ulang' : t('Reconnect')}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${connection === 'connecting' ? 'animate-spin' : ''}`}
+            />
+            {connection === 'connecting'
+              ? t('Connecting…')
+              : language === 'id'
+                ? 'Sambungkan Ulang'
+                : t('Reconnect')}
+          </button>
+        </div>
+      )}
+      {error && !showDisconnectBanner && (
+        <p role="alert" className="shrink-0 px-3 py-1.5 text-xs text-destructive">
           {error}
         </p>
       )}
       {notice && (
-        <p role="status" className="shrink-0 text-xs text-muted-foreground">
+        <p role="status" className="shrink-0 px-3 py-1 text-xs text-muted-foreground">
           {notice}
         </p>
       )}
       <div
-        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-2"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-2 overscroll-contain"
         aria-label="Terminal output"
       >
-        <div ref={mount} className="h-full w-full" />
+        <div
+          ref={mount}
+          className="task-terminal-viewport h-full w-full overscroll-contain touch-none"
+        />
       </div>
       {liveId && (
         <div
-          className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-[#262626] bg-[#161616] px-2 py-1.5 select-none touch-pan-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-[#262626] bg-[#161616] px-2 py-1.5 select-none touch-pan-x overscroll-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           aria-label="Terminal keyboard shortcuts"
         >
           <button

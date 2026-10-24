@@ -55,6 +55,10 @@ func TestConversationAttachments(t *testing.T) {
 		if got.Code != 200 || !bytes.Equal(got.Body.Bytes(), f.data) {
 			t.Fatal(got.Code)
 		}
+		previewGot := call("GET", a.URL+"?preview=1", "")
+		if previewGot.Code != 200 || !bytes.Equal(previewGot.Body.Bytes(), f.data) || !strings.HasPrefix(previewGot.Header().Get("Content-Disposition"), "inline;") {
+			t.Fatal("preview inline disposition failed", previewGot.Code, previewGot.Header().Get("Content-Disposition"))
+		}
 		if got.Header().Get("X-Content-Type-Options") != "nosniff" {
 			t.Fatal("missing private download headers")
 		}

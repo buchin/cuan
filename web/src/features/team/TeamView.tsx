@@ -60,13 +60,13 @@ function AgentActions({
     >
       <button
         ref={trigger}
-        className="icon-action"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
         aria-label={`Actions ${name}`}
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
         disabled={disabled}
       >
-        <MoreVertical className="h-5 w-5" />
+        <MoreVertical className="h-4 w-4" />
       </button>
       {expanded && (
         <div className="absolute right-0 top-full z-20 mt-1 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">

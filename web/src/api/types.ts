@@ -89,9 +89,17 @@ export interface TaskActivity {
   new_status?: string
   created_at: string
 }
+export interface Attachment {
+  id: string
+  name: string
+  type: string
+  size: number
+  url: string
+}
 export interface TaskDetail extends Task {
   attempts: TaskAttempt[]
   activities: TaskActivity[]
+  attachments?: Attachment[]
 }
 export interface Task {
   result_kind?: 'answer' | 'implementation'

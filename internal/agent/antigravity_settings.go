@@ -77,10 +77,49 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 				changed = true
 			}
 		}
+		var perms struct {
+			Allow []string `json:"allow"`
+			Ask   []string `json:"ask,omitempty"`
+			Deny  []string `json:"deny,omitempty"`
+		}
+		if raw, ok := settings["permissions"]; ok {
+			_ = json.Unmarshal(raw, &perms)
+		}
+		readTools := []string{
+			"read_file(*)",
+			"view_file(*)",
+			"list_dir(*)",
+			"grep_search(*)",
+			"find_by_name(*)",
+			"view_file_outline(*)",
+			"view_code_item(*)",
+		}
+		allowSet := make(map[string]bool)
+		for _, rule := range perms.Allow {
+			allowSet[rule] = true
+		}
+		permsChanged := false
+		for _, rule := range readTools {
+			if !allowSet[rule] {
+				perms.Allow = append(perms.Allow, rule)
+				allowSet[rule] = true
+				permsChanged = true
+			}
+		}
+		if permsChanged || settings["permissions"] == nil {
+			if data, err := json.Marshal(perms); err == nil {
+				settings["permissions"] = data
+				changed = true
+			}
+		}
 	}
 	if !changed {
 		return nil
 	}
+	return writeAntigravitySettingsFile(dir, path, settings)
+}
+
+func writeAntigravitySettingsFile(dir, path string, settings map[string]json.RawMessage) error {
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
@@ -112,6 +151,85 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 	}
 	defer d.Close()
 	return d.Sync()
+}
+
+// PrepareAntigravityReadOnlyPermissions ensures read-only file/search tools are allowed in settings.json
+// to avoid interactive permission prompts or auto-denials in headless mode.
+func PrepareAntigravityReadOnlyPermissions(home string) error {
+	cliSettingsMu.Lock()
+	defer cliSettingsMu.Unlock()
+	dir := AntigravityConfigDirPath(home)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil || resolved != dir {
+		return errors.New("CLI settings directory needs review; no settings were changed")
+	}
+	path := filepath.Join(dir, "settings.json")
+	info, err := os.Lstat(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	settings := map[string]json.RawMessage{}
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return errors.New("CLI settings need review; existing settings were preserved")
+		}
+		data, e := os.ReadFile(path)
+		if e != nil {
+			return e
+		}
+		if json.Unmarshal(data, &settings) != nil || settings == nil {
+			return errors.New("CLI settings could not be read; existing settings were preserved")
+		}
+	}
+	changed := false
+	for key, value := range map[string]json.RawMessage{"colorScheme": json.RawMessage(`"terminal"`), "enableTelemetry": json.RawMessage(`false`)} {
+		if _, exists := settings[key]; !exists {
+			settings[key] = value
+			changed = true
+		}
+	}
+	var perms struct {
+		Allow []string `json:"allow"`
+		Ask   []string `json:"ask,omitempty"`
+		Deny  []string `json:"deny,omitempty"`
+	}
+	if raw, ok := settings["permissions"]; ok {
+		_ = json.Unmarshal(raw, &perms)
+	}
+	readTools := []string{
+		"read_file(*)",
+		"view_file(*)",
+		"list_dir(*)",
+		"grep_search(*)",
+		"find_by_name(*)",
+		"view_file_outline(*)",
+		"view_code_item(*)",
+	}
+	allowSet := make(map[string]bool)
+	for _, rule := range perms.Allow {
+		allowSet[rule] = true
+	}
+	permsChanged := false
+	for _, rule := range readTools {
+		if !allowSet[rule] {
+			perms.Allow = append(perms.Allow, rule)
+			allowSet[rule] = true
+			permsChanged = true
+		}
+	}
+	if permsChanged || settings["permissions"] == nil {
+		if data, err := json.Marshal(perms); err == nil {
+			settings["permissions"] = data
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return writeAntigravitySettingsFile(dir, path, settings)
 }
 
 // PrepareAntigravitySettings configures settings.json defaults and trusts the given workspaces.

@@ -79,16 +79,16 @@ export function InboxActivity({
     ? Array.from(latestActivity.text).slice(0, 140).join('')
     : t('Working…')
   const autoRecovery = q.steps?.some((step) => step.kind === 'retry_auto')
-  const compact = q.state === 'completed' && !bubble
-  if (compact) {
-    return null
-  }
   const active = ['queued', 'running', 'cancelling'].includes(q.state)
   useEffect(() => {
     if (!active) return
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [active])
+  const compact = q.state === 'completed' && !bubble
+  if (compact) {
+    return null
+  }
   const start = Date.parse(q.started_at || q.created_at)
   const finished = q.steps
     ?.slice()

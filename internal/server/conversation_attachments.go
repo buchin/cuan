@@ -110,7 +110,9 @@ func validateAttachmentIDs(owner string, ids []string) error {
 		}
 		seen[id] = true
 		if _, _, err := loadAttachment(owner, id); err != nil {
-			return errors.New("An attachment is unavailable. Upload it again")
+			if _, _, errV := loadAttachment("visitor", id); errV != nil {
+				return errors.New("An attachment is unavailable. Upload it again")
+			}
 		}
 	}
 	return nil
@@ -119,6 +121,24 @@ func (s *Server) handleUploadConversationAttachment(w http.ResponseWriter, r *ht
 	owner := s.accountOwner(w, r)
 	if owner == "" {
 		return
+	}
+
+	convID := strings.TrimSpace(r.URL.Query().Get("conversation_id"))
+	if convID == "" {
+		convID = strings.TrimSpace(r.FormValue("conversation_id"))
+	}
+	if convID == "" {
+		convID = strings.TrimSpace(r.URL.Query().Get("room_id"))
+		if convID == "" {
+			convID = strings.TrimSpace(r.FormValue("room_id"))
+		}
+	}
+	if convID != "" {
+		resolved := s.resolveConversationContext(r.Context(), convID, "")
+		if !resolved.IsAgent {
+			respondJSONError(w, http.StatusForbidden, "Operator cannot upload attachments in customer conversations. File sharing is customer-to-operator only.")
+			return
+		}
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, attachmentLimit+(1<<20))
 	if err := r.ParseMultipartForm(1 << 20); err != nil {
@@ -193,7 +213,11 @@ func (s *Server) handleDownloadConversationAttachment(w http.ResponseWriter, r *
 	if owner == "" {
 		return
 	}
-	a, path, err := loadAttachment(owner, chi.URLParam(r, "id"))
+	id := chi.URLParam(r, "id")
+	a, path, err := loadAttachment(owner, id)
+	if err != nil {
+		a, path, err = loadAttachment("visitor", id)
+	}
 	if err != nil {
 		respondJSONError(w, 404, "Attachment not found")
 		return
@@ -205,6 +229,138 @@ func (s *Server) handleDownloadConversationAttachment(w http.ResponseWriter, r *
 	disposition := "attachment"
 	if strings.HasPrefix(a.Type, "image/") {
 		disposition = "inline"
+	}
+	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": a.Name}))
+	http.ServeFile(w, r, path)
+}
+
+func (s *Server) handleVisitorUploadAttachment(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, attachmentLimit+(1<<20))
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		respondJSONError(w, 413, "Choose a file up to 10 MB")
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		respondJSONError(w, 400, "Choose a file to upload")
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, attachmentLimit+1))
+	if err != nil || len(data) == 0 || len(data) > attachmentLimit {
+		respondJSONError(w, 413, "Choose a nonempty file up to 10 MB")
+		return
+	}
+	name := filepath.Base(strings.ReplaceAll(header.Filename, "\\", "/"))
+	if len(name) > 180 || strings.ContainsAny(name, "\r\n\x00") {
+		respondJSONError(w, 400, "Use a filename up to 180 bytes")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	kind := ""
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif":
+		config, format, e := image.DecodeConfig(bytes.NewReader(data))
+		if e == nil && config.Width > 0 && config.Height > 0 && int64(config.Width)*int64(config.Height) <= 40000000 {
+			kind = "image/" + format
+		}
+	case ".pdf":
+		if bytes.HasPrefix(data, []byte("%PDF-")) {
+			kind = "application/pdf"
+		}
+	case ".txt", ".md", ".csv":
+		if utf8.Valid(data) && !bytes.ContainsRune(data, 0) {
+			kind = "text/plain"
+			if ext == ".csv" {
+				kind = "text/csv"
+			}
+		}
+	}
+	if kind == "" {
+		respondJSONError(w, 415, "Use PNG, JPEG, GIF, PDF, TXT, Markdown or CSV. Images must be under 40 megapixels")
+		return
+	}
+
+	attID := db.GenerateUUID()
+	a := conversationAttachment{
+		ID:   attID,
+		Name: name,
+		Type: kind,
+		Size: int64(len(data)),
+		URL:  "/api/chat/attachments/" + attID,
+	}
+
+	dir, err := attachmentDirectory("visitor", a.ID)
+	if err == nil {
+		err = os.MkdirAll(dir, 0700)
+	}
+	if err == nil {
+		err = os.WriteFile(filepath.Join(dir, "content"+filepath.Ext(name)), data, 0600)
+	}
+	if err == nil {
+		raw, _ := json.Marshal(a)
+		err = os.WriteFile(filepath.Join(dir, "metadata.json"), raw, 0600)
+	}
+	if err != nil {
+		if dir != "" {
+			_ = os.RemoveAll(dir)
+		}
+		respondJSONError(w, 503, "Could not store this file. Try again")
+		return
+	}
+	respondJSON(w, 201, a)
+}
+
+func (s *Server) handleVisitorDownloadAttachment(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	a, path, err := loadAttachment("visitor", id)
+	if err != nil {
+		respondJSONError(w, 404, "Attachment not found")
+		return
+	}
+	w.Header().Set("Content-Type", a.Type)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	disposition := "attachment"
+	isPreview := r.URL.Query().Get("preview") == "1" || r.URL.Query().Get("preview") == "true" || r.URL.Query().Get("inline") == "1" || r.URL.Query().Get("inline") == "true" || r.URL.Query().Get("disposition") == "inline"
+	ext := strings.ToLower(filepath.Ext(a.Name))
+	isImageExt := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".gif" || ext == ".svg" || ext == ".ico" || ext == ".bmp"
+	if strings.HasPrefix(a.Type, "image/") || isImageExt || isPreview {
+		disposition = "inline"
+		if a.Type == "" || a.Type == "application/octet-stream" {
+			switch ext {
+			case ".png":
+				w.Header().Set("Content-Type", "image/png")
+			case ".jpg", ".jpeg":
+				w.Header().Set("Content-Type", "image/jpeg")
+			case ".webp":
+				w.Header().Set("Content-Type", "image/webp")
+			case ".gif":
+				w.Header().Set("Content-Type", "image/gif")
+			case ".svg":
+				w.Header().Set("Content-Type", "image/svg+xml")
+			case ".ico":
+				w.Header().Set("Content-Type", "image/x-icon")
+			case ".bmp":
+				w.Header().Set("Content-Type", "image/bmp")
+			case ".md", ".markdown":
+				w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			case ".txt", ".text", ".log", ".diff", ".patch":
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			case ".json":
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			case ".html", ".htm":
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			case ".csv":
+				w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+			case ".tsv":
+				w.Header().Set("Content-Type", "text/tab-separated-values; charset=utf-8")
+			}
+		}
 	}
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": a.Name}))
 	http.ServeFile(w, r, path)

@@ -75,6 +75,7 @@ export interface ModelInfo {
   description?: string
   is_default?: boolean
   supports_vision?: boolean
+  multimodal?: boolean
 }
 
 export function isModelVisionCapable(modelId?: string, provider?: string): boolean {
@@ -108,6 +109,17 @@ export const agentsApi = {
   authInit: (harness = 'agy') => apiFetch<HarnessAuth>('/api/v1/agents/auth-init', { method: 'POST', body: JSON.stringify({ harness }) }),
   authCode: (session_id: string, code: string) => apiFetch<HarnessAuth>('/api/v1/agents/auth-code', { method: 'POST', body: JSON.stringify({ session_id, code }) }),
   authCancel: (session_id: string) => apiFetch('/api/v1/agents/auth-code?cancel=true', { method: 'POST', body: JSON.stringify({ session_id, code: '' }) }),
+  replaceCredentials: (id: string, apiKey: string) =>
+    apiFetch<{ status: string }>(
+      `/api/v1/agents/${encodeURIComponent(id)}/connection/credentials`,
+      { method: 'POST', body: JSON.stringify({ api_key: apiKey }) },
+    ),
+  listModels: async (provider = 'commandcode'): Promise<ModelInfo[]> =>
+    (
+      await apiFetch<{ models: ModelInfo[] }>(
+        `/api/v1/agents/models?provider=${encodeURIComponent(provider)}`,
+      )
+    ).models || [],
   list: async (): Promise<Agent[]> => {
     const res = await apiFetch<{ status: string; agents: Agent[]; count: number }>('/api/v1/agents')
     return res.agents || []

@@ -105,6 +105,12 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		safe := false
 		output, failure := func() (string, string) {
 			defer release()
+			if route.home != "" {
+				if workspace != "" {
+					_ = agent.PrepareAntigravitySettings(route.home, workspace)
+				}
+				_ = agent.PrepareAntigravityReadOnlyPermissions(route.home)
+			}
 			return s.executeInboxCLIWithSafety(attemptCtx, registered.Name, registered.Harness, prompt, route.home, workspace, step, &safe, attachments...)
 		}()
 		if output != "" {
@@ -230,6 +236,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		candidateHome, err := s.ownedAgentProfileHome(ctx, owner, bound)
 		if err == nil && candidateHome != "" {
 			_ = agent.PrepareAntigravitySettings(candidateHome)
+			_ = agent.PrepareAntigravityReadOnlyPermissions(candidateHome)
 			_ = agent.EnsureAntigravityOnboarding(candidateHome)
 			if !agent.AntigravityOnboardingComplete(candidateHome) {
 				continue

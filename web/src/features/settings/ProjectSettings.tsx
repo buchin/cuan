@@ -68,23 +68,20 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <textarea id="project-instructions" className="field-control min-h-28 resize-y py-3" rows={4} maxLength={4000} disabled={busy} value={form.instructions} onChange={event => change('instructions', event.target.value)} placeholder={t('Preferences, constraints, or context Cuan should remember.')} />
         <p className="text-xs text-muted-foreground">{t('Applies to new tasks. Existing tasks keep their original instructions.')}</p>
       </div>
-      <div className="space-y-2 pt-1">
-        <label htmlFor="project-auto-deploy" className="flex items-start gap-3 cursor-pointer">
-          <input
-            id="project-auto-deploy"
-            type="checkbox"
-            className="mt-1 h-4 w-4 rounded border-gray-300"
-            checked={form.auto_deploy}
-            disabled={busy}
-            onChange={event => change('auto_deploy', event.target.checked)}
-          />
-          <div className="space-y-0.5">
-            <span className="text-sm font-medium text-foreground">{t('Auto-deploy completed tasks to live server')}</span>
-            <p className="text-xs text-muted-foreground leading-normal">
-              {t('When enabled (recommended), changes verified by Scrum Master are automatically deployed live. You can override this per task.')}
-            </p>
-          </div>
-        </label>
+      <div className="flex items-center justify-between rounded-lg border bg-muted/10 p-3 sm:p-4">
+        <div className="space-y-0.5">
+          <label htmlFor="project-auto-deploy" className="text-sm font-medium">{t('Auto-deploy completed tasks to live server')}</label>
+          <p className="text-xs text-muted-foreground">{t('When enabled (recommended), changes verified by Scrum Master are automatically deployed live. You can override this per task.')}</p>
+        </div>
+        <input
+          id="project-auto-deploy"
+          type="checkbox"
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          checked={form.auto_deploy}
+          disabled={busy}
+          onChange={event => change('auto_deploy', event.target.checked)}
+        />
+      </div>
       </div>
       {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
       </>}

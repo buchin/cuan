@@ -66,7 +66,43 @@
 @media (min-width: 768px) {
   .wa-chat .chat-markdown, .wa-chat .wa-plain-text { font-size: 15px; }
 }
-.wa-chat .chat-markdown blockquote { border-left-color: var(--wa-send); background: rgb(128 128 128 / .08); padding: .4em .65em; border-radius: 4px; }
+.wa-chat .chat-markdown blockquote {
+  border-left: 3.5px solid var(--wa-send);
+  background: rgba(128, 128, 128, 0.08);
+  border-radius: 0 6px 6px 0;
+  padding: 5px 9px;
+  margin: 3px 0 6px 0;
+  max-height: 6rem;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--wa-meta);
+  overflow: hidden;
+}
+.dark .wa-chat .chat-markdown blockquote {
+  background: rgba(255, 255, 255, 0.06);
+  border-left-color: var(--wa-send);
+  color: #b5b5b5;
+}
+.wa-incoming .chat-markdown blockquote {
+  border-left-color: var(--wa-send);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--wa-meta);
+}
+.dark .wa-incoming .chat-markdown blockquote {
+  background: rgba(255, 255, 255, 0.07);
+  border-left-color: var(--wa-send);
+  color: #b5b5b5;
+}
+.wa-outgoing .chat-markdown blockquote {
+  border-left-color: #008069;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--wa-outgoing-meta);
+}
+.dark .wa-outgoing .chat-markdown blockquote {
+  border-left-color: #00a884;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--wa-outgoing-meta);
+}
 @media (min-width: 1200px) { .wa-message-bubble { max-width: min(75%, 72ch); } }
 /* Reserve the end of a final paragraph so its timestamp can share that line.
    Lists, code and tables keep a separate compact footer. */
@@ -74,11 +110,50 @@
 .wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer { position: absolute; right: 9px; bottom: 7px; min-height: 0; }
 .wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer .wa-message-meta { float: none; margin: 0; }
 
+/* Result-based status report cards inside message bubbles */
+.wa-message-bubble:has(.status-report-card) {
+  width: 100%;
+  max-width: min(94%, 640px);
+  padding: 6px;
+}
+@media (min-width: 1024px) {
+  .wa-message-bubble:has(.status-report-card) {
+    max-width: min(85%, 680px);
+  }
+}
+.wa-message-bubble:has(.status-report-card) .wa-markdown-footer {
+  position: static;
+  margin-top: 4px;
+}
+
 /* Conversation list uses the same neutral surfaces as the chat. */
 .inbox-list { background: #ffffff; }
 .inbox-search { background: #f0f2f5; }
 .dark .inbox-list { background: #121212; }
 .dark .inbox-search, .dark .app-page-header { background: #1a1a1a; }
+
+/* Subtle inset divider between conversation list items */
+.inbox-item-divider {
+  position: absolute;
+  bottom: 0;
+  left: 3.75rem; /* 60px: 12px padding + 36px avatar + 12px gap, aligns with message text without cutting avatar */
+  right: 0;
+  inset-inline-start: 3.75rem;
+  inset-inline-end: 0;
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+
+.dark .inbox-item-divider {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Safety: ensure last item in container list never has a trailing border */
+.inbox-list .overflow-y-auto > :last-child .inbox-item-divider,
+.inbox-item-row:last-child .inbox-item-divider {
+  display: none !important;
+}
 
 .message-actions .wa-message-bubble { max-width: 100%; }
 

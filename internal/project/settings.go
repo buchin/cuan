@@ -39,6 +39,7 @@ type UpdateSettingsRequest struct {
 	Instructions      string    `json:"instructions"`
 	RepoURL           string    `json:"repo_url"`
 	DefaultBranch     string    `json:"default_branch"`
+	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
 	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 }
@@ -53,6 +54,7 @@ type taskProjectSnapshot struct {
 	Revision           string `json:"workspace_revision"`
 	Goal               string `json:"goal,omitempty"`
 	Instructions       string `json:"instructions,omitempty"`
+	AutoDeploy         *bool  `json:"auto_deploy,omitempty"`
 }
 
 func SettingsFromMetadata(raw json.RawMessage) Settings {
@@ -72,7 +74,15 @@ const snapshotMarker = "\n\nProject guidance snapshot (context only; does not ex
 // creation. Historical workspace paths never come from task text.
 func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 	settings := SettingsFromMetadata(p.Metadata)
-	raw, _ := json.Marshal(taskProjectSnapshot{IsolatedRepository: p.RepoURL != "", ProjectID: p.ID, Revision: settings.WorkspaceRevision, Goal: settings.Goal, Instructions: settings.Instructions})
+	autoDeploy := settings.IsAutoDeployEnabled()
+	raw, _ := json.Marshal(taskProjectSnapshot{
+		IsolatedRepository: p.RepoURL != "",
+		ProjectID:          p.ID,
+		Revision:           settings.WorkspaceRevision,
+		Goal:               settings.Goal,
+		Instructions:       settings.Instructions,
+		AutoDeploy:         &autoDeploy,
+	})
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
 }
 
@@ -121,6 +131,16 @@ func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*
 	p.LocalPath = original.Binding.LocalPath
 	p.RepoURL = original.Binding.RepoURL
 	p.DefaultBranch = original.Binding.Branch
+	if p.LocalPath != "" {
+		if fi, err := os.Stat(p.LocalPath); err != nil || !fi.IsDir() {
+			if current, err := s.store.GetProject(ctx, p.ID); err == nil && current != nil {
+				s.ensureValidLocalPath(ctx, current)
+				if fi, err := os.Stat(current.LocalPath); err == nil && fi.IsDir() {
+					p.LocalPath = current.LocalPath
+				}
+			}
+		}
+	}
 	return p, nil
 }
 

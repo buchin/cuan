@@ -287,8 +287,20 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 				if idx := strings.Index(msg, "\n"); idx != -1 {
 					msg = msg[:idx]
 				}
-				latestProgress = strings.TrimSpace(msg)
+				cleaned := CleanTerminalStatusLine(msg)
+				if cleaned != "" {
+					latestProgress = cleaned
+				}
 			}
+		}
+	}
+	if latestProgress == "" && latestAttempt != nil && latestAttempt.Status == AttemptStatusRunning {
+		if logs, err := s.GetAttemptLogs(ctx, latestAttempt.ID, 0, 50); err == nil && len(logs) > 0 {
+			lines := make([]string, len(logs))
+			for i, l := range logs {
+				lines[i] = l.Line
+			}
+			latestProgress = ExtractRunnerLiveActivity(lines)
 		}
 	}
 

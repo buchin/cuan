@@ -786,19 +786,59 @@ func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[strin
 		WHERE task_id = ANY($1::text[]) AND activity_type = 'agent_report' AND new_status = 'progress'
 		ORDER BY task_id, created_at DESC, id DESC
 	`, ids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id, msg string
-		if err := rows.Scan(&id, &msg); err != nil {
-			return nil, err
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id, msg string
+			if err := rows.Scan(&id, &msg); err == nil {
+				if idx := strings.Index(msg, "\n"); idx != -1 {
+					msg = msg[:idx]
+				}
+				cleaned := CleanTerminalStatusLine(msg)
+				if cleaned != "" {
+					result[id] = cleaned
+				}
+			}
 		}
-		if idx := strings.Index(msg, "\n"); idx != -1 {
-			msg = msg[:idx]
-		}
-		result[id] = strings.TrimSpace(msg)
 	}
-	return result, rows.Err()
+
+	missing := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if result[id] == "" {
+			missing = append(missing, id)
+		}
+	}
+
+	if len(missing) > 0 {
+		logRows, err := s.db.QueryContext(ctx, `
+			SELECT a.task_id, l.line
+			FROM task_attempts a
+			JOIN LATERAL (
+				SELECT line
+				FROM agent_logs
+				WHERE attempt_id = a.id AND stream = 'stdout'
+				ORDER BY id DESC
+				LIMIT 30
+			) l ON true
+			WHERE a.task_id = ANY($1::text[]) AND a.status = 'running'
+			ORDER BY a.task_id, a.started_at DESC
+		`, missing)
+		if err == nil {
+			defer logRows.Close()
+			taskLines := map[string][]string{}
+			for logRows.Next() {
+				var tid, line string
+				if err := logRows.Scan(&tid, &line); err == nil {
+					taskLines[tid] = append(taskLines[tid], line)
+				}
+			}
+			for tid, lines := range taskLines {
+				if extracted := ExtractRunnerLiveActivity(lines); extracted != "" {
+					result[tid] = extracted
+				}
+			}
+		}
+	}
+
+	return result, nil
 }

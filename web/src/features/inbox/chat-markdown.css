@@ -14,7 +14,36 @@
 .chat-markdown li > p { margin: .25em 0; }
 .chat-markdown li > ul, .chat-markdown li > ol { margin: .25em 0; }
 .chat-markdown a { color: oklch(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
-.chat-markdown blockquote { border-left: 3px solid oklch(var(--border)); padding-left: .9em; color: oklch(var(--muted-foreground)); }
+.chat-markdown blockquote {
+  position: relative;
+  display: block;
+  margin: 0.35rem 0 0.5rem 0;
+  border-left: 3.5px solid oklch(var(--primary));
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 0 6px 6px 0;
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: oklch(var(--muted-foreground));
+  max-height: 6.25rem;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.chat-reply-body {
+  max-height: 5.5rem;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.chat-reply-body > :first-child { margin-top: 0; }
+.chat-reply-body > :last-child { margin-bottom: 0; }
+.chat-reply-body p { margin: 2px 0; font-size: inherit; line-height: inherit; }
+.chat-reply-body ul, .chat-reply-body ol { margin: 2px 0; padding-left: 1.2em; }
+.chat-reply-body li { margin: 1px 0; }
 .chat-markdown :not(pre) > code { border-radius: .25rem; padding: .1em .3em; background: oklch(var(--muted)); font-size: .9em; }
 .chat-markdown .chat-code, .chat-markdown .chat-table { max-width: 100%; min-width: 0; }
 .chat-markdown pre { overflow-x: auto; max-width: 100%; padding: .8rem; font-size: .85em; line-height: 1.6; white-space: pre; overflow-wrap: normal; }

@@ -1053,7 +1053,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	}
 	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
 	if len(payload.AttachmentIDs) > 0 && !resolved.IsAgent {
-		respondJSONError(w, 400, "Attachments are currently supported in agent conversations")
+		respondJSONError(w, http.StatusForbidden, "Operator cannot send attachments to customer. File sharing is customer-to-operator only.")
 		return
 	}
 	if payload.ApproveMessageID == "" && resolved.IsAgent && len(payload.AttachmentIDs) == 0 {
@@ -1353,6 +1353,9 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			for _, id := range ids {
 				// Owner-only APIs share the account context; files remain private.
 				a, _, err := loadAttachmentForMessage(ctx, s, roomID, m.ID, id)
+				if err != nil {
+					a, _, err = loadAttachment("visitor", id)
+				}
 				if err == nil {
 					attached = append(attached, a)
 				}

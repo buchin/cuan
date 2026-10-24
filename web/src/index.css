@@ -133,10 +133,15 @@
   border-color: oklch(var(--border));
 }
 
+html {
+  overscroll-behavior-y: contain;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overscroll-behavior-y: contain;
   background-color: oklch(var(--background));
   color: oklch(var(--foreground));
   font-family: var(--font-sans);
@@ -149,6 +154,7 @@ body {
 /* One mobile viewport owner; nested Inbox panels only consume available space. */
 .app-shell {
   height: 100dvh;
+  overscroll-behavior-y: contain;
 }
 @media (max-width: 767px) {
   .app-shell {
@@ -156,6 +162,7 @@ body {
     inset-inline: 0;
     top: var(--visible-top, 0px);
     height: var(--visible-height, 100dvh);
+    overscroll-behavior-y: contain;
   }
 }
 
@@ -348,4 +355,26 @@ body {
 .item-action-row:has(:is(.project-list-row, .contact-list-row)[aria-current="page"]),
 .item-action-row:has(.contact-list-row[aria-pressed="true"]) {
   background: oklch(var(--accent));
+}
+
+/* Subtle inset divider between conversation list items */
+.inbox-item-divider {
+  position: absolute;
+  bottom: 0;
+  left: 3.75rem; /* 60px inset: aligns with message text (12px padding + 36px avatar + 12px gap) */
+  right: 0;
+  inset-inline-start: 3.75rem;
+  inset-inline-end: 0;
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+
+.dark .inbox-item-divider {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.inbox-list .overflow-y-auto > :last-child .inbox-item-divider,
+.inbox-item-row:last-child .inbox-item-divider {
+  display: none !important;
 }

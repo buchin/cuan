@@ -68,7 +68,36 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string) 
 		id := delegationMessageID("task-artifact:" + taskID + ":" + attemptID + ":" + path + ":" + hex.EncodeToString(hash[:]))
 		kind := mime.TypeByExtension(filepath.Ext(path))
 		if kind == "" {
-			kind = "application/octet-stream"
+			switch strings.ToLower(filepath.Ext(path)) {
+			case ".md", ".markdown":
+				kind = "text/markdown; charset=utf-8"
+			case ".txt", ".text", ".log", ".diff", ".patch":
+				kind = "text/plain; charset=utf-8"
+			case ".json":
+				kind = "application/json"
+			case ".png":
+				kind = "image/png"
+			case ".jpg", ".jpeg":
+				kind = "image/jpeg"
+			case ".webp":
+				kind = "image/webp"
+			case ".gif":
+				kind = "image/gif"
+			case ".svg":
+				kind = "image/svg+xml"
+			case ".ico":
+				kind = "image/x-icon"
+			case ".bmp":
+				kind = "image/bmp"
+			case ".html", ".htm":
+				kind = "text/html; charset=utf-8"
+			case ".csv":
+				kind = "text/csv; charset=utf-8"
+			case ".tsv":
+				kind = "text/tab-separated-values; charset=utf-8"
+			default:
+				kind = "application/octet-stream"
+			}
 		}
 		a := conversationAttachment{ID: id, Name: filepath.Base(path), Type: kind, Size: int64(len(data)), URL: "/api/v1/chat/attachments/" + id}
 		result = append(result, preparedTaskArtifact{a, data})

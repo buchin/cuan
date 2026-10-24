@@ -176,3 +176,40 @@ func TestProjectSettingsRepositoryChangesAreVerifiedAndIsolated(t *testing.T) {
 }
 
 func strconvQuote(value string) string { raw, _ := json.Marshal(value); return string(raw) }
+
+func TestProjectSettingsAutoDeploy(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	initial := &Project{ID: "proj_autodeploy", Name: "AutoDeploy Test", DefaultBranch: "main", Metadata: json.RawMessage(`{}`), UpdatedAt: time.Now().UTC()}
+	if err := store.CreateProject(ctx, initial); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store, nil, "fixture-secret", t.TempDir())
+	p, _ := service.Get(ctx, initial.ID)
+	settings := SettingsFromMetadata(p.Metadata)
+	if !settings.IsAutoDeployEnabled() {
+		t.Fatal("expected auto_deploy to default to true")
+	}
+
+	falseVal := false
+	req := UpdateSettingsRequest{Name: "AutoDeploy Test", AutoDeploy: &falseVal, ExpectedUpdatedAt: p.UpdatedAt}
+	saved, err := service.UpdateSettings(ctx, p.ID, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedSettings := SettingsFromMetadata(saved.Metadata)
+	if savedSettings.IsAutoDeployEnabled() {
+		t.Fatal("expected auto_deploy to be false after explicit update")
+	}
+
+	trueVal := true
+	req2 := UpdateSettingsRequest{Name: "AutoDeploy Test", AutoDeploy: &trueVal, ExpectedUpdatedAt: saved.UpdatedAt}
+	saved2, err := service.UpdateSettings(ctx, p.ID, req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedSettings2 := SettingsFromMetadata(saved2.Metadata)
+	if !savedSettings2.IsAutoDeployEnabled() {
+		t.Fatal("expected auto_deploy to be true after update")
+	}
+}

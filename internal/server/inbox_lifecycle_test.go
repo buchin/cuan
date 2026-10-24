@@ -325,5 +325,66 @@ func TestInboxLifecycleNegativeCasesAndRetainedTaskOutput(t *testing.T) {
 	if w := call("GET", "/api/v1/tasks/nonexistent-task/terminal", ""); w.Code != 404 {
 		t.Fatal("unbound terminal accepted", w.Code)
 	}
+}
 
+func TestInboxLifecycleToolPermissionDeniedRecoversDirectly(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	bin := strings.Split(os.Getenv("PATH"), ":")[0]
+	// First invocation simulates denied tool execution. Analysis recovery also simulates repeated denial.
+	// When direct response recovery runs (detected via "Direct coordinator response mode" in prompt),
+	// it answers directly without calling tools.
+	script := `#!/bin/sh
+printf x >> "$HOME/calls"
+case "$2" in
+*"Direct coordinator response mode"*)
+	printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Direct recovered reply after permission denied.\",\"topic_title\":\"\",\"action\":null}"}}'
+	;;
+*)
+	printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"step_type":"tool","state":"DONE","tool_name":"run_command"}}' '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"run_command"}]}}'
+	;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/v1/chat/conversations/agent_lifecycle/messages"
+	id := db.GenerateUUID()
+	w := call("POST", path, `{"request_id":"`+id+`","message":"Investigate permission issue"}`)
+	if w.Code != 202 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var accepted struct{ Request db.InboxRequest }
+	if err := json.Unmarshal(w.Body.Bytes(), &accepted); err != nil {
+		t.Fatal(err)
+	}
+	waitInboxState(t, s, accepted.Request.RoomID, id, "completed")
+	messages, err := s.projectStudioRepo.ListMessagesByRoomID(context.Background(), accepted.Request.RoomID)
+	if err != nil || len(messages) < 2 {
+		t.Fatalf("expected reply message, got err=%v messages=%+v", err, messages)
+	}
+	last := messages[len(messages)-1]
+	if !strings.Contains(last.Content, "Direct recovered reply after permission denied.") {
+		t.Fatalf("expected recovered reply, got %s", last.Content)
+	}
+	stored, err := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(context.Background(), accepted.Request.RoomID)
+	if err != nil || len(stored) == 0 {
+		t.Fatal("missing stored request")
+	}
+	foundRecovery := false
+	for _, req := range stored {
+		if req.RequestID == id {
+			if req.SafeError != "" {
+				t.Fatalf("expected empty safe error on successful recovery, got: %s", req.SafeError)
+			}
+			for _, step := range req.Steps {
+				if step.Kind == "response_recovery" {
+					foundRecovery = true
+					break
+				}
+			}
+		}
+	}
+	if !foundRecovery {
+		t.Fatal("missing response_recovery step in request steps")
+	}
 }

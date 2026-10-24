@@ -88,7 +88,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	system := inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nContext data:\n" + prompt
 	if directCoordinator {
-		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). As Scrum Master, manage the dev team directly: if the user authorized work ('gas', 'lanjut', etc.), reported an error/failure, or instructed you to fix an issue ('fixit', 'perbaiki', 'investigasi'), emit a delegation action immediately so the dev runner executes it. If the user uses affirmative triggers or reminds you of your role ('kan ente sm'), never ask '\"Gas\" ke mana?' or deflect; proactively synthesize the discussed topics into a plan with Scope & DoD and emit an approval or delegation action. Never deflect or give manual troubleshooting checklists to the user. If proposing a plan, fix, or next steps, you MUST emit an approval or task_draft action object matching the schema so the UI renders interactive choice buttons. Never tell the user to manually open, create or run tasks.\n\nContext data:\n" + prompt
+		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted during project analysis. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). As Scrum Master, manage the dev team directly:\n- NEVER ask the user to provide manual screenshots, copy-paste code, or manually inspect repository files.\n- If the analysis requires deep investigation, the user reports an error/failure, or the user authorized work ('gas', 'lanjut', 'fixit', 'perbaiki', 'investigasi', etc.), smoothly delegate to an autonomous analysis or repair session ('Sesi Analisis Mandiri') by emitting a delegation action immediately so the dev runner executes it.\n- If the user uses affirmative triggers or reminds you of your role ('kan ente sm'), never ask '\"Gas\" ke mana?' or deflect; proactively synthesize the discussed topics into a plan with Scope & DoD and emit an approval or delegation action. Never deflect or give manual troubleshooting checklists to the user.\n- If proposing a plan, fix, code change, repair steps, deep analysis, or next steps, you MUST emit an approval or task_draft action object matching the schema so the UI renders interactive choice buttons. Never output repair or analysis recommendations without an action approval object. Never tell the user to manually open, create or run tasks.\n\nContext data:\n" + prompt
 	}
 	if analysisRecovery {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
@@ -162,6 +162,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			timeout = "30s"
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
+		if workspace != "" {
+			args = append(args, "--add-dir", workspace)
+		}
 		if answerOnly {
 			args = []string{"-p", system, "--print-timeout", "20s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
 		}
@@ -225,6 +228,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	if err != nil {
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
+	}
+	if (binary == "agy" || binary == "antigravity" || harness == "agy" || harness == "antigravity" || harness == "") && home != "" {
+		if workspace != "" {
+			_ = agent.PrepareAntigravitySettings(home, workspace)
+		}
+		_ = agent.PrepareAntigravityReadOnlyPermissions(home)
 	}
 	profileEnv := agent.AntigravityProfileEnvironment(home)
 	if binary == "commandcode" {

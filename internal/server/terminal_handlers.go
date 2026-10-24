@@ -243,6 +243,15 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	agentID := strings.TrimSpace(payload.AgentID)
+	if agentID == "" && s.taskSvc != nil {
+		if t, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && t != nil {
+			if t.AssignedAgent != "" {
+				agentID = t.AssignedAgent
+			} else if t.LatestAttempt != nil && t.LatestAttempt.AgentName != "" {
+				agentID = t.LatestAttempt.AgentName
+			}
+		}
+	}
 	if agentID == "" {
 		respondJSONError(w, http.StatusBadRequest, "Select a registered agent first")
 		return
@@ -252,6 +261,22 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	registeredAgent, err := s.agentRepo.GetAgentByID(r.Context(), agentID)
+	if (err != nil || registeredAgent == nil) && s.agentRepo != nil {
+		cleanID := strings.TrimPrefix(agentID, "@")
+		if ag, e := s.agentRepo.GetAgentByID(r.Context(), "agent_"+cleanID); e == nil && ag != nil {
+			registeredAgent = ag
+			err = nil
+		} else if ags, e := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{}); e == nil {
+			for _, a := range ags {
+				if strings.EqualFold(a.ID, agentID) || strings.EqualFold(a.ID, "agent_"+cleanID) || strings.EqualFold(a.Name, agentID) || strings.EqualFold(strings.TrimPrefix(a.Name, "@"), cleanID) {
+					agCopy := a
+					registeredAgent = &agCopy
+					err = nil
+					break
+				}
+			}
+		}
+	}
 	if err != nil || registeredAgent == nil {
 		respondJSONError(w, http.StatusNotFound, "Agent is not registered")
 		return
@@ -398,6 +423,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				}
 				if project.RepoURL != "" || project.LocalPath != "" {
 					info, e := os.Stat(project.LocalPath)
+					if project.RepoURL != "" && (project.LocalPath == "" || e != nil || !info.IsDir() || project.CloneStatus != "synced") {
+						// Auto-sync repository workspace automatically before launching agent session
+						if synced, syncErr := s.projectSvc.Sync(r.Context(), detail.ProjectID); syncErr == nil && synced != nil {
+							project = synced
+							info, e = os.Stat(project.LocalPath)
+						}
+					}
 					if project.LocalPath == "" || e != nil || !info.IsDir() {
 						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 						return

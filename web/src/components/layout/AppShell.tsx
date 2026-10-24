@@ -1,5 +1,6 @@
 import { KeyboardShortcuts } from './KeyboardShortcuts'
 import { UniversalSearch } from './UniversalSearch'
+import { ReloadButton } from '../ui/ReloadButton'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { NotificationsPopover } from '../../features/notifications/NotificationsPopover'
 import { ArrowLeft } from 'lucide-react'
@@ -279,6 +280,11 @@ export function AppShell({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <UniversalSearch />
+            <ReloadButton
+              className="icon-action"
+              iconClassName="h-4 w-4 sm:h-5 sm:w-5"
+              title={t('Reload app')}
+            />
             {headerActions}
             {currentTab !== 'notifications' && <NotificationsPopover />}
             {currentTab === 'inbox' && (
