@@ -1187,11 +1187,20 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cc := agent.StartCommandCodeAuth(owner.ID)
+		if cc.AuthURL != "" {
+			base := "http://" + r.Host
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				base = "https://" + r.Host
+			}
+			if rewritten, e := agent.CommandCodeAuthURL(cc.ID, cc.AuthURL, base); e == nil {
+				cc.AuthURL = rewritten
+			}
+		}
 		respondJSON(w, http.StatusOK, map[string]interface{}{
 			"status":     "success",
 			"harness":    "commandcode",
 			"session_id": cc.ID, "expires_at": cc.ExpiresAt, "authenticated": cc.Authenticated, "verified": cc.Verified,
-			"message": cc.Message, "auth_url": "",
+			"message": cc.Message, "auth_url": cc.AuthURL,
 		})
 		return
 	default:
@@ -1203,6 +1212,22 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+}
+
+// handleCommandCodeAuthCallback bridges the provider redirect from the
+// user's browser to the localhost callback listener owned by commandcode.
+func (s *Server) handleCommandCodeAuthCallback(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if id == "" {
+		http.Error(w, "missing auth session", http.StatusBadRequest)
+		return
+	}
+	if err := agent.ForwardCommandCodeCallback(id, r.URL.Query()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte("<p>CommandCode sign-in received. Return to Cuan to finish connecting.</p>"))
 }
 
 // handleListProviderModels returns models supported by a provider along with vision capability.
