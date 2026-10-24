@@ -132,7 +132,7 @@ export function TeamView({
   const [removing, setRemoving] = useState('')
   const [now, setNow] = useState(Date.now())
   const [provider, setProvider] = useState<'agy' | 'commandcode'>('agy')
-  const [commandcodeMode, setCommandcodeMode] = useState<'subscription' | 'byok'>('subscription')
+  const [commandcodeMode, setCommandcodeMode] = useState<'subscription' | 'byok'>('byok')
   const [commandcodeModel, setCommandcodeModel] = useState('commandcode-default')
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [byokKey, setByokKey] = useState('')
@@ -234,7 +234,7 @@ export function TeamView({
     accountScope.current = ''
 
     setProvider('agy')
-    setCommandcodeMode('subscription')
+    setCommandcodeMode('byok')
     setCommandcodeModel('commandcode-default')
     setByokKey('')
     agentsApi.listModels('commandcode').then(setAvailableModels).catch(() => {})
@@ -1188,7 +1188,18 @@ export function TeamView({
                         )}
                         {!connectionOnly && provider === 'commandcode' && commandcodeMode === 'subscription' && (
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Koneksi via langganan resmi CommandCode CLI. Tidak memerlukan input API key manual.
+                            Untuk koneksi tanpa terminal, buat API key di{' '}
+                            <a
+                              className="underline"
+                              href="https://commandcode.ai/studio/keys"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              CommandCode Studio
+                            </a>
+                            , lalu pilih <strong>Custom BYOK</strong> dan tempelkan
+                            key tersebut. Mode subscription CLI memerlukan login
+                            interaktif di terminal.
                           </p>
                         )}
                       </div>
