@@ -1171,7 +1171,7 @@ export function TeamView({
                             CommandCode
                           </label>
                         </div>
-                        {provider === 'commandcode' && (
+                        {provider === 'commandcode' && (commandcodeMode === 'byok' || !!auth?.authenticated || !!auth?.verified) && (
                           <div className="mt-2 flex gap-3">
                             <label className="flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2">
                               <input
