@@ -41,7 +41,6 @@ type UpdateSettingsRequest struct {
 	DefaultBranch     string    `json:"default_branch"`
 	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
-	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 }
 type workspaceBinding struct {
 	LocalPath string `json:"local_path"`

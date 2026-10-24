@@ -453,3 +453,121 @@ func TestChatHandlers_Pagination(t *testing.T) {
 		t.Fatalf("expected 5 messages and has_more=false for limit=all, got %d (has_more=%v)", len(pageAll.Messages), pageAll.HasMore)
 	}
 }
+
+func TestInboxUnreadCountAndSystemEvents(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	agentRepo := cuanDB.NewMemoryAgentRepository()
+	srv.SetAgentRepository(agentRepo)
+
+	// Create test agent
+	err := agentRepo.CreateAgent(context.Background(), &cuanDB.Agent{
+		ID:      "agent_scrum",
+		Name:    "Scrum Master",
+		Role:    "Scrum Master",
+		Harness: "agy",
+		Enabled: true,
+		Status:  cuanDB.AgentStatusActive,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Initial list contacts -> UnreadCount should be 0
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+
+	var resp struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Contacts) != 1 {
+		t.Fatalf("expected 1 contact, got %d", len(resp.Contacts))
+	}
+	if resp.Contacts[0].UnreadCount != 0 {
+		t.Fatalf("expected 0 unread initially, got %d", resp.Contacts[0].UnreadCount)
+	}
+
+	roomID := resp.Contacts[0].ConversationID
+
+	// 2. Add an incoming Agent message and a System event message
+	_ = srv.projectStudioRepo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     roomID,
+		AuthorType: "agent",
+		AuthorID:   "agent_scrum",
+		AuthorName: "Scrum Master",
+		Content:    "Halo, sprint baru telah dimulai.",
+	})
+	_ = srv.projectStudioRepo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     roomID,
+		AuthorType: "system",
+		AuthorID:   "system",
+		AuthorName: "System Alert",
+		Content:    "⚠️ System Notification: Build deployed successfully.",
+	})
+
+	// 3. Fetch contacts again -> UnreadCount should now be 2
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
+	req2.Header.Set("Authorization", "Bearer "+token)
+	rec2 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec2, req2)
+
+	var resp2 struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	_ = json.Unmarshal(rec2.Body.Bytes(), &resp2)
+	if resp2.Contacts[0].UnreadCount != 2 {
+		t.Fatalf("expected 2 unread (1 agent + 1 system), got %d", resp2.Contacts[0].UnreadCount)
+	}
+
+	// 4. User replies -> UnreadCount should reset to 0
+	_ = srv.projectStudioRepo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     roomID,
+		AuthorType: "user",
+		AuthorID:   "admin",
+		AuthorName: "admin",
+		Content:    "Baik, saya monitor.",
+	})
+
+	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
+	req3.Header.Set("Authorization", "Bearer "+token)
+	rec3 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec3, req3)
+
+	var resp3 struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	_ = json.Unmarshal(rec3.Body.Bytes(), &resp3)
+	if resp3.Contacts[0].UnreadCount != 0 {
+		t.Fatalf("expected 0 unread after user message, got %d", resp3.Contacts[0].UnreadCount)
+	}
+
+	// 5. Subsequent System message -> UnreadCount becomes 1
+	_ = srv.projectStudioRepo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     roomID,
+		AuthorType: "system",
+		AuthorID:   "system",
+		AuthorName: "System Alert",
+		Content:    "ℹ️ Task execution completed.",
+	})
+
+	req4 := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
+	req4.Header.Set("Authorization", "Bearer "+token)
+	rec4 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec4, req4)
+
+	var resp4 struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	_ = json.Unmarshal(rec4.Body.Bytes(), &resp4)
+	if resp4.Contacts[0].UnreadCount != 1 {
+		t.Fatalf("expected 1 unread after new system event, got %d", resp4.Contacts[0].UnreadCount)
+	}
+}

@@ -2,7 +2,6 @@ import { KeyboardShortcuts } from './KeyboardShortcuts'
 import { UniversalSearch } from './UniversalSearch'
 import { ReloadButton } from '../ui/ReloadButton'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { NotificationsPopover } from '../../features/notifications/NotificationsPopover'
 import { ArrowLeft } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState, type ComponentType } from 'react'
@@ -35,6 +34,7 @@ interface AppShellProps {
   contentHeader?: boolean
   inboxSubPanel?: React.ReactNode
   inboxUnread?: number
+  inboxUnreadCount?: number
   pageTitleIsContent?: boolean
   pageTitle?: string
   breadcrumbs?: { label: string; to: string }[]
@@ -59,11 +59,13 @@ export function AppShell({
   contentHeader = false,
   inboxSubPanel,
   inboxUnread = 0,
+  inboxUnreadCount,
   pageTitleIsContent = false,
   pageTitle,
   breadcrumbs = [],
 }: AppShellProps) {
   const { t } = useLanguage()
+  const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
 
   const routerNavigate = useNavigate()
   const location = useLocation()
@@ -132,11 +134,22 @@ export function AppShell({
           'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
       )}
     >
-      {id === 'studio' ? (
-        <CuanMark decorative className="h-5 w-5 text-inherit" />
-      ) : (
-        <Icon className="h-5 w-5 shrink-0" />
-      )}
+      <span className="relative">
+        {id === 'studio' ? (
+          <CuanMark decorative className="h-5 w-5 text-inherit" />
+        ) : (
+          <Icon className="h-5 w-5 shrink-0" />
+        )}
+        {id === 'inbox' && effectiveInboxUnread > 0 && (
+          <span
+            data-testid="inbox-unread-badge-rail"
+            aria-label={`${effectiveInboxUnread} unread messages`}
+            className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
+          >
+            {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
+          </span>
+        )}
+      </span>
       <span className="nav-label">{t(text)}</span>
     </button>
   )
@@ -286,7 +299,6 @@ export function AppShell({
               title={t('Reload app')}
             />
             {headerActions}
-            {currentTab !== 'notifications' && <NotificationsPopover />}
             {currentTab === 'inbox' && (
               <button
                 className="icon-action hidden min-[1200px]:inline-flex"
@@ -349,12 +361,13 @@ export function AppShell({
                 ) : (
                   <Icon className="h-5 w-5" />
                 )}
-                {id === 'inbox' && inboxUnread > 0 && (
+                {id === 'inbox' && effectiveInboxUnread > 0 && (
                   <span
-                    aria-label={`${inboxUnread} unread messages`}
-                    className="absolute -right-3 -top-2 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground"
+                    data-testid="inbox-unread-badge-bottom"
+                    aria-label={`${effectiveInboxUnread} unread messages`}
+                    className="absolute -right-3 -top-2 min-w-4 rounded-full bg-primary px-1 text-[10px] font-bold font-mono leading-4 text-primary-foreground"
                   >
-                    {inboxUnread > 99 ? '99+' : inboxUnread}
+                    {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
                   </span>
                 )}
               </span>

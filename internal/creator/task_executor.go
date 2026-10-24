@@ -281,6 +281,21 @@ func (e *TaskExecutionEngine) ExecuteTask(ctx context.Context, req ExecuteTaskRe
 		// Mark execution as failed
 		task.ExecutionStatus = "failed"
 		_ = e.studioRepo.UpdateTaskExecution(ctx, task.ID, "failed", task.AgentOutput)
+		if task.RoomID != nil && strings.TrimSpace(*task.RoomID) != "" {
+			roomID := strings.TrimSpace(*task.RoomID)
+			errMsg := fmt.Sprintf("⚠️ **Task Execution Failed:** `%s`\n\nEksekusi task oleh agent gagal: %v", task.Title, genErr)
+			now := time.Now().UTC()
+			_ = e.studioRepo.CreateMessage(ctx, &db.ProjectMessage{
+				ID:         db.GenerateUUID(),
+				RoomID:     roomID,
+				AuthorType: "system",
+				AuthorID:   "system",
+				AuthorName: "System Alert",
+				Content:    errMsg,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			})
+		}
 		if e.eventBroadcaster != nil && task.RoomID != nil && strings.TrimSpace(*task.RoomID) != "" {
 			e.eventBroadcaster.Broadcast(*task.RoomID, "task.updated", task.ToDTO())
 		}

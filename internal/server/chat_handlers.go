@@ -506,9 +506,21 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		cutoff, _ := time.Parse(time.RFC3339Nano, state.ReadAt)
 		count := 0
 		for _, message := range messages {
-			incoming := (isAgent && message.AuthorType == "agent") || (!isAgent && message.AuthorType == "user")
-			if incoming && message.CreatedAt.After(cutoff) {
-				count++
+			if !message.CreatedAt.After(cutoff) {
+				continue
+			}
+			if isAgent {
+				if message.AuthorType == "agent" || message.AuthorType == "system" {
+					count++
+				} else if message.AuthorType == "user" {
+					count = 0
+				}
+			} else {
+				if message.AuthorType == "user" {
+					count++
+				} else if message.AuthorType == "agent" || message.AuthorType == "system" {
+					count = 0
+				}
 			}
 		}
 		if state.Unread && count == 0 {
