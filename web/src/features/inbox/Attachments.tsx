@@ -2,8 +2,12 @@ import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Camera, Images, FolderOpen } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState } from 'react'
-import { Plus, X, FileText, LoaderCircle, Download } from 'lucide-react'
+import { Plus, X, FileText, LoaderCircle, Download, Eye } from 'lucide-react'
 import { getAuthToken } from '../../api/client'
+import {
+  FilePreviewModal,
+  isPreviewableFile,
+} from '../../components/dialogs/FilePreviewModal'
 
 export interface Attachment {
   id: string
@@ -315,6 +319,8 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
   const [url, setURL] = useState(''),
     [failed, setFailed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const canPreview = isPreviewableFile(a.name, a.type)
   const blobRef = useRef('')
   useEffect(() => {
     let alive = true
@@ -368,10 +374,10 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
     <div className="min-w-0 max-w-full">
       <button
         type="button"
-        onClick={() => void download()}
+        onClick={() => (canPreview ? setPreviewOpen(true) : void download())}
         disabled={loading}
-        className="flex min-h-11 min-w-0 max-w-full items-center gap-2 text-left underline-offset-2 hover:underline"
-        aria-label={t('Download') + ' ' + a.name}
+        className="flex min-h-11 min-w-0 max-w-full items-center gap-2 text-left underline-offset-2 hover:underline cursor-pointer"
+        aria-label={(canPreview ? t('Preview') : t('Download')) + ' ' + a.name}
       >
         {url ? (
           <img
@@ -390,10 +396,20 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
         </span>
         {loading ? (
           <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
+        ) : canPreview ? (
+          <Eye className="h-4 w-4 shrink-0 text-muted-foreground" />
         ) : (
           <Download className="h-4 w-4 shrink-0" />
         )}
       </button>
+      {canPreview && (
+        <FilePreviewModal
+          open={previewOpen}
+          attachment={a}
+          onClose={() => setPreviewOpen(false)}
+          onDownload={download}
+        />
+      )}
       {failed && (
         <p role="alert" className="text-xs">
           {t('File unavailable. Try downloading again.')}

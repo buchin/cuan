@@ -150,6 +150,7 @@ type TaskDetailResponse struct {
 	LatestProgress string          `json:"latest_progress,omitempty"`
 	Attempts       []*TaskAttempt  `json:"attempts"`
 	Activities     []*TaskActivity `json:"activities"`
+	Attachments    []any           `json:"attachments,omitempty"`
 }
 
 // Request and filter types

@@ -126,6 +126,10 @@ func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
 	if download.Code != 200 || download.Body.String() != original || !strings.HasPrefix(download.Header().Get("Content-Disposition"), "attachment;") {
 		t.Fatal("immutable HTML download failed", download.Code, download.Header())
 	}
+	preview := call("GET", attachment.URL+"?preview=1", "")
+	if preview.Code != 200 || preview.Body.String() != original || !strings.HasPrefix(preview.Header().Get("Content-Disposition"), "inline;") {
+		t.Fatal("inline preview failed", preview.Code, preview.Header())
+	}
 	unauthorized := httptest.NewRecorder()
 	s.Router().ServeHTTP(unauthorized, httptest.NewRequest("GET", attachment.URL, nil))
 	if unauthorized.Code != 401 {

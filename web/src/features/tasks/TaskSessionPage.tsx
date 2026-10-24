@@ -14,12 +14,14 @@ import {
   Terminal,
   MessageSquare,
   Rocket,
+  FolderOpen,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
 import { TaskReadyPage } from './TaskReadyPage'
 import { TaskTerminal } from './TaskTerminal'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
+import { AttachmentFile } from '../inbox/Attachments'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime } from './task-ui'
 import { useLanguage } from '../../context/LanguageContext'
@@ -323,6 +325,24 @@ export function TaskSessionPage({
                 </p>
               )}
             </section>
+            {detail.attachments && detail.attachments.length > 0 && (
+              <section aria-label={t('Files from this work session')} className="space-y-2 rounded-xl border border-border bg-card p-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <FolderOpen className="h-4 w-4 text-primary" />
+                  <span>{t('Files from this work session')}</span>
+                </h3>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {detail.attachments.map((a) => (
+                    <div
+                      key={a.id}
+                      className="rounded-lg border border-border bg-muted/30 p-2 text-xs"
+                    >
+                      <AttachmentFile attachment={a} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             {(canAccept || !result) && <div className="flex flex-wrap items-center gap-2">
               {detail.pr_url && !applied && canAccept && (
                 <button

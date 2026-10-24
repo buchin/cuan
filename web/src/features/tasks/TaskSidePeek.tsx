@@ -14,7 +14,9 @@ import {
   ExternalLink,
   Rocket,
   CheckCircle2,
+  FolderOpen,
 } from 'lucide-react'
+import { AttachmentFile } from '../inbox/Attachments'
 import { useLanguage } from '../../context/LanguageContext'
 import type {
   Task,
@@ -912,6 +914,24 @@ function TaskDetailView({
                     'No completion notes recorded yet. Review the session output and record what changed and how it was verified before approval.',
                   )}
                 </section>
+                {detail.attachments && detail.attachments.length > 0 && (
+                  <section aria-label={t('Files from this work session')}>
+                    <h3 className="mb-2 text-sm font-semibold flex items-center gap-1.5">
+                      <FolderOpen className="h-4 w-4 text-primary" />
+                      <span>{t('Files from this work session')}</span>
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {detail.attachments.map((a) => (
+                        <div
+                          key={a.id}
+                          className="rounded-lg border border-border bg-card p-2 text-xs"
+                        >
+                          <AttachmentFile attachment={a} />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
                 {(detail.diff_summary || detail.test_summary) && (
                   <details className="rounded-lg border p-3 text-sm">
                     <summary className="cursor-pointer">

@@ -199,8 +199,20 @@ func (s *Server) handleDownloadConversationAttachment(w http.ResponseWriter, r *
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	disposition := "attachment"
-	if strings.HasPrefix(a.Type, "image/") {
+	isPreview := r.URL.Query().Get("preview") == "1" || r.URL.Query().Get("preview") == "true" || r.URL.Query().Get("inline") == "1" || r.URL.Query().Get("inline") == "true" || r.URL.Query().Get("disposition") == "inline"
+	if strings.HasPrefix(a.Type, "image/") || isPreview {
 		disposition = "inline"
+		if isPreview && (a.Type == "" || a.Type == "application/octet-stream") {
+			ext := strings.ToLower(filepath.Ext(a.Name))
+			switch ext {
+			case ".md", ".markdown":
+				w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			case ".txt", ".text", ".log", ".diff", ".patch":
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			case ".json":
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			}
+		}
 	}
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": a.Name}))
 	http.ServeFile(w, r, path)

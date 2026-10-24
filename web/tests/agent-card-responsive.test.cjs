@@ -14,7 +14,9 @@ const path = require('path')
  */
 
 // Load compiled CSS bundle
-const distCssPath = path.join(__dirname, '../dist/assets/index-BR4kaFxA.css')
+const distAssetsDir = path.join(__dirname, '../dist/assets')
+const cssFile = fs.readdirSync(distAssetsDir).find((f) => f.endsWith('.css'))
+const distCssPath = path.join(distAssetsDir, cssFile)
 const cssContent = fs.readFileSync(distCssPath, 'utf8')
 
 // Load TeamView source

@@ -2096,6 +2096,19 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.projectStudioRepo != nil && detail.SourceRoomID != "" && detail.LatestAttempt != nil {
+		if m, err := s.projectStudioRepo.GetMessageByID(r.Context(), delegationMessageID("task-delivery:"+detail.LatestAttempt.ID)); err == nil && m != nil && m.RoomID == detail.SourceRoomID && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == detail.SourceMessageID {
+			_, ids := decodeAttachmentMessage(m.Content)
+			if owner, err := s.taskArtifactOwner(r.Context(), detail); err == nil {
+				for _, aid := range ids {
+					if a, _, err := loadAttachment(owner, aid); err == nil {
+						detail.Attachments = append(detail.Attachments, a)
+					}
+				}
+			}
+		}
+	}
+
 	respondJSON(w, http.StatusOK, detail)
 }
 
