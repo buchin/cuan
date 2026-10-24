@@ -113,12 +113,19 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   )
 }
 
+function prepareChatMarkdown(raw: string): string {
+  if (!raw) return ''
+  // Separate a block of > quotes from an immediately following reply text that lacks a blank line
+  return raw.replace(/(^>.*)(\r?\n)([^>\r\n])/gm, '$1$2\n$3')
+}
+
 export const ChatMarkdown = memo(function ChatMarkdown({
   content,
 }: {
   content: string
 }) {
   const extensionRevision = useExtensionRevision()
+  const preparedContent = prepareChatMarkdown(content)
   return (
     <div className="chat-markdown min-w-0 max-w-full text-base leading-relaxed">
       <ExtensionBoundary
@@ -133,6 +140,15 @@ export const ChatMarkdown = memo(function ChatMarkdown({
           urlTransform={safeLinkUrl}
           components={{
             pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+            blockquote: ({ children }) => (
+              <blockquote
+                className="chat-reply-quote"
+                role="region"
+                aria-label="Kutipan pesan"
+              >
+                <div className="chat-reply-body">{children}</div>
+              </blockquote>
+            ),
             a: ({ href, children }) =>
               href ? (
                 <a
@@ -163,7 +179,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
             ),
           }}
         >
-          {content}
+          {preparedContent}
         </ReactMarkdown>
       </ExtensionBoundary>
     </div>

@@ -75,6 +75,26 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string) 
 				kind = "text/plain; charset=utf-8"
 			case ".json":
 				kind = "application/json"
+			case ".png":
+				kind = "image/png"
+			case ".jpg", ".jpeg":
+				kind = "image/jpeg"
+			case ".webp":
+				kind = "image/webp"
+			case ".gif":
+				kind = "image/gif"
+			case ".svg":
+				kind = "image/svg+xml"
+			case ".ico":
+				kind = "image/x-icon"
+			case ".bmp":
+				kind = "image/bmp"
+			case ".html", ".htm":
+				kind = "text/html; charset=utf-8"
+			case ".csv":
+				kind = "text/csv; charset=utf-8"
+			case ".tsv":
+				kind = "text/tab-separated-values; charset=utf-8"
 			default:
 				kind = "application/octet-stream"
 			}

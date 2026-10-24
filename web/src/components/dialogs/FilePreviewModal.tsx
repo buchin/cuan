@@ -29,6 +29,7 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
+  Table as TableIcon,
 } from 'lucide-react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -46,6 +47,18 @@ export function isImageFile(name: string, type?: string): boolean {
     /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(name) ||
     (type ? type.startsWith('image/') : false)
   )
+}
+
+export function isHtmlFile(name: string, type?: string): boolean {
+  return /\.(html|htm)$/i.test(name) || (type ? type.includes('html') : false)
+}
+
+export function isSvgFile(name: string, type?: string): boolean {
+  return /\.svg$/i.test(name) || (type ? type.includes('svg') : false)
+}
+
+export function isCsvFile(name: string, type?: string): boolean {
+  return /\.(csv|tsv)$/i.test(name) || (type ? type.includes('csv') : false)
 }
 
 export function isDiffFile(name: string): boolean {
@@ -77,12 +90,55 @@ export function isPreviewableFile(name: string, type?: string): boolean {
   return (
     isMarkdownFile(name) ||
     isImageFile(name, type) ||
+    isHtmlFile(name, type) ||
+    isSvgFile(name, type) ||
+    isCsvFile(name, type) ||
     isDiffFile(name) ||
     isLogFile(name) ||
     isJsonFile(name, type) ||
     isCodeFile(name) ||
     isTextFile(name, type)
   )
+}
+
+export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+  const lines = text.trim().split(/\r?\n/)
+  if (!lines.length || !lines[0].trim()) return { headers: [], rows: [] }
+
+  let delimiter = ','
+  if (lines[0].includes('\t') && !lines[0].includes(',')) {
+    delimiter = '\t'
+  } else if (lines[0].includes(';') && !lines[0].includes(',')) {
+    delimiter = ';'
+  }
+
+  const parseLine = (line: string): string[] => {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+      if (char === '"' || char === "'") {
+        if (inQuotes && line[i + 1] === char) {
+          current += char
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+      } else if (char === delimiter && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+    result.push(current.trim())
+    return result
+  }
+
+  const headers = parseLine(lines[0])
+  const rows = lines.slice(1).filter((l) => l.trim().length > 0).map(parseLine)
+  return { headers, rows }
 }
 
 function safeLinkUrl(url: string) {
@@ -364,6 +420,7 @@ function DiffViewer({ content }: { content: string }) {
             if (isChunk) {
               rowStyle = 'bg-sky-500/10 text-sky-700 dark:text-sky-300 font-semibold'
               lineStyle = 'text-sky-700 dark:text-sky-300'
+              marker = ' '
             } else if (isAdd) {
               rowStyle = 'bg-emerald-500/15 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200'
               lineStyle = 'text-emerald-800 dark:text-emerald-200'
@@ -423,6 +480,236 @@ function CodeWithLineNumbers({ content, language }: { content: string; language?
   )
 }
 
+// Visual HTML renderer inside a safe sandboxed iframe
+function HtmlVisualView({ content, title }: { content: string; title: string }) {
+  return (
+    <div className="w-full flex-1 flex flex-col space-y-2">
+      <div className="overflow-hidden rounded-lg border border-border bg-white shadow-xs min-h-[480px] h-[65dvh]">
+        <iframe
+          srcDoc={content}
+          sandbox="allow-same-origin"
+          title={title}
+          className="w-full h-full border-0 bg-white"
+        />
+      </div>
+    </div>
+  )
+}
+
+// Visual CSV / TSV data table renderer
+function CsvTableView({ content }: { content: string }) {
+  const { headers, rows } = parseCsv(content)
+  if (headers.length === 0 && rows.length === 0) {
+    return (
+      <div className="py-8 text-center text-xs text-muted-foreground">
+        Tabel CSV kosong.
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+        <span className="font-mono text-[11px] bg-muted/60 px-2 py-0.5 rounded border border-border/50">
+          {rows.length} baris · {headers.length} kolom
+        </span>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-xs max-h-[60dvh]">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="border-b border-border bg-muted/90 sticky top-0 z-10 backdrop-blur-sm">
+            <tr>
+              <th className="w-12 px-3 py-2 text-center text-[10px] font-mono text-muted-foreground/70 border-r border-border/40 select-none">
+                #
+              </th>
+              {headers.map((h, i) => (
+                <th
+                  key={i}
+                  className="px-3.5 py-2 font-semibold text-foreground uppercase tracking-wider text-[11px] whitespace-nowrap"
+                >
+                  {h || `Col ${i + 1}`}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/40">
+            {rows.map((row, rIdx) => (
+              <tr
+                key={rIdx}
+                className="hover:bg-muted/30 transition-colors odd:bg-muted/10"
+              >
+                <td className="px-3 py-1.5 text-center text-[10px] font-mono text-muted-foreground/60 border-r border-border/40 select-none">
+                  {rIdx + 1}
+                </td>
+                {headers.map((_, cIdx) => (
+                  <td
+                    key={cIdx}
+                    className="px-3.5 py-1.5 text-foreground/90 font-mono whitespace-nowrap"
+                  >
+                    {row[cIdx] ?? ''}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// Visual JSON inspector (table for array of records, structured card for objects)
+function JsonVisualView({ content }: { content: string }) {
+  let parsed: any = null
+  let isArrayOfObjects = false
+  try {
+    parsed = JSON.parse(content)
+    if (
+      Array.isArray(parsed) &&
+      parsed.length > 0 &&
+      typeof parsed[0] === 'object' &&
+      parsed[0] !== null
+    ) {
+      isArrayOfObjects = true
+    }
+  } catch {
+    return <CodeWithLineNumbers content={content} language="json" />
+  }
+
+  if (isArrayOfObjects) {
+    const keys: string[] = Array.from(
+      new Set(
+        parsed.flatMap((item: any) =>
+          typeof item === 'object' && item !== null ? Object.keys(item) : [],
+        ),
+      ),
+    )
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+          <span className="font-mono text-[11px] bg-muted/60 px-2 py-0.5 rounded border border-border/50">
+            {parsed.length} item · {keys.length} properti
+          </span>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-xs max-h-[60dvh]">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead className="border-b border-border bg-muted/90 sticky top-0 z-10 backdrop-blur-sm">
+              <tr>
+                <th className="w-12 px-3 py-2 text-center text-[10px] font-mono text-muted-foreground/70 border-r border-border/40 select-none">
+                  #
+                </th>
+                {keys.map((k: string) => (
+                  <th
+                    key={k}
+                    className="px-3.5 py-2 font-semibold text-foreground uppercase tracking-wider text-[11px] whitespace-nowrap"
+                  >
+                    {k}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {parsed.map((item: any, rIdx: number) => (
+                <tr
+                  key={rIdx}
+                  className="hover:bg-muted/30 transition-colors odd:bg-muted/10"
+                >
+                  <td className="px-3 py-1.5 text-center text-[10px] font-mono text-muted-foreground/60 border-r border-border/40 select-none">
+                    {rIdx + 1}
+                  </td>
+                  {keys.map((k: string) => {
+                    const record = item as Record<string, unknown>
+                    const val = record?.[k]
+                    const valStr =
+                      typeof val === 'object' && val !== null
+                        ? JSON.stringify(val)
+                        : String(val ?? '')
+                    return (
+                      <td
+                        key={k}
+                        className="px-3.5 py-1.5 text-foreground/90 font-mono whitespace-nowrap max-w-xs truncate"
+                        title={valStr}
+                      >
+                        {valStr}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+          <span className="font-semibold uppercase tracking-wider text-[11px]">
+            Struktur Data JSON
+          </span>
+        </div>
+        <pre className="p-3 bg-muted/30 rounded-md overflow-x-auto font-mono text-xs leading-relaxed text-foreground select-text">
+          <code>{highlightCodeTokens(JSON.stringify(parsed, null, 2))}</code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+// Visual SVG renderer with zoom & dimension detection
+function SvgVisualView({
+  content,
+  imageUrl,
+  title,
+  zoomScale,
+  onDimensions,
+  onToggleZoom,
+}: {
+  content: string
+  imageUrl: string
+  title: string
+  zoomScale: number
+  onDimensions?: (dim: { width: number; height: number }) => void
+  onToggleZoom: () => void
+}) {
+  const src =
+    imageUrl ||
+    (content
+      ? `data:image/svg+xml;utf8,${encodeURIComponent(content)}`
+      : '')
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[350px] w-full overflow-auto rounded-lg border border-border bg-muted/10 p-4">
+      {src ? (
+        <img
+          src={src}
+          alt={title}
+          onLoad={(e) => {
+            if (onDimensions) {
+              onDimensions({
+                width: e.currentTarget.naturalWidth,
+                height: e.currentTarget.naturalHeight,
+              })
+            }
+          }}
+          style={{
+            transform: zoomScale !== 1 ? `scale(${zoomScale})` : undefined,
+          }}
+          className={`max-w-full rounded-md object-contain transition-all duration-200 ${
+            zoomScale > 1 ? 'cursor-zoom-out' : 'cursor-zoom-in max-h-[65dvh]'
+          }`}
+          onClick={onToggleZoom}
+        />
+      ) : (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          <span>Memuat visual SVG…</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function FilePreviewModal({
   open,
   attachment,
@@ -444,17 +731,27 @@ export function FilePreviewModal({
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [viewMode, setViewMode] = useState<'preview' | 'raw'>('preview')
-  const [isZoomed, setIsZoomed] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState<number>(1)
+  const [imgDimensions, setImgDimensions] = useState<{
+    width: number
+    height: number
+  } | null>(null)
   const copyTimer = useRef<ReturnType<typeof setTimeout>>()
   const imageBlobUrl = useRef<string>('')
 
   const isMd = isMarkdownFile(attachment.name)
   const isImg = isImageFile(attachment.name, attachment.type)
+  const isHtml = isHtmlFile(attachment.name, attachment.type)
+  const isSvg = isSvgFile(attachment.name, attachment.type)
+  const isCsv = isCsvFile(attachment.name, attachment.type)
   const isDiff = isDiffFile(attachment.name)
   const isLog = isLogFile(attachment.name)
   const isJson = isJsonFile(attachment.name, attachment.type)
   const isCode = isCodeFile(attachment.name)
   const isSupportedPreview = isPreviewableFile(attachment.name, attachment.type)
+
+  // Types that support toggling between visual preview and source code
+  const hasToggle = isHtml || isMd || isSvg || isJson || isCsv || isDiff
 
   const fetchContent = async () => {
     setLoading(true)
@@ -471,7 +768,7 @@ export function FilePreviewModal({
         )
       }
 
-      if (isImg) {
+      if (isImg && !isSvg) {
         const blob = await res.blob()
         if (imageBlobUrl.current) URL.revokeObjectURL(imageBlobUrl.current)
         const url = URL.createObjectURL(blob)
@@ -480,6 +777,17 @@ export function FilePreviewModal({
       } else {
         const text = await res.text()
         setContent(text)
+        if (isSvg) {
+          try {
+            const blob = new Blob([text], { type: 'image/svg+xml' })
+            if (imageBlobUrl.current) URL.revokeObjectURL(imageBlobUrl.current)
+            const url = URL.createObjectURL(blob)
+            imageBlobUrl.current = url
+            setImageUrl(url)
+          } catch {
+            // fallback to text
+          }
+        }
       }
     } catch (e) {
       setError(
@@ -497,7 +805,8 @@ export function FilePreviewModal({
     setContent('')
     setImageUrl('')
     setError('')
-    setIsZoomed(false)
+    setZoomLevel(1)
+    setImgDimensions(null)
     setViewMode('preview')
 
     if (isSupportedPreview) {
@@ -569,25 +878,36 @@ export function FilePreviewModal({
         ? `${Math.round(attachment.size / 1024)} KB`
         : `${(attachment.size / (1024 * 1024)).toFixed(1)} MB`
 
-  const displayedRawContent = isJson && content ? getFormattedJson(content) : content
+  const displayedRawContent =
+    isJson && content ? getFormattedJson(content) : content
 
-  const fileTypeLabel = isMd
-    ? 'Markdown'
-    : isImg
-      ? 'Image'
-      : isDiff
-        ? 'Diff'
-        : isLog
-          ? 'Log'
-          : isJson
-            ? 'JSON'
-            : isCode
-              ? 'Code'
-              : isSupportedPreview
-                ? 'Text'
-                : 'Binary'
+  const fileTypeLabel = isHtml
+    ? 'HTML'
+    : isMd
+      ? 'Markdown'
+      : isSvg
+        ? 'SVG'
+        : isCsv
+          ? 'CSV'
+          : isImg
+            ? 'Image'
+            : isDiff
+              ? 'Diff'
+              : isLog
+                ? 'Log'
+                : isJson
+                  ? 'JSON'
+                  : isCode
+                    ? 'Code'
+                    : isSupportedPreview
+                      ? 'Text'
+                      : 'Binary'
 
-  const fileTypeIcon = isImg ? (
+  const fileTypeIcon = isHtml ? (
+    <Code className="h-4 w-4" />
+  ) : isCsv ? (
+    <TableIcon className="h-4 w-4" />
+  ) : isSvg || isImg ? (
     <ImageIcon className="h-4 w-4" />
   ) : isDiff ? (
     <GitCompare className="h-4 w-4" />
@@ -600,6 +920,20 @@ export function FilePreviewModal({
   ) : (
     <FileQuestion className="h-4 w-4" />
   )
+
+  const toggleVisualLabel = isCsv
+    ? t('Visual Table')
+    : isHtml
+      ? t('Visual Preview')
+      : isMd
+        ? t('Preview')
+        : t('Visual Preview')
+
+  const toggleSourceLabel = isCode || isHtml || isSvg
+    ? t('Source Code')
+    : isJson || isCsv
+      ? t('Source Code')
+      : t('Raw')
 
   return (
     <dialog
@@ -614,25 +948,33 @@ export function FilePreviewModal({
         e.stopPropagation()
         onClose()
       }}
-      className="m-0 h-dvh max-h-dvh w-full max-w-full overflow-hidden border-0 bg-background text-foreground shadow-2xl backdrop:bg-black/60 sm:m-auto sm:h-auto sm:max-h-[90dvh] sm:w-[calc(100%_-_32px)] sm:max-w-4xl lg:max-w-5xl sm:rounded-2xl sm:border sm:border-border sm:bg-card sm:text-card-foreground"
+      className="m-0 h-dvh max-h-dvh w-full max-w-full overflow-hidden border-0 bg-background text-foreground shadow-2xl backdrop:bg-black/60 sm:m-auto sm:h-auto sm:max-h-[92dvh] sm:w-[calc(100%_-_32px)] sm:max-w-4xl lg:max-w-5xl sm:rounded-2xl sm:border sm:border-border sm:bg-card sm:text-card-foreground"
     >
-      <div className="flex h-full flex-col min-h-0 sm:max-h-[90dvh]">
+      <div className="flex h-full flex-col min-h-0 sm:max-h-[92dvh]">
         {/* Header */}
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-card/90 px-3 py-2.5 backdrop-blur-sm sm:px-5 sm:py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               {fileTypeIcon}
             </div>
             <div className="min-w-0 flex-1">
               <h2
                 id={headingId}
-                className="truncate text-sm font-semibold sm:text-base"
+                className="truncate text-sm font-semibold sm:text-base text-foreground"
                 title={attachment.name}
               >
                 {attachment.name}
               </h2>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>{formattedSize}</span>
+                {imgDimensions && (
+                  <>
+                    <span>·</span>
+                    <span className="font-mono text-[11px] text-foreground font-medium bg-muted/60 px-1.5 py-0.5 rounded border border-border/50">
+                      {imgDimensions.width} × {imgDimensions.height} px
+                    </span>
+                  </>
+                )}
                 <span>·</span>
                 <span className="uppercase font-medium tracking-wider text-[11px] bg-muted/60 px-1.5 py-0.5 rounded border border-border/50">
                   {fileTypeLabel}
@@ -642,40 +984,44 @@ export function FilePreviewModal({
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            {/* View mode toggle for Markdown */}
-            {isMd && (
+            {/* Multi-Format Toggle (Visual Preview vs Source Code) */}
+            {hasToggle && (
               <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
                 <button
                   type="button"
                   onClick={() => setViewMode('preview')}
-                  className={`inline-flex min-h-8 items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                     viewMode === 'preview'
-                      ? 'bg-background text-foreground shadow-xs'
+                      ? 'bg-background text-foreground shadow-xs font-semibold'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                   aria-pressed={viewMode === 'preview'}
                 >
-                  <Eye className="h-3.5 w-3.5" />
-                  <span>{t('Preview')}</span>
+                  {isCsv ? (
+                    <TableIcon className="h-3.5 w-3.5" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
+                  <span>{toggleVisualLabel}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode('raw')}
-                  className={`inline-flex min-h-8 items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                     viewMode === 'raw'
-                      ? 'bg-background text-foreground shadow-xs'
+                      ? 'bg-background text-foreground shadow-xs font-semibold'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                   aria-pressed={viewMode === 'raw'}
                 >
                   <Code className="h-3.5 w-3.5" />
-                  <span>{t('Raw')}</span>
+                  <span>{toggleSourceLabel}</span>
                 </button>
               </div>
             )}
 
             {/* Copy Content Button (when text content is available) */}
-            {content && !isImg && (
+            {content && (!isImg || isSvg) && (
               <button
                 type="button"
                 onClick={handleCopyContent}
@@ -699,27 +1045,38 @@ export function FilePreviewModal({
               </button>
             )}
 
-            {/* Image zoom toggle */}
-            {isImg && imageUrl && (
-              <button
-                type="button"
-                onClick={() => setIsZoomed(!isZoomed)}
-                className="action-secondary inline-flex min-h-9 items-center gap-1.5 text-xs font-medium"
-                title={isZoomed ? 'Fit to screen' : 'Zoom in'}
-                aria-label={isZoomed ? 'Fit to screen' : 'Zoom in'}
-              >
-                {isZoomed ? (
-                  <>
-                    <ZoomOut className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Fit</span>
-                  </>
-                ) : (
-                  <>
-                    <ZoomIn className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Zoom</span>
-                  </>
-                )}
-              </button>
+            {/* Image Zoom Toggle in Header */}
+            {(isImg || isSvg) && (imageUrl || content) && (
+              <div className="hidden sm:flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border">
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                  disabled={zoomLevel <= 0.5}
+                  className="icon-action min-h-8 min-w-8 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  title={t('Zoom out')}
+                  aria-label={t('Zoom out')}
+                >
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(1)}
+                  className="px-2 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground rounded hover:bg-muted"
+                  title={t('Fit to screen')}
+                >
+                  {zoomLevel === 1 ? 'Fit' : `${Math.round(zoomLevel * 100)}%`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                  disabled={zoomLevel >= 3}
+                  className="icon-action min-h-8 min-w-8 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  title={t('Zoom in')}
+                  aria-label={t('Zoom in')}
+                >
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </button>
+              </div>
             )}
 
             {/* Download Button */}
@@ -814,30 +1171,164 @@ export function FilePreviewModal({
 
           {!loading && !error && isSupportedPreview && (
             <>
-              {/* 1. Image Preview */}
-              {isImg && (
-                <div className="flex flex-col items-center justify-center min-h-[300px] w-full overflow-auto rounded-lg border border-border bg-muted/10 p-4">
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={attachment.name}
-                      className={`max-w-full rounded-md object-contain transition-all duration-200 ${
-                        isZoomed
-                          ? 'max-h-none w-auto cursor-zoom-out'
-                          : 'max-h-[65dvh] w-auto cursor-zoom-in'
-                      }`}
-                      onClick={() => setIsZoomed(!isZoomed)}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      <span>{t('Loading preview…')}</span>
-                    </div>
-                  )}
+              {/* 1. HTML Visual Preview (Sandboxed iframe) */}
+              {isHtml && viewMode === 'preview' && (
+                <HtmlVisualView content={content} title={attachment.name} />
+              )}
+
+              {/* 2. Image Lightbox Preview */}
+              {isImg && !isSvg && (
+                <div className="flex flex-col items-center justify-center min-h-[300px] w-full">
+                  <div className="flex flex-col items-center justify-center min-h-[300px] w-full overflow-auto rounded-lg border border-border bg-muted/10 p-4">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={attachment.name}
+                        onLoad={(e) => {
+                          setImgDimensions({
+                            width: e.currentTarget.naturalWidth,
+                            height: e.currentTarget.naturalHeight,
+                          })
+                        }}
+                        style={{
+                          transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+                        }}
+                        className={`max-w-full rounded-md object-contain transition-all duration-200 ${
+                          zoomLevel > 1
+                            ? 'cursor-zoom-out'
+                            : 'max-h-[65dvh] w-auto cursor-zoom-in'
+                        }`}
+                        onClick={() => setZoomLevel((z) => (z === 1 ? 1.5 : 1))}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                        <span>{t('Loading preview…')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Image Toolbar (Mobile & Desktop) */}
+                  <div className="flex items-center justify-center gap-2 mt-3 p-1.5 rounded-lg border border-border bg-card/80 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                      disabled={zoomLevel <= 0.5}
+                      className="icon-action min-h-8 min-w-8 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      title={t('Zoom out')}
+                    >
+                      <ZoomOut className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel(1)}
+                      className="px-2.5 py-1 font-mono text-[11px] text-muted-foreground hover:text-foreground rounded hover:bg-muted"
+                      title={t('Fit to screen')}
+                    >
+                      {zoomLevel === 1 ? 'Fit' : `${Math.round(zoomLevel * 100)}%`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                      disabled={zoomLevel >= 3}
+                      className="icon-action min-h-8 min-w-8 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      title={t('Zoom in')}
+                    >
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </button>
+                    {imgDimensions && (
+                      <>
+                        <div className="h-3.5 w-[1px] bg-border mx-1" />
+                        <span className="font-mono text-[11px] text-muted-foreground px-1">
+                          {imgDimensions.width} × {imgDimensions.height}
+                        </span>
+                      </>
+                    )}
+                    <div className="h-3.5 w-[1px] bg-border mx-1" />
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="action-secondary inline-flex min-h-8 items-center gap-1.5 px-2.5 py-1 text-xs font-medium"
+                      title={t('Download')}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>{t('Download')}</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {/* 2. Markdown Rich Preview */}
+              {/* 3. SVG Visual Preview */}
+              {isSvg && viewMode === 'preview' && (
+                <div className="flex flex-col items-center justify-center min-h-[300px] w-full">
+                  <SvgVisualView
+                    content={content}
+                    imageUrl={imageUrl}
+                    title={attachment.name}
+                    zoomScale={zoomLevel}
+                    onDimensions={setImgDimensions}
+                    onToggleZoom={() => setZoomLevel((z) => (z === 1 ? 1.5 : 1))}
+                  />
+                  <div className="flex items-center justify-center gap-2 mt-3 p-1.5 rounded-lg border border-border bg-card/80 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                      disabled={zoomLevel <= 0.5}
+                      className="icon-action min-h-8 min-w-8 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      title={t('Zoom out')}
+                    >
+                      <ZoomOut className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel(1)}
+                      className="px-2.5 py-1 font-mono text-[11px] text-muted-foreground hover:text-foreground rounded hover:bg-muted"
+                      title={t('Fit to screen')}
+                    >
+                      {zoomLevel === 1 ? 'Fit' : `${Math.round(zoomLevel * 100)}%`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZoomLevel((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                      disabled={zoomLevel >= 3}
+                      className="icon-action min-h-8 min-w-8 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      title={t('Zoom in')}
+                    >
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </button>
+                    {imgDimensions && (
+                      <>
+                        <div className="h-3.5 w-[1px] bg-border mx-1" />
+                        <span className="font-mono text-[11px] text-muted-foreground px-1">
+                          {imgDimensions.width} × {imgDimensions.height}
+                        </span>
+                      </>
+                    )}
+                    <div className="h-3.5 w-[1px] bg-border mx-1" />
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="action-secondary inline-flex min-h-8 items-center gap-1.5 px-2.5 py-1 text-xs font-medium"
+                      title={t('Download')}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>{t('Download')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. CSV Visual Table Preview */}
+              {isCsv && viewMode === 'preview' && (
+                <CsvTableView content={content} />
+              )}
+
+              {/* 5. JSON Visual Table / Structured Inspector */}
+              {isJson && viewMode === 'preview' && (
+                <JsonVisualView content={content} />
+              )}
+
+              {/* 6. Markdown Formatted Document Preview */}
               {isMd && viewMode === 'preview' && (
                 <article className="prose prose-sm dark:prose-invert max-w-none space-y-3 leading-relaxed text-foreground select-text">
                   <ReactMarkdown
@@ -960,7 +1451,7 @@ export function FilePreviewModal({
                 </article>
               )}
 
-              {/* 3. Diff Viewer */}
+              {/* 7. Diff Viewer */}
               {isDiff && viewMode === 'preview' && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -990,20 +1481,25 @@ export function FilePreviewModal({
                 </div>
               )}
 
-              {/* 4. Code / Text / Raw Viewer with Line Numbers */}
-              {((isMd && viewMode === 'raw') ||
-                (isDiff && viewMode === 'raw') ||
-                (!isMd && !isDiff && !isImg)) && (
+              {/* 8. Code / Source Code / Raw Viewer with Line Numbers */}
+              {((hasToggle && viewMode === 'raw') ||
+                (!hasToggle && !isImg)) && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="font-mono">
-                      {isLog
-                        ? 'Console/Log View'
-                        : isJson
-                          ? 'Formatted JSON'
-                          : isCode
-                            ? 'Source Code'
-                            : 'Text'}
+                      {isHtml
+                        ? 'HTML Source Code'
+                        : isSvg
+                          ? 'SVG XML Source'
+                          : isCsv
+                            ? 'Raw CSV'
+                            : isLog
+                              ? 'Console/Log View'
+                              : isJson
+                                ? 'Formatted JSON'
+                                : isCode
+                                  ? 'Source Code'
+                                  : 'Raw Content'}
                     </span>
                     <button
                       type="button"
@@ -1028,7 +1524,19 @@ export function FilePreviewModal({
                   </div>
                   <CodeWithLineNumbers
                     content={displayedRawContent}
-                    language={isJson ? 'json' : isCode ? 'code' : isLog ? 'log' : 'text'}
+                    language={
+                      isHtml
+                        ? 'html'
+                        : isSvg
+                          ? 'xml'
+                          : isJson
+                            ? 'json'
+                            : isCode
+                              ? 'code'
+                              : isLog
+                                ? 'log'
+                                : 'text'
+                    }
                   />
                 </div>
               )}

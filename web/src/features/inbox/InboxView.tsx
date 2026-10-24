@@ -892,7 +892,7 @@ export function InboxView({
                   activeContact.type === 'customer'
                 const isAgentMessage =
                   msg.author_type === 'agent' && activeContact.type === 'agent'
- const isFormattedMessage=isAgentMessage||msg.author_type==='system'
+                const isFormattedMessage = true
 
                 const isOutgoing = isUser || isOperatorReply
                 const linkedTaskForMsg = msg.uuid
@@ -950,8 +950,20 @@ export function InboxView({
                         })
 
                 const quoteMessage = () => {
-                  const quote = (msg.content || msg.message).split('\n').map(line => '> ' + line).join('\n')
-                  setInputMessage(current => (current ? current + '\n\n' : '') + quote + '\n\n')
+                  const raw = msg.content || msg.message || ''
+                  const cleanLines = raw
+                    .split('\n')
+                    .filter((line) => !line.trim().startsWith('>'))
+                  const textToQuote = (
+                    cleanLines.length > 0 ? cleanLines.join('\n') : raw
+                  ).trim()
+                  const quote = textToQuote
+                    .split('\n')
+                    .map((line) => '> ' + line)
+                    .join('\n')
+                  setInputMessage(
+                    (current) => (current ? current + '\n\n' : '') + quote + '\n\n',
+                  )
                   textareaRef.current?.focus()
                 }
                 const metadata = (

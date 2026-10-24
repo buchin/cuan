@@ -200,17 +200,38 @@ func (s *Server) handleDownloadConversationAttachment(w http.ResponseWriter, r *
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	disposition := "attachment"
 	isPreview := r.URL.Query().Get("preview") == "1" || r.URL.Query().Get("preview") == "true" || r.URL.Query().Get("inline") == "1" || r.URL.Query().Get("inline") == "true" || r.URL.Query().Get("disposition") == "inline"
-	if strings.HasPrefix(a.Type, "image/") || isPreview {
+	ext := strings.ToLower(filepath.Ext(a.Name))
+	isImageExt := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".gif" || ext == ".svg" || ext == ".ico" || ext == ".bmp"
+	if strings.HasPrefix(a.Type, "image/") || isImageExt || isPreview {
 		disposition = "inline"
-		if isPreview && (a.Type == "" || a.Type == "application/octet-stream") {
-			ext := strings.ToLower(filepath.Ext(a.Name))
+		if a.Type == "" || a.Type == "application/octet-stream" {
 			switch ext {
+			case ".png":
+				w.Header().Set("Content-Type", "image/png")
+			case ".jpg", ".jpeg":
+				w.Header().Set("Content-Type", "image/jpeg")
+			case ".webp":
+				w.Header().Set("Content-Type", "image/webp")
+			case ".gif":
+				w.Header().Set("Content-Type", "image/gif")
+			case ".svg":
+				w.Header().Set("Content-Type", "image/svg+xml")
+			case ".ico":
+				w.Header().Set("Content-Type", "image/x-icon")
+			case ".bmp":
+				w.Header().Set("Content-Type", "image/bmp")
 			case ".md", ".markdown":
 				w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 			case ".txt", ".text", ".log", ".diff", ".patch":
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			case ".json":
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			case ".html", ".htm":
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			case ".csv":
+				w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+			case ".tsv":
+				w.Header().Set("Content-Type", "text/tab-separated-values; charset=utf-8")
 			}
 		}
 	}

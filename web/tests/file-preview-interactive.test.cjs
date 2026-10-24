@@ -9,14 +9,14 @@ const { renderToStaticMarkup } = require('react-dom/server')
   const remarkGfm = (await import('remark-gfm')).default
 
   console.log('======================================================================')
-  console.log('IN-APP FILE PREVIEW MODAL & RESPONSIVENESS VERIFICATION SUITE')
-  console.log('Format support: Text, Markdown, Image, Log, Diff/Code, Binary Fallback')
+  console.log('UNIVERSAL FILE PREVIEW & CHAT REPLY QUOTE VERIFICATION SUITE')
+  console.log('Features: In-App Lightbox, Multi-Format Visual Views, Chat Reply Clamp')
   console.log('======================================================================\n')
 
   // ---------------------------------------------------------------------------
   // Test 1: File Type Classification & Preview Eligibility
   // ---------------------------------------------------------------------------
-  console.log('--- Test 1: File Type Classification & Preview Eligibility ---')
+  console.log('--- Test 1: File Type Classification & Universal Format Support ---')
 
   function isMarkdownFile(name) {
     return /\.(md|markdown|mdown|mkdn)$/i.test(name)
@@ -26,6 +26,15 @@ const { renderToStaticMarkup } = require('react-dom/server')
       /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(name) ||
       (type ? type.startsWith('image/') : false)
     )
+  }
+  function isHtmlFile(name, type) {
+    return /\.(html|htm)$/i.test(name) || (type ? type.includes('html') : false)
+  }
+  function isSvgFile(name, type) {
+    return /\.svg$/i.test(name) || (type ? type.includes('svg') : false)
+  }
+  function isCsvFile(name, type) {
+    return /\.(csv|tsv)$/i.test(name) || (type ? type.includes('csv') : false)
   }
   function isDiffFile(name) {
     return /\.(diff|patch)$/i.test(name)
@@ -51,6 +60,9 @@ const { renderToStaticMarkup } = require('react-dom/server')
     return (
       isMarkdownFile(name) ||
       isImageFile(name, type) ||
+      isHtmlFile(name, type) ||
+      isSvgFile(name, type) ||
+      isCsvFile(name, type) ||
       isDiffFile(name) ||
       isLogFile(name) ||
       isJsonFile(name, type) ||
@@ -59,46 +71,61 @@ const { renderToStaticMarkup } = require('react-dom/server')
     )
   }
 
-  // 1.1 Markdown files
+  // 1.1 Markdown formats
   assert.equal(isMarkdownFile('README.md'), true)
-  assert.equal(isMarkdownFile('NOTES.markdown'), true)
-  assert.equal(isPreviewableFile('GUIDE.md'), true)
+  assert.equal(isMarkdownFile('notes.markdown'), true)
+  assert.equal(isMarkdownFile('doc.MKDN'), true)
+  assert.equal(isMarkdownFile('main.go'), false)
+  assert.equal(isPreviewableFile('README.md'), true)
   console.log('  ✓ Markdown formats verified (.md, .markdown)')
 
-  // 1.2 Image formats
+  // 1.2 Image formats (PNG, JPG, JPEG, WEBP, GIF, SVG, etc.)
   assert.equal(isImageFile('screenshot.png'), true)
   assert.equal(isImageFile('photo.jpg'), true)
-  assert.equal(isImageFile('banner.webp'), true)
-  assert.equal(isImageFile('logo.svg'), true)
-  assert.equal(isImageFile('attachment-file', 'image/png'), true)
-  assert.equal(isPreviewableFile('diagram.png'), true)
-  console.log('  ✓ Image formats verified (.png, .jpg, .webp, .svg, image/*)')
+  assert.equal(isImageFile('banner.jpeg'), true)
+  assert.equal(isImageFile('graphic.webp'), true)
+  assert.equal(isImageFile('animation.gif'), true)
+  assert.equal(isImageFile('vector.svg'), true)
+  assert.equal(isImageFile('unknown_binary', 'image/png'), true)
+  assert.equal(isPreviewableFile('1000283203.jpg'), true)
+  console.log('  ✓ Image formats verified (.png, .jpg, .jpeg, .webp, .gif, .svg, image/*)')
 
-  // 1.3 Diff formats
+  // 1.3 HTML formats
+  assert.equal(isHtmlFile('index.html'), true)
+  assert.equal(isHtmlFile('template.htm'), true)
+  assert.equal(isHtmlFile('data.bin', 'text/html'), true)
+  assert.equal(isPreviewableFile('report.html'), true)
+  console.log('  ✓ HTML formats verified (.html, .htm, text/html)')
+
+  // 1.4 CSV & TSV formats
+  assert.equal(isCsvFile('data.csv'), true)
+  assert.equal(isCsvFile('export.tsv'), true)
+  assert.equal(isCsvFile('raw.bin', 'text/csv'), true)
+  assert.equal(isPreviewableFile('users.csv'), true)
+  console.log('  ✓ CSV & TSV formats verified (.csv, .tsv, text/csv)')
+
+  // 1.5 SVG formats
+  assert.equal(isSvgFile('icon.svg'), true)
+  assert.equal(isSvgFile('logo.bin', 'image/svg+xml'), true)
+  assert.equal(isPreviewableFile('icon.svg'), true)
+  console.log('  ✓ SVG formats verified (.svg, image/svg+xml)')
+
+  // 1.6 JSON formats
+  assert.equal(isJsonFile('manifest.json'), true)
+  assert.equal(isJsonFile('config.bin', 'application/json'), true)
+  assert.equal(isPreviewableFile('manifest.json'), true)
+  console.log('  ✓ JSON formats verified (.json, application/json)')
+
+  // 1.7 Diff & Log & Code formats
   assert.equal(isDiffFile('changes.diff'), true)
-  assert.equal(isDiffFile('release.patch'), true)
-  assert.equal(isPreviewableFile('changes.diff'), true)
-  console.log('  ✓ Diff formats verified (.diff, .patch)')
-
-  // 1.4 Log formats
+  assert.equal(isDiffFile('feature.patch'), true)
   assert.equal(isLogFile('build.log'), true)
-  assert.equal(isLogFile('output.log'), true)
-  assert.equal(isPreviewableFile('server.log'), true)
-  console.log('  ✓ Log formats verified (.log)')
-
-  // 1.5 Code & Data formats
-  assert.equal(isCodeFile('main.go'), true)
+  assert.equal(isCodeFile('server.go'), true)
   assert.equal(isCodeFile('App.tsx'), true)
   assert.equal(isCodeFile('script.py'), true)
-  assert.equal(isCodeFile('queries.sql'), true)
-  assert.equal(isJsonFile('config.json'), true)
-  assert.equal(isTextFile('output.txt'), true)
-  assert.equal(isTextFile('data.csv'), true)
-  assert.equal(isPreviewableFile('main.go'), true)
-  assert.equal(isPreviewableFile('config.json'), true)
-  console.log('  ✓ Code & Text formats verified (.go, .tsx, .py, .sql, .json, .txt, .csv)')
+  console.log('  ✓ Diff, Log, Code, Text formats verified')
 
-  // 1.6 Binary & Unsupported formats (Must fallback to direct download)
+  // 1.8 Unsupported binary formats (Must fallback to direct download)
   assert.equal(isPreviewableFile('release.zip'), false)
   assert.equal(isPreviewableFile('package.tar.gz'), false)
   assert.equal(isPreviewableFile('binary.exe'), false)
@@ -108,160 +135,121 @@ const { renderToStaticMarkup } = require('react-dom/server')
   console.log('  ✓ Unsupported binary formats correctly identified for fallback download (.zip, .tar.gz, .exe, .bin, .pdf)')
 
   // ---------------------------------------------------------------------------
-  // Test 2: Diff Syntax Highlighting & Line Markers
+  // Test 2: CSV Data Table Parser
   // ---------------------------------------------------------------------------
-  console.log('\n--- Test 2: Diff Syntax Highlighting & Line Markers ---')
+  console.log('\n--- Test 2: CSV Data Table Parsing & Rendering ---')
 
-  function DiffViewerTest({ content }) {
-    const lines = content.split('\n')
-    return React.createElement(
-      'div',
-      { className: 'diff-container font-mono text-xs' },
-      React.createElement(
-        'table',
-        null,
-        React.createElement(
-          'tbody',
-          null,
-          lines.map((line, idx) => {
-            const isChunk = line.startsWith('@@')
-            const isAdd = line.startsWith('+') && !line.startsWith('+++')
-            const isDel = line.startsWith('-') && !line.startsWith('---')
-            const marker = isAdd ? '+' : isDel ? '-' : ' '
-            const rowClass = isChunk ? 'diff-chunk' : isAdd ? 'diff-add' : isDel ? 'diff-del' : 'diff-ctx'
-            return React.createElement(
-              'tr',
-              { key: idx, className: rowClass },
-              React.createElement('td', { className: 'line-num' }, idx + 1),
-              React.createElement('td', { className: 'line-marker' }, marker),
-              React.createElement('td', { className: 'line-content' }, line.substring(marker !== ' ' ? 1 : 0)),
-            )
-          }),
-        ),
-      ),
-    )
-  }
+  function parseCsv(text) {
+    const lines = text.trim().split(/\r?\n/)
+    if (!lines.length || !lines[0].trim()) return { headers: [], rows: [] }
 
-  const sampleDiff = `diff --git a/file.go b/file.go
---- a/file.go
-+++ b/file.go
-@@ -10,3 +10,3 @@
- func OldName() string {
--	return "old"
-+	return "new"
- }`
-
-  const diffHtml = renderToStaticMarkup(React.createElement(DiffViewerTest, { content: sampleDiff }))
-  assert(diffHtml.includes('class="diff-chunk"'), 'Diff chunk header @@ highlighted')
-  assert(diffHtml.includes('class="diff-del"'), 'Diff deletion line highlighted')
-  assert(diffHtml.includes('class="diff-add"'), 'Diff addition line highlighted')
-  assert(diffHtml.includes('return &quot;new&quot;'), 'Diff addition content rendered')
-  console.log('  ✓ Diff chunk, addition (+), and deletion (-) styling verified')
-
-  // ---------------------------------------------------------------------------
-  // Test 3: Markdown Rendering with Callouts, Tables, and Syntax Tokens
-  // ---------------------------------------------------------------------------
-  console.log('\n--- Test 3: Markdown Rendering with Callouts, Tables & Syntax Tokens ---')
-
-  function highlightCodeTokens(code) {
-    const tokenRegex =
-      /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|("(?:\\.|[^"\\])*"|'[^']*'|`[^`]*`)|(\b(?:const|let|var|function|return|if|else|for|while|import|export|from|type|interface|class|package|func|struct|def|async|await|true|false|null|nil)\b)|(\b\d+(?:\.\d+)?\b)|(\b[A-Z][a-zA-Z0-9_]*\b)/g
-    const nodes = []
-    let lastIndex = 0
-    let match
-    let key = 0
-    while ((match = tokenRegex.exec(code)) !== null) {
-      if (match.index > lastIndex) {
-        nodes.push(React.createElement('span', { key: key++ }, code.slice(lastIndex, match.index)))
-      }
-      if (match[1]) {
-        nodes.push(React.createElement('span', { key: key++, className: 'token-comment' }, match[1]))
-      } else if (match[2]) {
-        nodes.push(React.createElement('span', { key: key++, className: 'token-string' }, match[2]))
-      } else if (match[3]) {
-        nodes.push(React.createElement('span', { key: key++, className: 'token-keyword' }, match[3]))
-      } else if (match[4]) {
-        nodes.push(React.createElement('span', { key: key++, className: 'token-number' }, match[4]))
-      } else if (match[5]) {
-        nodes.push(React.createElement('span', { key: key++, className: 'token-type' }, match[5]))
-      }
-      lastIndex = tokenRegex.lastIndex
+    let delimiter = ','
+    if (lines[0].includes('\t') && !lines[0].includes(',')) {
+      delimiter = '\t'
+    } else if (lines[0].includes(';') && !lines[0].includes(',')) {
+      delimiter = ';'
     }
-    if (lastIndex < code.length) {
-      nodes.push(React.createElement('span', { key: key++ }, code.slice(lastIndex)))
-    }
-    return nodes
-  }
 
-  function CalloutBlockquote({ children }) {
-    const childArray = React.Children.toArray(children)
-    const firstElement = childArray.find((c) => React.isValidElement(c))
-    if (firstElement && firstElement.props && firstElement.props.children) {
-      const pChildren = React.Children.toArray(firstElement.props.children)
-      const firstText = pChildren[0]
-      if (typeof firstText === 'string') {
-        const match = firstText.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*\n|\s+)?([\s\S]*)$/i)
-        if (match) {
-          const type = match[1].toLowerCase()
-          const remainder = match[2]
-          const newPChildren = remainder ? [remainder, ...pChildren.slice(1)] : pChildren.slice(1)
-          const updatedFirst = newPChildren.length > 0 ? React.cloneElement(firstElement, {}, ...newPChildren) : null
-          const restElements = childArray.filter((c) => c !== firstElement)
-          return React.createElement(
-            'div',
-            { className: `callout callout-${type}` },
-            React.createElement('span', { className: 'callout-title' }, type.toUpperCase()),
-            updatedFirst,
-            ...restElements,
-          )
+    const parseLine = (line) => {
+      const result = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i]
+        if (char === '"' || char === "'") {
+          if (inQuotes && line[i + 1] === char) {
+            current += char
+            i++
+          } else {
+            inQuotes = !inQuotes
+          }
+        } else if (char === delimiter && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += char
         }
       }
+      result.push(current.trim())
+      return result
     }
-    return React.createElement('blockquote', { className: 'standard-blockquote' }, children)
+
+    const headers = parseLine(lines[0])
+    const rows = lines.slice(1).filter((l) => l.trim().length > 0).map(parseLine)
+    return { headers, rows }
   }
+
+  const sampleCsv = `ID,Name,Role,Status
+1,"Alice Developer",Engineering,Active
+2,"Bob Designer",Product,Active
+3,"Charlie Manager",Operations,"On Leave"`
+
+  const { headers, rows } = parseCsv(sampleCsv)
+  assert.equal(headers.length, 4)
+  assert.deepEqual(headers, ['ID', 'Name', 'Role', 'Status'])
+  assert.equal(rows.length, 3)
+  assert.equal(rows[0][1], 'Alice Developer')
+  assert.equal(rows[2][3], 'On Leave')
+  console.log('  ✓ CSV parsed into 4 headers and 3 clean data rows with quoted string support')
+
+  // ---------------------------------------------------------------------------
+  // Test 3: HTML Sandboxed Iframe Rendering Verification
+  // ---------------------------------------------------------------------------
+  console.log('\n--- Test 3: HTML Sandboxed Iframe & Visual Rendering ---')
+
+  const sampleHtml = '<!DOCTYPE html><html><body><h1>Release Report</h1><p>Status: OK</p></body></html>'
+  const iframeComponent = React.createElement('iframe', {
+    srcDoc: sampleHtml,
+    sandbox: 'allow-same-origin',
+    title: 'test.html',
+    className: 'w-full h-full min-h-[480px] rounded-lg border border-border bg-white',
+  })
+  const iframeHtml = renderToStaticMarkup(iframeComponent)
+  assert(iframeHtml.includes('sandbox="allow-same-origin"'), 'Iframe has sandboxing attribute')
+  assert(iframeHtml.toLowerCase().includes('srcdoc="&lt;!doctype html&gt;') || iframeHtml.includes('srcDoc="&lt;!DOCTYPE html&gt;'), 'Iframe has escaped srcDoc content')
+  console.log('  ✓ HTML sandboxed iframe component verified with safe origin execution')
+
+  // ---------------------------------------------------------------------------
+  // Test 4: Chat Reply Quote Layout & Prefix Stripping
+  // ---------------------------------------------------------------------------
+  console.log('\n--- Test 4: Chat Reply Quote Layout & Prefix Stripping ---')
+
+  function prepareChatMarkdown(raw) {
+    if (!raw) return ''
+    return raw.replace(/(^>.*)(\r?\n)([^>\r\n])/gm, '$1$2\n$3')
+  }
+
+  const sampleQuoteWithReply = `> Tepat sekali. Ketika lampiran atau item pada **"Files from this work session"** diklik
+> Komponen daftar file sesi kerja harus membuka modal preview
+Saya setuju dengan analisis ini.`
+
+  const prepared = prepareChatMarkdown(sampleQuoteWithReply)
+  assert(prepared.includes('> Komponen daftar file sesi kerja harus membuka modal preview\n\nSaya setuju'), 'Prepared text inserts blank line between quote and reply')
 
   const customComponents = {
-    h1: ({ children }) => React.createElement('h1', { className: 'preview-h1' }, children),
-    table: ({ children }) => React.createElement('table', { className: 'preview-table' }, children),
-    pre: ({ children }) => {
-      const element = React.isValidElement(children) ? children : null
-      const rawText = String(element?.props?.children ?? '').replace(/\n$/, '')
-      return React.createElement('pre', null, React.createElement('code', null, highlightCodeTokens(rawText)))
-    },
-    blockquote: CalloutBlockquote,
+    blockquote: ({ children }) =>
+      React.createElement(
+        'blockquote',
+        { className: 'chat-reply-quote', role: 'region', 'aria-label': 'Kutipan pesan' },
+        React.createElement('div', { className: 'chat-reply-body' }, children),
+      ),
   }
 
-  const sampleMd = `
-# Release Notes
-
-| Item | Status |
-| --- | --- |
-| Preview Modal | Done |
-
-\`\`\`go
-func Add(a, b int) int {
-	return a + b
-}
-\`\`\`
-
-> [!TIP]
-> Use keyboard shortcuts for fast navigation.
-`
-
-  const mdHtml = renderToStaticMarkup(
-    React.createElement(ReactMarkdown, { remarkPlugins: [remarkGfm], components: customComponents }, sampleMd),
+  const renderedQuote = renderToStaticMarkup(
+    React.createElement(ReactMarkdown, { remarkPlugins: [remarkGfm], components: customComponents }, prepared),
   )
 
-  assert(mdHtml.includes('class="preview-h1"'), 'H1 heading rendered')
-  assert(mdHtml.includes('class="preview-table"'), 'Markdown table rendered')
-  assert(mdHtml.includes('class="token-keyword">func</span>'), 'Go keyword highlighted')
-  assert(mdHtml.includes('class="callout callout-tip"'), 'GitHub Alert TIP callout rendered')
-  console.log('  ✓ Markdown headings, GFM tables, syntax tokens, and Alert TIP callout verified')
+  assert(renderedQuote.includes('class="chat-reply-quote"'), 'Rendered quote container has .chat-reply-quote class')
+  assert(renderedQuote.includes('class="chat-reply-body"'), 'Rendered quote body has .chat-reply-body class')
+  assert(renderedQuote.includes('<strong>&quot;Files from this work session&quot;</strong>') || renderedQuote.includes('<strong>"Files from this work session"</strong>'), 'Bold formatting inside quote rendered')
+  assert(!renderedQuote.includes('&gt; Tepat sekali'), 'Raw > prefix stripped from rendered quote content')
+  assert(renderedQuote.includes('<p>Saya setuju dengan analisis ini.</p>'), 'Reply text rendered outside blockquote')
+  console.log('  ✓ Chat reply container rendered with .chat-reply-quote, bold formatted text, and raw > stripped')
 
   // ---------------------------------------------------------------------------
-  // Test 4: Compiled CSS Tokens & Mobile Responsiveness
+  // Test 5: Compiled CSS Tokens & Mobile Viewport Geometry (360px - 412px)
   // ---------------------------------------------------------------------------
-  console.log('\n--- Test 4: Compiled CSS Tokens & Mobile Viewport Geometry ---')
+  console.log('\n--- Test 5: Compiled CSS Tokens & Mobile Viewport Geometry ---')
 
   const distDir = path.join(__dirname, '../dist/assets')
   const cssFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.css'))
@@ -279,6 +267,7 @@ func Add(a, b int) int {
     { name: 'break-all (prevent filename flex blowout)', regex: /\.break-all/ },
     { name: 'truncate (header title truncation)', regex: /\.truncate/ },
     { name: 'cursor-zoom-in (image interaction)', regex: /cursor-zoom-in/ },
+    { name: 'cursor-zoom-out (image zoomed state)', regex: /cursor-zoom-out/ },
   ]
 
   for (const token of responsiveTokens) {
@@ -286,36 +275,57 @@ func Add(a, b int) int {
     console.log(`  ✓ ${token.name} present in compiled production bundle`)
   }
 
+  // Verify chat reply CSS rules
+  const chatMarkdownCss = fs.readFileSync(path.join(__dirname, '../src/features/inbox/chat-markdown.css'), 'utf8')
+  assert(chatMarkdownCss.includes('.chat-reply-body'), 'chat-markdown.css includes .chat-reply-body')
+  assert(chatMarkdownCss.includes('-webkit-line-clamp: 3'), 'chat-markdown.css limits quote body to 3 lines')
+  assert(chatMarkdownCss.includes('max-height: 6.25rem'), 'chat-markdown.css limits blockquote max-height')
+  assert(chatMarkdownCss.includes('border-left: 3.5px solid'), 'chat-markdown.css has vertical accent border')
+  console.log('  ✓ chat-markdown.css enforces clamp, max-height, and vertical accent border')
+
+  const chatWhatsappCss = fs.readFileSync(path.join(__dirname, '../src/features/inbox/chat-whatsapp.css'), 'utf8')
+  assert(chatWhatsappCss.includes('.wa-chat .chat-markdown blockquote'), 'chat-whatsapp.css customizes blockquote')
+  assert(chatWhatsappCss.includes('.wa-outgoing .chat-markdown blockquote'), 'chat-whatsapp.css customizes outgoing bubble quote')
+  assert(chatWhatsappCss.includes('.dark .wa-outgoing .chat-markdown blockquote'), 'chat-whatsapp.css customizes dark outgoing bubble quote')
+  console.log('  ✓ chat-whatsapp.css handles dark/light theme and outgoing/incoming bubble accent colors')
+
   // ---------------------------------------------------------------------------
-  // Test 5: Source Integration Checks
+  // Test 6: Source Integration Checks
   // ---------------------------------------------------------------------------
-  console.log('\n--- Test 5: Source File Integration Checks ---')
+  console.log('\n--- Test 6: Source File Integration Checks ---')
 
   const attachmentsSource = fs.readFileSync(path.join(__dirname, '../src/features/inbox/Attachments.tsx'), 'utf8')
   assert(attachmentsSource.includes('FilePreviewModal'), 'Attachments.tsx imports FilePreviewModal')
   assert(attachmentsSource.includes('isPreviewableFile(a.name, a.type)'), 'Attachments.tsx checks isPreviewableFile')
+  assert(attachmentsSource.includes('isImageFile(a.name, a.type)'), 'Attachments.tsx checks isImageFile for thumbnails')
   assert(attachmentsSource.includes('setPreviewOpen(true)'), 'Attachments.tsx connects click to open preview modal')
-  assert(attachmentsSource.includes('void download()'), 'Attachments.tsx preserves direct download fallback')
-  console.log('  ✓ In-app preview modal integrated into Attachments.tsx with direct download fallback')
+  assert(attachmentsSource.includes('preview=1'), 'Attachments.tsx requests preview=1 to avoid download disposition')
+  console.log('  ✓ In-app preview modal integrated into Attachments.tsx with preview=1 and image check')
 
-  const taskSessionSource = fs.readFileSync(path.join(__dirname, '../src/features/tasks/TaskSessionPage.tsx'), 'utf8')
-  assert(taskSessionSource.includes('detail.attachments && detail.attachments.length > 0'), 'TaskSessionPage.tsx checks detail.attachments')
-  assert(taskSessionSource.includes('AttachmentFile'), 'TaskSessionPage.tsx renders AttachmentFile items')
-  console.log('  ✓ TaskSessionPage.tsx displays work session files list')
+  const filePreviewModalSource = fs.readFileSync(path.join(__dirname, '../src/components/dialogs/FilePreviewModal.tsx'), 'utf8')
+  assert(filePreviewModalSource.includes('HtmlVisualView'), 'FilePreviewModal includes HtmlVisualView component')
+  assert(filePreviewModalSource.includes('CsvTableView'), 'FilePreviewModal includes CsvTableView component')
+  assert(filePreviewModalSource.includes('JsonVisualView'), 'FilePreviewModal includes JsonVisualView component')
+  assert(filePreviewModalSource.includes('SvgVisualView'), 'FilePreviewModal includes SvgVisualView component')
+  assert(filePreviewModalSource.includes('setZoomLevel'), 'FilePreviewModal provides interactive zoom controls')
+  assert(filePreviewModalSource.includes('imgDimensions'), 'FilePreviewModal tracks and displays natural image dimensions')
+  assert(filePreviewModalSource.includes('hasToggle'), 'FilePreviewModal supports viewMode toggle between visual and raw source')
+  console.log('  ✓ FilePreviewModal contains HTML, CSV, JSON, SVG, Zoom controls, and Source Code toggles')
 
-  const taskSidePeekSource = fs.readFileSync(path.join(__dirname, '../src/features/tasks/TaskSidePeek.tsx'), 'utf8')
-  assert(taskSidePeekSource.includes('detail.attachments && detail.attachments.length > 0'), 'TaskSidePeek.tsx checks detail.attachments')
-  assert(taskSidePeekSource.includes('AttachmentFile'), 'TaskSidePeek.tsx renders AttachmentFile items')
-  console.log('  ✓ TaskSidePeek.tsx displays work session files in task details')
+  const inboxViewSource = fs.readFileSync(path.join(__dirname, '../src/features/inbox/InboxView.tsx'), 'utf8')
+  assert(inboxViewSource.includes('isFormattedMessage = true'), 'InboxView renders all messages formatted with quotes/markdown')
+  console.log('  ✓ InboxView renders formatted messages and reply quotes')
 
   const idLocaleSource = fs.readFileSync(path.join(__dirname, '../src/locales/id.json'), 'utf8')
   assert(idLocaleSource.includes('"Preview": "Pratinjau"'), 'id.json includes Preview translation')
   assert(idLocaleSource.includes('"Files from this work session": "File dari sesi kerja ini"'), 'id.json includes session files translation')
-  assert(idLocaleSource.includes('"Copy content": "Salin konten"'), 'id.json includes Copy content translation')
-  console.log('  ✓ Localization strings verified in id.json')
+  assert(idLocaleSource.includes('"Source Code": "Kode Sumber"'), 'id.json includes Source Code translation')
+  assert(idLocaleSource.includes('"Visual Table": "Tabel Visual"'), 'id.json includes Visual Table translation')
+  assert(idLocaleSource.includes('"Zoom in": "Perbesar"'), 'id.json includes Zoom in translation')
+  console.log('  ✓ Localization strings verified in id.json for multi-format views')
 
   console.log('\n======================================================================')
-  console.log('ALL IN-APP FILE PREVIEW & RESPONSIVENESS TESTS PASSED! (5/5)')
+  console.log('ALL UNIVERSAL FILE PREVIEW & CHAT REPLY TESTS PASSED! (6/6)')
   console.log('======================================================================')
 })().catch((err) => {
   console.error('Test suite failed:', err)

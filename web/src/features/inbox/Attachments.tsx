@@ -7,6 +7,7 @@ import { getAuthToken } from '../../api/client'
 import {
   FilePreviewModal,
   isPreviewableFile,
+  isImageFile,
 } from '../../components/dialogs/FilePreviewModal'
 
 export interface Attachment {
@@ -320,14 +321,16 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
     [failed, setFailed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const isImg = isImageFile(a.name, a.type)
   const canPreview = isPreviewableFile(a.name, a.type)
   const blobRef = useRef('')
   useEffect(() => {
     let alive = true
     setURL('')
     setFailed(false)
-    if (!a.type.startsWith('image/')) return
-    fetch(a.url, { headers: { Authorization: 'Bearer ' + getAuthToken() } })
+    if (!isImg) return
+    const sep = a.url.includes('?') ? '&' : '?'
+    fetch(`${a.url}${sep}preview=1`, { headers: { Authorization: 'Bearer ' + getAuthToken() } })
       .then(async (r) => {
         if (!r.ok) throw new Error()
         return r.blob()
@@ -349,7 +352,7 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
         blobRef.current = ''
       }
     }
-  }, [a.id, a.url, a.type])
+  }, [a.id, a.url, a.type, a.name, isImg])
   async function download() {
     setLoading(true)
     setFailed(false)
@@ -374,7 +377,15 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
     <div className="min-w-0 max-w-full">
       <button
         type="button"
-        onClick={() => (canPreview ? setPreviewOpen(true) : void download())}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          if (canPreview) {
+            setPreviewOpen(true)
+          } else {
+            void download()
+          }
+        }}
         disabled={loading}
         className="flex min-h-11 min-w-0 max-w-full items-center gap-2 text-left underline-offset-2 hover:underline cursor-pointer"
         aria-label={(canPreview ? t('Preview') : t('Download')) + ' ' + a.name}

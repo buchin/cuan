@@ -66,7 +66,43 @@
 @media (min-width: 768px) {
   .wa-chat .chat-markdown, .wa-chat .wa-plain-text { font-size: 15px; }
 }
-.wa-chat .chat-markdown blockquote { border-left-color: var(--wa-send); background: rgb(128 128 128 / .08); padding: .4em .65em; border-radius: 4px; }
+.wa-chat .chat-markdown blockquote {
+  border-left: 3.5px solid var(--wa-send);
+  background: rgba(128, 128, 128, 0.08);
+  border-radius: 0 6px 6px 0;
+  padding: 5px 9px;
+  margin: 3px 0 6px 0;
+  max-height: 6rem;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--wa-meta);
+  overflow: hidden;
+}
+.dark .wa-chat .chat-markdown blockquote {
+  background: rgba(255, 255, 255, 0.06);
+  border-left-color: var(--wa-send);
+  color: #b5b5b5;
+}
+.wa-incoming .chat-markdown blockquote {
+  border-left-color: var(--wa-send);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--wa-meta);
+}
+.dark .wa-incoming .chat-markdown blockquote {
+  background: rgba(255, 255, 255, 0.07);
+  border-left-color: var(--wa-send);
+  color: #b5b5b5;
+}
+.wa-outgoing .chat-markdown blockquote {
+  border-left-color: #008069;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--wa-outgoing-meta);
+}
+.dark .wa-outgoing .chat-markdown blockquote {
+  border-left-color: #00a884;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--wa-outgoing-meta);
+}
 @media (min-width: 1200px) { .wa-message-bubble { max-width: min(75%, 72ch); } }
 /* Reserve the end of a final paragraph so its timestamp can share that line.
    Lists, code and tables keep a separate compact footer. */
