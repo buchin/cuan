@@ -39,7 +39,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			}
 		}
 		if registered.ModelID != "" && !strings.HasPrefix(registered.ModelID, "conn_") {
-			execCtx = context.WithValue(ctx, inboxModelKey{}, registered.ModelID)
+			execCtx = context.WithValue(execCtx, inboxModelKey{}, registered.ModelID)
 		}
 		return s.executeInboxCLI(execCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
 	}
