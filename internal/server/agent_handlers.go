@@ -1181,21 +1181,17 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 
 	switch harness {
 	case "commandcode":
-		cliAvailable := func() bool {
-			if _, err := exec.LookPath("commandcode"); err == nil {
-				return true
-			}
-			_, err := os.Stat("/home/dev/.local/bin/commandcode")
-			return err == nil
-		}()
+		owner, err := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r))
+		if err != nil {
+			respondJSONError(w, http.StatusUnauthorized, "Masuk ke Cuan terlebih dahulu")
+			return
+		}
+		cc := agent.StartCommandCodeAuth(owner.ID)
 		respondJSON(w, http.StatusOK, map[string]interface{}{
-			"status":        "success",
-			"harness":       "commandcode",
-			"authenticated": cliAvailable,
-			"verified":      cliAvailable,
-			"message":       "CommandCode is ready. Connect via subscription or custom BYOK API key.",
-			"auth_url":      "",
-			"cli_available": cliAvailable,
+			"status":     "success",
+			"harness":    "commandcode",
+			"session_id": cc.ID, "expires_at": cc.ExpiresAt, "authenticated": cc.Authenticated, "verified": cc.Verified,
+			"message": cc.Message, "auth_url": "",
 		})
 		return
 	default:
@@ -1250,6 +1246,37 @@ func (s *Server) handleSubmitHarnessAuthCode(w http.ResponseWriter, r *http.Requ
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondJSONError(w, http.StatusBadRequest, "invalid request json: "+err.Error())
+		return
+	}
+	if r.URL.Query().Get("cancel") == "true" && strings.HasPrefix(req.SessionID, "ccauth") {
+		owner, ownerErr := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r))
+		if ownerErr != nil {
+			respondJSONError(w, 401, "Masuk ke Cuan terlebih dahulu")
+			return
+		}
+		if err := agent.CancelCommandCodeAuth(req.SessionID, owner.ID); err != nil {
+			respondJSONError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]any{"status": "cancelled", "authenticated": false})
+		return
+	}
+	if strings.HasPrefix(req.SessionID, "ccauth") {
+		owner, ownerErr := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r))
+		if ownerErr != nil {
+			respondJSONError(w, 401, "Masuk ke Cuan terlebih dahulu")
+			return
+		}
+		if strings.TrimSpace(req.Code) == "" {
+			respondJSONError(w, http.StatusBadRequest, "CommandCode sign-in confirmation is required")
+			return
+		}
+		cc, err := agent.CompleteCommandCodeAuth(req.SessionID, owner.ID, true, true, "CommandCode subscription is connected")
+		if err != nil {
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]any{"status": "success", "authenticated": cc.Authenticated, "verified": cc.Verified, "session_id": cc.ID, "expires_at": cc.ExpiresAt, "message": cc.Message})
 		return
 	}
 

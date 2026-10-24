@@ -318,11 +318,10 @@ export function TeamView({
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       accountScope.current = ''
       if (commandcodeMode === 'subscription') {
-        // Start the provider-owned interactive login. The session id is kept only
-        // in memory so reloads and repeated clicks cannot duplicate credentials.
-        const session = await agentsApi.authInit()
+        // Start or resume the provider-owned login. The server keeps one pending session per owner.
+        const session = await agentsApi.authInit('commandcode')
         if (!dialogActive.current || epoch.current !== currentEpoch) return
-        if (!session.auth_url || !session.session_id) throw new Error('The CommandCode sign-in link is unavailable. Try again.')
+        if (!session.session_id) throw new Error('The CommandCode sign-in session is unavailable. Try again.')
         active.current = { accountId: '', sessionId: session.session_id, harness: 'commandcode' }
         setAuth(session)
         setStep('google')

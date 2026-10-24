@@ -105,7 +105,7 @@ export const agentsApi = {
   verifyConnection: (id: string) => apiFetch<{ connection_state: string; message: string; last_checked_at?: string; verified_at?: string }>(`/api/v1/agents/${encodeURIComponent(id)}/connection/verify`, { method: 'POST' }),
   replaceCredentials: (id: string, api_key: string) => apiFetch(`/api/v1/agents/${encodeURIComponent(id)}/connection/credentials`, { method: 'POST', body: JSON.stringify({ api_key }) }),
   authStatus: (harness: string, verify = false) => apiFetch<HarnessAuth>(`/api/v1/agents/auth-status?harness=${encodeURIComponent(harness)}&verify=${verify}`),
-  authInit: () => apiFetch<HarnessAuth>('/api/v1/agents/auth-init', { method: 'POST', body: JSON.stringify({ harness: 'agy' }) }),
+  authInit: (harness = 'agy') => apiFetch<HarnessAuth>('/api/v1/agents/auth-init', { method: 'POST', body: JSON.stringify({ harness }) }),
   authCode: (session_id: string, code: string) => apiFetch<HarnessAuth>('/api/v1/agents/auth-code', { method: 'POST', body: JSON.stringify({ session_id, code }) }),
   authCancel: (session_id: string) => apiFetch('/api/v1/agents/auth-code?cancel=true', { method: 'POST', body: JSON.stringify({ session_id, code: '' }) }),
   list: async (): Promise<Agent[]> => {
