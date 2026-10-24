@@ -266,6 +266,20 @@ func TestCoordinatorResponseSynthesizesApprovalForConfirmationQuestions(t *testi
 	if plan.ProjectName != "Cuan" {
 		t.Errorf("expected project Cuan, got %q", plan.ProjectName)
 	}
+
+	// Verify discussion closing questions automatically synthesize approval cards
+	rawDiscussion := coordinatorJSON("Berikut beberapa tool koordinasi yang dibutuhkan: 1. **Inspeksi proyek dan task terstruktur**. Ada yang ingin diperdalam?", "", nil)
+	outDiscussion, err := decodeInboxCoordinatorResponse(rawDiscussion)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	planDiscussion := parseInboxApprovalPlan(outDiscussion)
+	if planDiscussion == nil {
+		t.Fatalf("expected approval plan for discussion closing, got %s", outDiscussion)
+	}
+	if !strings.Contains(planDiscussion.Title, "Inspeksi proyek dan task terstruktur") {
+		t.Errorf("unexpected title in synthesized plan: %q", planDiscussion.Title)
+	}
 }
 
 func TestCoordinatorInstructionAutonomousErrorTriage(t *testing.T) {
@@ -282,6 +296,25 @@ func TestCoordinatorInstructionAutonomousErrorTriage(t *testing.T) {
 			} {
 				if !strings.Contains(strings.ToLower(prompt), strings.ToLower(required)) {
 					t.Fatalf("%s missing required directive %q", name, required)
+				}
+			}
+		})
+	}
+}
+
+func TestCoordinatorInstructionAffirmativeTriggersAndProactivePlan(t *testing.T) {
+	for name, prompt := range map[string]string{
+		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
+		"workflow.Coordinator":       workflow.Coordinator,
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, required := range []string{
+				`"Gas" ke mana`,
+				"kan ente sm",
+				"synthesize",
+			} {
+				if !strings.Contains(strings.ToLower(prompt), strings.ToLower(required)) {
+					t.Fatalf("%s missing required affirmative trigger directive %q", name, required)
 				}
 			}
 		})
