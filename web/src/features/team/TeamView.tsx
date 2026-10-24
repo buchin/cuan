@@ -10,6 +10,7 @@ import {
   BarChart2,
   Search,
   AlertCircle,
+  Key,
 } from 'lucide-react'
 import { connectionStatus } from '../agents/connection'
 import {
@@ -17,7 +18,32 @@ import {
   type AccountUsage,
   type ProviderAccount,
 } from '../../api/accounts'
-import { agentsApi, type Agent, type HarnessAuth } from '../../api/agents'
+import {
+  agentsApi,
+  type Agent,
+  type HarnessAuth,
+  type ModelInfo,
+} from '../../api/agents'
+
+export function isModelMultimodal(modelId?: string, provider?: string): boolean {
+  const p = (provider || '').toLowerCase()
+  if (p === 'agy' || p === 'antigravity' || p === 'google' || p === 'gemini') return true
+  const m = (modelId || '').toLowerCase()
+  if (!m || m === 'commandcode-default' || m === 'default') return false
+  return [
+    'vision',
+    'multimodal',
+    '-vl',
+    'super-vl',
+    'omni',
+    'sonnet',
+    'opus',
+    'gemini',
+    '4o',
+    'kimi-k2',
+    'minimax-m3',
+  ].some((term) => m.includes(term))
+}
 
 function AgentActions({
   name,
@@ -60,13 +86,13 @@ function AgentActions({
     >
       <button
         ref={trigger}
-        className="icon-action"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
         aria-label={`Actions ${name}`}
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
         disabled={disabled}
       >
-        <MoreVertical className="h-5 w-5" />
+        <MoreVertical className="h-4 w-4" />
       </button>
       {expanded && (
         <div className="absolute right-0 top-full z-20 mt-1 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
@@ -123,14 +149,31 @@ export function TeamView({
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('name')
   const [handle, setHandle] = useState('@dev')
-  const [auth, setAuth] = useState<HarnessAuth | null>(null)
+  const [auth, setAuth] = useState<HarnessAuth | null>(() => {
+    try {
+      const item = window.localStorage.getItem('cuan.commandcode.auth')
+      return item ? JSON.parse(item) : null
+    } catch {
+      return null
+    }
+  })
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState('')
   const [notice, setNotice] = useState('')
   const [checking, setChecking] = useState('')
   const [removing, setRemoving] = useState('')
+  const [working, setWorking] = useState('')
+  const [replacingKey, setReplacingKey] = useState('')
+  const [newKey, setNewKey] = useState('')
   const [now, setNow] = useState(Date.now())
+  const [provider, setProvider] = useState<'agy' | 'commandcode'>('agy')
+  const [commandcodeMode, setCommandcodeMode] = useState<'byok' | 'subscription'>('byok')
+  const [modelId, setModelId] = useState('commandcode-default')
+  const [models, setModels] = useState<ModelInfo[]>([])
+  const [commandcodeApiKey, setCommandcodeApiKey] = useState('')
+  const [commandcodeSubscriptionKey, setCommandcodeSubscriptionKey] = useState('')
+
   // Expire visible success even when this roster stays open or resumes from sleep.
   useEffect(() => {
     const update = () => setNow(Date.now())
@@ -143,21 +186,37 @@ export function TeamView({
       document.removeEventListener('visibilitychange', update)
     }
   }, [])
-  const active = useRef<{ accountId: string; sessionId: string } | null>(null)
+
+  const active = useRef<{ accountId: string; sessionId: string; harness?: string } | null>(null)
   const accountScope = useRef('')
   const epoch = useRef(0)
   const dialogActive = useRef(false)
+  const checkedIds = useRef(new Set<string>())
   const addButton = useRef<HTMLButtonElement>(null)
   const createTrigger = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (auth?.session_id && auth.expires_at && Date.parse(auth.expires_at) > Date.now()) {
+      active.current = { accountId: '', sessionId: auth.session_id, harness: 'commandcode' }
+    } else if (!auth) {
+      try {
+        window.localStorage.removeItem('cuan.commandcode.auth')
+      } catch {}
+    }
+  }, [auth])
 
   const cancelSession = async () => {
     const session = active.current
     active.current = null
-    if (session)
-      await accountsApi
-        .cancel(session.accountId, session.sessionId)
-        .catch(() => {})
+    if (session) {
+      if (session.harness === 'commandcode') {
+        await agentsApi.authCancel(session.sessionId).catch(() => {})
+      } else {
+        await accountsApi.cancel(session.accountId, session.sessionId).catch(() => {})
+      }
+    }
   }
+
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -167,9 +226,7 @@ export function TeamView({
         setAccounts(await accountsApi.list())
         setBackupError('')
       } catch {
-        setBackupError(
-          'Backup account settings could not be loaded. Try again.',
-        )
+        setBackupError('Backup account settings could not be loaded. Try again.')
       }
     } catch {
       setError('Could not load agents. Try again.')
@@ -177,9 +234,11 @@ export function TeamView({
       setLoading(false)
     }
   }, [])
+
   useEffect(() => {
     void load()
   }, [load])
+
   useEffect(
     () => () => {
       dialogActive.current = false
@@ -188,6 +247,7 @@ export function TeamView({
     },
     [],
   )
+
   useEffect(() => {
     if (!auth?.session_id || !auth.expires_at) return
     const sessionId = auth.session_id
@@ -221,11 +281,18 @@ export function TeamView({
       0,
     )
   }
+
   const begin = () => {
     createTrigger.current = document.activeElement as HTMLElement | null
     epoch.current++
     dialogActive.current = true
     accountScope.current = ''
+    setProvider('agy')
+    setCommandcodeMode('byok')
+    setModelId('commandcode-default')
+    setCommandcodeApiKey('')
+    setCommandcodeSubscriptionKey('')
+    agentsApi.listModels('commandcode').then(setModels).catch(() => {})
     setStep(connectionOnly ? 'google' : 'name')
     setOpen(true)
     setAuth(null)
@@ -247,14 +314,17 @@ export function TeamView({
     setHandle(next)
     if (connectionOnly) void connect(next)
   }
+
   useEffect(() => {
     if (createRequested) {
       begin()
       onCreateHandled?.()
     }
   }, [createRequested])
+
   const connect = async (name = handle) => {
     if (busy || name.length < 2) return
+    if (provider === 'commandcode') return connectCommandCode(name)
     const currentEpoch = epoch.current
     setBusy(true)
     setFormError('')
@@ -271,9 +341,7 @@ export function TeamView({
       const session = await accountsApi.login(accountId)
       if (!dialogActive.current || epoch.current !== currentEpoch) {
         if (session.session_id)
-          await accountsApi
-            .cancel(accountId, session.session_id)
-            .catch(() => {})
+          await accountsApi.cancel(accountId, session.session_id).catch(() => {})
         return
       }
       if (!session.auth_url || !session.session_id)
@@ -292,7 +360,66 @@ export function TeamView({
       if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
     }
   }
+
+  const connectCommandCode = async (name = handle) => {
+    if (busy || name.length < 2) return
+    const currentEpoch = epoch.current
+    setBusy(true)
+    setFormError('')
+    try {
+      if (!dialogActive.current || epoch.current !== currentEpoch) return
+      accountScope.current = ''
+      if (commandcodeMode === 'subscription') {
+        const session = await agentsApi.authInit('commandcode')
+        if (!dialogActive.current || epoch.current !== currentEpoch) return
+        if (!session.session_id)
+          throw new Error('The CommandCode sign-in session is unavailable. Try again.')
+        active.current = { accountId: '', sessionId: session.session_id, harness: 'commandcode' }
+        try {
+          window.localStorage.setItem('cuan.commandcode.auth', JSON.stringify(session))
+        } catch {}
+        setAuth(session)
+        setStep('google')
+        return
+      }
+      const key = commandcodeApiKey.trim()
+      if (key.length < 8)
+        throw new Error('CommandCode API key is required (at least 8 characters)')
+      await agentsApi.connectCLI({
+        name,
+        handle,
+        provider: 'commandcode',
+        auth_type: 'byok',
+        session_token: key,
+        model_id: modelId,
+      })
+      if (!dialogActive.current || epoch.current !== currentEpoch) return
+      close()
+      setNotice(`${handle} was added.`)
+      await load()
+      onAgentAdded?.()
+      onAgentConnected?.()
+    } catch (err) {
+      if (dialogActive.current && epoch.current === currentEpoch)
+        setFormError(
+          err instanceof Error
+            ? err.message
+            : 'Could not connect to CommandCode. Try again.',
+        )
+    } finally {
+      if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
+    }
+  }
+
   const finish = async (currentEpoch: number) => {
+    if (provider === 'commandcode' && commandcodeMode === 'byok') {
+      close()
+      setNotice(`${handle} was added.`)
+      await load()
+      onAgentAdded?.()
+      onAgentConnected?.()
+      return
+    }
     if (accountScope.current) {
       try {
         await accountsApi.failover(accountScope.current, true)
@@ -304,8 +431,11 @@ export function TeamView({
     await agentsApi.connectCLI({
       name: handle,
       handle,
-      provider: 'agy',
-      account_id: accountScope.current,
+      provider: provider === 'commandcode' ? 'commandcode' : 'agy',
+      auth_type: provider === 'commandcode' ? (commandcodeSubscriptionKey.trim() ? 'byok' : 'subscription') : undefined,
+      session_token: commandcodeSubscriptionKey.trim() || undefined,
+      model_id: provider === 'commandcode' ? modelId : undefined,
+      account_id: accountScope.current || undefined,
     })
     if (!dialogActive.current || epoch.current !== currentEpoch) return
     close()
@@ -314,6 +444,7 @@ export function TeamView({
     onAgentAdded?.()
     onAgentConnected?.()
   }
+
   const retrySave = async () => {
     const currentEpoch = epoch.current
     setBusy(true)
@@ -331,10 +462,13 @@ export function TeamView({
       if (dialogActive.current && epoch.current === currentEpoch) setBusy(false)
     }
   }
-  const check = async (id: string) => {
+
+  const check = async (id: string, silent = false) => {
     setChecking(id)
-    setError('')
-    setNotice('')
+    if (!silent) {
+      setError('')
+      setNotice('')
+    }
     try {
       const result = await agentsApi.verifyConnection(id)
       setAgents((current) =>
@@ -349,43 +483,93 @@ export function TeamView({
             : a,
         ),
       )
-      const messages: Record<string, string> = {
-        verified:
-          'The provider responded successfully. This result is valid for five minutes.',
-        quota_limited:
-          'The agent has reached its quota. Try again when it resets.',
-        login_required: 'The agent needs to sign in again.',
-        unavailable: 'Connection interrupted. Try again later.',
+      if (!silent) {
+        const messages: Record<string, string> = {
+          verified:
+            'The provider responded successfully. This result is valid for five minutes.',
+          quota_limited:
+            'The agent has reached its quota. Try again when it resets.',
+          login_required: 'The agent needs to sign in again.',
+          unavailable: 'Connection interrupted. Try again later.',
+        }
+        setNotice(
+          messages[result.connection_state] ||
+            'Could not confirm the connection. Try again later.',
+        )
       }
-      setNotice(
-        messages[result.connection_state] ||
-          'Could not confirm the connection. Try again later.',
-      )
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'Could not check the connection. Try again.',
-      )
+      if (!silent) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : 'Could not check the connection. Try again.',
+        )
+      }
     } finally {
-      setChecking('')
+      setChecking((curr) => (curr === id ? '' : curr))
     }
   }
+
+  useEffect(() => {
+    if (loading) return
+    const unchecked = agents.filter((ag) => {
+      if (checkedIds.current.has(ag.id) || ag.enabled === false || ag.status === 'inactive') return false
+      const last = Date.parse(ag.last_checked_at || ag.verified_at || '')
+      return !Number.isFinite(last) || last + 5 * 60_000 <= Date.now()
+    })
+    if (unchecked.length === 0) return
+    let cancelled = false
+    void (async () => {
+      for (const ag of unchecked.slice(0, 3)) {
+        if (cancelled) break
+        checkedIds.current.add(ag.id)
+        await check(ag.id, true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [agents, loading])
+
   const verify = async () => {
-    if (!active.current || !code.trim() || busy) return
+    if (!active.current || (provider !== 'commandcode' && !code.trim()) || busy) return
     const currentEpoch = epoch.current
     const session = active.current
     setBusy(true)
     setFormError('')
     try {
+      if (session.harness === 'commandcode') {
+        if (commandcodeSubscriptionKey.trim()) {
+          active.current = null
+          setAuth(null)
+          setStep('save')
+          await finish(currentEpoch)
+          return
+        }
+        const authRes = await agentsApi.authCode(session.sessionId, code.trim() || 'browser-completed')
+        if (!authRes.authenticated && !authRes.verified) {
+          throw new Error(authRes.message || 'CommandCode sign-in is incomplete. Try again.')
+        }
+        active.current = null
+        try {
+          window.localStorage.removeItem('cuan.commandcode.auth')
+        } catch {}
+        setAuth(null)
+        setStep('save')
+        await finish(currentEpoch)
+        return
+      }
       let account
-      try { account = await accountsApi.code(
-        session.accountId,
-        session.sessionId,
-        code.trim(),
-        true,
-      ) } catch (err) {
-        if (!(err instanceof Error) || !/setup is (not complete|incomplete)/i.test(err.message)) throw err
+      try {
+        account = await accountsApi.code(
+          session.accountId,
+          session.sessionId,
+          code.trim(),
+          true,
+        )
+      } catch (err) {
+        if (!(err instanceof Error) || !/setup is (not complete|incomplete)/i.test(err.message))
+          throw err
         account = await accountsApi.finishSetup(session.accountId)
       }
       if (!dialogActive.current || epoch.current !== currentEpoch) return
@@ -411,6 +595,82 @@ export function TeamView({
       }
     }
   }
+
+  const reconnect = async (agent: Agent, account?: ProviderAccount) => {
+    if (working) return
+    setWorking(agent.id)
+    setError('')
+    try {
+      if (agent.provider === 'commandcode' && agent.auth_type === 'subscription') {
+        epoch.current++
+        dialogActive.current = true
+        setProvider('commandcode')
+        setCommandcodeMode('subscription')
+        setHandle(agent.name.split(' ')[0] || '@dev')
+        setOpen(true)
+        setStep('google')
+        setCode('')
+        setFormError('')
+        const session = await agentsApi.authInit('commandcode')
+        if (!session.session_id)
+          throw new Error('The CommandCode sign-in session is unavailable. Try again.')
+        active.current = { accountId: '', sessionId: session.session_id, harness: 'commandcode' }
+        try {
+          window.localStorage.setItem('cuan.commandcode.auth', JSON.stringify(session))
+        } catch {}
+        setAuth(session)
+        return
+      }
+      if (account && (account.provider === 'agy' || account.provider === 'antigravity')) {
+        const session = await accountsApi.login(account.id)
+        if (session.auth_url) {
+          window.open(session.auth_url, '_blank', 'noopener,noreferrer')
+        }
+      }
+      await agentsApi.patch(agent.id, { enabled: true, status: 'active' })
+      await agentsApi.verifyConnection(agent.id)
+      await load()
+      setNotice(`${agent.name} connection check started.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reconnect. Try again.')
+    } finally {
+      setWorking('')
+    }
+  }
+
+  const replaceKey = async (agent: Agent) => {
+    const trimmed = newKey.trim()
+    if (trimmed.length < 8 || working) return
+    setWorking(agent.id)
+    setError('')
+    try {
+      await agentsApi.replaceCredentials(agent.id, trimmed)
+      setNewKey('')
+      setReplacingKey('')
+      await load()
+      setNotice(`${agent.name} BYOK credential was replaced.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not replace the BYOK credential. Try again.')
+    } finally {
+      setWorking('')
+    }
+  }
+
+  const disconnect = async (agent: Agent) => {
+    if (working) return
+    setWorking(agent.id)
+    setError('')
+    try {
+      await agentsApi.patch(agent.id, { enabled: false, status: 'inactive' })
+      await load()
+      setNotice(`${agent.name} was disconnected.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not disconnect. Try again.')
+    } finally {
+      setWorking('')
+    }
+  }
+
   const remove = async (id: string) => {
     if (removing) return
     setRemoving(id)
@@ -425,12 +685,14 @@ export function TeamView({
       setRemoving('')
     }
   }
+
   useEffect(() => {
     if (focusAgentId && !loading)
       document
         .getElementById(`settings-agent-${focusAgentId}`)
         ?.scrollIntoView({ block: 'center' })
   }, [focusAgentId, loading])
+
   const visibleAgents =
     selectedRole === 'human' || selectedRole === 'product_owner' ? [] : agents
   const filteredAgents = visibleAgents.filter((a) =>
@@ -447,430 +709,581 @@ export function TeamView({
   return (
     <div className={connectionOnly ? 'contents' : 'mx-auto max-w-4xl space-y-5 pb-8'}>
       <div hidden={connectionOnly}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
-          <p className="mt-1 text-sm text-muted-foreground hidden sm:block">
-            {t(
-              'Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.',
-            )}
-          </p>
-        </div>
-        {showCreateAction && (
-          <button
-            ref={addButton}
-            onClick={() => begin()}
-            className={`${primary} shrink-0`}
-          >
-            <Plus className="h-4 w-4" />
-            {t('Add agent')}
-          </button>
-        )}
-      </div>
-      {visibleAgents.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              className="field-control pl-9 w-full"
-              aria-label="Search agents"
-              placeholder={t('Search by name or agent type')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
+            <p className="mt-1 text-sm text-muted-foreground hidden sm:block">
+              {t(
+                'Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.',
+              )}
+            </p>
           </div>
-          {search.trim() && (
-            <button className="action-secondary text-xs px-2.5 py-1.5" onClick={() => setSearch('')}>
-              {t('Clear')}
-            </button>
-          )}
-        </div>
-      )}
-      {notice && (
-        <p role="status" className="text-sm">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <div role="alert" className="text-sm text-destructive">
-          {error}{' '}
-          <button onClick={load} className="underline">
-            Try again
-          </button>
-        </div>
-      )}
-      {backupError && (
-        <div
-          role="alert"
-          className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center justify-between gap-2"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="truncate">{t(backupError)}</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button className="underline font-medium hover:opacity-80" onClick={() => void load()}>
-              {t('Try again')}
-            </button>
-            <button
-              className="text-muted-foreground hover:text-foreground p-0.5"
-              onClick={() => setBackupError('')}
-              aria-label="Dismiss error"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-      {loading ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          Loading agents…
-        </p>
-      ) : visibleAgents.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-8 text-center">
-          <Bot className="mx-auto h-8 w-8 text-muted-foreground" />
-          <h2 className="mt-3 font-medium">No agents yet</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Add your first agent, then connect a Google account.
-          </p>
           {showCreateAction && (
-            <button onClick={() => begin()} className={`${primary} mt-4`}>
-              Add your first agent
+            <button
+              ref={addButton}
+              onClick={() => begin()}
+              className={`${primary} shrink-0`}
+            >
+              <Plus className="h-4 w-4" />
+              {t('Add agent')}
             </button>
           )}
         </div>
-      ) : filteredAgents.length === 0 ? (
-        <div className="rounded-lg border p-5 text-center">
-          <p>No matching agents.</p>
-          <button
-            className="action-secondary mt-3"
-            onClick={() => setSearch('')}
-          >
-            Show all agents
-          </button>
-        </div>
-      ) : (
-        <div
-          role="list"
-          aria-label="Agent list"
-          className="divide-y divide-border rounded-lg border border-border"
-        >
-          {visibleAgents.map((agent) => {
-            const account =
-              accounts.find(
-                (item) =>
-                  !item.legacy &&
-                  item.agent_id === agent.id &&
-                  (agent.connection_id
-                    ? item.connection_id === agent.connection_id
-                    : true),
-              ) ||
-              accounts.find(
-                (item) => !item.legacy && item.agent_id === agent.id,
-              )
-            const expiry = agent.verified_at
-              ? Date.parse(agent.verified_at) + 5 * 60_000
-              : NaN
-            const state = connectionStatus(agent, now)
-            const a = { ...agent, connection_state: state.state }
-            const details: Record<string, string> = {
-              verified: 'The provider responded successfully.',
-              unknown:
-                'No current result. Check the connection without signing in again.',
-              login_required: 'Sign-in required. Your history is saved.',
-              quota_limited:
-                'Provider quota reached. Wait for it to reset; you do not need to sign in again.',
-              unavailable: 'The provider is unreachable. Check again later.',
-            }
-            return (
-              <div
-                role="listitem"
-                aria-label={`Agent ${a.name}`}
-                key={a.id}
-                id={`settings-agent-${a.id}`}
-                className="p-4"
+        {visibleAgents.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className="field-control pl-9 w-full"
+                aria-label="Search agents"
+                placeholder={t('Search by name or agent type')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {search.trim() && (
+              <button
+                className="action-secondary text-xs px-2.5 py-1.5"
+                onClick={() => setSearch('')}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
-                      <Bot className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
-                          {a.name}
-                        </h3>
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold border shrink-0 ${
-                            state.verified
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                              : state.state === 'quota_limited'
-                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                                : state.state === 'login_required'
-                                  ? 'bg-destructive/10 text-destructive border-destructive/20'
-                                  : 'bg-muted text-muted-foreground border-border'
-                          }`}
-                        >
-                          {state.verified && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )}
-                          {state.state === 'unknown'
-                            ? a.last_checked_at || a.verified_at
-                              ? t('Check needed')
-                              : t('Not checked')
-                            : t(state.label)}
-                        </span>
+                {t('Clear')}
+              </button>
+            )}
+          </div>
+        )}
+        {notice && (
+          <p role="status" className="text-sm">
+            {notice}
+          </p>
+        )}
+        {error && (
+          <div role="alert" className="text-sm text-destructive">
+            {error}{' '}
+            <button onClick={load} className="underline">
+              Try again
+            </button>
+          </div>
+        )}
+        {backupError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t(backupError)}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                className="underline font-medium hover:opacity-80"
+                onClick={() => void load()}
+              >
+                {t('Try again')}
+              </button>
+              <button
+                className="text-muted-foreground hover:text-foreground p-0.5"
+                onClick={() => setBackupError('')}
+                aria-label="Dismiss error"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+        {loading ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading agents…
+          </p>
+        ) : visibleAgents.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <Bot className="mx-auto h-8 w-8 text-muted-foreground" />
+            <h2 className="mt-3 font-medium">No agents yet</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add your first agent, then connect an account.
+            </p>
+            {showCreateAction && (
+              <button onClick={() => begin()} className={`${primary} mt-4`}>
+                Add your first agent
+              </button>
+            )}
+          </div>
+        ) : filteredAgents.length === 0 ? (
+          <div className="rounded-lg border p-5 text-center">
+            <p>No matching agents.</p>
+            <button
+              className="action-secondary mt-3"
+              onClick={() => setSearch('')}
+            >
+              Show all agents
+            </button>
+          </div>
+        ) : (
+          <div
+            role="list"
+            aria-label="Agent list"
+            className="divide-y divide-border rounded-lg border border-border"
+          >
+            {visibleAgents.map((agent) => {
+              const account =
+                accounts.find(
+                  (item) =>
+                    !item.legacy &&
+                    item.agent_id === agent.id &&
+                    (agent.connection_id
+                      ? item.connection_id === agent.connection_id
+                      : true),
+                ) ||
+                accounts.find(
+                  (item) => !item.legacy && item.agent_id === agent.id,
+                )
+              const expiry = agent.verified_at
+                ? Date.parse(agent.verified_at) + 5 * 60_000
+                : NaN
+              const state = connectionStatus(agent, now)
+              const a = { ...agent, connection_state: state.state }
+              const details: Record<string, string> = {
+                verified: 'The provider responded successfully.',
+                unknown:
+                  'No current result. Check the connection without signing in again.',
+                login_required: 'Sign-in required. Your history is saved.',
+                quota_limited:
+                  'Provider quota reached. Wait for it to reset; you do not need to sign in again.',
+                unavailable: 'The provider is unreachable. Check again later.',
+              }
+              return (
+                <div
+                  role="listitem"
+                  aria-label={`Agent ${a.name}`}
+                  key={a.id}
+                  id={`settings-agent-${a.id}`}
+                  className="p-4 sm:p-5"
+                >
+                  {/* 1. Header: Bot Icon + Agent Name + Status Badge (Left) & Actions Menu (Right) */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 mt-0.5">
+                        <Bot className="h-5 w-5" />
                       </div>
-                      {account?.email && (
-                        <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
-                          {account.email}
-                        </p>
-                      )}
-                      {state.state === 'quota_limited' && (
-                        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
-                          <p className="font-medium">{t('Individual account quota reached')}</p>
-                          <p className="mt-0.5 text-muted-foreground">
-                            {account?.message?.includes('Resets in')
-                              ? account.message
-                              : t('Google has paused CLI access for this Google account until its reset period. Per-model token capacity may still show 100%, but this account cannot execute queries until it resets or is upgraded.')}
-                          </p>
-                          {account?.quota_retry_at && (
-                            <p className="mt-1.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
-                              {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
-                            </p>
-                          )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
+                            {a.name}
+                          </h3>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold border shrink-0 ${
+                              state.verified
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                : state.state === 'quota_limited'
+                                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                  : state.state === 'login_required' || state.state === 'unavailable'
+                                    ? 'bg-destructive/10 text-destructive border-destructive/20'
+                                    : 'bg-muted text-muted-foreground border-border'
+                            }`}
+                          >
+                            {state.verified && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            )}
+                            {state.state === 'unknown'
+                              ? a.last_checked_at || a.verified_at
+                                ? t('Check needed')
+                                : t('Not checked')
+                              : t(state.label)}
+                          </span>
                         </div>
-                      )}
+                        {account?.email && (
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
+                            {account.email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {/* Dedicated top-right corner actions menu only: NEVER collides with name/badge */}
+                    <div className="shrink-0">
+                      <AgentActions
+                        name={a.name}
+                        disabled={!!checking || !!removing || !!working}
+                        onRemove={() => void remove(a.id)}
+                      />
                     </div>
                   </div>
-                  <div className="shrink-0">
-                    <AgentActions
-                      name={a.name}
-                      disabled={!!checking || !!removing}
-                      onRemove={() => void remove(a.id)}
-                    />
+
+                  {/* 2. Metadata Chips: Clean, structured badges eliminating hanging dots */}
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                      <span className="text-muted-foreground">Source:</span>
+                      <span className="font-semibold text-foreground">
+                        {a.auth_type === 'byok'
+                          ? 'BYOK'
+                          : a.auth_type === 'subscription'
+                            ? 'Subscription'
+                            : account?.provider === 'agy'
+                              ? 'Google account'
+                              : 'Provider'}
+                      </span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                      <span className="text-muted-foreground">Provider:</span>
+                      <span className="font-semibold text-foreground">
+                        {a.provider || account?.provider || 'Unknown'}
+                      </span>
+                    </span>
+                    {a.model_id && (
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                        <span className="text-muted-foreground">Model:</span>
+                        <span className="font-semibold text-foreground">{a.model_id}</span>
+                      </span>
+                    )}
                   </div>
-                </div>
-                {account && (
-                  <div className="mt-3 border-t border-border/60 pt-3 space-y-2.5">
-                    <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 rounded border-input"
-                        checked={!!account.allow_failover}
-                        disabled={!!backupBusy}
-                        onChange={async (e) => {
-                          const enabled = e.target.checked
-                          setBackupBusy(account.id)
-                          setBackupError('')
-                          try {
-                            const updated = await accountsApi.failover(
-                              account.id,
-                              enabled,
-                            )
-                            setAccounts((old) =>
-                              old.map((item) =>
-                                item.id === updated.id ? updated : item,
-                              ),
-                            )
-                          } catch {
-                            setBackupError(
-                              'Could not save backup account settings. Try again.',
-                            )
-                          } finally {
-                            setBackupBusy('')
-                          }
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <span>{t('Use this AI account as a backup')}</span>
-                        <p className="text-[11px] text-muted-foreground font-normal leading-normal">
-                          {t('Auto-failover for Inbox & tasks when primary quota is low.')}
-                        </p>
-                      </div>
-                    </label>
 
-                    <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 rounded border-input"
-                        checked={!!account.allow_model_fallback}
-                        disabled={!!backupBusy}
-                        onChange={async (e) => {
-                          const enabled = e.target.checked
-                          setBackupBusy(account.id)
-                          setBackupError('')
-                          try {
-                            const updated = await accountsApi.modelFallback(
-                              account.id,
-                              enabled,
-                            )
-                            setAccounts((old) =>
-                              old.map((item) =>
-                                item.id === updated.id ? updated : item,
-                              ),
-                            )
-                          } catch {
-                            setBackupError(
-                              'Could not save backup account settings. Try again.',
-                            )
-                          } finally {
-                            setBackupBusy('')
-                          }
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <span>{t('Allow available text models on this account')}</span>
-                        <p className="text-[11px] text-muted-foreground font-normal leading-normal">
-                          {t('Auto-switch between available Gemini and Claude models.')}
+                  {/* Alerts if quota limited or unavailable */}
+                  {state.state === 'quota_limited' && (
+                    <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+                      <p className="font-medium">{t('Individual account quota reached')}</p>
+                      <p className="mt-0.5 text-muted-foreground">
+                        {account?.message?.includes('Resets in')
+                          ? account.message
+                          : t(
+                              'Google has paused CLI access for this Google account until its reset period. Per-model token capacity may still show 100%, but this account cannot execute queries until it resets or is upgraded.',
+                            )}
+                      </p>
+                      {account?.quota_retry_at && (
+                        <p className="mt-1.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
+                          {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
                         </p>
-                      </div>
-                    </label>
-
-                    {/* Compact action buttons grid */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40">
-                      {(a.harness === 'agy' ||
-                        a.provider === 'agy' ||
-                        a.provider === 'antigravity') && (
-                        <button
-                          onClick={() => void check(a.id)}
-                          disabled={!!checking || !!removing}
-                          aria-label={`Check connection ${a.name}`}
-                          className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 shrink-0 ${checking === a.id ? 'animate-spin' : ''}`}
-                          />
-                          <span className="truncate">{checking === a.id ? t('Checking…') : t('Check connection')}</span>
-                        </button>
                       )}
+                    </div>
+                  )}
+                  {state.state === 'unavailable' && (
+                    <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-xs">
+                      <span className="min-w-0 truncate text-destructive">
+                        {t('Agent unavailable')} · {t('Inbox will not route new work here.')}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {t('Check connection')}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 3. Primary Actions Row: Dedicated full-width container with comfortable touch targets */}
+                  <div className="mt-3.5 flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+                    {state.state !== 'verified' && (
                       <button
                         type="button"
-                        className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
-                        disabled={!!usageBusy}
-                        onClick={async () => {
-                          setUsageBusy(account.id)
-                          setBackupError('')
-                          try {
-                            setUsage((old) => ({
-                              ...old,
-                              [account.id]: {
-                                available: false,
-                                checked_at: '',
-                                models: [],
-                                message: '',
-                              },
-                            }))
-                            const result = await accountsApi.usage(account.id)
-                            setUsage((old) => ({ ...old, [account.id]: result }))
-                          } catch {
-                            setBackupError(
-                              'Could not check model usage. Try again.',
-                            )
-                          } finally {
-                            setUsageBusy('')
-                          }
-                        }}
+                        className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
+                        disabled={!!working || !!removing}
+                        onClick={() => void reconnect(a, account)}
+                        aria-label={`Reconnect ${a.name}`}
                       >
-                        <BarChart2 className="h-3.5 w-3.5" />
-                        <span>{usageBusy === account.id ? t('Checking…') : t('Check model usage')}</span>
+                        <RefreshCw
+                          className={`mr-1.5 h-3.5 w-3.5 shrink-0 ${working === a.id ? 'animate-spin' : ''}`}
+                        />
+                        <span>{working === a.id ? 'Working…' : 'Reconnect'}</span>
                       </button>
-                    </div>
-                    {usage[account.id] && !usageBusy && (
-                      <div
-                        className="mt-3 space-y-2 text-xs text-muted-foreground"
-                        aria-label={t('Model usage')}
+                    )}
+                    {a.enabled !== false && (
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
+                        disabled={!!working || !!removing}
+                        onClick={() => void disconnect(a)}
+                        aria-label={`Disconnect ${a.name}`}
                       >
-                        {state.state === 'quota_limited' && (
-                          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
-                            <p>{t('Note: The percentages below reflect per-model token capacity. Execution for this account is currently paused due to Google individual subscription quota.')}</p>
-                            {account?.quota_retry_at && (
-                              <p className="mt-1 font-mono text-[11px]">
-                                {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
+                        Disconnect
+                      </button>
+                    )}
+                    {a.provider === 'commandcode' && (
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
+                        disabled={!!working}
+                        onClick={() => setReplacingKey(replacingKey === a.id ? '' : a.id)}
+                        aria-label={`Replace BYOK credential for ${a.name}`}
+                      >
+                        <Key className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                        <span>Replace BYOK</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Inline Replace BYOK form */}
+                  {replacingKey === a.id && a.provider === 'commandcode' && (
+                    <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3 sm:flex-row">
+                      <label className="sr-only" htmlFor={`replace-key-${a.id}`}>
+                        New API key
+                      </label>
+                      <input
+                        id={`replace-key-${a.id}`}
+                        type="password"
+                        autoComplete="off"
+                        value={newKey}
+                        onChange={(e) => setNewKey(e.target.value)}
+                        placeholder="Enter a new API key"
+                        className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="min-h-11 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                          disabled={newKey.trim().length < 8 || !!working}
+                          onClick={() => void replaceKey(a)}
+                        >
+                          {working === a.id ? 'Saving…' : 'Save key'}
+                        </button>
+                        <button
+                          type="button"
+                          className="min-h-11 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
+                          onClick={() => {
+                            setReplacingKey('')
+                            setNewKey('')
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Account Settings details */}
+                  {account && (
+                    <details className="mt-3 border-t border-border/60 pt-2">
+                      <summary className="flex min-h-11 cursor-pointer items-center justify-between text-sm font-medium text-foreground">
+                        <span>{t('Agent details')}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t('Quota, routing and usage')}
+                        </span>
+                      </summary>
+                      <div className="space-y-2.5 pb-1">
+                        <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 rounded border-input"
+                            checked={!!account.allow_failover}
+                            disabled={!!backupBusy}
+                            onChange={async (e) => {
+                              const enabled = e.target.checked
+                              setBackupBusy(account.id)
+                              setBackupError('')
+                              try {
+                                const updated = await accountsApi.failover(
+                                  account.id,
+                                  enabled,
+                                )
+                                setAccounts((old) =>
+                                  old.map((item) =>
+                                    item.id === updated.id ? updated : item,
+                                  ),
+                                )
+                              } catch {
+                                setBackupError(
+                                  'Could not save backup account settings. Try again.',
+                                )
+                              } finally {
+                                setBackupBusy('')
+                              }
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <span>{t('Use as backup')}</span>
+                            <p className="text-[11px] text-muted-foreground font-normal leading-normal">
+                              {t('Auto-failover for Inbox & tasks when primary quota is low.')}
+                            </p>
+                          </div>
+                        </label>
+
+                        <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 rounded border-input"
+                            checked={!!account.allow_model_fallback}
+                            disabled={!!backupBusy}
+                            onChange={async (e) => {
+                              const enabled = e.target.checked
+                              setBackupBusy(account.id)
+                              setBackupError('')
+                              try {
+                                const updated = await accountsApi.modelFallback(
+                                  account.id,
+                                  enabled,
+                                )
+                                setAccounts((old) =>
+                                  old.map((item) =>
+                                    item.id === updated.id ? updated : item,
+                                  ),
+                                )
+                              } catch {
+                                setBackupError(
+                                  'Could not save backup account settings. Try again.',
+                                )
+                              } finally {
+                                setBackupBusy('')
+                              }
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <span>{t('Allow model fallback')}</span>
+                            <p className="text-[11px] text-muted-foreground font-normal leading-normal">
+                              {t('Auto-switch between available Gemini and Claude models.')}
+                            </p>
+                          </div>
+                        </label>
+
+                        {/* Action buttons grid */}
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40">
+                          {(a.harness === 'agy' ||
+                            a.provider === 'agy' ||
+                            a.provider === 'antigravity') && (
+                            <button
+                              onClick={() => void check(a.id)}
+                              disabled={!!checking || !!removing}
+                              aria-label={`Check connection ${a.name}`}
+                              className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
+                            >
+                              <RefreshCw
+                                className={`h-3.5 w-3.5 shrink-0 ${checking === a.id ? 'animate-spin' : ''}`}
+                              />
+                              <span className="truncate">
+                                {checking === a.id ? t('Checking…') : t('Check connection')}
+                              </span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
+                            disabled={!!usageBusy}
+                            onClick={async () => {
+                              setUsageBusy(account.id)
+                              setBackupError('')
+                              try {
+                                setUsage((old) => ({
+                                  ...old,
+                                  [account.id]: {
+                                    available: false,
+                                    checked_at: '',
+                                    models: [],
+                                    message: '',
+                                  },
+                                }))
+                                const result = await accountsApi.usage(account.id)
+                                setUsage((old) => ({ ...old, [account.id]: result }))
+                              } catch {
+                                setBackupError(
+                                  'Could not check model usage. Try again.',
+                                )
+                              } finally {
+                                setUsageBusy('')
+                              }
+                            }}
+                          >
+                            <BarChart2 className="h-3.5 w-3.5" />
+                            <span>
+                              {usageBusy === account.id ? t('Checking…') : t('Check model usage')}
+                            </span>
+                          </button>
+                        </div>
+
+                        {usage[account.id] && !usageBusy && (
+                          <div
+                            className="mt-3 space-y-2 text-xs text-muted-foreground"
+                            aria-label={t('Model usage')}
+                          >
+                            {state.state === 'quota_limited' && (
+                              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
+                                <p>
+                                  {t(
+                                    'Note: The percentages below reflect per-model token capacity. Execution for this account is currently paused due to Google individual subscription quota.',
+                                  )}
+                                </p>
+                                {account?.quota_retry_at && (
+                                  <p className="mt-1 font-mono text-[11px]">
+                                    {t('Resets')}:{' '}
+                                    {new Date(account.quota_retry_at).toLocaleString()}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {usage[account.id].available ? (
+                              usage[account.id].models.map((model) => (
+                                <div
+                                  key={model.model}
+                                  className="flex min-w-0 flex-wrap justify-between gap-2"
+                                >
+                                  <span className="min-w-0 break-all">{model.model}</span>
+                                  <span>
+                                    {Math.round(model.remaining_percent)}% {t('remaining')}
+                                  </span>
+                                  {model.reset_at && (
+                                    <span className="w-full">
+                                      {t('Resets')}:{' '}
+                                      {new Date(model.reset_at).toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <p>
+                                {t(
+                                  'Model usage is unavailable. No remaining quota is assumed.',
+                                )}
+                              </p>
+                            )}
+                            {usage[account.id].checked_at && (
+                              <p>
+                                {t('Checked')}:{' '}
+                                {new Date(usage[account.id].checked_at).toLocaleString()}
                               </p>
                             )}
                           </div>
                         )}
-                        {usage[account.id].available ? (
-                          usage[account.id].models.map((model) => (
-                            <div
-                              key={model.model}
-                              className="flex min-w-0 flex-wrap justify-between gap-2"
-                            >
-                              <span className="min-w-0 break-all">
-                                {model.model}
-                              </span>
-                              <span>
-                                {Math.round(model.remaining_percent)}%{' '}
-                                {t('remaining')}
-                              </span>
-                              {model.reset_at && (
-                                <span className="w-full">
-                                  {t('Resets')}:{' '}
-                                  {new Date(model.reset_at).toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          ))
-                        ) : (
+                      </div>
+                    </details>
+                  )}
+
+                  {/* 4. Connection Details Accordion Link: Comfortable touch target and clean styling */}
+                  {(a.last_checked_at ||
+                    a.verified_at ||
+                    state.state === 'unknown' ||
+                    state.state === 'unavailable' ||
+                    state.state === 'login_required') && (
+                    <details className="mt-2 text-xs text-muted-foreground">
+                      <summary className="inline-flex min-h-11 cursor-pointer items-center text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-4">
+                        Connection details
+                      </summary>
+                      <div className="space-y-2 pb-2">
+                        <p className="text-sm">
+                          {state.state === 'disabled'
+                            ? 'This agent is disabled.'
+                            : state.state === 'unknown'
+                              ? a.last_checked_at || a.verified_at
+                                ? 'The last connection check has expired. Check the connection before routing new work here.'
+                                : 'This agent has not been checked yet. Check the connection to confirm whether it is available.'
+                              : details[a.connection_state || 'unknown'] || details.unknown}
+                        </p>
+                        {a.last_checked_at && (
                           <p>
-                            {t(
-                              'Model usage is unavailable. No remaining quota is assumed.',
-                            )}
+                            Checked:{' '}
+                            <time dateTime={a.last_checked_at}>
+                              {new Date(a.last_checked_at).toLocaleString('en-US')}
+                            </time>
                           </p>
                         )}
-                        {usage[account.id].checked_at && (
+                        {a.verified_at && Number.isFinite(expiry) && (
                           <p>
-                            {t('Checked')}:{' '}
-                            {new Date(
-                              usage[account.id].checked_at,
-                            ).toLocaleString()}
+                            {state.verified ? 'Valid until' : 'Result expired at'}:{' '}
+                            <time dateTime={new Date(expiry).toISOString()}>
+                              {new Date(expiry).toLocaleString('en-US')}
+                            </time>
                           </p>
                         )}
                       </div>
-                    )}
-                  </div>
-                )}
-                {(a.last_checked_at || a.verified_at) && (
-                  <details className="mt-2 text-xs text-muted-foreground">
-                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
-                      Connection details
-                    </summary>
-                    <div className="space-y-2 pb-2">
-                      <p className="text-sm">
-                        {state.state === 'disabled'
-                          ? 'This agent is disabled.'
-                          : details[a.connection_state || 'unknown'] ||
-                            details.unknown}
-                      </p>
-                      {a.last_checked_at && (
-                        <p>
-                          Checked:{' '}
-                          <time dateTime={a.last_checked_at}>
-                            {new Date(a.last_checked_at).toLocaleString(
-                              'en-US',
-                            )}
-                          </time>
-                        </p>
-                      )}
-                      {a.verified_at && Number.isFinite(expiry) && (
-                        <p>
-                          {state.verified ? 'Valid until' : 'Result expired at'}
-                          :{' '}
-                          <time dateTime={new Date(expiry).toISOString()}>
-                            {new Date(expiry).toLocaleString('en-US')}
-                          </time>
-                        </p>
-                      )}
-                    </div>
-                  </details>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+                    </details>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
+
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
           <section
@@ -900,13 +1313,13 @@ export function TeamView({
             <header className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 id="add-agent-title" className="font-semibold">
-                  {connectionOnly ? 'Connect Google' : 'Add agent'}
+                  {connectionOnly ? 'Connect account' : 'Add agent'}
                 </h2>
                 {!connectionOnly && step !== 'save' && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {step === 'name'
                       ? 'Step 1 of 2 · Choose a name'
-                      : 'Step 2 of 2 · Connect Google'}
+                      : 'Step 2 of 2 · Connect account'}
                   </p>
                 )}
               </div>
@@ -929,6 +1342,165 @@ export function TeamView({
               <div className="space-y-4 p-5">
                 {step === 'name' && (
                   <>
+                    {!connectionOnly && (
+                      <div>
+                        <label
+                          htmlFor="agent-provider"
+                          className="text-sm font-medium"
+                        >
+                          Provider
+                        </label>
+                        <div
+                          id="agent-provider"
+                          role="radiogroup"
+                          aria-label="Provider"
+                          className="mt-2 flex gap-3"
+                        >
+                          <label className="flex items-center gap-2 cursor-pointer rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50">
+                            <input
+                              type="radio"
+                              name="provider"
+                              value="agy"
+                              checked={provider === 'agy'}
+                              onChange={() => setProvider('agy')}
+                              className="shrink-0"
+                            />
+                            Google (agy)
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50">
+                            <input
+                              type="radio"
+                              name="provider"
+                              value="commandcode"
+                              checked={provider === 'commandcode'}
+                              onChange={() => setProvider('commandcode')}
+                              className="shrink-0"
+                            />
+                            CommandCode
+                          </label>
+                        </div>
+                      </div>
+                    )}
+
+                    {provider === 'commandcode' && (
+                      <div className="mt-2 flex gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50">
+                          <input
+                            type="radio"
+                            name="commandcode-mode"
+                            value="subscription"
+                            checked={commandcodeMode === 'subscription'}
+                            onChange={() => setCommandcodeMode('subscription')}
+                            className="shrink-0"
+                          />
+                          Subscription connect
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/50">
+                          <input
+                            type="radio"
+                            name="commandcode-mode"
+                            value="byok"
+                            checked={commandcodeMode === 'byok'}
+                            onChange={() => setCommandcodeMode('byok')}
+                            className="shrink-0"
+                          />
+                          Custom BYOK
+                        </label>
+                      </div>
+                    )}
+
+                    {provider === 'commandcode' && commandcodeMode === 'byok' && (
+                      <div>
+                        <label
+                          htmlFor="commandcode-api-key"
+                          className="text-sm font-medium"
+                        >
+                          CommandCode API key
+                        </label>
+                        <input
+                          id="commandcode-api-key"
+                          type="password"
+                          autoComplete="off"
+                          value={commandcodeApiKey}
+                          onChange={(e) => setCommandcodeApiKey(e.target.value)}
+                          placeholder="cc_live_..."
+                          className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Your API key is stored encrypted and used only for your account.
+                        </p>
+                      </div>
+                    )}
+
+                    {provider === 'commandcode' && (
+                      <div className="mt-3">
+                        <label
+                          htmlFor="commandcode-model"
+                          className="text-sm font-medium"
+                        >
+                          Model
+                        </label>
+                        <select
+                          id="commandcode-model"
+                          value={modelId}
+                          onChange={(e) => setModelId(e.target.value)}
+                          className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                        >
+                          {models.length > 0 ? (
+                            models.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.display_name || m.name} ({m.supports_vision ? 'Vision' : 'Text-only'})
+                              </option>
+                            ))
+                          ) : (
+                            <>
+                              <option value="commandcode-default">
+                                CommandCode Default (Text-only)
+                              </option>
+                              <option value="claude-sonnet-5-5">
+                                Claude Sonnet 5.5 (Vision)
+                              </option>
+                              <option value="google/gemini-3.8-flash">
+                                Gemini 3.8 Flash (Vision)
+                              </option>
+                              <option value="deepseek/deepseek-v4-pro">
+                                DeepSeek V4 Pro (Text-only)
+                              </option>
+                              <option value="deepseek/deepseek-v4-flash-vision-exp">
+                                DeepSeek V4 Flash Vision (Vision)
+                              </option>
+                              <option value="moonshotai/kimi-k2.7-code">
+                                Kimi K2.7 Code (Vision)
+                              </option>
+                              <option value="moonshotai/kimi-k3.1-pro">
+                                Kimi K3.1 Pro (Text-only)
+                              </option>
+                              <option value="qwen/qwen3.8-omni-flash">
+                                Qwen 3.8 Omni Flash (Vision)
+                              </option>
+                              <option value="xai/grok-4.5">
+                                xAI Grok 4.5 (Text-only)
+                              </option>
+                              <option value="reflection/beam:free">
+                                Reflection Beam (Free, Text-only)
+                              </option>
+                            </>
+                          )}
+                        </select>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {isModelMultimodal(modelId, 'commandcode')
+                            ? '✓ Model ini mendukung input multimodal (gambar & dokumen).'
+                            : 'ℹ Model teks saja (tidak mendukung input gambar / vision).'}
+                        </p>
+                      </div>
+                    )}
+
+                    {!connectionOnly && provider === 'commandcode' && commandcodeMode === 'subscription' && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Sign in securely with your CommandCode subscription. Cuan never displays or stores subscription secrets.
+                      </p>
+                    )}
+
                     <div>
                       <label
                         htmlFor="agent-handle"
@@ -962,21 +1534,20 @@ export function TeamView({
                       </p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Next, sign in to Google to connect this agent. Other agent
-                      connections are preserved.
+                      Next, connect your AI account to use this agent. Other agent connections are preserved.
                     </p>
                   </>
                 )}
                 {step === 'google' && (
                   <>
                     <p className="text-sm">
-                      {connectionOnly ? 'Connect your AI account to get started.' : <>Connect Google for <strong>{handle}</strong>.</>}
+                      {connectionOnly ? 'Connect your AI account to get started.' : <>Connect your account for <strong>{handle}</strong>.</>}
                     </p>
                     {auth?.auth_url ? (
                       <>
                         <div className="space-y-2">
                           <p className="text-sm font-medium">
-                            1. Sign in to your Google account
+                            1. {provider === 'commandcode' ? 'Sign in to CommandCode' : 'Sign in to your provider account'}
                           </p>
                           <a
                             href={auth.auth_url}
@@ -984,41 +1555,66 @@ export function TeamView({
                             rel="noopener noreferrer"
                             className={`${secondary} w-full`}
                           >
-                            Open Google ↗
+                            Open sign-in ↗
                           </a>
                           <p className="text-xs text-muted-foreground">
-                            Choose the account you want to use, then return
-                            here.
+                            Complete sign-in, then return here.
                           </p>
                         </div>
-                        <div>
-                          <label
-                            htmlFor="oauth-code"
-                            className="text-sm font-medium"
-                          >
-                            2. Paste the code from Google
-                          </label>
-                          <input
-                            id="oauth-code"
-                            type="password"
-                            autoComplete="off"
-                            value={code}
-                            onChange={(event) => setCode(event.target.value)}
-                            placeholder="Paste your code here"
-                            className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-                          />
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Paste the code here only. The link expires in five
-                            minutes.
+                        {provider !== 'commandcode' && (
+                          <div>
+                            <label
+                              htmlFor="oauth-code"
+                              className="text-sm font-medium"
+                            >
+                              2. Paste the code from Google
+                            </label>
+                            <input
+                              id="oauth-code"
+                              type="password"
+                              autoComplete="off"
+                              value={code}
+                              onChange={(event) => setCode(event.target.value)}
+                              placeholder="Paste your code here"
+                              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                            />
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Paste the code here only. The link expires in five
+                              minutes.
+                            </p>
+                          </div>
+                        )}
+                        {provider === 'commandcode' && (
+                          <div className="mt-4 space-y-2">
+                            <label
+                              htmlFor="commandcode-subscription-key"
+                              className="text-sm font-medium"
+                            >
+                              API key from CommandCode (fallback)
+                            </label>
+                            <input
+                              id="commandcode-subscription-key"
+                              type="password"
+                              autoComplete="off"
+                              value={commandcodeSubscriptionKey}
+                              onChange={(e) => setCommandcodeSubscriptionKey(e.target.value)}
+                              placeholder="Paste the key shown once by CommandCode"
+                              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Stored encrypted for this agent. It is never shown again.
+                            </p>
+                          </div>
+                        )}
+                        {provider !== 'commandcode' && (
+                          <p className="text-xs leading-relaxed text-muted-foreground">
+                            By confirming sign-in, you agree to the{' '}
+                            <a href="https://antigravity.google/terms" target="_blank" rel="noreferrer" className="underline">Antigravity terms</a>{' '}
+                            and acknowledge Google's{' '}
+                            <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="underline">privacy policy</a>.
+                            Cuan won't opt you into optional interaction sharing.
                           </p>
-                        </div>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          By confirming sign-in, you agree to the{' '}
-                          <a href="https://antigravity.google/terms" target="_blank" rel="noreferrer" className="underline">Antigravity terms</a>{' '}
-                          and acknowledge Google's{' '}
-                          <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="underline">privacy policy</a>.
-                          Cuan won't opt you into optional interaction sharing.
-                        </p>
+                        )}
                         <button
                           type="button"
                           disabled={busy}
@@ -1037,8 +1633,7 @@ export function TeamView({
                 )}
                 {step === 'save' && (
                   <p className="text-sm">
-                    Google is connected. Save <strong>{handle}</strong> to start
-                    using it.
+                    Account is connected. Save <strong>{handle}</strong> to start using it.
                   </p>
                 )}
                 {formError && (
@@ -1054,7 +1649,9 @@ export function TeamView({
                     {step === 'save'
                       ? 'Adding agent…'
                       : step === 'name' || !auth?.auth_url
-                        ? 'Preparing Google sign-in…'
+                        ? provider === 'commandcode'
+                          ? 'Preparing CommandCode sign-in…'
+                          : 'Preparing Google sign-in…'
                         : 'Checking code…'}
                   </p>
                 )}
@@ -1071,17 +1668,22 @@ export function TeamView({
                   disabled={
                     busy ||
                     (step === 'name' && handle.length < 2) ||
-                    (step === 'google' && !!auth?.auth_url && !code.trim())
+                    (step === 'name' && provider === 'commandcode' && commandcodeMode === 'byok' && commandcodeApiKey.trim().length < 8) ||
+                    (step === 'google' && provider !== 'commandcode' && !!auth?.auth_url && !code.trim())
                   }
                 >
                   {busy && <RefreshCw className="h-4 w-4 animate-spin" />}
                   {step === 'save'
                     ? 'Save agent'
-                    : step === 'name'
-                      ? 'Connect Google'
-                      : auth?.auth_url
-                        ? 'Confirm sign-in'
-                        : 'Create a new link'}
+                    : step === 'name' && provider === 'commandcode'
+                      ? 'Add agent'
+                      : step === 'name'
+                        ? 'Connect Google'
+                        : auth?.auth_url
+                          ? provider === 'commandcode'
+                            ? 'I finished signing in'
+                            : 'Confirm sign-in'
+                          : 'Create a new link'}
                 </button>
               </footer>
             </form>

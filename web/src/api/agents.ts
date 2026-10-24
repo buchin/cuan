@@ -11,6 +11,7 @@ export interface Agent {
   system_prompt?: string
   model_id?: string
   provider?: string
+  auth_type?: string
   status?: string
   created_at?: string
   updated_at?: string
@@ -67,12 +68,31 @@ export interface HarnessAuth {
   expires_at?: string
 }
 
+export interface ModelInfo {
+  id: string
+  name: string
+  display_name?: string
+  supports_vision?: boolean
+  multimodal?: boolean
+}
+
 export const agentsApi = {
   verifyConnection: (id: string) => apiFetch<{ connection_state: string; message: string; last_checked_at?: string; verified_at?: string }>(`/api/v1/agents/${encodeURIComponent(id)}/connection/verify`, { method: 'POST' }),
   authStatus: (harness: string, verify = false) => apiFetch<HarnessAuth>(`/api/v1/agents/auth-status?harness=${encodeURIComponent(harness)}&verify=${verify}`),
-  authInit: () => apiFetch<HarnessAuth>('/api/v1/agents/auth-init', { method: 'POST', body: JSON.stringify({ harness: 'agy' }) }),
+  authInit: (harness = 'agy') => apiFetch<HarnessAuth>('/api/v1/agents/auth-init', { method: 'POST', body: JSON.stringify({ harness }) }),
   authCode: (session_id: string, code: string) => apiFetch<HarnessAuth>('/api/v1/agents/auth-code', { method: 'POST', body: JSON.stringify({ session_id, code }) }),
   authCancel: (session_id: string) => apiFetch('/api/v1/agents/auth-code?cancel=true', { method: 'POST', body: JSON.stringify({ session_id, code: '' }) }),
+  replaceCredentials: (id: string, apiKey: string) =>
+    apiFetch<{ status: string }>(
+      `/api/v1/agents/${encodeURIComponent(id)}/connection/credentials`,
+      { method: 'POST', body: JSON.stringify({ api_key: apiKey }) },
+    ),
+  listModels: async (provider = 'commandcode'): Promise<ModelInfo[]> =>
+    (
+      await apiFetch<{ models: ModelInfo[] }>(
+        `/api/v1/agents/models?provider=${encodeURIComponent(provider)}`,
+      )
+    ).models || [],
   list: async (): Promise<Agent[]> => {
     const res = await apiFetch<{ status: string; agents: Agent[]; count: number }>('/api/v1/agents')
     return res.agents || []
