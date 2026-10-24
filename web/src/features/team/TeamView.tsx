@@ -123,7 +123,12 @@ export function TeamView({
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('name')
   const [handle, setHandle] = useState('@dev')
-  const [auth, setAuth] = useState<HarnessAuth | null>(null)
+  const [auth, setAuth] = useState<HarnessAuth | null>(() => {
+    try {
+      const raw = window.localStorage.getItem('cuan.commandcode.auth')
+      return raw ? (JSON.parse(raw) as HarnessAuth) : null
+    } catch { return null }
+  })
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState('')
@@ -153,6 +158,13 @@ export function TeamView({
   }, [])
   const active = useRef<{ accountId: string; sessionId: string; harness?: 'commandcode' } | null>(null)
   const accountScope = useRef('')
+  useEffect(() => {
+    if (auth?.session_id && auth.expires_at && Date.parse(auth.expires_at) > Date.now()) {
+      active.current = { accountId: '', sessionId: auth.session_id, harness: 'commandcode' }
+    } else if (!auth) {
+      window.localStorage.removeItem('cuan.commandcode.auth')
+    }
+  }, [auth])
   const epoch = useRef(0)
   const dialogActive = useRef(false)
   const autoChecked = useRef(new Set<string>())
@@ -323,6 +335,7 @@ export function TeamView({
         if (!dialogActive.current || epoch.current !== currentEpoch) return
         if (!session.session_id) throw new Error('The CommandCode sign-in session is unavailable. Try again.')
         active.current = { accountId: '', sessionId: session.session_id, harness: 'commandcode' }
+        window.localStorage.setItem('cuan.commandcode.auth', JSON.stringify(session))
         setAuth(session)
         setStep('google')
         return
@@ -488,6 +501,7 @@ export function TeamView({
         const result = await agentsApi.authCode(session.sessionId, code.trim())
         if (!result.authenticated && !result.verified) throw new Error(result.message || 'CommandCode sign-in is incomplete. Try again.')
         active.current = null
+        window.localStorage.removeItem('cuan.commandcode.auth')
         setAuth(null)
         setStep('save')
         await finish(currentEpoch)
