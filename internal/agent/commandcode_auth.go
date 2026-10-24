@@ -82,6 +82,15 @@ func StartCommandCodeAuth(owner string) *CommandCodeAuthSession {
 	if err == nil {
 		s.cmd, s.terminal = cmd, term
 		go readCommandCodeLogin(s)
+		for i := 0; i < 20; i++ {
+			time.Sleep(100 * time.Millisecond)
+			commandCodeAuthMu.Lock()
+			ready := s.AuthURL != ""
+			commandCodeAuthMu.Unlock()
+			if ready {
+				break
+			}
+		}
 	} else {
 		s.Message = fmt.Sprintf("Could not start CommandCode login: %v", err)
 	}
