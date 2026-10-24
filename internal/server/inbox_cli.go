@@ -20,6 +20,7 @@ import (
 type inboxSchemaRetryKey struct{}
 type inboxAnalysisRecoveryKey struct{}
 type inboxCoordinatorDirectKey struct{}
+type commandCodeAPIKeyContext struct{}
 
 // boundedInboxOutput prevents noisy subprocesses exhausting server memory.
 // Live activity contains only application-owned labels, never stderr/reasoning.
@@ -176,6 +177,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
 	profileEnv := agent.AntigravityProfileEnvironment(home)
+	if binary == "commandcode" {
+		if key, _ := ctx.Value(commandCodeAPIKeyContext{}).(string); key != "" {
+			profileEnv = append(profileEnv, "COMMAND_CODE_API_KEY="+key)
+		}
+	}
 	if binary == "agy" {
 		path, args, err = sandboxInboxCommand(path, args, profileEnv, home, workspace, attachmentPaths)
 		if err == nil {
