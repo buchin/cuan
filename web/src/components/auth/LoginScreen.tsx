@@ -8,7 +8,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { Eye, EyeOff, LoaderCircle } from 'lucide-react'
 
 export function LoginScreen() {
-  const { login, setup, setupRequired, refreshUser } = useAuth()
+  const { login, setup, setupRequired, setupError, refreshUser } = useAuth()
   const { t } = useLanguage()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -44,6 +44,7 @@ export function LoginScreen() {
         {setupRequired === null ? (
           <div role="alert" className="mt-6 space-y-3 text-sm">
             <p>{t('Could not check workspace setup. Check your connection and try again.')}</p>
+            {setupError && <p className="text-xs text-muted-foreground">{setupError}</p>}
             <Button onClick={() => void refreshUser()}>{t('Try again')}</Button>
           </div>
         ) : (

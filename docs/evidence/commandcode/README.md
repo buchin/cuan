@@ -19,3 +19,11 @@ Browser capture commands (managed browser):
 - `browser_evaluate` accessibility probe → [machine result](accessibility.json)
 
 The route is a reproducible local/static build, but the authenticated Team/Settings view could not be reached: the app returned `Could not check workspace setup. Check your connection and try again.` because the provider/API endpoint is unavailable from the sandbox. Therefore this evidence records the blocker and does not claim Team/Settings DoD passed.
+
+## Setup failure diagnostics
+
+When `/api/v1/auth/status` cannot be reached, the login screen now keeps the
+workspace in retry mode and reports a safe diagnostic (`HTTP <status>` or the
+network error). It never displays tokens, API keys, terminal output, or provider
+credentials. After the endpoint recovers, **Try again** re-runs setup discovery;
+existing auth state is then loaded before `/settings/agents` is opened.

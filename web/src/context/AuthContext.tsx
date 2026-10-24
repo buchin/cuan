@@ -19,6 +19,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   setupRequired: boolean | null
+  setupError: string
   login: (identifier: string, password: string) => Promise<void>
   setup: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<OwnerInfo | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
+  const [setupError, setSetupError] = useState('')
 
   const getAuthHeaders = useCallback((): HeadersInit => {
     const headers: Record<string, string> = {
@@ -62,6 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (statusRes.ok) {
         const statusData = await statusRes.json()
         setSetupRequired(statusData.setup_required ?? false)
+        setSetupError('')
+      } else {
+        setSetupRequired(null)
+        setSetupError(`Setup status endpoint returned HTTP ${statusRes.status}.`)
       }
 
       // 2. If token exists, fetch profile from /api/v1/auth/me
@@ -91,6 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Network request failed.'
+      setSetupRequired(null)
+      setSetupError(`Could not reach the setup status endpoint: ${detail}`)
       console.error('Failed to load user session:', err)
     } finally {
       setIsLoading(false)
@@ -211,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         setupRequired,
+        setupError,
         login,
         setup,
         logout,
