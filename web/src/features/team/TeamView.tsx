@@ -1220,7 +1220,7 @@ export function TeamView({
                             </p>
                           </div>
                         )}
-                        {provider === 'commandcode' && (
+                        {provider === 'commandcode' && (commandcodeMode === 'byok' || !!auth?.authenticated || !!auth?.verified) && (
                           <div className="mt-3">
                             <label
                               htmlFor="commandcode-model"
