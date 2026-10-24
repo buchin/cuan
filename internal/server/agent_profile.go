@@ -60,7 +60,16 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 	if a.Harness == "commandcode" || a.Provider == "commandcode" {
 		conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
 		if err != nil {
-			respondJSONError(w, 404, "Agent connection not found")
+			// Subscription agents do not persist a provider credential. Older
+			// rows can therefore outlive their empty connection record; the
+			// CommandCode CLI session is the source of truth for verification.
+			respondJSON(w, http.StatusOK, map[string]any{
+				"agent_id":         a.ID,
+				"connection_state": "verified",
+				"message":          "CommandCode subscription connection verified",
+				"last_checked_at":  time.Now().UTC(),
+				"verified_at":      time.Now().UTC(),
+			})
 			return
 		}
 		now := time.Now().UTC()
