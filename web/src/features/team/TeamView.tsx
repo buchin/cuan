@@ -17,7 +17,7 @@ import {
   type AccountUsage,
   type ProviderAccount,
 } from '../../api/accounts'
-import { agentsApi, type Agent, type HarnessAuth } from '../../api/agents'
+import { agentsApi, type Agent, type HarnessAuth, type ModelInfo, isModelVisionCapable } from '../../api/agents'
 
 function AgentActions({
   name,
@@ -133,6 +133,8 @@ export function TeamView({
   const [now, setNow] = useState(Date.now())
   const [provider, setProvider] = useState<'agy' | 'commandcode'>('agy')
   const [commandcodeMode, setCommandcodeMode] = useState<'subscription' | 'byok'>('subscription')
+  const [commandcodeModel, setCommandcodeModel] = useState('commandcode-default')
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [byokKey, setByokKey] = useState('')
   // Expire visible success even when this roster stays open or resumes from sleep.
   useEffect(() => {
@@ -233,7 +235,9 @@ export function TeamView({
 
     setProvider('agy')
     setCommandcodeMode('subscription')
+    setCommandcodeModel('commandcode-default')
     setByokKey('')
+    agentsApi.listModels('commandcode').then(setAvailableModels).catch(() => {})
     setStep(connectionOnly ? 'google' : 'name')
     setOpen(true)
     setAuth(null)
@@ -318,6 +322,7 @@ export function TeamView({
           handle,
           provider: 'commandcode',
           auth_type: 'subscription',
+          model_id: commandcodeModel,
         })
         if (!dialogActive.current || epoch.current !== currentEpoch) return
         close()
@@ -330,7 +335,7 @@ export function TeamView({
       // Custom provider BYOK: save API key encrypted in ProviderAccount.
       const key = byokKey.trim()
       if (key.length < 8) {
-        throw new Error('CommandCode API key is required')
+        throw new Error('CommandCode API key is required (at least 8 characters)')
       }
       await agentsApi.connectCLI({
         name,
@@ -338,6 +343,7 @@ export function TeamView({
         provider: 'commandcode',
         auth_type: 'byok',
         session_token: key,
+        model_id: commandcodeModel,
       })
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       close()
@@ -1138,10 +1144,51 @@ export function TeamView({
                             </p>
                           </div>
                         )}
+                        {provider === 'commandcode' && (
+                          <div className="mt-3">
+                            <label
+                              htmlFor="commandcode-model"
+                              className="text-sm font-medium"
+                            >
+                              Model
+                            </label>
+                            <select
+                              id="commandcode-model"
+                              value={commandcodeModel}
+                              onChange={(e) => setCommandcodeModel(e.target.value)}
+                              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                            >
+                              {availableModels.length > 0 ? (
+                                availableModels.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.display_name || m.name} ({m.supports_vision ? 'Vision' : 'Text-only'})
+                                  </option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value="commandcode-default">CommandCode Default (Text-only)</option>
+                                  <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (Vision)</option>
+                                  <option value="google/gemini-3.8-flash">Gemini 3.8 Flash (Vision)</option>
+                                  <option value="deepseek/deepseek-v4-pro">DeepSeek V4 Pro (Text-only)</option>
+                                  <option value="deepseek/deepseek-v4-flash-vision-exp">DeepSeek V4 Flash Vision (Vision)</option>
+                                  <option value="moonshotai/kimi-k2.7-code">Kimi K2.7 Code (Vision)</option>
+                                  <option value="moonshotai/kimi-k3.1-pro">Kimi K3.1 Pro (Text-only)</option>
+                                  <option value="qwen/qwen3.8-omni-flash">Qwen 3.8 Omni Flash (Vision)</option>
+                                  <option value="xai/grok-4.5">xAI Grok 4.5 (Text-only)</option>
+                                  <option value="reflection/beam:free">Reflection Beam (Free, Text-only)</option>
+                                </>
+                              )}
+                            </select>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {isModelVisionCapable(commandcodeModel, 'commandcode')
+                                ? '✓ Model ini mendukung input multimodal (gambar & dokumen).'
+                                : 'ℹ Model teks saja (tidak mendukung input gambar / vision).'}
+                            </p>
+                          </div>
+                        )}
                         {!connectionOnly && provider === 'commandcode' && commandcodeMode === 'subscription' && (
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Sign in to CommandCode via Google OAuth to use your
-                            subscription.
+                            Koneksi via langganan resmi CommandCode CLI. Tidak memerlukan input API key manual.
                           </p>
                         )}
                       </div>
@@ -1299,8 +1346,8 @@ export function TeamView({
                   {busy && <RefreshCw className="h-4 w-4 animate-spin" />}
                   {step === 'save'
                     ? 'Save agent'
-                    : step === 'name' && provider === 'commandcode' && commandcodeMode === 'byok'
-                      ? 'Save agent'
+                    : step === 'name' && provider === 'commandcode'
+                      ? 'Add agent'
                       : step === 'name'
                         ? 'Connect Google'
                         : auth?.auth_url

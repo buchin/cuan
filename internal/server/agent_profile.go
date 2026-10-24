@@ -52,8 +52,62 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 		respondJSONError(w, 404, "Agent not found")
 		return
 	}
-	if a.Harness != "agy" && a.Provider != "agy" && a.Provider != "antigravity" {
+	if a.Harness != "agy" && a.Provider != "agy" && a.Provider != "antigravity" && a.Harness != "commandcode" && a.Provider != "commandcode" {
 		respondJSONError(w, 409, "Connection checks are not available for this agent type")
+		return
+	}
+	if a.Harness == "commandcode" || a.Provider == "commandcode" {
+		conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
+		if err != nil {
+			respondJSONError(w, 404, "Agent connection not found")
+			return
+		}
+		now := time.Now().UTC()
+		reg := s.ProviderRegistry()
+		if reg == nil {
+			reg = agent.DefaultRegistry()
+		}
+		prov, err := reg.Get("commandcode")
+		if err != nil {
+			respondJSONError(w, 503, "CommandCode provider is not available")
+			return
+		}
+		var credentials string
+		if conn.CredentialsEncrypted != "" {
+			decrypted, err := agent.DecryptCredential(conn.CredentialsEncrypted)
+			if err != nil {
+				respondJSONError(w, 500, "Failed to decrypt credentials")
+				return
+			}
+			credentials = decrypted
+		} else {
+			credentials = "subscription"
+		}
+		probe, err := prov.VerifyConnection(r.Context(), credentials)
+		if err != nil || (probe != nil && !probe.Valid) {
+			conn.Status = db.ConnectionStatusInvalid
+			_ = s.agentRepo.UpdateConnection(r.Context(), conn)
+			errMsg := "Verification failed"
+			if probe != nil && probe.ErrorMessage != "" {
+				errMsg = probe.ErrorMessage
+			}
+			respondJSON(w, 200, map[string]any{
+				"agent_id":         a.ID,
+				"connection_state": "unavailable",
+				"message":          errMsg,
+				"last_checked_at":  &now,
+			})
+			return
+		}
+		conn.Status = db.ConnectionStatusActive
+		_ = s.agentRepo.UpdateConnection(r.Context(), conn)
+		respondJSON(w, 200, map[string]any{
+			"agent_id":         a.ID,
+			"connection_state": "verified",
+			"message":          "CommandCode provider connection verified",
+			"last_checked_at":  &now,
+			"verified_at":      &now,
+		})
 		return
 	}
 	id := "legacy"

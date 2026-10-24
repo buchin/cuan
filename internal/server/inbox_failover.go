@@ -30,7 +30,11 @@ type inboxAccountRoute struct {
 // Cuan conversation context is supplied to a fresh CLI turn, with the same agent.
 func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, registered *db.Agent, prompt, home, workspace string, limited bool, step func(string, string), attachments ...string) (string, string) {
 	if registered.Harness != "agy" && registered.Harness != "antigravity" {
-		return s.executeInboxCLI(ctx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
+		execCtx := ctx
+		if registered.ModelID != "" && !strings.HasPrefix(registered.ModelID, "conn_") {
+			execCtx = context.WithValue(ctx, inboxModelKey{}, registered.ModelID)
+		}
+		return s.executeInboxCLI(execCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
 	}
 	routes := s.providerRoutes(ctx, owner, registered, home, limited)
 	attempts := 0

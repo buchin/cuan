@@ -53,12 +53,26 @@ defaultRegistryInstance.Register(commandcode, NewCommandCodeProvider())
 
 ## Implementation checklist
 
-- [ ] Add provider harness to DefaultRegistry()
-- [ ] Add commandcode case to handleGetHarnessAuthStatus
-- [ ] Add commandcode case to handleInitHarnessAuth
-- [ ] Add commandcode support to handleConnectCLIAgent (subscription + BYOK)
-- [ ] Add commandcode case to executeInboxCLIWithSafety binary check
-- [ ] Add commandcode to agentProfileHome/ownedAgentProfileHome
-- [ ] Add CommandCode option to TeamView add-agent dialog
-- [ ] Add CommandCode to StudioView agent picker
-- [ ] Document limitations and prerequisites
+- [x] Add provider harness to DefaultRegistry() (`internal/agent/provider.go`)
+- [x] Implement Provider interface and model catalog with vision capabilities (`internal/agent/commandcode.go`)
+- [x] Add commandcode case to handleGetHarnessAuthStatus (`internal/server/agent_handlers.go`)
+- [x] Add commandcode case to handleInitHarnessAuth (`internal/server/agent_handlers.go`)
+- [x] Add commandcode support to handleConnectCLIAgent (subscription + BYOK) (`internal/server/agent_handlers.go`)
+- [x] Add commandcode case to executeInboxCLIWithSafety binary and arguments (`internal/server/inbox_cli.go`)
+- [x] Add commandcode to agentProfileHome/ownedAgentProfileHome & handleVerifyAgentProfile (`internal/server/agent_profile.go`)
+- [x] Add CommandCode option and model selector to TeamView add-agent dialog (`web/src/features/team/TeamView.tsx`)
+- [x] Add CommandCode and vision per-model handling to StudioView agent picker (`web/src/features/inbox/StudioView.tsx`)
+- [x] Add vision per-model filtering to AttachmentPicker (`web/src/features/inbox/Attachments.tsx` & `InboxView.tsx`)
+- [x] Document limitations, vision per-model handling, and prerequisites
+
+## Vision per-model handling & limitations
+
+Not all AI models support multimodal (vision/image) inputs:
+- **Vision-capable models**: Models such as `claude-sonnet-5-5`, `claude-opus-5-5`, `google/gemini-3.8-flash`, `deepseek/deepseek-v4-flash-vision-exp`, `moonshotai/kimi-k2.7-code`, and `qwen/qwen3.8-omni-flash` support image inputs alongside text and documents.
+- **Text-only models**: Models such as `commandcode-default`, `claude-fable-5-1`, `deepseek/deepseek-v4-pro`, `moonshotai/kimi-k3.1-pro`, `qwen/qwen3.8-max`, `xai/grok-4.5`, and `reflection/beam:free` only process text instructions and textual workspace context.
+
+### System behavior for Vision:
+1. **Model Selection Verification**: When an agent or model is selected in StudioView or InboxView, Cuan checks `isModelVisionCapable(modelId, provider)`.
+2. **Automatic Cancellation**: If the selected model does not support vision and image files are currently attached, the image attachments are automatically canceled/removed, and an informative notification is displayed to the user explaining that the selected model is text-only.
+3. **Picker Guard**: `AttachmentPicker` disables camera/photo inputs and restricts file uploads to supported documents (`.pdf`, `.txt`, `.md`, `.csv`) when a non-vision model is active.
+4. **Backend Enforcement**: `executeInboxCLIWithSafety` checks image attachments before invoking CLI execution; if an image is provided with a text-only model, it returns a clear, actionable error instructing the user to remove image attachments or switch to a vision-capable model.

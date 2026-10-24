@@ -67,7 +67,40 @@ export interface HarnessAuth {
   expires_at?: string
 }
 
+export interface ModelInfo {
+  id: string
+  name: string
+  display_name?: string
+  description?: string
+  is_default?: boolean
+  supports_vision?: boolean
+}
+
+export function isModelVisionCapable(modelId?: string, provider?: string): boolean {
+  const p = (provider || '').toLowerCase()
+  if (p === 'agy' || p === 'antigravity' || p === 'google' || p === 'gemini') {
+    return true
+  }
+  const m = (modelId || '').toLowerCase()
+  if (!m || m === 'commandcode-default' || m === 'default') {
+    return false
+  }
+  const visionKeywords = [
+    'vision', 'multimodal', '-vl', 'super-vl', 'omni',
+    'sonnet', 'opus', 'gemini', '4o', 'kimi-k2',
+    'minimax-m3', 'inkling', 'mistral-large-4', 'muse-spark-1.3',
+    'v4.1-flash',
+  ]
+  return visionKeywords.some((kw) => m.includes(kw))
+}
+
 export const agentsApi = {
+  listModels: async (provider = 'commandcode'): Promise<ModelInfo[]> => {
+    const res = await apiFetch<{ status: string; provider: string; models: ModelInfo[] }>(
+      `/api/v1/agents/models?provider=${encodeURIComponent(provider)}`
+    )
+    return res.models || []
+  },
   verifyConnection: (id: string) => apiFetch<{ connection_state: string; message: string; last_checked_at?: string; verified_at?: string }>(`/api/v1/agents/${encodeURIComponent(id)}/connection/verify`, { method: 'POST' }),
   authStatus: (harness: string, verify = false) => apiFetch<HarnessAuth>(`/api/v1/agents/auth-status?harness=${encodeURIComponent(harness)}&verify=${verify}`),
   authInit: () => apiFetch<HarnessAuth>('/api/v1/agents/auth-init', { method: 'POST', body: JSON.stringify({ harness: 'agy' }) }),

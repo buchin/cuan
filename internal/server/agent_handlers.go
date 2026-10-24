@@ -3,9 +3,10 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"os/exec"
 	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -817,10 +818,10 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		if ownerID == "" {
 			return
 		}
-		if isCommandCode && req.AuthType == "byok" {
+		if isCommandCode && (req.AuthType == "byok" || req.SessionToken != "") {
 			// Custom provider BYOK: store the user's API key encrypted in ProviderAccount.
 			// No CLI OAuth flow is involved; credentials belong to the user.
-		} else if isCommandCode && req.AuthType == "subscription" {
+		} else if isCommandCode && (req.AuthType == "subscription" || req.SessionToken == "") {
 			// Subscription connect: CommandCode CLI handles its own authentication.
 			// No provider account / Google OAuth flow is involved.
 		} else {
@@ -844,10 +845,10 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 
 	// OAuth credentials remain in the CLI-owned credential store; do not invent a token.
 	var encryptedToken string
-	if isCommandCode && req.AuthType == "byok" {
+	if isCommandCode && (req.AuthType == "byok" || req.SessionToken != "") {
 		apiKey := strings.TrimSpace(req.SessionToken)
-		if apiKey == "" {
-			respondJSONError(w, http.StatusBadRequest, "CommandCode API key is required for custom provider BYOK")
+		if len(apiKey) < 8 {
+			respondJSONError(w, http.StatusBadRequest, "CommandCode API key is required for custom provider BYOK (at least 8 characters)")
 			return
 		}
 		var err error
@@ -856,7 +857,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusInternalServerError, "Failed to protect credential")
 			return
 		}
-	} else if isCommandCode && req.AuthType == "subscription" {
+	} else if isCommandCode && (req.AuthType == "subscription" || req.SessionToken == "") {
 		// Subscription connect: no token to encrypt; CommandCode CLI handles auth.
 	} else if req.SessionToken != "" && provider != "agy" && provider != "antigravity" {
 		var err error
@@ -876,10 +877,16 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	if profile != nil {
 		connID = "conn_profile_" + db.GenerateUUID()
 	}
-	// The existing 19-migration schema persists the CLI connection link in model_id.
-	// The CLI itself selects its configured provider model.
-	if provider == "agy" || provider == "antigravity" || isCommandCode {
+	// The existing 19-migration schema persists the CLI connection link in model_id for agy.
+	// For CommandCode, store the selected model ID (or default) so model selection & vision check work.
+	if provider == "agy" || provider == "antigravity" {
 		modelID = connID
+	} else if isCommandCode {
+		if req.ModelID != "" && req.ModelID != "default" {
+			modelID = req.ModelID
+		} else {
+			modelID = "commandcode-default"
+		}
 	}
 	agentDisplayName := handle
 	if name != handle {
@@ -947,12 +954,20 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Create / Persist Connection
+	planHint := "Host server session (no API key)"
+	if isCommandCode {
+		if encryptedToken != "" {
+			planHint = "CommandCode custom provider (BYOK)"
+		} else {
+			planHint = "CommandCode subscription"
+		}
+	}
 	connEntity := &db.AgentConnection{
 		ID:                   connID,
 		UserID:               ownerID,
 		Provider:             provider,
 		CredentialsEncrypted: encryptedToken,
-		PlanHint:             "Host server session (no API key)",
+		PlanHint:             planHint,
 		Status:               db.ConnectionStatusActive,
 		CreatedAt:            time.Now().UTC(),
 		UpdatedAt:            time.Now().UTC(),
@@ -1051,16 +1066,38 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 
 	switch harness {
 	case "commandcode":
+		cliAvailable := func() bool {
+			if _, err := exec.LookPath("commandcode"); err == nil {
+				return true
+			}
+			_, err := os.Stat("/home/dev/.local/bin/commandcode")
+			return err == nil
+		}()
 		status := map[string]interface{}{
 			"status":              "success",
 			"harness":             "commandcode",
-			"authenticated":       false,
-			"message":             "CommandCode CLI credentials are not configured",
-			"credentials_present": false,
-			"verified":            false,
+			"authenticated":       cliAvailable,
+			"message":             "CommandCode CLI is ready",
+			"credentials_present": cliAvailable,
+			"verified":            cliAvailable,
+			"cli_available":       cliAvailable,
 		}
-		if _, err := exec.LookPath("commandcode"); err == nil {
-			status["cli_available"] = true
+		if !cliAvailable {
+			status["authenticated"] = false
+			status["credentials_present"] = false
+			status["verified"] = false
+			status["message"] = "CommandCode CLI is not installed on this server"
+		} else if r.URL.Query().Get("verify") == "true" {
+			reg := s.ProviderRegistry()
+			if reg == nil {
+				reg = agent.DefaultRegistry()
+			}
+			if prov, err := reg.Get("commandcode"); err == nil {
+				if probe, err := prov.VerifyConnection(r.Context(), "subscription"); err == nil && probe != nil && probe.Valid {
+					status["verified"] = true
+					status["message"] = "CommandCode provider connection verified"
+				}
+			}
 		}
 		status["runtime_prerequisites"] = onboardingRuntimePrerequisites()
 		respondJSON(w, http.StatusOK, status)
@@ -1144,13 +1181,21 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 
 	switch harness {
 	case "commandcode":
+		cliAvailable := func() bool {
+			if _, err := exec.LookPath("commandcode"); err == nil {
+				return true
+			}
+			_, err := os.Stat("/home/dev/.local/bin/commandcode")
+			return err == nil
+		}()
 		respondJSON(w, http.StatusOK, map[string]interface{}{
 			"status":        "success",
 			"harness":       "commandcode",
-			"authenticated": false,
-			"message":       "CommandCode custom provider: provide your API key via Settings → Providers",
+			"authenticated": cliAvailable,
+			"verified":      cliAvailable,
+			"message":       "CommandCode is ready. Connect via subscription or custom BYOK API key.",
 			"auth_url":      "",
-			"cli_available": func() bool { _, err := exec.LookPath("commandcode"); return err == nil }(),
+			"cli_available": cliAvailable,
 		})
 		return
 	default:
@@ -1162,6 +1207,34 @@ func (s *Server) handleInitHarnessAuth(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+}
+
+// handleListProviderModels returns models supported by a provider along with vision capability.
+// Route: GET /api/v1/agents/models, GET /api/agents/models
+func (s *Server) handleListProviderModels(w http.ResponseWriter, r *http.Request) {
+	provider := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("provider")))
+	if provider == "" {
+		provider = "commandcode"
+	}
+	reg := s.ProviderRegistry()
+	if reg == nil {
+		reg = agent.DefaultRegistry()
+	}
+	prov, err := reg.Get(provider)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, "unsupported provider: "+provider)
+		return
+	}
+	models, err := prov.ListModels(r.Context(), "")
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "failed to list models: "+err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":   "success",
+		"provider": provider,
+		"models":   models,
+	})
 }
 
 // handleSubmitHarnessAuthCode exchanges the authorization code from browser Google OAuth.

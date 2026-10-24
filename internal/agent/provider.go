@@ -25,6 +25,32 @@ type ModelInfo struct {
 	OutputTokenLimit           int      `json:"output_token_limit,omitempty"`
 	SupportedGenerationMethods []string `json:"supported_generation_methods,omitempty"`
 	IsDefault                  bool     `json:"is_default,omitempty"`
+	SupportsVision             bool     `json:"supports_vision,omitempty"`
+}
+
+// IsModelVisionCapable determines whether a provider model supports vision (image input).
+func IsModelVisionCapable(provider, modelID string) bool {
+	p := strings.ToLower(strings.TrimSpace(provider))
+	m := strings.ToLower(strings.TrimSpace(modelID))
+	if p == "agy" || p == "antigravity" || p == "gemini" {
+		// Gemini models natively support multimodal vision input
+		return true
+	}
+	if p == "commandcode" {
+		return IsCommandCodeModelVision(m)
+	}
+	if p == "claude" {
+		// Claude 3+ Sonnet and Opus support vision
+		if strings.Contains(m, "sonnet") || strings.Contains(m, "opus") || strings.Contains(m, "claude-3") {
+			return true
+		}
+		return false
+	}
+	if p == "codex" {
+		// Codex typically executes in code environment without vision
+		return false
+	}
+	return false
 }
 
 // ConnectionProbeResult encapsulates the diagnostic results of testing provider connectivity and quotas.

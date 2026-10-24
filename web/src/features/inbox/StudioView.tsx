@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
-import { agentsApi, type Agent } from '../../api/agents'
+import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
 import { connectionStatus } from '../agents/connection'
 
 export function StudioView({
@@ -71,6 +71,22 @@ export function StudioView({
   const [agents, setAgents] = useState<Agent[]>([])
   const [agentsLoading, setAgentsLoading] = useState(true)
   const [selectedAgentId, setSelectedAgentId] = useState('')
+
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId)
+  const supportsVision = selectedAgent
+    ? isModelVisionCapable(selectedAgent.model_id, selectedAgent.provider || selectedAgent.harness)
+    : true
+
+  useEffect(() => {
+    if (!selectedAgent) return
+    const vision = isModelVisionCapable(selectedAgent.model_id, selectedAgent.provider || selectedAgent.harness)
+    if (!vision && uploads.hasImages()) {
+      uploads.removeImages()
+      setError(
+        t('Model ini tidak mendukung input gambar (vision). Lampiran gambar telah dibatalkan.')
+      )
+    }
+  }, [selectedAgentId, selectedAgent])
 
   const update = (text: string) => {
     setGoal(text)
@@ -237,7 +253,7 @@ export function StudioView({
               }}
             />
             <div className="px-2 pb-2">
-              <AttachmentPicker uploads={uploads} disabled={busy} />
+              <AttachmentPicker uploads={uploads} disabled={busy} disableImages={!supportsVision} />
             </div>
           </div>
           {agentSetup === 'ready' && !agentsLoading && (
@@ -255,6 +271,7 @@ export function StudioView({
                 <option value="">{t('Auto (choose best)')}</option>
                 {agents.map((agent) => {
                   const state = connectionStatus(agent, Date.now())
+                  const vision = isModelVisionCapable(agent.model_id, agent.provider || agent.harness)
                   return (
                     <option
                       key={agent.id}
@@ -264,11 +281,16 @@ export function StudioView({
                         agent.provider !== 'commandcode'
                       }
                     >
-                      {agent.name} — {t(state.label)}
+                      {agent.name} — {t(state.label)} ({vision ? t('Vision') : t('Text-only')})
                     </option>
                   )
                 })}
               </select>
+              {!supportsVision && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ℹ {t('Model ini tidak mendukung input gambar (vision). Lampiran gambar dibatalkan; gunakan teks atau dokumen.')}
+                </p>
+              )}
             </div>
           )}
           <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">

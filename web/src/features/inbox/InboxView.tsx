@@ -11,7 +11,7 @@ import {
 } from './Attachments'
 import { Link, useLocation } from 'react-router-dom'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
-import type { Agent } from '../../api/agents'
+import { type Agent, isModelVisionCapable } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
 import {
@@ -165,6 +165,16 @@ export function InboxView({
     'cuan-inbox-attachments:' +
       (activeContact?.conversation_id || activeContact?.id || ''),
   )
+
+  const activeAgent = agents?.find((a) => a.id === activeContact?.id || a.id === activeContact?.agent_id || a.name === activeContact?.name)
+  const contactSupportsVision = activeAgent ? isModelVisionCapable(activeAgent.model_id, activeAgent.provider || activeAgent.harness) : true
+
+  useEffect(() => {
+    if (!contactSupportsVision && uploads.hasImages()) {
+      uploads.removeImages()
+      setSendError(t('Model ini tidak mendukung input gambar (vision). Lampiran gambar telah dibatalkan.'))
+    }
+  }, [contactSupportsVision, activeContact?.id])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [approving, setApproving] = useState<string | null>(null)
@@ -1305,6 +1315,7 @@ export function InboxView({
                       uploads={uploads}
                       disabled={sending}
                       compact
+                      disableImages={!contactSupportsVision}
                     />
                   )}
                   <textarea

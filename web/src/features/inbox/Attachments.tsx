@@ -12,8 +12,14 @@ export interface Attachment {
   size: number
   url: string
 }
-const accept = '.png,.jpg,.jpeg,.gif,.pdf,.txt,.md,.csv'
-export function useAttachments(storageKey: string) {
+export const accept = '.png,.jpg,.jpeg,.gif,.pdf,.txt,.md,.csv'
+export const docAccept = '.pdf,.txt,.md,.csv'
+
+export function isImageAttachment(a: { name: string; type?: string }): boolean {
+  return /\.(png|jpe?g|gif|webp)$/i.test(a.name) || Boolean(a.type?.startsWith('image/'))
+}
+
+export function useAttachments(storageKey: string, options?: { disableImages?: boolean }) {
   const { t } = useLanguage()
 
   const [items, setItems] = useState<Attachment[]>([])
@@ -23,6 +29,7 @@ export function useAttachments(storageKey: string) {
   const key = useRef(storageKey),
     uploading = useRef(false)
   key.current = storageKey
+  const disableImages = Boolean(options?.disableImages)
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || '[]')
@@ -57,7 +64,10 @@ export function useAttachments(storageKey: string) {
       for (const file of Array.from(files)) {
         if (file.size === 0 || file.size > 10 * 1024 * 1024)
           throw new Error(t('Choose a nonempty file up to 10 MB.'))
-        if (!/\.(png|jpe?g|gif|pdf|txt|md|csv)$/i.test(file.name))
+        if (disableImages && (/\.(png|jpe?g|gif|webp)$/i.test(file.name) || file.type.startsWith('image/'))) {
+          throw new Error(t('This model does not support image input (vision). Please choose a vision-capable model or attach text/PDF documents only.'))
+        }
+        if (!/\.(png|jpe?g|gif|webp|pdf|txt|md|csv)$/i.test(file.name))
           throw new Error(t('Use PNG, JPEG, GIF, PDF, TXT, Markdown or CSV.'))
         setProgress(0)
         const uploaded = await new Promise<Attachment>((resolve, reject) => {
@@ -112,6 +122,12 @@ export function useAttachments(storageKey: string) {
     error,
     add,
     clear: () => store([]),
+    removeImages: () => {
+      const remaining = items.filter((a) => !isImageAttachment(a))
+      store(remaining)
+    },
+    hasImages: () => items.some((a) => isImageAttachment(a)),
+    setError,
     acknowledge: (ids: string[], target: string) => {
       try {
         const saved: Attachment[] = JSON.parse(
@@ -151,10 +167,12 @@ export function AttachmentPicker({
   uploads,
   disabled = false,
   compact = false,
+  disableImages = false,
 }: {
   compact?: boolean
   uploads: ReturnType<typeof useAttachments>
   disabled?: boolean
+  disableImages?: boolean
 }) {
   const { t } = useLanguage()
 
@@ -164,7 +182,18 @@ export function AttachmentPicker({
     files = useRef<HTMLInputElement>(null)
   const [choices, setChoices] = useState(false)
   const selected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) void uploads.add(e.target.files)
+    if (e.target.files) {
+      if (disableImages) {
+        const hasImg = Array.from(e.target.files).some((f) => isImageAttachment(f))
+        if (hasImg) {
+          uploads.setError(t('This model does not support image input (vision). Please choose a vision-capable model or attach text/PDF documents only.'))
+          e.target.value = ''
+          setChoices(false)
+          return
+        }
+      }
+      void uploads.add(e.target.files)
+    }
     e.target.value = ''
     setChoices(false)
   }
@@ -198,7 +227,7 @@ export function AttachmentPicker({
         <input
           ref={files}
           type="file"
-          accept={accept}
+          accept={disableImages ? docAccept : accept}
           multiple
           className="sr-only"
           tabIndex={-1}
@@ -207,8 +236,12 @@ export function AttachmentPicker({
         />
         <div className="space-y-1">
           {[
-            { label: 'Camera', Icon: Camera, ref: camera },
-            { label: 'Photos', Icon: Images, ref: photos },
+            ...(!disableImages
+              ? [
+                  { label: 'Camera', Icon: Camera, ref: camera },
+                  { label: 'Photos', Icon: Images, ref: photos },
+                ]
+              : []),
             { label: 'Files', Icon: FolderOpen, ref: files },
           ].map(({ label, Icon, ref }) => (
             <button
@@ -228,13 +261,23 @@ export function AttachmentPicker({
           ref={input}
           type="file"
           multiple
-          accept={accept}
+          accept={disableImages ? docAccept : accept}
           className="sr-only"
           tabIndex={-1}
           aria-label={t('Choose attachments')}
           disabled={disabled || uploads.busy}
           onChange={(e) => {
-            if (e.target.files) void uploads.add(e.target.files)
+            if (e.target.files) {
+              if (disableImages) {
+                const hasImg = Array.from(e.target.files).some((f) => isImageAttachment(f))
+                if (hasImg) {
+                  uploads.setError(t('This model does not support image input (vision). Please choose a vision-capable model or attach text/PDF documents only.'))
+                  e.target.value = ''
+                  return
+                }
+              }
+              void uploads.add(e.target.files)
+            }
             e.target.value = ''
           }}
         />

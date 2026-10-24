@@ -60,6 +60,20 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if retrySafe != nil {
 		*retrySafe = false
 	}
+	for _, file := range attachmentPaths {
+		ext := strings.ToLower(filepath.Ext(file))
+		isImage := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp"
+		if isImage {
+			model, _ := ctx.Value(inboxModelKey{}).(string)
+			binary := harness
+			if binary == "" {
+				binary = "agy"
+			}
+			if !agent.IsModelVisionCapable(binary, model) {
+				return "", fmt.Sprintf("Model %s does not support image input (vision). Remove image attachments or switch to a vision-capable model.", model)
+			}
+		}
+	}
 	if s.cfg != nil && s.cfg.Environment == "testing" {
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
@@ -122,9 +136,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 	case "commandcode":
 		binary = "commandcode"
-		args = []string{"--api-key", system, "--format", "text"}
+		args = []string{"-p", system, "--output-format", "text", "--permission-mode", "plan", "--trust", "--no-session"}
+		if model, _ := ctx.Value(inboxModelKey{}).(string); model != "" {
+			args = append(args, "-m", model)
+		}
 	default:
-		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, or Codex agent."
+		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, Codex, or CommandCode agent."
 	}
 	if (answerOnly || snapshotReview) && binary == "claude" {
 		args = []string{"-p", "--tools", "", "--output-format", "text", system}
@@ -132,7 +149,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	for _, file := range attachmentPaths {
 		if binary == "codex" {
 			ext := strings.ToLower(filepath.Ext(file))
-			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" {
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp" {
 				args = append(args, "--image", file)
 			}
 		} else {
