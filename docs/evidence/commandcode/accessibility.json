@@ -1,0 +1,21 @@
+{
+  "url": "https://cuan-commandcode-evidence-dojo.fural.space/login",
+  "commit": "ced635bfa1da65b339e2929692266cc63faca89e",
+  "viewport_captures": [360, 390],
+  "checks": {
+    "main_landmark": {"status":"PASS", "observed":true},
+    "page_title": {"status":"PASS", "observed":"Cuan — Your always-on project manager"},
+    "heading": {"status":"PASS", "observed":"Sign in to Cuan"},
+    "interactive_name": {"status":"PASS", "observed":["cuan","Try again"]},
+    "images_have_alt": {"status":"PASS", "observed":true},
+    "team_settings_route_reachable": {"status":"BLOCKED", "reason":"Workspace setup API unavailable; login route renders connection error"}
+  },
+  "commands": [
+    "npm install --ignore-scripts",
+    "npm run build",
+    "browser_navigate https://cuan-commandcode-evidence-dojo.fural.space/login",
+    "browser_screenshot --width 360 --height 800",
+    "browser_screenshot --width 390 --height 844",
+    "browser_evaluate accessibility probe"
+  ]
+}
