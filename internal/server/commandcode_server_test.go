@@ -318,3 +318,30 @@ func TestCommandCode_VisionCheck_InboxCLI(t *testing.T) {
 		t.Errorf("vision model should not be rejected by vision check, got: %q", failureVision)
 	}
 }
+
+func TestCommandCode_PlaintextReplyWithConfirmationQuestionSynthesizesApproval(t *testing.T) {
+	srv, _, _ := setupCommandCodeTestServer(t)
+	srv.cfg.Environment = "development"
+	tmpDir := t.TempDir()
+	binDir := t.TempDir()
+	fakeCmd := filepath.Join(binDir, "commandcode")
+	script := `#!/bin/sh
+echo "Berikut beberapa tool yang dibutuhkan: 1. **Inspeksi task terstruktur**. Ada yang ingin diperdalam?"
+`
+	if err := os.WriteFile(fakeCmd, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+
+	out, failure := srv.executeInboxCLI(context.Background(), "test-agent", "commandcode", "Apa ada tool yang dibutuhkan?", tmpDir, tmpDir, nil)
+	if failure != "" {
+		t.Fatalf("unexpected failure: %s", failure)
+	}
+	plan := parseInboxApprovalPlan(out)
+	if plan == nil {
+		t.Fatalf("expected approval plan synthesized from plain text, got %s", out)
+	}
+	if !strings.Contains(plan.Title, "Inspeksi task terstruktur") {
+		t.Errorf("unexpected title: %q", plan.Title)
+	}
+}

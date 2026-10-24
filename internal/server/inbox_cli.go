@@ -118,10 +118,30 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 				var partial struct {
 					Reply string `json:"reply"`
 				}
+				textReply := strings.TrimSpace(reply)
 				if json.Unmarshal([]byte(cleanRaw), &partial) == nil && strings.TrimSpace(partial.Reply) != "" {
-					return strings.TrimSpace(partial.Reply), ""
+					textReply = strings.TrimSpace(partial.Reply)
 				}
-				return strings.TrimSpace(reply), ""
+				if isConfirmationQuestion(textReply) {
+					title := extractTitleFromReply(textReply)
+					projectName := "Default"
+					lower := strings.ToLower(textReply)
+					if strings.Contains(lower, "cuan") || strings.Contains(lower, "studio") || strings.Contains(lower, "form") {
+						projectName = "Cuan"
+					}
+					desc := textReply
+					if len([]rune(desc)) > 6000 {
+						desc = string([]rune(desc)[:6000])
+					}
+					payload := inboxApprovalPlan{
+						Title:       title,
+						Description: desc,
+						ProjectName: projectName,
+					}
+					encoded, _ := json.Marshal(payload)
+					return textReply + "\n```cuan-approval\n" + string(encoded) + "\n```", ""
+				}
+				return textReply, ""
 			}
 			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 		}
