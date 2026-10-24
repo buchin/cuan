@@ -62,20 +62,27 @@ export function SettingsView({
         className="flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {[
+          ['contacts', t('Contacts')],
           ['general', t('General')],
           ['agents', t('Agents')],
           ['integrations', t('Integrations')],
           ['appearance', t('Appearance')],
-        ].map(([id, label]) => (
-          <Link
-            key={id}
-            to={id === 'general' ? '/settings' : `/settings/${id}`}
-            aria-current={section === id ? 'page' : undefined}
-            className={`inline-flex min-h-11 shrink-0 items-center border-b-2 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${section === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            {t(label)}
-          </Link>
-        ))}
+        ].map(([id, label]) => {
+          const isAccount = location.pathname.startsWith('/account')
+          const to = isAccount
+            ? `/account/${id}`
+            : id === 'general' ? '/settings' : `/settings/${id}`
+          return (
+            <Link
+              key={id}
+              to={to}
+              aria-current={section === id ? 'page' : undefined}
+              className={`inline-flex min-h-11 shrink-0 items-center border-b-2 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${section === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              {t(label)}
+            </Link>
+          )
+        })}
       </nav>
       {section === 'profile' ? (
         <ProfileSettings />
@@ -154,6 +161,18 @@ export function SettingsView({
       ) : (
         <div className="space-y-4">
           <InstallAppCard />
+          <section className="rounded-lg border border-border bg-card p-5">
+            <h2 className="text-lg font-semibold">{t('Contacts')}</h2>
+            <p className="my-3 text-sm text-muted-foreground">
+              {t('Manage your contacts, tags, customer records, and notes.')}
+            </p>
+            <Link
+              to={location.pathname.startsWith('/account') ? '/account/contacts' : '/contacts'}
+              className="action-primary"
+            >
+              {t('View contacts')}
+            </Link>
+          </section>
           <section className="rounded-lg border border-border bg-card p-5">
             <h2 className="text-lg font-semibold">{t('Agents')}</h2>
             <p className="my-3 text-sm text-muted-foreground">

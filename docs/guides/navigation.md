@@ -7,16 +7,17 @@ user's language.
 
 ## Find your work
 
-The main work navigation is **Inbox → Projects → Contacts**. Desktop uses the sidebar; mobile adds **Account** as the fourth bottom item. Settings and the advanced Work monitor are available through Account on mobile; desktop keeps Settings below the work areas and Work monitor in the account menu.
+The main navigation order is **Studio → Inbox → Tasks → Project → Account**. Both desktop sidebar and mobile bottom navigation follow this 5-item sequence. Contacts is organized under **Account** (available in the Account menu popover and the Account page sections), while existing direct `/contacts` routes and links remain fully operational.
 
+- **Studio:** your primary entry point for setting goals and requesting work.
 - **Inbox:** conversations with agents and live chat customers. Search or filter
   by All, Agents, or Customers. Choose a conversation to open it.
-- **Work monitor (Account):** the advanced global backlog, with project and status filters. Existing task links remain available for inspection.
+- **Tasks:** the global task backlog and task sessions board, with project and status filters.
 - **Projects:** connected repositories and project boards. Opening a project
   limits its board to that project. Project settings shows its saved repository
   details and archive action.
-- **Contacts:** CRM records, tags, and customer conversation links. See the
-  [Contacts guide](contacts-crm.md).
+- **Account:** user identity, submenu with Contacts, Settings, Profile & password, and Sign out.
+  Contacts records, CRM tags, and customer conversation links are accessed here via **Account → Contacts**.
 
 ## Create something
 
@@ -46,17 +47,15 @@ blocked while a save is in progress so its result stays clear.
 
 ## Sidebar and account
 
-On wide desktops, the sidebar shows labels and the account row displays an
-avatar, username, and more icon. **Settings** sits directly above it. Open the
-account row for **Work monitor**, **Profile & password** and **Sign out**.
+On wide desktops, the sidebar displays **Studio**, **Inbox**, **Tasks**, and **Projects** in the main rail, and the **Account** row at the bottom with avatar, username, and more icon. Open the account row for **Contacts**, **Settings**, **Profile & password**, and **Sign out**.
 
 The collapse control is beside the logo at the top. In collapsed mode, hovering
 or focusing the logo area reveals Expand sidebar; it remains keyboard accessible.
 Your expanded/collapsed preference is saved in this browser. Tablets use a compact
 icon sidebar; the account menu remains available from the avatar.
 
-Phones have no duplicate sidebar drawer. **Account** is the last item in bottom
-navigation and opens upward with Settings, Profile & password, and Sign out.
+Phones have no duplicate sidebar drawer. **Account** is the fifth item in bottom
+navigation (Studio, Inbox, Tasks, Project, Account) and opens upward with Contacts, Settings, Profile & password, and Sign out.
 The mobile header contains no account avatar. In a phone conversation, Back returns
 to the conversation list and restores the bottom navigation.
 
@@ -88,7 +87,7 @@ restore from Projects → Archived. Both operations require confirmation.
 - **1200px and above:** 200px sidebar, collapsible to 64px. Inbox has an optional
   280px conversation list beside the chat.
 - **768–1199px:** 64px sidebar. Inbox uses a single list/conversation view.
-- **Below 768px:** four bottom items: Inbox, Projects, Contacts, Account; no hamburger drawer. The header contains a
+- **Below 768px:** five bottom items: Studio, Inbox, Tasks, Project, Account; no hamburger drawer. The header contains a
   24px kepeng logo, a 20px title, and a contextual 44×44px icon-only creation button. Mobile uses compose for messages, person-plus for contacts, folder-plus for projects and plus for tasks; accessible labels retain the action name. Larger screens keep the text label.
 - App headers are 56px on phones and 64px on larger screens. Main pages use one
   H1 and no redundant breadcrumb. Project/settings details provide parent links.

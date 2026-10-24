@@ -73,6 +73,8 @@ export function App() {
         return 'settings'
       case 'settings':
         return 'settings'
+      case 'account':
+        return 'account'
       case 'inbox':
         return 'inbox'
       case 'studio':
@@ -350,6 +352,8 @@ export function App() {
       )
     } else if (tab === 'projects') {
       navigate(activeProject ? `/projects/${activeProject.id}` : '/projects')
+    } else if (tab === 'account') {
+      navigate('/account')
     } else {
       navigate(`/${tab}`)
     }
@@ -533,8 +537,11 @@ export function App() {
     appearance: 'Appearance',
     profile: 'Profile',
     notifications: 'Notifications',
+    contacts: 'Contacts',
+    general: 'General',
   }
-  const settingsDetail = currentTab === 'settings' && !!settingTitles[subParam]
+  const isAccountOrSettings = currentTab === 'settings' || currentTab === 'account'
+  const settingsDetail = isAccountOrSettings && !!settingTitles[subParam]
   const headerTitle = projectDetail
     ? projectSettings
       ? pathSegments[2] === 'repository' ? 'Repository' : 'Settings'
@@ -543,7 +550,9 @@ export function App() {
       ? pathSegments[2] === 'live-chat'
         ? 'Live Chat'
         : pathSegments[2] === 'github' ? 'GitHub' : settingTitles[subParam]
-      : undefined
+      : currentTab === 'account'
+        ? 'Account'
+        : undefined
   const headerBreadcrumbs = projectDetail
     ? [
         { label: 'Projects', to: '/projects' },
@@ -558,7 +567,10 @@ export function App() {
       ]
     : settingsDetail
       ? [
-          { label: 'Settings', to: '/settings' },
+          {
+            label: currentTab === 'account' ? 'Account' : 'Settings',
+            to: currentTab === 'account' ? '/account' : '/settings',
+          },
           ...(['live-chat', 'github'].includes(pathSegments[2])
             ? [{ label: 'Integrations', to: '/settings/integrations' }]
             : []),
@@ -600,13 +612,14 @@ export function App() {
           projectDetail ||
           (currentTab === 'inbox' && (!!subParam || isMobileChatActive)) ||
           (currentTab === 'contacts' && !!new URLSearchParams(location.search).get('contact')) ||
-          (currentTab === 'settings' && subParam !== 'agents')
+          ((currentTab === 'settings' || currentTab === 'account') && subParam !== 'agents' && subParam !== 'contacts') ||
+          (currentTab === 'account' && subParam === 'contacts' && !!new URLSearchParams(location.search).get('contact'))
             ? undefined
             : {
                 label:
                   currentTab === 'inbox'
                     ? 'New message'
-                    : currentTab === 'contacts'
+                    : currentTab === 'contacts' || (currentTab === 'account' && subParam === 'contacts')
                       ? 'New contact'
                       : currentTab === 'tasks' || projectDetail
                         ? 'New task'
@@ -619,7 +632,7 @@ export function App() {
                   openNew(
                     currentTab === 'inbox'
                       ? 'message'
-                      : currentTab === 'contacts'
+                      : currentTab === 'contacts' || (currentTab === 'account' && subParam === 'contacts')
                         ? 'contact'
                         : currentTab === 'tasks' || projectDetail
                           ? 'task'
@@ -701,8 +714,10 @@ export function App() {
           />
         )}
 
-        {/* 2. Global Task Board View — Tasks */}
-        {currentTab === 'contacts' && (
+        {/* 2. Contacts View */}
+        {(currentTab === 'contacts' ||
+          ((currentTab === 'settings' || currentTab === 'account') &&
+            subParam === 'contacts')) && (
           <ContactsView refreshKey={contactRevision} onNewContact={() => openNew('contact')} />
         )}
         {sessionRoute && pathSegments[3] === 'start' && (
@@ -820,21 +835,22 @@ export function App() {
             />
           ))}
 
-        {/* 5. Settings Configuration */}
-        {currentTab === 'settings' && (
-          <div className="min-h-full">
-            <SettingsView
-              projects={projects}
-              createAgentRequested={agentCreateRequested}
-              onCreateAgentHandled={() => setAgentCreateRequested(false)}
-              onAgentAdded={refreshContacts}
-              onDeleteProject={async (id) => {
-                await projectsApi.archive(id, true)
-                await refreshProjects()
-              }}
-            />
-          </div>
-        )}
+        {/* 5. Settings / Account Configuration */}
+        {(currentTab === 'settings' || currentTab === 'account') &&
+          subParam !== 'contacts' && (
+            <div className="min-h-full">
+              <SettingsView
+                projects={projects}
+                createAgentRequested={agentCreateRequested}
+                onCreateAgentHandled={() => setAgentCreateRequested(false)}
+                onAgentAdded={refreshContacts}
+                onDeleteProject={async (id) => {
+                  await projectsApi.archive(id, true)
+                  await refreshProjects()
+                }}
+              />
+            </div>
+          )}
       </AppShell>
 
       {/* Modals & Drawers */}
@@ -844,7 +860,10 @@ export function App() {
         onCreated={(contact) => {
           setNewFlow(null)
           setContactRevision((n) => n + 1)
-          navigate('/contacts?contact=' + encodeURIComponent(contact.id))
+          const target = location.pathname.startsWith('/account')
+            ? '/account/contacts?contact=' + encodeURIComponent(contact.id)
+            : '/contacts?contact=' + encodeURIComponent(contact.id)
+          navigate(target)
           void refreshContacts()
         }}
       />

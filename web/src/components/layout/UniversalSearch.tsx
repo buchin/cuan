@@ -30,7 +30,7 @@ const labels: Record<string, string> = {
 }
 function localResultURL(url: string) {
   return (
-    /^\/(contacts\?|inbox\/|projects\/|tasks\/)/.test(url) &&
+    /^\/(contacts\?|account\/contacts|inbox\/|projects\/|tasks\/)/.test(url) &&
     !url.includes('\\')
   )
 }
