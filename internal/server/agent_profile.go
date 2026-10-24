@@ -59,8 +59,10 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 	}
 	if a.Harness == "commandcode" || a.Provider == "commandcode" {
 		conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
-		if (err != nil || conn == nil) && owner != "" {
-			conn, _ = s.agentRepo.GetConnectionByUserAndProvider(r.Context(), owner, "commandcode")
+		if (err != nil || conn == nil || conn.CredentialsEncrypted == "") && owner != "" {
+			if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), owner, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
+				conn = userConn
+			}
 		}
 		authType := "subscription"
 		if conn != nil && conn.CredentialsEncrypted != "" {

@@ -36,8 +36,10 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			if registered.ConnectionID != "" {
 				conn, _ = s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID)
 			}
-			if conn == nil && owner != "" {
-				conn, _ = s.agentRepo.GetConnectionByUserAndProvider(ctx, owner, "commandcode")
+			if (conn == nil || conn.CredentialsEncrypted == "") && owner != "" {
+				if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(ctx, owner, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
+					conn = userConn
+				}
 			}
 			if conn != nil && conn.CredentialsEncrypted != "" {
 				if key, err := agent.DecryptCredential(conn.CredentialsEncrypted); err == nil {

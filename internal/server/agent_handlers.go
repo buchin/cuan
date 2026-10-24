@@ -84,8 +84,10 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 			if a.ConnectionID != "" {
 				conn, _ = s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
 			}
-			if conn == nil && ownerID != "" {
-				conn, _ = s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, "commandcode")
+			if (conn == nil || conn.CredentialsEncrypted == "") && ownerID != "" {
+				if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
+					conn = userConn
+				}
 			}
 			if conn != nil && conn.CredentialsEncrypted != "" {
 				dto.AuthType = "byok"
