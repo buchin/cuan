@@ -64,7 +64,6 @@ func persistCommandCodeAuthLocked() {
 }
 func StartCommandCodeAuth(owner string) *CommandCodeAuthSession {
 	commandCodeAuthMu.Lock()
-	defer commandCodeAuthMu.Unlock()
 	loadCommandCodeAuthLocked()
 	now := time.Now().UTC()
 	for _, s := range commandCodeAuth {
@@ -75,6 +74,9 @@ func StartCommandCodeAuth(owner string) *CommandCodeAuthSession {
 	}
 	id := generateHexID("ccauth")
 	s := &CommandCodeAuthSession{ID: id, OwnerID: owner, Status: "pending", CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(5 * time.Minute), Message: "Complete CommandCode sign-in in your browser."}
+	commandCodeAuth[id] = s
+	persistCommandCodeAuthLocked()
+	commandCodeAuthMu.Unlock()
 	// CommandCode's official login flow requires a TTY. Start it server-side
 	// and expose the resulting browser URL to the Cuan UI.
 	cmd := exec.Command("commandcode", "login")
@@ -94,9 +96,10 @@ func StartCommandCodeAuth(owner string) *CommandCodeAuthSession {
 	} else {
 		s.Message = fmt.Sprintf("Could not start CommandCode login: %v", err)
 	}
-	commandCodeAuth[id] = s
+	commandCodeAuthMu.Lock()
 	persistCommandCodeAuthLocked()
 	c := *s
+	commandCodeAuthMu.Unlock()
 	return &c
 }
 
