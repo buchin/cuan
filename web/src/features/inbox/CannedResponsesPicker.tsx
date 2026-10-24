@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Zap, Search, Settings2, Check } from 'lucide-react'
+import { Zap, Search, Settings2 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { chatApi, CannedResponse } from '../../api/chat'
 

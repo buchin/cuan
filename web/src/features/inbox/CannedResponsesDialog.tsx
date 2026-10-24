@@ -7,7 +7,6 @@ import { useLanguage } from '../../context/LanguageContext'
 import {
   chatApi,
   CannedResponse,
-  CreateCannedResponseRequest,
 } from '../../api/chat'
 
 interface CannedResponsesDialogProps {

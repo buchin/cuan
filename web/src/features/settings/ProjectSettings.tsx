@@ -82,7 +82,6 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
           onChange={event => change('auto_deploy', event.target.checked)}
         />
       </div>
-      </div>
       {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
       </>}
       {repositoryView && (isDefault ? <p className="text-sm text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p> : <section className="space-y-5">
