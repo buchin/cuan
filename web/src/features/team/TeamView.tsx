@@ -151,7 +151,7 @@ export function TeamView({
       document.removeEventListener('visibilitychange', update)
     }
   }, [])
-  const active = useRef<{ accountId: string; sessionId: string } | null>(null)
+  const active = useRef<{ accountId: string; sessionId: string; harness?: 'commandcode' } | null>(null)
   const accountScope = useRef('')
   const epoch = useRef(0)
   const dialogActive = useRef(false)
@@ -162,10 +162,10 @@ export function TeamView({
   const cancelSession = async () => {
     const session = active.current
     active.current = null
-    if (session)
-      await accountsApi
-        .cancel(session.accountId, session.sessionId)
-        .catch(() => {})
+    if (session) {
+      if (session.harness === 'commandcode') await agentsApi.authCancel(session.sessionId).catch(() => {})
+      else await accountsApi.cancel(session.accountId, session.sessionId).catch(() => {})
+    }
   }
   const load = useCallback(async () => {
     setLoading(true)
@@ -318,21 +318,14 @@ export function TeamView({
       if (!dialogActive.current || epoch.current !== currentEpoch) return
       accountScope.current = ''
       if (commandcodeMode === 'subscription') {
-        // Subscription connect: CommandCode CLI handles its own authentication.
-        // No Google OAuth flow is involved; credentials stay CLI-owned.
-        await agentsApi.connectCLI({
-          name,
-          handle,
-          provider: 'commandcode',
-          auth_type: 'subscription',
-          model_id: commandcodeModel,
-        })
+        // Start the provider-owned interactive login. The session id is kept only
+        // in memory so reloads and repeated clicks cannot duplicate credentials.
+        const session = await agentsApi.authInit()
         if (!dialogActive.current || epoch.current !== currentEpoch) return
-        close()
-        setNotice(`${handle} was added.`)
-        await load()
-        onAgentAdded?.()
-        onAgentConnected?.()
+        if (!session.auth_url || !session.session_id) throw new Error('The CommandCode sign-in link is unavailable. Try again.')
+        active.current = { accountId: '', sessionId: session.session_id, harness: 'commandcode' }
+        setAuth(session)
+        setStep('google')
         return
       }
       // Custom provider BYOK: save API key encrypted in ProviderAccount.
@@ -387,6 +380,8 @@ export function TeamView({
       name: handle,
       handle,
       provider: provider === 'commandcode' ? 'commandcode' : 'agy',
+      auth_type: provider === 'commandcode' ? 'subscription' : undefined,
+      model_id: provider === 'commandcode' ? commandcodeModel : undefined,
       account_id: accountScope.current,
     })
     if (!dialogActive.current || epoch.current !== currentEpoch) return
@@ -490,6 +485,15 @@ export function TeamView({
     setBusy(true)
     setFormError('')
     try {
+      if (session.harness === 'commandcode') {
+        const result = await agentsApi.authCode(session.sessionId, code.trim())
+        if (!result.authenticated && !result.verified) throw new Error(result.message || 'CommandCode sign-in is incomplete. Try again.')
+        active.current = null
+        setAuth(null)
+        setStep('save')
+        await finish(currentEpoch)
+        return
+      }
       let account
       try { account = await accountsApi.code(
         session.accountId,
@@ -1068,13 +1072,13 @@ export function TeamView({
             <header className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 id="add-agent-title" className="font-semibold">
-                  {connectionOnly ? 'Connect Google' : 'Add agent'}
+                  {connectionOnly ? 'Connect account' : 'Add agent'}
                 </h2>
                 {!connectionOnly && step !== 'save' && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {step === 'name'
                       ? 'Step 1 of 2 · Choose a name'
-                      : 'Step 2 of 2 · Connect Google'}
+                      : 'Step 2 of 2 · Connect account'}
                   </p>
                 )}
               </div>
@@ -1269,13 +1273,13 @@ export function TeamView({
                 {step === 'google' && (
                   <>
                     <p className="text-sm">
-                      {connectionOnly ? 'Connect your AI account to get started.' : <>Connect Google for <strong>{handle}</strong>.</>}
+                      {connectionOnly ? 'Connect your AI account to get started.' : <>Connect your account for <strong>{handle}</strong>.</>}
                     </p>
                     {auth?.auth_url ? (
                       <>
                         <div className="space-y-2">
                           <p className="text-sm font-medium">
-                            1. Sign in to your Google account
+                            1. Sign in to your provider account
                           </p>
                           <a
                             href={auth.auth_url}
@@ -1283,10 +1287,10 @@ export function TeamView({
                             rel="noopener noreferrer"
                             className={`${secondary} w-full`}
                           >
-                            Open Google ↗
+                            Open sign-in ↗
                           </a>
                           <p className="text-xs text-muted-foreground">
-                            Choose the account you want to use, then return
+                            Complete sign-in, then return
                             here.
                           </p>
                         </div>
