@@ -144,6 +144,7 @@ export function TeamView({
   const [commandcodeModel, setCommandcodeModel] = useState('commandcode-default')
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [byokKey, setByokKey] = useState('')
+  const [subscriptionKey, setSubscriptionKey] = useState('')
   // Expire visible success even when this roster stays open or resumes from sleep.
   useEffect(() => {
     const update = () => setNow(Date.now())
@@ -252,6 +253,7 @@ export function TeamView({
     setCommandcodeMode('byok')
     setCommandcodeModel('commandcode-default')
     setByokKey('')
+    setSubscriptionKey('')
     agentsApi.listModels('commandcode').then(setAvailableModels).catch(() => {})
     setStep(connectionOnly ? 'google' : 'name')
     setOpen(true)
@@ -392,7 +394,8 @@ export function TeamView({
       name: handle,
       handle,
       provider: provider === 'commandcode' ? 'commandcode' : 'agy',
-      auth_type: provider === 'commandcode' ? 'subscription' : undefined,
+      auth_type: provider === 'commandcode' ? (subscriptionKey.trim() ? 'byok' : 'subscription') : undefined,
+      session_token: subscriptionKey.trim() || undefined,
       model_id: provider === 'commandcode' ? commandcodeModel : undefined,
       account_id: accountScope.current,
     })
@@ -498,6 +501,13 @@ export function TeamView({
     setFormError('')
     try {
       if (session.harness === 'commandcode') {
+        if (subscriptionKey.trim()) {
+          active.current = null
+          setAuth(null)
+          setStep('save')
+          await finish(currentEpoch)
+          return
+        }
         const result = await agentsApi.authCode(session.sessionId, code.trim() || 'browser-completed')
         if (!result.authenticated && !result.verified) throw new Error(result.message || 'CommandCode sign-in is incomplete. Try again.')
         active.current = null
@@ -1348,6 +1358,23 @@ export function TeamView({
                             minutes.
                           </p>
                         </div>}
+                        {provider === 'commandcode' && (
+                          <div className="mt-4 space-y-2">
+                            <label htmlFor="commandcode-subscription-key" className="text-sm font-medium">
+                              API key from CommandCode (fallback)
+                            </label>
+                            <input
+                              id="commandcode-subscription-key"
+                              type="password"
+                              autoComplete="off"
+                              value={subscriptionKey}
+                              onChange={(event) => setSubscriptionKey(event.target.value)}
+                              placeholder="Paste the key shown once by CommandCode"
+                              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                            />
+                            <p className="text-xs text-muted-foreground">Stored encrypted for this agent. It is never shown again.</p>
+                          </div>
+                        )}
                         {provider !== 'commandcode' && <p className="text-xs leading-relaxed text-muted-foreground">
                           By confirming sign-in, you agree to the{' '}
                           <a href="https://antigravity.google/terms" target="_blank" rel="noreferrer" className="underline">Antigravity terms</a>{' '}
