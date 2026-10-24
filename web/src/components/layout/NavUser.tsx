@@ -11,6 +11,7 @@ import {
   Settings,
   Activity,
   Users,
+  CheckSquare,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -236,8 +237,8 @@ export function NavUser({
                   onWork()
                 }}
               >
-                <Activity className="h-4 w-4" />
-                <span>{t('Work monitor')}</span>
+                <CheckSquare className="h-4 w-4" />
+                <span>{t('Tasks')}</span>
               </button>
             )}
             <button type="button" className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('cuan:keyboard-shortcuts')) }}>
