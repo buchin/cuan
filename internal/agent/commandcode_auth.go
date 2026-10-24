@@ -69,6 +69,7 @@ func StartCommandCodeAuth(owner string) *CommandCodeAuthSession {
 	for _, s := range commandCodeAuth {
 		if s.OwnerID == owner && s.Status == "pending" && now.Before(s.ExpiresAt) {
 			c := *s
+			commandCodeAuthMu.Unlock()
 			return &c
 		}
 	}
