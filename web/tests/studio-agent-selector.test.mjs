@@ -51,12 +51,24 @@ test('2. StudioAgentSelector: Compact pill button & modern popover structure', (
     selectorSource.includes('<Brain') && selectorSource.includes('<Zap'),
     'StudioAgentSelector must use Brain icon for Pro and Zap icon for Fast'
   )
+  assert.ok(
+    selectorSource.includes("t('Add or connect agent…')"),
+    'StudioAgentSelector must render Add or connect agent action button'
+  )
+  assert.ok(
+    selectorSource.includes("t('Team Specialists')"),
+    'StudioAgentSelector must display Team Specialists group heading'
+  )
 })
 
 test('3. StudioView: Composer toolbar integration without raw select block', () => {
   assert.ok(
     studioViewSource.includes('<StudioAgentSelector'),
     'StudioView must render StudioAgentSelector in composer toolbar'
+  )
+  assert.ok(
+    studioViewSource.includes('onAddAgentClick='),
+    'StudioView must wire onAddAgentClick to trigger add agent modal'
   )
   assert.ok(
     !studioViewSource.includes('<select') && !studioViewSource.includes('id="studio-agent"'),

@@ -23,6 +23,7 @@ export function StudioView({
 }) {
   const { t } = useLanguage()
   const [connectRequested, setConnectRequested] = useState(false)
+  const [addAgentModalOpen, setAddAgentModalOpen] = useState(false)
 
   const [installation, setInstallation] = useState<'checking' | 'available' | 'incomplete' | 'unsupported' | 'error'>('checking')
   const [checkVersion, setCheckVersion] = useState(0)
@@ -260,6 +261,7 @@ export function StudioView({
                     agents={agents}
                     selectedAgentId={selectedAgentId}
                     onSelect={setSelectedAgentId}
+                    onAddAgentClick={() => setAddAgentModalOpen(true)}
                     disabled={busy}
                   />
                 )}
@@ -315,12 +317,25 @@ export function StudioView({
           )}
         </form>
       </div>
-      {agentSetup === 'needed' && <TeamView
-        connectionOnly
-        createRequested={connectRequested}
-        onCreateHandled={() => setConnectRequested(false)}
-        onAgentConnected={onAgentConnected}
-      />}
+      {(agentSetup === 'needed' || addAgentModalOpen) && (
+        <TeamView
+          connectionOnly={agentSetup === 'needed'}
+          createRequested={connectRequested || addAgentModalOpen}
+          onCreateHandled={() => {
+            setConnectRequested(false)
+            setAddAgentModalOpen(false)
+          }}
+          onAgentConnected={() => {
+            setAddAgentModalOpen(false)
+            onAgentConnected()
+            agentsApi.list().then(setAgents).catch(() => {})
+          }}
+          onAgentAdded={() => {
+            setAddAgentModalOpen(false)
+            agentsApi.list().then(setAgents).catch(() => {})
+          }}
+        />
+      )}
     </section>
   )
 }

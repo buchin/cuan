@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bot, ChevronDown, Check, Zap, Sparkles, Eye, Brain } from 'lucide-react'
+import { Link } from 'react-router'
+import { Bot, ChevronDown, Check, Zap, Sparkles, Eye, Brain, Plus, ExternalLink } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { type Agent, isModelVisionCapable } from '../../api/agents'
 import { connectionStatus } from '../agents/connection'
@@ -8,11 +9,13 @@ export function StudioAgentSelector({
   agents,
   selectedAgentId,
   onSelect,
+  onAddAgentClick,
   disabled,
 }: {
   agents: Agent[]
   selectedAgentId: string
   onSelect: (id: string) => void
+  onAddAgentClick?: () => void
   disabled?: boolean
 }) {
   const { t } = useLanguage()
@@ -58,7 +61,7 @@ export function StudioAgentSelector({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-label={t('Select Agent')}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border/80 bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-muted/80 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       >
         {pillIcon}
         <span className="truncate max-w-[120px] sm:max-w-[160px]">{pillLabel}</span>
@@ -69,7 +72,7 @@ export function StudioAgentSelector({
         <div
           role="listbox"
           aria-label={t('Available Agents')}
-          className="absolute bottom-full left-0 mb-2 z-50 w-72 sm:w-80 rounded-xl border border-border bg-popover p-1.5 shadow-xl outline-none max-h-[380px] overflow-y-auto"
+          className="absolute bottom-full left-0 mb-2 z-50 w-76 sm:w-84 rounded-2xl border border-border bg-popover p-1.5 shadow-2xl outline-none max-h-[min(420px,calc(100vh-180px))] overflow-y-auto"
         >
           {/* Option: Auto */}
           <button
@@ -80,11 +83,11 @@ export function StudioAgentSelector({
               onSelect('')
               setIsOpen(false)
             }}
-            className={`w-full flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground ${
+            className={`w-full flex items-start gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground ${
               !selectedAgentId ? 'bg-accent/60 font-semibold' : ''
             }`}
           >
-            <div className="mt-0.5 rounded-md bg-amber-500/10 p-1 text-amber-500 shrink-0">
+            <div className="mt-0.5 rounded-lg bg-amber-500/10 p-1 text-amber-500 shrink-0">
               <Sparkles className="h-3.5 w-3.5" />
             </div>
             <div className="flex-1 min-w-0">
@@ -101,7 +104,11 @@ export function StudioAgentSelector({
             {!selectedAgentId && <Check className="h-4 w-4 text-primary shrink-0 self-center" />}
           </button>
 
-          <div className="my-1 border-t border-border/50" />
+          {/* Section Header: Team Specialists */}
+          <div className="px-2.5 pt-2 pb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            <span>{t('Team Specialists')}</span>
+            <span className="text-[9px] bg-muted px-1.5 py-0.2 rounded font-normal">{agents.length}</span>
+          </div>
 
           {/* Individual Agents */}
           {agents.map((agent) => {
@@ -124,7 +131,7 @@ export function StudioAgentSelector({
                   onSelect(agent.id)
                   setIsOpen(false)
                 }}
-                className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:pointer-events-none ${
+                className={`w-full flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:pointer-events-none ${
                   isSelected ? 'bg-accent/60 font-semibold' : ''
                 }`}
               >
@@ -133,7 +140,7 @@ export function StudioAgentSelector({
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
                       state.state === 'verified'
-                        ? 'bg-emerald-500'
+                        ? 'bg-emerald-500 ring-2 ring-emerald-500/20'
                         : state.state === 'quota_limited'
                         ? 'bg-amber-500'
                         : 'bg-zinc-400'
@@ -171,6 +178,34 @@ export function StudioAgentSelector({
               </button>
             )
           })}
+
+          {/* Action Footer: Add or connect agent */}
+          <div className="my-1 border-t border-border/50" />
+          <div className="flex items-center justify-between gap-1 px-1">
+            {onAddAgentClick ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false)
+                  onAddAgentClick()
+                }}
+                className="flex-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors group"
+              >
+                <div className="flex h-5 w-5 items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground group-hover:border-primary/50 group-hover:text-primary transition-colors">
+                  <Plus className="h-3 w-3" />
+                </div>
+                <span>{t('Add or connect agent…')}</span>
+              </button>
+            ) : null}
+            <Link
+              to="/settings/agents"
+              onClick={() => setIsOpen(false)}
+              className="inline-flex items-center gap-1 px-2 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent shrink-0"
+              title={t('Manage team')}
+            >
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
       )}
     </div>
