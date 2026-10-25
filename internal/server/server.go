@@ -2413,7 +2413,22 @@ func (s *Server) handleConnectProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(req.RepoURL) == "" {
-		respondJSONError(w, http.StatusBadRequest, "repository URL is required")
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			respondJSONError(w, http.StatusBadRequest, "project name is required")
+			return
+		}
+		id := "proj_" + strings.ReplaceAll(cuanDB.GenerateUUID(), "-", "")
+		res, err := s.projectSvc.CreateManagedWorkspace(r.Context(), id, name)
+		if err != nil {
+			if errors.Is(err, project.ErrProjectAlreadyExists) {
+				respondJSONError(w, http.StatusConflict, "A project with this name already exists.")
+				return
+			}
+			respondJSONError(w, http.StatusInternalServerError, "Could not create project workspace: "+err.Error())
+			return
+		}
+		respondJSON(w, http.StatusCreated, res)
 		return
 	}
 

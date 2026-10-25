@@ -241,7 +241,7 @@ func TestProjectsAPI_ErrorHandling_Informative(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 Not Found, got %d (body: %s)", rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "Repository tidak ditemukan di GitHub") {
+	if !strings.Contains(rr.Body.String(), "Repository not found") {
 		t.Fatalf("expected informative message in body, got %s", rr.Body.String())
 	}
 
@@ -256,7 +256,7 @@ func TestProjectsAPI_ErrorHandling_Informative(t *testing.T) {
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 Forbidden for bad token, got %d (body: %s)", rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "Akses ke repository GitHub ditolak") {
+	if !strings.Contains(rr.Body.String(), "could not grant access to this repository") {
 		t.Fatalf("expected informative access denied message, got %s", rr.Body.String())
 	}
 
@@ -270,5 +270,57 @@ func TestProjectsAPI_ErrorHandling_Informative(t *testing.T) {
 
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 Forbidden, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+}
+
+func TestProjectsAPI_CreateManagedWorkspace_EmptyRepoURL(t *testing.T) {
+	srv, token, _ := setupTestServerWithAuth(t)
+
+	// 1. Missing name with empty repo_url -> 400 Bad Request
+	payload := []byte(`{"name": ""}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewBuffer(payload))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for empty name, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "project name is required") {
+		t.Fatalf("expected 'project name is required' error, got %s", rr.Body.String())
+	}
+
+	// 2. Valid name with empty repo_url -> 201 Created (Managed Local Workspace)
+	payload = []byte(`{"name": "Toko Online Budi"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewBuffer(payload))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	var created project.ProjectResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !strings.HasPrefix(created.ID, "proj_") || len(created.ID) != 37 {
+		t.Fatalf("expected managed project ID of length 37 starting with proj_, got %q", created.ID)
+	}
+	if created.Name != "Toko Online Budi" {
+		t.Fatalf("expected name 'Toko Online Budi', got %q", created.Name)
+	}
+
+	// 3. Verify project is retrievable via GET /api/v1/projects/{id}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+created.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr = httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK retrieving created managed project, got %d", rr.Code)
 	}
 }

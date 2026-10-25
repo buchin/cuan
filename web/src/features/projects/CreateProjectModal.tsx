@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react'
+import {
+  Sparkles,
+  FolderGit2,
+  GitBranch,
+  ShoppingBag,
+  Globe,
+  Briefcase,
+  BookOpen,
+  ChevronDown,
+} from 'lucide-react'
 import { ProjectType } from '../../api/types'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { useLanguage } from '../../context/LanguageContext'
+import { GitHubRepositoryPicker } from '../settings/GitHubRepositoryPicker'
 
 interface CreateProjectModalProps {
   isOpen: boolean
@@ -12,146 +24,272 @@ interface CreateProjectModalProps {
     github_token?: string
   }) => Promise<void>
 }
+
 export function CreateProjectModal({
   isOpen,
   onClose,
   onSubmit,
 }: CreateProjectModalProps) {
-  const [name, setName] = useState(''),
-    [projectType, setProjectType] = useState<ProjectType>('custom'),
-    [repoUrl, setRepoUrl] = useState(''),
-    [githubToken, setGithubToken] = useState(''),
-    [loading, setLoading] = useState(false),
-    [error, setError] = useState('')
+  const { t } = useLanguage()
+  const [mode, setMode] = useState<'new' | 'github'>('new')
+  const [name, setName] = useState('')
+  const [repoUrl, setRepoUrl] = useState('')
+  const [githubToken, setGithubToken] = useState('')
+  const [showTokenInput, setShowTokenInput] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
   useEffect(() => {
     if (isOpen) {
+      setMode('new')
       setName('')
-      setProjectType('custom')
       setRepoUrl('')
       setGithubToken('')
+      setShowTokenInput(false)
       setError('')
     }
   }, [isOpen])
+
+  const quickStarters = [
+    { label: t('Online Store'), icon: ShoppingBag, suggest: t('My Online Store') },
+    { label: t('Landing Page'), icon: Globe, suggest: t('Business Landing Page') },
+    { label: t('Company Profile'), icon: Briefcase, suggest: t('Company Profile Website') },
+    { label: t('Blog & Content'), icon: BookOpen, suggest: t('Content & Blog Site') },
+  ]
+
+  const handleSelectRepo = (url: string) => {
+    setRepoUrl(url)
+    const clean = url.trim().replace(/\/+$/, '')
+    const parts = clean.split('/')
+    const repoName = parts[parts.length - 1]
+    if (repoName && (!name || name === '')) {
+      // Auto-fill project name formatted nicely
+      setName(repoName.replace(/[-_]/g, ' '))
+    }
+  }
+
   return (
     <ActionDialog
       open={isOpen}
-      title="New project"
+      title={t('New project')}
       onClose={onClose}
       busy={loading}
     >
-      <form
-        className="space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          if (loading || !name.trim()) return
-          setLoading(true)
-          setError('')
-          try {
-            await onSubmit({
-              name: name.trim(),
-              project_type: projectType,
-              repo_url: repoUrl.trim() || undefined,
-              github_token: githubToken.trim() || undefined,
-            })
-            setGithubToken('')
-            onClose()
-          } catch (e) {
-            setError(
-              e instanceof Error ? e.message : 'Failed to create project',
-            )
-          } finally {
-            setLoading(false)
-          }
-        }}
-      >
-        <div>
-          <label className="text-sm font-medium" htmlFor="new-project-name">
-            Project name
-          </label>
-          <input
-            id="new-project-name"
-            className="field-control mt-1"
-            required
-            maxLength={200}
-            value={name}
-            disabled={loading}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium" htmlFor="new-project-type">
-            Project category
-          </label>
-          <select
-            id="new-project-type"
-            className="field-control mt-1"
-            value={projectType}
-            disabled={loading}
-            onChange={(e) => setProjectType(e.target.value as ProjectType)}
-          >
-            {Object.entries({
-              custom: 'Custom / General Software',
-              saas: 'SaaS Application',
-              blog: 'Content Blog / WordPress',
-              youtube: 'YouTube Creator Production',
-              olshop: 'Online Shop / Digital Products',
-              affiliate: 'Affiliate Marketing',
-              blank: 'Blank Workspace',
-            }).map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-sm font-medium" htmlFor="new-project-repo">
-            Repository URL (optional)
-          </label>
-          <input
-            id="new-project-repo"
-            type="text"
-            inputMode="url"
-            className="field-control mt-1"
-            placeholder="https://github.com/username/repository"
-            value={repoUrl}
-            disabled={loading}
-            onChange={(e) => setRepoUrl(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium" htmlFor="new-project-token">
-            Access token (optional for private repos)
-          </label>
-          <input
-            id="new-project-token"
-            type="password"
-            className="field-control mt-1"
-            autoComplete="off"
-            value={githubToken}
-            disabled={loading}
-            onChange={(e) => setGithubToken(e.target.value)}
-          />
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end gap-2">
+      <div className="space-y-4">
+        {/* Segmented Mode Selector: Mulai Baru vs Hubungkan GitHub */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/60 text-xs font-medium">
           <button
             type="button"
-            className="action-secondary"
-            disabled={loading}
-            onClick={onClose}
+            id="create-project-mode-new"
+            onClick={() => setMode('new')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+              mode === 'new'
+                ? 'bg-background text-foreground shadow-sm font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
-            Cancel
+            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            <span>{t('Create New')}</span>
           </button>
-          <button className="action-primary" disabled={loading || !name.trim()}>
-            {loading ? 'Creating…' : 'Create project'}
+          <button
+            type="button"
+            id="create-project-mode-github"
+            onClick={() => setMode('github')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+              mode === 'github'
+                ? 'bg-background text-foreground shadow-sm font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <GitBranch className="h-3.5 w-3.5 text-primary" />
+            <span>{t('Connect GitHub')}</span>
           </button>
         </div>
-      </form>
+
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (loading || !name.trim()) return
+            setLoading(true)
+            setError('')
+            try {
+              await onSubmit({
+                name: name.trim(),
+                project_type: 'custom',
+                repo_url: mode === 'github' ? repoUrl.trim() || undefined : undefined,
+                github_token: mode === 'github' ? githubToken.trim() || undefined : undefined,
+              })
+              setGithubToken('')
+              onClose()
+            } catch (err) {
+              setError(
+                err instanceof Error ? err.message : t('Failed to create project'),
+              )
+            } finally {
+              setLoading(false)
+            }
+          }}
+        >
+          {/* TAB 1: Mulai Proyek Baru dari Nol */}
+          {mode === 'new' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-foreground" htmlFor="new-project-name">
+                  {t('Project name')}
+                </label>
+                <input
+                  id="new-project-name"
+                  className="field-control mt-1.5"
+                  required
+                  maxLength={200}
+                  placeholder={t('e.g. Coffee Shop Website')}
+                  value={name}
+                  disabled={loading}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              {/* Quick Starter Inspiration Chips */}
+              <div>
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {t('Quick inspiration:')}
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {quickStarters.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setName(item.suggest)}
+                        className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground hover:border-primary/40 transition-colors"
+                      >
+                        <Icon className="h-3 w-3 text-primary/80" />
+                        <span>{item.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground leading-relaxed flex items-start gap-2">
+                <FolderGit2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <span>
+                  {t(
+                    'Cuan will set up an independent workspace on the server. You can immediately start building features via Studio chat.',
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: Hubungkan Repositori GitHub */}
+          {mode === 'github' && (
+            <div className="space-y-3">
+              {/* GitHub Picker Integration */}
+              <div>
+                <GitHubRepositoryPicker
+                  disabled={loading}
+                  onSelect={handleSelectRepo}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-foreground" htmlFor="new-project-repo">
+                  {t('Repository URL')}
+                </label>
+                <input
+                  id="new-project-repo"
+                  type="text"
+                  inputMode="url"
+                  className="field-control mt-1.5"
+                  placeholder="https://github.com/username/repository"
+                  value={repoUrl}
+                  disabled={loading}
+                  onChange={(e) => handleSelectRepo(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-foreground" htmlFor="new-project-name-gh">
+                  {t('Project name')}
+                </label>
+                <input
+                  id="new-project-name-gh"
+                  className="field-control mt-1.5"
+                  required
+                  maxLength={200}
+                  placeholder={t('e.g. Shoe Store')}
+                  value={name}
+                  disabled={loading}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+
+              {/* Optional Collapsible Access Token */}
+              <div className="pt-1">
+                {!showTokenInput ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowTokenInput(true)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    <span>{t('+ Enter Personal Access Token (for private repos)')}</span>
+                  </button>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground" htmlFor="new-project-token">
+                      {t('Personal Access Token (GitHub PAT)')}
+                    </label>
+                    <input
+                      id="new-project-token"
+                      type="password"
+                      className="field-control mt-1"
+                      autoComplete="off"
+                      placeholder="ghp_..."
+                      value={githubToken}
+                      disabled={loading}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+            <button
+              type="button"
+              className="action-secondary"
+              disabled={loading}
+              onClick={onClose}
+            >
+              {t('Cancel')}
+            </button>
+            <button
+              type="submit"
+              id="create-project-submit-btn"
+              className="action-primary"
+              disabled={loading || !name.trim()}
+            >
+              {loading
+                ? t('Creating…')
+                : mode === 'new'
+                ? t('Create project')
+                : t('Connect project')}
+            </button>
+          </div>
+        </form>
+      </div>
     </ActionDialog>
   )
 }
