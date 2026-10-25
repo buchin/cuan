@@ -1,12 +1,17 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// GitCommit can be populated at build time using ldflags:
+// -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=abc1234"
+var GitCommit = ""
 
 type Config struct {
 	Environment               string
@@ -30,6 +35,7 @@ type Config struct {
 	WorkspacesDir             string
 	ProjectsDir               string
 	AppVersion                string
+	CommitSHA                 string
 	DojoWebhookSecret         string
 	DojoWaitingListWebhookURL string
 	DojoCheckoutURL           string
@@ -63,6 +69,28 @@ func Load() *Config {
 		projectsDir = filepath.Join("data", "projects")
 	}
 	appVersion := getEnv("CUAN_APP_VERSION", "0.1.0")
+	commitSHA := GitCommit
+	if commitSHA == "" {
+		commitSHA = getEnv("CUAN_COMMIT_SHA", "")
+	}
+	if commitSHA == "" {
+		candidates := []string{
+			"release.json",
+			filepath.Join("..", "release.json"),
+			"/opt/cuan/current/release.json",
+		}
+		for _, candidate := range candidates {
+			if data, err := os.ReadFile(candidate); err == nil && len(data) > 0 {
+				var manifest struct {
+					SHA string `json:"sha"`
+				}
+				if json.Unmarshal(data, &manifest) == nil && manifest.SHA != "" {
+					commitSHA = manifest.SHA
+					break
+				}
+			}
+		}
+	}
 	dojoWebhookSecret := getEnv("DOJO_WEBHOOK_SECRET", "dev-dojo-secret")
 	dojoWaitingListWebhookURL := getEnv("DOJO_WAITING_LIST_WEBHOOK_URL", "")
 	dojoCheckoutURL := getEnv("DOJO_CHECKOUT_URL", "https://checkout.dojo.id/products/cuan-founding-backer")
@@ -137,6 +165,7 @@ func Load() *Config {
 		WorkspacesDir:             workspacesDir,
 		ProjectsDir:               projectsDir,
 		AppVersion:                appVersion,
+		CommitSHA:                 commitSHA,
 		DojoWebhookSecret:         dojoWebhookSecret,
 		DojoWaitingListWebhookURL: dojoWaitingListWebhookURL,
 		DojoCheckoutURL:           dojoCheckoutURL,

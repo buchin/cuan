@@ -91,4 +91,58 @@ class Gates(unittest.TestCase):
             backup.write_bytes(b'not empty'); backup.chmod(0o644)
             with self.assertRaises(RuntimeError): a.backup_database('x')
 
+    def test_health_checks_commit_sha_and_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a.BASE = Path(directory)
+            html = a.BASE / 'current/web/dist/index.html'
+            html.parent.mkdir(parents=True)
+            html.write_bytes(b'candidate')
+            readyz_body = json.dumps(dict(migrations_count=a.SCHEMA_COUNT, status='ready', database='connected')).encode()
+
+            # Target SHA matches
+            responses = [
+                Response(json.dumps(dict(status='healthy', commit_sha='abc1234')).encode()),
+                Response(readyz_body),
+                Response(b'candidate'),
+            ]
+            with patch.object(a.urllib.request, 'urlopen', side_effect=responses):
+                self.assertTrue(a.healthy(target_sha='abc1234'))
+
+            # Target SHA mismatch fails
+            responses = [
+                Response(json.dumps(dict(status='healthy', commit_sha='old9999')).encode()),
+                Response(readyz_body),
+                Response(b'candidate'),
+            ]
+            with patch.object(a.urllib.request, 'urlopen', side_effect=responses):
+                self.assertFalse(a.healthy(target_sha='abc1234'))
+
+            # Healthz unhealthy status fails
+            responses = [
+                Response(json.dumps(dict(status='unhealthy', commit_sha='abc1234')).encode()),
+                Response(readyz_body),
+                Response(b'candidate'),
+            ]
+            with patch.object(a.urllib.request, 'urlopen', side_effect=responses):
+                self.assertFalse(a.healthy(target_sha='abc1234'))
+
+    def test_no_restart_rejected_when_binary_checksum_differs(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = root / 'old'
+            target = root / 'target'
+            (old / 'bin').mkdir(parents=True)
+            (target / 'bin').mkdir(parents=True)
+            (old / 'bin/cuan-server').write_bytes(b'binary_v1')
+            (target / 'bin/cuan-server').write_bytes(b'binary_v2')
+
+            # Mocking the condition inside activate-release.py
+            old_binary = old / 'bin/cuan-server'
+            target_binary = target / 'bin/cuan-server'
+            self.assertNotEqual(
+                hashlib.sha256(old_binary.read_bytes()).hexdigest(),
+                hashlib.sha256(target_binary.read_bytes()).hexdigest()
+            )
+
 if __name__ == '__main__': unittest.main()

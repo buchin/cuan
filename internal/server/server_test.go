@@ -14,7 +14,10 @@ import (
 )
 
 func TestHealthz(t *testing.T) {
-	cfg := &config.Config{}
+	cfg := &config.Config{
+		AppVersion: "0.9.0",
+		CommitSHA:  "616f3840dc2dcdbbe962d639937da250b1d694c4",
+	}
 	srv := NewServer(cfg, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
@@ -33,6 +36,12 @@ func TestHealthz(t *testing.T) {
 
 	if body["status"] != "healthy" {
 		t.Errorf("expected status 'healthy', got %v", body["status"])
+	}
+	if body["version"] != "0.9.0" {
+		t.Errorf("expected version '0.9.0', got %v", body["version"])
+	}
+	if body["commit_sha"] != "616f3840dc2dcdbbe962d639937da250b1d694c4" {
+		t.Errorf("expected commit_sha '616f3840dc2dcdbbe962d639937da250b1d694c4', got %v", body["commit_sha"])
 	}
 }
 

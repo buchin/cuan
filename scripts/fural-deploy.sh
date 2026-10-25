@@ -64,7 +64,7 @@ fi
 
 release_dir="$HOME/.local/share/cuan-releases/$release_sha"
 mkdir -p "$release_dir/bin" "$release_dir/web"
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$release_dir/bin/cuan-server" ./cmd/server
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-server" ./cmd/server
 npm run build --prefix web
 cp -a web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
@@ -84,4 +84,30 @@ sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VP
 sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
 sshpass -e ssh "$release_host" "sudo -n python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
 unset SSHPASS
+
+echo "==> Verifying production health & commit SHA ($release_sha)..."
+verified_sha=""
+for attempt in {1..20}; do
+  health_json="$(curl -sSf https://cuan.dojo.cc/healthz 2>/dev/null || true)"
+  if [[ -n "$health_json" ]]; then
+    live_sha="$(python3 -c "import sys, json; print(json.loads('''$health_json''').get('commit_sha', ''))" 2>/dev/null || true)"
+    live_status="$(python3 -c "import sys, json; print(json.loads('''$health_json''').get('status', ''))" 2>/dev/null || true)"
+    if [[ "$live_status" == "healthy" ]]; then
+      if [[ "$live_sha" == "$release_sha" ]]; then
+        verified_sha="$live_sha"
+        echo "✓ Production /healthz verified healthy matching commit SHA: $verified_sha"
+        break
+      else
+        echo "Waiting for service to report new commit SHA (current: '$live_sha', target: '$release_sha')... attempt $attempt"
+      fi
+    fi
+  fi
+  sleep 1
+done
+
+if [[ -z "$verified_sha" ]]; then
+  echo "ERROR: Production deployment failed verification. /healthz did not report expected commit SHA $release_sha." >&2
+  exit 1
+fi
+
 echo "Released $release_sha. Verify the public UI, OAuth, Inbox reply and retained data before marking done."

@@ -1760,14 +1760,19 @@ func (s *Server) setupStaticRoutes() {
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	version := "0.1.0"
-	if s.cfg != nil && s.cfg.AppVersion != "" {
-		version = s.cfg.AppVersion
+	commitSHA := ""
+	if s.cfg != nil {
+		if s.cfg.AppVersion != "" {
+			version = s.cfg.AppVersion
+		}
+		commitSHA = s.cfg.CommitSHA
 	}
 	resp := map[string]interface{}{
-		"status":    "healthy",
-		"app":       "cuan",
-		"version":   version,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"status":     "healthy",
+		"app":        "cuan",
+		"version":    version,
+		"commit_sha": commitSHA,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 	}
 	respondJSON(w, http.StatusOK, resp)
 }
@@ -1870,12 +1875,17 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	version := "0.1.0"
-	if s.cfg != nil && s.cfg.AppVersion != "" {
-		version = s.cfg.AppVersion
+	commitSHA := ""
+	if s.cfg != nil {
+		if s.cfg.AppVersion != "" {
+			version = s.cfg.AppVersion
+		}
+		commitSHA = s.cfg.CommitSHA
 	}
 	resp := map[string]interface{}{
 		"name":          "Cuan",
 		"version":       version,
+		"commit_sha":    commitSHA,
 		"description":   "Agentic project management for self-hosted teams",
 		"license":       "Apache-2.0",
 		"repository":    "https://github.com/buchin/cuan",

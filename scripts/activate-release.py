@@ -25,12 +25,17 @@ def switch(link, target):
     os.replace(temporary, link)
 
 
-def healthy():
+def healthy(target_sha=None):
     try:
         for endpoint in ('healthz', 'readyz'):
             with urllib.request.urlopen(f'http://127.0.0.1:{PORT}/' + endpoint, timeout=3) as response:
                 body = json.load(response)
-                if endpoint == 'readyz' and (body.get('migrations_count') != SCHEMA_COUNT or body.get('status') != 'ready' or body.get('database') != 'connected'):
+                if endpoint == 'healthz':
+                    if body.get('status') not in (None, 'healthy'):
+                        return False
+                    if target_sha and body.get('commit_sha') and body.get('commit_sha') != target_sha:
+                        return False
+                elif endpoint == 'readyz' and (body.get('migrations_count') != SCHEMA_COUNT or body.get('status') != 'ready' or body.get('database') != 'connected'):
                     return False
         with urllib.request.urlopen(f'http://127.0.0.1:{PORT}/tasks', timeout=3) as response:
             if response.read() != (BASE / 'current/web/dist/index.html').read_bytes():
@@ -40,13 +45,13 @@ def healthy():
         return False
 
 
-def restart_and_check():
+def restart_and_check(target_sha=None):
     try:
         subprocess.run(['systemctl', 'restart', SERVICE], check=True)
     except subprocess.CalledProcessError:
         return False
     for _ in range(20):
-        if healthy():
+        if healthy(target_sha=target_sha):
             return True
         time.sleep(1)
     return False
@@ -243,6 +248,12 @@ def main():
                 parser.error('Release payload checksum mismatch')
         if not (target / 'bin/cuan-server').is_file() or not (target / 'web/dist/index.html').is_file():
             parser.error('Incomplete release')
+        if args.no_restart and old.exists():
+            old_binary = old / 'bin/cuan-server'
+            target_binary = target / 'bin/cuan-server'
+            if old_binary.exists() and target_binary.exists():
+                if hashlib.sha256(old_binary.read_bytes()).hexdigest() != hashlib.sha256(target_binary.read_bytes()).hexdigest():
+                    raise RuntimeError('Cannot use --no-restart when bin/cuan-server binary has changed; service restart is required')
         assert_idle_work(args.no_restart)
         assert_project_workspace_support(manifest)
         assert_task_worktree_support(manifest)
@@ -271,12 +282,16 @@ def main():
         retained_environment = database_environment()
         assert_idle_work(args.no_restart)  # Recheck after backup and unit preparation.
         switch(current, target)
-        check_healthy = healthy if args.no_restart else restart_and_check
+        target_sha = manifest.get('sha') if manifest else None
+        check_healthy = (lambda: healthy(target_sha)) if args.no_restart else (lambda: restart_and_check(target_sha))
         if not check_healthy():
-            assert_project_workspace_support(json.loads((old / 'release.json').read_text()), retained_environment)
-            assert_task_worktree_support(json.loads((old / 'release.json').read_text()), retained_environment)
+            old_manifest = json.loads((old / 'release.json').read_text())
+            assert_project_workspace_support(old_manifest, retained_environment)
+            assert_task_worktree_support(old_manifest, retained_environment)
             switch(current, old)
-            recovered = check_healthy()
+            old_sha = old_manifest.get('sha')
+            old_healthy = (lambda: healthy(old_sha)) if args.no_restart else (lambda: restart_and_check(old_sha))
+            recovered = old_healthy()
             raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
         switch(previous, old)
         print(json.dumps({'release': target.name, 'previous': old.name, 'health': 'healthy', 'migrations': SCHEMA_COUNT}))
