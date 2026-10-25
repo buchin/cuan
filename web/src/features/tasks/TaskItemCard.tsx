@@ -12,6 +12,7 @@ import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
+import './task-workspace.css'
 import {
   workStatus,
   workStatusBadgeClass,
@@ -19,6 +20,7 @@ import {
   taskTargetUrl,
   taskSummaryText,
   taskLiveActivityText,
+  cleanTerminalText,
   taskRef,
   relativeTime,
   agentDisplayName,
@@ -57,7 +59,17 @@ export function TaskItemCard({
   }, [task])
 
   const status = workStatus(currentTask)
-  const isRunning = isTaskRunning(currentTask)
+  const isWorking = status === 'Working'
+  const isQueued =
+    !isWorking &&
+    (status === 'Waiting to start' ||
+      status === 'Queued' ||
+      currentTask.launch?.state === 'queued' ||
+      currentTask.launch?.state === 'claimed' ||
+      currentTask.latest_attempt?.status === 'queued' ||
+      (currentTask.status as string) === 'queued' ||
+      (currentTask.status as string) === 'pending')
+  const isRunning = isWorking || isQueued
   const targetUrl = taskTargetUrl(currentTask)
   const summary = taskSummaryText(currentTask)
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
@@ -167,13 +179,21 @@ export function TaskItemCard({
               </span>
               <span
                 className={cn(
-                  'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
                   statusBadgeClass
                 )}
               >
-                {isRunning && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-ping" />
-                )}
+                {isWorking ? (
+                  <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400" />
+                  </span>
+                ) : isQueued ? (
+                  <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+                    <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
+                  </span>
+                ) : null}
                 {t(status)}
               </span>
               {showProject && currentTask.project_name && (
@@ -210,14 +230,26 @@ export function TaskItemCard({
             </span>
           </Link>
 
-          {isRunning ? (
+          {isWorking ? (
             <div className="mt-1 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
-              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600"></span>
+              <span className="relative flex h-1.5 w-1.5 shrink-0 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400" />
               </span>
               <span className="line-clamp-1 truncate text-[11px] font-medium">
                 {liveActivity}
+              </span>
+            </div>
+          ) : isQueued ? (
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <span className="relative flex h-1.5 w-1.5 shrink-0 items-center justify-center">
+                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
+              </span>
+              <span className="line-clamp-1 truncate text-[11px] font-medium">
+                {currentTask.latest_progress
+                  ? cleanTerminalText(currentTask.latest_progress)
+                  : (summary || t('Dalam antrean runner...'))}
               </span>
             </div>
           ) : summary ? (
@@ -357,17 +389,25 @@ export function TaskItemCard({
       )}
     >
       {/* Header: Status badge, Project badge, TaskRef, and Timestamp */}
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 relative z-10">
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full border',
+              'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors',
               statusBadgeClass
             )}
           >
-            {isRunning && (
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-ping" />
-            )}
+            {isWorking ? (
+              <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400" />
+              </span>
+            ) : isQueued ? (
+              <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
+              </span>
+            ) : null}
             {t(status)}
           </span>
 
@@ -392,34 +432,63 @@ export function TaskItemCard({
         </time>
       </div>
 
-      {/* Title & Summary */}
-      <div className="space-y-1">
-        <Link
-          to={targetUrl}
-          state={{ taskReturnTo: currentReturnTo }}
-          onClick={
-            onClick
-              ? (e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onClick(currentTask)
-                }
-              : onNavigate
-          }
-          className="block group-hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <h4 className="text-sm font-semibold text-foreground break-words leading-snug">
-            {currentTask.title}
-          </h4>
-        </Link>
-        {isRunning ? (
-          <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300 animate-in fade-in duration-200">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+      {/* Title & Live Activity / Summary with Vertical Timeline flow */}
+      <div className="space-y-2">
+        <div className="relative">
+          {isWorking ? (
+            <div
+              aria-hidden="true"
+              className="task-timeline-connector absolute left-[14px] -top-3 -bottom-2 w-[2px] -translate-x-1/2 bg-blue-500/35 dark:bg-blue-400/40 rounded-full pointer-events-none"
+            />
+          ) : isQueued ? (
+            <div
+              aria-hidden="true"
+              className="task-timeline-connector-queued absolute left-[14px] -top-3 -bottom-2 w-[2px] -translate-x-1/2 border-l-2 border-dashed border-amber-500/40 dark:border-amber-400/45 pointer-events-none"
+            />
+          ) : null}
+          <Link
+            to={targetUrl}
+            state={{ taskReturnTo: currentReturnTo }}
+            onClick={
+              onClick
+                ? (e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onClick(currentTask)
+                  }
+                : onNavigate
+            }
+            className={cn(
+              'block group-hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
+              (isWorking || isQueued) && 'pl-7'
+            )}
+          >
+            <h4 className="text-sm font-semibold text-foreground break-words leading-snug">
+              {currentTask.title}
+            </h4>
+          </Link>
+        </div>
+
+        {isWorking ? (
+          <div className="relative z-10 flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300 animate-in fade-in duration-200">
+            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400" />
             </span>
             <span className="line-clamp-2 break-words text-[11px] font-medium leading-tight">
               {liveActivity}
+            </span>
+          </div>
+        ) : isQueued ? (
+          <div className="relative z-10 flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300 animate-in fade-in duration-200">
+            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+              <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
+            </span>
+            <span className="line-clamp-2 break-words text-[11px] font-medium leading-tight">
+              {currentTask.latest_progress
+                ? cleanTerminalText(currentTask.latest_progress)
+                : (summary || t('Dalam antrean eksekusi runner...'))}
             </span>
           </div>
         ) : summary ? (

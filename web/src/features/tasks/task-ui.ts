@@ -76,6 +76,7 @@ export function workStatus(task: Task) {
   if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return 'Waiting to start'
   const attempt = task.latest_attempt?.status || task.execution_status
   if (attempt === 'running' || attempt === 'queued') return attempt === 'running' ? 'Working' : 'Waiting to start'
+  if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Waiting to start'
   if (task.status === 'done') return 'Completed'
   if (task.launch?.state === 'stopped') return 'Needs attention'
   if (task.launch?.state === 'cancelled') return 'Cancelled'
@@ -98,7 +99,9 @@ export function isTaskRunning(task: Task) {
     attempt === 'running' ||
     attempt === 'queued' ||
     task.launch?.state === 'queued' ||
-    task.launch?.state === 'claimed'
+    task.launch?.state === 'claimed' ||
+    (task.status as string) === 'queued' ||
+    (task.status as string) === 'pending'
   )
 }
 
@@ -107,7 +110,8 @@ export function workStatusBadgeClass(status: string) {
     case 'Working':
       return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
     case 'Waiting to start':
-      return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+    case 'Queued':
+      return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
     case 'Completed':
     case 'Answered':
       return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
