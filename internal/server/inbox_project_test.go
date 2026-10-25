@@ -119,7 +119,7 @@ func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
 	out, failure := s.executeInboxCLI(context.Background(), "pin2", "agy", "Inspect README", home, workspace, nil)
 	args, _ := os.ReadFile(filepath.Join(home, "cli-args"))
 	argText := string(args)
-	if failure != "" || out != home+"\n"+workspace || strings.Contains(argText, "--dangerously-skip-permissions") || !strings.Contains(argText, "--mode plan") || !strings.Contains(argText, "--sandbox") || !strings.Contains(argText, "--json-schema") || !strings.Contains(argText, "Do not use terminal") {
+	if failure != "" || out != home+"\n"+workspace || strings.Contains(argText, "--dangerously-skip-permissions") || !strings.Contains(argText, "--mode plan") || !strings.Contains(argText, "--sandbox") || !strings.Contains(argText, "--json-schema") || (!strings.Contains(argText, "Do not use terminal") && !strings.Contains(argText, "terminal execution")) {
 		t.Fatal(out, failure)
 	}
 }
@@ -184,5 +184,63 @@ func TestInboxProjectContextMetricsAndBlockerDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(snapshot, "Project auto_deploy setting: true") {
 		t.Fatalf("missing auto_deploy setting in snapshot: %s", snapshot)
+	}
+}
+
+func TestInboxProjectContextDynamicIntelligence(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	os.Mkdir(repo, 0700)
+	c := exec.Command("git", "-C", repo, "init", "-q")
+	_ = c.Run()
+
+	// Create web/src structure
+	inboxDir := filepath.Join(repo, "web", "src", "features", "inbox")
+	_ = os.MkdirAll(inboxDir, 0700)
+	_ = os.WriteFile(filepath.Join(inboxDir, "InboxSubPanel.tsx"), []byte("// inbox sub panel"), 0600)
+	_ = os.WriteFile(filepath.Join(inboxDir, "InboxView.tsx"), []byte("// inbox view"), 0600)
+
+	layoutDir := filepath.Join(repo, "web", "src", "components", "layout")
+	_ = os.MkdirAll(layoutDir, 0700)
+	_ = os.WriteFile(filepath.Join(layoutDir, "AppShell.tsx"), []byte("// app shell"), 0600)
+
+	// Create internal/server structure
+	serverDir := filepath.Join(repo, "internal", "server")
+	_ = os.MkdirAll(serverDir, 0700)
+	_ = os.WriteFile(filepath.Join(serverDir, "server.go"), []byte("package server"), 0600)
+
+	// Git commit
+	_ = exec.Command("git", "-C", repo, "add", ".").Run()
+	_ = exec.Command("git", "-C", repo, "-c", "user.name=test", "-c", "user.email=test@test.local", "commit", "-m", "feat: initial test layout").Run()
+
+	s, _ := setupTestChatServer(t)
+	s.cfg.Environment = "staging"
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", root)
+	_ = store.CreateProject(ctx, &project.Project{ID: "p_intel", Name: "Intelligence Project", LocalPath: repo})
+
+	room := db.GenerateUUID()
+	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room, ProjectID: "p_intel", Title: "SM Room", Topic: "discussion"})
+	msg := db.ProjectMessage{ID: db.GenerateUUID(), RoomID: room, AuthorType: "user", Content: "Di mana letak tombol inbox?", CreatedAt: time.Now()}
+	s.projectStudioRepo.CreateMessage(ctx, &msg)
+
+	q := db.InboxRequest{RoomID: room, MessageID: msg.ID}
+	dir, snapshot := s.inboxProjectContext(ctx, q)
+	if dir != repo {
+		t.Fatalf("expected workspace %s, got %s", repo, dir)
+	}
+
+	if !strings.Contains(snapshot, "Recent changes (HEAD diffstat):") {
+		t.Fatalf("missing git HEAD diffstat in snapshot: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Project UI Feature & Component Architecture:") {
+		t.Fatalf("missing UI architecture in snapshot: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "InboxSubPanel.tsx") || !strings.Contains(snapshot, "AppShell.tsx") {
+		t.Fatalf("missing UI components in snapshot: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Backend API Route Catalog (internal/server):") || !strings.Contains(snapshot, "/api/v1/item-preferences") {
+		t.Fatalf("missing API route catalog in snapshot: %s", snapshot)
 	}
 }

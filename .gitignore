@@ -20,6 +20,7 @@ web/dist/
 
 # Temporary and local
 tmp/
+internal/server/data/
 backups/*.sql.gz
 backups/*.sha256
 backups/*.meta.json

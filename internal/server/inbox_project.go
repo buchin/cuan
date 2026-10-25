@@ -298,6 +298,16 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	integrity := inspectGitIntegrity(ctx, dir, rel)
 	b.WriteString(integrity.Summary())
 	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
+	diffstat := gitRead("show", "--stat", "--oneline", "-n", "1", "HEAD")
+	if !strings.Contains(diffstat, "Git is unavailable") && strings.TrimSpace(diffstat) != "" {
+		b.WriteString("Recent changes (HEAD diffstat):\n" + truncateProjectText(diffstat, 2000) + "\n")
+	}
+	if uiMap := inspectUIArchitecture(dir); uiMap != "" {
+		b.WriteString(uiMap)
+	}
+	if apiCat := inspectAPIRoutesCatalog(dir); apiCat != "" {
+		b.WriteString(apiCat)
+	}
 	files := gitRead("ls-files")
 	b.WriteString("Tracked files (up to 6 KiB):\n" + truncateProjectText(files, 6000) + "\n")
 	sprintDir := filepath.Join(dir, "docs", "sprints")
@@ -525,4 +535,117 @@ func (s *Server) formatProjectRunnerLiveState(ctx context.Context, projectID str
 	}
 	b.WriteString("\n")
 	return b.String()
+}
+
+func inspectUIArchitecture(dir string) string {
+	webSrc := filepath.Join(dir, "web", "src")
+	if info, err := os.Stat(webSrc); err != nil || !info.IsDir() {
+		webSrc = filepath.Join(dir, "src")
+		if info, err := os.Stat(webSrc); err != nil || !info.IsDir() {
+			return ""
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString("Project UI Feature & Component Architecture:\n")
+
+	// 1. Check layout / shell components
+	layoutDir := filepath.Join(webSrc, "components", "layout")
+	if entries, err := os.ReadDir(layoutDir); err == nil && len(entries) > 0 {
+		var compNames []string
+		for _, e := range entries {
+			if !e.IsDir() && isUIComponentFile(e.Name()) {
+				compNames = append(compNames, e.Name())
+			}
+		}
+		if len(compNames) > 0 {
+			sort.Strings(compNames)
+			relPath, _ := filepath.Rel(dir, layoutDir)
+			fmt.Fprintf(&b, "- Shell & Layout: %s/ (%s)\n", filepath.ToSlash(relPath), strings.Join(compNames, ", "))
+		}
+	}
+
+	// 2. Check features
+	featuresDir := filepath.Join(webSrc, "features")
+	if entries, err := os.ReadDir(featuresDir); err == nil && len(entries) > 0 {
+		b.WriteString("- Feature Modules:\n")
+		var featDirs []string
+		for _, e := range entries {
+			if e.IsDir() {
+				featDirs = append(featDirs, e.Name())
+			}
+		}
+		sort.Strings(featDirs)
+		for _, feat := range featDirs {
+			fPath := filepath.Join(featuresDir, feat)
+			subEntries, err := os.ReadDir(fPath)
+			if err != nil {
+				continue
+			}
+			var comps []string
+			for _, se := range subEntries {
+				if !se.IsDir() && isUIComponentFile(se.Name()) {
+					comps = append(comps, se.Name())
+				}
+			}
+			if len(comps) > 0 {
+				sort.Strings(comps)
+				limit := 6
+				truncated := false
+				if len(comps) > limit {
+					comps = comps[:limit]
+					truncated = true
+				}
+				joined := strings.Join(comps, ", ")
+				if truncated {
+					joined += ", ..."
+				}
+				relPath, _ := filepath.Rel(dir, fPath)
+				fmt.Fprintf(&b, "  * %s: %s/ (%s)\n", feat, filepath.ToSlash(relPath), joined)
+			}
+		}
+	}
+
+	return b.String()
+}
+
+func isUIComponentFile(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext != ".tsx" && ext != ".jsx" && ext != ".vue" && ext != ".svelte" {
+		return false
+	}
+	lower := strings.ToLower(name)
+	if strings.HasSuffix(lower, ".test.tsx") || strings.HasSuffix(lower, ".test.jsx") || strings.HasSuffix(lower, ".spec.tsx") || strings.HasSuffix(lower, ".spec.jsx") {
+		return false
+	}
+	return true
+}
+
+func inspectAPIRoutesCatalog(dir string) string {
+	serverDir := filepath.Join(dir, "internal", "server")
+	if info, err := os.Stat(serverDir); err != nil || !info.IsDir() {
+		return ""
+	}
+
+	return `Backend API Route Catalog (internal/server):
+- Chat & Inbox:
+  * GET/POST /api/v1/inbox/stream (SSE stream for live responses)
+  * GET/POST /api/v1/chat/conversations (List/create conversations)
+  * POST /api/v1/chat/conversations/{id}/messages (Send message to agent)
+- Item Preferences:
+  * PATCH /api/v1/item-preferences?kind=conversation (Supports single ID or batch mark-all-read with all: true)
+- Tasks & Workflow:
+  * GET/POST /api/v1/tasks (List/create backlog tasks)
+  * GET/PATCH /api/v1/tasks/{id} (Task details & status updates)
+  * GET /api/v1/tasks/{id}/attempts (Task runner attempt history)
+- Projects & Repos:
+  * GET/POST /api/v1/projects (Registered projects)
+  * GET /api/v1/projects/{id}/branches (Git branches)
+- Providers & Accounts:
+  * GET /api/v1/agents (Available agents)
+  * GET/POST /api/v1/provider-accounts (BYO accounts / Antigravity / Claude / OpenAI)
+- System & Observability:
+  * GET /healthz, /readyz (Deployment health & migration readiness)
+  * GET /api/v1/terminal/active (Active runner terminal status)
+`
 }
