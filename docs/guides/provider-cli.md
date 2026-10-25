@@ -76,3 +76,22 @@ Not all AI models support multimodal (vision/image) inputs:
 2. **Automatic Cancellation**: If the selected model does not support vision and image files are currently attached, the image attachments are automatically canceled/removed, and an informative notification is displayed to the user explaining that the selected model is text-only.
 3. **Picker Guard**: `AttachmentPicker` disables camera/photo inputs and restricts file uploads to supported documents (`.pdf`, `.txt`, `.md`, `.csv`) when a non-vision model is active.
 4. **Backend Enforcement**: `executeInboxCLIWithSafety` checks image attachments before invoking CLI execution; if an image is provided with a text-only model, it returns a clear, actionable error instructing the user to remove image attachments or switch to a vision-capable model.
+
+## Connection Lifecycle & Management in Team/Settings
+
+Users manage both Subscription and BYOK agent connections directly through the Cuan UI without using terminal commands:
+
+### Factual Connection States
+1. **Connected (`verified`)**: The provider account is active and verified within the validity window (default 5 minutes). Visualized with a green status badge and an active status indicator.
+2. **Sign-in Required (`login_required`)**: OAuth token expired or revoked. Offers a prominent **Reconnect** button that initiates browser OAuth without deleting configured agent state.
+3. **Quota Limited (`quota_limited`)**: Google/provider individual account quota reached. Displays quota reset countdown, retry timestamp, and automatically routes failover if secondary accounts are enabled.
+4. **Connection Error (`unavailable`)**: Network failure or invalid credentials. Displays a descriptive warning banner with an inline **Reconnect** action.
+5. **Not Checked (`unknown`)**: Connection state is pending verification.
+
+### Actions & Touch Controls
+- **Last Verified Timestamp**: Every agent card displays the exact formatted time of the last verification (e.g. `Just now`, `5m ago`, `Today, 17:13`).
+- **Reconnect**: Dispatches a background verification probe with in-flight state (`Working...`) and double-click idempotency guard.
+- **Disconnect**: Safely disables agent routing without deleting credentials or historical transcripts.
+- **Replace BYOK Key**: For BYOK connections, allows instant in-place replacement of the API key with inline validation, Save, and Cancel controls.
+- **Remove Agent**: Accessible from the action menu with confirmation and optimistic list updates.
+- **Accessibility & Mobile Touch Targets**: All interactive elements maintain a minimum 44px (`min-h-11`) touch target and responsive wrap behavior tested down to 360px and 390px viewports.

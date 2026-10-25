@@ -20,6 +20,23 @@ import {
 } from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth, type ModelInfo, isModelVisionCapable } from '../../api/agents'
 
+function formatVerificationTime(isoString?: string): string {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  if (isNaN(date.getTime())) return isoString
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  if (diffMs >= 0 && diffMs < 60_000) return 'Just now'
+  if (diffMs >= 0 && diffMs < 3600_000) {
+    const mins = Math.floor(diffMs / 60_000)
+    return `${mins}m ago`
+  }
+  const isToday = date.toDateString() === now.toDateString()
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (isToday) return `Today, ${timeStr}`
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`
+}
+
 function AgentActions({
   name,
   onRemove,
@@ -854,6 +871,19 @@ export function TeamView({
                       <span className="font-semibold text-foreground">{a.model_id}</span>
                     </span>
                   )}
+                  {(a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at) && (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50"
+                      title={a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at}
+                    >
+                      <span className="text-muted-foreground">Last verified:</span>
+                      <span className="font-semibold text-foreground font-mono">
+                        {formatVerificationTime(
+                          a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at,
+                        )}
+                      </span>
+                    </span>
+                  )}
                 </div>
 
                 {/* Alerts if quota limited or unavailable */}
@@ -912,11 +942,11 @@ export function TeamView({
                       Disconnect
                     </button>
                   )}
-                  {a.provider === 'commandcode' && (
+                  {(a.auth_type === 'byok' || a.provider === 'commandcode') && (
                     <button
                       type="button"
                       className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
-                      disabled={!!lifecycleBusy}
+                      disabled={!!lifecycleBusy || !!removing}
                       onClick={() => setReplaceAgentId(replaceAgentId === a.id ? '' : a.id)}
                       aria-label={`Replace BYOK credential for ${a.name}`}
                     >
@@ -927,7 +957,7 @@ export function TeamView({
                 </div>
 
                 {/* Inline Replace BYOK form */}
-                {replaceAgentId === a.id && a.provider === 'commandcode' && (
+                {replaceAgentId === a.id && (a.auth_type === 'byok' || a.provider === 'commandcode') && (
                   <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3 sm:flex-row">
                     <label className="sr-only" htmlFor={`replace-key-${a.id}`}>
                       New API key
@@ -941,14 +971,27 @@ export function TeamView({
                       placeholder="Enter a new API key"
                       className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
                     />
-                    <button
-                      type="button"
-                      className="min-h-11 rounded-md bg-primary px-3 text-xs text-primary-foreground disabled:opacity-50"
-                      disabled={replacementKey.trim().length < 8 || !!lifecycleBusy}
-                      onClick={() => void replaceBYOK(a)}
-                    >
-                      Save key
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="min-h-11 rounded-md bg-primary px-3 text-xs text-primary-foreground disabled:opacity-50"
+                        disabled={replacementKey.trim().length < 8 || !!lifecycleBusy}
+                        onClick={() => void replaceBYOK(a)}
+                      >
+                        {lifecycleBusy === a.id ? 'Saving…' : 'Save key'}
+                      </button>
+                      <button
+                        type="button"
+                        className="min-h-11 rounded-md border border-border bg-background px-3 text-xs text-foreground hover:bg-muted"
+                        disabled={!!lifecycleBusy}
+                        onClick={() => {
+                          setReplaceAgentId('')
+                          setReplacementKey('')
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
                 {account && (
