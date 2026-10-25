@@ -619,7 +619,7 @@ export function InboxView({
             text,
             id: approvalRequestId || crypto.randomUUID(),
             attachmentIds:
-              approveMessageId || activeContact.type !== 'agent'
+              approveMessageId
                 ? []
                 : uploads.items.map((a) => a.id),
             approveMessageId,
@@ -1593,23 +1593,19 @@ export function InboxView({
                     )}
                   </div>
                 )}
-                {activeContact.type === 'agent' && (
-                  <AttachmentPreviews uploads={uploads} disabled={sending} />
-                )}
+                <AttachmentPreviews uploads={uploads} disabled={sending} />
                 <div
                   className={`wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 ${
                     isMultiline ? 'is-multiline' : ''
                   }`}
                 >
-                  {activeContact.type === 'agent' && (
-                    <AttachmentPicker
-                      key={activeContact.conversation_id}
-                      uploads={uploads}
-                      disabled={sending}
-                      compact
-                      disableImages={!contactSupportsVision}
-                    />
-                  )}
+                  <AttachmentPicker
+                    key={activeContact.conversation_id || activeContact.id}
+                    uploads={uploads}
+                    disabled={sending}
+                    compact
+                    disableImages={activeContact.type === 'agent' && !contactSupportsVision}
+                  />
                   <textarea
                     ref={textareaRef}
                     data-primary-composer
@@ -1630,11 +1626,7 @@ export function InboxView({
                         ? t('Whisper to AI team (invisible to visitor)…')
                         : `Reply to ${activeContact.name} or type @team to whisper AI…`
                     }
-                    className={`wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug ${
-                      activeContact.type === 'agent'
-                        ? 'pl-1.5 pr-2 sm:pl-2 sm:pr-2.5'
-                        : 'pl-3 pr-2 sm:pl-3.5 sm:pr-2.5'
-                    }`}
+                    className="wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug pl-1.5 pr-2 sm:pl-2 sm:pr-2.5"
                   />
 
                   <CannedResponsesPicker
@@ -1656,8 +1648,7 @@ export function InboxView({
                     type="button"
                     onClick={() => handleSendMessage()}
                     disabled={
-                      (!inputMessage.trim() &&
-                        (activeContact.type !== 'agent' || !uploads.items.length)) ||
+                      (!inputMessage.trim() && !uploads.items.length) ||
                       sending ||
                       uploads.busy
                     }

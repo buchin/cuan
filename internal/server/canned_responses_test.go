@@ -166,7 +166,7 @@ func TestCannedResponses_CRUD_And_Validation(t *testing.T) {
 	}
 }
 
-func TestOperatorAttachmentRestriction_CustomerVsAgent(t *testing.T) {
+func TestOperatorAttachmentFlow_CustomerAndAgent(t *testing.T) {
 	srv, token := setupTestChatServer(t)
 
 	// 1. Initialize visitor chat session
@@ -194,11 +194,11 @@ func TestOperatorAttachmentRestriction_CustomerVsAgent(t *testing.T) {
 	_ = json.Unmarshal(recInit.Body.Bytes(), &sessResp)
 	sessionUUID := sessResp.Session.UUID
 
-	// 2. Operator attempts to upload attachment specifying customer conversation
+	// 2. Operator uploads attachment specifying customer conversation -> Now succeeds!
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, _ := writer.CreateFormFile("file", "test.txt")
-	_, _ = part.Write([]byte("Hello world from operator"))
+	part, _ := writer.CreateFormFile("file", "panduan.txt")
+	_, _ = part.Write([]byte("Panduan penggunaan fitur Cuan"))
 	_ = writer.WriteField("conversation_id", sessionUUID)
 	_ = writer.Close()
 
@@ -208,15 +208,14 @@ func TestOperatorAttachmentRestriction_CustomerVsAgent(t *testing.T) {
 	recUploadCust := httptest.NewRecorder()
 	srv.Router().ServeHTTP(recUploadCust, reqUploadCust)
 
-	if recUploadCust.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 Forbidden when operator uploads to customer conversation, got %d: %s",
+	if recUploadCust.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created when operator uploads to customer conversation, got %d: %s",
 			recUploadCust.Code, recUploadCust.Body.String())
 	}
-	if !strings.Contains(recUploadCust.Body.String(), "customer-to-operator only") {
-		t.Fatalf("expected policy explanation in error message, got: %s", recUploadCust.Body.String())
-	}
+	var custAtt conversationAttachment
+	_ = json.Unmarshal(recUploadCust.Body.Bytes(), &custAtt)
 
-	// 3. Operator uploads file for agent conversation (without customer conversation_id)
+	// 3. Operator uploads file for agent conversation
 	bodyAgent := &bytes.Buffer{}
 	writerAgent := multipart.NewWriter(bodyAgent)
 	partAgent, _ := writerAgent.CreateFormFile("file", "spec.txt")
@@ -237,12 +236,12 @@ func TestOperatorAttachmentRestriction_CustomerVsAgent(t *testing.T) {
 	var agentAtt conversationAttachment
 	_ = json.Unmarshal(recUploadAgent.Body.Bytes(), &agentAtt)
 
-	// 4. Operator attempts to send message with attachment to customer conversation
+	// 4. Operator sends message with attachment to customer conversation -> Now succeeds!
 	replyCustWithAtt := map[string]interface{}{
 		"message":        "Here is the file you asked for",
-		"attachment_ids": []string{agentAtt.ID},
-		"author_type":    "agent",
-		"author_name":    "Operator",
+		"attachment_ids": []string{custAtt.ID},
+		"author_type":    "user",
+		"author_name":    "You",
 	}
 	bReply, _ := json.Marshal(replyCustWithAtt)
 	reqSendAtt := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+sessionUUID+"/messages", bytes.NewReader(bReply))
@@ -251,9 +250,40 @@ func TestOperatorAttachmentRestriction_CustomerVsAgent(t *testing.T) {
 	recSendAtt := httptest.NewRecorder()
 	srv.Router().ServeHTTP(recSendAtt, reqSendAtt)
 
-	if recSendAtt.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 Forbidden when operator sends attachment to customer, got %d: %s",
+	if recSendAtt.Code != http.StatusOK && recSendAtt.Code != http.StatusAccepted {
+		t.Fatalf("expected 200/202 when operator sends attachment to customer, got %d: %s",
 			recSendAtt.Code, recSendAtt.Body.String())
+	}
+
+	// 4b. Visitor polls messages and verifies operator attachment
+	reqPoll := httptest.NewRequest(http.MethodGet, "/api/chat/messages?session_uuid="+sessionUUID+"&after_id=1", nil)
+	recPoll := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recPoll, reqPoll)
+	if recPoll.Code != http.StatusOK {
+		t.Fatalf("expected 200 for visitor polling, got %d", recPoll.Code)
+	}
+	var pollResp struct {
+		OK       bool             `json:"ok"`
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	_ = json.Unmarshal(recPoll.Body.Bytes(), &pollResp)
+	if len(pollResp.Messages) != 1 {
+		t.Fatalf("expected 1 message in poll, got %d", len(pollResp.Messages))
+	}
+	opMsg := pollResp.Messages[0]
+	if opMsg.SenderType != "operator" || !opMsg.HasAttachment || opMsg.AttachmentURL == "" {
+		t.Fatalf("expected operator message with attachment, got: %+v", opMsg)
+	}
+
+	// 4c. Visitor downloads the attachment via GET /api/chat/attachments/{id}
+	reqDl := httptest.NewRequest(http.MethodGet, "/api/chat/attachments/"+custAtt.ID, nil)
+	recDl := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recDl, reqDl)
+	if recDl.Code != http.StatusOK {
+		t.Fatalf("expected visitor to download operator attachment, got %d", recDl.Code)
+	}
+	if !strings.Contains(recDl.Body.String(), "Panduan penggunaan fitur Cuan") {
+		t.Fatalf("unexpected content in downloaded attachment: %s", recDl.Body.String())
 	}
 
 	// 5. Operator sends text reply without attachment -> Should succeed
@@ -449,7 +479,7 @@ func TestE2E_CustomerChatWithCannedResponseAndAttachmentRestriction(t *testing.T
 		t.Fatalf("step 3 failed: expected at least 2 messages in conversation, got %d", len(convResp.Messages))
 	}
 
-	// Step 4: Operator attempts to upload attachment to this customer conversation -> MUST BE FORBIDDEN
+	// Step 4: Operator uploads attachment to this customer conversation -> Now succeeds!
 	bodyOp := &bytes.Buffer{}
 	writerOp := multipart.NewWriter(bodyOp)
 	partOp, _ := writerOp.CreateFormFile("file", "invoice.pdf")
@@ -462,9 +492,11 @@ func TestE2E_CustomerChatWithCannedResponseAndAttachmentRestriction(t *testing.T
 	reqOpUpload.Header.Set("Content-Type", writerOp.FormDataContentType())
 	recOpUpload := httptest.NewRecorder()
 	srv.Router().ServeHTTP(recOpUpload, reqOpUpload)
-	if recOpUpload.Code != http.StatusForbidden {
-		t.Fatalf("step 4 failed: expected 403 Forbidden for operator upload to customer, got %d", recOpUpload.Code)
+	if recOpUpload.Code != http.StatusCreated {
+		t.Fatalf("step 4 failed: expected 201 Created for operator upload to customer, got %d: %s", recOpUpload.Code, recOpUpload.Body.String())
 	}
+	var opAtt conversationAttachment
+	_ = json.Unmarshal(recOpUpload.Body.Bytes(), &opAtt)
 
 	// Step 5: Operator fetches canned response "harga" (template balasan cepat)
 	reqCanned := httptest.NewRequest(http.MethodGet, "/api/v1/chat/canned-responses?q=harga", nil)
@@ -484,11 +516,12 @@ func TestE2E_CustomerChatWithCannedResponseAndAttachmentRestriction(t *testing.T
 	}
 	cannedReplyText := cannedList.CannedResponses[0].Content
 
-	// Step 6: Operator sends canned reply to customer
+	// Step 6: Operator sends canned reply to customer with attachment
 	opReplyPayload := map[string]interface{}{
-		"message":     cannedReplyText,
-		"author_type": "agent",
-		"author_name": "CS Cuan",
+		"message":        cannedReplyText,
+		"attachment_ids": []string{opAtt.ID},
+		"author_type":    "user",
+		"author_name":    "CS Cuan",
 	}
 	bOpReply, _ := json.Marshal(opReplyPayload)
 	reqOpSend := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+sessionUUID+"/messages", bytes.NewReader(bOpReply))
@@ -496,11 +529,11 @@ func TestE2E_CustomerChatWithCannedResponseAndAttachmentRestriction(t *testing.T
 	reqOpSend.Header.Set("Content-Type", "application/json")
 	recOpSend := httptest.NewRecorder()
 	srv.Router().ServeHTTP(recOpSend, reqOpSend)
-	if recOpSend.Code != http.StatusOK {
+	if recOpSend.Code != http.StatusOK && recOpSend.Code != http.StatusAccepted {
 		t.Fatalf("step 6 failed: operator sending canned reply: %d %s", recOpSend.Code, recOpSend.Body.String())
 	}
 
-	// Step 7: Visitor polls for messages and receives operator canned reply
+	// Step 7: Visitor polls for messages and receives operator canned reply with attachment
 	reqPoll := httptest.NewRequest(http.MethodGet, "/api/chat/messages?session_uuid="+sessionUUID+"&after_id=2", nil)
 	recPoll := httptest.NewRecorder()
 	srv.Router().ServeHTTP(recPoll, reqPoll)
@@ -519,5 +552,8 @@ func TestE2E_CustomerChatWithCannedResponseAndAttachmentRestriction(t *testing.T
 	if pollResp.Messages[0].Message != cannedReplyText {
 		t.Fatalf("step 7 failed: expected operator message to match canned text, got %q vs %q",
 			pollResp.Messages[0].Message, cannedReplyText)
+	}
+	if !pollResp.Messages[0].HasAttachment || pollResp.Messages[0].AttachmentURL == "" {
+		t.Fatalf("step 7 failed: expected operator message to have attachment for visitor, got: %+v", pollResp.Messages[0])
 	}
 }

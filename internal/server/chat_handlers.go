@@ -1125,10 +1125,6 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
-	if len(payload.AttachmentIDs) > 0 && !resolved.IsAgent {
-		respondJSONError(w, http.StatusForbidden, "Operator cannot send attachments to customer. File sharing is customer-to-operator only.")
-		return
-	}
 	if payload.ApproveMessageID == "" && resolved.IsAgent && len(payload.AttachmentIDs) == 0 {
 		payload.ApproveMessageID = s.conversationalApprovalID(r.Context(), resolved.RoomID, text)
 	}
@@ -1514,13 +1510,30 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 				if err != nil {
 					a, _, err = loadAttachment("visitor", id)
 				}
+				if err != nil {
+					a, _, err = findAttachmentAcrossOwners(id)
+				}
 				if err == nil {
+					if isCustomer {
+						a.URL = "/api/chat/attachments/" + a.ID
+					}
 					attached = append(attached, a)
 				}
 			}
 		}
 		if m.AuthorType == "system" && m.AuthorID == "cuan_work_review" {
 			content = "I’m checking the latest work update. " + strings.TrimPrefix(strings.SplitN(m.Content, "\n", 2)[0], "Review the result for ")
+		}
+
+		var attURL, attType, attName string
+		var attSize int64
+		var hasAtt bool
+		if len(attached) > 0 {
+			attURL = attached[0].URL
+			attType = attached[0].Type
+			attName = attached[0].Name
+			attSize = attached[0].Size
+			hasAtt = true
 		}
 
 		dtos[i] = ChatMessageDTO{
@@ -1544,6 +1557,11 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			Message:         content,
 			Content:         content,
 			Product:         product,
+			AttachmentURL:   attURL,
+			AttachmentType:  attType,
+			AttachmentName:  attName,
+			AttachmentSize:  attSize,
+			HasAttachment:   hasAtt,
 			ActionCard:      actionCard,
 			TaskDraft:       draft,
 			IsInternal:      isInternal,

@@ -79,6 +79,42 @@ func loadAttachment(owner, id string) (conversationAttachment, string, error) {
 	}
 	return a, path, nil
 }
+func findAttachmentAcrossOwners(id string) (conversationAttachment, string, error) {
+	var a conversationAttachment
+	if !db.IsValidUUID(id) {
+		return a, "", errors.New("invalid attachment")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return a, "", err
+	}
+	baseDir := filepath.Join(home, ".local", "share", "cuan", "attachments")
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return a, "", err
+	}
+	targetID := strings.ToLower(id)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(baseDir, entry.Name(), targetID)
+		raw, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+		if err != nil {
+			continue
+		}
+		if err := json.Unmarshal(raw, &a); err != nil {
+			continue
+		}
+		path := filepath.Join(dir, "content"+filepath.Ext(a.Name))
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		return a, path, nil
+	}
+	return a, "", errors.New("attachment not found")
+}
 func encodeAttachmentMessage(text string, ids []string) string {
 	if len(ids) == 0 {
 		return text
@@ -111,7 +147,9 @@ func validateAttachmentIDs(owner string, ids []string) error {
 		seen[id] = true
 		if _, _, err := loadAttachment(owner, id); err != nil {
 			if _, _, errV := loadAttachment("visitor", id); errV != nil {
-				return errors.New("An attachment is unavailable. Upload it again")
+				if _, _, errF := findAttachmentAcrossOwners(id); errF != nil {
+					return errors.New("An attachment is unavailable. Upload it again")
+				}
 			}
 		}
 	}
@@ -123,23 +161,6 @@ func (s *Server) handleUploadConversationAttachment(w http.ResponseWriter, r *ht
 		return
 	}
 
-	convID := strings.TrimSpace(r.URL.Query().Get("conversation_id"))
-	if convID == "" {
-		convID = strings.TrimSpace(r.FormValue("conversation_id"))
-	}
-	if convID == "" {
-		convID = strings.TrimSpace(r.URL.Query().Get("room_id"))
-		if convID == "" {
-			convID = strings.TrimSpace(r.FormValue("room_id"))
-		}
-	}
-	if convID != "" {
-		resolved := s.resolveConversationContext(r.Context(), convID, "")
-		if !resolved.IsAgent {
-			respondJSONError(w, http.StatusForbidden, "Operator cannot upload attachments in customer conversations. File sharing is customer-to-operator only.")
-			return
-		}
-	}
 	r.Body = http.MaxBytesReader(w, r.Body, attachmentLimit+(1<<20))
 	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		respondJSONError(w, 413, "Choose a file up to 10 MB")
@@ -217,6 +238,9 @@ func (s *Server) handleDownloadConversationAttachment(w http.ResponseWriter, r *
 	a, path, err := loadAttachment(owner, id)
 	if err != nil {
 		a, path, err = loadAttachment("visitor", id)
+	}
+	if err != nil {
+		a, path, err = findAttachmentAcrossOwners(id)
 	}
 	if err != nil {
 		respondJSONError(w, 404, "Attachment not found")
@@ -350,6 +374,9 @@ func (s *Server) handleVisitorUploadAttachment(w http.ResponseWriter, r *http.Re
 func (s *Server) handleVisitorDownloadAttachment(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	a, path, err := loadAttachment("visitor", id)
+	if err != nil {
+		a, path, err = findAttachmentAcrossOwners(id)
+	}
 	if err != nil {
 		respondJSONError(w, 404, "Attachment not found")
 		return
