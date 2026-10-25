@@ -50,8 +50,8 @@ test('1. StudioProjectSelector: Compact pill button & modern popover structure',
 
 test('2. StudioView: Composer toolbar integration with StudioProjectSelector', () => {
   assert.ok(
-    studioViewSource.includes('<StudioProjectSelector'),
-    'StudioView must render StudioProjectSelector in composer toolbar'
+    studioViewSource.includes('<StudioProjectSelector') || studioViewSource.includes('<StudioExecutionSelector'),
+    'StudioView must render StudioProjectSelector or unified StudioExecutionSelector in composer toolbar'
   )
   assert.ok(
     studioViewSource.includes('onConnectProjectClick={onCreateProject}'),

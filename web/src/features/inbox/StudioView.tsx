@@ -8,8 +8,7 @@ import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
 import { projectsApi } from '../../api/projects'
 import { type Project } from '../../api/types'
-import { StudioAgentSelector } from './StudioAgentSelector'
-import { StudioProjectSelector } from './StudioProjectSelector'
+import { StudioExecutionSelector } from './StudioExecutionSelector'
 
 export function StudioView({
   onAccepted, agentSetup, firstGoal, hasProject,
@@ -271,23 +270,18 @@ export function StudioView({
                 }
               }}
             />
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2 sm:px-3 sm:pb-3 border-t border-border/40">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center justify-between gap-2 p-2 sm:px-3 sm:pb-3 border-t border-border/40">
+              <div className="flex items-center gap-2 min-w-0">
                 <AttachmentPicker uploads={uploads} disabled={busy} disableImages={!supportsVision} />
-                {!projectsLoading && (
-                  <StudioProjectSelector
+                {agentSetup === 'ready' && !agentsLoading && !projectsLoading && (
+                  <StudioExecutionSelector
                     projects={projects.filter((p) => !p.is_archived)}
                     selectedProjectId={selectedProjectId}
-                    onSelect={setSelectedProjectId}
+                    onSelectProject={setSelectedProjectId}
                     onConnectProjectClick={onCreateProject}
-                    disabled={busy}
-                  />
-                )}
-                {agentSetup === 'ready' && !agentsLoading && agents.length > 0 && (
-                  <StudioAgentSelector
                     agents={agents}
                     selectedAgentId={selectedAgentId}
-                    onSelect={setSelectedAgentId}
+                    onSelectAgent={setSelectedAgentId}
                     onAddAgentClick={() => setAddAgentModalOpen(true)}
                     disabled={busy}
                   />
@@ -295,7 +289,7 @@ export function StudioView({
               </div>
               <button
                 type="submit"
-                className="action-primary w-full sm:w-auto"
+                className="action-primary shrink-0"
                 disabled={
                   busy || uploads.busy || installation !== 'available' || agentSetup === 'loading' || agentSetup === 'error' || (agentSetup === 'ready' && !goal.trim() && !uploads.items.length)
                 }

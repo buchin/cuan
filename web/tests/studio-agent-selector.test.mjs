@@ -63,8 +63,8 @@ test('2. StudioAgentSelector: Compact pill button & modern popover structure', (
 
 test('3. StudioView: Composer toolbar integration without raw select block', () => {
   assert.ok(
-    studioViewSource.includes('<StudioAgentSelector'),
-    'StudioView must render StudioAgentSelector in composer toolbar'
+    studioViewSource.includes('<StudioAgentSelector') || studioViewSource.includes('<StudioExecutionSelector'),
+    'StudioView must render StudioAgentSelector or unified StudioExecutionSelector in composer toolbar'
   )
   assert.ok(
     studioViewSource.includes('onAddAgentClick='),
@@ -76,6 +76,6 @@ test('3. StudioView: Composer toolbar integration without raw select block', () 
   )
   assert.ok(
     studioViewSource.includes('AttachmentPicker'),
-    'StudioView must keep AttachmentPicker beside StudioAgentSelector'
+    'StudioView must keep AttachmentPicker beside execution selector'
   )
 })
