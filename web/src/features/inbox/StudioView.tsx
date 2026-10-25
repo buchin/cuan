@@ -1,5 +1,5 @@
 import { useLanguage } from '../../context/LanguageContext'
-import { AttachmentPicker, useAttachments } from './Attachments'
+import { AttachmentPicker, AttachmentPreviews, useAttachments } from './Attachments'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
@@ -284,9 +284,20 @@ export function StudioView({
                 }
               }}
             />
+            {/* Attachment previews inside the composer box above toolbar */}
+            {(uploads.items.length > 0 || uploads.busy || uploads.error) && (
+              <div className="px-3 pb-2.5 pt-1.5 border-t border-border/40">
+                <AttachmentPreviews uploads={uploads} disabled={busy} />
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2 p-2 sm:px-3 sm:pb-3 border-t border-border/40">
-              <div className="flex items-center gap-2 min-w-0">
-                <AttachmentPicker uploads={uploads} disabled={busy} disableImages={!supportsVision} />
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                <AttachmentPicker
+                  uploads={uploads}
+                  disabled={busy}
+                  disableImages={!supportsVision}
+                  compact={true}
+                />
                 {agentSetup === 'ready' && !agentsLoading && !projectsLoading && (
                   <StudioExecutionSelector
                     projects={projects.filter((p) => !p.is_archived)}

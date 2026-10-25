@@ -328,17 +328,17 @@ export function AttachmentPreviews({
       {uploads.items.map((a) => (
         <div
           key={a.id}
-          className="flex max-w-full items-center gap-2 rounded-lg border border-border p-2 text-xs"
+          className="flex max-w-full items-center gap-2 rounded-xl border border-border/80 bg-muted/40 px-2.5 py-1.5 text-xs shadow-xs"
         >
           <AttachmentFile attachment={a} />
           <button
             type="button"
-            className="icon-action"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
             aria-label={t('Remove') + ' ' + a.name}
             disabled={disabled || uploads.busy}
             onClick={() => uploads.remove(a.id)}
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       ))}
@@ -434,30 +434,32 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
           }
         }}
         disabled={loading}
-        className="flex min-h-11 min-w-0 max-w-full items-center gap-2 text-left underline-offset-2 hover:underline cursor-pointer"
+        className="flex min-w-0 max-w-full items-center gap-2 text-left hover:opacity-90 cursor-pointer"
         aria-label={(canPreview ? t('Preview') : t('Download')) + ' ' + a.name}
       >
         {url ? (
           <img
             src={url}
             alt={a.name}
-            className="h-16 w-16 shrink-0 rounded object-cover"
+            className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-lg object-cover border border-border/40"
           />
         ) : (
-          <FileText className="h-5 w-5 shrink-0" />
+          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
         )}
-        <span className="min-w-0 break-all">
-          {a.name}
-          <span className="block text-xs opacity-70">
+        <div className="min-w-0 flex flex-col justify-center">
+          <span className="truncate max-w-[130px] sm:max-w-[200px] font-medium text-foreground text-xs leading-tight">
+            {a.name}
+          </span>
+          <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
             {Math.max(1, Math.ceil(a.size / 1024))} KB
           </span>
-        </span>
+        </div>
         {loading ? (
           <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
         ) : canPreview ? (
-          <Eye className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Eye className="h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors ml-0.5" />
         ) : (
-          <Download className="h-4 w-4 shrink-0" />
+          <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors ml-0.5" />
         )}
       </button>
       {canPreview && (

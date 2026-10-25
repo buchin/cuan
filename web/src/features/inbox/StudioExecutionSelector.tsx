@@ -77,7 +77,7 @@ export function StudioExecutionSelector({
   const isCustomized = Boolean(selectedProjectId || selectedAgentId)
 
   return (
-    <div className="relative inline-block text-left">
+    <div className="relative inline-block text-left min-w-0">
       <button
         type="button"
         id="studio-execution-selector-pill"
@@ -86,14 +86,14 @@ export function StudioExecutionSelector({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={t('Configure Execution Target and Agent')}
-        className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${
+        className={`inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${
           isCustomized
             ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/15'
             : 'border-border/80 bg-muted/40 text-foreground hover:bg-muted/80 hover:border-border'
         }`}
       >
         {pillIcon}
-        <span className="truncate max-w-[120px] sm:max-w-[180px]">{pillLabel}</span>
+        <span className="truncate max-w-[100px] sm:max-w-[180px]">{pillLabel}</span>
         <ChevronDown
           className={`h-3 w-3 text-muted-foreground transition-transform duration-150 ${
             isOpen ? 'rotate-180' : ''
