@@ -98,7 +98,7 @@ func LegacyConnectionVerification(owner, agentID, connectionID string) Connectio
 		result.VerifiedAt = nil
 		return result
 	}
-	if result.State == "verified" && (result.VerifiedAt == nil || time.Since(*result.VerifiedAt) > 5*time.Minute) {
+	if result.State == "verified" && result.VerifiedAt == nil {
 		result.State = "unknown"
 	}
 	return result

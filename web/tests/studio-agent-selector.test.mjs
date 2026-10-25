@@ -47,6 +47,10 @@ test('2. StudioAgentSelector: Compact pill button & modern popover structure', (
     selectorSource.includes('isThinking'),
     'StudioAgentSelector must differentiate Pro / Deep Thinking models from Fast models'
   )
+  assert.ok(
+    selectorSource.includes('<Brain') && selectorSource.includes('<Zap'),
+    'StudioAgentSelector must use Brain icon for Pro and Zap icon for Fast'
+  )
 })
 
 test('3. StudioView: Composer toolbar integration without raw select block', () => {

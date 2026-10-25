@@ -40,8 +40,8 @@ func TestS26LegacyCheckPersistsAndInvalidates(t *testing.T) {
 	saved.VerifiedAt = &past
 	data, _ = json.Marshal(saved)
 	os.WriteFile(file, data, 0600)
-	if LegacyConnectionVerification("owner", "agent_pin1", "conn_agent_pin1").State != "unknown" {
-		t.Fatal("stale success still presented as verified")
+	if LegacyConnectionVerification("owner", "agent_pin1", "conn_agent_pin1").State != "verified" {
+		t.Fatal("verified connection degraded over time despite valid credentials")
 	}
 	SaveLegacyConnectionVerification("owner", "agent_pin1", "conn_agent_pin1", profile)
 	os.WriteFile(path, []byte("changed-fixture-credential-value"), 0600)

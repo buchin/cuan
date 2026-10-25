@@ -180,9 +180,9 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 	} else if a.State == "quota_limited" && a.QuotaRetryAt != nil && !time.Now().Before(*a.QuotaRetryAt) {
 		a.State = "unknown"
 		a.Message = "Usage cooldown ended. Availability has not been checked."
-	} else if a.State == "verified" && (a.VerifiedAt == nil || time.Since(*a.VerifiedAt) > 5*time.Minute) {
+	} else if a.State == "verified" && a.VerifiedAt == nil {
 		a.State = "unknown"
-		a.Message = "The previous verification has expired. Check the connection again"
+		a.Message = "Availability has not been checked."
 	}
 	return &a, nil
 }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bot, ChevronDown, Check, Zap, Sparkles, Eye } from 'lucide-react'
+import { Bot, ChevronDown, Check, Zap, Sparkles, Eye, Brain } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { type Agent, isModelVisionCapable } from '../../api/agents'
 import { connectionStatus } from '../agents/connection'
@@ -151,7 +151,7 @@ export function StudioAgentSelector({
                 <div className="flex items-center gap-1 shrink-0">
                   {isThinking ? (
                     <span className="inline-flex items-center gap-0.5 rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400">
-                      <Zap className="h-2.5 w-2.5" />
+                      <Brain className="h-2.5 w-2.5" />
                       Pro
                     </span>
                   ) : (
