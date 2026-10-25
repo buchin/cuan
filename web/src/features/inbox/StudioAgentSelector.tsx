@@ -69,7 +69,7 @@ export function StudioAgentSelector({
         <div
           role="listbox"
           aria-label={t('Available Agents')}
-          className="absolute bottom-full left-0 mb-2 z-50 w-72 sm:w-80 rounded-xl border border-border bg-popover p-1.5 shadow-xl outline-none max-h-72 overflow-y-auto"
+          className="absolute bottom-full left-0 mb-2 z-50 w-72 sm:w-80 rounded-xl border border-border bg-popover p-1.5 shadow-xl outline-none max-h-[380px] overflow-y-auto"
         >
           {/* Option: Auto */}
           <button
