@@ -477,3 +477,52 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 		t.Fatalf("expected task status to be doing or review, got: %s", updatedDetail.Status)
 	}
 }
+
+func TestInboxDelegation_ArchivedDefaultFallbackToActiveProject(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	// Archive the default project and register an active project
+	projects.CreateProject(ctx, &project.Project{ID: "default", Name: "Default", IsArchived: true})
+	projects.CreateProject(ctx, &project.Project{ID: "proj_cuan_active", Name: "Cuan Active"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: resolved.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "approval", CreatedAt: now, Deadline: now.Add(time.Hour)}
+
+	planPayload := attachmentMessage{
+		Text: "Approved: Account UI Cleanup",
+		Approval: &approvedInboxPlan{
+			Action:    "approve",
+			MessageID: db.GenerateUUID(),
+			Plan: inboxApprovalPlan{
+				Title:       "Account UI Cleanup",
+				Description: "Cleanup redundant account popover menu items",
+				ProjectName: "Default",
+			},
+		},
+	}
+	rawMsg, _ := json.Marshal(planPayload)
+	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", Content: attachmentEnvelope + string(rawMsg), CreatedAt: now}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	delegation := inboxDelegation{
+		Action:          "run",
+		Title:           "Account UI Cleanup",
+		Description:     "Cleanup redundant account popover menu items",
+		ProjectName:     "Default",
+		AuthorizationID: q.MessageID,
+	}
+	raw, _ := json.Marshal(delegation)
+	out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(raw)+"\n```")
+
+	if strings.Contains(out, "could not be prepared") || strings.Contains(out, "archived project") {
+		t.Fatalf("delegation should not fail on archived Default project: %s", out)
+	}
+	if !strings.Contains(out, "started") {
+		t.Fatalf("expected delegation to start work on active project, got: %s", out)
+	}
+}

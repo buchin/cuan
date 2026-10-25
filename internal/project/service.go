@@ -412,6 +412,9 @@ func (s *Service) CreateManagedWorkspace(ctx context.Context, id, name string) (
 	for _, p := range projects {
 		if strings.EqualFold(p.Name, name) {
 			if p.IsArchived {
+				if strings.EqualFold(name, "default") {
+					continue
+				}
 				return nil, ErrProjectAlreadyExists
 			}
 			return p, nil

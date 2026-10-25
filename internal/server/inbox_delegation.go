@@ -155,12 +155,33 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		return fail("the plan belongs to another project")
 	}
 	if d.ProjectID == "" {
-		id := "proj_" + strings.ReplaceAll(delegationMessageID("project:"+q.RoomID+":"+d.AuthorizationID+":"+d.ProjectName), "-", "")
-		project, e := s.projectSvc.CreateManagedWorkspace(ctx, id, d.ProjectName)
-		if e != nil {
-			return fail("the project could not be prepared; clarify its name or restore the archived project")
+		// If project_name is "Default" (case-insensitive) and default project is archived or unavailable,
+		// resolve to an active project from the room or workspace so execution is not blocked.
+		if strings.EqualFold(d.ProjectName, "default") {
+			if room.ProjectID != "" && room.ProjectID != "default" {
+				if p, err := s.projectSvc.Get(ctx, room.ProjectID); err == nil && p != nil && !p.IsArchived {
+					d.ProjectID = p.ID
+				}
+			}
+			if d.ProjectID == "" {
+				if projects, err := s.projectSvc.List(ctx); err == nil {
+					for _, p := range projects {
+						if !p.IsArchived && p.ID != "default" {
+							d.ProjectID = p.ID
+							break
+						}
+					}
+				}
+			}
 		}
-		d.ProjectID = project.ID
+		if d.ProjectID == "" {
+			id := "proj_" + strings.ReplaceAll(delegationMessageID("project:"+q.RoomID+":"+d.AuthorizationID+":"+d.ProjectName), "-", "")
+			project, e := s.projectSvc.CreateManagedWorkspace(ctx, id, d.ProjectName)
+			if e != nil {
+				return fail("the project could not be prepared; clarify its name or restore the archived project")
+			}
+			d.ProjectID = project.ID
+		}
 	}
 	p, err := s.projectSvc.Get(ctx, d.ProjectID)
 	if err != nil || p == nil || p.IsArchived {

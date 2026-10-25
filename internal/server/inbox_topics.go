@@ -56,9 +56,24 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 	} else {
 		now := time.Now().UTC()
 		projectID := "default"
-		if req.ProjectID != "" && s.projectSvc != nil {
-			if p, err := s.projectSvc.Get(r.Context(), req.ProjectID); err == nil && p != nil && !p.IsArchived {
-				projectID = p.ID
+		if s.projectSvc != nil {
+			if req.ProjectID != "" {
+				if p, err := s.projectSvc.Get(r.Context(), req.ProjectID); err == nil && p != nil && !p.IsArchived {
+					projectID = p.ID
+				}
+			} else {
+				// If no project specified, check if "default" is active.
+				// If "default" is archived or missing, fallback to the first active project.
+				if p, err := s.projectSvc.Get(r.Context(), "default"); err != nil || p == nil || p.IsArchived {
+					if projects, err := s.projectSvc.List(r.Context()); err == nil {
+						for _, p := range projects {
+							if !p.IsArchived && p.ID != "default" {
+								projectID = p.ID
+								break
+							}
+						}
+					}
+				}
 			}
 		}
 		room = &db.ProjectRoom{ID: req.RequestID, ProjectID: projectID, Title: "New conversation", Topic: "agent-topic:" + a.ID, CreatedAt: now, UpdatedAt: now}
