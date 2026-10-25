@@ -46,6 +46,7 @@ import {
   RefreshCw,
   Settings,
   ChevronLeft,
+  ChevronDown,
 } from 'lucide-react'
 import { Task } from '../../api/types'
 import './chat-whatsapp.css'
@@ -130,6 +131,15 @@ export function InboxView({
 
   const followTail = useRef(true)
   const [hasNewMessages, setHasNewMessages] = useState(false)
+  const hasNewMessagesRef = useRef(false)
+  hasNewMessagesRef.current = hasNewMessages
+  const [showScrollBottom, setShowScrollBottom] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const isScrollingToBottomRef = useRef(false)
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const prevMessageKeyRef = useRef<string | number | undefined>()
+  const prevContactIdRef = useRef<string | undefined>()
+  const prevMessageCountRef = useRef(0)
   const [streamState, setStreamState] = useState('connecting')
   const [linkedTasks, setLinkedTasks] = useState<Task[]>([])
   const [showTasksModal, setShowTasksModal] = useState(false)
@@ -323,6 +333,11 @@ export function InboxView({
       const convId = activeContact.conversation_id || activeContact.id
       followTail.current = !requestedMessageId
       setHasNewMessages(false)
+      hasNewMessagesRef.current = false
+      setShowScrollBottom(false)
+      setUnreadCount(0)
+      isScrollingToBottomRef.current = false
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
       setInputMessage(unsentDrafts.current[convId] || '')
       setMessages([])
       setRequests([])
@@ -462,10 +477,43 @@ export function InboxView({
 
   // Only scroll for a new message, not identical polling results.
   useEffect(() => {
+    const currentContactId = activeContact?.id
+    const isNewContact = currentContactId !== prevContactIdRef.current
+    prevContactIdRef.current = currentContactId
+
+    if (isNewContact) {
+      prevMessageKeyRef.current = lastMessageKey
+      prevMessageCountRef.current = messages.length
+      setHasNewMessages(false)
+      hasNewMessagesRef.current = false
+      setUnreadCount(0)
+      setShowScrollBottom(false)
+      if (messageListRef.current && followTail.current) {
+        messageListRef.current.scrollTop = messageListRef.current.scrollHeight
+      }
+      return
+    }
+
+    const isNewMessage =
+      !!lastMessageKey && lastMessageKey !== prevMessageKeyRef.current
+    const addedCount = Math.max(
+      0,
+      messages.length - prevMessageCountRef.current,
+    )
+    prevMessageKeyRef.current = lastMessageKey
+    prevMessageCountRef.current = messages.length
+
     if (messageListRef.current && followTail.current) {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight
-    } else if (messageListRef.current) {
+      setHasNewMessages(false)
+      hasNewMessagesRef.current = false
+      setUnreadCount(0)
+      setShowScrollBottom(false)
+    } else if (messageListRef.current && (isNewMessage || addedCount > 0)) {
       setHasNewMessages(true)
+      hasNewMessagesRef.current = true
+      setUnreadCount((c) => c + (addedCount > 0 ? addedCount : 1))
+      setShowScrollBottom(true)
     }
   }, [
     lastMessageKey,
@@ -473,6 +521,72 @@ export function InboxView({
     sendError,
     requests.map((q) => q.request_id + q.state).join(','),
   ])
+
+  const SCROLL_THRESHOLD = 200
+  const BOTTOM_THRESHOLD = 80
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const distanceFromBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight
+    const atBottom = distanceFromBottom <= BOTTOM_THRESHOLD
+
+    followTail.current = atBottom
+
+    if (isScrollingToBottomRef.current) {
+      if (atBottom) {
+        isScrollingToBottomRef.current = false
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
+        setShowScrollBottom(false)
+        setHasNewMessages(false)
+        hasNewMessagesRef.current = false
+        setUnreadCount(0)
+      }
+      return
+    }
+
+    if (atBottom) {
+      setShowScrollBottom(false)
+      setHasNewMessages(false)
+      hasNewMessagesRef.current = false
+      setUnreadCount(0)
+    } else if (distanceFromBottom > SCROLL_THRESHOLD) {
+      setShowScrollBottom(true)
+    } else {
+      setShowScrollBottom(hasNewMessagesRef.current)
+    }
+  }, [])
+
+  const handleScrollToBottom = useCallback(() => {
+    followTail.current = true
+    isScrollingToBottomRef.current = true
+    setShowScrollBottom(false)
+    setHasNewMessages(false)
+    hasNewMessagesRef.current = false
+    setUnreadCount(0)
+
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
+    scrollTimeoutRef.current = setTimeout(() => {
+      isScrollingToBottomRef.current = false
+    }, 1000)
+
+    const list = messageListRef.current
+    if (list) {
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      list.scrollTo({
+        top: list.scrollHeight,
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
+    }
+  }, [])
 
   const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer') => {
     if (!activeContact || sending || uploads.busy || retryCount >= 3) return
@@ -861,16 +975,12 @@ export function InboxView({
               <>
 
             {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
-            <div
-              ref={messageListRef}
-              onScroll={(e) => {
-                const el = e.currentTarget
-                followTail.current =
-                  el.scrollHeight - el.scrollTop - el.clientHeight < 80
-                if (followTail.current) setHasNewMessages(false)
-              }}
-              className="inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
-            >
+            <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
+              <div
+                ref={messageListRef}
+                onScroll={handleScroll}
+                className="inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
+              >
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
                   <Bot className="h-8 w-8 text-muted-foreground/60" />
@@ -1294,21 +1404,50 @@ export function InboxView({
               )}
             </div>
 
-            {hasNewMessages && (
-              <button
-                className="mx-auto mb-2 rounded-full border border-border bg-card px-3 py-1 text-xs"
-                onClick={() => {
-                  followTail.current = true
-                  setHasNewMessages(false)
-                  messageListRef.current?.scrollTo({
-                    top: messageListRef.current.scrollHeight,
-                    behavior: 'smooth',
-                  })
-                }}
-              >
-                {t('Latest messages ↓')}
-              </button>
-            )}
+            {/* ── Floating 'Scroll to Bottom' Button ── */}
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-3 z-30 px-3 sm:px-6"
+              aria-hidden={!showScrollBottom}
+            >
+              <div className="mx-auto flex max-w-4xl justify-end">
+                <button
+                  type="button"
+                  data-testid="scroll-to-bottom-button"
+                  onClick={handleScrollToBottom}
+                  tabIndex={showScrollBottom ? 0 : -1}
+                  aria-label={
+                    hasNewMessages
+                      ? `${unreadCount || 1} ${t('new messages')}. ${t('Scroll to bottom')}`
+                      : t('Scroll to bottom')
+                  }
+                  title={
+                    hasNewMessages
+                      ? `${unreadCount || 1} ${t('new messages')}. ${t('Scroll to bottom')}`
+                      : t('Scroll to bottom')
+                  }
+                  className={cn(
+                    'pointer-events-auto relative flex items-center justify-center rounded-full wa-scroll-btn cursor-pointer select-none',
+                    'h-10 w-10 sm:h-11 sm:w-11',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                    showScrollBottom
+                      ? 'opacity-100 translate-y-0 scale-100'
+                      : 'opacity-0 translate-y-3 scale-90 pointer-events-none',
+                  )}
+                >
+                  <ChevronDown className="h-5 w-5 sm:h-5.5 sm:w-5.5" />
+                  {hasNewMessages && (
+                    <span
+                      data-testid="scroll-to-bottom-badge"
+                      aria-label={`${unreadCount || 1} ${t('new messages')}`}
+                      className="wa-scroll-badge absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] sm:h-5.5 sm:min-w-[22px] items-center justify-center rounded-full px-1 text-[10px] sm:text-[11px] font-bold"
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount || 1}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
             {streamState !== 'live' && (
               <p
                 className="px-4 py-1 text-xs text-muted-foreground"

@@ -224,3 +224,50 @@
     background: var(--wa-incoming);
   }
 }
+
+/* Floating Scroll to Bottom Button */
+.wa-scroll-btn {
+  background: var(--wa-incoming);
+  color: var(--wa-meta);
+  border: 1px solid color-mix(in srgb, var(--wa-meta) 25%, transparent);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .15), 0 1px 2px rgb(0 0 0 / .1);
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.15s ease,
+              color 0.15s ease,
+              box-shadow 0.15s ease;
+}
+.wa-scroll-btn:hover {
+  background: var(--wa-header);
+  color: var(--wa-text);
+  box-shadow: 0 4px 12px rgb(0 0 0 / .2);
+}
+.wa-scroll-btn:active {
+  transform: scale(0.92);
+}
+.dark .wa-scroll-btn {
+  background: var(--wa-incoming);
+  color: var(--wa-text);
+  border: 1px solid color-mix(in srgb, var(--wa-meta) 30%, transparent);
+  box-shadow: 0 4px 12px rgb(0 0 0 / .4), 0 1px 3px rgb(0 0 0 / .2);
+}
+.dark .wa-scroll-btn:hover {
+  background: #2a2e33;
+}
+.wa-scroll-badge {
+  background: var(--wa-send);
+  color: var(--wa-send-text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .25);
+  border: 2px solid var(--wa-bg);
+  animation: wa-badge-pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes wa-badge-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
