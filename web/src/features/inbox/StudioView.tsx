@@ -6,7 +6,10 @@ import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
+import { projectsApi } from '../../api/projects'
+import { type Project } from '../../api/types'
 import { StudioAgentSelector } from './StudioAgentSelector'
+import { StudioProjectSelector } from './StudioProjectSelector'
 
 export function StudioView({
   onAccepted, agentSetup, firstGoal, hasProject,
@@ -72,6 +75,9 @@ export function StudioView({
   const [agents, setAgents] = useState<Agent[]>([])
   const [agentsLoading, setAgentsLoading] = useState(true)
   const [selectedAgentId, setSelectedAgentId] = useState('')
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [selectedProjectId, setSelectedProjectId] = useState('')
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const supportsVision = selectedAgent
@@ -108,6 +114,16 @@ export function StudioView({
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    setProjectsLoading(true)
+    projectsApi.list()
+      .then((list) => { if (active) setProjects(list) })
+      .catch(() => { if (active) setProjects([]) })
+      .finally(() => { if (active) setProjectsLoading(false) })
+    return () => { active = false }
+  }, [hasProject])
+
   async function submit() {
     if (busy || uploads.busy || installation !== 'available') return
     if (agentSetup === 'needed') {
@@ -133,6 +149,7 @@ export function StudioView({
       const request =
         saved?.goal === goal.trim() &&
         saved?.agent_id === selectedAgentId &&
+        saved?.project_id === selectedProjectId &&
         JSON.stringify(saved.attachment_ids || []) ===
           JSON.stringify(uploads.items.map((a) => a.id))
           ? saved
@@ -141,6 +158,7 @@ export function StudioView({
               request_id: crypto.randomUUID(),
               attachment_ids: uploads.items.map((a) => a.id),
               ...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
+              ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
             }
       try {
         localStorage.setItem('cuan-studio-pending', JSON.stringify(request))
@@ -256,6 +274,15 @@ export function StudioView({
             <div className="flex flex-wrap items-center justify-between gap-2 p-2 sm:px-3 sm:pb-3 border-t border-border/40">
               <div className="flex flex-wrap items-center gap-2">
                 <AttachmentPicker uploads={uploads} disabled={busy} disableImages={!supportsVision} />
+                {!projectsLoading && (
+                  <StudioProjectSelector
+                    projects={projects.filter((p) => !p.is_archived)}
+                    selectedProjectId={selectedProjectId}
+                    onSelect={setSelectedProjectId}
+                    onConnectProjectClick={onCreateProject}
+                    disabled={busy}
+                  />
+                )}
                 {agentSetup === 'ready' && !agentsLoading && agents.length > 0 && (
                   <StudioAgentSelector
                     agents={agents}

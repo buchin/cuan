@@ -25,6 +25,7 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 		Goal          string   `json:"goal"`
 		RequestID     string   `json:"request_id"`
 		AgentID       string   `json:"agent_id,omitempty"`
+		ProjectID     string   `json:"project_id,omitempty"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 32000)).Decode(&req) != nil || !db.IsValidUUID(req.RequestID) || (strings.TrimSpace(req.Goal) == "" && len(req.AttachmentIDs) == 0) || len([]rune(req.Goal)) > 6000 {
 		respondJSONError(w, 400, "Describe your goal in up to 6000 characters.")
@@ -100,7 +101,11 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 		return copy
 	}
 	topicResponse := &delegationResponse{header: make(http.Header)}
-	s.handleCreateAgentTopic(topicResponse, internal("/api/v1/chat/conversations", map[string]string{"agent_id": selected.ID, "request_id": topicID}))
+	s.handleCreateAgentTopic(topicResponse, internal("/api/v1/chat/conversations", map[string]string{
+		"agent_id":   selected.ID,
+		"request_id": topicID,
+		"project_id": req.ProjectID,
+	}))
 	if topicResponse.code != 200 {
 		w.WriteHeader(topicResponse.code)
 		_, _ = w.Write(topicResponse.body.Bytes())

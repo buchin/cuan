@@ -731,5 +731,11 @@
   "Previous match": "Kecocokan sebelumnya",
   "Next match": "Kecocokan berikutnya",
   "Follow": "Ikuti",
-  "Session terminal": "Terminal sesi"
+  "Session terminal": "Terminal sesi",
+  "Select Project": "Pilih project",
+  "Available Projects": "Project yang tersedia",
+  "Auto (Default Project)": "Otomatis (Project Default)",
+  "Cuan automatically routes to the default project or prepares a new workspace according to your plan.": "Cuan otomatis mengarahkan ke project default atau menyiapkan workspace baru sesuai rencana.",
+  "+ Connect new project…": "+ Hubungkan project baru…",
+  "Project: Auto": "Project: Otomatis"
 }
