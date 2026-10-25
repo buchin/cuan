@@ -8,17 +8,21 @@ export function ProfileSettings() {
     { t } = useLanguage()
   const [name, setName] = useState(user?.display_name || ''),
     [username, setUsername] = useState(user?.username || ''),
+    [email, setEmail] = useState(user?.email || ''),
+    [emailPassword, setEmailPassword] = useState(''),
     [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [passwordOpen, setPasswordOpen] = useState(false),
     [savedName, setSavedName] = useState(user?.display_name || ''),
-    [saving, setSaving] = useState<'name' | 'username' | null>(null)
+    [savedEmail, setSavedEmail] = useState(user?.email || ''),
+    [saving, setSaving] = useState<'name' | 'username' | 'email' | null>(null)
   const nameDirty = name.trim() !== savedName.trim()
   const usernameDirty = username.trim().toLowerCase() !== (user?.username || '').toLowerCase()
-  async function save(kind: 'name' | 'username') {
-    if (busy || (kind === 'name' ? !nameDirty : !usernameDirty)) return
+  const emailDirty = email.trim().toLowerCase() !== savedEmail.trim().toLowerCase()
+  async function save(kind: 'name' | 'username' | 'email') {
+    if (busy || (kind === 'name' ? !nameDirty : kind === 'username' ? !usernameDirty : !emailDirty)) return
     setSaving(kind)
     setBusy(true)
     setError('')
@@ -29,19 +33,30 @@ export function ProfileSettings() {
           method: 'PATCH',
           body: JSON.stringify({ display_name: name }),
         })
-      else
+      else if (kind === 'username')
         await apiFetch('/api/v1/auth/username', {
           method: 'PATCH',
           body: JSON.stringify({ username, current_password: password }),
         })
+      else
+        await apiFetch('/api/v1/auth/email', {
+          method: 'PATCH',
+          body: JSON.stringify({ email, current_password: emailPassword }),
+        })
       if (kind === 'name') setSavedName(name.trim())
-      setPassword('')
+      if (kind === 'email') {
+        setSavedEmail(email.trim().toLowerCase())
+        setEmailPassword('')
+      }
+      if (kind === 'username') setPassword('')
       await refreshUser()
       setNotice(
         t(
           kind === 'name'
             ? 'Display name saved.'
-            : 'Username saved. Use it the next time you sign in.',
+            : kind === 'username'
+            ? 'Username saved. Use it the next time you sign in.'
+            : 'Email address saved. Use it the next time you sign in.',
         ),
       )
     } catch (e) {
@@ -95,6 +110,58 @@ export function ProfileSettings() {
         {nameDirty && <p role="status" className="text-xs text-muted-foreground">{t(saving === 'name' ? 'Saving…' : 'Unsaved changes')}</p>}
         <button className="action-primary" disabled={busy || !nameDirty}>
           {t(saving === 'name' ? 'Saving…' : 'Save display name')}
+        </button>
+      </form>
+      <form
+        className="space-y-4 rounded-lg border border-border bg-card p-5"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void save('email')
+        }}
+      >
+        <h2 className="text-lg font-semibold">{t('Email address')}</h2>
+        <label className="block text-sm font-medium" htmlFor="profile-email">
+          {t('Email')}
+        </label>
+        <input
+          id="profile-email"
+          type="email"
+          className="field-control"
+          autoComplete="email"
+          value={email}
+          required
+          disabled={busy}
+          onChange={(e) => { setEmail(e.target.value); setNotice('') }}
+        />
+        <p className="text-sm text-muted-foreground">
+          {t('Your sign-in and system notifications will be sent to this email.')}
+        </p>
+        <label
+          className="block text-sm font-medium"
+          htmlFor="profile-email-current-password"
+        >
+          {t('Current password')}
+        </label>
+        <input
+          id="profile-email-current-password"
+          className="field-control"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={emailPassword}
+          disabled={busy}
+          onChange={(e) => setEmailPassword(e.target.value)}
+        />
+        {emailDirty && (
+          <p role="status" className="text-xs text-muted-foreground">
+            {t(saving === 'email' ? 'Saving…' : 'Unsaved changes')}
+          </p>
+        )}
+        <button
+          className="action-primary"
+          disabled={busy || !emailDirty}
+        >
+          {t(saving === 'email' ? 'Saving…' : 'Change email')}
         </button>
       </form>
       <form

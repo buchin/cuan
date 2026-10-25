@@ -54,6 +54,31 @@ func TestOwnerProfileAndUsername(t *testing.T) {
 	if _, err := s.authSvc.Login(context.Background(), before.Email, "whosyourdaddy"); err != nil {
 		t.Fatal(err)
 	}
+
+	// Email update tests
+	if w := call("PATCH", "/api/v1/auth/email", `{"email":"new-email@example.com","current_password":"wrong-password"}`); w.Code != 403 {
+		t.Fatal(w.Code)
+	}
+	for _, invalidEmail := range []string{"plainaddress", "missing@domain", "@nodomain.com", "spaces in@email.com"} {
+		raw, _ := json.Marshal(map[string]string{"email": invalidEmail, "current_password": "whosyourdaddy"})
+		if w := call("PATCH", "/api/v1/auth/email", string(raw)); w.Code != 400 {
+			t.Fatal(invalidEmail, w.Code)
+		}
+	}
+	if w := call("PATCH", "/api/v1/auth/email", `{"email":"New-Email@Example.com","current_password":"whosyourdaddy"}`); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	afterEmail, err := s.authSvc.ValidateToken(context.Background(), token)
+	if err != nil || afterEmail.Email != "new-email@example.com" {
+		t.Fatal(afterEmail, err)
+	}
+	if _, err := s.authSvc.Login(context.Background(), before.Email, "whosyourdaddy"); err == nil {
+		t.Fatal("old email still accepted")
+	}
+	if _, err := s.authSvc.Login(context.Background(), "new-email@example.com", "whosyourdaddy"); err != nil {
+		t.Fatal(err)
+	}
+
 	if w := call("PATCH", "/api/v1/profile", `{"display_name":"bad\nname"}`); w.Code != 400 {
 		t.Fatal(w.Code)
 	}

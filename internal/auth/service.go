@@ -333,6 +333,31 @@ func (s *Service) UpdateUsername(ctx context.Context, ownerID, username, passwor
 	return store.UpdateOwnerUsername(ctx, ownerID, username)
 }
 
+// UpdateEmail preserves account IDs, credentials and sessions, updating sign-in email.
+func (s *Service) UpdateEmail(ctx context.Context, ownerID, email, password string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !isValidEmail(email) {
+		return fmt.Errorf("%w: invalid email address format", ErrInvalidInput)
+	}
+	owner, err := s.store.GetOwner(ctx)
+	if err != nil {
+		return err
+	}
+	if owner.ID != ownerID {
+		return ErrUnauthorized
+	}
+	if bcrypt.CompareHashAndPassword([]byte(owner.PasswordHash), []byte(strings.TrimSpace(password))) != nil {
+		return ErrInvalidCredentials
+	}
+	store, ok := s.store.(interface {
+		UpdateOwnerEmail(context.Context, string, string) error
+	})
+	if !ok {
+		return fmt.Errorf("email editing is unavailable")
+	}
+	return store.UpdateOwnerEmail(ctx, ownerID, email)
+}
+
 func (s *Service) OwnerID(ctx context.Context) (string, error) {
 	owner, err := s.store.GetOwner(ctx)
 	if err != nil {

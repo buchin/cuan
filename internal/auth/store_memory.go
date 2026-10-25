@@ -163,3 +163,14 @@ func (s *MemoryStore) UpdateOwnerUsername(ctx context.Context, id, name string) 
 	s.owner.UpdatedAt = time.Now().UTC()
 	return nil
 }
+
+func (s *MemoryStore) UpdateOwnerEmail(ctx context.Context, id, email string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.owner == nil || s.owner.ID != id {
+		return ErrOwnerNotFound
+	}
+	s.owner.Email = email
+	s.owner.UpdatedAt = time.Now().UTC()
+	return nil
+}

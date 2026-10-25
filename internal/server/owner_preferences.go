@@ -134,3 +134,34 @@ func (s *Server) handleUsername(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, 200, map[string]string{"username": strings.ToLower(strings.TrimSpace(req.Username))})
 }
+
+func (s *Server) handleEmail(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"current_password"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&req) != nil {
+		respondJSONError(w, 400, "Enter an email address and your current password.")
+		return
+	}
+	err := s.authSvc.UpdateEmail(r.Context(), owner, req.Email, req.Password)
+	if errors.Is(err, auth.ErrInvalidCredentials) {
+		respondJSONError(w, 403, "Current password is incorrect.")
+		return
+	}
+	if errors.Is(err, auth.ErrInvalidInput) {
+		respondJSONError(w, 400, strings.TrimPrefix(err.Error(), "invalid input: "))
+		return
+	}
+	if err != nil {
+		respondJSONError(w, 503, "Could not change your email. Try again.")
+		return
+	}
+	respondJSON(w, 200, map[string]string{"email": strings.ToLower(strings.TrimSpace(req.Email))})
+}

@@ -1591,6 +1591,7 @@ func (s *Server) routes() {
 
 			pr.Get("/auth/me", s.handleAuthMe)
 			pr.Patch("/auth/username", s.handleUsername)
+			pr.Patch("/auth/email", s.handleEmail)
 			pr.Get("/integrations/github/oauth", s.handleGitHubOAuth)
 			pr.Post("/integrations/github/oauth", s.handleGitHubOAuth)
 			pr.Get("/integrations/github/device/{loginID}", s.handleGitHubDeviceLogin)

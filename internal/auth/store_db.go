@@ -209,3 +209,15 @@ func (s *DBStore) UpdateOwnerUsername(ctx context.Context, id, name string) erro
 	}
 	return err
 }
+
+func (s *DBStore) UpdateOwnerEmail(ctx context.Context, id, email string) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE owners SET email=$2,updated_at=$3 WHERE id=$1`, id, email, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("update email: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err == nil && rows == 0 {
+		return ErrOwnerNotFound
+	}
+	return err
+}
