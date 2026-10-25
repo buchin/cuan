@@ -589,8 +589,15 @@ func inspectUIArchitecture(dir string) string {
 				}
 			}
 			if len(comps) > 0 {
-				sort.Strings(comps)
-				limit := 6
+				sort.SliceStable(comps, func(i, j int) bool {
+					isViewI := strings.Contains(comps[i], "View") || strings.Contains(comps[i], "Panel") || strings.Contains(comps[i], "Board")
+					isViewJ := strings.Contains(comps[j], "View") || strings.Contains(comps[j], "Panel") || strings.Contains(comps[j], "Board")
+					if isViewI != isViewJ {
+						return isViewI
+					}
+					return comps[i] < comps[j]
+				})
+				limit := 16
 				truncated := false
 				if len(comps) > limit {
 					comps = comps[:limit]
