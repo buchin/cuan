@@ -353,6 +353,15 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if payload.AttachmentURL != "" {
+		u := strings.TrimRight(payload.AttachmentURL, "/")
+		parts := strings.Split(u, "/")
+		lastPart := parts[len(parts)-1]
+		if db.IsValidUUID(lastPart) {
+			text = encodeAttachmentMessage(text, []string{lastPart})
+		}
+	}
+
 	sess, err := s.crmSession(r.Context(), sessionUUID)
 	if err != nil {
 		respondJSONError(w, 404, "Session not found. Reopen live chat")
@@ -1515,7 +1524,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 				}
 				if err == nil {
 					if isCustomer {
-						a.URL = "/api/chat/attachments/" + a.ID
+						a.URL = "https://cuan.dojo.cc/api/chat/attachments/" + a.ID
 					}
 					attached = append(attached, a)
 				}

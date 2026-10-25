@@ -190,6 +190,16 @@ func (s *Server) handleUploadConversationAttachment(w http.ResponseWriter, r *ht
 		config, format, e := image.DecodeConfig(bytes.NewReader(data))
 		if e == nil && config.Width > 0 && config.Height > 0 && int64(config.Width)*int64(config.Height) <= 40000000 {
 			kind = "image/" + format
+		} else if bytes.HasPrefix(data, []byte("\xFF\xD8\xFF")) {
+			kind = "image/jpeg"
+		} else if bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) {
+			kind = "image/png"
+		} else if bytes.HasPrefix(data, []byte("GIF87a")) || bytes.HasPrefix(data, []byte("GIF89a")) {
+			kind = "image/gif"
+		}
+	case ".webp":
+		if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+			kind = "image/webp"
 		}
 	case ".pdf":
 		if bytes.HasPrefix(data, []byte("%PDF-")) {
@@ -204,7 +214,18 @@ func (s *Server) handleUploadConversationAttachment(w http.ResponseWriter, r *ht
 		}
 	}
 	if kind == "" {
-		respondJSONError(w, 415, "Use PNG, JPEG, GIF, PDF, TXT, Markdown or CSV. Images must be under 40 megapixels")
+		if bytes.HasPrefix(data, []byte("\xFF\xD8\xFF")) {
+			kind = "image/jpeg"
+		} else if bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) {
+			kind = "image/png"
+		} else if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+			kind = "image/webp"
+		} else if bytes.HasPrefix(data, []byte("%PDF-")) {
+			kind = "application/pdf"
+		}
+	}
+	if kind == "" {
+		respondJSONError(w, 415, "Use PNG, JPEG, GIF, WebP, PDF, TXT, Markdown or CSV. Images must be under 40 megapixels")
 		return
 	}
 	a := conversationAttachment{ID: db.GenerateUUID(), Name: name, Type: kind, Size: int64(len(data))}
@@ -323,6 +344,16 @@ func (s *Server) handleVisitorUploadAttachment(w http.ResponseWriter, r *http.Re
 		config, format, e := image.DecodeConfig(bytes.NewReader(data))
 		if e == nil && config.Width > 0 && config.Height > 0 && int64(config.Width)*int64(config.Height) <= 40000000 {
 			kind = "image/" + format
+		} else if bytes.HasPrefix(data, []byte("\xFF\xD8\xFF")) {
+			kind = "image/jpeg"
+		} else if bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) {
+			kind = "image/png"
+		} else if bytes.HasPrefix(data, []byte("GIF87a")) || bytes.HasPrefix(data, []byte("GIF89a")) {
+			kind = "image/gif"
+		}
+	case ".webp":
+		if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+			kind = "image/webp"
 		}
 	case ".pdf":
 		if bytes.HasPrefix(data, []byte("%PDF-")) {
@@ -337,17 +368,37 @@ func (s *Server) handleVisitorUploadAttachment(w http.ResponseWriter, r *http.Re
 		}
 	}
 	if kind == "" {
-		respondJSONError(w, 415, "Use PNG, JPEG, GIF, PDF, TXT, Markdown or CSV. Images must be under 40 megapixels")
+		if bytes.HasPrefix(data, []byte("\xFF\xD8\xFF")) {
+			kind = "image/jpeg"
+		} else if bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) {
+			kind = "image/png"
+		} else if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+			kind = "image/webp"
+		} else if bytes.HasPrefix(data, []byte("%PDF-")) {
+			kind = "application/pdf"
+		}
+	}
+	if kind == "" {
+		respondJSONError(w, 415, "Use PNG, JPEG, GIF, WebP, PDF, TXT, Markdown or CSV. Images must be under 40 megapixels")
 		return
 	}
 
 	attID := db.GenerateUUID()
+	baseURL := "https://cuan.dojo.cc"
+	if r.Host != "" && !strings.Contains(r.Host, "dojo.cc") {
+		proto := "https"
+		if r.Header.Get("X-Forwarded-Proto") == "http" || strings.HasPrefix(r.Host, "localhost") || strings.HasPrefix(r.Host, "127.0.0.1") {
+			proto = "http"
+		}
+		baseURL = proto + "://" + r.Host
+	}
+
 	a := conversationAttachment{
 		ID:   attID,
 		Name: name,
 		Type: kind,
 		Size: int64(len(data)),
-		URL:  "/api/chat/attachments/" + attID,
+		URL:  baseURL + "/api/chat/attachments/" + attID,
 	}
 
 	dir, err := attachmentDirectory("visitor", a.ID)
@@ -368,7 +419,15 @@ func (s *Server) handleVisitorUploadAttachment(w http.ResponseWriter, r *http.Re
 		respondJSONError(w, 503, "Could not store this file. Try again")
 		return
 	}
-	respondJSON(w, 201, a)
+	respondJSON(w, http.StatusCreated, map[string]interface{}{
+		"ok":         true,
+		"attachment": a,
+		"id":         a.ID,
+		"name":       a.Name,
+		"type":       a.Type,
+		"size":       a.Size,
+		"url":        a.URL,
+	})
 }
 
 func (s *Server) handleVisitorDownloadAttachment(w http.ResponseWriter, r *http.Request) {
