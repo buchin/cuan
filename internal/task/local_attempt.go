@@ -68,6 +68,9 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	if _, e = tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status='doing'`, taskID, board); e != nil {
 		return e
 	}
+	if _, e = tx.ExecContext(ctx, `UPDATE task_launches SET state='stopped',lease_token='',lease_until=NULL,updated_at=NOW() WHERE task_id=$1 AND state IN ('queued','claimed','started')`, taskID); e != nil {
+		return e
+	}
 	return tx.Commit()
 }
 func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID string) error {
@@ -91,6 +94,14 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 	}
 	t.UpdatedAt = time.Now().UTC()
 	t.Status = TaskStatusBlocked
+	for _, l := range s.launches {
+		if l.TaskID == taskID && (l.State == "queued" || l.State == "claimed" || l.State == "started") {
+			l.State = "stopped"
+			l.LeaseToken = ""
+			l.LeaseUntil = nil
+			l.UpdatedAt = t.UpdatedAt
+		}
+	}
 	if latest.Status == AttemptStatusSucceeded {
 		required := false
 		var last *TaskActivity

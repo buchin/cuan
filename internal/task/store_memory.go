@@ -539,7 +539,7 @@ func (m *MemoryStore) IsProjectActive(_ context.Context, projectID string, exclu
 	defer m.mu.Unlock()
 	for _, t := range m.tasks {
 		if (t.ProjectID == projectID || containsString(t.ProjectIDs, projectID)) && (excludeTaskID == "" || t.ID != excludeTaskID) {
-			if t.Status == TaskStatusDone || t.Status == TaskStatusBlocked || t.Status == "failed" || t.Status == "cancelled" {
+			if t.Status == TaskStatusDone || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview || t.Status == "failed" || t.Status == "cancelled" {
 				continue
 			}
 			if t.Status == TaskStatusDoing || t.Status == "working" {

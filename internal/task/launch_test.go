@@ -248,3 +248,81 @@ func TestLaunchProjectConcurrencySerialExecution(t *testing.T) {
 		t.Fatalf("expected l2 to be claimed after l1 finished, got %v, err=%v", claimedNext, err)
 	}
 }
+
+func TestTaskTransitionAutoCleansLaunches(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+
+	projectID := "proj-auto-clean"
+	t1, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:        "Task 1",
+		Instructions: "Do work",
+		ProjectIDs:   []string{projectID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	l1, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           t1.ID,
+		ProjectID:        projectID,
+		RequestID:        "req-auto-clean-1",
+		SourceRequestID:  "req-source-1",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash(t1.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Claim and start
+	claimed, err := svc.ClaimLaunch(ctx, now, "worker-token-1")
+	if err != nil || claimed == nil || claimed.ID != l1.ID {
+		t.Fatalf("expected claimed l1, got %v, err=%v", claimed, err)
+	}
+	err = svc.FinishLaunch(ctx, claimed.ID, claimed.LeaseToken, "started", now, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Project is active
+	active, err := svc.IsProjectActive(ctx, projectID, "")
+	if err != nil || !active {
+		t.Fatalf("expected project active, got %v", active)
+	}
+
+	// Move task to review (e.g. agent completed implementation)
+	reviewStatus := TaskStatusReview
+	summary := "Work finished"
+	completeNote := "Verified test"
+	_, err = svc.UpdateTask(ctx, t1.ID, "agent", UpdateTaskRequest{
+		Status:       &reviewStatus,
+		Summary:      &summary,
+		CompleteNote: &completeNote,
+	})
+	if err != nil {
+		t.Fatalf("update task to review failed: %v", err)
+	}
+
+	// Launch should have been automatically cleaned to stopped!
+	updatedLaunch, err := svc.GetLaunch(ctx, l1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedLaunch.State != "stopped" {
+		t.Fatalf("expected launch state to be 'stopped', got '%s'", updatedLaunch.State)
+	}
+
+	// Project should now be NOT active
+	active, err = svc.IsProjectActive(ctx, projectID, "")
+	if err != nil || active {
+		t.Fatalf("expected project to be free/inactive, but got active=%v", active)
+	}
+}

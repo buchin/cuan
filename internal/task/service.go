@@ -534,6 +534,9 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 	}
 
 	if statusChanged {
+		if newStatus == TaskStatusDone || newStatus == TaskStatusBlocked || newStatus == TaskStatusReview || newStatus == "cancelled" || newStatus == "failed" {
+			_ = s.FinishTaskLaunches(ctx, t.ID, "stopped")
+		}
 		actMsg := fmt.Sprintf("Task status changed from '%s' to '%s'.", oldStatus, newStatus)
 		if oldStatus == TaskStatusReview && newStatus == TaskStatusDoing {
 			actMsg = "Task returned from Review to Doing. Execution is tracked separately; changing status does not launch an agent."
@@ -576,6 +579,7 @@ func (s *Service) DeleteTask(ctx context.Context, id string) error {
 	if latest != nil && (latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued) {
 		return ErrTaskActive
 	}
+	_ = s.FinishTaskLaunches(ctx, id, "stopped")
 	return s.store.DeleteTask(ctx, id)
 }
 
@@ -762,6 +766,10 @@ func (s *Service) updateAttemptStatus(ctx context.Context, attemptID string, aut
 		return nil, fmt.Errorf("update attempt: %w", err)
 	}
 
+	if newStatus == AttemptStatusSucceeded || newStatus == AttemptStatusFailed || newStatus == AttemptStatusCanceled || newStatus == AttemptStatusInterrupted {
+		_ = s.FinishTaskLaunches(ctx, att.TaskID, "stopped")
+	}
+
 	// Audit activity log
 	msg := fmt.Sprintf("Attempt %s changed state: '%s' → '%s'", att.ID, oldStatus, newStatus)
 	if reportedStop {
@@ -835,6 +843,7 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 	oldTaskStatus := t.Status
 	t.Status = TaskStatusBlocked
 	t.UpdatedAt = now
+	_ = s.FinishTaskLaunches(ctx, taskID, "stopped")
 	if err := s.store.UpdateTask(ctx, t); err == nil {
 		snapshot := *t
 		transitionEvent, previousStatus = &snapshot, oldTaskStatus

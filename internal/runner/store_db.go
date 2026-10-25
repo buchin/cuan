@@ -229,7 +229,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		              JOIN tasks active_t ON active_tl.task_id = active_t.id
 		              WHERE active_tl.project_id = t.project_id
 		                AND active_tl.task_id != t.id
-		                AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked')
+		                AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review')
 		                AND (
 		                    active_tl.state = 'started'
 		                    OR (active_tl.state = 'claimed' AND active_tl.lease_until > NOW())
