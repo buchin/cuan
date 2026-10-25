@@ -55,8 +55,12 @@
   background: var(--wa-incoming);
   color: var(--wa-text);
   border: 1px solid color-mix(in srgb, var(--wa-meta) 22%, transparent);
+  border-radius: 24px;
   box-shadow: 0 1px 2px rgb(0 0 0 / .04);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-radius 0.18s ease-out, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.wa-input-capsule.is-multiline {
+  border-radius: 18px;
 }
 .wa-input-capsule:focus-within {
   border-color: var(--wa-send);
@@ -88,6 +92,8 @@
   color: var(--wa-text);
   border: 0;
   box-shadow: none;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wa-meta) 35%, transparent) transparent;
 }
 .wa-input::placeholder {
   color: var(--wa-meta);
@@ -95,6 +101,29 @@
 }
 .wa-input:focus-visible {
   outline: none;
+}
+.wa-input::-webkit-scrollbar {
+  width: 4px;
+}
+.wa-input::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+}
+.wa-input::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--wa-meta) 35%, transparent);
+  border-radius: 9999px;
+}
+.wa-input::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wa-meta) 60%, transparent);
+}
+.dark .wa-input {
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.dark .wa-input::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+}
+.dark .wa-input::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 .wa-send {
   background: var(--wa-send);

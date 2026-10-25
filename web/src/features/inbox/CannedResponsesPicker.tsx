@@ -98,7 +98,7 @@ export function CannedResponsesPicker({
 
       {/* 1. Modal / Floating Picker when clicking the Zap button */}
       {isOpen && (
-        <div className="absolute bottom-14 left-0 z-50 w-72 sm:w-80 rounded-xl border border-border bg-card p-2.5 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="absolute bottom-12 right-0 z-50 w-72 sm:w-80 max-w-[calc(100vw-24px)] rounded-xl border border-border bg-card p-2.5 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
           <div className="flex items-center justify-between pb-2 border-b border-border/70 mb-2">
             <span className="font-semibold text-xs flex items-center gap-1.5 text-foreground">
               <Zap className="h-3.5 w-3.5 text-primary" />
@@ -177,7 +177,7 @@ export function CannedResponsesPicker({
 
       {/* 2. Slash Autocomplete Popup when user types `/` in textarea */}
       {isSlashActive && filteredItems.length > 0 && (
-        <div className="absolute bottom-14 left-0 z-50 w-72 sm:w-80 rounded-xl border border-border bg-card p-2 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="absolute bottom-12 right-0 z-50 w-72 sm:w-80 max-w-[calc(100vw-24px)] rounded-xl border border-border bg-card p-2 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
           <div className="px-2 py-1 border-b border-border/60 mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
             <span>{t('Matching templates')}</span>
             <span className="font-mono text-[10px]">/{slashQuery}</span>

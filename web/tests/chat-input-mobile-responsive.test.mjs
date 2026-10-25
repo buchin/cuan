@@ -72,15 +72,27 @@ test('2. Visual Border/Radius and Dark/Light Mode Contrast', () => {
     '.dark .wa-input-capsule must use smooth charcoal background #1e2023'
   )
 
-  // Capsule must have rounded-full pill styling
+  // Multiline transition: Capsule must define 24px initial radius and 18px rounded rect for multiline
   assert.ok(
-    inboxViewSource.includes('rounded-full'),
-    'Input capsule in InboxView must use rounded-full'
+    cssSource.includes('border-radius: 24px;'),
+    '.wa-input-capsule must define 24px pill radius for single line'
+  )
+  assert.ok(
+    cssSource.includes('.wa-input-capsule.is-multiline'),
+    '.wa-input-capsule.is-multiline class must exist for multiline transition'
+  )
+  assert.ok(
+    cssSource.includes('border-radius: 18px;'),
+    '.wa-input-capsule.is-multiline must transition to 18px rounded rect (preventing distorted ellipse)'
+  )
+  assert.ok(
+    inboxViewSource.includes('isMultiline ? \'is-multiline\' : \'\''),
+    'InboxView must toggle is-multiline class when content expands to multiple lines'
   )
 })
 
-test('3. Button Proportion, Spacing, and Icon Alignment', () => {
-  // Attachment button (+ icon): must use 36px (h-9 w-9) on mobile with 18px icon
+test('3. Button Proportion, Spacing, and Right-Aligned Saved Replies Action', () => {
+  // Attachment button (+ icon): must use 36px (h-9 w-9) on mobile with 18px icon on the left
   assert.ok(
     attachmentsSource.includes('h-9 w-9'),
     'AttachmentPicker compact button must use h-9 w-9 on mobile'
@@ -90,7 +102,16 @@ test('3. Button Proportion, Spacing, and Icon Alignment', () => {
     'AttachmentPicker compact button must use 18px icon'
   )
 
-  // Canned responses (Zap icon): must use matching 36px (h-9 w-9) with 18px icon
+  // Right-aligned Canned responses (Zap icon): positioned AFTER textarea and BEFORE Send button
+  const textareaIdx = inboxViewSource.indexOf('<textarea')
+  const cannedIdx = inboxViewSource.indexOf('<CannedResponsesPicker')
+  const sendIdx = inboxViewSource.indexOf('className="wa-send')
+  assert.ok(
+    textareaIdx < cannedIdx && cannedIdx < sendIdx,
+    'CannedResponsesPicker (⚡) must be positioned to the right of textarea, directly adjacent to Send button'
+  )
+
+  // Canned responses button dimensions: matching 36px (h-9 w-9) with 18px icon
   assert.ok(
     cannedPickerSource.includes('h-9 w-9'),
     'CannedResponsesPicker button must use h-9 w-9 on mobile'
@@ -98,6 +119,12 @@ test('3. Button Proportion, Spacing, and Icon Alignment', () => {
   assert.ok(
     cannedPickerSource.includes('h-[18px] w-[18px]'),
     'CannedResponsesPicker must use 18px Zap icon'
+  )
+
+  // Canned responses popup must anchor right-0 and limit viewport width to prevent mobile clipping
+  assert.ok(
+    cannedPickerSource.includes('right-0 z-50 w-72 sm:w-80 max-w-[calc(100vw-24px)]'),
+    'Canned responses popover must anchor to the right and contain width within viewport'
   )
 
   // Send button: must use matching 36px (h-9 w-9) with 18px icon
@@ -110,14 +137,32 @@ test('3. Button Proportion, Spacing, and Icon Alignment', () => {
     'Send button must use 18px Send icon'
   )
 
-  // Textarea: min-height 36px on mobile, autoResizeTextarea minH updated
+  // Textarea: min-height 36px on mobile, autoResizeTextarea minH updated, symmetric padding py-2
   assert.ok(
     inboxViewSource.includes('min-h-[36px]'),
     'Textarea must declare min-h-[36px] on mobile'
   )
   assert.ok(
+    inboxViewSource.includes('py-2'),
+    'Textarea must declare symmetric vertical padding py-2'
+  )
+  assert.ok(
     inboxViewSource.includes('const minH = window.innerWidth < 640 ? 36 : 38'),
     'autoResizeTextarea must dynamically adapt minH to 36px on mobile'
+  )
+
+  // Textarea custom scrollbar styling in chat-whatsapp.css
+  assert.ok(
+    cssSource.includes('scrollbar-width: thin;'),
+    'chat-whatsapp.css must specify thin scrollbar for textarea'
+  )
+  assert.ok(
+    cssSource.includes('.wa-input::-webkit-scrollbar'),
+    'chat-whatsapp.css must define custom webkit-scrollbar for textarea'
+  )
+  assert.ok(
+    cssSource.includes('.wa-input::-webkit-scrollbar-thumb'),
+    'chat-whatsapp.css must style rounded thumb for textarea'
   )
 })
 
