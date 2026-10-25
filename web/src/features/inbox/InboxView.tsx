@@ -1007,14 +1007,80 @@ export function InboxView({
                 className="inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
               {messages.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
-                  <Bot className="h-8 w-8 text-muted-foreground/60" />
-                  <p className="text-xs">
-                    {t('No messages with this contact yet.')}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/80">
-                    {t('Type a message below to start a conversation.')}
-                  </p>
+                <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
+                  {activeContact?.type === 'customer' ? (
+                    <>
+                      <div className="relative">
+                        <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border shadow-xs">
+                          {activeContact.avatar ? (
+                            <span>{activeContact.avatar}</span>
+                          ) : (
+                            <User className="h-6 w-6 text-muted-foreground" />
+                          )}
+                        </div>
+                        {activeContact.is_online && (
+                          <span
+                            className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background"
+                            title={t('Online on website')}
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {activeContact.is_online
+                            ? `${activeContact.name} ${t('is online right now')}`
+                            : activeContact.name}
+                        </p>
+                        {activeContact.page_title || activeContact.current_url || activeContact.product ? (
+                          <p className="text-xs text-muted-foreground inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted/60 border border-border/40">
+                            <span className="truncate max-w-[240px]">
+                              {activeContact.page_title || activeContact.current_url || activeContact.product}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            {t('No messages with this contact yet.')}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground/80">
+                        {t('Send a greeting to start a proactive chat with this visitor.')}
+                      </p>
+                      {/* Quick proactive greetings */}
+                      <div className="flex flex-wrap justify-center gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputMessage(t('Hello! Anything we can help you with today?'))
+                            textareaRef.current?.focus()
+                          }}
+                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
+                        >
+                          👋 {t('Say hello')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputMessage(t('Hi there! Looking for specific information or need help?'))
+                            textareaRef.current?.focus()
+                          }}
+                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
+                        >
+                          💬 {t('Offer assistance')}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="h-8 w-8 text-muted-foreground/60" />
+                      <p className="text-xs">
+                        {t('No messages with this contact yet.')}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/80">
+                        {t('Type a message below to start a conversation.')}
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 

@@ -39,6 +39,11 @@ type ChatContact struct {
 	LastMessage    string    `json:"last_message,omitempty"`
 	LastMessageAt  time.Time `json:"last_message_at,omitempty"`
 	UpdatedAt      time.Time `json:"updated_at"`
+	HasMessages    bool      `json:"has_messages"`
+	MessageCount   int       `json:"message_count"`
+	IsOnline       bool      `json:"is_online"`
+	CurrentURL     string    `json:"current_url,omitempty"`
+	PageTitle      string    `json:"page_title,omitempty"`
 }
 
 // AgentActionCard represents an interactive 1-click execution card in an agent bubble.
@@ -598,6 +603,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						LastMessage:    attachmentPreview(lastMsg),
 						LastMessageAt:  lastAt,
 						UpdatedAt:      lastAt,
+						HasMessages:    true,
+						MessageCount:   1,
+						IsOnline:       true,
 					}
 					contacts = append(contacts, c)
 				}
@@ -623,7 +631,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					at = messages[len(messages)-1].CreatedAt
 					unread = countUnread(room.ID, messages, true)
 				}
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at})
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true})
 			}
 		}
 	}
@@ -666,15 +674,57 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		})
 
 		for _, sess := range sessionList {
-			lastMsg := "A new conversation session has started."
+			lastMsg := ""
 			lastAt := sess.UpdatedAt
 			unread := 0
+			hasMessages := false
+			msgCount := 0
 
 			if s.projectStudioRepo != nil {
 				if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), sess.UUID); len(msgs) > 0 {
+					msgCount = len(msgs)
+					hasMessages = true
 					lastMsg = msgs[len(msgs)-1].Content
 					lastAt = msgs[len(msgs)-1].CreatedAt
 					unread = countUnread(sess.UUID, msgs, false)
+				}
+			}
+
+			globalChatManager.RLock()
+			liveSess := globalChatManager.sessions[sess.UUID]
+			isOnline := false
+			currURL := ""
+			pageTitle := ""
+			if liveSess != nil {
+				currURL = liveSess.CurrentURL
+				pageTitle = liveSess.PageTitle
+				if liveSess.Status == "active" && time.Since(liveSess.UpdatedAt) <= 5*time.Minute {
+					isOnline = true
+				}
+			}
+			globalChatManager.RUnlock()
+
+			// Skip sessions that have no messages AND are no longer online to prevent clutter.
+			if !hasMessages && !isOnline {
+				continue
+			}
+
+			status := "offline"
+			if isOnline {
+				status = "online"
+			}
+
+			if lastMsg == "" {
+				if isOnline {
+					if pageTitle != "" {
+						lastMsg = "Viewing: " + pageTitle
+					} else if currURL != "" {
+						lastMsg = "Viewing: " + currURL
+					} else {
+						lastMsg = "Online on website"
+					}
+				} else {
+					lastMsg = "A new conversation session has started."
 				}
 			}
 
@@ -683,7 +733,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				Type:           "customer",
 				Name:           sess.Name,
 				Avatar:         "👤",
-				Status:         "offline",
+				Status:         status,
 				Product:        sess.Product,
 				GuestUUID:      sess.GuestUUID,
 				ConversationID: sess.UUID,
@@ -691,6 +741,11 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				LastMessage:    attachmentPreview(lastMsg),
 				LastMessageAt:  lastAt,
 				UpdatedAt:      lastAt,
+				HasMessages:    hasMessages,
+				MessageCount:   msgCount,
+				IsOnline:       isOnline,
+				CurrentURL:     currURL,
+				PageTitle:      pageTitle,
 			}
 			contacts = append(contacts, custContact)
 		}

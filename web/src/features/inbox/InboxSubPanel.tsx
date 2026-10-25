@@ -75,6 +75,7 @@ export function InboxSubPanel({
 
   const [internalTab, setInternalTab] = useState<ContactFilterTab>(selectedTab)
   const [internalQuery, setInternalQuery] = useState(searchQuery)
+  const [customerSubFilter, setCustomerSubFilter] = useState<'chats' | 'online'>('chats')
 
   const activeTab = onTabChange ? selectedTab : internalTab
   const handleTabClick = (tab: ContactFilterTab) => {
@@ -90,6 +91,8 @@ export function InboxSubPanel({
 
   const agentCount = contacts.filter((c) => c.type === 'agent').length
   const customerCount = contacts.filter((c) => c.type === 'customer').length
+  const activeCustomerCount = contacts.filter((c) => c.type === 'customer' && c.has_messages !== false).length
+  const onlineVisitorCount = contacts.filter((c) => c.type === 'customer' && c.is_online).length
 
   const [markingAll, setMarkingAll] = useState(false)
   const totalUnreadCount = contacts.reduce(
@@ -110,8 +113,15 @@ export function InboxSubPanel({
 
   const filteredContacts = contacts.filter((c) => {
     if (archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at) !== showArchived) return false
+    if (activeTab === 'all') {
+      if (c.type === 'customer' && c.has_messages === false) return false
+    }
     if (activeTab === 'agents' && c.type !== 'agent') return false
-    if (activeTab === 'customers' && c.type !== 'customer') return false
+    if (activeTab === 'customers') {
+      if (c.type !== 'customer') return false
+      if (customerSubFilter === 'chats' && c.has_messages === false) return false
+      if (customerSubFilter === 'online' && !c.is_online) return false
+    }
     if (query.trim()) {
       const q = query.toLowerCase()
       const matchName = [c.name, c.agent_name]
@@ -120,7 +130,9 @@ export function InboxSubPanel({
         .includes(q)
       const matchMsg = (c.last_message || '').toLowerCase().includes(q)
       const matchProduct = (c.product || '').toLowerCase().includes(q)
-      return matchName || matchMsg || matchProduct
+      const matchUrl = (c.current_url || '').toLowerCase().includes(q)
+      const matchPage = (c.page_title || '').toLowerCase().includes(q)
+      return matchName || matchMsg || matchProduct || matchUrl || matchPage
     }
     return true
   })
@@ -199,13 +211,19 @@ export function InboxSubPanel({
             aria-pressed={activeTab === 'customers'}
             onClick={() => handleTabClick('customers')}
             className={cn(
-              'flex-1 min-h-11 border-b-2 py-2 text-center transition-colors font-medium text-sm flex items-center justify-center gap-1',
+              'flex-1 min-h-11 border-b-2 py-2 text-center transition-colors font-medium text-sm flex items-center justify-center gap-1.5',
               activeTab === 'customers'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             <span>{t('Customers')}</span>
+            {onlineVisitorCount > 0 && (
+              <span className="relative flex h-2 w-2" title={`${onlineVisitorCount} ${t('online')}`}>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
             <span className="sr-only">({customerCount})</span>
           </button>
           <button type="button" aria-label={t(showArchived ? 'Back to Inbox' : 'Archived conversations')} title={t(showArchived ? 'Back to Inbox' : 'Archived conversations')} aria-pressed={showArchived} onClick={() => setShowArchived(value => !value)}
@@ -230,6 +248,55 @@ export function InboxSubPanel({
             </button>
           )}
         </div>
+
+        {/* Customer Sub-Filter (Chats vs Online Visitors) */}
+        {activeTab === 'customers' && (
+          <div className="flex items-center gap-1.5 pt-1 pb-2">
+            <button
+              type="button"
+              onClick={() => setCustomerSubFilter('chats')}
+              className={cn(
+                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5',
+                customerSubFilter === 'chats'
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <span>{t('Chats')}</span>
+              <span className={cn(
+                'text-[10px] px-1.5 py-0.2 rounded-full tabular-nums',
+                customerSubFilter === 'chats' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-background/80 text-muted-foreground'
+              )}>
+                {activeCustomerCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCustomerSubFilter('online')}
+              className={cn(
+                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5',
+                customerSubFilter === 'online'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <span className="relative flex h-2 w-2">
+                {onlineVisitorCount > 0 && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                )}
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>{t('Online')}</span>
+              <span className={cn(
+                'text-[10px] px-1.5 py-0.2 rounded-full tabular-nums',
+                customerSubFilter === 'online' ? 'bg-white/20 text-white' : 'bg-background/80 text-muted-foreground'
+              )}>
+                {onlineVisitorCount}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
@@ -248,11 +315,23 @@ export function InboxSubPanel({
           </div>
         ) : filteredContacts.length === 0 ? (
           <div className="p-6 text-center text-xs text-muted-foreground">
-            {t(!query.trim() && !showArchived && activeTab === 'customers' ? 'No customer conversations yet.' : showArchived && !query.trim() ? 'No archived conversations.' : 'No matching conversations.')}
-            {!query.trim() && !showArchived && customerCount === 0 && activeTab !== 'agents' && <div className="mt-3 space-y-2">
-              <p>{t('Add live chat to your website to receive messages here.')}</p>
-              <Link className="action-secondary inline-flex" to="/settings/integrations/live-chat">{t('Connect Live Chat')}</Link>
-            </div>}
+            {t(
+              !query.trim() && !showArchived && activeTab === 'customers' && customerSubFilter === 'online'
+                ? 'No active online visitors right now.'
+                : !query.trim() && !showArchived && activeTab === 'customers'
+                ? 'No customer conversations yet.'
+                : showArchived && !query.trim()
+                ? 'No archived conversations.'
+                : 'No matching conversations.'
+            )}
+            {!query.trim() && !showArchived && customerCount === 0 && activeTab !== 'agents' && (
+              <div className="mt-3 space-y-2">
+                <p>{t('Add live chat to your website to receive messages here.')}</p>
+                <Link className="action-secondary inline-flex" to="/settings/integrations/live-chat">
+                  {t('Connect Live Chat')}
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           filteredContacts.map((contact, index) => {
@@ -306,6 +385,12 @@ export function InboxSubPanel({
                       <User className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
+                  {contact.is_online && (
+                    <span
+                      className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
+                      title={t('Online on website')}
+                    />
+                  )}
                 </div>
 
                 {/* Details */}

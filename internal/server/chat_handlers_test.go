@@ -158,6 +158,12 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 	if custContact.Name != "Budi Santoso" || custContact.Product != "shuriken" {
 		t.Fatalf("unexpected customer contact info: %+v", custContact)
 	}
+	if !custContact.HasMessages || custContact.MessageCount != 1 || !custContact.IsOnline {
+		t.Fatalf("expected HasMessages=true, MessageCount=1, IsOnline=true, got %+v", custContact)
+	}
+	if custContact.PageTitle != "Shuriken FAQ" {
+		t.Fatalf("expected PageTitle 'Shuriken FAQ', got %s", custContact.PageTitle)
+	}
 
 	// 5. Operator Replies from Direct Messenger Hub (POST /api/v1/chat/conversations/{id}/messages)
 	operatorReplyPayload := map[string]interface{}{

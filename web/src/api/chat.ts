@@ -16,6 +16,11 @@ export interface ChatContact {
   last_message?: string
   last_message_at?: string
   updated_at: string
+  has_messages?: boolean
+  message_count?: number
+  is_online?: boolean
+  current_url?: string
+  page_title?: string
 }
 
 export interface AgentActionCard {
