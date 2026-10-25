@@ -13,7 +13,7 @@ test('1. ProfileSettings declares email, emailPassword and emailDirty state', ()
   assert.ok(src.includes('user?.email'), 'ProfileSettings must read initial email from user')
   assert.ok(src.includes('[email, setEmail] = useState'), 'ProfileSettings must manage email state')
   assert.ok(src.includes('[emailPassword, setEmailPassword] = useState'), 'ProfileSettings must manage emailPassword state')
-  assert.ok(src.includes('emailDirty = email.trim().toLowerCase() !== (user?.email || "").toLowerCase()') || src.includes('emailDirty = email.trim().toLowerCase() !== (user?.email || \'\').toLowerCase()'), 'ProfileSettings must compute emailDirty')
+  assert.ok(src.includes('emailDirty = email.trim().toLowerCase() !== savedEmail.trim().toLowerCase()'), 'ProfileSettings must compute emailDirty')
 })
 
 test('2. ProfileSettings save handler routes email update to /api/v1/auth/email via PATCH', () => {
