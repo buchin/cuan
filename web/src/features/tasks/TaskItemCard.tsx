@@ -16,7 +16,6 @@ import './task-workspace.css'
 import {
   workStatus,
   workStatusBadgeClass,
-  isTaskRunning,
   taskTargetUrl,
   taskSummaryText,
   taskLiveActivityText,
@@ -63,7 +62,7 @@ export function TaskItemCard({
   const isQueued =
     !isWorking &&
     (status === 'Waiting to start' ||
-      status === 'Queued' ||
+      (status as string) === 'Queued' ||
       currentTask.launch?.state === 'queued' ||
       currentTask.launch?.state === 'claimed' ||
       currentTask.latest_attempt?.status === 'queued' ||
