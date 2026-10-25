@@ -9,6 +9,7 @@ import type { Task } from '../../api/types'
 import type { ChatContact } from '../../api/chat'
 import { cn } from '../../lib/utils'
 import { TaskItemCard } from '../tasks/TaskItemCard'
+import { getQueuedTasksPositions } from '../tasks/task-ui'
 
 export function ConversationWorkMonitor({
   tasks,
@@ -126,9 +127,16 @@ export function ConversationWorkMonitor({
         </div>
       ) : (
         <div className="space-y-3">
-          {tasks.map((task) => (
-            <TaskItemCard key={task.id} task={task} />
-          ))}
+          {(() => {
+            const queuedPositions = getQueuedTasksPositions(tasks)
+            return tasks.map((task) => (
+              <TaskItemCard
+                key={task.id}
+                task={task}
+                queuePosition={queuedPositions.get(task.id)}
+              />
+            ))
+          })()}
         </div>
       )}
     </div>

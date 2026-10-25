@@ -9,6 +9,7 @@ import {
   CircleDot,
   CheckCircle2,
   Ban,
+  Clock,
   X,
   ChevronDown,
 } from 'lucide-react'
@@ -20,6 +21,7 @@ import {
   taskStatus,
   taskRef,
   relativeTime,
+  getQueuedTasksPositions,
 } from './task-ui'
 import { TaskItemCard } from './TaskItemCard'
 import { cn } from '../../lib/utils'
@@ -231,6 +233,7 @@ export function TaskBoardView({
   const statusTone = (value: string) =>
     ({
       doing: 'text-blue-600 dark:text-blue-400',
+      queued: 'text-amber-600 dark:text-amber-400',
       review: 'text-amber-700 dark:text-amber-400',
       done: 'text-emerald-700 dark:text-emerald-400',
       blocked: 'text-destructive',
@@ -239,6 +242,7 @@ export function TaskBoardView({
     const Icon =
       {
         doing: LoaderCircle,
+        queued: Clock,
         review: CircleDot,
         done: CheckCircle2,
         blocked: Ban,
@@ -691,14 +695,18 @@ export function TaskBoardView({
             </table>
           </div>
           <div className="space-y-3 p-3 lg:hidden">
-            {rows.slice(0, limit).map((t) => (
-              <TaskItemCard
-                key={t.id}
-                task={t}
-                showProject={!activeProject}
-                onClick={onSelectTask}
-              />
-            ))}
+            {(() => {
+              const queuedPositions = getQueuedTasksPositions(rows)
+              return rows.slice(0, limit).map((t) => (
+                <TaskItemCard
+                  key={t.id}
+                  task={t}
+                  queuePosition={queuedPositions.get(t.id)}
+                  showProject={!activeProject}
+                  onClick={onSelectTask}
+                />
+              ))
+            })()}
           </div>
           {rows.length > limit && (
             <button

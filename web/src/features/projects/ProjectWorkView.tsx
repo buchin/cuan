@@ -12,7 +12,7 @@ import type { Project, Task } from '../../api/types'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
 import { TaskItemCard } from '../tasks/TaskItemCard'
-import { tasksForProject, workStatus, taskRef, taskSummaryText } from '../tasks/task-ui'
+import { tasksForProject, workStatus, taskRef, taskSummaryText, getQueuedTasksPositions } from '../tasks/task-ui'
 
 export function ProjectWorkView({
   project,
@@ -206,32 +206,36 @@ export function ProjectWorkView({
           </p>
         ) : (
           <div className="space-y-3 pt-3">
-            {visible.map((item) => (
-              <ItemActions
-                key={item.id}
-                label={item.title}
-                actions={[
-                  {
-                    label: 'Open task',
-                    run: () =>
-                      navigate(base + '/' + encodeURIComponent(item.id), {
-                        state: { ...location.state, taskReturnTo: base },
-                      }),
-                  },
-                  {
-                    label: 'Copy link',
-                    run: () => copyItemLink(base + '/' + encodeURIComponent(item.id)),
-                  },
-                ]}
-              >
-                <TaskItemCard
-                  task={item}
-                  showProject={false}
-                  showActions={true}
-                  returnTo={base}
-                />
-              </ItemActions>
-            ))}
+            {(() => {
+              const queuedPositions = getQueuedTasksPositions(visible)
+              return visible.map((item) => (
+                <ItemActions
+                  key={item.id}
+                  label={item.title}
+                  actions={[
+                    {
+                      label: 'Open task',
+                      run: () =>
+                        navigate(base + '/' + encodeURIComponent(item.id), {
+                          state: { ...location.state, taskReturnTo: base },
+                        }),
+                    },
+                    {
+                      label: 'Copy link',
+                      run: () => copyItemLink(base + '/' + encodeURIComponent(item.id)),
+                    },
+                  ]}
+                >
+                  <TaskItemCard
+                    task={item}
+                    queuePosition={queuedPositions.get(item.id)}
+                    showProject={false}
+                    showActions={true}
+                    returnTo={base}
+                  />
+                </ItemActions>
+              ))
+            })()}
           </div>
         )}
       </div>

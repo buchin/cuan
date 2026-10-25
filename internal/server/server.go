@@ -1079,6 +1079,8 @@ func (s *Server) routes() {
 	// Project Tasks
 	s.router.Post("/api/projects/{id}/tasks", s.handleCreateProjectTask)
 	s.router.Get("/api/projects/{id}/tasks", s.handleListProjectTasks)
+	s.router.Get("/api/projects/{id}/runner-state", s.handleGetProjectRunnerState)
+	s.router.Get("/api/v1/projects/{id}/runner-state", s.handleGetProjectRunnerState)
 	s.router.Get("/api/tasks/{id}", s.handleGetProjectTask)
 	s.router.Put("/api/tasks/{id}", s.handleUpdateProjectTask)
 	s.router.Patch("/api/tasks/{id}/status", s.handlePatchProjectTaskStatus)
@@ -1458,6 +1460,7 @@ func (s *Server) routes() {
 
 		r.Post("/projects/{id}/tasks", s.handleCreateProjectTask)
 		r.Get("/projects/{id}/tasks", s.handleListProjectTasks)
+		r.Get("/projects/{id}/runner-state", s.handleGetProjectRunnerState)
 		r.Get("/projects/tasks/{id}", s.handleGetProjectTask)
 		r.Put("/projects/tasks/{id}", s.handleUpdateProjectTask)
 		r.Patch("/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)

@@ -17,6 +17,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	cuangit "github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/taskprocess"
 	"github.com/buchin/cuan/internal/terminal"
 )
 
@@ -257,6 +258,9 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		status := task.TaskStatusQueued
 		if s.taskSvc != nil {
 			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+		}
+		if s.projectStudioRepo != nil {
+			_ = s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, "queued")
 		}
 		respondJSON(w, http.StatusConflict, map[string]string{
 			"error": "Another task is actively running in this project. This task is queued to run when it finishes.",
@@ -691,6 +695,23 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		close(launchSettled)
 		sess, err := s.terminalManager.RunTaskAgent(r.Context(), runCfg)
 		if err != nil {
+			if errors.Is(err, taskprocess.ErrActive) {
+				status := task.TaskStatusQueued
+				if attempt != nil {
+					_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusQueued})
+				}
+				if s.taskSvc != nil {
+					_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+				}
+				if s.projectStudioRepo != nil {
+					_ = s.projectStudioRepo.UpdateTaskStatus(context.Background(), taskID, "queued")
+				}
+				respondJSON(w, http.StatusConflict, map[string]string{
+					"error": "Another task is actively running in this project. This task is queued to run when it finishes.",
+					"code":  "project_concurrency_busy",
+				})
+				return
+			}
 			if attempt != nil {
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not start the CLI. Check its installation and the agent connection."})
 				status := task.TaskStatusBlocked

@@ -711,3 +711,49 @@ func (m *Manager) AcquireTaskExecutionLease(taskID string) (io.Closer, error) {
 	}
 	return taskprocess.Acquire(path)
 }
+
+type ProjectActiveRunner struct {
+	ProjectID    string    `json:"project_id"`
+	TaskID       string    `json:"task_id"`
+	PID          int       `json:"pid,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActivity time.Time `json:"last_activity"`
+	RecentOutput string    `json:"recent_output,omitempty"`
+}
+
+func (m *Manager) GetProjectActiveRunner(projectID string) *ProjectActiveRunner {
+	if projectID == "" {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	activeTaskID, exists := m.projectSessions[projectID]
+	if !exists || activeTaskID == "" {
+		return nil
+	}
+	sess, ok := m.sessions[activeTaskID]
+	if !ok || sess.IsClosed() {
+		return nil
+	}
+	var pid int
+	if sess.PTY() != nil {
+		pid = sess.PTY().PID()
+	}
+	var output string
+	if buf := sess.historyBuffer; buf != nil {
+		b := buf.Bytes()
+		if len(b) > 2000 {
+			output = string(b[len(b)-2000:])
+		} else {
+			output = string(b)
+		}
+	}
+	return &ProjectActiveRunner{
+		ProjectID:    projectID,
+		TaskID:       activeTaskID,
+		PID:          pid,
+		CreatedAt:    sess.CreatedAt(),
+		LastActivity: sess.LastActivity(),
+		RecentOutput: output,
+	}
+}

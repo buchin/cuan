@@ -137,6 +137,32 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 	var matchedTask *task.Task
 
 	for _, t := range tasks {
+		// Strict Project Concurrency Lock: only 1 active runner per project
+		if t.ProjectID != "" {
+			projectBusy := false
+			for _, otherTask := range tasks {
+				if otherTask.ID != t.ID && (otherTask.ProjectID == t.ProjectID || containsString(otherTask.ProjectIDs, t.ProjectID)) {
+					if otherTask.Status == task.TaskStatusDoing || otherTask.Status == "working" {
+						projectBusy = true
+						break
+					}
+					otherAttempts, _ := m.taskStore.ListAttempts(ctx, otherTask.ID)
+					for _, oa := range otherAttempts {
+						if oa.Status == task.AttemptStatusRunning {
+							projectBusy = true
+							break
+						}
+					}
+					if projectBusy {
+						break
+					}
+				}
+			}
+			if projectBusy {
+				continue
+			}
+		}
+
 		attempts, err := m.taskStore.ListAttempts(ctx, t.ID)
 		if err != nil {
 			continue
@@ -305,4 +331,13 @@ func (m *MemoryStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAt
 	}
 
 	return interrupted, nil
+}
+
+func containsString(slice []string, val string) bool {
+	for _, item := range slice {
+		if item == val {
+			return true
+		}
+	}
+	return false
 }

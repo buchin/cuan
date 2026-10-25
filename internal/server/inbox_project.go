@@ -245,6 +245,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			}
 		}
 	}
+	b.WriteString(s.formatProjectRunnerLiveState(ctx, selected.ID))
 	rel := "development"
 	if s.cfg != nil {
 		for _, relPath := range []string{"/opt/cuan/current/release.json", filepath.Join(selected.LocalPath, "release.json")} {
@@ -384,4 +385,144 @@ func truncateProjectText(text string, limit int) string {
 		text = text[:len(text)-1]
 	}
 	return text + "\n[cuplikan dibatasi]"
+}
+
+func (s *Server) formatProjectRunnerLiveState(ctx context.Context, projectID string) string {
+	if projectID == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\nProject Runner State & Concurrency Lock:\n")
+
+	isLocked := s.isProjectActive(ctx, projectID, "")
+	if !isLocked {
+		b.WriteString("- Concurrency Lock Status: [IDLE / AVAILABLE] (Zero active runners holding project lock; next approved task starts immediately)\n")
+	} else {
+		b.WriteString("- Concurrency Lock Status: [LOCKED] (Active runner is executing work; strict concurrency policy permits only 1 runner per project)\n")
+	}
+
+	var activeTaskID string
+	var pid int
+	var startedAt time.Time
+	var recentOutput string
+
+	if s.terminalManager != nil {
+		if active := s.terminalManager.GetProjectActiveRunner(projectID); active != nil {
+			activeTaskID = active.TaskID
+			pid = active.PID
+			startedAt = active.CreatedAt
+			recentOutput = active.RecentOutput
+		}
+	}
+
+	if activeTaskID == "" && s.taskSvc != nil {
+		if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: projectID}); err == nil {
+			for _, t := range tasks {
+				if t.Status == task.TaskStatusDoing || t.Status == "working" {
+					activeTaskID = t.ID
+					startedAt = t.UpdatedAt
+					break
+				}
+				if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusRunning {
+					activeTaskID = t.ID
+					if detail.LatestAttempt.StartedAt != nil {
+						startedAt = *detail.LatestAttempt.StartedAt
+					}
+					break
+				}
+			}
+		}
+	}
+
+	if activeTaskID != "" {
+		taskTitle := activeTaskID
+		taskAgent := "agy"
+		var liveActivity string
+		if s.taskSvc != nil {
+			if detail, err := s.taskSvc.GetTaskDetail(ctx, activeTaskID); err == nil && detail != nil {
+				taskTitle = detail.Title
+				if detail.AssignedAgent != "" {
+					taskAgent = detail.AssignedAgent
+				} else if detail.LatestAttempt != nil && detail.LatestAttempt.AgentName != "" {
+					taskAgent = detail.LatestAttempt.AgentName
+				}
+				for i := len(detail.Activities) - 1; i >= 0; i-- {
+					act := detail.Activities[i]
+					if act != nil && strings.TrimSpace(act.Message) != "" {
+						liveActivity = truncateProjectText(act.Message, 500)
+						break
+					}
+				}
+				if liveActivity == "" && detail.LatestAttempt != nil {
+					liveActivity = s.formatAttemptTerminalLogs(ctx, detail.LatestAttempt.ID, 10)
+				}
+			}
+		}
+		durationStr := "just started"
+		if !startedAt.IsZero() {
+			dur := time.Since(startedAt).Round(time.Second)
+			durationStr = dur.String()
+		}
+		pidStr := "managed supervisor"
+		if pid > 0 {
+			pidStr = fmt.Sprintf("PID %d", pid)
+		}
+		fmt.Fprintf(&b, "- Active Runner Holder: Task %q (ID: %s, Agent: %s, Runner: %s, Running for: %s)\n",
+			taskTitle, activeTaskID, taskAgent, pidStr, durationStr)
+		if recentOutput != "" {
+			lines := strings.Split(strings.TrimSpace(recentOutput), "\n")
+			startIdx := len(lines) - 10
+			if startIdx < 0 {
+				startIdx = 0
+			}
+			snippet := strings.Join(lines[startIdx:], "\n")
+			b.WriteString("  Recent Terminal Output:\n" + indentLines(truncateProjectText(snippet, 1000), "  | ") + "\n")
+		} else if liveActivity != "" {
+			b.WriteString("  Latest Activity:\n" + indentLines(liveActivity, "  | ") + "\n")
+		}
+	} else if isLocked {
+		b.WriteString("- Active Runner Holder: Workspace locked by concurrent process\n")
+	}
+
+	var queuedItems []string
+	if s.taskSvc != nil {
+		if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: projectID}); err == nil {
+			var qTasks []*task.TaskItemResponse
+			for _, t := range tasks {
+				if t.ID == activeTaskID {
+					continue
+				}
+				if t.Status == task.TaskStatusQueued || t.Status == "pending" {
+					qTasks = append(qTasks, t)
+				} else if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail != nil {
+					if detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusQueued {
+						qTasks = append(qTasks, t)
+					}
+				}
+			}
+			sort.Slice(qTasks, func(i, j int) bool {
+				return qTasks[i].CreatedAt.Before(qTasks[j].CreatedAt)
+			})
+			for idx, qt := range qTasks {
+				waitDur := time.Since(qt.CreatedAt).Round(time.Second).String()
+				agentName := qt.AssignedAgent
+				if agentName == "" {
+					agentName = "agy"
+				}
+				queuedItems = append(queuedItems, fmt.Sprintf("  %d. [#%d] %q (ID: %s, Agent: %s, Waiting: %s)",
+					idx+1, idx+1, qt.Title, qt.ID, agentName, waitDur))
+			}
+		}
+	}
+	if len(queuedItems) > 0 {
+		fmt.Fprintf(&b, "- Queued Tasks (%d waiting for runner lock handover):\n", len(queuedItems))
+		for _, qItem := range queuedItems {
+			b.WriteString(qItem)
+			b.WriteByte('\n')
+		}
+	} else {
+		b.WriteString("- Queued Tasks: 0 waiting in queue\n")
+	}
+	b.WriteString("\n")
+	return b.String()
 }

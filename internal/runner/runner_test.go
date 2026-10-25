@@ -226,3 +226,81 @@ func TestRunner_LeaseExpirationAndInterruptedRecovery(t *testing.T) {
 	t.Logf("Disconnect/Lease expiration test PASSED: attempt marked '%s', task marked '%s', zero auto-rerun.",
 		resAtt.Status, resTask.Status)
 }
+
+func TestRunner_ProjectConcurrencyLock(t *testing.T) {
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+	ctx := context.Background()
+
+	projectID := "proj_strict_lock_test"
+
+	// Task 1 for projectID
+	t1 := &task.Task{
+		ID:        "task_proj_1",
+		ProjectID: projectID,
+		Title:     "Project Task 1",
+		Status:    task.TaskStatusBacklog,
+		CreatedAt: time.Now().UTC().Add(-10 * time.Minute),
+	}
+	_ = taskStore.CreateTask(ctx, t1)
+	a1 := &task.TaskAttempt{
+		ID:        "att_p1",
+		TaskID:    t1.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: t1.CreatedAt,
+	}
+	_ = taskStore.CreateAttempt(ctx, a1)
+
+	// Task 2 for same projectID
+	t2 := &task.Task{
+		ID:        "task_proj_2",
+		ProjectID: projectID,
+		Title:     "Project Task 2",
+		Status:    task.TaskStatusBacklog,
+		CreatedAt: time.Now().UTC().Add(-5 * time.Minute),
+	}
+	_ = taskStore.CreateTask(ctx, t2)
+	a2 := &task.TaskAttempt{
+		ID:        "att_p2",
+		TaskID:    t2.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: t2.CreatedAt,
+	}
+	_ = taskStore.CreateAttempt(ctx, a2)
+
+	runner1 := "runner_p1"
+	runner2 := "runner_p2"
+
+	// 1. Runner 1 claims task 1
+	claimed1, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runner1, []string{"agy"}, 10*time.Second)
+	if err != nil || claimed1 == nil || claimed1.ID != a1.ID {
+		t.Fatalf("Runner 1 failed to claim task 1: %v", err)
+	}
+	t.Logf("Runner 1 successfully claimed Task 1 (attempt: %s)", claimed1.ID)
+
+	// 2. Runner 2 tries to claim next queued task for the same project while Runner 1 is executing
+	claimed2, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runner2, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Runner 2 claim returned error: %v", err)
+	}
+	if claimed2 != nil {
+		t.Fatalf("CRITICAL CONCURRENCY VIOLATION: Runner 2 claimed task %s while project %s was locked by runner 1!", claimed2.TaskID, projectID)
+	}
+	t.Logf("Strict Project Concurrency Lock verified: Runner 2 safely blocked from claiming Task 2 while project %s is active", projectID)
+
+	// 3. Complete Task 1
+	claimed1.Status = task.AttemptStatusSucceeded
+	_ = taskStore.UpdateAttempt(ctx, claimed1)
+	doneStatus := task.TaskStatusDone
+	_ = taskStore.UpdateTask(ctx, &task.Task{ID: t1.ID, ProjectID: projectID, Status: doneStatus})
+
+	// 4. Runner 2 tries again now that project lock is released
+	claimed2After, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runner2, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Runner 2 second claim returned error: %v", err)
+	}
+	if claimed2After == nil || claimed2After.ID != a2.ID {
+		t.Fatalf("Expected Runner 2 to claim Task 2 after Task 1 completed, got: %+v", claimed2After)
+	}
+	t.Logf("Project Concurrency Lock handover verified: Runner 2 successfully claimed Task 2 (attempt: %s) after Task 1 completed", claimed2After.ID)
+}

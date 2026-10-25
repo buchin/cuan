@@ -32,6 +32,7 @@ export interface TaskItemCardProps {
   showActions?: boolean
   variant?: 'card' | 'row'
   className?: string
+  queuePosition?: number
   onClick?: (task: Task) => void
   onNavigate?: () => void
   onRetry?: (task: Task) => void | Promise<void>
@@ -44,6 +45,7 @@ export function TaskItemCard({
   showActions = true,
   variant = 'card',
   className,
+  queuePosition,
   onClick,
   onNavigate,
   onRetry,
@@ -61,8 +63,7 @@ export function TaskItemCard({
   const isWorking = status === 'Working'
   const isQueued =
     !isWorking &&
-    (status === 'Waiting to start' ||
-      (status as string) === 'Queued' ||
+    (status === 'Queued' ||
       currentTask.launch?.state === 'queued' ||
       currentTask.launch?.state === 'claimed' ||
       currentTask.latest_attempt?.status === 'queued' ||
@@ -193,7 +194,7 @@ export function TaskItemCard({
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
                   </span>
                 ) : null}
-                {t(status)}
+                {isQueued && queuePosition ? `${t('Queued')} #${queuePosition}` : t(status)}
               </span>
               {showProject && currentTask.project_name && (
                 <span className="inline-flex items-center gap-1 truncate text-xs font-medium text-muted-foreground">
@@ -246,9 +247,10 @@ export function TaskItemCard({
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
               </span>
               <span className="line-clamp-1 truncate text-[11px] font-medium">
+                {queuePosition ? `${t('Antrean')} #${queuePosition} · ` : ''}
                 {currentTask.latest_progress
                   ? cleanTerminalText(currentTask.latest_progress)
-                  : (summary || t('Dalam antrean runner...'))}
+                  : (summary || t('Menunggu giliran eksekusi runner...'))}
               </span>
             </div>
           ) : summary ? (
@@ -407,7 +409,7 @@ export function TaskItemCard({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
               </span>
             ) : null}
-            {t(status)}
+            {isQueued && queuePosition ? `${t('Queued')} #${queuePosition}` : t(status)}
           </span>
 
           {showProject && currentTask.project_name && (
@@ -485,9 +487,10 @@ export function TaskItemCard({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
             </span>
             <span className="line-clamp-2 break-words text-[11px] font-medium leading-tight">
+              {queuePosition ? `${t('Antrean')} #${queuePosition} · ` : ''}
               {currentTask.latest_progress
                 ? cleanTerminalText(currentTask.latest_progress)
-                : (summary || t('Dalam antrean eksekusi runner...'))}
+                : (summary || t('Menunggu giliran eksekusi runner...'))}
             </span>
           </div>
         ) : summary ? (

@@ -209,6 +209,32 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		FROM task_attempts a
 		JOIN tasks t ON a.task_id = t.id
 		WHERE a.status = 'queued'
+		  AND (
+		      COALESCE(t.project_id, '') = ''
+		      OR (
+		          NOT EXISTS (
+		              SELECT 1 FROM task_attempts active_att
+		              JOIN tasks active_t ON active_att.task_id = active_t.id
+		              WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                AND active_att.status = 'running'
+		          )
+		          AND NOT EXISTS (
+		              SELECT 1 FROM tasks active_t
+		              WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                AND active_t.id != t.id
+		                AND active_t.status IN ('doing', 'working')
+		          )
+		          AND NOT EXISTS (
+		              SELECT 1 FROM task_launches active_tl
+		              WHERE active_tl.project_id = t.project_id
+		                AND active_tl.task_id != t.id
+		                AND (
+		                    active_tl.state = 'started'
+		                    OR (active_tl.state = 'claimed' AND active_tl.lease_until > NOW())
+		                )
+		          )
+		      )
+		  )
 		ORDER BY a.created_at ASC
 		LIMIT 1
 		FOR UPDATE OF a SKIP LOCKED

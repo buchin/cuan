@@ -76,6 +76,40 @@ func TestProjectLevelTaskQueueAndLock(t *testing.T) {
 		t.Fatalf("expected task 2 status to be queued, got %s", detail2.Status)
 	}
 
+	// 3b. Verify Scrum Master Live Runner State & API Endpoint
+	resState := call("GET", "/api/v1/projects/"+projectID+"/runner-state", "")
+	if resState.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from runner-state endpoint, got %d: %s", resState.Code, resState.Body.String())
+	}
+	var runnerState ProjectRunnerStateResponse
+	if err := json.Unmarshal(resState.Body.Bytes(), &runnerState); err != nil {
+		t.Fatalf("failed to decode runner state response: %v", err)
+	}
+	if !runnerState.IsLocked {
+		t.Fatalf("expected is_locked to be true while task 1 is executing")
+	}
+	if runnerState.ActiveRunner == nil || runnerState.ActiveRunner.TaskID != task1.ID {
+		t.Fatalf("expected active_runner to be task1 (%s), got: %+v", task1.ID, runnerState.ActiveRunner)
+	}
+	if len(runnerState.QueuedTasks) != 1 || runnerState.QueuedTasks[0].TaskID != task2.ID {
+		t.Fatalf("expected 1 queued task (task2 %s), got: %+v", task2.ID, runnerState.QueuedTasks)
+	}
+	if runnerState.QueuedTasks[0].QueuePosition != 1 {
+		t.Errorf("expected queue_position 1, got %d", runnerState.QueuedTasks[0].QueuePosition)
+	}
+
+	// Verify Scrum Master Prompt context contains live runner snapshot
+	promptSnippet := s.formatProjectRunnerLiveState(ctx, projectID)
+	if !strings.Contains(promptSnippet, "Concurrency Lock Status: [LOCKED]") {
+		t.Fatalf("expected SM prompt snippet to contain LOCKED status, got: %s", promptSnippet)
+	}
+	if !strings.Contains(promptSnippet, task1.ID) {
+		t.Fatalf("expected SM prompt snippet to contain active task ID %s, got: %s", task1.ID, promptSnippet)
+	}
+	if !strings.Contains(promptSnippet, task2.ID) {
+		t.Fatalf("expected SM prompt snippet to contain queued task ID %s, got: %s", task2.ID, promptSnippet)
+	}
+
 	// 4. Wait for Task 1 to finish
 	waitWorkspaceTask(t, s, task1.ID, "succeeded")
 
@@ -99,5 +133,19 @@ func TestProjectLevelTaskQueueAndLock(t *testing.T) {
 	}
 	if h2[0].StartedAt.Before(h1[0].FinishedAt) {
 		t.Errorf("expected serial execution: task 2 started at %v before task 1 finished at %v", h2[0].StartedAt, h1[0].FinishedAt)
+	}
+
+	// Let session and launches settle
+	time.Sleep(150 * time.Millisecond)
+
+	// Verify runner state after all tasks finish
+	resStateAfter := call("GET", "/api/v1/projects/"+projectID+"/runner-state", "")
+	var runnerStateAfter ProjectRunnerStateResponse
+	_ = json.Unmarshal(resStateAfter.Body.Bytes(), &runnerStateAfter)
+	if runnerStateAfter.IsLocked {
+		t.Fatalf("expected is_locked to be false after tasks finish")
+	}
+	if len(runnerStateAfter.QueuedTasks) != 0 {
+		t.Fatalf("expected 0 queued tasks after tasks finish, got %d", len(runnerStateAfter.QueuedTasks))
 	}
 }

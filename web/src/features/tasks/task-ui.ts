@@ -2,6 +2,7 @@ import type { Task, TaskAttempt, TaskDetail, TaskStatus } from '../../api/types'
 export const TASK_STATUSES: { id: TaskStatus; label: string }[] = [
   { id: 'backlog', label: 'Backlog' },
   { id: 'todo', label: 'Todo' },
+  { id: 'queued', label: 'Queued' },
   { id: 'doing', label: 'Doing' },
   { id: 'review', label: 'Review' },
   { id: 'done', label: 'Done' },
@@ -73,10 +74,11 @@ export function attemptLabel(attempt: TaskAttempt) {
 // One user-facing status across project lists and session headers. A finished
 // process is not proof that a task was accepted or completed.
 export function workStatus(task: Task) {
-  if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return 'Waiting to start'
+  if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return 'Queued'
   const attempt = task.latest_attempt?.status || task.execution_status
-  if (attempt === 'running' || attempt === 'queued') return attempt === 'running' ? 'Working' : 'Waiting to start'
-  if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Waiting to start'
+  if (attempt === 'running') return 'Working'
+  if (attempt === 'queued') return 'Queued'
+  if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Queued'
   if (task.status === 'done') return 'Completed'
   if (task.launch?.state === 'stopped') return 'Needs attention'
   if (task.launch?.state === 'cancelled') return 'Cancelled'
@@ -85,6 +87,27 @@ export function workStatus(task: Task) {
   if (task.status === 'review') return task.result_kind === 'answer' && ['succeeded', 'completed'].includes(attempt || '') ? 'Answered' : 'Ready for review'
   if (task.status === 'doing') return 'Not running'
   return 'Not started'
+}
+
+export function getQueuedTasksPositions(tasks: Task[]): Map<string, number> {
+  const positions = new Map<string, number>()
+  const queued = tasks
+    .filter((t) => {
+      const status = workStatus(t)
+      return (
+        status === 'Queued' ||
+        (t.status as string) === 'queued' ||
+        (t.status as string) === 'pending' ||
+        t.latest_attempt?.status === 'queued' ||
+        t.launch?.state === 'queued'
+      )
+    })
+    .sort((a, b) => new Date(a.created_at || a.updated_at).getTime() - new Date(b.created_at || b.updated_at).getTime())
+
+  queued.forEach((t, idx) => {
+    positions.set(t.id, idx + 1)
+  })
+  return positions
 }
 export function tasksForProject(tasks: Task[], projectId: string) {
   return tasks.filter((task) => task.project_id === projectId || task.project_ids?.includes(projectId) ||

@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/studio"
+	"github.com/buchin/cuan/internal/task"
 )
 
 // CreateProjectTaskPayload defines the request body for creating a task in a project.
@@ -86,6 +89,9 @@ func (s *Server) handleCreateProjectTask(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		respondJSONError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if normStatus == "doing" && s.isProjectActive(r.Context(), projectID, "") {
+		normStatus = "queued"
 	}
 
 	priority := strings.TrimSpace(payload.Priority)
@@ -393,6 +399,9 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 			respondJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if normStatus == "doing" && oldStatus != "doing" && s.isProjectActive(r.Context(), task.ProjectID, task.ID) {
+			normStatus = "queued"
+		}
 		task.Status = normStatus
 	}
 
@@ -556,6 +565,10 @@ func (s *Server) handlePatchProjectTaskStatus(w http.ResponseWriter, r *http.Req
 	}
 	oldStatus := oldTask.Status
 
+	if normStatus == "doing" && oldStatus != "doing" && s.isProjectActive(r.Context(), oldTask.ProjectID, taskID) {
+		normStatus = "queued"
+	}
+
 	if err := s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, normStatus); err != nil {
 		if errors.Is(err, db.ErrTaskNotFound) {
 			respondJSONError(w, http.StatusNotFound, "project task not found")
@@ -645,5 +658,167 @@ func (s *Server) handleDeleteProjectTask(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status": "deleted",
 		"id":     taskID,
+	})
+}
+
+// ProjectRunnerStateResponse represents real-time runner concurrency and queue state for a project.
+type ProjectRunnerStateResponse struct {
+	ProjectID    string                     `json:"project_id"`
+	IsLocked     bool                       `json:"is_locked"`
+	ActiveRunner *ProjectRunnerActiveDetail `json:"active_runner,omitempty"`
+	QueuedTasks  []ProjectRunnerQueuedTask  `json:"queued_tasks"`
+}
+
+// ProjectRunnerActiveDetail represents the active lock-holder runner information.
+type ProjectRunnerActiveDetail struct {
+	TaskID          string    `json:"task_id"`
+	Title           string    `json:"title"`
+	AgentName       string    `json:"agent_name"`
+	PID             int       `json:"pid,omitempty"`
+	StartedAt       time.Time `json:"started_at"`
+	DurationSeconds int       `json:"duration_seconds"`
+	LiveActivity    string    `json:"live_activity,omitempty"`
+	RecentOutput    string    `json:"recent_output,omitempty"`
+}
+
+// ProjectRunnerQueuedTask represents a task waiting in queue for the project lock.
+type ProjectRunnerQueuedTask struct {
+	QueuePosition   int       `json:"queue_position"`
+	TaskID          string    `json:"task_id"`
+	Title           string    `json:"title"`
+	AgentName       string    `json:"agent_name"`
+	Status          string    `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
+	DurationSeconds int       `json:"duration_seconds"`
+}
+
+// handleGetProjectRunnerState provides real-time runner and queue state visibility.
+// GET /api/projects/{id}/runner-state or GET /api/v1/projects/{id}/runner-state
+func (s *Server) handleGetProjectRunnerState(w http.ResponseWriter, r *http.Request) {
+	projectID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if projectID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	isLocked := s.isProjectActive(r.Context(), projectID, "")
+
+	var activeTaskID string
+	var pid int
+	var startedAt time.Time
+	var recentOutput string
+
+	if s.terminalManager != nil {
+		if active := s.terminalManager.GetProjectActiveRunner(projectID); active != nil {
+			activeTaskID = active.TaskID
+			pid = active.PID
+			startedAt = active.CreatedAt
+			recentOutput = active.RecentOutput
+		}
+	}
+
+	if activeTaskID == "" && s.taskSvc != nil {
+		if tasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{ProjectID: projectID}); err == nil {
+			for _, t := range tasks {
+				if t.Status == task.TaskStatusDoing || t.Status == "working" {
+					activeTaskID = t.ID
+					startedAt = t.UpdatedAt
+					break
+				}
+				if detail, err := s.taskSvc.GetTaskDetail(r.Context(), t.ID); err == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusRunning {
+					activeTaskID = t.ID
+					if detail.LatestAttempt.StartedAt != nil {
+						startedAt = *detail.LatestAttempt.StartedAt
+					}
+					break
+				}
+			}
+		}
+	}
+
+	var activeRunner *ProjectRunnerActiveDetail
+	if activeTaskID != "" {
+		taskTitle := activeTaskID
+		taskAgent := "agy"
+		var liveActivity string
+		if s.taskSvc != nil {
+			if detail, err := s.taskSvc.GetTaskDetail(r.Context(), activeTaskID); err == nil && detail != nil {
+				taskTitle = detail.Title
+				if detail.AssignedAgent != "" {
+					taskAgent = detail.AssignedAgent
+				} else if detail.LatestAttempt != nil && detail.LatestAttempt.AgentName != "" {
+					taskAgent = detail.LatestAttempt.AgentName
+				}
+				for i := len(detail.Activities) - 1; i >= 0; i-- {
+					act := detail.Activities[i]
+					if act != nil && strings.TrimSpace(act.Message) != "" {
+						liveActivity = act.Message
+						break
+					}
+				}
+				if liveActivity == "" && detail.LatestAttempt != nil {
+					liveActivity = s.formatAttemptTerminalLogs(r.Context(), detail.LatestAttempt.ID, 15)
+				}
+			}
+		}
+		var durSec int
+		if !startedAt.IsZero() {
+			durSec = int(time.Since(startedAt).Seconds())
+		}
+		activeRunner = &ProjectRunnerActiveDetail{
+			TaskID:          activeTaskID,
+			Title:           taskTitle,
+			AgentName:       taskAgent,
+			PID:             pid,
+			StartedAt:       startedAt,
+			DurationSeconds: durSec,
+			LiveActivity:    liveActivity,
+			RecentOutput:    recentOutput,
+		}
+	}
+
+	queuedTasks := []ProjectRunnerQueuedTask{}
+	if s.taskSvc != nil {
+		if tasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{ProjectID: projectID}); err == nil {
+			var qTasks []*task.TaskItemResponse
+			for _, t := range tasks {
+				if t.ID == activeTaskID {
+					continue
+				}
+				if t.Status == task.TaskStatusQueued || t.Status == "pending" {
+					qTasks = append(qTasks, t)
+				} else if detail, err := s.taskSvc.GetTaskDetail(r.Context(), t.ID); err == nil && detail != nil {
+					if detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusQueued {
+						qTasks = append(qTasks, t)
+					}
+				}
+			}
+			sort.Slice(qTasks, func(i, j int) bool {
+				return qTasks[i].CreatedAt.Before(qTasks[j].CreatedAt)
+			})
+			for idx, qt := range qTasks {
+				agentName := qt.AssignedAgent
+				if agentName == "" {
+					agentName = "agy"
+				}
+				durSec := int(time.Since(qt.CreatedAt).Seconds())
+				queuedTasks = append(queuedTasks, ProjectRunnerQueuedTask{
+					QueuePosition:   idx + 1,
+					TaskID:          qt.ID,
+					Title:           qt.Title,
+					AgentName:       agentName,
+					Status:          string(qt.Status),
+					CreatedAt:       qt.CreatedAt,
+					DurationSeconds: durSec,
+				})
+			}
+		}
+	}
+
+	respondJSON(w, http.StatusOK, ProjectRunnerStateResponse{
+		ProjectID:    projectID,
+		IsLocked:     isLocked,
+		ActiveRunner: activeRunner,
+		QueuedTasks:  queuedTasks,
 	})
 }

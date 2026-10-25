@@ -55,6 +55,7 @@ import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ConversationWorkMonitor } from './ConversationWorkMonitor'
 import { TaskItemCard } from '../tasks/TaskItemCard'
+import { getQueuedTasksPositions } from '../tasks/task-ui'
 import { EscalateTaskDialog } from './EscalateTaskDialog'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
@@ -1593,14 +1594,18 @@ export function InboxView({
             </div>
           ) : (
             <div className="space-y-3">
-              {linkedTasks.map((task) => (
-                <TaskItemCard
-                  key={task.id}
-                  task={task}
-                  returnTo={location.pathname}
-                  onNavigate={() => setShowTasksModal(false)}
-                />
-              ))}
+              {(() => {
+                const queuedPositions = getQueuedTasksPositions(linkedTasks)
+                return linkedTasks.map((task) => (
+                  <TaskItemCard
+                    key={task.id}
+                    task={task}
+                    queuePosition={queuedPositions.get(task.id)}
+                    returnTo={location.pathname}
+                    onNavigate={() => setShowTasksModal(false)}
+                  />
+                ))
+              })()}
             </div>
           )}
         </div>
