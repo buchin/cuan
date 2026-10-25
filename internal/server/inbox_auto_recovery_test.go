@@ -82,3 +82,53 @@ print(json.dumps({'event':'result','result':result}))
 		})
 	}
 }
+
+func TestInboxResponseValidationFailureDirectRecovery(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	// Call 1: outputs a denied action or invalid response that cannot be validated
+	// Call 2: direct coordinator response that answers directly from conversation context
+	script := `#!/usr/bin/env python3
+import json,sys,pathlib,os
+p=pathlib.Path(os.environ['HOME'])/'recovery-calls'
+n=int(p.read_text()) if p.exists() else 0
+p.write_text(str(n+1))
+if n == 0:
+    print(json.dumps({'event':'step_update','step_update':{'step_index':2,'step_type':'tool','state':'DONE','tool_name':'run_command'}}))
+    print(json.dumps({'event':'result','result':{'status':'SUCCESS','response':'invalid non-json transport','denied_actions':[{'action':'shell_command','display_name':'git branch'}]}}))
+else:
+    resp = json.dumps({'reply':'Branch yang tersedia saat ini hanya main.','topic_title':'Info Branch','action':None})
+    print(json.dumps({'event':'result','result':{'status':'SUCCESS','response':resp}}))
+`
+	binary := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	reqID := db.GenerateUUID()
+	w := call("POST", "/api/v1/chat/conversations/agent_lifecycle/messages", `{"request_id":"`+reqID+`","message":"Apakah masih ada branch selain main?"}`)
+	if w.Code != 202 {
+		t.Fatal(w.Body.String())
+	}
+	var accepted struct{ Request db.InboxRequest }
+	json.Unmarshal(w.Body.Bytes(), &accepted)
+	waitInboxState(t, s, accepted.Request.RoomID, reqID, "completed")
+	messages, err := s.projectStudioRepo.ListMessagesByRoomID(context.Background(), accepted.Request.RoomID)
+	if err != nil || len(messages) < 2 {
+		t.Fatalf("expected at least 2 messages, got %d (err: %v)", len(messages), err)
+	}
+	reply := messages[len(messages)-1]
+	if !strings.Contains(reply.Content, "hanya main") {
+		t.Errorf("expected reply content with recovery message, got: %s", reply.Content)
+	}
+	requests, _ := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(context.Background(), accepted.Request.RoomID)
+	hasRecoveryStep := false
+	for _, req := range requests {
+		for _, step := range req.Steps {
+			if step.Kind == "response_recovery" {
+				hasRecoveryStep = true
+			}
+		}
+	}
+	if !hasRecoveryStep {
+		t.Errorf("expected response_recovery step in request steps")
+	}
+}

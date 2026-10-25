@@ -228,7 +228,7 @@ func startAntigravityAuthSession(ctx context.Context, home, ownerID, accountID s
 			return existing, nil
 		}
 	}
-	bin, err := exec.LookPath("agy")
+	bin, err := ResolveAGYBinaryPath()
 	if err != nil {
 		return nil, errors.New("Antigravity CLI unavailable on server")
 	}

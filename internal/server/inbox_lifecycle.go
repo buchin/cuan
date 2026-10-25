@@ -285,8 +285,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						} else {
 							output = clean
 						}
-						if output == "" && ctx.Err() == nil && (strings.Contains(strings.ToLower(failure), "tool permission") || strings.Contains(strings.ToLower(failure), "action outside the chat workflow")) {
-							step("response_recovery", "A tool action was restricted by the security sandbox. Answering directly from conversation context with structured actions.")
+						if output == "" && ctx.Err() == nil && (strings.Contains(strings.ToLower(failure), "tool permission") || strings.Contains(strings.ToLower(failure), "action outside the chat workflow") || strings.Contains(strings.ToLower(failure), "could not be validated") || strings.Contains(strings.ToLower(failure), "tool budget")) {
+							step("response_recovery", "A tool or validation issue occurred. Answering directly from conversation context with structured actions.")
 							directCtx, directCancel := context.WithTimeout(ctx, 30*time.Second)
 							directCtx = context.WithValue(directCtx, inboxCoordinatorDirectKey{}, true)
 							directCtx = context.WithValue(directCtx, inboxSchemaRetryKey{}, true)

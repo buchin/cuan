@@ -18,14 +18,32 @@ type AGYAdapter struct {
 	binaryPath string
 }
 
+// ResolveAGYBinaryPath locates the agy executable in PATH or standard candidate directories.
+func ResolveAGYBinaryPath() (string, error) {
+	if bin, err := exec.LookPath("agy"); err == nil {
+		return bin, nil
+	}
+	for _, candidate := range []string{
+		"/home/dev/.local/bin/agy",
+		"/home/ubuntu/.local/bin/agy",
+		"/usr/local/bin/agy",
+		"/usr/bin/agy",
+	} {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("agy binary not found in PATH or standard candidate directories")
+}
+
 // NewAGYAdapter creates a new AGYAdapter, verifying the binary location.
 func NewAGYAdapter(customBinaryPath string) (*AGYAdapter, error) {
 	bin := customBinaryPath
 	if bin == "" {
 		var err error
-		bin, err = exec.LookPath("agy")
+		bin, err = ResolveAGYBinaryPath()
 		if err != nil {
-			return nil, fmt.Errorf("agy binary not found in PATH: %w", err)
+			return nil, fmt.Errorf("agy binary not found: %w", err)
 		}
 	}
 

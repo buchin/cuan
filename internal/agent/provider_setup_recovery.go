@@ -58,7 +58,7 @@ func FinishProviderAccountSetup(ctx context.Context, owner, id string, acceptTer
 		live.setup.accept()
 		done = live.Done
 	} else {
-		bin, err := exec.LookPath("agy")
+		bin, err := ResolveAGYBinaryPath()
 		if err != nil {
 			return errors.New("AI command is unavailable")
 		}
