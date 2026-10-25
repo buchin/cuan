@@ -100,11 +100,15 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 		copy.ContentLength = int64(len(raw))
 		return copy
 	}
+	targetProjectID := strings.TrimSpace(req.ProjectID)
+	if targetProjectID == "" && s.projectSvc != nil {
+		targetProjectID = s.resolveContextualProject(r.Context(), req.Goal)
+	}
 	topicResponse := &delegationResponse{header: make(http.Header)}
 	s.handleCreateAgentTopic(topicResponse, internal("/api/v1/chat/conversations", map[string]string{
 		"agent_id":   selected.ID,
 		"request_id": topicID,
-		"project_id": req.ProjectID,
+		"project_id": targetProjectID,
 	}))
 	if topicResponse.code != 200 {
 		w.WriteHeader(topicResponse.code)

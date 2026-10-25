@@ -503,12 +503,17 @@ func (r *SQLProjectStudioRepository) UpdateRoom(ctx context.Context, room *Proje
 	now := time.Now().UTC()
 	room.UpdatedAt = now
 
+	projectID := strings.TrimSpace(room.ProjectID)
+	if projectID == "" {
+		projectID = "default"
+	}
+
 	query := `
 		UPDATE project_rooms
-		SET title = $2, topic = $3, updated_at = $4
+		SET title = $2, topic = $3, project_id = $4, updated_at = $5
 		WHERE id = $1
 	`
-	res, err := r.db.ExecContext(ctx, query, room.ID, room.Title, room.Topic, room.UpdatedAt)
+	res, err := r.db.ExecContext(ctx, query, room.ID, room.Title, room.Topic, projectID, room.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("update project room: %w", err)
 	}
@@ -1469,6 +1474,9 @@ func (m *MemoryProjectStudioRepository) UpdateRoom(ctx context.Context, room *Pr
 
 	existing.Title = room.Title
 	existing.Topic = room.Topic
+	if strings.TrimSpace(room.ProjectID) != "" {
+		existing.ProjectID = room.ProjectID
+	}
 	existing.UpdatedAt = time.Now().UTC()
 	room.UpdatedAt = existing.UpdatedAt
 	return nil

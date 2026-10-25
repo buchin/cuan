@@ -743,5 +743,6 @@
   "Execution Settings": "Pengaturan pengerjaan",
   "Auto Project": "Project Otomatis",
   "Auto Agent": "Agen Otomatis",
-  "Reset ke Otomatis": "Reset ke Otomatis"
+  "Reset ke Otomatis": "Reset ke Otomatis",
+  "Cuan otomatis mendeteksi target project dari obrolan, atau menggunakan project default bila tidak disebutkan.": "Cuan otomatis mendeteksi target project dari obrolan, atau menggunakan project default bila tidak disebutkan."
 }

@@ -86,3 +86,32 @@ func TestStudioGoalTargetProjectBinding(t *testing.T) {
 		t.Fatalf("expected room project_id %q, got %q (err=%v)", p.ID, room.ProjectID, err)
 	}
 }
+
+func TestStudioGoalContextAwareProjectRouting(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	p, err := s.projectSvc.CreateManagedWorkspace(context.Background(), "proj_22223333444455556666777788889999", "Toko Sepatu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := db.GenerateUUID()
+	body, _ := json.Marshal(map[string]string{
+		"goal":       "Tolong tambahkan banner diskon di toko sepatu",
+		"request_id": id,
+		"project_id": "", // Auto mode!
+	})
+	w := call("POST", "/api/v1/studio/goals", string(body))
+	if w.Code != 202 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var accepted struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &accepted); err != nil || accepted.ConversationID == "" {
+		t.Fatal(err, w.Body.String())
+	}
+	waitInboxState(t, s, accepted.ConversationID, id, "completed")
+	room, err := s.projectStudioRepo.GetRoomByID(context.Background(), accepted.ConversationID)
+	if err != nil || room.ProjectID != p.ID {
+		t.Fatalf("expected contextual auto routing to bind project_id %q, got %q (err=%v)", p.ID, room.ProjectID, err)
+	}
+}

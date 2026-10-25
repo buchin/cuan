@@ -20,6 +20,55 @@ import (
 
 // Resolve only registered projects. Never interpret a path supplied in a message
 // as a workspace. Project rooms are pinned; direct messages may name a project.
+func (s *Server) resolveContextualProject(ctx context.Context, text string) string {
+	if s.projectSvc == nil || strings.TrimSpace(text) == "" {
+		return ""
+	}
+	projects, err := s.projectSvc.List(ctx)
+	if err != nil || len(projects) == 0 {
+		return ""
+	}
+	proseText := cuanURLRegex.ReplaceAllString(text, " ")
+	normalizedProse := strings.Map(func(r rune) rune {
+		if r == '-' || r == '_' {
+			return ' '
+		}
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return ' '
+		}
+		return unicode.ToLower(r)
+	}, proseText)
+	words := " " + strings.Join(strings.Fields(normalizedProse), " ") + " "
+
+	var matches []*project.ProjectResponse
+	for _, p := range projects {
+		if p.IsArchived || strings.EqualFold(p.ID, "default") {
+			continue
+		}
+		name := strings.ToLower(strings.TrimSpace(p.Name))
+		normName := strings.ReplaceAll(strings.ReplaceAll(name, "-", " "), "_", " ")
+		id := strings.ToLower(strings.TrimSpace(p.ID))
+		repoName := strings.ToLower(strings.TrimSpace(p.RepoName))
+		normRepoName := strings.ReplaceAll(strings.ReplaceAll(repoName, "-", " "), "_", " ")
+
+		isMatch := false
+		if normName != "" && strings.Contains(words, " "+normName+" ") {
+			isMatch = true
+		} else if id != "" && strings.Contains(words, " "+id+" ") {
+			isMatch = true
+		} else if normRepoName != "" && strings.Contains(words, " "+normRepoName+" ") {
+			isMatch = true
+		}
+		if isMatch {
+			matches = append(matches, p)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0].ID
+	}
+	return ""
+}
+
 func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (string, string) {
 	if s.projectSvc == nil {
 		return "", "Project data is unavailable. Explain this limitation when relevant; analysis does not require a task."
@@ -97,16 +146,26 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 				}
 			}
 			if selected == nil && len(bound) == 0 {
-				var withRepo []*project.ProjectResponse
-				for _, p := range active {
-					if p.LocalPath != "" {
-						withRepo = append(withRepo, p)
+				if room != nil && room.ProjectID != "" && room.ProjectID != "default" {
+					for _, p := range active {
+						if p.ID == room.ProjectID {
+							selected = p
+							break
+						}
 					}
 				}
-				if len(withRepo) == 1 {
-					selected = withRepo[0]
-				} else if len(active) == 1 {
-					selected = active[0]
+				if selected == nil {
+					var withRepo []*project.ProjectResponse
+					for _, p := range active {
+						if p.LocalPath != "" {
+							withRepo = append(withRepo, p)
+						}
+					}
+					if len(withRepo) == 1 {
+						selected = withRepo[0]
+					} else if len(active) == 1 {
+						selected = active[0]
+					}
 				}
 			}
 		}

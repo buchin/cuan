@@ -230,7 +230,7 @@ export function StudioExecutionSelector({
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
                         {t(
-                          'Cuan otomatis mengarahkan ke project default atau menyiapkan workspace baru sesuai rencana.',
+                          'Cuan otomatis mendeteksi target project dari obrolan, atau menggunakan project default bila tidak disebutkan.',
                         )}
                       </p>
                     </div>
