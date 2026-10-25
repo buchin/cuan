@@ -58,6 +58,9 @@ export interface ChatMessage {
   attachment_size?: number
   has_attachment?: boolean
   action_card?: AgentActionCard
+  is_internal?: boolean
+  mention_handle?: string
+  reply_draft?: string
   created_at: string
 }
 

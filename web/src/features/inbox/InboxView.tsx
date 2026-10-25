@@ -47,6 +47,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronDown,
+  EyeOff,
+  Lock,
 } from 'lucide-react'
 import { Task } from '../../api/types'
 import './chat-whatsapp.css'
@@ -1164,9 +1166,21 @@ export function InboxView({
                       className={cn(
                         'wa-message-bubble relative min-w-0',
                         msg.uuid === requestedMessageId && 'ring-2 ring-ring',
+                        msg.is_internal && 'ring-1 ring-amber-500/40 border border-amber-500/30',
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
+                      {msg.is_internal && (
+                        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full w-fit">
+                          <EyeOff className="h-3 w-3" />
+                          <span>{t('Internal · Invisible to visitor')}</span>
+                          {msg.mention_handle && (
+                            <span className="font-semibold text-foreground bg-background/60 px-1 rounded ml-0.5">
+                              {msg.mention_handle}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {msg.approval_title && (
                         <p className="mb-2 text-xs font-medium">
                           {t(msg.approval_accepted ? 'Approved' : msg.plan_deferred ? 'Saved for later' : 'Needs approval')}
@@ -1202,6 +1216,36 @@ export function InboxView({
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
                           <span>{msg.content || msg.message}</span>
                           {metadata}
+                        </div>
+                      )}
+
+                      {/* Ready-to-Use Customer Draft Reply Card */}
+                      {msg.reply_draft && (
+                        <div className="mt-3 p-3 rounded-xl bg-card border border-primary/30 shadow-xs text-foreground space-y-2">
+                          <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
+                            <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              <span>{t('Customer reply draft · Not sent yet')}</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setInputMessage(msg.reply_draft || '')
+                                textareaRef.current?.focus()
+                                if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                              }}
+                              className="h-7 text-xs font-medium px-2.5 py-1 gap-1 cursor-pointer"
+                            >
+                              <Send className="h-3 w-3" />
+                              <span>{t('Review & Use')}</span>
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground italic bg-muted/40 p-2.5 rounded-lg border border-border/40 whitespace-pre-wrap leading-relaxed">
+                            "{msg.reply_draft}"
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {t('Click "Review & Use" to load into the message composer for the visitor.')}
+                          </p>
                         </div>
                       )}
 
@@ -1497,6 +1541,52 @@ export function InboxView({
               onDragOver={uploads.onDragOver}
             >
               <div className="mx-auto max-w-4xl space-y-2">
+                {activeContact.type === 'customer' && (
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 px-1.5 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
+                        <Lock className="h-3 w-3 text-amber-500" />
+                        {t('Whisper AI:')}
+                      </span>
+                      {[
+                        { handle: '@team', label: '@team (Auto)' },
+                        { handle: '@sm', label: '@sm (Scrum Master)' },
+                        { handle: '@dev', label: '@dev (Developer)' },
+                      ].map((item) => {
+                        const isSelected = inputMessage.toLowerCase().startsWith(item.handle)
+                        return (
+                          <button
+                            key={item.handle}
+                            type="button"
+                            onClick={() => {
+                              const trimmed = inputMessage.trim()
+                              const next = trimmed
+                                ? `${item.handle} ${trimmed.replace(/^@(team|sm|dev)\s*/i, '')}`
+                                : `${item.handle} `
+                              setInputMessage(next)
+                              textareaRef.current?.focus()
+                              if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                            }}
+                            className={cn(
+                              'rounded-full px-2 py-0.5 text-[11px] font-medium border transition-colors cursor-pointer',
+                              isSelected
+                                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 font-semibold shadow-xs'
+                                : 'bg-muted/60 text-muted-foreground hover:text-foreground border-border/60 hover:bg-muted'
+                            )}
+                          >
+                            {item.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {inputMessage.trim().startsWith('@') && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold inline-flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        <EyeOff className="h-3 w-3" />
+                        {t('Internal · Invisible to visitor')}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {activeContact.type === 'agent' && (
                   <AttachmentPreviews uploads={uploads} disabled={sending} />
                 )}
@@ -1530,7 +1620,9 @@ export function InboxView({
                     placeholder={
                       activeContact.type === 'agent'
                         ? t('Write a message…')
-                        : `Reply to ${activeContact.name}…`
+                        : inputMessage.trim().startsWith('@')
+                        ? t('Whisper to AI team (invisible to visitor)…')
+                        : `Reply to ${activeContact.name} or type @team to whisper AI…`
                     }
                     className={`wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug ${
                       activeContact.type === 'agent'
@@ -1564,10 +1656,14 @@ export function InboxView({
                       uploads.busy
                     }
                     className="wa-send h-9 w-9 sm:h-9.5 sm:w-9.5 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5"
-                    title={t('Send message (Enter)')}
-                    aria-label={t('Send message')}
+                    title={inputMessage.trim().startsWith('@') ? t('Send internal whisper to AI') : t('Send message (Enter)')}
+                    aria-label={inputMessage.trim().startsWith('@') ? t('Send internal whisper to AI') : t('Send message')}
                   >
-                    <Send className="h-[18px] w-[18px]" />
+                    {inputMessage.trim().startsWith('@') ? (
+                      <Lock className="h-4 w-4" />
+                    ) : (
+                      <Send className="h-[18px] w-[18px]" />
+                    )}
                   </button>
                 </div>
               </div>

@@ -571,3 +571,187 @@ func TestInboxUnreadCountAndSystemEvents(t *testing.T) {
 		t.Fatalf("expected 1 unread after new system event, got %d", resp4.Contacts[0].UnreadCount)
 	}
 }
+
+func TestChatHandlers_WhisperMentionAndDraftReply(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// 1. Visitor initializes chat session
+	sessionPayload := map[string]string{
+		"guest_uuid": cuanDB.GenerateUUID(),
+		"name":       "Visitor Joko",
+		"email":      "joko@example.com",
+		"product":    "Dojo Store",
+		"message":    "Min, tombol checkout error 500 saat diklik.",
+	}
+	bSession, _ := json.Marshal(sessionPayload)
+	reqSession := httptest.NewRequest(http.MethodPost, "/api/chat/session", bytes.NewReader(bSession))
+	recSession := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recSession, reqSession)
+	if recSession.Code != http.StatusOK {
+		t.Fatalf("expected 200 for visitor session, got %d", recSession.Code)
+	}
+
+	var sessResp struct {
+		OK      bool             `json:"ok"`
+		Session *LiveChatSession `json:"session"`
+	}
+	_ = json.Unmarshal(recSession.Body.Bytes(), &sessResp)
+	sessionUUID := sessResp.Session.UUID
+
+	// 2. Operator sends internal whisper mention: @team
+	whisperPayload := map[string]interface{}{
+		"message":     "@team tolong bantu fix error 500 di tombol checkout ini",
+		"author_type": "user",
+		"author_name": "Support Lead",
+	}
+	bWhisper, _ := json.Marshal(whisperPayload)
+	reqWhisper := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+sessionUUID+"/messages", bytes.NewReader(bWhisper))
+	reqWhisper.Header.Set("Authorization", "Bearer "+token)
+	reqWhisper.Header.Set("Content-Type", "application/json")
+	recWhisper := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recWhisper, reqWhisper)
+	if recWhisper.Code != http.StatusOK && recWhisper.Code != http.StatusAccepted && recWhisper.Code != http.StatusBadGateway {
+		t.Fatalf("expected 200, 202 or 502 for whisper message, got %d: %s", recWhisper.Code, recWhisper.Body.String())
+	}
+
+	// 3. Operator fetches internal conversation messages
+	reqInternal := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+sessionUUID+"/messages", nil)
+	reqInternal.Header.Set("Authorization", "Bearer "+token)
+	recInternal := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInternal, reqInternal)
+	if recInternal.Code != http.StatusOK {
+		t.Fatalf("expected 200 for internal messages, got %d", recInternal.Code)
+	}
+	var internalResp struct {
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	_ = json.Unmarshal(recInternal.Body.Bytes(), &internalResp)
+
+	var foundWhisper *ChatMessageDTO
+	for _, m := range internalResp.Messages {
+		if strings.Contains(m.Message, "@team") {
+			mCopy := m
+			foundWhisper = &mCopy
+			break
+		}
+	}
+	if foundWhisper == nil {
+		t.Fatalf("expected whisper message with @team in internal messages")
+	}
+	if !foundWhisper.IsInternal {
+		t.Fatalf("expected whisper message to be marked is_internal=true")
+	}
+	if foundWhisper.MentionHandle != "@team" {
+		t.Fatalf("expected mention_handle to be @team, got: %s", foundWhisper.MentionHandle)
+	}
+
+	// 4. Visitor polls messages: MUST NOT receive the whisper
+	reqVisPoll := httptest.NewRequest(http.MethodGet, "/api/chat/messages?session_uuid="+sessionUUID+"&after_id=1", nil)
+	recVisPoll := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recVisPoll, reqVisPoll)
+	if recVisPoll.Code != http.StatusOK {
+		t.Fatalf("expected 200 for visitor polling, got %d", recVisPoll.Code)
+	}
+	var visPollResp struct {
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	_ = json.Unmarshal(recVisPoll.Body.Bytes(), &visPollResp)
+	for _, m := range visPollResp.Messages {
+		if strings.Contains(m.Message, "@team") || m.IsInternal {
+			t.Fatalf("visitor received internal whisper message: %+v", m)
+		}
+	}
+
+	// 5. Test ready-to-use customer draft reply extraction
+	agentReplyContent := `Here is a proposed plan for your request:
+
+**Problem Statement:**
+Fix checkout 500 error
+
+**Execution plan & definition of done:**
+1. Investigate error
+2. Fix checkout handler
+3. Run test
+
+**Draf Balasan untuk Pengunjung:**
+> "Halo Kak, terima kasih sudah menunggu. Kendala checkout sudah kami perbaiki dan sudah live kembali. Silakan dicoba ya kak! 🙏"
+
+**Recommended worker agent:** antigravity-flash.`
+
+	draft := extractCustomerReplyDraft(agentReplyContent)
+	if !strings.Contains(draft, "Kendala checkout sudah kami perbaiki") {
+		t.Fatalf("expected draft to be extracted, got: %q", draft)
+	}
+
+	// Inject SM message with draft
+	_ = srv.projectStudioRepo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     sessionUUID,
+		AuthorType: "agent",
+		AuthorID:   "agent_sm",
+		AuthorName: "Scrum Master",
+		Content:    agentReplyContent,
+	})
+
+	// Fetch internal messages again to verify ReplyDraft field
+	recInternal2 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInternal2, reqInternal)
+	_ = json.Unmarshal(recInternal2.Body.Bytes(), &internalResp)
+	var foundAgentReply *ChatMessageDTO
+	for _, m := range internalResp.Messages {
+		if m.AuthorType == "agent" && strings.Contains(m.Message, "Draf Balasan") {
+			mCopy := m
+			foundAgentReply = &mCopy
+			break
+		}
+	}
+	if foundAgentReply == nil {
+		t.Fatalf("expected agent reply in internal messages")
+	}
+	if !foundAgentReply.IsInternal {
+		t.Fatalf("expected agent reply in customer room to be is_internal=true")
+	}
+	if foundAgentReply.ReplyDraft == "" || !strings.Contains(foundAgentReply.ReplyDraft, "Kendala checkout sudah kami perbaiki") {
+		t.Fatalf("expected foundAgentReply.ReplyDraft to be populated, got: %q", foundAgentReply.ReplyDraft)
+	}
+
+	// Visitor MUST NOT receive the agent's internal DoD reply
+	recVisPoll2 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recVisPoll2, reqVisPoll)
+	_ = json.Unmarshal(recVisPoll2.Body.Bytes(), &visPollResp)
+	for _, m := range visPollResp.Messages {
+		if m.AuthorType == "agent" || m.IsInternal {
+			t.Fatalf("visitor received agent internal reply: %+v", m)
+		}
+	}
+
+	// 6. Operator uses the draft to reply publicly to visitor
+	pubReplyPayload := map[string]interface{}{
+		"message":     foundAgentReply.ReplyDraft,
+		"author_type": "user",
+		"author_name": "Support Lead",
+	}
+	bPub, _ := json.Marshal(pubReplyPayload)
+	reqPub := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+sessionUUID+"/messages", bytes.NewReader(bPub))
+	reqPub.Header.Set("Authorization", "Bearer "+token)
+	reqPub.Header.Set("Content-Type", "application/json")
+	recPub := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recPub, reqPub)
+
+	// Visitor polls again: MUST receive the public reply!
+	recVisPoll3 := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recVisPoll3, reqVisPoll)
+	_ = json.Unmarshal(recVisPoll3.Body.Bytes(), &visPollResp)
+	var visitorReceivedReply bool
+	for _, m := range visPollResp.Messages {
+		if strings.Contains(m.Message, "Kendala checkout sudah kami perbaiki") {
+			visitorReceivedReply = true
+			if m.IsInternal {
+				t.Fatalf("visitor public reply must not be internal")
+			}
+		}
+	}
+	if !visitorReceivedReply {
+		t.Fatalf("expected visitor to receive public reply drafted by Scrum Master")
+	}
+}

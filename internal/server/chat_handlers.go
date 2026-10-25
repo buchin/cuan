@@ -77,6 +77,9 @@ type ChatMessageDTO struct {
 	HasAttachment      bool                     `json:"has_attachment,omitempty"`
 	ActionCard         *AgentActionCard         `json:"action_card,omitempty"`
 	TaskDraft          *InboxTaskDraft          `json:"task_draft,omitempty"`
+	IsInternal         bool                     `json:"is_internal"`
+	MentionHandle      string                   `json:"mention_handle,omitempty"`
+	ReplyDraft         string                   `json:"reply_draft,omitempty"`
 	CreatedAt          time.Time                `json:"created_at"`
 }
 
@@ -300,7 +303,7 @@ func (s *Server) handleVisitorGetMessages(w http.ResponseWriter, r *http.Request
 	allMessages := s.getFormattedMessages(r.Context(), sessionUUID, product)
 	filtered := make([]ChatMessageDTO, 0)
 	for _, m := range allMessages {
-		if m.ID > afterID {
+		if m.ID > afterID && !m.IsInternal {
 			filtered = append(filtered, m)
 		}
 	}
@@ -823,6 +826,62 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 						break
 					}
 				}
+				// Special reserved handles: @team or @sm (Scrum Master) or @dev (Developer)
+				if !result.IsAgent {
+					mLower := strings.ToLower(mention)
+					if mLower == "@team" || mLower == "@sm" {
+						for _, a := range ags {
+							roleLower := strings.ToLower(a.Role)
+							nameLower := strings.ToLower(a.Name)
+							if strings.Contains(roleLower, "scrum") || strings.Contains(nameLower, "scrum") || strings.Contains(nameLower, "sm") {
+								result.TargetAgentID = a.ID
+								result.TargetAgentName = a.Name
+								result.TargetHarness = a.Harness
+								result.IsAgent = true
+								break
+							}
+						}
+						// If still not matched, pick first active enabled agent for @team
+						if !result.IsAgent {
+							for _, a := range ags {
+								if a.Enabled {
+									result.TargetAgentID = a.ID
+									result.TargetAgentName = a.Name
+									result.TargetHarness = a.Harness
+									result.IsAgent = true
+									break
+								}
+							}
+						}
+					} else if mLower == "@dev" {
+						for _, a := range ags {
+							roleLower := strings.ToLower(a.Role)
+							nameLower := strings.ToLower(a.Name)
+							if strings.Contains(roleLower, "dev") || strings.Contains(nameLower, "dev") || strings.Contains(nameLower, "worker") {
+								result.TargetAgentID = a.ID
+								result.TargetAgentName = a.Name
+								result.TargetHarness = a.Harness
+								result.IsAgent = true
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+		// Fallback for default Scrum Master if not yet registered in agentRepo
+		if !result.IsAgent {
+			mLower := strings.ToLower(mention)
+			if mLower == "@team" || mLower == "@sm" {
+				result.TargetAgentID = "agent_sm"
+				result.TargetAgentName = "Scrum Master"
+				result.TargetHarness = "agy"
+				result.IsAgent = true
+			} else if mLower == "@dev" {
+				result.TargetAgentID = "agent_dev"
+				result.TargetAgentName = "Dev Worker"
+				result.TargetHarness = "agy"
+				result.IsAgent = true
 			}
 		}
 	}
@@ -1310,6 +1369,71 @@ func (s *Server) handleChatWidgetJS(w http.ResponseWriter, r *http.Request) {
 // HELPER METHODS
 // ============================================================================
 
+// isCustomerRoom returns true if the given room represents a visitor/customer session.
+func (s *Server) isCustomerRoom(ctx context.Context, roomID string) bool {
+	if roomID == "" {
+		return false
+	}
+	if sess, err := s.crmSession(ctx, roomID); err == nil && sess != nil {
+		return true
+	}
+	if s.projectStudioRepo != nil {
+		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, roomID); err == nil && rm != nil {
+			if strings.HasPrefix(rm.Topic, "agent:") || strings.HasPrefix(rm.Topic, "agent-topic:") || rm.ID == defaultScrumMasterRoomID || rm.ID == defaultAntigravityRoomID {
+				return false
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// extractCustomerReplyDraft parses a ready-to-use customer response draft from agent content.
+func extractCustomerReplyDraft(content string) string {
+	lower := strings.ToLower(content)
+	markers := []string{
+		"**draf balasan untuk pengunjung:**",
+		"**draft balasan untuk pengunjung:**",
+		"**draf balasan pengunjung:**",
+		"**draft balasan pengunjung:**",
+		"**draf balasan:**",
+		"**draft balasan:**",
+		"**customer reply draft:**",
+		"draf balasan untuk pengunjung:",
+		"draft balasan untuk pengunjung:",
+		"draf balasan pengunjung:",
+		"draft balasan pengunjung:",
+		"balasan siap pakai:",
+	}
+	for _, marker := range markers {
+		idx := strings.Index(lower, marker)
+		if idx != -1 {
+			remainder := strings.TrimSpace(content[idx+len(marker):])
+			lines := strings.Split(remainder, "\n")
+			var draftLines []string
+			for _, l := range lines {
+				trimmed := strings.TrimSpace(l)
+				if trimmed == "" && len(draftLines) == 0 {
+					continue
+				}
+				if strings.HasPrefix(trimmed, "**") || strings.HasPrefix(trimmed, "##") || strings.HasPrefix(trimmed, "---") {
+					break
+				}
+				cleanLine := strings.TrimPrefix(trimmed, ">")
+				cleanLine = strings.TrimSpace(cleanLine)
+				cleanLine = strings.Trim(cleanLine, "\"")
+				if cleanLine != "" {
+					draftLines = append(draftLines, cleanLine)
+				}
+			}
+			if len(draftLines) > 0 {
+				return strings.Join(draftLines, " ")
+			}
+		}
+	}
+	return ""
+}
+
 func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string) []ChatMessageDTO {
 	messages, _ := s.getFormattedMessagesResult(ctx, roomID, product)
 	return messages
@@ -1327,6 +1451,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		return []ChatMessageDTO{}, nil
 	}
 
+	isCustomer := s.isCustomerRoom(ctx, roomID)
 	approved := map[string]bool{}
 	deferred := map[string]bool{}
 	for _, m := range rawMsgs {
@@ -1346,6 +1471,19 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		if m.AuthorType == "agent" || m.AuthorType == "system" {
 			senderType = "operator"
 		}
+
+		mention := extractMentionHandle(m.Content)
+		isInternal := false
+		if isCustomer {
+			if mention != "" {
+				isInternal = true
+			} else if m.AuthorType == "system" {
+				isInternal = true
+			} else if m.AuthorType == "agent" && m.AuthorID != "operator_user" {
+				isInternal = true
+			}
+		}
+		replyDraft := extractCustomerReplyDraft(m.Content)
 
 		var actionCard *AgentActionCard
 		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
@@ -1399,6 +1537,9 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			Product:         product,
 			ActionCard:      actionCard,
 			TaskDraft:       draft,
+			IsInternal:      isInternal,
+			MentionHandle:   mention,
+			ReplyDraft:      replyDraft,
 			ApprovalTitle:   approvalTitle,
 			ApprovalPlan:    approvalPlan,
 			Attachments:     attached,
@@ -1476,6 +1617,11 @@ func generateSMTriageResponse(userMessage string) SMTriageResult {
 		}
 	}
 
+	draftReply := "Halo Kak, terima kasih sudah menghubungi kami. Tim kami sedang menindaklanjuti kendala ini dan segera memperbaikinya. Mohon ditunggu ya! 🙏"
+	if strings.Contains(lowerPrompt, "fix") || strings.Contains(lowerPrompt, "perbaiki") || strings.Contains(lowerPrompt, "bug") || strings.Contains(lowerPrompt, "error") {
+		draftReply = "Halo Kak, terima kasih laporannya. Tim kami sedang memeriksa dan memperbaiki kendala tersebut. Kami kabari segera setelah selesai ya!"
+	}
+
 	respText := fmt.Sprintf(`Here is a proposed plan for your request:
 
 **Problem Statement:**
@@ -1486,8 +1632,11 @@ func generateSMTriageResponse(userMessage string) SMTriageResult {
 2. %s
 3. %s
 
+**Draf Balasan untuk Pengunjung:**
+> "%s"
+
 **Recommended worker agent:** %s (check quota before starting).
-Select **Approve and start task** below to begin execution.`, title, dodList[0].Text, dodList[1].Text, dodList[2].Text, worker)
+Select **Approve and start task** below to begin execution.`, title, dodList[0].Text, dodList[1].Text, dodList[2].Text, draftReply, worker)
 
 	return SMTriageResult{
 		ProblemTitle: title,

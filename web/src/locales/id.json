@@ -781,5 +781,12 @@
   "+ Create or connect project…": "+ Buat atau hubungkan project…",
   "Create or connect a project (optional)": "Buat atau hubungkan project (opsional)",
   "Select a project from the left or create a new workspace.": "Pilih project dari menu kiri atau buat ruang kerja baru.",
-  "read-only": "hanya-baca"
+  "read-only": "hanya-baca",
+  "Customer reply draft · Not sent yet": "Draf balasan untuk pengunjung · Belum dikirim",
+  "Review & Use": "Review & Gunakan",
+  "Ready-to-Use Customer Reply": "Balasan Siap Pakai untuk Pengunjung",
+  "Click \"Review & Use\" to load into the message composer for the visitor.": "Klik \"Review & Gunakan\" untuk memasukkan ke kotak pesan pengunjung.",
+  "Whisper AI:": "Bisikkan ke AI:",
+  "Whisper to AI team (invisible to visitor)…": "Bisikkan ke tim AI (tidak terlihat oleh pengunjung)…",
+  "Send internal whisper to AI": "Kirim bisikan internal ke AI"
 }
