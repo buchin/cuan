@@ -12,6 +12,8 @@ import (
 // persisted approval, project, cancellation and task launch checks still apply.
 const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["approval","delegation","memory","memory_search","task_draft","task_cancel","task_reopen"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
+const inboxAnalysisRecoverySchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string","enum":[""]},"action":{"type":"null"}},"required":["reply","topic_title","action"],"additionalProperties":false}`
+
 const inboxCoordinatorInstruction = `You coordinate Cuan conversations as Scrum Master. Return only one JSON object matching the response schema. Do not implement work with native tools, provider artifacts, temporary files or commands. Implementation and file delivery belong exclusively to application-managed task sessions. Technical diagnosis and project analysis are part of your role. Use the supplied conversation, recorded request outcomes, and task evidence first.
 
 READ-ONLY CODE & COMPONENT INSPECTION:
@@ -154,13 +156,15 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 		return "", bad
 	}
 	raw = strings.TrimSpace(raw)
-	if strings.HasPrefix(raw, "```json\n") {
-		end := strings.Index(raw[len("```json\n"):], "```")
-		if end < 0 {
-			return "", bad
+	if strings.HasPrefix(raw, "```json") {
+		newline := strings.IndexByte(raw, '\n')
+		if newline > 0 {
+			end := strings.Index(raw[newline+1:], "```")
+			if end >= 0 {
+				end += newline + 1
+				raw = strings.TrimSpace(raw[newline+1:end] + "\n" + raw[end+3:])
+			}
 		}
-		end += len("```json\n")
-		raw = raw[len("```json\n"):end] + "\n" + raw[end+3:]
 	}
 	d := json.NewDecoder(strings.NewReader(raw))
 	var firstRaw json.RawMessage

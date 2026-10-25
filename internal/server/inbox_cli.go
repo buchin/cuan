@@ -110,6 +110,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 				if strings.HasPrefix(cleanRaw, "```json") {
 					cleanRaw = strings.TrimPrefix(cleanRaw, "```json")
 					cleanRaw = strings.TrimPrefix(cleanRaw, "\n")
+					cleanRaw = strings.TrimPrefix(cleanRaw, "\r\n")
 					if idx := strings.LastIndex(cleanRaw, "```"); idx != -1 {
 						cleanRaw = cleanRaw[:idx]
 					}
@@ -170,6 +171,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
+		} else if analysisRecovery {
+			args = append(args, "--json-schema", inboxAnalysisRecoverySchema)
 		} else if coordinator {
 			args = append(args, "--json-schema", inboxCoordinatorSchema)
 		}

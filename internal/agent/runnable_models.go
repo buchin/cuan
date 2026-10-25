@@ -82,7 +82,7 @@ func nativeAccountModelCatalog(ctx context.Context, owner, id string) (map[strin
 	if err != nil {
 		return nil, false
 	}
-	binary, err := exec.LookPath("agy")
+	binary, err := ResolveAGYBinaryPath()
 	if err != nil {
 		return nil, false
 	}
