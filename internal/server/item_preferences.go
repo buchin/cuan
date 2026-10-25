@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"github.com/buchin/cuan/internal/db"
 )
 
 var itemPreferencesMu sync.Mutex
@@ -95,13 +97,28 @@ func (s *Server) handleItemPreferences(w http.ResponseWriter, r *http.Request) {
 		Archived *bool      `json:"archived"`
 		Read     *bool      `json:"read"`
 		SeenAt   *time.Time `json:"seen_at"`
+		All      *bool      `json:"all"`
+		IDs      []string   `json:"ids"`
 	}
 	if r.Method == http.MethodPatch {
-		d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
+		d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536))
 		d.DisallowUnknownFields()
-		if d.Decode(&req) != nil || req.ID == "" || len(req.ID) > 200 || strings.IndexFunc(req.ID, unicode.IsControl) >= 0 || (req.Archived == nil && req.Read == nil) || (req.Read != nil && kind != "conversation") {
+		if err := d.Decode(&req); err != nil {
 			respondJSONError(w, 400, "Choose an item and whether to archive it")
 			return
+		}
+		isAll := req.All != nil && *req.All
+		isBatch := len(req.IDs) > 0
+		if !isAll && !isBatch {
+			if req.ID == "" || len(req.ID) > 200 || strings.IndexFunc(req.ID, unicode.IsControl) >= 0 || (req.Archived == nil && req.Read == nil) || (req.Read != nil && kind != "conversation") {
+				respondJSONError(w, 400, "Choose an item and whether to archive it")
+				return
+			}
+		} else {
+			if req.Read == nil || kind != "conversation" {
+				respondJSONError(w, 400, "Batch update only supports marking conversations as read")
+				return
+			}
 		}
 	}
 	itemPreferencesMu.Lock()
@@ -112,40 +129,91 @@ func (s *Server) handleItemPreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodPatch {
-		key := kind + ":" + req.ID
+		isAll := req.All != nil && *req.All
+		isBatch := len(req.IDs) > 0
 
-		if len(all) >= 20000 {
-			if _, exists := all[key]; !exists {
-				respondJSONError(w, 409, "Too many saved items. Restore some items first.")
-				return
-			}
-		}
-		value := all[key]
-		if req.Archived != nil {
-			if *req.Archived {
-				value.ArchivedAt = time.Now().UTC().Format(time.RFC3339Nano)
-			} else {
-				value.ArchivedAt = ""
-			}
-		}
-		if req.Read != nil {
-			value.Unread = !*req.Read
-			if *req.Read {
-				seen := time.Now().UTC()
-				if req.SeenAt != nil && req.SeenAt.Before(seen) {
-					seen = req.SeenAt.UTC()
+		if isAll {
+			now := time.Now().UTC()
+			nowStr := now.Format(time.RFC3339Nano)
+			for k, v := range all {
+				if strings.HasPrefix(k, "conversation:") {
+					v.Unread = false
+					v.ReadAt = nowStr
+					all[k] = v
 				}
-				previous, _ := time.Parse(time.RFC3339Nano, value.ReadAt)
-				if previous.After(seen) {
-					seen = previous
-				}
-				value.ReadAt = seen.Format(time.RFC3339Nano)
 			}
-		}
-		if value.ArchivedAt == "" && value.ReadAt == "" && !value.Unread {
-			delete(all, key)
+			if s.projectStudioRepo != nil {
+				if rooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+					for _, rm := range rooms {
+						k := "conversation:" + rm.ID
+						v := all[k]
+						v.Unread = false
+						v.ReadAt = nowStr
+						all[k] = v
+					}
+				}
+			}
+			if s.agentRepo != nil {
+				if agents, err := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{}); err == nil {
+					for _, a := range agents {
+						k := "conversation:" + a.ID
+						v := all[k]
+						v.Unread = false
+						v.ReadAt = nowStr
+						all[k] = v
+					}
+				}
+			}
+		} else if isBatch {
+			now := time.Now().UTC()
+			nowStr := now.Format(time.RFC3339Nano)
+			for _, id := range req.IDs {
+				if id == "" || len(id) > 200 || strings.IndexFunc(id, unicode.IsControl) >= 0 {
+					continue
+				}
+				key := kind + ":" + id
+				value := all[key]
+				value.Unread = !*req.Read
+				if *req.Read {
+					value.ReadAt = nowStr
+				}
+				all[key] = value
+			}
 		} else {
-			all[key] = value
+			key := kind + ":" + req.ID
+			if len(all) >= 20000 {
+				if _, exists := all[key]; !exists {
+					respondJSONError(w, 409, "Too many saved items. Restore some items first.")
+					return
+				}
+			}
+			value := all[key]
+			if req.Archived != nil {
+				if *req.Archived {
+					value.ArchivedAt = time.Now().UTC().Format(time.RFC3339Nano)
+				} else {
+					value.ArchivedAt = ""
+				}
+			}
+			if req.Read != nil {
+				value.Unread = !*req.Read
+				if *req.Read {
+					seen := time.Now().UTC()
+					if req.SeenAt != nil && req.SeenAt.Before(seen) {
+						seen = req.SeenAt.UTC()
+					}
+					previous, _ := time.Parse(time.RFC3339Nano, value.ReadAt)
+					if previous.After(seen) {
+						seen = previous
+					}
+					value.ReadAt = seen.Format(time.RFC3339Nano)
+				}
+			}
+			if value.ArchivedAt == "" && value.ReadAt == "" && !value.Unread {
+				delete(all, key)
+			} else {
+				all[key] = value
+			}
 		}
 
 		if err = writeItemPreferences(owner, all); err != nil {

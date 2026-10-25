@@ -8,7 +8,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive } from 'lucide-react'
+import { Search, Bot, User, Archive, CheckCheck } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-whatsapp.css'
 
@@ -91,6 +91,23 @@ export function InboxSubPanel({
   const agentCount = contacts.filter((c) => c.type === 'agent').length
   const customerCount = contacts.filter((c) => c.type === 'customer').length
 
+  const [markingAll, setMarkingAll] = useState(false)
+  const totalUnreadCount = contacts.reduce(
+    (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
+    0
+  )
+  const handleMarkAllRead = async () => {
+    if (markingAll) return
+    setMarkingAll(true)
+    try {
+      await archive.markAllRead()
+    } catch {
+      // ignore
+    } finally {
+      setMarkingAll(false)
+    }
+  }
+
   const filteredContacts = contacts.filter((c) => {
     if (archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at) !== showArchived) return false
     if (activeTab === 'agents' && c.type !== 'agent') return false
@@ -130,7 +147,13 @@ export function InboxSubPanel({
       <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1">
         <ListCreateAction label="New message" kind="inbox" onClick={onNewMessage} />
         {/* Search Bar */}
-        <ItemActions label="Inbox" actions={[{ label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') }]}>
+        <ItemActions
+          label="Inbox"
+          actions={[
+            ...(totalUnreadCount > 0 ? [{ label: t('Mark all as read'), run: handleMarkAllRead }] : []),
+            { label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') },
+          ]}
+        >
         <div className="relative">
           <Search className="absolute left-2.5 top-3.5 h-3.5 w-3.5 text-muted-foreground" />
           <input
@@ -190,6 +213,22 @@ export function InboxSubPanel({
             <Archive className="h-4 w-4" aria-hidden="true" />
             {contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length > 0 && <span>{contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length}</span>}
           </button>
+          {totalUnreadCount > 0 && (
+            <button
+              type="button"
+              disabled={markingAll}
+              aria-label={t('Mark all as read')}
+              title={t('Mark all as read')}
+              onClick={handleMarkAllRead}
+              className={cn(
+                'min-h-11 min-w-11 flex items-center justify-center gap-1 border-b-2 text-xs border-transparent text-muted-foreground hover:text-primary transition-colors',
+                markingAll && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <CheckCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+              <span className="sr-only">{t('Mark all as read')}</span>
+            </button>
+          )}
         </div>
       </div>
 

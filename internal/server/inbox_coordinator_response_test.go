@@ -335,3 +335,18 @@ func TestCoordinatorResponseSynthesizesApprovalForAutonomousAnalysisSession(t *t
 		t.Errorf("expected title 'Sesi Analisis Mandiri', got %q", plan.Title)
 	}
 }
+
+func TestCoordinatorAdvisoryModeAllowsNullActionForComponentQuestions(t *testing.T) {
+	advice := "Setelah memeriksa struktur UI di `features/inbox/`, lokasi penempatan terbaik untuk tombol **Mark all as read** adalah di Header Sub-Panel Inbox, persis di sebelah tombol Archive (baris 188) atau di dalam menu dropdown titik tiga ItemActions."
+	raw := coordinatorJSON(advice, "", nil)
+	out, err := decodeInboxCoordinatorResponse(raw)
+	if err != nil {
+		t.Fatalf("unexpected error decoding advisory response: %v", err)
+	}
+	if strings.Contains(out, "cuan-approval") || strings.Contains(out, "cuan-delegate") {
+		t.Fatalf("expected advisory mode to return clean chat reply without synthesized work markers, got %s", out)
+	}
+	if !strings.Contains(out, "Header Sub-Panel Inbox") {
+		t.Errorf("expected advice text to be preserved, got %s", out)
+	}
+}

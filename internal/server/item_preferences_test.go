@@ -146,3 +146,78 @@ func TestItemPreferencesRetainReadArchiveAndOwnerIsolation(t *testing.T) {
 		t.Fatal("corrupt state lost")
 	}
 }
+
+func TestItemPreferencesBatchMarkAllRead(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s, token := setupTestChatServer(t)
+	call := func(method, path, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, path, strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		return w
+	}
+	url := "/api/v1/item-preferences?kind=conversation"
+
+	// Create 2 fixture rooms with unread messages
+	room1 := db.GenerateUUID()
+	room2 := db.GenerateUUID()
+	for _, id := range []string{room1, room2} {
+		if err := s.projectStudioRepo.CreateRoom(context.Background(), &db.ProjectRoom{
+			ID: id, ProjectID: "default", Title: "Room " + id[:4], Topic: "visitor", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.projectStudioRepo.CreateMessage(context.Background(), &db.ProjectMessage{
+			ID: db.GenerateUUID(), RoomID: id, AuthorType: "user", Content: "Hello unread", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Verify both rooms have unread messages in contacts
+	w := call("GET", "/api/v1/chat/contacts", "")
+	if w.Code != 200 {
+		t.Fatalf("expected 200 from contacts, got %d", w.Code)
+	}
+	var contactsResp struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &contactsResp); err != nil {
+		t.Fatal(err)
+	}
+	var unreadBefore int
+	for _, c := range contactsResp.Contacts {
+		if (c.ConversationID == room1 || c.ConversationID == room2) && c.UnreadCount > 0 {
+			unreadBefore++
+		}
+	}
+	if unreadBefore < 2 {
+		t.Fatalf("expected at least 2 unread fixture rooms before batch mark read, got %d", unreadBefore)
+	}
+
+	// Perform batch mark all read: {"all": true, "read": true}
+	patchRes := call("PATCH", url, `{"all":true,"read":true}`)
+	if patchRes.Code != 200 {
+		t.Fatalf("expected 200 from batch PATCH, got %d: %s", patchRes.Code, patchRes.Body.String())
+	}
+
+	// Verify contacts now report 0 unread for both rooms
+	wAfter := call("GET", "/api/v1/chat/contacts", "")
+	if err := json.Unmarshal(wAfter.Body.Bytes(), &contactsResp); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range contactsResp.Contacts {
+		if c.ConversationID == room1 || c.ConversationID == room2 {
+			if c.UnreadCount != 0 {
+				t.Fatalf("expected 0 unread for room %s after mark all read, got %d", c.ConversationID, c.UnreadCount)
+			}
+		}
+	}
+
+	// Test batch by IDs
+	patchIDsRes := call("PATCH", url, `{"ids":["`+room1+`","`+room2+`"],"read":true}`)
+	if patchIDsRes.Code != 200 {
+		t.Fatalf("expected 200 from batch IDs PATCH, got %d: %s", patchIDsRes.Code, patchIDsRes.Body.String())
+	}
+}

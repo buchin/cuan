@@ -10,6 +10,12 @@ export async function updateItemPreference(kind: 'conversation' | 'contact', id:
   window.dispatchEvent(new CustomEvent('cuan-item-preferences', { detail: { kind, items: data.items } }))
   return data.items
 }
+export async function markAllItemPreferencesRead(kind: 'conversation' | 'contact', ids?: string[]) {
+  const body = ids && ids.length > 0 ? { ids, read: true } : { all: true, read: true }
+  const data = await apiFetch<{ items: Items }>('/api/v1/item-preferences?kind=' + kind, { method: 'PATCH', body: JSON.stringify(body) })
+  window.dispatchEvent(new CustomEvent('cuan-item-preferences', { detail: { kind, items: data.items } }))
+  return data.items
+}
 export function useArchivedItems(kind: 'conversation' | 'contact') {
   const [items, setItems] = useState<Items>({})
   const [loaded, setLoaded] = useState(false), [error, setError] = useState('')
@@ -45,6 +51,11 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
     loaded, error, refresh, notice,
     archive: update,
     markRead: async (id: string, read: boolean, seen_at?: string) => { await updateItemPreference(kind, id, { read, seen_at }) },
+    markAllRead: async (ids?: string[]) => {
+      const updated = await markAllItemPreferencesRead(kind, ids)
+      setItems(updated)
+      return updated
+    },
     unreadCount: (id: string, fallback: number, latestMessage?: string) => {
       const value = items[id]
       if (value?.unread) return Math.max(1, fallback)
