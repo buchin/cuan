@@ -48,6 +48,7 @@ export interface ChatMessage {
   chat_session_uuid?: string
   sender_type: 'visitor' | 'operator'
   author_type: 'user' | 'agent' | 'system'
+  author_id?: string
   author_name: string
   message: string
   content?: string

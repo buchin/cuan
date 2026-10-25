@@ -162,8 +162,8 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 	// 5. Operator Replies from Direct Messenger Hub (POST /api/v1/chat/conversations/{id}/messages)
 	operatorReplyPayload := map[string]interface{}{
 		"message":     "Halo Mas Budi! Betul, lisensi Shuriken Lifetime mencakup pemakaian multi-domain.",
-		"author_type": "agent",
-		"author_name": "Dojo Support",
+		"author_type": "user",
+		"author_name": "You",
 	}
 	replyBody, _ := json.Marshal(operatorReplyPayload)
 	reqReply := httptest.NewRequest(http.MethodPost, "/api/v1/chat/conversations/"+sessionUUID+"/messages", bytes.NewReader(replyBody))
@@ -173,6 +173,38 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 	srv.Router().ServeHTTP(recReply, reqReply)
 	if recReply.Code != http.StatusOK {
 		t.Fatalf("expected 200 for operator reply, got %d: %s", recReply.Code, recReply.Body.String())
+	}
+
+	// 5b. Verify Conversation Messages for Inbox UI have operator message marked as operator
+	reqConvMsgs := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+sessionUUID+"/messages", nil)
+	reqConvMsgs.Header.Set("Authorization", "Bearer "+token)
+	recConvMsgs := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recConvMsgs, reqConvMsgs)
+	if recConvMsgs.Code != http.StatusOK {
+		t.Fatalf("expected 200 for conversation messages, got %d", recConvMsgs.Code)
+	}
+	var convMsgsResp struct {
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recConvMsgs.Body.Bytes(), &convMsgsResp); err != nil {
+		t.Fatalf("failed to decode conv msgs: %v", err)
+	}
+	if len(convMsgsResp.Messages) < 2 {
+		t.Fatalf("expected at least 2 messages in conv, got %d", len(convMsgsResp.Messages))
+	}
+	visitorMsg := convMsgsResp.Messages[0]
+	if visitorMsg.SenderType != "visitor" {
+		t.Fatalf("expected visitor sender_type 'visitor', got '%s'", visitorMsg.SenderType)
+	}
+	operatorMsg := convMsgsResp.Messages[1]
+	if operatorMsg.SenderType != "operator" {
+		t.Fatalf("expected operator sender_type 'operator', got '%s'", operatorMsg.SenderType)
+	}
+	if operatorMsg.AuthorID != "operator_user" {
+		t.Fatalf("expected operator author_id 'operator_user', got '%s'", operatorMsg.AuthorID)
+	}
+	if operatorMsg.AuthorName != "You" {
+		t.Fatalf("expected operator author_name 'You', got '%s'", operatorMsg.AuthorName)
 	}
 
 	// 6. Visitor Polls New Messages (GET /api/chat/messages?session_uuid=...&after_id=1)
@@ -194,6 +226,9 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 	}
 	if pollResp.Messages[0].SenderType != "operator" || !strings.Contains(pollResp.Messages[0].Message, "multi-domain") {
 		t.Fatalf("unexpected operator message in visitor poll: %+v", pollResp.Messages[0])
+	}
+	if pollResp.Messages[0].AuthorID != "operator_user" {
+		t.Fatalf("expected poll message author_id 'operator_user', got '%s'", pollResp.Messages[0].AuthorID)
 	}
 
 	// 8. Test /chat/widget.js Serving

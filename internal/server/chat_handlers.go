@@ -66,6 +66,7 @@ type ChatMessageDTO struct {
 	RoomID             string                   `json:"room_id,omitempty"`
 	SenderType         string                   `json:"sender_type"` // "visitor" or "operator"
 	AuthorType         string                   `json:"author_type"` // "user", "agent", "system"
+	AuthorID           string                   `json:"author_id,omitempty"`
 	AuthorName         string                   `json:"author_name"`
 	Message            string                   `json:"message"`
 	Content            string                   `json:"content"`
@@ -415,6 +416,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 			RoomID:          sessionUUID,
 			SenderType:      "visitor",
 			AuthorType:      "user",
+			AuthorID:        sess.GuestUUID,
 			AuthorName:      authorName,
 			Message:         text,
 			Content:         text,
@@ -1468,8 +1470,14 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 	dtos := make([]ChatMessageDTO, len(rawMsgs))
 	for i, m := range rawMsgs {
 		senderType := "visitor"
-		if m.AuthorType == "agent" || m.AuthorType == "system" {
-			senderType = "operator"
+		if isCustomer {
+			if m.AuthorID == "operator_user" || m.AuthorName == "You" || m.AuthorName == "Owner" || m.AuthorType == "agent" || m.AuthorType == "system" {
+				senderType = "operator"
+			}
+		} else {
+			if m.AuthorType == "agent" || m.AuthorType == "system" {
+				senderType = "operator"
+			}
 		}
 
 		mention := extractMentionHandle(m.Content)
@@ -1531,6 +1539,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			RoomID:          roomID,
 			SenderType:      senderType,
 			AuthorType:      m.AuthorType,
+			AuthorID:        m.AuthorID,
 			AuthorName:      m.AuthorName,
 			Message:         content,
 			Content:         content,

@@ -555,7 +555,7 @@
 
     messages.forEach((m) => {
       const div = document.createElement('div');
-      const isVisitor = (m.sender_type === 'visitor' || m.author_type === 'user');
+      const isVisitor = m.sender_type ? m.sender_type === 'visitor' : m.author_type === 'user';
       div.className = `dojo-msg ${isVisitor ? 'visitor' : 'operator'}`;
 
       const text = m.message || m.content || '';

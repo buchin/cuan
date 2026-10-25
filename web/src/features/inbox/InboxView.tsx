@@ -1036,17 +1036,23 @@ export function InboxView({
                 </div>
               )}
               {messages.map((msg, index) => {
-                // In WhatsApp/Telegram: User is right-aligned, Contact (Agent/Customer) is left-aligned
-                const isUser =
+                // In WhatsApp/Telegram: User/Operator is right-aligned, Contact (Agent/Customer) is left-aligned
+                const isUserInAgentRoom =
                   msg.author_type === 'user' && activeContact.type === 'agent'
-                const isOperatorReply =
-                  msg.author_type === 'agent' &&
-                  activeContact.type === 'customer'
+                const isOperatorInCustomerRoom =
+                  activeContact.type === 'customer' &&
+                  (msg.sender_type === 'operator' ||
+                    msg.author_name === 'You' ||
+                    msg.author_name === 'Owner' ||
+                    msg.author_id === 'operator_user') &&
+                  !(msg.author_type === 'agent' && msg.is_internal) &&
+                  msg.author_name !== msg.mention_handle &&
+                  !msg.author_name?.startsWith('@')
                 const isAgentMessage =
                   msg.author_type === 'agent' && activeContact.type === 'agent'
                 const isFormattedMessage = true
 
-                const isOutgoing = isUser || isOperatorReply
+                const isOutgoing = isUserInAgentRoom || isOperatorInCustomerRoom
                 const linkedTaskForMsg = msg.uuid
                   ? linkedTasks.find(
                       (task) =>
@@ -1174,9 +1180,9 @@ export function InboxView({
                         <div className="mb-2 flex items-center gap-1.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full w-fit">
                           <EyeOff className="h-3 w-3" />
                           <span>{t('Internal · Invisible to visitor')}</span>
-                          {msg.mention_handle && (
+                          {(msg.mention_handle || (msg.author_name && msg.author_name !== 'Owner' && msg.author_name !== 'You')) && (
                             <span className="font-semibold text-foreground bg-background/60 px-1 rounded ml-0.5">
-                              {msg.mention_handle}
+                              {msg.mention_handle || msg.author_name}
                             </span>
                           )}
                         </div>
