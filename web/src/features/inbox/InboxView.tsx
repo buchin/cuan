@@ -194,6 +194,7 @@ export function InboxView({
     {},
   )
   const [showCannedManageModal, setShowCannedManageModal] = useState(false)
+  const [isMultiline, setIsMultiline] = useState(false)
 
   // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
   const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
@@ -243,9 +244,18 @@ export function InboxView({
           setSendError('')
           if (unsentDrafts.current[convId]?.trim() === pending.text)
             delete unsentDrafts.current[convId]
-          setInputMessage((current) =>
-            current.trim() === pending.text ? '' : current,
-          )
+          setInputMessage((current) => {
+            if (current.trim() === pending.text) {
+              setIsMultiline(false)
+              if (textareaRef.current) {
+                const minH = window.innerWidth < 640 ? 36 : 38
+                textareaRef.current.style.height = `${minH}px`
+                textareaRef.current.style.overflowY = 'hidden'
+              }
+              return ''
+            }
+            return current
+          })
           setRetryCount(0)
         }
       } catch (err) {
@@ -306,12 +316,13 @@ export function InboxView({
       minH,
       Math.min(
         140,
-        (window.visualViewport?.height || window.innerHeight) * 0.25,
+        Math.max(120, (window.visualViewport?.height || window.innerHeight) * 0.35),
       ),
     )
     const newH = Math.min(Math.max(scrollH, minH), cap)
     el.style.height = newH + 'px'
     el.style.overflowY = scrollH > cap ? 'auto' : 'hidden'
+    setIsMultiline(newH > minH + 4)
   }
 
   useEffect(() => {
@@ -333,12 +344,14 @@ export function InboxView({
       const convId = activeContact.conversation_id || activeContact.id
       followTail.current = !requestedMessageId
       setHasNewMessages(false)
+      const draft = unsentDrafts.current[convId] || ''
+      setInputMessage(draft)
+      setIsMultiline(draft.includes('\n') || draft.length > 50)
       hasNewMessagesRef.current = false
       setShowScrollBottom(false)
       setUnreadCount(0)
       isScrollingToBottomRef.current = false
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
-      setInputMessage(unsentDrafts.current[convId] || '')
       setMessages([])
       setRequests([])
       setLinkedTasks([])
@@ -641,9 +654,18 @@ export function InboxView({
       if (unsentDrafts.current[convId]?.trim() === request.text)
         delete unsentDrafts.current[convId]
       if (activeConvRef.current === convId) {
-        setInputMessage((current) =>
-          current.trim() === request.text ? '' : current,
-        )
+        setInputMessage((current) => {
+          if (current.trim() === request.text) {
+            setIsMultiline(false)
+            if (textareaRef.current) {
+              const minH = window.innerWidth < 640 ? 36 : 38
+              textareaRef.current.style.height = `${minH}px`
+              textareaRef.current.style.overflowY = 'hidden'
+            }
+            return ''
+          }
+          return current
+        })
         setSendError('')
         setRetryCount(0)
         await loadConversation(convId)
@@ -1477,7 +1499,11 @@ export function InboxView({
                 {activeContact.type === 'agent' && (
                   <AttachmentPreviews uploads={uploads} disabled={sending} />
                 )}
-                <div className="wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 rounded-full p-1 sm:p-1.5">
+                <div
+                  className={`wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 ${
+                    isMultiline ? 'is-multiline' : ''
+                  }`}
+                >
                   {activeContact.type === 'agent' && (
                     <AttachmentPicker
                       key={activeContact.conversation_id}
@@ -1487,16 +1513,6 @@ export function InboxView({
                       disableImages={!contactSupportsVision}
                     />
                   )}
-                  <CannedResponsesPicker
-                    inputMessage={inputMessage}
-                    onSelect={(content) => {
-                      setInputMessage(content)
-                      textareaRef.current?.focus()
-                      if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-                    }}
-                    onOpenManage={() => setShowCannedManageModal(true)}
-                    disabled={sending}
-                  />
                   <textarea
                     ref={textareaRef}
                     data-primary-composer
@@ -1515,7 +1531,26 @@ export function InboxView({
                         ? t('Write a message…')
                         : `Reply to ${activeContact.name}…`
                     }
-                    className="wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden px-1.5 sm:px-2 py-[7px] sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug"
+                    className={`wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug ${
+                      activeContact.type === 'agent'
+                        ? 'pl-1.5 pr-2 sm:pl-2 sm:pr-2.5'
+                        : 'pl-3 pr-2 sm:pl-3.5 sm:pr-2.5'
+                    }`}
+                  />
+
+                  <CannedResponsesPicker
+                    inputMessage={inputMessage}
+                    onSelect={(content) => {
+                      unsentDrafts.current[activeConvRef.current] = content
+                      setInputMessage(content)
+                      if (textareaRef.current) {
+                        textareaRef.current.value = content
+                        autoResizeTextarea(textareaRef.current)
+                      }
+                      textareaRef.current?.focus()
+                    }}
+                    onOpenManage={() => setShowCannedManageModal(true)}
+                    disabled={sending}
                   />
 
                   <button
