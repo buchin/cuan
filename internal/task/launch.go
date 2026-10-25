@@ -28,6 +28,7 @@ type LaunchStore interface {
 	CancelLaunches(context.Context, string, time.Time) (int64, error)
 	GetLaunch(context.Context, string) (*TaskLaunch, error)
 	LatestLaunch(context.Context, string) (*TaskLaunch, error)
+	FinishTaskLaunches(context.Context, string, string) error
 }
 
 func LaunchID(taskID, requestID string) string {
@@ -84,6 +85,18 @@ func (s *Service) CancelLaunches(ctx context.Context, taskID string, now time.Ti
 	}
 	return store.CancelLaunches(ctx, taskID, now)
 }
+func (s *Service) FinishTaskLaunches(ctx context.Context, taskID string, finalState string) error {
+	store, e := launchStore(s)
+	if e != nil {
+		return e
+	}
+	return store.FinishTaskLaunches(ctx, taskID, finalState)
+}
+
+func (s *Service) IsProjectActive(ctx context.Context, projectID string, excludeTaskID string) (bool, error) {
+	return s.store.IsProjectActive(ctx, projectID, excludeTaskID)
+}
+
 func (s *Service) GetLaunch(ctx context.Context, id string) (*TaskLaunch, error) {
 	store, e := launchStore(s)
 	if e != nil {

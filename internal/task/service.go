@@ -192,8 +192,8 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 	}
 	initialStatus := TaskStatusBacklog
 	if req.Status != "" {
-		if req.Status != "backlog" && req.Status != "todo" {
-			return nil, fmt.Errorf("%w: new tasks must start in Backlog or Todo", ErrInvalidTaskInput)
+		if req.Status != "backlog" && req.Status != "todo" && req.Status != TaskStatusQueued && req.Status != TaskStatusPending {
+			return nil, fmt.Errorf("%w: new tasks must start in Backlog, Todo, or Queued", ErrInvalidTaskInput)
 		}
 		initialStatus = req.Status
 	}
@@ -475,7 +475,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 	if req.Status != nil {
 		st := strings.ToLower(strings.TrimSpace(*req.Status))
 		switch st {
-		case TaskStatusBacklog, "todo", TaskStatusDoing, TaskStatusReview, TaskStatusDone, TaskStatusBlocked:
+		case TaskStatusBacklog, "todo", TaskStatusQueued, TaskStatusPending, TaskStatusDoing, TaskStatusReview, TaskStatusDone, TaskStatusBlocked:
 			if st != oldStatus {
 				latest, e := s.store.GetLatestAttempt(ctx, id)
 				if e != nil && !errors.Is(e, ErrAttemptNotFound) {

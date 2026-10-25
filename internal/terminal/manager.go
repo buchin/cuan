@@ -49,6 +49,7 @@ type TaskAgentRunConfig struct {
 	AttachmentPaths []string
 	AttemptID       string
 	TaskID          string
+	ProjectID       string
 	AgentID         string
 	AgentName       string
 	Command         string // "agy", "claude", "shell", or auto
@@ -76,12 +77,13 @@ type ManagerConfig struct {
 
 // Manager coordinates pseudo-terminal processes, workspaces, and lifecycle.
 type Manager struct {
-	cfg       ManagerConfig
-	mu        sync.RWMutex
-	sessions  map[string]*Session          // taskID -> Session
-	histories map[string][]*TaskRunHistory // taskID -> []History
-	stopChan  chan struct{}
-	stopOnce  sync.Once
+	cfg             ManagerConfig
+	mu              sync.RWMutex
+	sessions        map[string]*Session          // taskID -> Session
+	histories       map[string][]*TaskRunHistory // taskID -> []History
+	projectSessions map[string]string            // projectID -> taskID
+	stopChan        chan struct{}
+	stopOnce        sync.Once
 }
 
 // NewManager creates a new pseudo-terminal session manager.
@@ -103,10 +105,11 @@ func NewManager(cfg ManagerConfig) *Manager {
 	}
 
 	m := &Manager{
-		cfg:       cfg,
-		sessions:  make(map[string]*Session),
-		histories: make(map[string][]*TaskRunHistory),
-		stopChan:  make(chan struct{}),
+		cfg:             cfg,
+		sessions:        make(map[string]*Session),
+		histories:       make(map[string][]*TaskRunHistory),
+		projectSessions: make(map[string]string),
+		stopChan:        make(chan struct{}),
 	}
 
 	// Background sweeper for idle sessions
@@ -441,8 +444,40 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		}
 		return nil, fmt.Errorf("task execution ownership unavailable: %w", lockErr)
 	}
+
+	var projLease io.Closer
+	if cfg.ProjectID != "" {
+		if activeTaskID, exists := m.projectSessions[cfg.ProjectID]; exists && activeTaskID != taskID {
+			if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
+				m.mu.Unlock()
+				return nil, taskprocess.ErrActive
+			}
+		}
+		pPath, pErr := m.projectLockPath(cfg.ProjectID)
+		if pErr != nil {
+			m.mu.Unlock()
+			return nil, pErr
+		}
+		pActive, pErr := taskprocess.Active(pPath)
+		if pErr != nil || pActive {
+			m.mu.Unlock()
+			if pActive {
+				return nil, taskprocess.ErrActive
+			}
+			return nil, fmt.Errorf("project execution ownership unavailable: %w", pErr)
+		}
+		projLease, pErr = taskprocess.Acquire(pPath)
+		if pErr != nil {
+			m.mu.Unlock()
+			return nil, pErr
+		}
+	}
+
 	supervisor, supervisorErr := os.Executable()
 	if supervisorErr != nil {
+		if projLease != nil {
+			_ = projLease.Close()
+		}
 		m.mu.Unlock()
 		return nil, supervisorErr
 	}
@@ -462,6 +497,9 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	runContext, cancel := context.WithTimeout(context.Background(), 8*time.Hour)
 	proc, err := SpawnPTY(runContext, ptyCfg)
 	if err != nil {
+		if projLease != nil {
+			_ = projLease.Close()
+		}
 		cancel()
 		m.mu.Unlock()
 		return nil, fmt.Errorf("spawn agent pty for task %s: %w", taskID, err)
@@ -483,10 +521,18 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 
 	m.sessions[taskID] = sess
 	m.histories[taskID] = append(m.histories[taskID], history)
+	if cfg.ProjectID != "" {
+		m.projectSessions[cfg.ProjectID] = taskID
+	}
 	m.mu.Unlock()
 
 	// Monitor completion in background to record exit code and duration
 	go func() {
+		defer func() {
+			if projLease != nil {
+				_ = projLease.Close()
+			}
+		}()
 		defer cancel()
 		_ = proc.Wait()
 		select {
@@ -495,6 +541,9 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		}
 		exitCode := proc.ExitCode()
 		m.mu.Lock()
+		if cfg.ProjectID != "" && m.projectSessions[cfg.ProjectID] == taskID {
+			delete(m.projectSessions, cfg.ProjectID)
+		}
 		history.FinishedAt = time.Now().UTC()
 		history.DurationMs = history.FinishedAt.Sub(history.StartedAt).Milliseconds()
 		history.ExitCode = exitCode
@@ -603,6 +652,54 @@ func (m *Manager) TaskExecutionActive(taskID string) (bool, error) {
 		return false, err
 	}
 	return taskprocess.Active(path)
+}
+
+func (m *Manager) projectLockPath(projectID string) (string, error) {
+	if !validTaskIDRegex.MatchString(projectID) {
+		return "", fmt.Errorf("invalid project ID: %s", projectID)
+	}
+	root, err := filepath.Abs(filepath.Join(m.cfg.WorkspacesDir, ".task-execution-locks"))
+	if err != nil {
+		return "", err
+	}
+	if err = os.MkdirAll(root, 0700); err != nil {
+		return "", err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "project_"+projectID+".lock"), nil
+}
+
+func (m *Manager) ProjectExecutionActive(projectID string) (bool, error) {
+	if projectID == "" {
+		return false, nil
+	}
+	m.mu.RLock()
+	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" {
+		if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
+			m.mu.RUnlock()
+			return true, nil
+		}
+	}
+	m.mu.RUnlock()
+	path, err := m.projectLockPath(projectID)
+	if err != nil {
+		return false, err
+	}
+	return taskprocess.Active(path)
+}
+
+func (m *Manager) AcquireProjectExecutionLease(projectID string) (io.Closer, error) {
+	if projectID == "" {
+		return nil, fmt.Errorf("project ID cannot be empty")
+	}
+	path, err := m.projectLockPath(projectID)
+	if err != nil {
+		return nil, err
+	}
+	return taskprocess.Acquire(path)
 }
 
 // AcquireTaskExecutionLease prevents a provider process starting during cleanup.

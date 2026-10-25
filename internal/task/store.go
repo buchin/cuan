@@ -37,4 +37,7 @@ type Store interface {
 	// Log operations
 	AppendLogs(ctx context.Context, attemptID string, logs []LogRecord, maxLines int) error
 	GetLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error)
+
+	// Concurrency & project status
+	IsProjectActive(ctx context.Context, projectID string, excludeTaskID string) (bool, error)
 }

@@ -149,3 +149,102 @@ func launchContract(t *testing.T, store LaunchStore, taskID, roomID string) {
 	}
 
 }
+
+func TestLaunchProjectConcurrencySerialExecution(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	projectID := "proj_queue_unit_1"
+
+	t1, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		ProjectID:    projectID,
+		Title:        "Project Task 1",
+		Instructions: "Instructions 1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t2, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		ProjectID:    projectID,
+		Title:        "Project Task 2",
+		Instructions: "Instructions 2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	l1, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           t1.ID,
+		ProjectID:        projectID,
+		RequestID:        "launch-1",
+		SourceRequestID:  "source-req-1",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash(t1.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l2, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           t2.ID,
+		ProjectID:        projectID,
+		RequestID:        "launch-2",
+		SourceRequestID:  "source-req-2",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash(t2.Instructions),
+		CreatedAt:        now.Add(time.Second),
+		AvailableAt:      now.Add(time.Second),
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Claim launch: First launch on the project should be claimed
+	claimed1, err := svc.ClaimLaunch(ctx, now.Add(2*time.Second), "worker-token-1")
+	if err != nil || claimed1 == nil || claimed1.ID != l1.ID {
+		t.Fatalf("expected l1 to be claimed, got %v, err=%v", claimed1, err)
+	}
+
+	// 2. Mark launch 1 as started
+	err = svc.FinishLaunch(ctx, claimed1.ID, claimed1.LeaseToken, "started", now, "")
+	if err != nil {
+		t.Fatalf("finish launch 1 failed: %v", err)
+	}
+
+	// 3. Project should be active now
+	active, err := svc.IsProjectActive(ctx, projectID, "")
+	if err != nil || !active {
+		t.Fatalf("expected project to be active, got %v, err=%v", active, err)
+	}
+
+	// 4. Claim next launch: should return nil because project is busy
+	claimed2, err := svc.ClaimLaunch(ctx, now.Add(3*time.Second), "worker-token-2")
+	if err != nil {
+		t.Fatalf("claim launch error: %v", err)
+	}
+	if claimed2 != nil {
+		t.Fatalf("expected no claim while project is busy, but got %v", claimed2)
+	}
+
+	// 5. Complete launch 1
+	err = svc.FinishTaskLaunches(ctx, t1.ID, "stopped")
+	if err != nil {
+		t.Fatalf("finish task 1 launches failed: %v", err)
+	}
+
+	// 6. Claim next launch: now launch 2 should be claimed
+	claimedNext, err := svc.ClaimLaunch(ctx, now.Add(4*time.Second), "worker-token-3")
+	if err != nil || claimedNext == nil || claimedNext.ID != l2.ID {
+		t.Fatalf("expected l2 to be claimed after l1 finished, got %v, err=%v", claimedNext, err)
+	}
+}

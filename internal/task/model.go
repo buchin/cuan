@@ -8,6 +8,8 @@ import (
 // Task status constants (Pemisahan status task dari status attempt eksekusi)
 const (
 	TaskStatusBacklog = "backlog"
+	TaskStatusQueued  = "queued"
+	TaskStatusPending = "pending"
 	TaskStatusDoing   = "doing"
 	TaskStatusReview  = "review"
 	TaskStatusDone    = "done"

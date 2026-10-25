@@ -56,6 +56,46 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 			continue
 		}
 		if j.State == "queued" && !j.AvailableAt.After(now) || j.State == "claimed" && j.LeaseUntil != nil && !j.LeaseUntil.After(now) {
+			projID := j.ProjectID
+			if projID == "" {
+				if t := m.tasks[j.TaskID]; t != nil {
+					projID = t.ProjectID
+				}
+			}
+			if projID != "" {
+				projectBusy := false
+				for _, other := range m.launches {
+					if other.ID == id {
+						continue
+					}
+					otherProj := other.ProjectID
+					if otherProj == "" {
+						if ot := m.tasks[other.TaskID]; ot != nil {
+							otherProj = ot.ProjectID
+						}
+					}
+					if otherProj == projID {
+						if other.State == "started" || (other.State == "claimed" && other.LeaseUntil != nil && other.LeaseUntil.After(now)) {
+							projectBusy = true
+							break
+						}
+					}
+				}
+				if !projectBusy {
+					for _, ot := range m.tasks {
+						if ot.ID == j.TaskID {
+							continue
+						}
+						if (ot.ProjectID == projID || containsString(ot.ProjectIDs, projID)) && (ot.Status == TaskStatusDoing || ot.Status == "working") {
+							projectBusy = true
+							break
+						}
+					}
+				}
+				if projectBusy {
+					continue
+				}
+			}
 			ids = append(ids, id)
 		}
 	}
@@ -96,6 +136,24 @@ func (m *MemoryStore) FinishLaunch(_ context.Context, id, token, state string, n
 	j.LeaseUntil = nil
 	return nil
 }
+func (m *MemoryStore) FinishTaskLaunches(_ context.Context, taskID string, finalState string) error {
+	if !validLaunchFinish(finalState) && finalState != "cancelled" {
+		finalState = "stopped"
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now().UTC()
+	for _, j := range m.launches {
+		if j.TaskID == taskID && (j.State == "queued" || j.State == "claimed" || j.State == "started") {
+			j.State = finalState
+			j.LeaseToken = ""
+			j.LeaseUntil = nil
+			j.UpdatedAt = now
+		}
+	}
+	return nil
+}
+
 func (m *MemoryStore) CancelLaunches(_ context.Context, taskID string, now time.Time) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -569,6 +569,23 @@ func (s *Server) SetTaskService(svc *task.Service) {
 	}
 }
 
+func (s *Server) isProjectActive(ctx context.Context, projectID string, excludeTaskID string) bool {
+	if projectID == "" {
+		return false
+	}
+	if s.terminalManager != nil {
+		if active, err := s.terminalManager.ProjectExecutionActive(projectID); err == nil && active {
+			return true
+		}
+	}
+	if s.taskSvc != nil {
+		if active, err := s.taskSvc.IsProjectActive(ctx, projectID, excludeTaskID); err == nil && active {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) RunnerService() *runner.RunnerService {
 	return s.runnerSvc
 }
@@ -2807,6 +2824,10 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 
 	if s.terminalManager != nil {
 		_ = s.terminalManager.CloseSession(taskID)
+	}
+	if s.taskSvc != nil {
+		_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "cancelled")
+		s.kickTaskLaunches()
 	}
 	if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail.SourceRoomID != "" {
 		s.publishInbox(detail.SourceRoomID)

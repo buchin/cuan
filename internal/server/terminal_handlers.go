@@ -242,6 +242,28 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		respondJSONError(w, 409, "This task already has an active session. Open its terminal.")
 		return
 	}
+	var projID string
+	if s.taskSvc != nil {
+		if tDetail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && tDetail != nil {
+			projID = tDetail.ProjectID
+		}
+	}
+	if projID == "" && s.projectStudioRepo != nil {
+		if pt, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil && pt != nil {
+			projID = pt.ProjectID
+		}
+	}
+	if projID != "" && s.isProjectActive(r.Context(), projID, taskID) {
+		status := task.TaskStatusQueued
+		if s.taskSvc != nil {
+			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+		}
+		respondJSON(w, http.StatusConflict, map[string]string{
+			"error": "Another task is actively running in this project. This task is queued to run when it finishes.",
+			"code":  "project_concurrency_busy",
+		})
+		return
+	}
 	agentID := strings.TrimSpace(payload.AgentID)
 	if agentID == "" && s.taskSvc != nil {
 		if t, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && t != nil {
@@ -430,6 +452,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							info, e = os.Stat(project.LocalPath)
 						}
 					}
+					if project.RepoURL == "" && (e != nil || !info.IsDir()) && project.LocalPath != "" {
+						_ = os.MkdirAll(project.LocalPath, 0755)
+						info, e = os.Stat(project.LocalPath)
+					}
 					if project.LocalPath == "" || e != nil || !info.IsDir() {
 						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 						return
@@ -583,6 +609,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			Model:           selectedModel,
 			AttachmentPaths: attachmentPaths,
 			TaskID:          taskID,
+			ProjectID:       projID,
 			AgentID:         agentID,
 			AgentName:       agentName,
 			Command:         payload.Binary,
@@ -636,6 +663,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					if e == nil {
 						_ = s.taskSvc.ReconcileLocalTask(r.Context(), taskID, attempt.ID)
 					}
+					_ = s.taskSvc.FinishTaskLaunches(context.Background(), taskID, "stopped")
+					s.kickTaskLaunches()
 				}
 			},
 		}
@@ -666,6 +695,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not start the CLI. Check its installation and the agent connection."})
 				status := task.TaskStatusBlocked
 				_, _ = s.taskSvc.UpdateTask(context.Background(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+			}
+			if s.taskSvc != nil {
+				_ = s.taskSvc.FinishTaskLaunches(context.Background(), taskID, "stopped")
+				s.kickTaskLaunches()
 			}
 			if s.projectStudioRepo != nil {
 				_ = s.projectStudioRepo.UpdateTaskExecution(context.Background(), taskID, "failed", "Could not start the CLI.")

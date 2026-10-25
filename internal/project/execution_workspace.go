@@ -82,6 +82,7 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 		if e != nil || current != branch {
 			return "", errors.New("Task workspace branch changed; retained work needs review")
 		}
+		preflightWorkspaceRebase(ctx, destination, source, p.DefaultBranch)
 		return destination, nil
 	} else if !os.IsNotExist(err) {
 		return "", err
@@ -149,4 +150,20 @@ func (s *Service) TaskExecutionWorkspace(ctx context.Context, taskID, instructio
 		return p.LocalPath, nil
 	}
 	return s.ExecutionWorkspace(ctx, taskID, p)
+}
+
+func preflightWorkspaceRebase(ctx context.Context, destination, source, defaultBranch string) {
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", destination, "status", "--porcelain").Output()
+	if err != nil || len(strings.TrimSpace(string(out))) > 0 {
+		return
+	}
+	base := "refs/remotes/origin/" + defaultBranch
+	if _, err := exec.CommandContext(ctx, "git", "-C", source, "rev-parse", "--verify", base+"^{commit}").Output(); err == nil {
+		_ = exec.CommandContext(ctx, "git", "-C", destination, "rebase", base).Run()
+	} else if _, err := exec.CommandContext(ctx, "git", "-C", source, "rev-parse", "--verify", "refs/heads/"+defaultBranch+"^{commit}").Output(); err == nil {
+		_ = exec.CommandContext(ctx, "git", "-C", destination, "rebase", "refs/heads/"+defaultBranch).Run()
+	}
 }

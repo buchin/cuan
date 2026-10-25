@@ -842,3 +842,21 @@ func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[strin
 
 	return result, nil
 }
+
+func (s *DBStore) IsProjectActive(ctx context.Context, projectID string, excludeTaskID string) (bool, error) {
+	if projectID == "" {
+		return false, nil
+	}
+	var active bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS (
+		SELECT 1 FROM tasks t
+		WHERE (t.project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = t.id AND tp.project_id = $1))
+		  AND ($2 = '' OR t.id != $2)
+		  AND (
+			  t.status IN ('doing', 'working')
+			  OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
+			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state = 'started')
+		  )
+	)`, projectID, excludeTaskID).Scan(&active)
+	return active, err
+}

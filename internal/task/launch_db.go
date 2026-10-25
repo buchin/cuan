@@ -58,7 +58,36 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='The launch window expired before execution could start.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed') AND expires_at<=$1`, now); e != nil {
 		return nil, e
 	}
-	return scanLaunch(s.db.QueryRowContext(ctx, `WITH candidate AS (SELECT id FROM task_launches WHERE ($3='' OR id=$3) AND expires_at>$1 AND ((state='queued' AND available_at<=$1) OR (state='claimed' AND lease_until<=$1)) ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE task_launches SET state='claimed',lease_token=$2,lease_until=$1+INTERVAL '1 minute',checks=checks+1,updated_at=$1 WHERE id=(SELECT id FROM candidate) RETURNING `+launchColumns, now, token, id))
+	return scanLaunch(s.db.QueryRowContext(ctx, `WITH candidate AS (
+		SELECT id FROM task_launches tl
+		WHERE ($3='' OR tl.id=$3)
+		  AND tl.expires_at>$1
+		  AND ((tl.state='queued' AND tl.available_at<=$1) OR (tl.state='claimed' AND tl.lease_until<=$1))
+		  AND NOT EXISTS (
+			  SELECT 1 FROM task_launches active_tl
+			  WHERE active_tl.project_id = tl.project_id
+			    AND active_tl.id != tl.id
+			    AND (
+				    active_tl.state = 'started'
+				    OR (active_tl.state = 'claimed' AND active_tl.lease_until > $1)
+			    )
+		  )
+		  AND NOT EXISTS (
+			  SELECT 1 FROM tasks active_t
+			  WHERE (active_t.project_id = tl.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = tl.project_id))
+			    AND active_t.id != tl.task_id
+			    AND active_t.status IN ('doing', 'working')
+		  )
+		ORDER BY tl.available_at, tl.id
+		FOR UPDATE SKIP LOCKED LIMIT 1
+	) UPDATE task_launches SET state='claimed',lease_token=$2,lease_until=$1+INTERVAL '1 minute',checks=checks+1,updated_at=$1 WHERE id=(SELECT id FROM candidate) RETURNING `+launchColumns, now, token, id))
+}
+func (s *DBStore) FinishTaskLaunches(ctx context.Context, taskID string, finalState string) error {
+	if !validLaunchFinish(finalState) && finalState != "cancelled" {
+		finalState = "stopped"
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state=$2, lease_token='', lease_until=NULL, updated_at=NOW() WHERE task_id=$1 AND state IN ('queued', 'claimed', 'started')`, taskID, finalState)
+	return err
 }
 func (s *DBStore) FinishLaunch(ctx context.Context, id, token, state string, next time.Time, safeError string) error {
 	if !validLaunchFinish(state) {

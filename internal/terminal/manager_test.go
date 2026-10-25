@@ -200,6 +200,63 @@ func TestManager_RunTaskAgent(t *testing.T) {
 	}
 }
 
+func TestManager_ProjectConcurrencyLock(t *testing.T) {
+	tempBase := t.TempDir()
+	mgr := NewManager(ManagerConfig{WorkspacesDir: tempBase})
+	defer mgr.CloseAll()
+
+	ctx := context.Background()
+	projectID := "proj-shared-123"
+
+	sess1, err := mgr.RunTaskAgent(ctx, TaskAgentRunConfig{
+		TaskID:    "task-proj-1",
+		ProjectID: projectID,
+		AgentID:   "worker-flash",
+		AgentName: "Antigravity Flash",
+		Command:   "shell",
+		Prompt:    "Task 1",
+	})
+	if err != nil {
+		t.Fatalf("first task failed: %v", err)
+	}
+
+	active, err := mgr.ProjectExecutionActive(projectID)
+	if err != nil || !active {
+		t.Fatalf("expected project to be active, got active=%v, err=%v", active, err)
+	}
+
+	// Attempt to run second task on the same project - should fail with taskprocess.ErrActive
+	_, err = mgr.RunTaskAgent(ctx, TaskAgentRunConfig{
+		TaskID:    "task-proj-2",
+		ProjectID: projectID,
+		AgentID:   "worker-flash",
+		AgentName: "Antigravity Flash",
+		Command:   "shell",
+		Prompt:    "Task 2",
+	})
+	if err == nil {
+		t.Fatal("expected second task on same project to be rejected, but it succeeded")
+	}
+
+	// Close first task session
+	_ = sess1.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	// Now second task should be able to run
+	sess2, err := mgr.RunTaskAgent(ctx, TaskAgentRunConfig{
+		TaskID:    "task-proj-2",
+		ProjectID: projectID,
+		AgentID:   "worker-flash",
+		AgentName: "Antigravity Flash",
+		Command:   "shell",
+		Prompt:    "Task 2",
+	})
+	if err != nil {
+		t.Fatalf("second task should succeed after first task completes: %v", err)
+	}
+	_ = sess2.Close()
+}
+
 // This fixture checks process/argv invariants, not provider authentication.
 func TestS25AgentOutlivesRequestAndPromptIsNotShellCode(t *testing.T) {
 	root := t.TempDir()

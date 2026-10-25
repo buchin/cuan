@@ -99,6 +99,11 @@ func (s *Server) applyInboxTaskCancel(ctx context.Context, q db.InboxRequest, co
 	_, _ = s.taskSvc.CancelLaunches(ctx, action.TaskID, time.Now().UTC())
 
 	// 2. Cancel active running/queued attempt
+	if s.terminalManager != nil {
+		_ = s.terminalManager.CloseSession(action.TaskID)
+	}
+	_ = s.taskSvc.FinishTaskLaunches(ctx, action.TaskID, "cancelled")
+	s.kickTaskLaunches()
 	_, cancelErr := s.taskSvc.CancelTask(ctx, action.TaskID, author)
 	if cancelErr != nil {
 		// If no active attempt, transition task status directly to blocked

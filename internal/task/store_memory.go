@@ -530,3 +530,38 @@ func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[s
 	}
 	return result, nil
 }
+
+func (m *MemoryStore) IsProjectActive(_ context.Context, projectID string, excludeTaskID string) (bool, error) {
+	if projectID == "" {
+		return false, nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, t := range m.tasks {
+		if (t.ProjectID == projectID || containsString(t.ProjectIDs, projectID)) && (excludeTaskID == "" || t.ID != excludeTaskID) {
+			if t.Status == TaskStatusDoing || t.Status == "working" {
+				return true, nil
+			}
+			for _, a := range m.attempts {
+				if a.TaskID == t.ID && a.Status == AttemptStatusRunning {
+					return true, nil
+				}
+			}
+			for _, l := range m.launches {
+				if l.TaskID == t.ID && l.State == "started" {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
+func containsString(slice []string, val string) bool {
+	for _, s := range slice {
+		if s == val {
+			return true
+		}
+	}
+	return false
+}

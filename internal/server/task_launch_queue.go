@@ -24,11 +24,18 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if job.State == "cancelled" || job.State == "stopped" {
 		return "This launch has stopped. No new execution was started." + link
 	}
+	if s.isProjectActive(ctx, t.ProjectID, t.ID) {
+		status := task.TaskStatusQueued
+		_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
+		return "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
+	}
 	claimed, e := s.taskSvc.ClaimLaunch(ctx, now, db.GenerateUUID(), job.ID)
 	if e != nil {
 		return "The work is saved. I’ll check its pending launch before starting anything." + link
 	}
 	if claimed == nil {
+		status := task.TaskStatusQueued
+		_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
 		return "The work is waiting to start. I’ll report progress here." + link
 	}
 	return s.executeQueuedTaskLaunch(ctx, *claimed, false)
@@ -44,6 +51,9 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		text := "The work is saved, but could not start. " + reason + link
 		if state == "queued" {
 			text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
+			if strings.Contains(reason, "project") || strings.Contains(reason, "task") || strings.Contains(reason, "active") {
+				text = "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
+			}
 		}
 		if state == "queued" && strings.Contains(reason, "Project files could not be downloaded.") {
 			text = "I’m preparing the project files and will continue automatically. Your request and approval are saved." + link
@@ -104,7 +114,9 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		Code  string `json:"code"`
 	}
 	json.Unmarshal(response.body.Bytes(), &problem)
-	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "repository_preparing" {
+	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "repository_preparing" || problem.Code == "project_concurrency_busy" {
+		status := task.TaskStatusQueued
+		_, _ = s.taskSvc.UpdateTask(ctx, job.TaskID, "runner", task.UpdateTaskRequest{Status: &status})
 		return finish("queued", problem.Error)
 	}
 	if problem.Error == "" {
