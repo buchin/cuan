@@ -62,3 +62,19 @@ test('2. StudioView: Clean single-row composer toolbar on mobile and desktop', (
     'StudioView must not render two separate competing pill buttons side-by-side'
   )
 })
+
+test('3. StudioView: Add agent trigger opens TeamView dialog without premature unmounting', () => {
+  assert.ok(
+    studioViewSource.includes('setAddAgentModalOpen(true)') &&
+    studioViewSource.includes('setAddAgentTrigger(true)'),
+    'onAddAgentClick must set both modal open state and creation trigger'
+  )
+  assert.ok(
+    studioViewSource.includes('dialogOnly={agentSetup !== \'needed\'}'),
+    'StudioView must pass dialogOnly so TeamView only shows the modal dialog without page content'
+  )
+  assert.ok(
+    studioViewSource.includes('onClose={() => {'),
+    'StudioView must pass onClose callback to cleanly dismiss modal on cancel or completion'
+  )
+})

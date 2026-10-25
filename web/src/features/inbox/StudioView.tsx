@@ -26,6 +26,7 @@ export function StudioView({
   const { t } = useLanguage()
   const [connectRequested, setConnectRequested] = useState(false)
   const [addAgentModalOpen, setAddAgentModalOpen] = useState(false)
+  const [addAgentTrigger, setAddAgentTrigger] = useState(false)
 
   const [installation, setInstallation] = useState<'checking' | 'available' | 'incomplete' | 'unsupported' | 'error'>('checking')
   const [checkVersion, setCheckVersion] = useState(0)
@@ -295,7 +296,10 @@ export function StudioView({
                     agents={agents}
                     selectedAgentId={selectedAgentId}
                     onSelectAgent={setSelectedAgentId}
-                    onAddAgentClick={() => setAddAgentModalOpen(true)}
+                    onAddAgentClick={() => {
+                      setAddAgentModalOpen(true)
+                      setAddAgentTrigger(true)
+                    }}
                     disabled={busy}
                   />
                 )}
@@ -353,10 +357,14 @@ export function StudioView({
       </div>
       {(agentSetup === 'needed' || addAgentModalOpen) && (
         <TeamView
+          dialogOnly={agentSetup !== 'needed'}
           connectionOnly={agentSetup === 'needed'}
-          createRequested={connectRequested || addAgentModalOpen}
+          createRequested={connectRequested || addAgentTrigger}
           onCreateHandled={() => {
             setConnectRequested(false)
+            setAddAgentTrigger(false)
+          }}
+          onClose={() => {
             setAddAgentModalOpen(false)
           }}
           onAgentConnected={() => {

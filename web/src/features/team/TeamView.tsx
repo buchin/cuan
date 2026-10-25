@@ -113,16 +113,20 @@ export function TeamView({
   showCreateAction = true,
   createRequested = false,
   onCreateHandled,
+  onClose,
   onAgentAdded,
   onAgentConnected,
   focusAgentId,
   connectionOnly = false,
+  dialogOnly = false,
 }: {
+  dialogOnly?: boolean
   connectionOnly?: boolean
   showHeading?: boolean
   showCreateAction?: boolean
   createRequested?: boolean
   onCreateHandled?: () => void
+  onClose?: () => void
   focusAgentId?: string
   selectedRole?: string
   onAgentAdded?: () => void
@@ -252,6 +256,7 @@ export function TeamView({
     setCode('')
     setAuth(null)
     setBusy(false)
+    onClose?.()
     window.setTimeout(
       () =>
         (createTrigger.current?.isConnected
@@ -651,8 +656,8 @@ export function TeamView({
     'inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50'
 
   return (
-    <div className={connectionOnly ? 'contents' : 'mx-auto max-w-4xl space-y-5 pb-8'}>
-      <div hidden={connectionOnly}>
+    <div className={connectionOnly || dialogOnly ? 'contents' : 'mx-auto max-w-4xl space-y-5 pb-8'}>
+      <div hidden={connectionOnly || dialogOnly}>
       <div className="flex items-center justify-between gap-3">
         <div>
           {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
