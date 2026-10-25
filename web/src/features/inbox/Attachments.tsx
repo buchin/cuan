@@ -261,7 +261,7 @@ export function AttachmentPicker({
           ))}
         </div>
       </ActionDialog>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={compact ? 'flex items-center shrink-0' : 'flex flex-wrap items-center gap-2'}>
         <input
           ref={input}
           type="file"
@@ -288,7 +288,11 @@ export function AttachmentPicker({
         />
         <button
           type="button"
-          className="icon-action rounded-full"
+          className={
+            compact
+              ? 'wa-action-btn flex h-9 w-9 sm:h-9.5 sm:w-9.5 items-center justify-center rounded-full active:scale-95 disabled:pointer-events-none disabled:opacity-40 shrink-0'
+              : 'icon-action rounded-full'
+          }
           aria-label={t('Attach files')}
           title={t('Attach files (up to 5, 10 MB each)')}
           disabled={disabled || uploads.busy || uploads.items.length >= 5}
@@ -301,7 +305,7 @@ export function AttachmentPicker({
             else input.current?.click()
           }}
         >
-          <Plus className="h-5 w-5" />
+          <Plus className={compact ? 'h-[18px] w-[18px]' : 'h-5 w-5'} />
         </button>
         {!compact && (
           <AttachmentPreviews uploads={uploads} disabled={disabled} />

@@ -16,13 +16,13 @@
 .dark .wa-chat {
   --wa-bg: #121212;
   --wa-header: #1a1a1a;
-  --wa-incoming: #2b2b2b;
+  --wa-incoming: #202428;
   --wa-outgoing: #005c4b;
   --wa-text: #ededed;
   --wa-meta: #b5b5b5;
   --wa-outgoing-meta: #b5d6ce;
   --wa-send: #00a884;
-  --wa-send-text: #121212;
+  --wa-send-text: #ffffff;
   --wa-pattern: rgb(180 180 180 / .04);
 }
 .wa-chat-header { background: var(--wa-header); color: var(--wa-text); }
@@ -41,14 +41,72 @@
 .wa-markdown-footer::after { content: ''; display: table; clear: both; }
 .wa-markdown-footer .wa-message-meta { margin-top: 2px; }
 .wa-day-label { background: var(--wa-header); color: var(--wa-meta); box-shadow: 0 1px 1px rgb(0 0 0 / .08); }
-.wa-composer { background: var(--wa-bg); padding: 6px 8px max(6px, env(safe-area-inset-bottom)); }
-.wa-input-capsule { background: var(--wa-incoming); color: var(--wa-text); border: 1px solid color-mix(in srgb, var(--wa-meta) 35%, transparent); }
-.wa-input-capsule:focus-within { border-color: var(--wa-send); }
-.wa-input { background: transparent; color: var(--wa-text); border: 0; box-shadow: none; }
-.wa-input::placeholder { color: var(--wa-meta); }
-.wa-input:focus-visible { outline: none; }
-.wa-send { background: var(--wa-send); color: var(--wa-send-text); }
-.wa-send:hover { filter: brightness(.95); }
+.wa-composer {
+  background: var(--wa-bg);
+  padding: 8px 10px max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+  transition: padding-bottom 0.15s ease-out;
+}
+@media (min-width: 640px) {
+  .wa-composer {
+    padding: 10px 16px max(12px, env(safe-area-inset-bottom, 0px));
+  }
+}
+.wa-input-capsule {
+  background: var(--wa-incoming);
+  color: var(--wa-text);
+  border: 1px solid color-mix(in srgb, var(--wa-meta) 22%, transparent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.wa-input-capsule:focus-within {
+  border-color: var(--wa-send);
+  box-shadow: 0 0 0 1px var(--wa-send), 0 1px 3px rgb(0 0 0 / .06);
+}
+.dark .wa-input-capsule {
+  background: #1e2023;
+  border-color: rgb(255 255 255 / .1);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .2);
+}
+.dark .wa-input-capsule:focus-within {
+  border-color: var(--wa-send);
+  box-shadow: 0 0 0 1px var(--wa-send), 0 2px 6px rgb(0 0 0 / .3);
+}
+.wa-action-btn {
+  color: var(--wa-meta);
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.wa-action-btn:hover {
+  color: var(--wa-text);
+  background-color: color-mix(in srgb, var(--wa-meta) 15%, transparent);
+}
+.dark .wa-action-btn:hover {
+  color: #ededed;
+  background-color: rgb(255 255 255 / .1);
+}
+.wa-input {
+  background: transparent;
+  color: var(--wa-text);
+  border: 0;
+  box-shadow: none;
+}
+.wa-input::placeholder {
+  color: var(--wa-meta);
+  opacity: 0.85;
+}
+.wa-input:focus-visible {
+  outline: none;
+}
+.wa-send {
+  background: var(--wa-send);
+  color: var(--wa-send-text);
+  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease, filter 0.15s ease;
+}
+.wa-send:hover:not(:disabled) {
+  filter: brightness(.95);
+}
+.dark .wa-send:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
 .wa-chat .chat-markdown { font-size: 16px; line-height: 1.55; }
 .wa-chat .chat-markdown h1 { font-size: 18px; }
 .wa-chat .chat-markdown h2 { font-size: 17px; }

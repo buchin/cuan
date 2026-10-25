@@ -87,13 +87,13 @@ export function CannedResponsesPicker({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className="wa-attach-button flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+        className="wa-action-btn flex h-9 w-9 sm:h-9.5 sm:w-9.5 items-center justify-center rounded-full active:scale-95 disabled:pointer-events-none disabled:opacity-40 shrink-0"
         title={t('Canned responses') + ' (/)'}
         aria-label={t('Canned responses')}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
       >
-        <Zap className="h-4 w-4" />
+        <Zap className="h-[18px] w-[18px]" />
       </button>
 
       {/* 1. Modal / Floating Picker when clicking the Zap button */}

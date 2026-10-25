@@ -291,14 +291,15 @@ export function InboxView({
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto'
     const scrollH = el.scrollHeight
+    const minH = window.innerWidth < 640 ? 36 : 38
     const cap = Math.max(
-      48,
+      minH,
       Math.min(
         140,
         (window.visualViewport?.height || window.innerHeight) * 0.25,
       ),
     )
-    const newH = Math.min(Math.max(scrollH, 48), cap)
+    const newH = Math.min(Math.max(scrollH, minH), cap)
     el.style.height = newH + 'px'
     el.style.overflowY = scrollH > cap ? 'auto' : 'hidden'
   }
@@ -1337,7 +1338,7 @@ export function InboxView({
                 {activeContact.type === 'agent' && (
                   <AttachmentPreviews uploads={uploads} disabled={sending} />
                 )}
-                <div className="wa-input-capsule flex min-w-0 items-end gap-1 rounded-[28px] p-1">
+                <div className="wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 rounded-full p-1 sm:p-1.5">
                   {activeContact.type === 'agent' && (
                     <AttachmentPicker
                       key={activeContact.conversation_id}
@@ -1359,7 +1360,7 @@ export function InboxView({
                   />
                   <textarea
                     ref={textareaRef}
- data-primary-composer
+                    data-primary-composer
                     aria-label={t('Message')}
                     rows={1}
                     value={inputMessage}
@@ -1375,7 +1376,7 @@ export function InboxView({
                         ? t('Write a message…')
                         : `Reply to ${activeContact.name}…`
                     }
-                    className="wa-input min-w-0 flex-1 min-h-12 max-h-[140px] resize-none overflow-hidden px-2 py-3 text-base leading-6"
+                    className="wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden px-1.5 sm:px-2 py-[7px] sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug"
                   />
 
                   <button
@@ -1387,11 +1388,11 @@ export function InboxView({
                       sending ||
                       uploads.busy
                     }
-                    className="wa-send h-12 w-12 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0"
+                    className="wa-send h-9 w-9 sm:h-9.5 sm:w-9.5 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5"
                     title={t('Send message (Enter)')}
                     aria-label={t('Send message')}
                   >
-                    <Send className="h-5 w-5" />
+                    <Send className="h-[18px] w-[18px]" />
                   </button>
                 </div>
               </div>
