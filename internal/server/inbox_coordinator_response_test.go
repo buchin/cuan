@@ -350,3 +350,22 @@ func TestCoordinatorAdvisoryModeAllowsNullActionForComponentQuestions(t *testing
 		t.Errorf("expected advice text to be preserved, got %s", out)
 	}
 }
+
+func TestCoordinatorInstructionMobileSafeLayoutsAndFeasibilityMatrix(t *testing.T) {
+	for name, prompt := range map[string]string{
+		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
+		"workflow.Coordinator":       workflow.Coordinator,
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, required := range []string{
+				"mobile-safe",
+				"code peeking",
+				"pre-flight technical impact",
+			} {
+				if !strings.Contains(strings.ToLower(prompt), strings.ToLower(required)) {
+					t.Fatalf("%s missing required directive %q", name, required)
+				}
+			}
+		})
+	}
+}
