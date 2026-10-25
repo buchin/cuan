@@ -312,7 +312,7 @@ export function StudioExecutionSelector({
                         <div className="flex h-5 w-5 items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground group-hover:border-primary/50 group-hover:text-primary transition-colors">
                           <Plus className="h-3 w-3" />
                         </div>
-                        <span>{t('+ Connect new project…')}</span>
+                        <span>{t('+ Create or connect project…')}</span>
                       </button>
                     ) : null}
                     <Link

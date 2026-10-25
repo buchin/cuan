@@ -8,7 +8,16 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const modalPath = path.join(__dirname, '../src/features/projects/CreateProjectModal.tsx')
+const appPath = path.join(__dirname, '../src/App.tsx')
+const studioPath = path.join(__dirname, '../src/features/inbox/StudioView.tsx')
+const pickerPath = path.join(__dirname, '../src/features/settings/GitHubRepositoryPicker.tsx')
+const workspacePath = path.join(__dirname, '../src/features/projects/ProjectsWorkspace.tsx')
+
 const modalSource = fs.readFileSync(modalPath, 'utf8')
+const appSource = fs.readFileSync(appPath, 'utf8')
+const studioSource = fs.readFileSync(studioPath, 'utf8')
+const pickerSource = fs.readFileSync(pickerPath, 'utf8')
+const workspaceSource = fs.readFileSync(workspacePath, 'utf8')
 
 test('1. CreateProjectModal: Category dropdown removed completely', () => {
   assert.ok(
@@ -50,27 +59,35 @@ test('3. CreateProjectModal: Quick inspiration chips & workspace guidance', () =
     'Quick starter chips must include friendly options like Online Store and Landing Page'
   )
   assert.ok(
+    modalSource.includes('isSelected') && modalSource.includes('ring-primary/30'),
+    'Quick starter chips must provide visual active ring/highlight feedback when clicked'
+  )
+  assert.ok(
     modalSource.includes('Cuan will set up an independent workspace on the server'),
     'Modal must inform user that Cuan will set up an independent managed workspace'
   )
 })
 
-test('4. CreateProjectModal: GitHub Integration & Smart repo URL handling', () => {
+test('4. GitHubRepositoryPicker: Searchable combobox & connection awareness', () => {
+  assert.ok(
+    pickerSource.includes('github-repository-search'),
+    'GitHubRepositoryPicker must provide live search input for repository filtering'
+  )
+  assert.ok(
+    pickerSource.includes('github-repository-picker-list'),
+    'GitHubRepositoryPicker must render a clean scrollable repository list card container'
+  )
+  assert.ok(
+    pickerSource.includes('apiFetch<GitHubConnectionResponse>(\'/api/v1/integrations/github\')'),
+    'GitHubRepositoryPicker must auto-detect GitHub connection status on load'
+  )
   assert.ok(
     modalSource.includes('<GitHubRepositoryPicker'),
-    'Modal must integrate GitHubRepositoryPicker for quick repository browsing'
-  )
-  assert.ok(
-    modalSource.includes('handleSelectRepo'),
-    'Modal must automatically suggest project name from repository URL'
-  )
-  assert.ok(
-    modalSource.includes('new-project-token'),
-    'Personal Access Token must be collapsible and optional for private repos'
+    'CreateProjectModal must embed modernized GitHubRepositoryPicker'
   )
 })
 
-test('5. CreateProjectModal: Dynamic submit action button', () => {
+test('5. CreateProjectModal: Dynamic submit action button with loader', () => {
   assert.ok(
     modalSource.includes("id=\"create-project-submit-btn\""),
     'Submit button must have id create-project-submit-btn'
@@ -78,5 +95,27 @@ test('5. CreateProjectModal: Dynamic submit action button', () => {
   assert.ok(
     modalSource.includes("t('Create project')") && modalSource.includes("t('Connect project')"),
     'Submit button must dynamically adapt label based on selected mode'
+  )
+  assert.ok(
+    modalSource.includes('animate-spin'),
+    'Submit button must render spinning loader during project creation'
+  )
+})
+
+test('6. Post-Creation Flow: Direct kickstart to Studio with preselected project', () => {
+  assert.ok(
+    appSource.includes("navigate(`/studio?project=${encodeURIComponent(created.id)}`)"),
+    'App.tsx must redirect newly created projects directly to Studio with query param'
+  )
+  assert.ok(
+    studioSource.includes("searchParams.get('project')"),
+    'StudioView.tsx must read project query param to immediately activate project in execution pill'
+  )
+})
+
+test('7. Workspace Empty State: Prominent Create Project CTA', () => {
+  assert.ok(
+    workspaceSource.includes('projects-workspace-empty-create-btn'),
+    'ProjectsWorkspace must render dedicated empty state create button (#projects-workspace-empty-create-btn)'
   )
 })

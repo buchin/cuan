@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   List,
   CheckSquare,
+  Sparkles,
 } from 'lucide-react'
 
 interface ProjectsViewProps {
@@ -15,6 +16,7 @@ interface ProjectsViewProps {
   tasks?: Task[]
   onSelectProject: (project: Project) => void
   onArchiveProject?: (id: string, isArchived: boolean) => Promise<void>
+  onCreateProject?: () => void
 }
 
 export function ProjectsView({
@@ -22,6 +24,7 @@ export function ProjectsView({
   tasks = [],
   onSelectProject,
   onArchiveProject,
+  onCreateProject,
 }: ProjectsViewProps) {
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
@@ -180,6 +183,16 @@ export function ProjectsView({
           {search.trim() ? (
             <button className="action-secondary" onClick={() => setSearch('')}>
               Clear search
+            </button>
+          ) : activeTab === 'active' && onCreateProject ? (
+            <button
+              type="button"
+              id="projects-empty-create-btn"
+              className="action-primary inline-flex items-center gap-2"
+              onClick={onCreateProject}
+            >
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              <span>Create project</span>
             </button>
           ) : null}
         </div>

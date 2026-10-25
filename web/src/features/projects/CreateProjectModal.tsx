@@ -8,6 +8,8 @@ import {
   Briefcase,
   BookOpen,
   ChevronDown,
+  Loader2,
+  Check,
 } from 'lucide-react'
 import { ProjectType } from '../../api/types'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
@@ -133,7 +135,7 @@ export function CreateProjectModal({
         >
           {/* TAB 1: Mulai Proyek Baru dari Nol */}
           {mode === 'new' && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div>
                 <label className="text-sm font-medium text-foreground" htmlFor="new-project-name">
                   {t('Project name')}
@@ -151,66 +153,96 @@ export function CreateProjectModal({
                 />
               </div>
 
-              {/* Quick Starter Inspiration Chips */}
+              {/* Quick Starter Inspiration Chips with Active Highlight */}
               <div>
                 <span className="text-[11px] font-medium text-muted-foreground">
                   {t('Quick inspiration:')}
                 </span>
-                <div className="flex flex-wrap gap-1.5 mt-1">
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
                   {quickStarters.map((item) => {
                     const Icon = item.icon
+                    const isSelected = name === item.suggest
                     return (
                       <button
                         key={item.label}
                         type="button"
                         onClick={() => setName(item.suggest)}
-                        className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground hover:border-primary/40 transition-colors"
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-all ${
+                          isSelected
+                            ? 'border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/30'
+                            : 'border-border/80 bg-muted/30 text-muted-foreground hover:bg-accent hover:text-foreground hover:border-primary/40'
+                        }`}
                       >
-                        <Icon className="h-3 w-3 text-primary/80" />
+                        <Icon className={`h-3 w-3 ${isSelected ? 'text-primary' : 'text-primary/80'}`} />
                         <span>{item.label}</span>
+                        {isSelected && <Check className="h-2.5 w-2.5 text-primary" />}
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground leading-relaxed flex items-start gap-2">
-                <FolderGit2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <span>
+              {/* Micro-benefits Card */}
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-foreground font-medium text-[11px]">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span>{t('Managed Workspace by Cuan')}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
                   {t(
                     'Cuan will set up an independent workspace on the server. You can immediately start building features via Studio chat.',
                   )}
-                </span>
+                </p>
               </div>
             </div>
           )}
 
           {/* TAB 2: Hubungkan Repositori GitHub */}
           {mode === 'github' && (
-            <div className="space-y-3">
-              {/* GitHub Picker Integration */}
+            <div className="space-y-3.5">
+              {/* GitHub Picker Integration with Live Search & Cards */}
               <div>
                 <GitHubRepositoryPicker
                   disabled={loading}
+                  selectedUrl={repoUrl}
                   onSelect={handleSelectRepo}
                 />
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-foreground" htmlFor="new-project-repo">
-                  {t('Repository URL')}
-                </label>
-                <input
-                  id="new-project-repo"
-                  type="text"
-                  inputMode="url"
-                  className="field-control mt-1.5"
-                  placeholder="https://github.com/username/repository"
-                  value={repoUrl}
-                  disabled={loading}
-                  onChange={(e) => handleSelectRepo(e.target.value)}
-                />
-              </div>
+              {/* Selected Repo Card (or Manual URL Fallback) */}
+              {repoUrl ? (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-primary/5 border border-primary/20 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FolderGit2 className="h-4 w-4 text-primary shrink-0" />
+                    <span className="truncate font-medium text-primary">
+                      {repoUrl.replace(/^https?:\/\/(?:www\.)?github\.com\//i, '')}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRepoUrl('')}
+                    className="text-[11px] text-muted-foreground hover:text-foreground underline shrink-0 ml-2"
+                  >
+                    {t('Change')}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground" htmlFor="new-project-repo">
+                    {t('Or enter GitHub repository URL manually')}
+                  </label>
+                  <input
+                    id="new-project-repo"
+                    type="text"
+                    inputMode="url"
+                    className="field-control mt-1"
+                    placeholder="https://github.com/username/repository"
+                    value={repoUrl}
+                    disabled={loading}
+                    onChange={(e) => handleSelectRepo(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-foreground" htmlFor="new-project-name-gh">
@@ -229,7 +261,7 @@ export function CreateProjectModal({
               </div>
 
               {/* Optional Collapsible Access Token */}
-              <div className="pt-1">
+              <div className="pt-0.5">
                 {!showTokenInput ? (
                   <button
                     type="button"
@@ -240,7 +272,7 @@ export function CreateProjectModal({
                     <span>{t('+ Enter Personal Access Token (for private repos)')}</span>
                   </button>
                 ) : (
-                  <div>
+                  <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground" htmlFor="new-project-token">
                       {t('Personal Access Token (GitHub PAT)')}
                     </label>
@@ -278,14 +310,19 @@ export function CreateProjectModal({
             <button
               type="submit"
               id="create-project-submit-btn"
-              className="action-primary"
+              className="action-primary inline-flex items-center gap-2"
               disabled={loading || !name.trim()}
             >
-              {loading
-                ? t('Creating…')
-                : mode === 'new'
-                ? t('Create project')
-                : t('Connect project')}
+              {loading && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+              <span>
+                {loading
+                  ? mode === 'new'
+                    ? t('Creating…')
+                    : t('Connecting…')
+                  : mode === 'new'
+                  ? t('Create project')
+                  : t('Connect project')}
+              </span>
             </button>
           </div>
         </form>

@@ -764,5 +764,22 @@
   "Connect project": "Hubungkan project",
   "Connecting…": "Menghubungkan…",
   "Creating…": "Membuat…",
-  "Failed to create project": "Gagal membuat project"
+  "Failed to create project": "Gagal membuat project",
+  "Checking GitHub connection…": "Memeriksa koneksi GitHub…",
+  "Connect your GitHub account": "Hubungkan akun GitHub Anda",
+  "Connect GitHub in Settings to browse and select repositories directly, or paste a repository URL manually below.": "Hubungkan GitHub di Pengaturan untuk memilih repositori secara langsung, atau tempel URL repositori di bawah.",
+  "Connect GitHub in Settings": "Hubungkan GitHub di Pengaturan",
+  "Connected as": "Terhubung sebagai",
+  "GitHub connected": "GitHub terhubung",
+  "Search your GitHub repositories…": "Cari repositori GitHub Anda…",
+  "No repositories match your search.": "Tidak ada repositori yang cocok dengan pencarian.",
+  "No repositories found.": "Tidak ada repositori ditemukan.",
+  "Load more repositories…": "Muat lebih banyak repositori…",
+  "Managed Workspace by Cuan": "Ruang Kerja Mandiri oleh Cuan",
+  "Or enter GitHub repository URL manually": "Atau masukkan URL repositori GitHub secara manual",
+  "Change": "Ganti",
+  "+ Create or connect project…": "+ Buat atau hubungkan project…",
+  "Create or connect a project (optional)": "Buat atau hubungkan project (opsional)",
+  "Select a project from the left or create a new workspace.": "Pilih project dari menu kiri atau buat ruang kerja baru.",
+  "read-only": "hanya-baca"
 }

@@ -1,7 +1,7 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, useAttachments } from './Attachments'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
@@ -72,11 +72,24 @@ export function StudioView({
     [error, setError] = useState(''),
     [retryCount, setRetryCount] = useState(0)
   const [agents, setAgents] = useState<Agent[]>([])
+  const [searchParams] = useSearchParams()
   const [agentsLoading, setAgentsLoading] = useState(true)
   const [selectedAgentId, setSelectedAgentId] = useState('')
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState(
+    () => searchParams.get('project') || ''
+  )
+
+  useEffect(() => {
+    const projectParam = searchParams.get('project')
+    if (projectParam) {
+      setSelectedProjectId(projectParam)
+      setTimeout(() => {
+        goalInput.current?.focus()
+      }, 60)
+    }
+  }, [searchParams])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const supportsVision = selectedAgent
@@ -314,7 +327,7 @@ export function StudioView({
           {firstGoal && installation === 'available' && agentSetup === 'ready' && (
             <p className="text-xs leading-relaxed text-muted-foreground">
               {t('Start with your goal. Cuan will organize the work for you.')}
-              {!hasProject && <> <button type="button" className="min-h-11 underline underline-offset-2" onClick={onCreateProject}>{t('Connect a project (optional)')}</button></>}
+              {!hasProject && <> <button type="button" className="min-h-11 underline underline-offset-2" onClick={onCreateProject}>{t('Create or connect a project (optional)')}</button></>}
             </p>
           )}
           {error && (

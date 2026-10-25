@@ -424,15 +424,6 @@ export function App() {
     )
   }
 
-  const handleSelectProject = (p?: Project) => {
-    setActiveProject(p)
-    if (p) {
-      navigate(`/projects/${p.id}/settings`)
-    } else {
-      navigate('/projects')
-    }
-  }
-
   // Handlers for Projects
   const handleCreateProject = async (data: {
     name: string
@@ -442,7 +433,8 @@ export function App() {
   }) => {
     const created = await projectsApi.create(data)
     await refreshProjects()
-    handleSelectProject(created)
+    setActiveProject(created)
+    navigate(`/studio?project=${encodeURIComponent(created.id)}`)
   }
 
   const handleArchiveProject = async (id: string, isArchived: boolean) => {

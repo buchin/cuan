@@ -2,7 +2,7 @@ import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Archive, MoreHorizontal } from 'lucide-react'
+import { Folder, Search, ChevronLeft, Archive, MoreHorizontal, Sparkles } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { ProjectIcon } from './ProjectIcon'
@@ -217,9 +217,20 @@ export function ProjectsWorkspace({
             </div>
           </>
         ) : (
-          <div className="flex h-full items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
-            <Folder className="h-6 w-6" />
-            <p>{t('Select a project to view its settings.')}</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+            <Folder className="h-8 w-8 text-muted-foreground/60" />
+            <p className="max-w-xs">{t('Select a project from the left or create a new workspace.')}</p>
+            {onNewProject && (
+              <button
+                type="button"
+                id="projects-workspace-empty-create-btn"
+                onClick={onNewProject}
+                className="action-secondary inline-flex items-center gap-1.5 text-xs py-1.5 px-3 mt-1"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <span>{t('Create project')}</span>
+              </button>
+            )}
           </div>
         )}
       </div>
