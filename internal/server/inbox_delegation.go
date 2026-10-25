@@ -187,7 +187,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if err != nil || p == nil || p.IsArchived {
 		return fail("the selected project is unavailable or archived")
 	}
-	if room.ProjectID == "default" && d.ProjectID != "" && d.ProjectID != "default" {
+	if d.ProjectID != "" && (room.ProjectID == "default" || room.ProjectID == "" || (roomAgentID(room.Topic) != "" && room.ProjectID != d.ProjectID)) {
 		room.ProjectID = d.ProjectID
 		_ = s.projectStudioRepo.UpdateRoom(ctx, room)
 	}

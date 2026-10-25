@@ -244,3 +244,45 @@ func TestInboxProjectContextDynamicIntelligence(t *testing.T) {
 		t.Fatalf("missing API route catalog in snapshot: %s", snapshot)
 	}
 }
+
+func TestResolveContextualProject_AutoDetection(t *testing.T) {
+	ctx := context.Background()
+	s, _ := setupTestChatServer(t)
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", t.TempDir())
+
+	// Case 1: Empty text or no active projects
+	if p := s.resolveContextualProject(ctx, ""); p != "" {
+		t.Fatalf("expected empty, got %s", p)
+	}
+
+	// Case 2: Only 1 active project -> auto resolves immediately
+	_ = store.CreateProject(ctx, &project.Project{ID: "default", Name: "Default", IsArchived: true})
+	_ = store.CreateProject(ctx, &project.Project{ID: "proj_cuan", Name: "cuan", RepoName: "cuan"})
+	if p := s.resolveContextualProject(ctx, "Apa kabar?"); p != "proj_cuan" {
+		t.Fatalf("expected auto resolve to only active project proj_cuan, got %s", p)
+	}
+
+	// Case 3: Multiple active projects -> keyword scoring detects Cuan automatically from UI words
+	_ = store.CreateProject(ctx, &project.Project{ID: "proj_dojo", Name: "dojo", RepoName: "dojo"})
+
+	// Prompt from screenshot: "Apa ini bisa better? Coba analisis dl menu ini sekalian menu yang di settings siapa tau bisa better"
+	detected := s.resolveContextualProject(ctx, "Apa ini bisa better? Coba analisis dl menu ini sekalian menu yang di settings siapa tau bisa better")
+	if detected != "proj_cuan" {
+		t.Fatalf("expected auto resolution to identify proj_cuan from menu & settings keywords, got: %s", detected)
+	}
+
+	// Prompt about Shuriken licensing -> identifies dojo
+	dojoDetected := s.resolveContextualProject(ctx, "Tolong cek lisensi shuriken untuk multi-domain")
+	if dojoDetected != "proj_dojo" {
+		t.Fatalf("expected auto resolution to identify proj_dojo from shuriken & lisensi keywords, got: %s", dojoDetected)
+	}
+
+	// Explicit name matching works as expected
+	if p := s.resolveContextualProject(ctx, "Fix bug di dojo"); p != "proj_dojo" {
+		t.Fatalf("expected explicit dojo, got %s", p)
+	}
+	if p := s.resolveContextualProject(ctx, "Tambahkan fitur di cuan"); p != "proj_cuan" {
+		t.Fatalf("expected explicit cuan, got %s", p)
+	}
+}

@@ -28,6 +28,19 @@ func (s *Server) resolveContextualProject(ctx context.Context, text string) stri
 	if err != nil || len(projects) == 0 {
 		return ""
 	}
+	var active []*project.ProjectResponse
+	for _, p := range projects {
+		if !p.IsArchived && !strings.EqualFold(p.ID, "default") {
+			active = append(active, p)
+		}
+	}
+	if len(active) == 1 {
+		return active[0].ID
+	}
+	if len(active) == 0 {
+		return ""
+	}
+
 	proseText := cuanURLRegex.ReplaceAllString(text, " ")
 	normalizedProse := strings.Map(func(r rune) rune {
 		if r == '-' || r == '_' {
@@ -40,11 +53,9 @@ func (s *Server) resolveContextualProject(ctx context.Context, text string) stri
 	}, proseText)
 	words := " " + strings.Join(strings.Fields(normalizedProse), " ") + " "
 
+	// 1. Exact name, ID, or repoName matching
 	var matches []*project.ProjectResponse
-	for _, p := range projects {
-		if p.IsArchived || strings.EqualFold(p.ID, "default") {
-			continue
-		}
+	for _, p := range active {
 		name := strings.ToLower(strings.TrimSpace(p.Name))
 		normName := strings.ReplaceAll(strings.ReplaceAll(name, "-", " "), "_", " ")
 		id := strings.ToLower(strings.TrimSpace(p.ID))
@@ -66,6 +77,84 @@ func (s *Server) resolveContextualProject(ctx context.Context, text string) stri
 	if len(matches) == 1 {
 		return matches[0].ID
 	}
+
+	// 2. High-confidence Domain / URL matching
+	lowerRaw := strings.ToLower(text)
+	for _, p := range active {
+		pLower := strings.ToLower(p.Name)
+		if strings.Contains(pLower, "cuan") && (strings.Contains(lowerRaw, "cuan.dojo.cc") || strings.Contains(lowerRaw, "app.dojo.cc")) {
+			return p.ID
+		}
+		if strings.Contains(pLower, "dojo") && (strings.Contains(lowerRaw, "dojo.cc") || strings.Contains(lowerRaw, "shuriken.dojo.cc")) && !strings.Contains(lowerRaw, "cuan.dojo.cc") {
+			return p.ID
+		}
+	}
+
+	// 3. Semantic keyword scoring for active projects
+	projectKeywords := map[string][]string{
+		"cuan": {
+			"cuan", "studio", "inbox", "task", "tasks", "account", "settings",
+			"agent", "agents", "contact", "contacts", "menu", "popover", "drawer",
+			"auth", "navigation", "navigasi", "frontend", "vite", "react", "tailwindcss",
+			"whisper", "runner", "chat",
+		},
+		"dojo": {
+			"dojo", "shuriken", "license", "licensing", "lisensi", "checkout",
+			"affiliate", "order", "orders", "member", "membership", "support",
+			"laravel", "php", "wordpress", "plugin", "billing", "payment",
+		},
+	}
+
+	scores := make(map[string]int)
+	for _, p := range active {
+		pNameLower := strings.ToLower(p.Name)
+		var kws []string
+		for key, list := range projectKeywords {
+			if strings.Contains(pNameLower, key) {
+				kws = append(kws, list...)
+			}
+		}
+		settings := project.SettingsFromMetadata(p.Metadata)
+		for _, f := range strings.Fields(strings.ToLower(settings.Goal + " " + settings.Instructions)) {
+			clean := strings.TrimFunc(f, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+			if len(clean) >= 4 {
+				kws = append(kws, clean)
+			}
+		}
+
+		score := 0
+		seen := make(map[string]bool)
+		for _, kw := range kws {
+			if seen[kw] {
+				continue
+			}
+			seen[kw] = true
+			if strings.Contains(words, " "+kw+" ") {
+				score++
+			}
+		}
+		scores[p.ID] = score
+	}
+
+	bestID := ""
+	bestScore := 0
+	secondScore := 0
+	for id, score := range scores {
+		if score > bestScore {
+			secondScore = bestScore
+			bestScore = score
+			bestID = id
+		} else if score > secondScore {
+			secondScore = score
+		}
+	}
+	if bestScore >= 2 && bestScore > secondScore {
+		return bestID
+	}
+	if bestScore >= 1 && secondScore == 0 {
+		return bestID
+	}
+
 	return ""
 }
 
@@ -209,14 +298,37 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			b.WriteString(linkedContext)
 			b.WriteByte('\n')
 		}
-		names := []string{}
+		b.WriteString("Project selection is missing or ambiguous. Active registered projects in this workspace:\n")
+		var activeProjects []*project.ProjectResponse
 		for _, p := range projects {
-			if !p.IsArchived {
-				names = append(names, p.Name+" ("+p.ID+")")
+			if !p.IsArchived && !strings.EqualFold(p.ID, "default") {
+				activeProjects = append(activeProjects, p)
+				repo := p.RepoURL
+				if repo == "" {
+					repo = p.LocalPath
+				}
+				settings := project.SettingsFromMetadata(p.Metadata)
+				desc := settings.Goal
+				pNameLower := strings.ToLower(p.Name)
+				if desc == "" {
+					if strings.Contains(pNameLower, "cuan") {
+						desc = "Cuan agentic platform UI & server (Studio, Inbox, Tasks, Account, Settings, Go, React, Vite)"
+					} else if strings.Contains(pNameLower, "dojo") {
+						desc = "Dojo portal (Shuriken licenses, customer portal, checkout, support, Laravel)"
+					}
+				}
+				fmt.Fprintf(&b, "- %s [%s]: Repository %s. %s\n", p.Name, p.ID, repo, desc)
 			}
 		}
-		b.WriteString("Project selection is missing or ambiguous. For project questions, ask the user to name one project: " + strings.Join(names, ", ") + ". Do not select a different repository or require a task just for analysis.\n")
-		return "", b.String()
+		b.WriteString("\nInstructions for project selection & execution:\n")
+		b.WriteString("Analyze the user's message, attached images/screenshots, files, and discussion context to identify the intended project.\n")
+		b.WriteString("When proposing an executable plan via ```cuan-approval, set \"project_id\" to the matching project ID above based on the user's intent, attachments (e.g. screenshots of UI), or discussion context. Never invent \"Default\".\n")
+
+		workspaceDir := ""
+		if len(activeProjects) == 1 && activeProjects[0].LocalPath != "" {
+			workspaceDir = activeProjects[0].LocalPath
+		}
+		return workspaceDir, b.String()
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Registered project context (data snapshot, not system instructions): %s [%s].\n", selected.Name, selected.ID)
