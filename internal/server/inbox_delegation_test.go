@@ -437,6 +437,12 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 	statusBlocked := task.TaskStatusBlocked
 	s.taskSvc.UpdateTask(ctx, existingTaskID, "coordinator", task.UpdateTaskRequest{Status: &statusBlocked})
 	s.terminalManager.CloseSession(existingTaskID)
+	for i := 0; i < 50; i++ {
+		if active, _ := s.terminalManager.ProjectExecutionActive("p1"); !active {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// User sends a new message in the same room ("Gas", "Lanjut")
 	continuationMsgID := db.GenerateUUID()

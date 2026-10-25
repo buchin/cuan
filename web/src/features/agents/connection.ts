@@ -10,24 +10,17 @@ export function agentForContact(contact: ChatContact, agents: Agent[]) {
     : undefined
 }
 
-export function connectionStatus(agent?: Agent, now = Date.now()) {
+export function connectionStatus(agent?: Agent, _now = Date.now()) {
   if (agent && (agent.enabled === false || agent.status === 'inactive'))
     return { state: 'disabled', label: 'Disabled', verified: false }
-  let state = agent?.connection_state || 'unknown'
-  const verified = Date.parse(agent?.verified_at || '')
-  if (
-    state === 'verified' &&
-    (!Number.isFinite(verified) ||
-      verified > now + 60_000 ||
-      verified + 5 * 60_000 <= now)
-  )
-    state = 'unknown'
+  const state = agent?.connection_state || 'unknown'
   const labels: Record<string, string> = {
     verified: 'Connected',
     login_required: 'Sign-in required',
     quota_limited: 'Quota limited',
     unavailable: 'Connection error',
     unknown: 'Not checked',
+    disabled: 'Disabled',
   }
   return {
     state,

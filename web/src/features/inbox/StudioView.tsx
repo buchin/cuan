@@ -6,7 +6,7 @@ import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
-import { connectionStatus } from '../agents/connection'
+import { StudioAgentSelector } from './StudioAgentSelector'
 
 export function StudioView({
   onAccepted, agentSetup, firstGoal, hasProject,
@@ -229,7 +229,7 @@ export function StudioView({
           <label htmlFor="studio-goal" className="sr-only">
             {t('Your goal')}
           </label>
-          <div className="overflow-hidden rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+          <div className="relative rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
             <textarea
               data-primary-composer
               id="studio-goal"
@@ -252,66 +252,42 @@ export function StudioView({
                 }
               }}
             />
-            <div className="px-2 pb-2">
-              <AttachmentPicker uploads={uploads} disabled={busy} disableImages={!supportsVision} />
-            </div>
-          </div>
-          {agentSetup === 'ready' && !agentsLoading && (
-            <div className="mt-3">
-              <label htmlFor="studio-agent" className="text-sm font-medium text-foreground block mb-1">
-                {t('Agent')}
-              </label>
-              <select
-                id="studio-agent"
-                value={selectedAgentId}
-                onChange={(e) => setSelectedAgentId(e.target.value)}
-                disabled={busy}
-                className="field-control w-full"
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2 sm:px-3 sm:pb-3 border-t border-border/40">
+              <div className="flex flex-wrap items-center gap-2">
+                <AttachmentPicker uploads={uploads} disabled={busy} disableImages={!supportsVision} />
+                {agentSetup === 'ready' && !agentsLoading && agents.length > 0 && (
+                  <StudioAgentSelector
+                    agents={agents}
+                    selectedAgentId={selectedAgentId}
+                    onSelect={setSelectedAgentId}
+                    disabled={busy}
+                  />
+                )}
+              </div>
+              <button
+                type="submit"
+                className="action-primary w-full sm:w-auto"
+                disabled={
+                  busy || uploads.busy || installation !== 'available' || agentSetup === 'loading' || agentSetup === 'error' || (agentSetup === 'ready' && !goal.trim() && !uploads.items.length)
+                }
               >
-                <option value="">{t('Auto (choose best)')}</option>
-                {agents.map((agent) => {
-                  const state = connectionStatus(agent, Date.now())
-                  const vision = isModelVisionCapable(agent.model_id, agent.provider || agent.harness)
-                  return (
-                    <option
-                      key={agent.id}
-                      value={agent.id}
-                      disabled={
-                        state.state !== 'verified' &&
-                        agent.provider !== 'commandcode'
-                      }
-                    >
-                      {agent.name} — {t(state.label)} ({vision ? t('Vision') : t('Text-only')})
-                    </option>
-                  )
-                })}
-              </select>
-              {!supportsVision && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  ℹ {t('Model ini tidak mendukung input gambar (vision). Lampiran gambar dibatalkan; gunakan teks atau dokumen.')}
-                </p>
-              )}
+                {busy ? (
+                  <LoaderCircle
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                )}
+                {busy ? t('Getting started…') : installation === 'checking' || agentSetup === 'loading' ? t('Checking setup…') : agentSetup === 'needed' ? t('Connect Google') : t('Get it done')}
+              </button>
             </div>
-          )}
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <button
-              type="submit"
-              className="action-primary w-full sm:w-auto"
-              disabled={
-                busy || uploads.busy || installation !== 'available' || agentSetup === 'loading' || agentSetup === 'error' || (agentSetup === 'ready' && !goal.trim() && !uploads.items.length)
-              }
-            >
-              {busy ? (
-                <LoaderCircle
-                  className="h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              )}
-              {busy ? t('Getting started…') : installation === 'checking' || agentSetup === 'loading' ? t('Checking setup…') : agentSetup === 'needed' ? t('Connect Google') : t('Get it done')}
-            </button>
           </div>
+          {!supportsVision && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              ℹ {t('Model ini tidak mendukung input gambar (vision). Lampiran gambar dibatalkan; gunakan teks atau dokumen.')}
+            </p>
+          )}
           {firstGoal && installation === 'available' && agentSetup === 'ready' && (
             <p className="text-xs leading-relaxed text-muted-foreground">
               {t('Start with your goal. Cuan will organize the work for you.')}
