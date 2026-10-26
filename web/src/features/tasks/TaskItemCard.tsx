@@ -261,8 +261,8 @@ export function TaskItemCard({
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
             {agent && (
-              <span>
-                {t('Agent')}: {agentDisplayName(agent)}
+              <span className="font-mono text-[11px]">
+                {agentDisplayName(agent)}
               </span>
             )}
             {currentTask.priority && currentTask.priority !== 'normal' && (
@@ -422,6 +422,14 @@ export function TaskItemCard({
           <span className="font-mono text-xs text-muted-foreground">
             {taskRef(currentTask.id)}
           </span>
+          {agent && (
+            <span
+              className="inline-flex items-center text-[11px] text-muted-foreground/75 font-mono"
+              title={`Agent: ${agentDisplayName(agent)}`}
+            >
+              {agentDisplayName(agent)}
+            </span>
+          )}
         </div>
 
         <time
@@ -500,24 +508,16 @@ export function TaskItemCard({
         ) : null}
       </div>
 
-      {/* Footer: Agent info & Action buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50 text-xs">
-        <div className="text-[11px] text-muted-foreground">
-          {agent && (
-            <span>
-              {t('Agent')}: <strong>{agentDisplayName(agent)}</strong>
-            </span>
-          )}
-        </div>
-
-        {showActions && (
+      {/* Footer: Action buttons */}
+      {showActions && (
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50 text-xs">
           <div className="flex items-center gap-2 ml-auto">
             {currentTask.pr_url && !applied && status === 'Ready for review' && (
               <button
                 type="button"
                 disabled={applying}
                 onClick={handleApply}
-                className="action-primary text-xs px-2.5 py-1 inline-flex items-center gap-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all"
+                className="action-primary text-xs px-3 py-1.5 min-h-9 inline-flex items-center gap-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-xs transition-all"
               >
                 <Rocket className="h-3.5 w-3.5" />
                 <span>{applying ? t('Applying...') : t('Apply changes')}</span>
@@ -538,7 +538,7 @@ export function TaskItemCard({
                     e.stopPropagation()
                     onNavigate?.()
                   }}
-                  className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1"
+                  className="action-secondary text-xs px-3 py-1.5 min-h-9 inline-flex items-center gap-1"
                 >
                   {t('Detail')}
                 </Link>
@@ -546,7 +546,7 @@ export function TaskItemCard({
                   type="button"
                   disabled={retrying}
                   onClick={handleRetry}
-                  className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
+                  className="action-primary text-xs px-3.5 py-1.5 min-h-9 inline-flex items-center gap-1.5"
                 >
                   <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
                   <span>{retrying ? t('Retrying...') : t('Retry')}</span>
@@ -561,7 +561,7 @@ export function TaskItemCard({
                     e.stopPropagation()
                     onNavigate?.()
                   }}
-                  className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1"
+                  className="action-secondary text-xs px-3 py-1.5 min-h-9 inline-flex items-center gap-1"
                 >
                   {t('Detail')}
                 </Link>
@@ -580,7 +580,7 @@ export function TaskItemCard({
                           onNavigate?.()
                         }
                   }
-                  className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
+                  className="action-primary text-xs px-3.5 py-1.5 min-h-9 inline-flex items-center gap-1.5"
                 >
                   <Terminal className="h-3.5 w-3.5" />
                   <span>{t('Live Terminal')}</span>
@@ -605,7 +605,7 @@ export function TaskItemCard({
                       }
                 }
                 className={cn(
-                  'text-xs px-3 py-1 inline-flex items-center gap-1.5',
+                  'text-xs px-3.5 py-1.5 min-h-9 inline-flex items-center gap-1.5',
                   currentTask.pr_url && !applied && status === 'Ready for review'
                     ? 'action-secondary'
                     : 'action-primary'
@@ -630,15 +630,15 @@ export function TaskItemCard({
                         onNavigate?.()
                       }
                 }
-                className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
+                className="action-primary text-xs px-3.5 py-1.5 min-h-9 inline-flex items-center gap-1.5"
               >
                 <Play className="h-3.5 w-3.5" />
                 <span>{t('Start session')}</span>
               </Link>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
       {retryError && (
         <div className="text-[11px] text-destructive pt-1 font-medium break-words">
           {retryError}

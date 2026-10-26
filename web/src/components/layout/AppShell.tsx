@@ -292,7 +292,7 @@ export function AppShell({
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <UniversalSearch />
+            <UniversalSearch hideTrigger={currentTab === 'tasks'} />
             <ReloadButton
               className="icon-action"
               iconClassName="h-4 w-4 sm:h-5 sm:w-5"

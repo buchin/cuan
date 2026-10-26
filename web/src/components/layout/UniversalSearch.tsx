@@ -69,7 +69,7 @@ function Match({ text, term }: { text: string; term: string }) {
     </>
   )
 }
-export function UniversalSearch() {
+export function UniversalSearch({ hideTrigger = false }: { hideTrigger?: boolean } = {}) {
   const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -161,16 +161,18 @@ export function UniversalSearch() {
   const count = groups.reduce((total, group) => total + group.items.length, 0)
   return (
     <>
-      <button
-        type="button"
-        className="icon-action"
-        aria-label={t('Search Cuan')}
-        aria-keyshortcuts="Control+k Meta+k"
-        title={t('Search Cuan') + ' (⌘/Ctrl K)'}
-        onClick={() => setOpen(true)}
-      >
-        <Search className="h-5 w-5" />
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          className="icon-action"
+          aria-label={t('Search Cuan')}
+          aria-keyshortcuts="Control+k Meta+k"
+          title={t('Search Cuan') + ' (⌘/Ctrl K)'}
+          onClick={() => setOpen(true)}
+        >
+          <Search className="h-5 w-5" />
+        </button>
+      )}
       {createPortal(
         <ActionDialog
           open={open}
