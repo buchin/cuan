@@ -24,6 +24,9 @@ func TestQueuedLaunchRecoversAfterRouteReleaseAndReconstruction(t *testing.T) {
 	}
 }
 func runQueuedLaunchScenario(t *testing.T, scenario string, database *sql.DB) {
+	if testing.Short() {
+		t.Skip("skipping slow queued launch integration test in short mode")
+	}
 	s, token, call, _ := inboxFixture(t)
 	ctx := context.Background()
 	owner, _ := s.authSvc.ValidateToken(ctx, token)

@@ -81,6 +81,9 @@ func TestTaskCommitIdentityGitHubAndOverride(t *testing.T) {
 }
 
 func TestFreshTaskProcessCommitsWithOwnerIdentity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow task git identity process test in short mode")
+	}
 	s, _, call, _ := inboxFixture(t)
 	ctx := context.Background()
 	owner, _ := s.authSvc.OwnerIdentity(ctx)

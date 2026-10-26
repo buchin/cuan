@@ -21,6 +21,9 @@ func TestInboxPlanDeferralNeverAuthorizesWorkAndCanBeApprovedLater(t *testing.T)
 	runInboxPlanApproval(t, true)
 }
 func runInboxPlanApproval(t *testing.T, deferFirst bool) {
+	if testing.Short() {
+		t.Skip("skipping slow plan approval test in short mode")
+	}
 	s, _, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()

@@ -476,6 +476,9 @@ func TestServer_AgentCLIOnboardingAndBinariesEndpoints(t *testing.T) {
 }
 
 func TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping BYO agent CLI harness test in short mode")
+	}
 	repo := cuanDB.NewMemoryAgentRepository()
 	studioRepo := cuanDB.NewMemoryProjectStudioRepository()
 

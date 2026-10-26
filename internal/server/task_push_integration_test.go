@@ -19,6 +19,9 @@ import (
 func TestTaskPushConnectionRecoveryRealGit(t *testing.T)      { runTaskPushRecovery(t, false) }
 func TestGitHubQueuedProcessContinuationRealGit(t *testing.T) { runTaskPushRecovery(t, true) }
 func runTaskPushRecovery(t *testing.T, automatic bool) {
+	if testing.Short() {
+		t.Skip("skipping slow real git push recovery test in short mode")
+	}
 	s, ownerToken, _, _ := inboxFixture(t)
 	ctx := context.Background()
 	root := t.TempDir()

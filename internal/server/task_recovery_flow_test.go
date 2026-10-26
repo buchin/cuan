@@ -26,6 +26,9 @@ func TestApprovedRepositoryRecoveryPreservesPendingGitWork(t *testing.T) {
 	runInboxProcessLossRecovery(t, true, true)
 }
 func runInboxProcessLossRecovery(t *testing.T, structured, repository bool) {
+	if testing.Short() {
+		t.Skip("skipping slow recovery flow test in short mode")
+	}
 	s, _, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()

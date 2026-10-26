@@ -132,8 +132,11 @@ func TestValidateRepository_GitHubAPI(t *testing.T) {
 func TestCloneOrFetch_LocalFixture(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create a bare git repo as "remote"
-	remoteBareDir := filepath.Join(tempDir, "remote.git")
+	// Create a bare git repo as "remote" at tempDir/test/repo.git
+	remoteBareDir := filepath.Join(tempDir, "test", "repo.git")
+	if err := os.MkdirAll(filepath.Dir(remoteBareDir), 0755); err != nil {
+		t.Fatalf("failed to create remote dir: %v", err)
+	}
 	cmd := exec.Command("git", "init", "--bare", remoteBareDir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("failed to init bare git repo: %s", string(out))
@@ -165,18 +168,16 @@ func TestCloneOrFetch_LocalFixture(t *testing.T) {
 	// Test CloneOrFetch into target destination
 	targetDir := filepath.Join(tempDir, "clone_target")
 	client := NewClient()
+	client.SetGitBaseURL(tempDir)
 
-	// Override authURL generation by testing direct clone via command or dummy
-	// We verify that CloneOrFetch clones properly
-	cmd = exec.Command("git", "clone", remoteBareDir, targetDir)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed clone target: %s", string(out))
+	ctx := context.Background()
+	// 1. Fresh clone
+	if err := client.CloneOrFetch(ctx, "test", "repo", "", targetDir); err != nil {
+		t.Fatalf("failed CloneOrFetch fresh clone: %v", err)
 	}
 
-	// Now run CloneOrFetch on already existing targetDir (fetch branch)
-	ctx := context.Background()
-	err := client.CloneOrFetch(ctx, "test", "repo", "", targetDir)
-	if err != nil {
+	// 2. Fetch on existing targetDir
+	if err := client.CloneOrFetch(ctx, "test", "repo", "", targetDir); err != nil {
 		t.Fatalf("expected successful fetch on existing dir: %v", err)
 	}
 }

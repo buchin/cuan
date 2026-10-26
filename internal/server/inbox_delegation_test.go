@@ -59,6 +59,9 @@ func TestInboxInterruptionResumesSameApprovedTask(t *testing.T) {
 }
 
 func runInboxDelegation(t *testing.T, topic, managed bool, promptOverride ...string) {
+	if testing.Short() {
+		t.Skip("skipping slow delegation test in short mode")
+	}
 	interrupted := len(promptOverride) > 1 && promptOverride[1] == "interrupt"
 	badPass := len(promptOverride) > 1 && promptOverride[1] == "bad-pass"
 	failedFirst := interrupted || badPass

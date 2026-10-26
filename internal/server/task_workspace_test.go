@@ -48,6 +48,9 @@ func waitWorkspaceTask(t *testing.T, s *Server, id, state string) *task.TaskDeta
 	}
 }
 func TestTaskWorkspaceLaunchReviewRevisionAndReplay(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow workspace PTY test in short mode")
+	}
 	s, _, call, _ := inboxFixture(t)
 	prepareTaskReporter(t, s)
 	created := workspaceTask(t, call)
@@ -122,6 +125,9 @@ func TestTaskWorkspaceLaunchReviewRevisionAndReplay(t *testing.T) {
 	}
 }
 func TestTaskWorkspaceTerminalAttachInputReconnectAndSavedOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow workspace PTY test in short mode")
+	}
 	s, token, call, _ := inboxFixture(t)
 	prepareTaskReporter(t, s)
 	// A real local PTY fixture, never a provider invocation.

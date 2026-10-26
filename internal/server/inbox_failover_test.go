@@ -80,6 +80,9 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"rep
 }
 
 func TestInboxQuotaFailover(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow failover test in short mode")
+	}
 	for _, scenario := range []string{"success", "read-only", "native-read-only", "unsafe", "unknown-tool", "not-opted-in", "backup-quota", "auth", "primary-known-quota", "disabled-backup", "cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, _, registered, p, b, home, backupHome := setupFailoverFixture(t)

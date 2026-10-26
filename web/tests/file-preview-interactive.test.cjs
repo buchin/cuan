@@ -254,7 +254,7 @@ Saya setuju dengan analisis ini.`
   const distDir = path.join(__dirname, '../dist/assets')
   const cssFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.css'))
   assert(cssFiles.length > 0, 'Compiled CSS bundle exists')
-  const cssContent = fs.readFileSync(path.join(distDir, cssFiles[0]), 'utf8')
+  const cssContent = cssFiles.map((f) => fs.readFileSync(path.join(distDir, f), 'utf8')).join('\n')
 
   const responsiveTokens = [
     { name: 'min-h-11 (44px WCAG touch target)', regex: /\.min-h-11/ },

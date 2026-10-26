@@ -172,6 +172,9 @@ func TestTaskAgentFailureAndBlockerDoNotBecomeReview(t *testing.T) {
 // A real PTY fixture, not a provider mock response: it stays interactive, accepts
 // a second turn, uses the actual capability CLI, and waits for report finalization.
 func TestTaskAgentInteractiveTurnAndReportedFinish(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow interactive PTY agent test in short mode")
+	}
 	for _, state := range []string{"review", "blocked", "done"} {
 		t.Run(state, func(t *testing.T) {
 			s, _, call, _ := inboxFixture(t)
@@ -250,6 +253,9 @@ while :; do sleep 1; done
 }
 
 func TestTaskAgentInteractiveFinalizationRespectsProgressAndCancel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow interactive PTY agent cancel test in short mode")
+	}
 	for _, cancel := range []bool{false, true} {
 		t.Run(fmt.Sprint("cancel_", cancel), func(t *testing.T) {
 			s, _, call, _ := inboxFixture(t)

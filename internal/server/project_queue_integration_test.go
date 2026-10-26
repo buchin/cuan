@@ -14,6 +14,9 @@ import (
 )
 
 func TestProjectLevelTaskQueueAndLock(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping project queue concurrency test in short mode")
+	}
 	s, _, call, _ := inboxFixture(t)
 	prepareTaskReporter(t, s)
 

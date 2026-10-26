@@ -4,32 +4,90 @@ import {
   NotificationsNavigation,
   NotificationsActions,
 } from './features/notifications/NotificationsView'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { AppShell, AppTab } from './components/layout/AppShell'
-import { ProjectsWorkspace } from './features/projects/ProjectsWorkspace'
-import { CreateProjectModal } from './features/projects/CreateProjectModal'
-import { CreateTaskModal } from './features/tasks/CreateTaskModal'
 import { ActionDialog } from './components/dialogs/ActionDialog'
-import { NewContactDialog } from './features/contacts/NewContactDialog'
-import { TaskSidePeek } from './features/tasks/TaskSidePeek'
-import { TaskBoardView } from './features/tasks/TaskBoardView'
-import { TaskSessionPage } from './features/tasks/TaskSessionPage'
-import { TaskStartingPage } from './features/tasks/TaskStartingPage'
 import { agentsApi, type Agent } from './api/agents'
-import { SettingsView } from './features/settings/SettingsView'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
 import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
-import { InboxView } from './features/inbox/InboxView'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
-import { StudioView } from './features/inbox/StudioView'
-import { ContactsView } from './features/contacts/ContactsView'
 import { Loader2 } from 'lucide-react'
+
+// Code-splitting via dynamic imports for heavy routes and dialogs
+const StudioView = lazy(() =>
+  import('./features/inbox/StudioView').then((m) => ({
+    default: m.StudioView,
+  })),
+)
+const InboxView = lazy(() =>
+  import('./features/inbox/InboxView').then((m) => ({
+    default: m.InboxView,
+  })),
+)
+const ContactsView = lazy(() =>
+  import('./features/contacts/ContactsView').then((m) => ({
+    default: m.ContactsView,
+  })),
+)
+const TaskStartingPage = lazy(() =>
+  import('./features/tasks/TaskStartingPage').then((m) => ({
+    default: m.TaskStartingPage,
+  })),
+)
+const TaskSessionPage = lazy(() =>
+  import('./features/tasks/TaskSessionPage').then((m) => ({
+    default: m.TaskSessionPage,
+  })),
+)
+const TaskBoardView = lazy(() =>
+  import('./features/tasks/TaskBoardView').then((m) => ({
+    default: m.TaskBoardView,
+  })),
+)
+const ProjectsWorkspace = lazy(() =>
+  import('./features/projects/ProjectsWorkspace').then((m) => ({
+    default: m.ProjectsWorkspace,
+  })),
+)
+const SettingsView = lazy(() =>
+  import('./features/settings/SettingsView').then((m) => ({
+    default: m.SettingsView,
+  })),
+)
+const NewContactDialog = lazy(() =>
+  import('./features/contacts/NewContactDialog').then((m) => ({
+    default: m.NewContactDialog,
+  })),
+)
+const CreateProjectModal = lazy(() =>
+  import('./features/projects/CreateProjectModal').then((m) => ({
+    default: m.CreateProjectModal,
+  })),
+)
+const CreateTaskModal = lazy(() =>
+  import('./features/tasks/CreateTaskModal').then((m) => ({
+    default: m.CreateTaskModal,
+  })),
+)
+const TaskSidePeek = lazy(() =>
+  import('./features/tasks/TaskSidePeek').then((m) => ({
+    default: m.TaskSidePeek,
+  })),
+)
+
+function ViewFallback() {
+  return (
+    <div className="flex h-full min-h-[300px] w-full items-center justify-center p-8">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
 
 export function App() {
   const { isAuthenticated, isLoading: authLoading, token, setupRequired } = useAuth()
@@ -687,253 +745,257 @@ export function App() {
           />
         }
       >
-        {currentTab === 'notifications' && <NotificationsView />}
-        {currentTab === 'studio' && (
-          <StudioView
-            onAccepted={() => void refreshContacts()}
-            checkRuntime={!directoryAgents.some((a) =>
-              a.enabled !== false && a.status !== 'inactive' &&
-              ['codex', 'claude'].includes(a.harness || a.provider || '')
-            )}
-            agentSetup={
-              !agentsLoaded ? 'loading' : agentsError ? 'error' :
-              directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
-                ? 'ready' : 'needed'
-            }
-            firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
-            hasProject={
-              projectsLoading || !!projectsError ||
-              projects.some((p) => p.id !== 'default' || !!p.repo_url)
-            }
-            onAgentConnected={() => void refreshContacts()}
-            onCreateProject={() => setIsCreateProjectOpen(true)}
-            onRetrySetup={() => void refreshContacts()}
-          />
-        )}
-        {/* 1. Messenger View — Inbox */}
-        {currentTab === 'inbox' && (
-          <InboxView
-            contacts={contacts}
-            agents={directoryAgents}
-            loading={contactsLoading}
-            error={contactsError}
-            onRetry={refreshContacts}
-            activeContact={visibleContact}
-            onSelectContact={handleSelectContact}
-            onNewMessage={() => openNew('message')}
-            onContactUpdated={refreshContacts}
-            contactTab={contactTab}
-            onContactTabChange={setContactTab}
-            contactSearch={contactSearch}
-            onContactSearchChange={setContactSearch}
-            onBackToContacts={() => {
-              setActiveContact(undefined)
-              navigate('/inbox')
-            }}
-            onMobileChatActiveChange={setIsMobileChatActive}
-          />
-        )}
-
-        {/* 2. Contacts View */}
-        {(currentTab === 'contacts' ||
-          ((currentTab === 'settings' || currentTab === 'account') &&
-            subParam === 'contacts')) && (
-          <ContactsView refreshKey={contactRevision} onNewContact={() => openNew('contact')} />
-        )}
-        {sessionRoute && pathSegments[3] === 'start' && (
-          <TaskStartingPage key={subParam} taskId={subParam} />
-        )}
-        {sessionRoute && pathSegments[3] !== 'start' && (
-          <TaskSessionPage
-            key={subParam}
-            taskId={subParam}
-            sessionId={pathSegments[3] || 'latest'}
-          />
-        )}
-        {currentTab === 'tasks' && !sessionRoute && (
-          <div className="h-full overflow-hidden">
-            {taskRouteError && (
-              <p role="alert" className="mb-3 text-sm text-destructive">
-                {taskRouteError}
-              </p>
-            )}
-            <TaskBoardView
-              tasks={tasks}
-              loading={tasksLoading}
-              error={tasksError}
-              onRetry={() => void refreshTasks()}
-              projects={projects}
-              selectedStatusFilter={selectedTaskStatus}
-              onStatusFilterChange={setSelectedTaskStatus}
-              onSelectTask={handleSelectTask}
-              onUpdateTaskStatus={(taskId, status) =>
-                handleUpdateTask(taskId, { status })
-              }
-              onRunAgent={handleRunAgent}
-            />
-          </div>
-        )}
-
-        {/* 3. Projects Workspace & Repositories */}
-        {currentTab === 'projects' &&
-          (subParam && activeProject?.id !== subParam ? (
-            <section className="page-content space-y-4">
-              {projectsLoading ? (
-                <p role="status">Loading projects…</p>
-              ) : (
-                <>
-                  <p role="alert">
-                    {projectsError || 'Project not found or unavailable.'}
-                  </p>
-                  <button
-                    className="action-secondary"
-                    onClick={() => {
-                      void refreshProjects()
-                    }}
-                  >
-                    Try again
-                  </button>
-                  <Link to="/projects" className="action-secondary">
-                    All projects
-                  </Link>
-                </>
+        <Suspense fallback={<ViewFallback />}>
+          {currentTab === 'notifications' && <NotificationsView />}
+          {currentTab === 'studio' && (
+            <StudioView
+              onAccepted={() => void refreshContacts()}
+              checkRuntime={!directoryAgents.some((a) =>
+                a.enabled !== false && a.status !== 'inactive' &&
+                ['codex', 'claude'].includes(a.harness || a.provider || '')
               )}
-            </section>
-          ) : subParam && activeProject?.id === subParam ? (
-            pathSegments[2] !== 'tasks' ? (
-              <ProjectsWorkspace
-                onNewProject={() => openNew('project')}
-                projects={projects}
-                project={activeProject}
+              agentSetup={
+                !agentsLoaded ? 'loading' : agentsError ? 'error' :
+                directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
+                  ? 'ready' : 'needed'
+              }
+              firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+              hasProject={
+                projectsLoading || !!projectsError ||
+                projects.some((p) => p.id !== 'default' || !!p.repo_url)
+              }
+              onAgentConnected={() => void refreshContacts()}
+              onCreateProject={() => setIsCreateProjectOpen(true)}
+              onRetrySetup={() => void refreshContacts()}
+            />
+          )}
+          {/* 1. Messenger View — Inbox */}
+          {currentTab === 'inbox' && (
+            <InboxView
+              contacts={contacts}
+              agents={directoryAgents}
+              loading={contactsLoading}
+              error={contactsError}
+              onRetry={refreshContacts}
+              activeContact={visibleContact}
+              onSelectContact={handleSelectContact}
+              onNewMessage={() => openNew('message')}
+              onContactUpdated={refreshContacts}
+              contactTab={contactTab}
+              onContactTabChange={setContactTab}
+              contactSearch={contactSearch}
+              onContactSearchChange={setContactSearch}
+              onBackToContacts={() => {
+                setActiveContact(undefined)
+                navigate('/inbox')
+              }}
+              onMobileChatActiveChange={setIsMobileChatActive}
+            />
+          )}
+
+          {/* 2. Contacts View */}
+          {(currentTab === 'contacts' ||
+            ((currentTab === 'settings' || currentTab === 'account') &&
+              subParam === 'contacts')) && (
+            <ContactsView refreshKey={contactRevision} onNewContact={() => openNew('contact')} />
+          )}
+          {sessionRoute && pathSegments[3] === 'start' && (
+            <TaskStartingPage key={subParam} taskId={subParam} />
+          )}
+          {sessionRoute && pathSegments[3] !== 'start' && (
+            <TaskSessionPage
+              key={subParam}
+              taskId={subParam}
+              sessionId={pathSegments[3] || 'latest'}
+            />
+          )}
+          {currentTab === 'tasks' && !sessionRoute && (
+            <div className="h-full overflow-hidden">
+              {taskRouteError && (
+                <p role="alert" className="mb-3 text-sm text-destructive">
+                  {taskRouteError}
+                </p>
+              )}
+              <TaskBoardView
                 tasks={tasks}
-                loading={projectsLoading}
-                error={projectsError}
-                onRetry={() => void refreshProjects()}
+                loading={tasksLoading}
+                error={tasksError}
+                onRetry={() => void refreshTasks()}
+                projects={projects}
+                selectedStatusFilter={selectedTaskStatus}
+                onStatusFilterChange={setSelectedTaskStatus}
+                onSelectTask={handleSelectTask}
+                onUpdateTaskStatus={(taskId, status) =>
+                  handleUpdateTask(taskId, { status })
+                }
+                onRunAgent={handleRunAgent}
+              />
+            </div>
+          )}
+
+          {/* 3. Projects Workspace & Repositories */}
+          {currentTab === 'projects' &&
+            (subParam && activeProject?.id !== subParam ? (
+              <section className="page-content space-y-4">
+                {projectsLoading ? (
+                  <p role="status">Loading projects…</p>
+                ) : (
+                  <>
+                    <p role="alert">
+                      {projectsError || 'Project not found or unavailable.'}
+                    </p>
+                    <button
+                      className="action-secondary"
+                      onClick={() => {
+                        void refreshProjects()
+                      }}
+                    >
+                      Try again
+                    </button>
+                    <Link to="/projects" className="action-secondary">
+                      All projects
+                    </Link>
+                  </>
+                )}
+              </section>
+            ) : subParam && activeProject?.id === subParam ? (
+              pathSegments[2] !== 'tasks' ? (
+                <ProjectsWorkspace
+                  onNewProject={() => openNew('project')}
+                  projects={projects}
+                  project={activeProject}
+                  tasks={tasks}
+                  loading={projectsLoading}
+                  error={projectsError}
+                  onRetry={() => void refreshProjects()}
+                  onArchiveProject={handleArchiveProject}
+                  settingsContent={<SettingsView
+                    key={activeProject.id}
+                    activeProject={activeProject}
+                    embeddedProject
+                    onProjectUpdated={refreshProjects}
+                    onDeleteProject={async (id) => {
+                      await projectsApi.archive(id, true)
+                      await refreshProjects()
+                    }}
+                  />}
+                />
+              ) : (
+                <ProjectsWorkspace
+                  onNewProject={() => openNew('project')}
+                  projects={projects}
+                  onArchiveProject={handleArchiveProject}
+                  onNewTask={() => openNew('task')}
+                  project={activeProject}
+                  tasks={tasks}
+                  taskId={
+                    pathSegments[2] === 'tasks' ? pathSegments[3] : undefined
+                  }
+                  sessionId={
+                    pathSegments[4] === 'sessions' ? pathSegments[5] : undefined
+                  }
+                  loading={tasksLoading}
+                  error={tasksError}
+                  onRetry={() => void refreshTasks()}
+                />
+              )
+            ) : (
+              <ProjectsWorkspace
+                  onNewProject={() => openNew('project')}
+                projects={projects}
+                tasks={tasks}
+                loading={projectsLoading || tasksLoading}
+                error={projectsError || tasksError}
+                onRetry={() => {
+                  void refreshProjects()
+                  void refreshTasks()
+                }}
                 onArchiveProject={handleArchiveProject}
-                settingsContent={<SettingsView
-                  key={activeProject.id}
-                  activeProject={activeProject}
-                  embeddedProject
-                  onProjectUpdated={refreshProjects}
+              />
+            ))}
+
+          {/* 5. Settings / Account Configuration */}
+        {(currentTab === 'settings' || currentTab === 'account') &&
+          subParam !== 'contacts' && (
+            <div className="min-h-full">
+                <SettingsView
+                  projects={projects}
+                  createAgentRequested={agentCreateRequested}
+                  onCreateAgentHandled={() => setAgentCreateRequested(false)}
+                  onAgentAdded={refreshContacts}
                   onDeleteProject={async (id) => {
                     await projectsApi.archive(id, true)
                     await refreshProjects()
                   }}
-                />}
-              />
-            ) : (
-              <ProjectsWorkspace
-                onNewProject={() => openNew('project')}
-                projects={projects}
-                onArchiveProject={handleArchiveProject}
-                onNewTask={() => openNew('task')}
-                project={activeProject}
-                tasks={tasks}
-                taskId={
-                  pathSegments[2] === 'tasks' ? pathSegments[3] : undefined
-                }
-                sessionId={
-                  pathSegments[4] === 'sessions' ? pathSegments[5] : undefined
-                }
-                loading={tasksLoading}
-                error={tasksError}
-                onRetry={() => void refreshTasks()}
-              />
-            )
-          ) : (
-            <ProjectsWorkspace
-                onNewProject={() => openNew('project')}
-              projects={projects}
-              tasks={tasks}
-              loading={projectsLoading || tasksLoading}
-              error={projectsError || tasksError}
-              onRetry={() => {
-                void refreshProjects()
-                void refreshTasks()
-              }}
-              onArchiveProject={handleArchiveProject}
-            />
-          ))}
-
-        {/* 5. Settings / Account Configuration */}
-        {(currentTab === 'settings' || currentTab === 'account') &&
-          subParam !== 'contacts' && (
-            <div className="min-h-full">
-              <SettingsView
-                projects={projects}
-                createAgentRequested={agentCreateRequested}
-                onCreateAgentHandled={() => setAgentCreateRequested(false)}
-                onAgentAdded={refreshContacts}
-                onDeleteProject={async (id) => {
-                  await projectsApi.archive(id, true)
-                  await refreshProjects()
-                }}
-              />
-            </div>
-          )}
+                />
+              </div>
+            )}
+        </Suspense>
       </AppShell>
 
-      {/* Modals & Drawers */}
-      <NewContactDialog
-        open={newFlow === 'contact'}
-        onClose={() => setNewFlow(null)}
-        onCreated={(contact) => {
-          setNewFlow(null)
-          setContactRevision((n) => n + 1)
-          const target = location.pathname.startsWith('/account')
-            ? '/account/contacts?contact=' + encodeURIComponent(contact.id)
-            : '/contacts?contact=' + encodeURIComponent(contact.id)
-          navigate(target)
-          void refreshContacts()
-        }}
-      />
-      <ActionDialog
-        open={newFlow === 'menu'}
-        title="New"
-        onClose={() => setNewFlow(null)}
-      >
-        <p className="mb-3 text-sm text-muted-foreground">
-          What would you like to create?
-        </p>
-        <div className="grid gap-2">
-          {(['message', 'contact', 'task', 'project', 'agent'] as const).map(
-            (kind) => (
-              <button
-                key={kind}
-                className="action-secondary justify-start"
-                onClick={() => openNew(kind)}
-              >
-                New {kind}
-              </button>
-            ),
-          )}
-        </div>
-      </ActionDialog>
+      {/* Modals & Drawers wrapped in Suspense */}
+      <Suspense fallback={null}>
+        <NewContactDialog
+          open={newFlow === 'contact'}
+          onClose={() => setNewFlow(null)}
+          onCreated={(contact) => {
+            setNewFlow(null)
+            setContactRevision((n) => n + 1)
+            const target = location.pathname.startsWith('/account')
+              ? '/account/contacts?contact=' + encodeURIComponent(contact.id)
+              : '/contacts?contact=' + encodeURIComponent(contact.id)
+            navigate(target)
+            void refreshContacts()
+          }}
+        />
+        <ActionDialog
+          open={newFlow === 'menu'}
+          title="New"
+          onClose={() => setNewFlow(null)}
+        >
+          <p className="mb-3 text-sm text-muted-foreground">
+            What would you like to create?
+          </p>
+          <div className="grid gap-2">
+            {(['message', 'contact', 'task', 'project', 'agent'] as const).map(
+              (kind) => (
+                <button
+                  key={kind}
+                  className="action-secondary justify-start"
+                  onClick={() => openNew(kind)}
+                >
+                  New {kind}
+                </button>
+              ),
+            )}
+          </div>
+        </ActionDialog>
 
-      <CreateProjectModal
-        isOpen={isCreateProjectOpen}
-        onClose={() => setIsCreateProjectOpen(false)}
-        onSubmit={handleCreateProject}
-      />
+        <CreateProjectModal
+          isOpen={isCreateProjectOpen}
+          onClose={() => setIsCreateProjectOpen(false)}
+          onSubmit={handleCreateProject}
+        />
 
-      <CreateTaskModal
-        isOpen={isCreateTaskOpen}
-        projects={projects.filter((project) => !project.is_archived)}
-        activeProjectId={projectDetail ? subParam : undefined}
-        onClose={() => setIsCreateTaskOpen(false)}
-        onSubmit={handleCreateTask}
-      />
+        <CreateTaskModal
+          isOpen={isCreateTaskOpen}
+          projects={projects.filter((project) => !project.is_archived)}
+          activeProjectId={projectDetail ? subParam : undefined}
+          onClose={() => setIsCreateTaskOpen(false)}
+          onSubmit={handleCreateTask}
+        />
 
-      <TaskSidePeek
-        initialError={taskLaunchError}
-        task={selectedTask}
-        projects={projects}
-        isOpen={isSidePeekOpen}
-        onClose={handleCloseSidePeek}
-        onUpdate={handleUpdateTask}
-        onDelete={handleDeleteTask}
-        onRunAgent={handleRunAgent}
-      />
+        <TaskSidePeek
+          initialError={taskLaunchError}
+          task={selectedTask}
+          projects={projects}
+          isOpen={isSidePeekOpen}
+          onClose={handleCloseSidePeek}
+          onUpdate={handleUpdateTask}
+          onDelete={handleDeleteTask}
+          onRunAgent={handleRunAgent}
+        />
+      </Suspense>
     </>
   )
 }

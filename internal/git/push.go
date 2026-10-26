@@ -41,7 +41,7 @@ func (c *Client) PushBoundBranch(ctx context.Context, path, repoURL, branch, tok
 	if err != nil {
 		return "", errors.New("Task commit is unavailable")
 	}
-	cmd := exec.CommandContext(ctx, c.gitBinary, "-C", path, "push", "--porcelain", "--", BuildAuthURL(owner, repo, ""), strings.TrimSpace(string(head))+":refs/heads/"+branch)
+	cmd := exec.CommandContext(ctx, c.gitBinary, "-C", path, "push", "--porcelain", "--", c.repoURL(owner, repo), strings.TrimSpace(string(head))+":refs/heads/"+branch)
 	cmd.Env = repositoryEnvironment(token)
 	if err = cmd.Run(); err != nil {
 		return "", errors.New("GitHub push was not confirmed. Check access or branch conflicts; retrying this push does not recreate commits")

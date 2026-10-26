@@ -1,14 +1,19 @@
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Camera, Images, FolderOpen } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { Plus, X, FileText, LoaderCircle, Download, Eye } from 'lucide-react'
 import { getAuthToken } from '../../api/client'
 import {
-  FilePreviewModal,
   isPreviewableFile,
   isImageFile,
-} from '../../components/dialogs/FilePreviewModal'
+} from '../../components/dialogs/filePreviewUtils'
+
+const FilePreviewModal = lazy(() =>
+  import('../../components/dialogs/FilePreviewModal').then((m) => ({
+    default: m.FilePreviewModal,
+  })),
+)
 
 export interface Attachment {
   id: string
@@ -462,13 +467,15 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
           <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors ml-0.5" />
         )}
       </button>
-      {canPreview && (
-        <FilePreviewModal
-          open={previewOpen}
-          attachment={a}
-          onClose={() => setPreviewOpen(false)}
-          onDownload={download}
-        />
+      {canPreview && previewOpen && (
+        <Suspense fallback={null}>
+          <FilePreviewModal
+            open={previewOpen}
+            attachment={a}
+            onClose={() => setPreviewOpen(false)}
+            onDownload={download}
+          />
+        </Suspense>
       )}
       {failed && (
         <p role="alert" className="text-xs">

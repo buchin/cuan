@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -199,12 +200,25 @@ func TestDeployerHandlers_UploadZip_ZipSlipRejected(t *testing.T) {
 }
 
 func TestDeployerHandlers_CreateGitDeployment(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping git deployment test in short mode")
+	}
 	srv, _, tempDir := setupTestServerWithDeployer(t)
 	defer os.RemoveAll(tempDir)
 
+	sourceRepo := filepath.Join(tempDir, "source-repo")
+	_ = os.MkdirAll(sourceRepo, 0755)
+	_ = exec.Command("git", "init", sourceRepo).Run()
+	_ = exec.Command("git", "-C", sourceRepo, "config", "user.name", "Test").Run()
+	_ = exec.Command("git", "-C", sourceRepo, "config", "user.email", "test@test.local").Run()
+	_ = os.WriteFile(filepath.Join(sourceRepo, "package.json"), []byte(`{"name":"test"}`), 0644)
+	_ = exec.Command("git", "-C", sourceRepo, "add", ".").Run()
+	_ = exec.Command("git", "-C", sourceRepo, "commit", "-m", "initial").Run()
+	_ = exec.Command("git", "-C", sourceRepo, "branch", "-M", "main").Run()
+
 	payload := map[string]interface{}{
 		"project_name": "Test Git App",
-		"repo_url":     "https://github.com/buchin/cuan.git",
+		"repo_url":     sourceRepo,
 		"branch":       "main",
 		"runtime":      "nodejs",
 		"env_vars": map[string]string{

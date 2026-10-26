@@ -38,6 +38,7 @@ type Client struct {
 	httpClient *http.Client
 	gitBinary  string
 	apiBaseURL string
+	gitBaseURL string
 }
 
 func NewClient() *Client {
@@ -52,6 +53,17 @@ func NewClient() *Client {
 
 func (c *Client) SetAPIBaseURL(url string) {
 	c.apiBaseURL = strings.TrimRight(url, "/")
+}
+
+func (c *Client) SetGitBaseURL(url string) {
+	c.gitBaseURL = strings.TrimRight(url, "/")
+}
+
+func (c *Client) repoURL(owner, repo string) string {
+	if c != nil && c.gitBaseURL != "" {
+		return fmt.Sprintf("%s/%s/%s.git", c.gitBaseURL, owner, repo)
+	}
+	return BuildAuthURL(owner, repo, "")
 }
 
 // ParseGitHubURL parses various URL formats (HTTPS, github.com shorthand, owner/repo)
@@ -281,7 +293,7 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 		secretsToMask = append(secretsToMask, token, "x-access-token:"+token)
 	}
 
-	repoURL := BuildAuthURL(owner, repo, "")
+	repoURL := c.repoURL(owner, repo)
 	authenticate := func(cmd *exec.Cmd) { cmd.Env = repositoryEnvironment(token) }
 
 	gitDir := filepath.Join(targetDir, ".git")
