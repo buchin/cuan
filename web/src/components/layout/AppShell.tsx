@@ -38,6 +38,7 @@ interface AppShellProps {
   pageTitleIsContent?: boolean
   pageTitle?: string
   breadcrumbs?: { label: string; to: string }[]
+  hideSearch?: boolean
 }
 const NAV_ITEMS = [
   { id: 'studio', label: 'Studio', icon: CuanMark },
@@ -63,12 +64,24 @@ export function AppShell({
   pageTitleIsContent = false,
   pageTitle,
   breadcrumbs = [],
+  hideSearch,
 }: AppShellProps) {
   const { t } = useLanguage()
   const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
 
   const routerNavigate = useNavigate()
   const location = useLocation()
+
+  // Eliminate redundant top navigation search icon on views with internal search inputs/filters
+  const hasInternalSearch =
+    currentTab === 'tasks' ||
+    currentTab === 'inbox' ||
+    currentTab === 'projects' ||
+    currentTab === 'contacts' ||
+    location.pathname.startsWith('/account/contacts') ||
+    location.pathname.startsWith('/settings/agents')
+
+  const shouldHideSearch = hideSearch ?? hasInternalSearch
   const shell = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -292,7 +305,7 @@ export function AppShell({
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <UniversalSearch hideTrigger={currentTab === 'tasks'} />
+            <UniversalSearch hideTrigger={shouldHideSearch} />
             <ReloadButton
               className="icon-action"
               iconClassName="h-4 w-4 sm:h-5 sm:w-5"
@@ -311,7 +324,7 @@ export function AppShell({
               </button>
             )}
             {newAction && (
-              <div className={['projects', 'contacts', 'inbox'].includes(currentTab) && !(currentTab === 'inbox' && !listOpen) ? 'min-[1200px]:hidden' : undefined}>
+              <div className={(['projects', 'contacts', 'inbox'].includes(currentTab) || (currentTab === 'account' && location.pathname.includes('/contacts'))) && !(currentTab === 'inbox' && !listOpen) ? 'min-[1200px]:hidden' : undefined}>
               <CreateAction
                 id="header-new-action"
                 label={newAction.label}

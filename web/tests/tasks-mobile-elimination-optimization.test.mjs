@@ -13,14 +13,21 @@ const taskBoardViewPath = path.join(__dirname, '..', 'src', 'features', 'tasks',
 const taskItemCardPath = path.join(__dirname, '..', 'src', 'features', 'tasks', 'TaskItemCard.tsx')
 const idLocalePath = path.join(__dirname, '..', 'src', 'locales', 'id.json')
 
-test('1. Requirement 1: Top Navigation Bar Search Icon Elimination on Tasks', () => {
+test('1. Requirement 1: Top Navigation Bar Search Icon Elimination on Tasks, Inbox, Projects, and Contacts', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
   const universalSearchSource = fs.readFileSync(universalSearchPath, 'utf8')
 
-  // Verify AppShell conditionally hides the search icon on Tasks
+  // Verify AppShell conditionally hides the search icon on Tasks, Inbox, Projects, and Contacts
   assert.ok(
-    appShellSource.includes("UniversalSearch hideTrigger={currentTab === 'tasks'}"),
-    'AppShell must pass hideTrigger={currentTab === \'tasks\'} to UniversalSearch'
+    appShellSource.includes("currentTab === 'tasks'") &&
+    appShellSource.includes("currentTab === 'inbox'") &&
+    appShellSource.includes("currentTab === 'projects'") &&
+    appShellSource.includes("currentTab === 'contacts'"),
+    'AppShell must hide the top nav search icon on tasks, inbox, projects, and contacts'
+  )
+  assert.ok(
+    appShellSource.includes('UniversalSearch hideTrigger={shouldHideSearch}'),
+    'AppShell must pass shouldHideSearch to UniversalSearch'
   )
 
   // Verify UniversalSearch supports hideTrigger prop and omits trigger button
@@ -138,5 +145,53 @@ test('5. Production Bundle Verification', () => {
   assert.ok(
     bundleContent.includes('hideTrigger'),
     'Compiled JS bundle must contain hideTrigger prop logic'
+  )
+})
+
+test('6. Requirement 1 & 2: Complete Audit & Clean Mobile Top Bar Layout (360-390px)', () => {
+  const appShellSource = fs.readFileSync(appShellPath, 'utf8')
+  const inboxSubPanelPath = path.join(__dirname, '..', 'src', 'features', 'inbox', 'InboxSubPanel.tsx')
+  const projectsWorkspacePath = path.join(__dirname, '..', 'src', 'features', 'projects', 'ProjectsWorkspace.tsx')
+  const contactsViewPath = path.join(__dirname, '..', 'src', 'features', 'contacts', 'ContactsView.tsx')
+  const taskBoardViewPath = path.join(__dirname, '..', 'src', 'features', 'tasks', 'TaskBoardView.tsx')
+
+  const inboxSource = fs.readFileSync(inboxSubPanelPath, 'utf8')
+  const projectsSource = fs.readFileSync(projectsWorkspacePath, 'utf8')
+  const contactsSource = fs.readFileSync(contactsViewPath, 'utf8')
+  const taskSource = fs.readFileSync(taskBoardViewPath, 'utf8')
+
+  // 1. Verify internal search inputs exist in content areas
+  assert.ok(taskSource.includes('Search tasks'), 'TaskBoardView must retain internal task search')
+  assert.ok(inboxSource.includes('Search conversations'), 'InboxSubPanel must retain internal conversation search')
+  assert.ok(projectsSource.includes('Search projects'), 'ProjectsWorkspace must retain internal project search')
+  assert.ok(contactsSource.includes('Search contacts and notes'), 'ContactsView must retain internal contact search')
+
+  // 2. Verify AppShell eliminates top nav search on views with internal search
+  assert.ok(
+    appShellSource.includes("currentTab === 'tasks'") &&
+    appShellSource.includes("currentTab === 'inbox'") &&
+    appShellSource.includes("currentTab === 'projects'") &&
+    appShellSource.includes("currentTab === 'contacts'") &&
+    appShellSource.includes("location.pathname.startsWith('/account/contacts')") &&
+    appShellSource.includes("location.pathname.startsWith('/settings/agents')"),
+    'AppShell must hide top nav search icon on all views having internal search'
+  )
+
+  // 3. Verify clean, proportional, and consistent top bar layout on mobile (360–390px)
+  assert.ok(
+    appShellSource.includes('h-14 md:h-16'),
+    'AppShell top bar must maintain standard 56px (h-14) height on mobile'
+  )
+  assert.ok(
+    appShellSource.includes('px-3 md:px-5'),
+    'AppShell top bar must maintain px-3 padding on mobile to maximize content width'
+  )
+  assert.ok(
+    appShellSource.includes('page-title min-w-0 truncate'),
+    'Page title must include min-w-0 truncate preventing header overflow on 360-390px'
+  )
+  assert.ok(
+    appShellSource.includes('flex shrink-0 items-center gap-1'),
+    'Action icons container must be shrink-0 with gap-1 to avoid overlapping or clipping'
   )
 })
