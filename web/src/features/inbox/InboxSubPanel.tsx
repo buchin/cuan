@@ -223,11 +223,6 @@ export function InboxSubPanel({
             aria-pressed={activeTab === 'customers'}
             onClick={() => handleTabClick('customers')}
             className={cn(
-          <button
-            type="button"
-            aria-pressed={activeTab === 'customers'}
-            onClick={() => handleTabClick('customers')}
-            className={cn(
               'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               activeTab === 'customers'
                 ? 'bg-primary text-primary-foreground font-semibold shadow-sm'

@@ -1,4 +1,9 @@
 {
+  "Semua": "Semua",
+  "Aktif": "Aktif",
+  "Selesai": "Selesai",
+  "Dibatalkan/Review": "Dibatalkan/Review",
+  "Task status filter chips": "Filter status tugas",
   "Team Specialists": "Spesialis Tim",
   "Add or connect agent…": "Tambah atau hubungkan agen…",
   "Manage team": "Kelola tim",

@@ -26,6 +26,7 @@ import {
 import { TaskItemCard } from './TaskItemCard'
 import { cn } from '../../lib/utils'
 import { tasksApi } from '../../api/tasks'
+import { useLanguage } from '../../context/LanguageContext'
 interface Props {
   loading?: boolean
   error?: string
@@ -52,6 +53,7 @@ export function TaskBoardView({
   error = '',
   onRetry,
 }: Props) {
+  const { t } = useLanguage()
   const [params, setParams] = useSearchParams(),
     [filtersOpen, setFiltersOpen] = useState(false),
     [sortOpen, setSortOpen] = useState(false),
@@ -127,10 +129,69 @@ export function TaskBoardView({
       ),
     [tasks, project],
   )
+  const isTaskActive = (t: Task) => {
+    const s = taskStatus(t.status)
+    return (
+      ['doing', 'queued', 'todo', 'backlog'].includes(s) ||
+      ['running', 'queued'].includes(t.latest_attempt?.status || '')
+    )
+  }
+  const isTaskDone = (t: Task) => taskStatus(t.status) === 'done'
+  const isTaskReviewOrCancelled = (t: Task) => {
+    const s = taskStatus(t.status)
+    return (
+      ['review', 'blocked', 'failed', 'cancelled'].includes(s) ||
+      ['failed', 'canceled', 'cancelled'].includes(
+        t.latest_attempt?.status || '',
+      )
+    )
+  }
+
+  const matchesStatus = (t: Task) => {
+    if (!status || status === 'all') return true
+    if (status === 'active' || status === 'aktif') {
+      return isTaskActive(t)
+    }
+    if (status === 'done' || status === 'selesai') {
+      return isTaskDone(t)
+    }
+    if (
+      status === 'dibatalkan_review' ||
+      status === 'dibatalkan' ||
+      status === 'review_or_blocked'
+    ) {
+      return isTaskReviewOrCancelled(t)
+    }
+    return taskStatus(t.status) === status
+  }
+
+  const mobileFilterChips = [
+    {
+      id: 'all',
+      label: t('Semua'),
+      count: scoped.length,
+    },
+    {
+      id: 'active',
+      label: t('Aktif'),
+      count: scoped.filter(isTaskActive).length,
+    },
+    {
+      id: 'done',
+      label: t('Selesai'),
+      count: scoped.filter(isTaskDone).length,
+    },
+    {
+      id: 'dibatalkan_review',
+      label: t('Dibatalkan/Review'),
+      count: scoped.filter(isTaskReviewOrCancelled).length,
+    },
+  ]
+
   const rows = scoped
     .filter(
       (t) =>
-        (status === 'all' || taskStatus(t.status) === status) &&
+        matchesStatus(t) &&
         (priority === 'all' || t.priority === priority) &&
         (assignee === 'all' ||
           (assignee === 'unassigned'
@@ -428,10 +489,63 @@ export function TaskBoardView({
           />
         </label>
       </div>
-      {/* Horizontal Category Chips (unified across mobile and desktop, touch target min 44px) */}
+      {/* Mobile Horizontal Scrollable Filter Chips */}
+      <div
+        role="tablist"
+        aria-label={t('Task status filter chips')}
+        className="flex sm:hidden items-center gap-2 overflow-x-auto py-1 -mx-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {mobileFilterChips.map((chip) => {
+          const isSelected =
+            (chip.id === 'all' && (status === 'all' || !status)) ||
+            (chip.id === 'active' &&
+              (status === 'active' ||
+                status === 'aktif' ||
+                ['doing', 'queued', 'todo', 'backlog'].includes(status))) ||
+            (chip.id === 'done' &&
+              (status === 'done' || status === 'selesai')) ||
+            (chip.id === 'dibatalkan_review' &&
+              (status === 'dibatalkan_review' ||
+                status === 'review_or_blocked' ||
+                ['review', 'blocked', 'failed', 'cancelled'].includes(status)))
+
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              onClick={() => {
+                update('status', chip.id)
+                onStatusFilterChange?.(chip.id)
+              }}
+              className={cn(
+                'inline-flex min-h-11 min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all select-none',
+                isSelected
+                  ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
+                  : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50',
+              )}
+            >
+              <span>{chip.label}</span>
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[10px] font-mono tabular-nums leading-none',
+                  isSelected
+                    ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                    : 'bg-background/80 text-muted-foreground',
+                )}
+              >
+                {chip.count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Desktop Horizontal Category Chips */}
       <nav
         aria-label="Filter task status"
-        className="flex shrink-0 items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="hidden sm:flex shrink-0 items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {[{ id: 'all', label: 'All' }, ...TASK_STATUSES].map((item) => {
           const isSelected = status === item.id
@@ -472,8 +586,6 @@ export function TaskBoardView({
           )
         })}
       </nav>
-
-      {/* Active Secondary Filters (project, priority, assignee) */}
       {chips.length > 0 && (
         <div
           aria-label="Active task filters"
