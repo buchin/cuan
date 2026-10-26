@@ -33,6 +33,12 @@ func waitWorkspaceTask(t *testing.T, s *Server, id, state string) *task.TaskDeta
 	for {
 		detail, err := s.taskSvc.GetTaskDetail(context.Background(), id)
 		if err == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == state && detail.Status != "doing" {
+			if s.terminalManager != nil && detail.ProjectID != "" {
+				if active, _ := s.terminalManager.ProjectExecutionActive(detail.ProjectID); active {
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
+			}
 			return detail
 		}
 		if time.Now().After(deadline) {

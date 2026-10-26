@@ -307,6 +307,7 @@ test('9. Navigation & Deep Link Task Card Inbox: Detail vs Terminal routing', ()
   assert.match(cardContent, /taskTerminalUrl/, 'TaskItemCard must import taskTerminalUrl')
   assert.match(cardContent, /to=\{detailUrl\}/, 'Detail button must link to detailUrl')
   assert.match(cardContent, /to=\{terminalUrl\}/, 'Live Terminal button must link to terminalUrl')
+  assert.doesNotMatch(cardContent, /to=\{terminalUrl\}[\s\S]{1,250}?onClick\(currentTask\)/, 'Live Terminal button must not intercept navigation with onClick')
 
   // App.tsx must support deep link task detail via activeDetailTaskId
   assert.match(appContent, /activeDetailTaskId/, 'App.tsx must define activeDetailTaskId')
@@ -332,5 +333,14 @@ test('10. Work not found & Terminal Session Error Boundary Handling', () => {
   assert.match(projectContent, /tasksApi\.get\(taskId\)/, 'ProjectWorkView must fetch missing task by ID directly')
   assert.match(projectContent, /t\('Work or session not found'\)/, 'ProjectWorkView must render structured error state')
   assert.match(projectContent, /to=\{backURL\}/, 'ProjectWorkView must provide back button')
+})
+
+test('11. Chat timeout & interrupted reply recovery handling', () => {
+  const inboxActivityPath = path.join(rootDir, 'src/features/inbox/InboxActivity.tsx')
+  const inboxActivityContent = fs.readFileSync(inboxActivityPath, 'utf8')
+
+  // Interrupted chat replies must offer Try again alongside Check status when onRetry is available
+  assert.match(inboxActivityContent, /q\.state === 'interrupted' \|\| q\.state === 'failed'/, 'Interrupted state must allow explicit retry')
+  assert.match(inboxActivityContent, /t\(recovering \? 'Trying again…' : 'Try again'\)/, 'Try again action must be rendered')
 })
 

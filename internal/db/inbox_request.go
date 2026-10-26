@@ -232,7 +232,7 @@ func (r *SQLProjectStudioRepository) ClaimInboxRequest(ctx context.Context, room
 	}
 	var q InboxRequest
 	var steps []byte
-	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET state='running',started_at=NOW(),deadline=NOW()+INTERVAL '240 seconds'
+	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET state='running',started_at=NOW(),deadline=NOW()+INTERVAL '360 seconds'
  WHERE room_id=$1 AND request_id=$2 AND state='queued'
  AND NOT EXISTS(SELECT 1 FROM inbox_requests WHERE room_id=$1 AND state IN ('running','cancelling'))
  AND request_id=(SELECT request_id FROM inbox_requests WHERE room_id=$1 AND state='queued' ORDER BY created_at,request_id LIMIT 1)
@@ -279,7 +279,7 @@ func (r *MemoryProjectStudioRepository) ClaimInboxRequest(ctx context.Context, r
 	now := time.Now().UTC()
 	q.State = "running"
 	q.StartedAt = &now
-	q.Deadline = now.Add(240 * time.Second)
+	q.Deadline = now.Add(360 * time.Second)
 	r.requests[key] = q
 	return q, true, nil
 }

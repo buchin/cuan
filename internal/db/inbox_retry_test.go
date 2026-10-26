@@ -290,4 +290,25 @@ func TestManualRetryPermitsUsageAndAgentFailures(t *testing.T) {
 	if _, _, err := r.RetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
 		t.Fatalf("expected ErrInboxRetryUnavailable for manual retry on check_status, got %v", err)
 	}
+
+	// 3. Interrupted request allows manual retry but rejects auto-retry
+	interruptedReq := InboxRequest{
+		RoomID:    "room3",
+		RequestID: "req-interrupted",
+		MessageID: "msg-interrupted",
+		OwnerID:   "owner1",
+		AgentID:   "agent1",
+		State:     "interrupted",
+		SafeError: "The process was interrupted or timed out. The provider's result is unknown. The request was not rerun.",
+		CreatedAt: now,
+		Steps:     []InboxStep{{Seq: 1, Kind: "recovery_safe", Text: "safe", At: now}},
+	}
+	r.AcceptInboxRequest(ctx, interruptedReq, &ProjectMessage{ID: interruptedReq.MessageID, RoomID: interruptedReq.RoomID, Content: "test interrupted", CreatedAt: now})
+	if _, _, err := r.AutoRetryInboxRequest(ctx, interruptedReq.RoomID, interruptedReq.RequestID, interruptedReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
+		t.Fatalf("expected ErrInboxRetryUnavailable for auto-retry on interrupted, got %v", err)
+	}
+	childInterrupted, createdInterrupted, err := r.RetryInboxRequest(ctx, interruptedReq.RoomID, interruptedReq.RequestID, interruptedReq.OwnerID)
+	if err != nil || !createdInterrupted || childInterrupted.State != "queued" {
+		t.Fatalf("expected manual retry to succeed for interrupted, got child=%+v, created=%v, err=%v", childInterrupted, createdInterrupted, err)
+	}
 }

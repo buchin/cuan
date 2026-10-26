@@ -520,14 +520,27 @@ export function InboxActivity({
               {t('Check agent')}
             </Link>
           ) : !accessBlocked && !autoPending && onCheckStatus ? (
-            <button
-              type="button"
-              disabled={recovering}
-              className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4 disabled:opacity-50"
-              onClick={() => void recover(onCheckStatus)}
-            >
-              {t(recovering ? 'Checking…' : 'Check status')}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={recovering}
+                className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4 disabled:opacity-50"
+                onClick={() => void recover(onCheckStatus)}
+              >
+                {t(recovering ? 'Checking…' : 'Check status')}
+              </button>
+              {onRetry && (q.state === 'interrupted' || q.state === 'failed') && (
+                <button
+                  type="button"
+                  disabled={recovering}
+                  className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-foreground underline underline-offset-4 disabled:opacity-50"
+                  onClick={() => void recover(onRetry)}
+                >
+                  {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
+                  {t(recovering ? 'Trying again…' : 'Try again')}
+                </button>
+              )}
+            </div>
           ) : null}
           {accessBlocked && !accountJustConnected && onRetry && (
             <button

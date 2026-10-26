@@ -158,16 +158,16 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		timeout := "60s"
+		timeout := "180s"
 		if directCoordinator {
-			timeout = "30s"
+			timeout = "60s"
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
 		if workspace != "" {
 			args = append(args, "--add-dir", workspace)
 		}
 		if answerOnly {
-			args = []string{"-p", system, "--print-timeout", "20s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
+			args = []string{"-p", system, "--print-timeout", "45s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)

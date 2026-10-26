@@ -171,7 +171,7 @@ func (r *MemoryProjectStudioRepository) retryInboxRequest(ctx context.Context, r
 		}
 	} else {
 		action := InboxRecoveryAction(q)
-		if action != "try_again" && action != "check_usage" && action != "check_agent" {
+		if action != "try_again" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
 			return q, false, ErrInboxRetryUnavailable
 		}
 	}
@@ -260,7 +260,7 @@ func (r *SQLProjectStudioRepository) retryInboxRequest(ctx context.Context, room
 		}
 	} else {
 		action := InboxRecoveryAction(q)
-		if action != "try_again" && action != "check_usage" && action != "check_agent" {
+		if action != "try_again" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
 			return q, false, ErrInboxRetryUnavailable
 		}
 	}
