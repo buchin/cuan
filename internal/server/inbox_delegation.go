@@ -96,15 +96,26 @@ func (w *delegationResponse) Write(p []byte) (int, error) {
 }
 
 func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, content string) string {
-	_, d, err := parseInboxDelegation(content)
+	cleanText, d, err := parseInboxDelegation(content)
 	if err != nil {
 		return err.Error()
 	}
 	if d == nil {
 		return content
 	}
+	wrapResult := func(res string) string {
+		clean := strings.TrimSpace(cleanText)
+		if clean == "" {
+			return res
+		}
+		trimmedRes := strings.TrimSpace(res)
+		if trimmedRes == "" {
+			return clean
+		}
+		return clean + "\n\n" + trimmedRes
+	}
 	fail := func(message string) string {
-		return "I could not start the work: " + message + " No new execution was started."
+		return wrapResult("I could not start the work: " + message + " No new execution was started.")
 	}
 	if ctx.Err() != nil {
 		return fail("the request was canceled")
@@ -261,7 +272,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		return fail("the saved task belongs to another scope")
 	}
 	if d.Action == "save" {
-		return "The work is saved and has not been started.\n\n[View work](/tasks/" + t.ID + ")"
+		return wrapResult("The work is saved and has not been started.\n\n[View work](/tasks/" + t.ID + ")")
 	}
 	launchID := q.RequestID
 	sourceRequestID := authorizationRequestID
@@ -278,7 +289,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	} else {
 		launchID = delegationMessageID("task-run:" + q.RoomID + ":" + d.AuthorizationID)
 	}
-	return s.startAuthorizedLaunch(ctx, q, t, launchID, sourceRequestID, d.Revision)
+	return wrapResult(s.startAuthorizedLaunch(ctx, q, t, launchID, sourceRequestID, d.Revision))
 
 }
 

@@ -621,3 +621,64 @@ func TestInboxDelegation_PopulatesDoDChecklist(t *testing.T) {
 		t.Errorf("unexpected DoD item 0: %s", detail.DoDChecklist[0].Text)
 	}
 }
+
+func TestInboxDelegation_PreservesAIProseExplanation(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{
+		OwnerID:     "owner",
+		AgentID:     "agent_lifecycle",
+		RoomID:      resolved.RoomID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   db.GenerateUUID(),
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "approval",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+	planPayload := attachmentMessage{
+		Text: "Approved: Investigasi terminal",
+		Approval: &approvedInboxPlan{
+			Action:    "approve",
+			MessageID: q.MessageID,
+			Plan: inboxApprovalPlan{
+				Title:       "Investigasi terminal",
+				Description: "Periksa input terminal dan websocket stream",
+				ProjectName: "Default",
+			},
+		},
+	}
+	rawMsg, _ := json.Marshal(planPayload)
+	message := &db.ProjectMessage{
+		ID:         q.MessageID,
+		RoomID:     q.RoomID,
+		AuthorType: "user",
+		Content:    attachmentEnvelope + string(rawMsg),
+		CreatedAt:  now,
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	explanation := "Penyebabnya adalah koneksi stdin sedang menunggu proses selesai."
+	delegation := inboxDelegation{
+		Action:          "run",
+		Title:           "Investigasi terminal",
+		Description:     "Periksa input terminal dan websocket stream",
+		ProjectName:     "Default",
+		AuthorizationID: q.MessageID,
+	}
+	raw, _ := json.Marshal(delegation)
+	combinedInput := explanation + "\n\n```cuan-delegate\n" + string(raw) + "\n```"
+
+	out := s.applyInboxDelegation(ctx, q, combinedInput)
+	if !strings.HasPrefix(out, explanation) {
+		t.Fatalf("expected output to preserve AI explanation as prefix, got: %s", out)
+	}
+	if !strings.Contains(out, "View work") {
+		t.Fatalf("expected output to contain task link, got: %s", out)
+	}
+}
