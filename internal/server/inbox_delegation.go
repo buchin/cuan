@@ -212,6 +212,27 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 				return fail("the task could not be returned for correction")
 			}
 		}
+		if strings.TrimSpace(d.Revision) != "" {
+			newItems := extractDoDFromDescription(d.Revision)
+			if len(newItems) > 0 {
+				existing := make(map[string]bool)
+				for _, item := range t.DoDChecklist {
+					existing[strings.ToLower(strings.TrimSpace(item.Text))] = true
+				}
+				updatedDoD := append([]task.DoDItem{}, t.DoDChecklist...)
+				for _, item := range newItems {
+					key := strings.ToLower(strings.TrimSpace(item.Text))
+					if !existing[key] {
+						updatedDoD = append(updatedDoD, item)
+						existing[key] = true
+					}
+				}
+				if len(updatedDoD) > len(t.DoDChecklist) {
+					_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{DoDChecklist: &updatedDoD})
+					t.DoDChecklist = updatedDoD
+				}
+			}
+		}
 	} else {
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)

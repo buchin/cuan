@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
@@ -147,6 +148,20 @@ func TestApplyInboxReviewEvaluationMultiPhaseAutoAdvancement(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		now := time.Now().UTC()
+		_, _, _ = store.AcceptInboxRequest(ctx, db.InboxRequest{
+			OwnerID:   "owner",
+			AgentID:   "agent_lifecycle",
+			RoomID:    room.RoomID,
+			RequestID: "req_" + userMsgID,
+			MessageID: userMsgID,
+			State:     "completed",
+			CreatedAt: now,
+			Deadline:  now.Add(time.Hour),
+		}, userMsg)
+	}
+
 	// 3. Create Phase 1 task with multi-phase instructions
 	plan3Phases := "Cuan managed delegation v1.\nPhase 1: Database Setup | Phase 2: API Endpoints | Phase 3: Frontend View\n\nApproval message: " + userMsgID
 	task1, err := s.taskSvc.CreateTaskFromMessage(ctx, "owner", userMsgID, task.CreateTaskRequest{
@@ -209,6 +224,7 @@ func TestApplyInboxReviewEvaluationMultiPhaseAutoAdvancement(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	nowAuto := time.Now().UTC()
 	q := db.InboxRequest{
 		OwnerID:   "owner",
 		AgentID:   "agent_lifecycle",
@@ -216,6 +232,8 @@ func TestApplyInboxReviewEvaluationMultiPhaseAutoAdvancement(t *testing.T) {
 		RequestID: reqID,
 		MessageID: inputMsgID,
 		ReplyID:   replyMsgID,
+		CreatedAt: nowAuto,
+		Deadline:  nowAuto.Add(10 * time.Minute),
 	}
 
 	// 6. Apply passing review evaluation
@@ -261,5 +279,121 @@ func TestApplyInboxReviewEvaluationMultiPhaseAutoAdvancement(t *testing.T) {
 	}
 	if !foundP2Task {
 		t.Fatal("expected Phase 2 task to be created in task service")
+	}
+}
+
+func TestApplyInboxReviewEvaluation_RevisionIncludesExplanation(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+
+	userMsgID := db.GenerateUUID()
+	now := time.Now().UTC()
+	userMsg := &db.ProjectMessage{
+		ID:         userMsgID,
+		RoomID:     room.RoomID,
+		AuthorType: "user",
+		AuthorID:   "owner",
+		Content:    "Fix navigation layout",
+		CreatedAt:  now.Add(-time.Minute),
+		UpdatedAt:  now.Add(-time.Minute),
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, userMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		_, _, _ = store.AcceptInboxRequest(ctx, db.InboxRequest{
+			OwnerID:   "owner",
+			AgentID:   "agent_lifecycle",
+			RoomID:    room.RoomID,
+			RequestID: "req_" + userMsgID,
+			MessageID: userMsgID,
+			State:     "completed",
+			CreatedAt: now.Add(-time.Minute),
+			Deadline:  now.Add(time.Hour),
+		}, userMsg)
+	}
+
+	task1, err := s.taskSvc.CreateTaskFromMessage(ctx, "owner", userMsgID, task.CreateTaskRequest{
+		SourceRoomID:  room.RoomID,
+		ProjectID:     "default",
+		Title:         "Fix navigation layout",
+		Instructions:  "Cuan managed delegation v1.\nFix navbar items.\n\nApproval message: " + userMsgID,
+		AssignedAgent: "agent_lifecycle",
+		DoDChecklist: []task.DoDItem{
+			{Text: "Fix navbar on tasks page", Completed: true},
+			{Text: "Eliminate navbar search on other pages", Completed: false},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	att, err := s.taskSvc.CreateAttempt(ctx, task1.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "agent_lifecycle",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusSucceeded,
+	})
+
+	key := "task-review:" + att.ID
+	reqID := delegationMessageID(key)
+	inputMsgID := delegationMessageID(key + ":input")
+	replyMsgID := delegationMessageID(key + ":reply")
+
+	reviewMsg := &db.ProjectMessage{
+		ID:         inputMsgID,
+		RoomID:     room.RoomID,
+		AuthorType: "system",
+		AuthorID:   "cuan_work_review",
+		Content:    "Review result for [/tasks/" + task1.ID + "]",
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, reviewMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	nowAuto := time.Now().UTC()
+	q := db.InboxRequest{
+		OwnerID:   "owner",
+		AgentID:   "agent_lifecycle",
+		RoomID:    room.RoomID,
+		RequestID: reqID,
+		MessageID: inputMsgID,
+		ReplyID:   replyMsgID,
+		CreatedAt: nowAuto,
+		Deadline:  nowAuto.Add(10 * time.Minute),
+	}
+
+	evalJSON := `{"decision":"revise","explanation":"### Evaluasi Kriteria Selesai (DoD)\n**Status:** BELUM LULUS\n\n- [ ] **Eliminasi navbar search**: Belum selesai di halaman Inbox.","revision":"Gap: eliminate search in Inbox.\n- [ ] Eliminate search in Inbox"}`
+	result := s.applyInboxReviewEvaluation(ctx, q, evalJSON)
+	t.Logf("applyInboxReviewEvaluation result: %s", result)
+
+	if !strings.Contains(result, "Evaluasi Kriteria Selesai (DoD)") {
+		t.Fatalf("expected result to include structured DoD explanation, got: %s", result)
+	}
+	if !strings.Contains(result, "Eliminasi navbar search") {
+		t.Fatalf("expected result to include gap item, got: %s", result)
+	}
+
+	// Verify new DoD item from revision was merged into task.DoDChecklist
+	updatedTask, err := s.taskSvc.GetTaskDetail(ctx, task1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundNewDoD := false
+	for _, item := range updatedTask.DoDChecklist {
+		if strings.Contains(item.Text, "Eliminate search in Inbox") {
+			foundNewDoD = true
+			break
+		}
+	}
+	if !foundNewDoD {
+		t.Fatalf("expected revision DoD item to be merged into task.DoDChecklist, got: %+v", updatedTask.DoDChecklist)
 	}
 }
