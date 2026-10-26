@@ -10,7 +10,7 @@ import {
   type MobileKeyDef,
   type StickyMods,
 } from './mobile-keyboard'
-import { CornerDownLeft, Copy, Clipboard, Ban, Keyboard, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { CornerDownLeft, Copy, Clipboard, Ban, Keyboard, Trash2, ChevronDown, ChevronUp, Send, X } from 'lucide-react'
 
 export type MobileTerminalKeyboardProps = {
   onInject: (data: string) => void
@@ -36,6 +36,10 @@ export function MobileTerminalKeyboard({
 }: MobileTerminalKeyboardProps) {
   const [mods, setMods] = useState<StickyMods>(EMPTY_STICKY_MODS)
   const [showExtended, setShowExtended] = useState(false)
+  const [promptText, setPromptText] = useState('')
+  const [history, setHistory] = useState<string[]>([])
+  const [historyIdx, setHistoryIdx] = useState(-1)
+  const promptInputRef = useRef<HTMLInputElement>(null)
   const modsRef = useRef(mods)
   modsRef.current = mods
 
@@ -46,6 +50,56 @@ export function MobileTerminalKeyboard({
   }, [])
 
   useEffect(() => () => stopRepeat(), [stopRepeat])
+
+  const handleSendPrompt = useCallback(
+    (e?: React.FormEvent) => {
+      if (e) e.preventDefault()
+      if (disabled) return
+      const text = promptText
+      if (!text.trim()) {
+        onInject('\r')
+        return
+      }
+      onInject(text + '\r')
+      setHistory((prev) => [text, ...prev.filter((h) => h !== text)].slice(0, 50))
+      setHistoryIdx(-1)
+      setPromptText('')
+    },
+    [disabled, onInject, promptText],
+  )
+
+  const handlePromptKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleSendPrompt()
+      } else if (e.key === 'ArrowUp') {
+        if (history.length > 0) {
+          e.preventDefault()
+          const nextIdx = Math.min(historyIdx + 1, history.length - 1)
+          setHistoryIdx(nextIdx)
+          setPromptText(history[nextIdx] || '')
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (historyIdx > 0) {
+          e.preventDefault()
+          const nextIdx = historyIdx - 1
+          setHistoryIdx(nextIdx)
+          setPromptText(history[nextIdx] || '')
+        } else if (historyIdx === 0) {
+          e.preventDefault()
+          setHistoryIdx(-1)
+          setPromptText('')
+        }
+      }
+    },
+    [history, historyIdx, handleSendPrompt],
+  )
+
+  const handleToggleKeyboard = useCallback(() => {
+    onToggleKeyboard?.()
+    promptInputRef.current?.focus()
+  }, [onToggleKeyboard])
 
   const fireKey = useCallback(
     (key: MobileKeyDef) => {
@@ -108,12 +162,64 @@ export function MobileTerminalKeyboard({
     <div
       role="toolbar"
       aria-label="Terminal Mobile Toolbar"
-      className={`sm:hidden shrink-0 select-none touch-manipulation border-t border-[#262626] bg-[#161616] pb-1 pt-1 ${className}`}
-      onMouseDown={(e) => e.preventDefault()}
-      onPointerDown={(e) => e.preventDefault()}
+      className={`sm:hidden shrink-0 select-none touch-manipulation border-t border-[#262626] bg-[#161616] pb-1 ${className}`}
     >
+      {/* Mobile Floating Prompt Bar - Isolated from xterm re-render stream */}
+      <form
+        onSubmit={handleSendPrompt}
+        className="flex items-center gap-1.5 px-2 py-1.5 bg-[#1b1b1b] border-b border-[#2d2d2d]"
+      >
+        <span className="text-emerald-400 font-mono text-xs font-bold pl-0.5 select-none shrink-0">&gt;</span>
+        <div className="relative flex-1 min-w-0">
+          <input
+            ref={promptInputRef}
+            type="text"
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+            onKeyDown={handlePromptKeyDown}
+            placeholder="Type command or input..."
+            disabled={disabled}
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
+            className="w-full h-8 bg-[#111] border border-[#333] focus:border-emerald-500 rounded px-2.5 pr-7 text-xs font-mono text-neutral-100 placeholder:text-neutral-500 outline-none transition-colors"
+          />
+          {promptText && (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault()
+                setPromptText('')
+                promptInputRef.current?.focus()
+              }}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-white"
+              title="Clear input"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        <button
+          type="submit"
+          disabled={disabled || !promptText.trim()}
+          onPointerDown={(e) => {
+            if (promptText.trim()) {
+              e.preventDefault()
+              handleSendPrompt()
+            }
+          }}
+          className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white px-2.5 text-xs font-semibold font-mono transition-colors disabled:opacity-35 disabled:cursor-not-allowed shadow-xs"
+          title="Send input to terminal"
+          aria-label="Send input"
+        >
+          <Send className="h-3.5 w-3.5" />
+          <span>Send</span>
+        </button>
+      </form>
+
       {/* Quick Actions Row */}
-      <div className="flex items-center gap-1 overflow-x-auto px-1.5 pb-1 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div className="flex items-center gap-1 overflow-x-auto px-1.5 pt-1 pb-0.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Kbd Drawer / Extended Keys Toggle */}
         <button
           type="button"
@@ -280,7 +386,7 @@ export function MobileTerminalKeyboard({
             disabled={disabled}
             onPointerDown={(e) => {
               e.preventDefault()
-              onToggleKeyboard()
+              handleToggleKeyboard()
             }}
             className="ml-auto inline-flex h-8 shrink-0 items-center justify-center rounded border border-[#333] bg-[#222] px-2 font-mono text-xs text-neutral-400 transition-colors hover:text-foreground active:bg-zinc-700 disabled:opacity-40"
             title="Toggle soft keyboard"

@@ -6,9 +6,10 @@ import {
 } from '../../extensions/sdk'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Search, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
+import { tasksApi } from '../../api/tasks'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
 import { TaskItemCard } from '../tasks/TaskItemCard'
@@ -54,18 +55,153 @@ export function ProjectWorkView({
   const visible = searched.filter(task => (filters.find(item => item.id === filter) || filters[0]).matches(task))
   const selected = scoped.find((t) => t.id === taskId)
   const relocated = taskId && !selected ? tasks.find(task => task.id === taskId && task.project_id && task.project_id !== project.id) : undefined
+
+  const isDetailView = ['detail', 'full'].includes(
+    new URLSearchParams(location.search).get('view') || '',
+  )
+  const backURL =
+    typeof location.state?.taskReturnTo === 'string' &&
+    /^\/(?:tasks|projects\/[^/?#]+(?:\/tasks)?|inbox\/[^/?#]+)(?:\?[^#]*)?$/.test(
+      location.state.taskReturnTo,
+    )
+      ? location.state.taskReturnTo
+      : `/projects/${encodeURIComponent(project.id)}/tasks`
+
+  useEffect(() => {
+    if (taskId && isDetailView) {
+      navigate(`/tasks/${encodeURIComponent(taskId)}${location.search}`, {
+        replace: true,
+        state: { ...location.state, taskReturnTo: backURL },
+      })
+    }
+  }, [taskId, isDetailView, location.search, location.state, backURL, navigate])
+
+  const [directTask, setDirectTask] = useState<Task | null>(null)
+  const [directLoading, setDirectLoading] = useState(false)
+  const [directError, setDirectError] = useState('')
+
+  useEffect(() => {
+    if (!taskId || selected || isDetailView) return
+    let active = true
+    setDirectLoading(true)
+    setDirectError('')
+    tasksApi.get(taskId)
+      .then((t) => {
+        if (!active) return
+        setDirectTask(t)
+        if (t.project_id && t.project_id !== project.id) {
+          const target = `/projects/${encodeURIComponent(t.project_id)}/tasks/${encodeURIComponent(t.id)}`
+          navigate(target + (sessionId ? '/sessions/' + encodeURIComponent(sessionId) : '') + location.search, {
+            replace: true,
+            state: location.state,
+          })
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setDirectError(err instanceof Error ? err.message : 'Work not found or session ended.')
+        }
+      })
+      .finally(() => {
+        if (active) setDirectLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [taskId, selected, project.id, sessionId, location.search, location.state, navigate, isDetailView])
+
   useEffect(() => {
     if (loading || error || !relocated) return
     const target = '/projects/' + encodeURIComponent(relocated.project_id!) + '/tasks/' + encodeURIComponent(relocated.id)
     navigate(target + (sessionId ? '/sessions/' + encodeURIComponent(sessionId) : '') + location.search, { replace: true, state: location.state })
   }, [loading, error, relocated?.id, relocated?.project_id, sessionId, location.search, location.state, navigate])
 
-  if (taskId)
+  if (taskId && !isDetailView) {
+    const activeTask = selected || directTask
+    const isFetching = (loading || directLoading) && !activeTask
+    const hasError = !isFetching && !activeTask
+
     return (
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="min-h-0 flex-1">
-          {selected ? (
-            sessionId === 'start' ? (
+      <div className="flex h-full min-h-0 flex-col bg-background">
+        {hasError ? (
+          <div className="flex flex-col h-full">
+            <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-3 gap-2">
+              <Link
+                to={backURL}
+                state={location.state}
+                className="icon-action shrink-0"
+                aria-label={t('Back')}
+                title={t('Back')}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-destructive/20 bg-destructive/10 text-destructive">
+                {t('Not Found')}
+              </span>
+            </header>
+
+            <div className="flex flex-1 items-center justify-center p-4">
+              <div
+                role="alert"
+                className="flex flex-col items-center justify-center max-w-sm rounded-xl border border-border bg-card p-6 text-center text-card-foreground shadow-sm space-y-3"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {t('Work or session not found')}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {directError || t('The requested task was not found in this project or its terminal session has ended.')}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                  <Link
+                    to={backURL}
+                    state={location.state}
+                    className="action-primary text-xs px-3 py-1.5"
+                  >
+                    {t('Back to project')}
+                  </Link>
+                  <Link
+                    to="/tasks"
+                    className="action-secondary text-xs px-3 py-1.5"
+                  >
+                    {t('All tasks')}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDirectError('')
+                      setDirectTask(null)
+                      onRetry?.()
+                    }}
+                    className="action-secondary text-xs px-3 py-1.5 inline-flex items-center gap-1"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    <span>{t('Try again')}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : isFetching ? (
+          <div className="flex flex-col h-full">
+            <header className="flex h-11 sm:h-12 shrink-0 items-center border-b bg-background px-3 gap-2">
+              <Link to={backURL} state={location.state} className="icon-action shrink-0" aria-label={t('Back')}>
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+              <span className="text-xs text-muted-foreground">{t('Loading work…')}</span>
+            </header>
+            <div className="flex flex-1 items-center justify-center p-4 text-xs text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+              <span>{t('Loading session…')}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1">
+            {sessionId === 'start' ? (
               <TaskStartingPage key={taskId} taskId={taskId} />
             ) : (
               <TaskSessionPage
@@ -73,15 +209,12 @@ export function ProjectWorkView({
                 taskId={taskId}
                 sessionId={sessionId || 'latest'}
               />
-            )
-          ) : (
-            <p className="p-5 text-sm" role={loading ? 'status' : 'alert'}>
-              {t(loading || relocated ? 'Loading work…' : 'Work not found in this project.')}
-            </p>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     )
+  }
   if (!taskId && extensionView) {
     if (loading || error) return (
       <div className="p-5 text-sm" role={error ? 'alert' : 'status'}>

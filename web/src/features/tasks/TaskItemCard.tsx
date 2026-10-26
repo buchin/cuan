@@ -17,6 +17,8 @@ import {
   workStatus,
   workStatusBadgeClass,
   taskTargetUrl,
+  taskDetailUrl,
+  taskTerminalUrl,
   taskSummaryText,
   taskLiveActivityText,
   cleanTerminalText,
@@ -71,6 +73,8 @@ export function TaskItemCard({
       (currentTask.status as string) === 'pending')
   const isRunning = isWorking || isQueued
   const targetUrl = taskTargetUrl(currentTask)
+  const detailUrl = taskDetailUrl(currentTask)
+  const terminalUrl = taskTerminalUrl(currentTask)
   const summary = taskSummaryText(currentTask)
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
 
@@ -287,7 +291,7 @@ export function TaskItemCard({
             {status === 'Needs attention' ? (
               <>
                 <Link
-                  to={`${targetUrl}?view=detail`}
+                  to={detailUrl}
                   state={{ taskReturnTo: currentReturnTo }}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -310,7 +314,7 @@ export function TaskItemCard({
             ) : isRunning ? (
               <>
                 <Link
-                  to={`${targetUrl}?view=detail`}
+                  to={detailUrl}
                   state={{ taskReturnTo: currentReturnTo }}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -321,7 +325,7 @@ export function TaskItemCard({
                   <span className="hidden sm:inline">{t('Detail')}</span>
                 </Link>
                 <Link
-                  to={targetUrl}
+                  to={terminalUrl}
                   state={{ taskReturnTo: currentReturnTo }}
                   onClick={
                     onClick
@@ -532,7 +536,7 @@ export function TaskItemCard({
             {status === 'Needs attention' ? (
               <>
                 <Link
-                  to={`${targetUrl}?view=detail`}
+                  to={detailUrl}
                   state={{ taskReturnTo: currentReturnTo }}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -555,7 +559,7 @@ export function TaskItemCard({
             ) : isRunning ? (
               <>
                 <Link
-                  to={`${targetUrl}?view=detail`}
+                  to={detailUrl}
                   state={{ taskReturnTo: currentReturnTo }}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -566,7 +570,7 @@ export function TaskItemCard({
                   {t('Detail')}
                 </Link>
                 <Link
-                  to={targetUrl}
+                  to={terminalUrl}
                   state={{ taskReturnTo: currentReturnTo }}
                   onClick={
                     onClick
