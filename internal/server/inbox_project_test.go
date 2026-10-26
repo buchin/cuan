@@ -286,3 +286,38 @@ func TestResolveContextualProject_AutoDetection(t *testing.T) {
 		t.Fatalf("expected explicit cuan, got %s", p)
 	}
 }
+
+func TestInboxProjectContextGracefulGitTimeout(t *testing.T) {
+	s, _ := setupTestChatServer(t)
+	repo := t.TempDir()
+	c := exec.Command("git", "-C", repo, "init", "-q")
+	_ = c.Run()
+	_ = os.WriteFile(filepath.Join(repo, "README.md"), []byte("# test\n"), 0644)
+	_ = exec.Command("git", "-C", repo, "add", "README.md").Run()
+	_ = exec.Command("git", "-C", repo, "-c", "user.name=test", "-c", "user.email=test@test.local", "commit", "-m", "init").Run()
+
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", t.TempDir())
+	_ = store.CreateProject(context.Background(), &project.Project{ID: "proj_cuan", Name: "cuan", LocalPath: repo})
+
+	room := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(context.Background(), &db.ProjectRoom{ID: room, ProjectID: "proj_cuan", Title: "Test Room"})
+	msg := db.ProjectMessage{ID: db.GenerateUUID(), RoomID: room, AuthorType: "user", Content: "Test message", CreatedAt: time.Now()}
+	_ = s.projectStudioRepo.CreateMessage(context.Background(), &msg)
+
+	// Provide an already-cancelled context
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	q := db.InboxRequest{RoomID: room, MessageID: msg.ID}
+	start := time.Now()
+	_, snapshot := s.inboxProjectContext(cancelledCtx, q)
+	elapsed := time.Since(start)
+
+	if elapsed > 2*time.Second {
+		t.Fatalf("inboxProjectContext took too long with cancelled context: %v", elapsed)
+	}
+	if snapshot == "" {
+		t.Fatal("expected non-empty snapshot")
+	}
+}

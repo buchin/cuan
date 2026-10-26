@@ -476,3 +476,33 @@ func TestRunTaskAgentAutoProvisionsOnboardingAndTrustedWorkspaces(t *testing.T) 
 		t.Fatalf("onboarding.json missing onboardingComplete: true, got: %s", string(onboardingData))
 	}
 }
+
+func TestEnsureResourceGuardrailEnv(t *testing.T) {
+	// 1. Empty env injects default GOMAXPROCS=1 and NODE_OPTIONS
+	res := ensureResourceGuardrailEnv(nil)
+	joined := strings.Join(res, ";")
+	if !strings.Contains(joined, "GOMAXPROCS=1") {
+		t.Errorf("expected GOMAXPROCS=1, got: %v", res)
+	}
+	if !strings.Contains(joined, "NODE_OPTIONS=--max-old-space-size=512") {
+		t.Errorf("expected NODE_OPTIONS, got: %v", res)
+	}
+
+	// 2. Existing GOMAXPROCS is preserved
+	custom := []string{"GOMAXPROCS=4", "FOO=bar"}
+	res2 := ensureResourceGuardrailEnv(custom)
+	joined2 := strings.Join(res2, ";")
+	if !strings.Contains(joined2, "GOMAXPROCS=4") || strings.Contains(joined2, "GOMAXPROCS=1") {
+		t.Errorf("expected custom GOMAXPROCS=4 preserved, got: %v", res2)
+	}
+	if !strings.Contains(joined2, "NODE_OPTIONS=--max-old-space-size=512") {
+		t.Errorf("expected NODE_OPTIONS added to custom env, got: %v", res2)
+	}
+
+	// 3. Both existing are preserved
+	customBoth := []string{"GOMAXPROCS=2", "NODE_OPTIONS=--max-old-space-size=1024"}
+	res3 := ensureResourceGuardrailEnv(customBoth)
+	if len(res3) != 2 {
+		t.Errorf("expected no additional env vars, got %v", res3)
+	}
+}

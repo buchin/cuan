@@ -85,6 +85,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 74
 	}
 	defer file.Close()
+
+	// Demote task supervisor and all child processes to background CPU priority (nice 19)
+	// so agent workloads (compiles, test suites, builds) never starve the main HTTP server or DB.
+	_ = unix.Setpriority(unix.PRIO_PROCESS, 0, 19)
+
 	initialParent := os.Getppid()
 	signals := make(chan os.Signal, 4)
 	signal.Notify(signals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
@@ -100,6 +105,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "The task agent could not start.")
 		return 127
 	}
+	_ = unix.Setpriority(unix.PRIO_PROCESS, child.Process.Pid, 19)
 	if tty, ok := stdin.(*os.File); ok {
 		// Hand the controlling PTY to the agent's own group. The supervisor can
 		// then terminate the full group without killing itself or losing lock

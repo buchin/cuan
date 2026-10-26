@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type GitIntegrityReport struct {
@@ -66,7 +67,9 @@ func inspectGitIntegrity(ctx context.Context, dir string, liveReleaseSHA string)
 	}
 
 	gitCmd := func(args ...string) (string, error) {
-		cmd := exec.CommandContext(ctx, "git", append([]string{"--no-pager", "-C", dir}, args...)...)
+		cmdCtx, cmdCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cmdCancel()
+		cmd := exec.CommandContext(cmdCtx, "git", append([]string{"--no-pager", "-C", dir}, args...)...)
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 		out, err := cmd.Output()
 		return strings.TrimSpace(string(out)), err
