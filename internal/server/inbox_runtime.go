@@ -145,7 +145,8 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		}
 		if e.Update.Type == "tool" {
 			switch e.Update.Tool {
-			case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish":
+			case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish",
+				"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches", "inspect_system_health", "inspect_typecheck":
 			default:
 				s.unsafeTool = true
 			}
@@ -176,7 +177,8 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		}
 		if u.Type == "tool" {
 			switch u.Tool {
-			case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish":
+			case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish",
+				"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches", "inspect_system_health", "inspect_typecheck":
 			default:
 				s.unsafeTool = true
 			}
@@ -205,7 +207,23 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				}
 			}
 
-			names := map[string]string{"read_file": "Read file", "view_file": "Read file", "view_file_outline": "File outline", "view_code_item": "Read code", "list_dir": "List directory", "grep_search": "Search text", "find_by_name": "Find file", "run_command": "Terminal command", "finish": "Format response"}
+			names := map[string]string{
+				"read_file":             "Read file",
+				"view_file":             "Read file",
+				"view_file_outline":     "File outline",
+				"view_code_item":        "Read code",
+				"list_dir":              "List directory",
+				"grep_search":           "Search text",
+				"find_by_name":          "Find file",
+				"run_command":           "Terminal command",
+				"finish":                "Format response",
+				"inspect_git_status":    "Inspect Git status",
+				"inspect_git_log":       "Inspect Git log",
+				"inspect_git_diff":      "Inspect Git diff summary",
+				"inspect_git_branches":  "Inspect Git branches",
+				"inspect_system_health": "Inspect system health",
+				"inspect_typecheck":     "Inspect project typecheck",
+			}
 			name := names[u.Tool]
 			if name == "" {
 				name = "Tool"
