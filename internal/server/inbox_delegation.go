@@ -304,11 +304,22 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		if err == nil {
 			if launch, e := s.taskSvc.LatestLaunch(ctx, item.ID); e == nil && launch != nil && (launch.State == "stopped" || launch.State == "cancelled") {
-				text := "This pending launch has stopped. " + launch.SafeError + "\n\n[View work](/tasks/" + item.ID + ")"
-				if launch.State == "cancelled" {
-					text = "The waiting work was cancelled. No queued execution will be started.\n\n[View work](/tasks/" + item.ID + ")"
+				shouldReport := true
+				if launch.State == "stopped" && detail != nil {
+					if detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusDone {
+						shouldReport = false
+					}
+					if detail.LatestAttempt != nil && detail.LatestAttempt.Status == "succeeded" {
+						shouldReport = false
+					}
 				}
-				s.publishTaskLaunchOutcome(ctx, *launch, launch.State, text)
+				if shouldReport {
+					text := "This pending launch has stopped. " + launch.SafeError + "\n\n[View work](/tasks/" + item.ID + ")"
+					if launch.State == "cancelled" {
+						text = "The waiting work was cancelled. No queued execution will be started.\n\n[View work](/tasks/" + item.ID + ")"
+					}
+					s.publishTaskLaunchOutcome(ctx, *launch, launch.State, text)
+				}
 			}
 		}
 		if err == nil && detail.LatestAttempt == nil && detail.Status == task.TaskStatusDone && strings.TrimSpace(detail.Summary) != "" && strings.TrimSpace(detail.CompleteNote) != "" {

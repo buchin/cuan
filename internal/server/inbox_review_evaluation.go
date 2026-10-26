@@ -133,7 +133,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		if !complete {
 			decision.Decision = "revise"
 			decision.Revision = "Gap: the canonical task is not verified complete or acceptance items remain unfinished. Area: original approved task and existing workspace. Inspect saved work, finish only missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
-			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- Pelaksanaan tugas dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] Seluruh kriteria penerimaan belum tuntas diverifikasi atau bukti hasil kerja belum lengkap.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
+			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- [x] **Pelaksanaan tugas**: Dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] **Verifikasi Kriteria**: Seluruh kriteria penerimaan belum tuntas diverifikasi atau bukti hasil kerja belum lengkap.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
 		} else {
 			if target, ok := s.detectNextMultiPhase(ctx, d); ok {
 				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
