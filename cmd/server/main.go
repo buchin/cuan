@@ -20,6 +20,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
 	dbPkg "github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/diagnostics"
 	"github.com/buchin/cuan/internal/server"
 	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/taskcli"
@@ -31,6 +32,15 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "task" {
 		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "repo" {
+		os.Exit(diagnostics.RunRepoCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && (os.Args[1] == "diag" || os.Args[1] == "health" || os.Args[1] == "diagnostics") {
+		os.Exit(diagnostics.RunDiagCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		os.Exit(diagnostics.RunMCP(os.Stdin, os.Stdout, os.Stderr))
 	}
 	showHelp := flag.Bool("help", false, "Show help message")
 	showVersion := flag.Bool("version", false, "Show Cuan server version")
@@ -305,10 +315,20 @@ func runHealthCheck(endpoint string) {
 }
 
 func printUsage() {
-	fmt.Println(`cuan-server — Cuan API Server
+	fmt.Println(`cuan-server / cuan — Agentic Project Management & Server Daemon
 
 Usage:
   cuan-server [flags]
+  cuan repo <subcommand> [flags]
+  cuan diag <subcommand> [flags]
+  cuan task <subcommand> [flags]
+  cuan mcp
+
+Subcommands:
+  repo              Read-only git repository inspection (status, log, diff-summary, branches)
+  diag              Host system health & static diagnostics (health, df, free, tsc, deps)
+  task              Task execution and bound session reporting
+  mcp               Model Context Protocol (MCP) stdio server for Agent Chat function calling
 
 Flags:
   --healthcheck     Perform local liveness health check (/healthz) (exits 0 on 200 OK)

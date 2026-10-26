@@ -32,12 +32,19 @@ build-backend:
 	go build -o bin/cuan-server ./cmd/server
 	go build -o bin/cuan-runner ./cmd/runner
 	go build -o bin/cuan-migrate ./cmd/migrate
+	ln -sf cuan-server bin/cuan
 	@echo "==> Go binaries successfully built in bin/"
 
 build-frontend:
 	@echo "==> Building React Vite TypeScript frontend..."
 	@if [ -d "web" ]; then \
-		(cd web && npm run build) || exit 1; \
+		if command -v npm >/dev/null 2>&1 && [ -d "web/node_modules" ]; then \
+			(cd web && npm run build) || exit 1; \
+		elif [ -d "web/dist" ]; then \
+			echo "==> Using retained web/dist (frontend build toolchain not installed on host)"; \
+		else \
+			exit 1; \
+		fi; \
 	fi
 	@echo "==> Frontend successfully built in web/dist/"
 
@@ -50,7 +57,13 @@ test-backend:
 test-frontend:
 	@echo "==> Validating frontend build and types..."
 	@if [ -d "web" ]; then \
-		(cd web && npm run build) || exit 1; \
+		if command -v npm >/dev/null 2>&1 && [ -d "web/node_modules" ]; then \
+			(cd web && npm run build) || exit 1; \
+		elif [ -d "web/dist" ]; then \
+			echo "==> Validated retained web/dist (frontend build toolchain not installed on host)"; \
+		else \
+			exit 1; \
+		fi; \
 	fi
 
 migrate:

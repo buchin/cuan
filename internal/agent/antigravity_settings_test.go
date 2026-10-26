@@ -176,7 +176,10 @@ func TestCLISettingsPrepareReadOnlyPermissions(t *testing.T) {
 			rules[s] = true
 		}
 	}
-	for _, expected := range []string{"read_file(*)", "view_file(*)", "list_dir(*)", "grep_search(*)", "find_by_name(*)"} {
+	for _, expected := range []string{
+		"read_file(*)", "view_file(*)", "list_dir(*)", "grep_search(*)", "find_by_name(*)",
+		"inspect_git_status(*)", "inspect_git_log(*)", "inspect_system_health(*)", "inspect_typecheck(*)",
+	} {
 		if !rules[expected] {
 			t.Fatalf("missing expected permission rule %s in %v", expected, rules)
 		}
@@ -193,5 +196,30 @@ func TestCLISettingsPrepareReadOnlyPermissions(t *testing.T) {
 	allow2 := perms2["allow"].([]any)
 	if len(allow2) != len(allow) {
 		t.Fatalf("expected idempotent permissions, got len %d vs %d", len(allow2), len(allow))
+	}
+}
+
+func TestCLISettingsEnsureAntigravityMCPConfig(t *testing.T) {
+	home := t.TempDir()
+	if err := EnsureAntigravityMCPConfig(home); err != nil {
+		t.Fatal(err)
+	}
+	mcpPath := filepath.Join(home, ".gemini", "config", "mcp_config.json")
+	data, err := os.ReadFile(mcpPath)
+	if err != nil {
+		t.Fatalf("failed to read mcp_config.json: %v", err)
+	}
+	var cfg struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("invalid json in mcp_config.json: %v", err)
+	}
+	cuanServer, ok := cfg.MCPServers["cuan-inspect"]
+	if !ok || cuanServer.Command != "cuan" || len(cuanServer.Args) == 0 || cuanServer.Args[0] != "mcp" {
+		t.Fatalf("expected cuan-inspect mcp server in mcp_config.json, got: %+v", cfg.MCPServers)
 	}
 }
