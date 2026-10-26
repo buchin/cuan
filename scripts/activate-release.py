@@ -282,7 +282,7 @@ def main():
         retained_environment = database_environment()
         assert_idle_work(args.no_restart)  # Recheck after backup and unit preparation.
         switch(current, target)
-        target_sha = manifest.get('sha') if manifest else None
+        target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
         check_healthy = (lambda: healthy(target_sha)) if args.no_restart else (lambda: restart_and_check(target_sha))
         if not check_healthy():
             old_manifest = json.loads((old / 'release.json').read_text())
