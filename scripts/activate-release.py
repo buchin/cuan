@@ -102,11 +102,23 @@ def assert_idle_work(no_restart=False):
     # after this check retain their normal durable restart/recovery semantics.
     if not no_restart:
         env=database_environment()
+        exclude_attempt = os.environ.get('CUAN_DEPLOY_EXCLUDE_ATTEMPT', '').strip()
+        cap_file = os.environ.get('CUAN_TASK_CAPABILITY_FILE')
+        if not exclude_attempt and cap_file and Path(cap_file).is_file():
+            try:
+                cap_data = json.loads(Path(cap_file).read_text())
+                exclude_attempt = str(cap_data.get('attempt_id', '')).strip()
+            except Exception:
+                pass
+
         for table, states in [('inbox_requests',"'running','queued','cancelling'"),('task_attempts',"'running','queued'"),('task_launches',"'queued','claimed'")]:
             if database_scalar("SELECT to_regclass('public."+table+"') IS NOT NULL",env) != 't':
                 continue
             column='state' if table!='task_attempts' else 'status'
-            if int(database_scalar('SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')',env)):
+            query = 'SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')'
+            if table == 'task_attempts' and exclude_attempt:
+                query += " AND id != '" + exclude_attempt.replace("'", "''") + "'"
+            if int(database_scalar(query,env)):
                 raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
 
     assert_no_github_login()
