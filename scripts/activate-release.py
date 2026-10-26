@@ -103,11 +103,15 @@ def assert_idle_work(no_restart=False):
     if not no_restart:
         env=database_environment()
         exclude_attempt = os.environ.get('CUAN_DEPLOY_EXCLUDE_ATTEMPT', '').strip()
+        exclude_task = os.environ.get('CUAN_DEPLOY_EXCLUDE_TASK', '').strip()
         cap_file = os.environ.get('CUAN_TASK_CAPABILITY_FILE')
-        if not exclude_attempt and cap_file and Path(cap_file).is_file():
+        if cap_file and Path(cap_file).is_file():
             try:
                 cap_data = json.loads(Path(cap_file).read_text())
-                exclude_attempt = str(cap_data.get('attempt_id', '')).strip()
+                if not exclude_attempt:
+                    exclude_attempt = str(cap_data.get('attempt_id', '')).strip()
+                if not exclude_task:
+                    exclude_task = str(cap_data.get('task_id', '')).strip()
             except Exception:
                 pass
 
@@ -118,6 +122,8 @@ def assert_idle_work(no_restart=False):
             query = 'SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')'
             if table == 'task_attempts' and exclude_attempt:
                 query += " AND id != '" + exclude_attempt.replace("'", "''") + "'"
+            if table == 'task_launches' and exclude_task:
+                query += " AND task_id != '" + exclude_task.replace("'", "''") + "'"
             if int(database_scalar(query,env)):
                 raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
 
