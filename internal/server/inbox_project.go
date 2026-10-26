@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -457,20 +458,27 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	}
 	fmt.Fprintf(&b, "Project workspace: %s. Read-only code inspection enabled. Use native read-only tools (read_file, view_file, list_dir, grep_search, find_by_name) to inspect project source code and UI components (e.g. web/src/components, layout, navbar) in this workspace. Never call run_command.\n", dir)
 	gitRead := func(args ...string) string {
-		cmd := exec.CommandContext(ctx, "git", append([]string{"--no-pager", "-C", dir}, args...)...)
+		gitCtx, gitCancel := context.WithTimeout(ctx, 3*time.Second)
+		defer gitCancel()
+		cmd := exec.CommandContext(gitCtx, "git", append([]string{"--no-pager", "-C", dir}, args...)...)
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 		out := &boundedInboxOutput{}
 		cmd.Stdout = out
 		if cmd.Run() != nil {
+			if errors.Is(gitCtx.Err(), context.DeadlineExceeded) {
+				return "[Git read timed out due to high host activity]"
+			}
 			return "[Git is unavailable for this workspace]"
 		}
 		return truncateProjectText(out.String(), 12000)
 	}
-	integrity := inspectGitIntegrity(ctx, dir, rel)
+	integrityCtx, integrityCancel := context.WithTimeout(ctx, 4*time.Second)
+	defer integrityCancel()
+	integrity := inspectGitIntegrity(integrityCtx, dir, rel)
 	b.WriteString(integrity.Summary())
 	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
 	diffstat := gitRead("show", "--stat", "--oneline", "-n", "1", "HEAD")
-	if !strings.Contains(diffstat, "Git is unavailable") && strings.TrimSpace(diffstat) != "" {
+	if !strings.Contains(diffstat, "Git is unavailable") && !strings.Contains(diffstat, "timed out") && strings.TrimSpace(diffstat) != "" {
 		b.WriteString("Recent changes (HEAD diffstat):\n" + truncateProjectText(diffstat, 2000) + "\n")
 	}
 	if uiMap := inspectUIArchitecture(dir); uiMap != "" {

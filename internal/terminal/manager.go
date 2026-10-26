@@ -483,12 +483,13 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	}
 	supervisedArgs := append([]string{taskprocess.Command, lockPath, strconv.Itoa(os.Getpid()), "--", executable}, ptyArgs...)
 	sessionID := generateSessionID()
+
 	ptyCfg := PTYConfig{
 		TaskID:      taskID,
 		WorkDir:     workDir,
 		Shell:       supervisor,
 		Args:        supervisedArgs,
-		Env:         cfg.Env,
+		Env:         ensureResourceGuardrailEnv(cfg.Env),
 		InitialCols: cols,
 		InitialRows: rows,
 	}
@@ -756,4 +757,27 @@ func (m *Manager) GetProjectActiveRunner(projectID string) *ProjectActiveRunner 
 		LastActivity: sess.LastActivity(),
 		RecentOutput: output,
 	}
+}
+
+// ensureResourceGuardrailEnv injects sensible resource constraints into task runner environments
+// so background test suites or compiler runs (go test, node) do not overwhelm memory or CPU on small instances.
+func ensureResourceGuardrailEnv(env []string) []string {
+	hasGoMaxProcs := false
+	hasNodeOptions := false
+	for _, e := range env {
+		if strings.HasPrefix(e, "GOMAXPROCS=") {
+			hasGoMaxProcs = true
+		}
+		if strings.HasPrefix(e, "NODE_OPTIONS=") {
+			hasNodeOptions = true
+		}
+	}
+	res := append([]string(nil), env...)
+	if !hasGoMaxProcs {
+		res = append(res, "GOMAXPROCS=1")
+	}
+	if !hasNodeOptions {
+		res = append(res, "NODE_OPTIONS=--max-old-space-size=512")
+	}
+	return res
 }
