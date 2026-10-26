@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -303,4 +305,92 @@ func TestRunner_ProjectConcurrencyLock(t *testing.T) {
 		t.Fatalf("Expected Runner 2 to claim Task 2 after Task 1 completed, got: %+v", claimed2After)
 	}
 	t.Logf("Project Concurrency Lock handover verified: Runner 2 successfully claimed Task 2 (attempt: %s) after Task 1 completed", claimed2After.ID)
+}
+
+type mockProjectFinder struct {
+	projects map[string]*project.ProjectResponse
+}
+
+func (m *mockProjectFinder) Get(ctx context.Context, id string) (*project.ProjectResponse, error) {
+	if p, ok := m.projects[id]; ok {
+		return p, nil
+	}
+	return nil, nil
+}
+
+func TestRunner_AutoDeployEnforcement(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+
+	finder := &mockProjectFinder{
+		projects: map[string]*project.ProjectResponse{
+			"proj_autodeploy": {
+				ID:       "proj_autodeploy",
+				Metadata: json.RawMessage(`{"cuan_settings":{"auto_deploy":true}}`),
+			},
+		},
+	}
+	svc := NewService(runnerStore, taskStore, finder)
+
+	// Create task and attempt
+	tk := &task.Task{
+		ID:        "task_ad_1",
+		ProjectID: "proj_autodeploy",
+		Title:     "Feature needing deployment",
+		Status:    task.TaskStatusDoing,
+	}
+	_ = taskStore.CreateTask(ctx, tk)
+	att := &task.TaskAttempt{
+		ID:     "att_ad_1",
+		TaskID: tk.ID,
+		Status: task.AttemptStatusRunning,
+	}
+	_ = taskStore.CreateAttempt(ctx, att)
+
+	// Attempt completed as Succeeded without live deployment evidence
+	req := CompleteAttemptRequest{
+		RunnerID:             "runner_1",
+		Status:               task.AttemptStatusSucceeded,
+		ExitCode:             0,
+		AgentReportConfirmed: true,
+		AgentReportRequired:  true,
+		CommitSHA:            "abc1234",
+		BranchName:           "cuan/task-ad1",
+	}
+	completedAtt, err := svc.Complete(ctx, att.ID, req)
+	if err != nil {
+		t.Fatalf("Complete failed: %v", err)
+	}
+	if completedAtt.Status != task.AttemptStatusFailed {
+		t.Fatalf("Expected attempt to fail auto_deploy compliance, got status '%s'", completedAtt.Status)
+	}
+	if !strings.Contains(completedAtt.ErrorMessage, "auto_deploy") {
+		t.Fatalf("Expected auto_deploy error message, got: %s", completedAtt.ErrorMessage)
+	}
+
+	// Now with live deployment confirmed
+	att2 := &task.TaskAttempt{
+		ID:     "att_ad_2",
+		TaskID: tk.ID,
+		Status: task.AttemptStatusRunning,
+	}
+	_ = taskStore.CreateAttempt(ctx, att2)
+	req2 := CompleteAttemptRequest{
+		RunnerID:                "runner_1",
+		Status:                  task.AttemptStatusSucceeded,
+		ExitCode:                0,
+		AgentReportConfirmed:    true,
+		AgentReportRequired:     true,
+		CommitSHA:               "abc1234",
+		BranchName:              "cuan/task-ad1",
+		LiveDeploymentConfirmed: true,
+	}
+	completedAtt2, err := svc.Complete(ctx, att2.ID, req2)
+	if err != nil {
+		t.Fatalf("Complete 2 failed: %v", err)
+	}
+	if completedAtt2.Status != task.AttemptStatusSucceeded {
+		t.Fatalf("Expected attempt to succeed with live deployment confirmed, got: %s (err: %s)", completedAtt2.Status, completedAtt2.ErrorMessage)
+	}
 }

@@ -728,6 +728,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
 						ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
 						if e != nil || !ready {
+							state = task.AttemptStatusFailed
 							note = "No review-ready result was recorded. Check the agent report and saved output."
 						}
 					}

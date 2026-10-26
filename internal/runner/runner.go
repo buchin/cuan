@@ -310,6 +310,15 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					compReq.ErrorMessage = verification.Error
 				}
 			}
+			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy {
+				deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim)
+				if !deployed {
+					compReq.Status = task.AttemptStatusFailed
+					compReq.ErrorMessage = errNote
+				} else {
+					compReq.LiveDeploymentConfirmed = true
+				}
+			}
 		}
 	} else {
 		compReq.Status = task.AttemptStatusFailed
@@ -475,6 +484,57 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 		}
 	}
 	return false
+}
+
+func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTaskResponse) (bool, string) {
+	if !claim.AutoDeploy {
+		return true, ""
+	}
+	if claim.TaskAgent == nil || claim.TaskAgent.API == "" || claim.TaskAgent.Token == "" {
+		return false, "Kepatuhan auto_deploy: sesi task tidak memiliki kapabilitas agent untuk memvalidasi deployment live"
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, claim.TaskAgent.API, nil)
+	if err != nil {
+		return false, "Kepatuhan auto_deploy: gagal membuat request verifikasi: " + err.Error()
+	}
+	request.Header.Set("Authorization", "Bearer "+claim.TaskAgent.Token)
+	response, err := r.httpClient.Do(request)
+	if err != nil {
+		return false, "Kepatuhan auto_deploy: gagal mengakses API task: " + err.Error()
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false, fmt.Sprintf("Kepatuhan auto_deploy: API task mengembalikan status %d", response.StatusCode)
+	}
+	var snapshot struct {
+		Status       string `json:"status"`
+		Summary      string `json:"summary"`
+		CompleteNote string `json:"complete_note"`
+		Activities   []struct {
+			ActivityType string `json:"activity_type"`
+			NewStatus    string `json:"new_status"`
+			Message      string `json:"message"`
+		} `json:"activities"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
+		return false, "Kepatuhan auto_deploy: gagal decode snapshot task: " + err.Error()
+	}
+	combined := strings.ToLower(snapshot.CompleteNote + " " + snapshot.Summary)
+	hasDeployProof := (strings.Contains(combined, "deploy") || strings.Contains(combined, "rilis") || strings.Contains(combined, "release")) &&
+		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
+
+	for _, a := range snapshot.Activities {
+		msg := strings.ToLower(a.Message)
+		if strings.Contains(msg, "auto_deploy") || strings.Contains(msg, "live deployment") || strings.Contains(msg, "release") {
+			hasDeployProof = true
+			break
+		}
+	}
+
+	if !hasDeployProof {
+		return false, "Kepatuhan auto_deploy: runner wajib memastikan perubahan kode telah di-deploy dan terverifikasi live di production sebelum menyatakan task selesai; commit/push lokal saja tidak memenuhi syarat"
+	}
+	return true, ""
 }
 
 func (r *Runner) streamOutputLogs(ctx context.Context, attemptID, stdout, stderr string) {
