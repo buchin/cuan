@@ -55,6 +55,7 @@ import './chat-whatsapp.css'
 import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
+import { ApprovalCard } from './ApprovalCard'
 import { ConversationWorkMonitor } from './ConversationWorkMonitor'
 import { TaskItemCard } from '../tasks/TaskItemCard'
 import { getQueuedTasksPositions } from '../tasks/task-ui'
@@ -1290,7 +1291,7 @@ export function InboxView({
                           )}
                         </div>
                       )}
-                      {msg.approval_title && (
+                      {msg.approval_title && !msg.approval_plan && (
                         <p className="mb-2 text-xs font-medium">
                           {t(msg.approval_accepted ? 'Approved' : msg.plan_deferred ? 'Saved for later' : 'Needs approval')}
                         </p>
@@ -1359,24 +1360,18 @@ export function InboxView({
                       )}
 
                       {isAgentMessage && msg.approval_plan && (
-                        <div className="mt-3 space-y-2 border-l-2 border-primary/30 pl-3">
-                          <p className="text-sm font-medium">{msg.approval_plan.title}</p>
-                          <p className="whitespace-pre-wrap break-words text-sm">{msg.approval_plan.description}</p>
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" className="min-h-11" disabled={msg.approval_accepted || sending || uploads.busy || retryCount >= 3 || !!pendingRef.current} onClick={() => handleSendMessage(msg.uuid, msg.approval_request_id)}>
-                              {t(msg.approval_accepted ? 'Approved' : 'Approve and start')}
-                            </Button>
-                            {!msg.approval_accepted && <>
-                              <Button size="sm" variant="outline" className="min-h-11" disabled={sending || !!pendingRef.current} onClick={() => {
-                                setInputMessage(current => (current ? current + '\n\n' : '') + t('Changes to this plan') + ' — ' + msg.approval_plan!.title + ': ')
-                                textareaRef.current?.focus()
-                              }}>{t('Change plan')}</Button>
-                              <Button size="sm" variant="ghost" className="min-h-11" disabled={msg.plan_deferred || sending || uploads.busy || retryCount >= 3 || !!pendingRef.current} onClick={() => handleSendMessage(msg.uuid, msg.plan_defer_request_id, 'defer')}>
-                                {t(msg.plan_deferred ? 'Saved for later' : 'Not now')}
-                              </Button>
-                            </>}
-                          </div>
-                        </div>
+                        <ApprovalCard
+                          plan={msg.approval_plan}
+                          accepted={msg.approval_accepted}
+                          deferred={msg.plan_deferred}
+                          disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
+                          onApprove={() => handleSendMessage(msg.uuid, msg.approval_request_id)}
+                          onChangePlan={() => {
+                            setInputMessage(current => (current ? current + '\n\n' : '') + t('Changes to this plan') + ' — ' + msg.approval_plan!.title + ': ')
+                            textareaRef.current?.focus()
+                          }}
+                          onDefer={() => handleSendMessage(msg.uuid, msg.plan_defer_request_id, 'defer')}
+                        />
                       )}
 
                       {/* 1-Click Execution Action Card for Agent Messages */}

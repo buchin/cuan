@@ -58,3 +58,33 @@
 
 /* Task results share one page scroll; keep reading size distinct from chat input. */
 .task-result-content .chat-markdown { font-size: .875rem; line-height: 1.65; }
+
+/* Approval card markdown enhancements */
+.approval-card .chat-markdown {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.approval-card .chat-markdown p,
+.approval-card .chat-markdown ul,
+.approval-card .chat-markdown ol,
+.approval-card .chat-markdown blockquote,
+.approval-card .chat-markdown .chat-code,
+.approval-card .chat-markdown .chat-table {
+  margin: 0.45em 0;
+}
+.approval-card .chat-markdown ul {
+  list-style-type: disc;
+  padding-left: 1.25em;
+}
+.approval-card .chat-markdown ol {
+  list-style-type: decimal;
+  padding-left: 1.25em;
+}
+.approval-card .chat-markdown li {
+  margin: 0.2em 0;
+}
+.approval-card .chat-markdown pre {
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}

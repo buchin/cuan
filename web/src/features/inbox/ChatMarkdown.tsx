@@ -121,13 +121,21 @@ function prepareChatMarkdown(raw: string): string {
 
 export const ChatMarkdown = memo(function ChatMarkdown({
   content,
+  className,
 }: {
   content: string
+  className?: string
 }) {
   const extensionRevision = useExtensionRevision()
   const preparedContent = prepareChatMarkdown(content)
   return (
-    <div className="chat-markdown min-w-0 max-w-full text-base leading-relaxed">
+    <div
+      className={
+        className
+          ? `chat-markdown min-w-0 max-w-full leading-relaxed ${className}`
+          : 'chat-markdown min-w-0 max-w-full text-base leading-relaxed'
+      }
+    >
       <ExtensionBoundary
         resetKey={content + ':' + extensionRevision}
         fallback={

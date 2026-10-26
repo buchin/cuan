@@ -38,13 +38,20 @@ export interface InboxTaskDraft {
   project_id?: string
 }
 
+export interface ApprovalPlan {
+  title: string
+  description: string
+  project_id?: string
+  project_name?: string
+}
+
 export interface ChatMessage {
   plan_deferred?: boolean
   plan_defer_request_id?: string
   approval_accepted?: boolean
   approval_request_id?: string
   approval_title?: string
-  approval_plan?: { title: string; description: string; project_id?: string; project_name?: string }
+  approval_plan?: ApprovalPlan
   attachments?: import('../features/inbox/Attachments').Attachment[]
   task_draft?: InboxTaskDraft
   id: number
