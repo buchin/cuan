@@ -11,14 +11,21 @@ import {
   Keyboard,
   MoreHorizontal,
   WifiOff,
+  Ban,
+  Trash2,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
 import type { TaskAttempt } from '../../api/types'
 import type { Terminal } from '@xterm/xterm'
+import type { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import './task-workspace.css'
+import { MobileTerminalKeyboard } from './terminal/MobileTerminalKeyboard'
+import { TerminalContextMenu } from './terminal/TerminalContextMenu'
 
 export function TaskTerminal({
   taskId,
@@ -37,46 +44,209 @@ export function TaskTerminal({
 }) {
   const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
-  const mount = useRef<HTMLDivElement>(null),
-    term = useRef<Terminal | null>(null),
-    socket = useRef<WebSocket | null>(null)
-  const [connection, setConnection] = useState('loading'),
-    [error, setError] = useState(''),
-    [notice, setNotice] = useState(''),
-    [revision, setRevision] = useState(0),
-    [follow, setFollow] = useState(true),
-    [input, setInput] = useState(false),
-    [search, setSearch] = useState(''),
-    [match, setMatch] = useState('')
-  const following = useRef(true),
-    interactive = useRef(false),
-    searchIndex = useRef(-1),
-    logs = useRef<TaskLog[]>([])
+  const mount = useRef<HTMLDivElement>(null)
+  const term = useRef<Terminal | null>(null)
+  const fitRef = useRef<FitAddon | null>(null)
+  const socket = useRef<WebSocket | null>(null)
+
+  const [connection, setConnection] = useState('loading')
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [follow, setFollow] = useState(true)
+  const [input, setInput] = useState(false)
+  const [search, setSearch] = useState('')
+  const [match, setMatch] = useState('')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean
+    x: number
+    y: number
+  }>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+  })
+
+  const following = useRef(true)
+  const interactive = useRef(false)
+  const searchIndex = useRef(-1)
+  const logs = useRef<TaskLog[]>([])
+  const retryCount = useRef(0)
+  const isReconnecting = useRef(false)
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const isTaskActive = ['running', 'queued'].includes(attempt.status)
+  const isTaskActiveRef = useRef(isTaskActive)
+  isTaskActiveRef.current = isTaskActive
+
   const isLive =
     !!live &&
     live.attempt_id === attempt.id &&
     isTaskActive
   const liveId = isLive ? live.session_id : ''
+  const liveIdRef = useRef(liveId)
+  liveIdRef.current = liveId
+
   const refreshRef = useRef(onRefresh)
   refreshRef.current = onRefresh
+
   useEffect(() => {
     onConnectionChange?.(connection)
   }, [connection, onConnectionChange])
 
+  const bufferText = useCallback(() => {
+    const termInstance = term.current
+    if (!termInstance) return logs.current.map((l) => l.line).join('\n')
+    const buffer = termInstance.buffer.active
+    const lines: string[] = []
+    for (let i = 0; i < buffer.length; i++) {
+      lines.push(buffer.getLine(i)?.translateToString(true) || '')
+    }
+    return lines.join('\n').trimEnd()
+  }, [])
+
+  const handleCopy = useCallback(async () => {
+    try {
+      const termInstance = term.current
+      const selected = termInstance?.getSelection()
+      const textToCopy = selected || bufferText()
+      if (!textToCopy) return
+      await navigator.clipboard.writeText(textToCopy)
+      setNotice(selected ? t('Selected text copied.') : t('Output copied.'))
+      setTimeout(() => setNotice(''), 3000)
+    } catch {
+      setError(t('Could not copy output. Use Download output instead.'))
+    }
+  }, [bufferText, t])
+
+  const sendKey = useCallback((key: string) => {
+    const ws = socket.current
+    const terminal = term.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      if (!interactive.current) {
+        if (terminal) terminal.options.disableStdin = false
+        interactive.current = true
+        setInput(true)
+        ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
+      }
+      ws.send(JSON.stringify({ type: 'stdin', data: key }))
+      if (following.current) terminal?.scrollToBottom()
+    }
+  }, [])
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        sendKey(text)
+      }
+    } catch {
+      setError(t('Clipboard access denied by browser.'))
+      setTimeout(() => setError(''), 4000)
+    }
+  }, [sendKey, t])
+
+  const handleClear = useCallback(() => {
+    term.current?.clear()
+    sendKey('\x0c')
+  }, [sendKey])
+
+  const handleInterrupt = useCallback(() => {
+    sendKey('\x03')
+  }, [sendKey])
+
+  const handleSelectAll = useCallback(() => {
+    term.current?.selectAll()
+  }, [])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setContextMenu({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+    })
+  }, [])
+
+  const find = useCallback(
+    (direction = 1) => {
+      const termInstance = term.current
+      if (!termInstance || !search) {
+        termInstance?.clearSelection()
+        setMatch('')
+        return
+      }
+      const matches: { line: number; column: number }[] = []
+      const query = search.toLowerCase()
+      for (let line = 0; line < termInstance.buffer.active.length; line++) {
+        const text =
+          termInstance.buffer.active
+            .getLine(line)
+            ?.translateToString(true)
+            .toLowerCase() || ''
+        let from = 0
+        let index: number
+        while ((index = text.indexOf(query, from)) >= 0) {
+          matches.push({ line, column: index })
+          from = index + Math.max(1, query.length)
+        }
+      }
+      if (!matches.length) {
+        termInstance.clearSelection()
+        setMatch('No matches')
+        return
+      }
+      searchIndex.current =
+        (searchIndex.current + direction + matches.length) % matches.length
+      const target = matches[searchIndex.current]
+      termInstance.select(target.column, target.line, search.length)
+      termInstance.scrollToLine(Math.max(0, target.line - 2))
+      setMatch(`${searchIndex.current + 1} of ${matches.length}`)
+      following.current = false
+      setFollow(false)
+    },
+    [search],
+  )
+
+  useEffect(() => {
+    searchIndex.current = -1
+    find(1)
+  }, [search, find])
+
+  const showKeyboard = useCallback(() => {
+    const ws = socket.current
+    const terminal = term.current
+    if (ws?.readyState !== WebSocket.OPEN || !terminal) return
+    if (!interactive.current) {
+      terminal.options.disableStdin = false
+      interactive.current = true
+      setInput(true)
+      ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
+    }
+    terminal.focus()
+  }, [])
+
+  // Ref to hold connectSocket so reconnect and event listeners can call it
+  const connectSocketRef = useRef<() => void>(() => {})
+
   const handleReconnect = useCallback(() => {
     setError('')
     setNotice('')
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+    retryCount.current = 0
+    isReconnecting.current = true
     setConnection('connecting')
-    setRevision((n) => n + 1)
     onRefresh()
+    connectSocketRef.current()
   }, [onRefresh])
 
+  // Handle active / online recovery
   const lastAutoRetry = useRef(0)
   useEffect(() => {
     const handleActive = () => {
       if (document.visibilityState !== 'visible') return
-      if (!['running', 'queued'].includes(attempt.status)) return
+      if (!isTaskActiveRef.current) return
       if (connection !== 'disconnected' && connection !== 'error') return
 
       const now = Date.now()
@@ -94,71 +264,34 @@ export function TaskTerminal({
       window.removeEventListener('focus', handleActive)
       window.removeEventListener('online', handleActive)
     }
-  }, [attempt.status, connection, handleReconnect])
+  }, [connection, handleReconnect])
 
-  const showDisconnectBanner =
-    isTaskActive &&
-    (connection === 'disconnected' ||
-      (connection === 'connecting' && revision > 0) ||
-      (connection === 'error' && !logs.current.length))
-  const bufferText = useCallback(() => {
-    const t = term.current
-    if (!t) return logs.current.map((l) => l.line).join('\n')
-    const buffer = t.buffer.active
-    const lines = []
-    for (let i = 0; i < buffer.length; i++)
-      lines.push(buffer.getLine(i)?.translateToString(true) || '')
-    return lines.join('\n').trimEnd()
-  }, [])
-  const find = useCallback(
-    (direction = 1) => {
-      const t = term.current
-      if (!t || !search) {
-        t?.clearSelection()
-        setMatch('')
-        return
-      }
-      const matches: { line: number; column: number }[] = []
-      const query = search.toLowerCase()
-      for (let line = 0; line < t.buffer.active.length; line++) {
-        const text =
-          t.buffer.active
-            .getLine(line)
-            ?.translateToString(true)
-            .toLowerCase() || ''
-        let from = 0,
-          index
-        while ((index = text.indexOf(query, from)) >= 0) {
-          matches.push({ line, column: index })
-          from = index + Math.max(1, query.length)
-        }
-      }
-      if (!matches.length) {
-        t.clearSelection()
-        setMatch('No matches')
-        return
-      }
-      searchIndex.current =
-        (searchIndex.current + direction + matches.length) % matches.length
-      const target = matches[searchIndex.current]
-      t.select(target.column, target.line, search.length)
-      t.scrollToLine(Math.max(0, target.line - 2))
-      setMatch(`${searchIndex.current + 1} of ${matches.length}`)
-      following.current = false
-      setFollow(false)
-    },
-    [search],
-  )
+  // Fullscreen resize re-fitting
   useEffect(() => {
-    searchIndex.current = -1
-    find(1)
-  }, [search, find])
+    const timer = setTimeout(() => {
+      fitRef.current?.fit()
+      const ws = socket.current
+      const terminal = term.current
+      if (ws?.readyState === WebSocket.OPEN && terminal) {
+        ws.send(
+          JSON.stringify({
+            type: 'resize',
+            cols: terminal.cols,
+            rows: terminal.rows,
+          }),
+        )
+      }
+    }, 60)
+    return () => clearTimeout(timer)
+  }, [isFullscreen])
+
+  // Terminal lifecycle & WebSocket connection
   useEffect(() => {
-    let disposed = false,
-      resize: ResizeObserver | undefined,
-      refreshTimer: ReturnType<typeof setTimeout> | undefined,
-      cleanupTouch: (() => void) | undefined
-    let terminal: Terminal | undefined, ws: WebSocket | undefined
+    let disposed = false
+    let resize: ResizeObserver | undefined
+    let cleanupTouch: (() => void) | undefined
+    let terminal: Terminal | undefined
+
     setConnection('loading')
     setError('')
     setNotice('')
@@ -167,14 +300,144 @@ export function TaskTerminal({
     logs.current = []
     following.current = true
     setFollow(true)
-    const connect = async () => {
+
+    const connectSocket = () => {
+      if (disposed) return
+      const currentLiveId = liveIdRef.current
+      if (!currentLiveId) return
+
+      if (socket.current) {
+        try {
+          socket.current.close()
+        } catch {}
+        socket.current = null
+      }
+
+      setConnection('connecting')
+      const url = new URL(
+        `/api/v1/tasks/${encodeURIComponent(taskId)}/terminal`,
+        window.location.href,
+      )
+      url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+      url.searchParams.set('mode', 'interactive')
+      url.searchParams.set('attach', '1')
+      url.searchParams.set('session_id', currentLiveId)
+      if (term.current) {
+        url.searchParams.set('cols', String(term.current.cols))
+        url.searchParams.set('rows', String(term.current.rows))
+      }
+
+      const token = getAuthToken()
+      const ws = new WebSocket(
+        url.toString(),
+        token ? ['cuan-terminal', `token.${token}`] : ['cuan-terminal'],
+      )
+      socket.current = ws
+      ws.binaryType = 'arraybuffer'
+
+      ws.onmessage = (event) => {
+        if (disposed || !term.current) return
+        const t = term.current
+
+        if (event.data instanceof ArrayBuffer) {
+          t.write(new Uint8Array(event.data), () => {
+            if (following.current) t.scrollToBottom()
+          })
+          return
+        }
+
+        try {
+          const data = JSON.parse(String(event.data))
+          if (data.type === 'connected') {
+            if (data.session_id !== currentLiveId) {
+              ws.close()
+              setError(
+                'The terminal belongs to a different session. Refresh and open the selected session again.',
+              )
+              return
+            }
+
+            // Zero-flicker reset before replay
+            if (isReconnecting.current) {
+              t.reset()
+              isReconnecting.current = false
+            }
+            retryCount.current = 0
+
+            const enabled = data.mode === 'interactive'
+            interactive.current = enabled
+            setInput(enabled)
+            t.options.disableStdin = !enabled
+            t.options.cursorBlink = enabled
+            setConnection('connected')
+            fitRef.current?.fit()
+          } else if (data.type === 'status') {
+            const enabled = data.mode === 'interactive'
+            interactive.current = enabled
+            setInput(enabled)
+            t.options.disableStdin = !enabled
+            t.options.cursorBlink = enabled
+          } else if (data.type === 'error') {
+            setError(data.message || 'Terminal request failed.')
+          }
+        } catch {
+          setError(
+            'Unexpected terminal response. Reconnect to the existing session.',
+          )
+        }
+      }
+
+      ws.onerror = () => {
+        if (!disposed) {
+          setConnection('disconnected')
+        }
+      }
+
+      ws.onclose = (event) => {
+        if (disposed) return
+        setConnection('disconnected')
+        interactive.current = false
+        setInput(false)
+        if (term.current) term.current.options.disableStdin = true
+
+        // Soft backoff reconnect if task is still actively running
+        if (
+          isTaskActiveRef.current &&
+          event.code !== 1000 &&
+          retryCount.current < 5
+        ) {
+          const delay = Math.min(
+            1000 * Math.pow(2, retryCount.current),
+            8000,
+          )
+          retryCount.current++
+          isReconnecting.current = true
+          setConnection('connecting')
+          if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+          reconnectTimer.current = setTimeout(() => {
+            if (!disposed) connectSocket()
+          }, delay)
+        } else {
+          if (refreshTimer.current) clearTimeout(refreshTimer.current)
+          refreshTimer.current = setTimeout(() => refreshRef.current(), 300)
+        }
+      }
+    }
+
+    connectSocketRef.current = connectSocket
+
+    const initTerminal = async () => {
       try {
-        const [{ Terminal }, { FitAddon }] = await Promise.all([
-          import('@xterm/xterm'),
-          import('@xterm/addon-fit'),
-        ])
+        const [{ Terminal: XtermTerminal }, { FitAddon }, { WebLinksAddon }] =
+          await Promise.all([
+            import('@xterm/xterm'),
+            import('@xterm/addon-fit'),
+            import('@xterm/addon-web-links'),
+          ])
+
         if (disposed || !mount.current) return
-        terminal = new Terminal({
+
+        terminal = new XtermTerminal({
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
           fontSize: 13,
           lineHeight: 1.25,
@@ -189,10 +452,18 @@ export function TaskTerminal({
             selectionBackground: '#3b82f655',
           },
         })
+
         const fit = new FitAddon()
+        fitRef.current = fit
         terminal.loadAddon(fit)
+
+        // Enable clickable web links inside terminal
+        const webLinks = new WebLinksAddon()
+        terminal.loadAddon(webLinks)
+
         terminal.open(mount.current)
         term.current = terminal
+
         const fitTerminal = () => {
           if (
             disposed ||
@@ -202,22 +473,26 @@ export function TaskTerminal({
             return
           try {
             fit.fit()
-            if (ws?.readyState === WebSocket.OPEN)
+            const ws = socket.current
+            if (ws?.readyState === WebSocket.OPEN && terminal) {
               ws.send(
                 JSON.stringify({
                   type: 'resize',
-                  cols: terminal!.cols,
-                  rows: terminal!.rows,
+                  cols: terminal.cols,
+                  rows: terminal.rows,
                 }),
               )
+            }
           } catch {
-            /* Detached during responsive navigation. */
+            /* Detached during responsive navigation */
           }
         }
+
         fitTerminal()
         resize = new ResizeObserver(fitTerminal)
         resize.observe(mount.current)
 
+        // Touch scrolling & inertia handling
         const mountEl = mount.current
         let touchStartY = 0
         let touchStartX = 0
@@ -330,7 +605,7 @@ export function TaskTerminal({
 
         mountEl.addEventListener('touchstart', onTouchStart, {
           capture: true,
-          passive: false,
+          passive: true,
         })
         mountEl.addEventListener('touchmove', onTouchMove, {
           capture: true,
@@ -371,10 +646,15 @@ export function TaskTerminal({
             setFollow(true)
           }
         })
+
         terminal.onData((data) => {
-          if (interactive.current && ws?.readyState === WebSocket.OPEN)
+          const ws = socket.current
+          if (interactive.current && ws?.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'stdin', data }))
+          }
         })
+
+        // If no live session is active, load saved paginated logs
         if (!liveId) {
           let after = 0
           for (let page = 0; page < 8 && !disposed; page++) {
@@ -382,91 +662,26 @@ export function TaskTerminal({
             if (disposed) return
             const next = result.logs || []
             logs.current.push(...next)
-            if (next.length)
+            if (next.length) {
               terminal.write(next.map((l) => l.line).join('\r\n') + '\r\n')
+            }
             if (next.length < 250) break
             after = next[next.length - 1].id
           }
           if (disposed) return
           setConnection('saved')
-          if (!logs.current.length)
+          if (!logs.current.length) {
             setNotice(
               ['running', 'queued'].includes(attempt.status)
                 ? 'No live terminal is available. This attempt is still recorded as active; refresh its status or cancel it before retrying.'
                 : 'No output was saved for this session.',
             )
+          }
           return
         }
-        setConnection('connecting')
-        const url = new URL(
-          `/api/v1/tasks/${encodeURIComponent(taskId)}/terminal`,
-          window.location.href,
-        )
-        url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-        url.searchParams.set('mode', 'interactive')
-        url.searchParams.set('attach', '1')
-        url.searchParams.set('session_id', liveId)
-        url.searchParams.set('cols', String(terminal.cols))
-        url.searchParams.set('rows', String(terminal.rows))
-        const token = getAuthToken()
-        ws = new WebSocket(
-          url.toString(),
-          token ? ['cuan-terminal', `token.${token}`] : ['cuan-terminal'],
-        )
-        socket.current = ws
-        ws.binaryType = 'arraybuffer'
-        ws.onmessage = (event) => {
-          if (disposed || !terminal) return
-          if (event.data instanceof ArrayBuffer) {
-            terminal.write(new Uint8Array(event.data), () => {
-              if (following.current) terminal?.scrollToBottom()
-            })
-            return
-          }
-          try {
-            const data = JSON.parse(String(event.data))
-            if (data.type === 'connected') {
-              if (data.session_id !== liveId) {
-                ws?.close()
-                setError(
-                  'The terminal belongs to a different session. Refresh and open the selected session again.',
-                )
-                return
-              }
-              const enabled = data.mode === 'interactive'
-              interactive.current = enabled
-              setInput(enabled)
-              terminal.options.disableStdin = !enabled
-              terminal.options.cursorBlink = enabled
-              setConnection('connected')
-              fitTerminal()
-            } else if (data.type === 'status') {
-              const enabled = data.mode === 'interactive'
-              interactive.current = enabled
-              setInput(enabled)
-              terminal.options.disableStdin = !enabled
-              terminal.options.cursorBlink = enabled
-            } else if (data.type === 'error')
-              setError(data.message || 'Terminal request failed.')
-          } catch {
-            setError(
-              'Unexpected terminal response. Reconnect to the existing session.',
-            )
-          }
-        }
-        ws.onerror = () => {
-          if (!disposed) {
-            setConnection('disconnected')
-          }
-        }
-        ws.onclose = () => {
-          if (disposed) return
-          setConnection('disconnected')
-          interactive.current = false
-          setInput(false)
-          if (terminal) terminal.options.disableStdin = true
-          refreshTimer = setTimeout(() => refreshRef.current(), 300)
-        }
+
+        // Live session: connect WebSocket
+        connectSocket()
       } catch (e) {
         if (!disposed) {
           setConnection('error')
@@ -476,27 +691,48 @@ export function TaskTerminal({
         }
       }
     }
-    void connect()
+
+    void initTerminal()
+
     return () => {
       disposed = true
       cleanupTouch?.()
       resize?.disconnect()
-      if (refreshTimer) clearTimeout(refreshTimer)
-      ws?.close()
-      if (socket.current === ws) socket.current = null
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      if (socket.current) {
+        socket.current.close()
+        socket.current = null
+      }
       terminal?.dispose()
       if (term.current === terminal) term.current = null
+      fitRef.current = null
     }
-  }, [taskId, attempt.id, liveId, revision])
+  }, [taskId, attempt.id]) // Recreate terminal only if task or attempt identity changes!
+
+  // Re-connect when liveId transitions from empty to active without recreating Terminal
+  useEffect(() => {
+    if (liveId && term.current && connection === 'saved') {
+      connectSocketRef.current()
+    }
+  }, [liveId, connection])
+
+  // Context menu click-outside / escape
   useEffect(() => {
     const outside = (event: PointerEvent) => {
-      if (menu.current?.open && !menu.current.contains(event.target as Node))
+      if (menu.current?.open && !menu.current.contains(event.target as Node)) {
         menu.current.open = false
+      }
     }
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && menu.current?.open) {
-        menu.current.open = false
-        menu.current.querySelector<HTMLElement>('summary')?.focus()
+      if (event.key === 'Escape') {
+        if (menu.current?.open) {
+          menu.current.open = false
+          menu.current.querySelector<HTMLElement>('summary')?.focus()
+        }
+        if (isFullscreen) {
+          setIsFullscreen(false)
+        }
       }
     }
     document.addEventListener('pointerdown', outside)
@@ -505,37 +741,18 @@ export function TaskTerminal({
       document.removeEventListener('pointerdown', outside)
       document.removeEventListener('keydown', escape)
     }
-  }, [])
-  const showKeyboard = () => {
-    const ws = socket.current
-    const terminal = term.current
-    if (ws?.readyState !== WebSocket.OPEN || !terminal) return
-    // Mobile browsers require focus within the original user gesture, not in
-    // the later WebSocket response. Input permission still follows server mode.
-    if (!interactive.current) {
-      terminal.options.disableStdin = false
-      ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
-    }
-    terminal.focus()
-  }
-  const sendKey = (key: string) => {
-    const ws = socket.current
-    const terminal = term.current
-    if (ws?.readyState === WebSocket.OPEN) {
-      if (!interactive.current) {
-        if (terminal) terminal.options.disableStdin = false
-        interactive.current = true
-        setInput(true)
-        ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
-      }
-      ws.send(JSON.stringify({ type: 'stdin', data: key }))
-      if (following.current) terminal?.scrollToBottom()
-    }
-  }
+  }, [isFullscreen])
+
+  const showDisconnectBanner =
+    isTaskActive &&
+    (connection === 'disconnected' ||
+      (connection === 'connecting' && retryCount.current > 0) ||
+      (connection === 'error' && !logs.current.length))
+
   const controls = (
     <div
       className={
-        controlsTarget
+        controlsTarget && !isFullscreen
           ? 'flex items-center gap-1'
           : 'flex shrink-0 items-center gap-1 bg-background px-2 py-1'
       }
@@ -543,7 +760,7 @@ export function TaskTerminal({
       <span
         role="status"
         className={
-          controlsTarget
+          controlsTarget && !isFullscreen
             ? 'sr-only'
             : 'min-w-0 flex-1 truncate text-xs text-muted-foreground'
         }
@@ -557,13 +774,15 @@ export function TaskTerminal({
                 ? t('Connected · input enabled')
                 : t('Connected · read-only'),
               saved: t('Saved output'),
-              disconnected: t('Disconnected · task status is checked separately'),
+              disconnected: t(
+                'Disconnected · task status is checked separately',
+              ),
               error: t('Output unavailable'),
             } as Record<string, string>
           )[connection]
         }
       </span>
-      {!controlsTarget && (
+      {(!controlsTarget || isFullscreen) && (
         <span
           aria-hidden
           className={
@@ -577,10 +796,54 @@ export function TaskTerminal({
           title={connection}
         />
       )}
+
+      {/* Quick Action Toolbar */}
       <div className="flex flex-wrap items-center gap-1">
+        {/* Quick Stop / Interrupt (Ctrl+C) */}
         {liveId && (
           <button
-            className="icon-action"
+            type="button"
+            className="icon-action text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 active:bg-rose-600 active:text-white"
+            aria-label={t('Send Ctrl+C (Interrupt)')}
+            title={t('Send Ctrl+C (Interrupt)')}
+            disabled={connection !== 'connected'}
+            onClick={handleInterrupt}
+          >
+            <Ban className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* Clear buffer */}
+        <button
+          type="button"
+          className="icon-action"
+          aria-label={t('Clear terminal')}
+          title={t('Clear terminal')}
+          onClick={handleClear}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+
+        {/* Fullscreen / Maximize toggle */}
+        <button
+          type="button"
+          className="icon-action"
+          aria-label={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
+          title={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
+          onClick={() => setIsFullscreen((prev) => !prev)}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="h-3.5 w-3.5" />
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5" />
+          )}
+        </button>
+
+        {/* Mobile keyboard trigger */}
+        {liveId && (
+          <button
+            type="button"
+            className="icon-action sm:hidden"
             aria-label={t('Show keyboard')}
             title={t('Show keyboard')}
             disabled={connection !== 'connected'}
@@ -590,6 +853,8 @@ export function TaskTerminal({
           </button>
         )}
       </div>
+
+      {/* Details dropdown for extra tools */}
       <details ref={menu} className="static sm:relative shrink-0">
         <summary
           aria-label={t('Terminal tools')}
@@ -601,6 +866,7 @@ export function TaskTerminal({
         <div className="absolute right-0 top-full z-20 w-[min(320px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
           <div className="flex flex-wrap justify-end gap-1">
             <button
+              type="button"
               className="icon-action"
               aria-label={t('Reconnect terminal')}
               title={t('Reconnect to this session')}
@@ -609,23 +875,16 @@ export function TaskTerminal({
               <RefreshCw className="h-4 w-4" />
             </button>
             <button
+              type="button"
               className="icon-action"
               aria-label={t('Copy output')}
               title={t('Copy output')}
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(bufferText())
-                  setNotice(t('Output copied.'))
-                } catch {
-                  setError(
-                    t('Could not copy output. Use Download output instead.'),
-                  )
-                }
-              }}
+              onClick={handleCopy}
             >
               <Copy className="h-4 w-4" />
             </button>
             <button
+              type="button"
               className="icon-action"
               aria-label={t('Download output')}
               title={t('Download output')}
@@ -674,6 +933,7 @@ export function TaskTerminal({
                   {match}
                 </span>
                 <button
+                  type="button"
                   className="icon-action"
                   aria-label={t('Previous match')}
                   onClick={() => find(-1)}
@@ -681,6 +941,7 @@ export function TaskTerminal({
                   <ChevronUp className="h-4 w-4" />
                 </button>
                 <button
+                  type="button"
                   className="icon-action"
                   aria-label={t('Next match')}
                   onClick={() => find(1)}
@@ -690,6 +951,7 @@ export function TaskTerminal({
               </>
             )}
             <button
+              type="button"
               className="action-secondary px-2 text-xs"
               aria-pressed={follow}
               onClick={() => {
@@ -707,12 +969,20 @@ export function TaskTerminal({
       </details>
     </div>
   )
+
   return (
     <section
       aria-label={t('Session terminal')}
-      className="task-terminal-container flex h-full min-h-0 min-w-0 flex-col bg-[#141414] overscroll-contain"
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-50 flex h-full w-full flex-col bg-[#141414] overscroll-contain select-text'
+          : 'task-terminal-container flex h-full min-h-0 min-w-0 flex-col bg-[#141414] overscroll-contain'
+      }
     >
-      {controlsTarget ? createPortal(controls, controlsTarget) : controls}
+      {controlsTarget && !isFullscreen
+        ? createPortal(controls, controlsTarget)
+        : controls}
+
       {showDisconnectBanner && (
         <div
           role="status"
@@ -753,129 +1023,64 @@ export function TaskTerminal({
           </button>
         </div>
       )}
+
       {error && !showDisconnectBanner && (
-        <p role="alert" className="shrink-0 px-3 py-1.5 text-xs text-destructive">
+        <p
+          role="alert"
+          className="shrink-0 px-3 py-1.5 text-xs text-destructive"
+        >
           {error}
         </p>
       )}
       {notice && (
-        <p role="status" className="shrink-0 px-3 py-1 text-xs text-muted-foreground">
+        <p
+          role="status"
+          className="shrink-0 px-3 py-1 text-xs text-muted-foreground"
+        >
           {notice}
         </p>
       )}
+
       <div
         className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-2 overscroll-contain"
         aria-label="Terminal output"
+        onContextMenu={handleContextMenu}
       >
         <div
           ref={mount}
           className="task-terminal-viewport h-full w-full overscroll-contain touch-none"
         />
       </div>
+
+      {/* Right-click & touch context menu */}
+      <TerminalContextMenu
+        isOpen={contextMenu.isOpen}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        hasSelection={Boolean(term.current?.getSelection())}
+        isFullscreen={isFullscreen}
+        onClose={() => setContextMenu((c) => ({ ...c, isOpen: false }))}
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+        onSelectAll={handleSelectAll}
+        onClear={handleClear}
+        onInterrupt={handleInterrupt}
+        onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
+        t={t}
+      />
+
+      {/* Mobile Accessory Keyboard Bar (Blink & Fural style) */}
       {liveId && (
-        <div
-          className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-[#262626] bg-[#161616] px-2 py-1.5 select-none touch-pan-x overscroll-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-          aria-label="Terminal keyboard shortcuts"
-        >
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\t')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[38px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
-            title="Tab"
-          >
-            Tab
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\x1b')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[38px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
-            title="Escape"
-          >
-            Esc
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\x03')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[50px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-rose-300 transition-colors hover:bg-[#333] active:bg-rose-500 active:text-white disabled:opacity-40"
-            title="Ctrl+C (Interrupt)"
-          >
-            Ctrl+C
-          </button>
-          <div className="mx-0.5 h-4 w-px shrink-0 bg-[#333]" />
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\x1b[A')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
-            title="Arrow Up"
-            aria-label="Up"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\x1b[B')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
-            title="Arrow Down"
-            aria-label="Down"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\x1b[D')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
-            title="Arrow Left"
-            aria-label="Left"
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\x1b[C')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
-            title="Arrow Right"
-            aria-label="Right"
-          >
-            →
-          </button>
-          <div className="mx-0.5 h-4 w-px shrink-0 bg-[#333]" />
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => sendKey('\r')}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[48px] shrink-0 items-center justify-center rounded bg-[#262626] px-2.5 font-mono text-xs font-medium text-neutral-200 transition-colors hover:bg-[#333] active:bg-primary active:text-primary-foreground disabled:opacity-40"
-            title="Enter (Return)"
-            aria-label="Enter"
-          >
-            ↵ Enter
-          </button>
-          <button
-            type="button"
-            onClick={showKeyboard}
-            disabled={connection !== 'connected'}
-            className="inline-flex h-8 min-w-[36px] shrink-0 items-center justify-center rounded bg-[#262626] px-2 font-mono text-xs text-muted-foreground transition-colors hover:bg-[#333] hover:text-foreground disabled:opacity-40 ml-auto"
-            title="Open soft keyboard"
-            aria-label="Keyboard"
-          >
-            <Keyboard className="h-4 w-4" />
-          </button>
-        </div>
+        <MobileTerminalKeyboard
+          onInject={sendKey}
+          onCopy={handleCopy}
+          onPaste={handlePaste}
+          onClear={handleClear}
+          onToggleKeyboard={showKeyboard}
+          disabled={connection !== 'connected'}
+        />
       )}
+
       <p className="sr-only">
         {liveId
           ? 'Closing this view does not stop the task. Use Cancel session to stop execution.'
