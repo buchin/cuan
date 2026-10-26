@@ -59,7 +59,7 @@ export function ActionDialog({
           ? 'session-detail-panel m-0 ml-auto h-dvh max-h-dvh w-full max-w-md overflow-y-auto border-l border-border bg-card p-4 text-card-foreground shadow-2xl backdrop:bg-black/60'
           : compact
             ? 'm-auto max-h-[85dvh] w-[calc(100%_-_24px)] max-w-xl overflow-hidden rounded-xl border border-border bg-card p-3 text-card-foreground shadow-2xl backdrop:bg-black/60'
-            : 'm-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-5 text-card-foreground shadow-2xl backdrop:bg-black/60'
+            : 'm-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-4 sm:p-5 text-card-foreground shadow-2xl backdrop:bg-black/60'
       }
     >
       <header

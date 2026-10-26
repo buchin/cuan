@@ -234,9 +234,9 @@ export function TaskBoardView({
     ({
       doing: 'text-blue-600 dark:text-blue-400',
       queued: 'text-amber-600 dark:text-amber-400',
-      review: 'text-amber-700 dark:text-amber-400',
+      review: 'text-purple-600 dark:text-purple-400',
       done: 'text-emerald-700 dark:text-emerald-400',
-      blocked: 'text-destructive',
+      blocked: 'text-destructive dark:text-red-400',
     })[taskStatus(value)] || 'text-muted-foreground'
   const statusIcon = (value: string) => {
     const Icon =
@@ -428,74 +428,76 @@ export function TaskBoardView({
           />
         </label>
       </div>
-      <label className="flex items-center justify-between gap-3 sm:hidden">
-        <span className="text-xs text-muted-foreground">Show</span>
-        <select
-          aria-label="Task status filter"
-          className="min-h-11 max-w-[75%] rounded-md border border-input bg-background px-3 text-sm"
-          value={status}
-          onChange={(e) => {
-            update('status', e.target.value)
-            onStatusFilterChange?.(e.target.value)
-          }}
-        >
-          {[{ id: 'all', label: 'All tasks' }, ...TASK_STATUSES].map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label} (
-              {item.id === 'all'
-                ? scoped.length
-                : scoped.filter((t) => taskStatus(t.status) === item.id).length}
-              )
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* Horizontal Category Chips (unified across mobile and desktop, touch target min 44px) */}
+      <nav
+        aria-label="Filter task status"
+        className="flex shrink-0 items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {[{ id: 'all', label: 'All' }, ...TASK_STATUSES].map((item) => {
+          const isSelected = status === item.id
+          const count =
+            item.id === 'all'
+              ? scoped.length
+              : scoped.filter((t) => taskStatus(t.status) === item.id).length
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              aria-pressed={isSelected}
+              onClick={() => {
+                update('status', item.id)
+                onStatusFilterChange?.(item.id)
+              }}
+              className={cn(
+                'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
+                isSelected
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
+              )}
+            >
+              <span>{item.label}</span>
+              <span
+                className={cn(
+                  'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
+                  isSelected
+                    ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                    : 'bg-muted-foreground/15 text-muted-foreground',
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* Active Secondary Filters (project, priority, assignee) */}
       {chips.length > 0 && (
         <div
           aria-label="Active task filters"
-          className="flex flex-wrap gap-1.5"
+          className="flex flex-wrap items-center gap-1.5 pt-0.5"
         >
           {chips.map((chip) => (
             <button
               key={chip.key}
               aria-label={`Remove ${chip.label} filter`}
-              className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border bg-muted/40 px-2.5 text-xs"
+              className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-foreground hover:bg-muted transition-colors"
               onClick={() => update(chip.key, 'all')}
             >
               <span className="truncate">{chip.label}</span>
-              <X className="h-3 w-3 shrink-0" />
+              <X className="h-3 w-3 shrink-0 text-muted-foreground" />
             </button>
           ))}
+          <button
+            onClick={clear}
+            className="min-h-9 px-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            Clear all
+          </button>
         </div>
       )}
-      <nav
-        aria-label="Filter task status"
-        className="hidden shrink-0 gap-1 overflow-x-auto border-b pb-1 sm:flex"
-      >
-        {[{ id: 'all', label: 'All' }, ...TASK_STATUSES].map((item) => (
-          <button
-            key={item.id}
-            aria-pressed={status === item.id}
-            onClick={() => {
-              update('status', item.id)
-              onStatusFilterChange?.(item.id)
-            }}
-            className={cn(
-              'min-h-11 shrink-0 whitespace-nowrap border-b-2 px-3 text-sm',
-              status === item.id
-                ? 'border-primary font-medium text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {item.label}
-            <span className="ml-1.5 text-xs opacity-60">
-              {item.id === 'all'
-                ? scoped.length
-                : scoped.filter((t) => taskStatus(t.status) === item.id).length}
-            </span>
-          </button>
-        ))}
-      </nav>
       <div
         className={cn(
           'flex items-center justify-between gap-2 text-xs text-muted-foreground',

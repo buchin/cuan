@@ -7,6 +7,7 @@ import {
   Play,
   Rocket,
   RefreshCw,
+  FileText,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
@@ -193,7 +194,17 @@ export function TaskItemCard({
                     <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
                   </span>
-                ) : null}
+                ) : status === 'Ready for review' ? (
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
+                ) : status === 'Completed' || status === 'Answered' ? (
+                  <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                ) : status === 'Cancelled' ? (
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-zinc-500 dark:bg-zinc-400 shrink-0" />
+                ) : status === 'Needs attention' ? (
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-destructive shrink-0" />
+                ) : (
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
+                )}
                 {isQueued && queuePosition ? `${t('Queued')} #${queuePosition}` : t(status)}
               </span>
               {showProject && currentTask.project_name && (
@@ -283,60 +294,48 @@ export function TaskItemCard({
         </div>
 
         {showActions && (
-          <div className="flex shrink-0 items-center gap-1.5 sm:flex">
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              to={`${targetUrl}?view=detail`}
+              state={{ taskReturnTo: currentReturnTo }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onNavigate?.()
+              }}
+              className="action-secondary min-h-11 min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
+              aria-label={`${t('Detail')} for ${currentTask.title}`}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t('Detail')}</span>
+            </Link>
+
             {status === 'Needs attention' ? (
-              <>
-                <Link
-                  to={`${targetUrl}?view=detail`}
-                  state={{ taskReturnTo: currentReturnTo }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onNavigate?.()
-                  }}
-                  className="action-secondary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
-                >
-                  <span className="hidden sm:inline">{t('Detail')}</span>
-                </Link>
-                <button
-                  type="button"
-                  disabled={retrying}
-                  onClick={handleRetry}
-                  className="action-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
-                >
-                  <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
-                  <span>{retrying ? t('Retrying...') : t('Retry')}</span>
-                </button>
-              </>
+              <button
+                type="button"
+                disabled={retrying}
+                onClick={handleRetry}
+                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
+                <span>{retrying ? t('Retrying...') : t('Retry')}</span>
+              </button>
             ) : isRunning ? (
-              <>
-                <Link
-                  to={`${targetUrl}?view=detail`}
-                  state={{ taskReturnTo: currentReturnTo }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onNavigate?.()
-                  }}
-                  className="action-secondary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
-                >
-                  <span className="hidden sm:inline">{t('Detail')}</span>
-                </Link>
-                <Link
-                  to={targetUrl}
-                  state={{ taskReturnTo: currentReturnTo }}
-                  onClick={
-                    onClick
-                      ? (e) => {
-                          e.preventDefault()
-                          onClick(currentTask)
-                        }
-                      : onNavigate
-                  }
-                  className="action-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
-                >
-                  <Terminal className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t('Live Terminal')}</span>
-                </Link>
-              </>
+              <Link
+                to={targetUrl}
+                state={{ taskReturnTo: currentReturnTo }}
+                onClick={
+                  onClick
+                    ? (e) => {
+                        e.preventDefault()
+                        onClick(currentTask)
+                      }
+                    : onNavigate
+                }
+                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
+              >
+                <Terminal className="h-3.5 w-3.5" />
+                <span>{t('Live Terminal')}</span>
+              </Link>
             ) : status === 'Ready for review' ||
               status === 'Completed' ||
               status === 'Answered' ? (
@@ -351,10 +350,10 @@ export function TaskItemCard({
                       }
                     : onNavigate
                 }
-                className="action-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
+                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{t('View result')}</span>
+                <span>{t('View result')}</span>
               </Link>
             ) : (
               <Link
@@ -368,10 +367,10 @@ export function TaskItemCard({
                       }
                     : onNavigate
                 }
-                className="action-primary inline-flex items-center gap-1 px-2.5 py-1 text-xs"
+                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
               >
                 <Play className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{t('Start session')}</span>
+                <span>{t('Start session')}</span>
               </Link>
             )}
           </div>
@@ -408,7 +407,17 @@ export function TaskItemCard({
                 <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
               </span>
-            ) : null}
+            ) : status === 'Ready for review' ? (
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
+            ) : status === 'Completed' || status === 'Answered' ? (
+              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : status === 'Cancelled' ? (
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-zinc-500 dark:bg-zinc-400 shrink-0" />
+            ) : status === 'Needs attention' ? (
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-destructive shrink-0" />
+            ) : (
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
+            )}
             {isQueued && queuePosition ? `${t('Queued')} #${queuePosition}` : t(status)}
           </span>
 
@@ -501,70 +510,76 @@ export function TaskItemCard({
       </div>
 
       {/* Footer: Agent info & Action buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50 text-xs">
-        <div className="text-[11px] text-muted-foreground">
-          {agent && (
+      <div className="pt-2.5 border-t border-border/50 space-y-2 text-xs">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          {agent ? (
             <span>
-              {t('Agent')}: <strong>{agentDisplayName(agent)}</strong>
+              {t('Agent')}: <strong className="font-medium text-foreground">{agentDisplayName(agent)}</strong>
+            </span>
+          ) : (
+            <span className="text-muted-foreground/75">{t('Unassigned')}</span>
+          )}
+          {currentTask.priority && currentTask.priority !== 'normal' && (
+            <span
+              className={cn(
+                'capitalize font-semibold text-[10px] px-1.5 py-0.5 rounded border',
+                currentTask.priority === 'urgent' && 'border-destructive/30 bg-destructive/10 text-destructive',
+                currentTask.priority === 'high' && 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                currentTask.priority === 'low' && 'border-border bg-muted text-muted-foreground'
+              )}
+            >
+              {currentTask.priority}
             </span>
           )}
         </div>
 
         {showActions && (
-          <div className="flex items-center gap-2 ml-auto">
-            {currentTask.pr_url && !applied && status === 'Ready for review' && (
-              <button
-                type="button"
-                disabled={applying}
-                onClick={handleApply}
-                className="action-primary text-xs px-2.5 py-1 inline-flex items-center gap-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all"
-              >
-                <Rocket className="h-3.5 w-3.5" />
-                <span>{applying ? t('Applying...') : t('Apply changes')}</span>
-              </button>
-            )}
-            {applied && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>{t('Changes applied')}</span>
-              </span>
-            )}
-            {status === 'Needs attention' ? (
-              <>
-                <Link
-                  to={`${targetUrl}?view=detail`}
-                  state={{ taskReturnTo: currentReturnTo }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onNavigate?.()
-                  }}
-                  className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1"
+          <div className="flex items-center justify-between gap-2">
+            {/* Detail Action: Always positioned on the Left */}
+            <Link
+              to={`${targetUrl}?view=detail`}
+              state={{ taskReturnTo: currentReturnTo }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onNavigate?.()
+              }}
+              className="action-secondary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+              aria-label={`${t('Detail')} for ${currentTask.title}`}
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span>{t('Detail')}</span>
+            </Link>
+
+            {/* Primary Action: Always positioned on the Right */}
+            <div className="flex items-center gap-2">
+              {currentTask.pr_url && !applied && status === 'Ready for review' && (
+                <button
+                  type="button"
+                  disabled={applying}
+                  onClick={handleApply}
+                  className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  {t('Detail')}
-                </Link>
+                  <Rocket className="h-3.5 w-3.5 shrink-0" />
+                  <span>{applying ? t('Applying...') : t('Apply changes')}</span>
+                </button>
+              )}
+              {applied && (
+                <span className="inline-flex min-h-11 items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('Changes applied')}</span>
+                </span>
+              )}
+              {status === 'Needs attention' ? (
                 <button
                   type="button"
                   disabled={retrying}
                   onClick={handleRetry}
-                  className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
+                  className="action-primary min-h-11 min-w-[44px] px-4 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
+                  <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin')} />
                   <span>{retrying ? t('Retrying...') : t('Retry')}</span>
                 </button>
-              </>
-            ) : isRunning ? (
-              <>
-                <Link
-                  to={`${targetUrl}?view=detail`}
-                  state={{ taskReturnTo: currentReturnTo }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onNavigate?.()
-                  }}
-                  className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1"
-                >
-                  {t('Detail')}
-                </Link>
+              ) : isRunning ? (
                 <Link
                   to={targetUrl}
                   state={{ taskReturnTo: currentReturnTo }}
@@ -580,62 +595,62 @@ export function TaskItemCard({
                           onNavigate?.()
                         }
                   }
-                  className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
+                  className="action-primary min-h-11 min-w-[44px] px-4 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <Terminal className="h-3.5 w-3.5" />
+                  <Terminal className="h-3.5 w-3.5 shrink-0" />
                   <span>{t('Live Terminal')}</span>
                 </Link>
-              </>
-            ) : status === 'Ready for review' ||
-              status === 'Completed' ||
-              status === 'Answered' ? (
-              <Link
-                to={targetUrl}
-                state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onClick(currentTask)
-                      }
-                    : (e) => {
-                        e.stopPropagation()
-                        onNavigate?.()
-                      }
-                }
-                className={cn(
-                  'text-xs px-3 py-1 inline-flex items-center gap-1.5',
-                  currentTask.pr_url && !applied && status === 'Ready for review'
-                    ? 'action-secondary'
-                    : 'action-primary'
-                )}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>{t('View result')}</span>
-              </Link>
-            ) : (
-              <Link
-                to={targetUrl}
-                state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onClick(currentTask)
-                      }
-                    : (e) => {
-                        e.stopPropagation()
-                        onNavigate?.()
-                      }
-                }
-                className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5"
-              >
-                <Play className="h-3.5 w-3.5" />
-                <span>{t('Start session')}</span>
-              </Link>
-            )}
+              ) : status === 'Ready for review' ||
+                status === 'Completed' ||
+                status === 'Answered' ? (
+                <Link
+                  to={targetUrl}
+                  state={{ taskReturnTo: currentReturnTo }}
+                  onClick={
+                    onClick
+                      ? (e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          onClick(currentTask)
+                        }
+                      : (e) => {
+                          e.stopPropagation()
+                          onNavigate?.()
+                        }
+                  }
+                  className={cn(
+                    'min-h-11 min-w-[44px] px-4 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-sm focus-visible:outline-2 focus-visible:outline-ring',
+                    currentTask.pr_url && !applied && status === 'Ready for review'
+                      ? 'action-secondary'
+                      : 'action-primary'
+                  )}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('View result')}</span>
+                </Link>
+              ) : (
+                <Link
+                  to={targetUrl}
+                  state={{ taskReturnTo: currentReturnTo }}
+                  onClick={
+                    onClick
+                      ? (e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          onClick(currentTask)
+                        }
+                      : (e) => {
+                          e.stopPropagation()
+                          onNavigate?.()
+                        }
+                  }
+                  className="action-primary min-h-11 min-w-[44px] px-4 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  <Play className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('Start session')}</span>
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>
