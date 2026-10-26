@@ -10,7 +10,7 @@ import {
   type MobileKeyDef,
   type StickyMods,
 } from './mobile-keyboard'
-import { CornerDownLeft, Copy, Clipboard, Ban, Keyboard, Trash2 } from 'lucide-react'
+import { CornerDownLeft, Copy, Clipboard, Ban, Keyboard, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 
 export type MobileTerminalKeyboardProps = {
   onInject: (data: string) => void
@@ -18,6 +18,7 @@ export type MobileTerminalKeyboardProps = {
   onPaste?: () => void
   onClear?: () => void
   onToggleKeyboard?: () => void
+  onClose?: () => void
   onScrollToBottom?: () => void
   disabled?: boolean
   className?: string
@@ -29,10 +30,12 @@ export function MobileTerminalKeyboard({
   onPaste,
   onClear,
   onToggleKeyboard,
+  onClose,
   disabled = false,
   className = '',
 }: MobileTerminalKeyboardProps) {
   const [mods, setMods] = useState<StickyMods>(EMPTY_STICKY_MODS)
+  const [showExtended, setShowExtended] = useState(false)
   const modsRef = useRef(mods)
   modsRef.current = mods
 
@@ -105,12 +108,36 @@ export function MobileTerminalKeyboard({
     <div
       role="toolbar"
       aria-label="Terminal Mobile Toolbar"
-      className={`shrink-0 select-none touch-manipulation border-t border-[#262626] bg-[#161616] pb-1 pt-1 ${className}`}
+      className={`sm:hidden shrink-0 select-none touch-manipulation border-t border-[#262626] bg-[#161616] pb-1 pt-1 ${className}`}
       onMouseDown={(e) => e.preventDefault()}
       onPointerDown={(e) => e.preventDefault()}
     >
       {/* Quick Actions Row */}
       <div className="flex items-center gap-1 overflow-x-auto px-1.5 pb-1 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        {/* Kbd Drawer / Extended Keys Toggle */}
+        <button
+          type="button"
+          disabled={disabled}
+          onPointerDown={(e) => {
+            e.preventDefault()
+            setShowExtended((prev) => !prev)
+          }}
+          className={`inline-flex h-8 shrink-0 items-center gap-1 rounded border px-2.5 font-mono text-xs font-semibold transition-colors disabled:opacity-40 ${
+            showExtended
+              ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+              : 'border-[#333] bg-[#222] text-neutral-200 active:bg-zinc-700'
+          }`}
+          title="Toggle extra keys drawer (ESC, TAB, arrows, CTRL, ALT)"
+        >
+          <Keyboard className="h-3.5 w-3.5" />
+          <span>Kbd</span>
+          {showExtended ? (
+            <ChevronUp className="h-3 w-3 opacity-70" />
+          ) : (
+            <ChevronDown className="h-3 w-3 opacity-70" />
+          )}
+        </button>
+
         {/* Ctrl+C SIGINT Quick Interrupt */}
         <button
           type="button"
@@ -192,6 +219,60 @@ export function MobileTerminalKeyboard({
           </button>
         )}
 
+        {/* Quick keys when extended drawer is collapsed */}
+        {!showExtended && (
+          <>
+            <button
+              type="button"
+              disabled={disabled}
+              onPointerDown={(e) => {
+                e.preventDefault()
+                onInject('\x1b')
+              }}
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded border border-[#2c2c2c] bg-[#1e1e1e] px-2 font-mono text-xs font-medium text-neutral-300 transition-colors active:bg-primary active:text-primary-foreground disabled:opacity-40"
+              title="Escape"
+            >
+              ESC
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onPointerDown={(e) => {
+                e.preventDefault()
+                onInject('\t')
+              }}
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded border border-[#2c2c2c] bg-[#1e1e1e] px-2 font-mono text-xs font-medium text-neutral-300 transition-colors active:bg-primary active:text-primary-foreground disabled:opacity-40"
+              title="Tab"
+            >
+              TAB
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onPointerDown={(e) => {
+                e.preventDefault()
+                onInject('\x1b[A')
+              }}
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded border border-[#2c2c2c] bg-[#1e1e1e] px-2 font-mono text-xs font-medium text-neutral-300 transition-colors active:bg-primary active:text-primary-foreground disabled:opacity-40"
+              title="Up arrow"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onPointerDown={(e) => {
+                e.preventDefault()
+                onInject('\x1b[B')
+              }}
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded border border-[#2c2c2c] bg-[#1e1e1e] px-2 font-mono text-xs font-medium text-neutral-300 transition-colors active:bg-primary active:text-primary-foreground disabled:opacity-40"
+              title="Down arrow"
+            >
+              ↓
+            </button>
+          </>
+        )}
+
         {/* Soft keyboard toggle */}
         {onToggleKeyboard && (
           <button
@@ -207,50 +288,72 @@ export function MobileTerminalKeyboard({
             <Keyboard className="h-4 w-4" />
           </button>
         )}
-      </div>
 
-      {/* Row 1 Keys: ESC, TAB, /, -, ↑, END, PGUP */}
-      <div className="grid grid-cols-7 gap-1 px-1.5 py-0.5">
-        {MOBILE_KEYBOARD_ROW1.map((key) => (
+        {/* Hide / Collapse Toolbar */}
+        {onClose && (
           <button
-            key={key.id}
             type="button"
             disabled={disabled}
-            onPointerDown={(e) => handlePointerDown(key, e)}
-            onPointerUp={stopRepeat}
-            onPointerLeave={stopRepeat}
-            onPointerCancel={stopRepeat}
-            className="flex h-9 min-w-0 items-center justify-center rounded border border-[#2c2c2c] bg-[#1e1e1e] font-mono text-[13px] font-medium text-neutral-200 transition-colors active:bg-primary active:text-primary-foreground disabled:opacity-30"
+            onPointerDown={(e) => {
+              e.preventDefault()
+              onClose()
+            }}
+            className={`${onToggleKeyboard ? '' : 'ml-auto'} inline-flex h-8 shrink-0 items-center justify-center rounded border border-[#333] bg-[#222] px-2 font-mono text-xs text-neutral-400 transition-colors hover:text-rose-300 active:bg-zinc-700 disabled:opacity-40`}
+            title="Hide keyboard toolbar"
+            aria-label="Hide keyboard toolbar"
           >
-            {key.label}
+            <ChevronDown className="h-4 w-4" />
           </button>
-        ))}
+        )}
       </div>
 
-      {/* Row 2 Keys: CTRL, ALT, SHIFT, ←, ↓, →, PGDN */}
-      <div className="grid grid-cols-7 gap-1 px-1.5 py-0.5">
-        {MOBILE_KEYBOARD_ROW2.map((key) => {
-          const isModActive = key.kind === 'mod' && key.mod ? mods[key.mod] : false
-          return (
-            <button
-              key={key.id}
-              type="button"
-              disabled={disabled}
-              onPointerDown={(e) => handlePointerDown(key, e)}
-              onPointerUp={stopRepeat}
-              onPointerLeave={stopRepeat}
-              onPointerCancel={stopRepeat}
-              className={`flex h-9 min-w-0 items-center justify-center rounded border font-mono text-[12px] font-semibold transition-colors disabled:opacity-30 ${
-                isModActive
-                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                  : 'border-[#2c2c2c] bg-[#1e1e1e] text-neutral-200 active:bg-primary active:text-primary-foreground'
-              }`}
-            >
-              {key.label}
-            </button>
-          )
-        })}
-      </div>
+      {/* Extended Drawer Keys: Row 1 & Row 2 */}
+      {showExtended && (
+        <div className="space-y-0.5 pt-0.5">
+          {/* Row 1 Keys: ESC, TAB, /, -, ↑, END, PGUP */}
+          <div className="grid grid-cols-7 gap-1 px-1.5 py-0.5">
+            {MOBILE_KEYBOARD_ROW1.map((key) => (
+              <button
+                key={key.id}
+                type="button"
+                disabled={disabled}
+                onPointerDown={(e) => handlePointerDown(key, e)}
+                onPointerUp={stopRepeat}
+                onPointerLeave={stopRepeat}
+                onPointerCancel={stopRepeat}
+                className="flex h-9 min-w-0 items-center justify-center rounded border border-[#2c2c2c] bg-[#1e1e1e] font-mono text-[13px] font-medium text-neutral-200 transition-colors active:bg-primary active:text-primary-foreground disabled:opacity-30"
+              >
+                {key.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Row 2 Keys: CTRL, ALT, SHIFT, ←, ↓, →, PGDN */}
+          <div className="grid grid-cols-7 gap-1 px-1.5 py-0.5">
+            {MOBILE_KEYBOARD_ROW2.map((key) => {
+              const isModActive = key.kind === 'mod' && key.mod ? mods[key.mod] : false
+              return (
+                <button
+                  key={key.id}
+                  type="button"
+                  disabled={disabled}
+                  onPointerDown={(e) => handlePointerDown(key, e)}
+                  onPointerUp={stopRepeat}
+                  onPointerLeave={stopRepeat}
+                  onPointerCancel={stopRepeat}
+                  className={`flex h-9 min-w-0 items-center justify-center rounded border font-mono text-[12px] font-semibold transition-colors disabled:opacity-30 ${
+                    isModActive
+                      ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                      : 'border-[#2c2c2c] bg-[#1e1e1e] text-neutral-200 active:bg-primary active:text-primary-foreground'
+                  }`}
+                >
+                  {key.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

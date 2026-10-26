@@ -155,3 +155,107 @@ test('5. Localization: Indonesian dictionary contains all new terminal action st
     assert.ok(idLocale[key], `id.json must contain translation for "${key}"`)
   }
 })
+
+test('6. Mobile-Safe Top Navbar Layout (< 360px): Single clean row and no button overlap', () => {
+  const sessionPagePath = path.join(
+    rootDir,
+    'src/features/tasks/TaskSessionPage.tsx',
+  )
+  assert.ok(fs.existsSync(sessionPagePath), 'TaskSessionPage.tsx must exist')
+  const content = fs.readFileSync(sessionPagePath, 'utf8')
+
+  // Header must be a single responsive row, not stacked rows
+  assert.match(
+    content,
+    /<header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3/,
+    'Header must be single unified row (h-11 sm:h-12)'
+  )
+
+  // Secondary Row on Mobile must be eliminated to prevent vertical waste and collision
+  assert.ok(
+    !content.includes('Secondary Row on Mobile'),
+    'Secondary row on mobile must be eliminated'
+  )
+
+  // Title must have min-w-0 and truncate
+  assert.match(
+    content,
+    /<h2[^>]*truncate[^>]*>/,
+    'Task title must truncate with min-w-0 to prevent layout blow-out'
+  )
+
+  // Terminal quick action toolbar and ReloadButton must be hidden on mobile to prevent overlapping Working badge
+  assert.match(
+    content,
+    /ref=\{setTerminalControls\}\s+className="hidden sm:flex shrink-0 items-center gap-1"/,
+    'Terminal action buttons must be hidden on mobile (hidden sm:flex)'
+  )
+  assert.match(
+    content,
+    /<ReloadButton[^>]*hidden sm:inline-flex/,
+    'Reload button must be hidden on mobile (hidden sm:inline-flex)'
+  )
+
+  // Working badge and info button must be present in clean right container
+  assert.match(content, /\{statusBadge\}/, 'Status badge must be rendered')
+  assert.match(content, /aria-label="Detail"/, 'Detail/Info button must be rendered')
+})
+
+test('7. Conditional Virtual Keyboard & Expandable Accessory Drawer', () => {
+  const keyboardPath = path.join(
+    rootDir,
+    'src/features/tasks/terminal/MobileTerminalKeyboard.tsx',
+  )
+  const terminalPath = path.join(
+    rootDir,
+    'src/features/tasks/TaskTerminal.tsx',
+  )
+
+  const keyboardContent = fs.readFileSync(keyboardPath, 'utf8')
+  const terminalContent = fs.readFileSync(terminalPath, 'utf8')
+
+  // MobileTerminalKeyboard must have sm:hidden so it never takes space on desktop
+  assert.match(
+    keyboardContent,
+    /className=\{`sm:hidden shrink-0/,
+    'MobileTerminalKeyboard must include sm:hidden'
+  )
+
+  // Must have expandable drawer toggle (Kbd button)
+  assert.match(
+    keyboardContent,
+    /setShowExtended/,
+    'Must have showExtended state for expandable drawer'
+  )
+  assert.match(
+    keyboardContent,
+    /<span>Kbd<\/span>/,
+    'Must render Kbd toggle button'
+  )
+
+  // Must have hide/close button
+  assert.match(
+    keyboardContent,
+    /title="Hide keyboard toolbar"/,
+    'Must have hide toolbar button'
+  )
+
+  // TaskTerminal must manage conditional mobile keyboard state
+  assert.match(
+    terminalContent,
+    /isMobileKeyboardActive/,
+    'TaskTerminal must manage isMobileKeyboardActive state'
+  )
+  assert.match(
+    terminalContent,
+    /\{liveId && isMobileKeyboardActive && \(\s*<MobileTerminalKeyboard/,
+    'MobileTerminalKeyboard must only render when active'
+  )
+
+  // TaskTerminal must render floating Kbd button when keyboard is collapsed
+  assert.match(
+    terminalContent,
+    /\{liveId && !isMobileKeyboardActive && connection === 'connected' && \(\s*<button[^>]*sm:hidden/,
+    'Must render floating Kbd button when keyboard is collapsed'
+  )
+})

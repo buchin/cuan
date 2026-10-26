@@ -66,6 +66,7 @@ export function TaskTerminal({
     x: 0,
     y: 0,
   })
+  const [isMobileKeyboardActive, setIsMobileKeyboardActive] = useState(false)
 
   const following = useRef(true)
   const interactive = useRef(false)
@@ -215,6 +216,7 @@ export function TaskTerminal({
   }, [search, find])
 
   const showKeyboard = useCallback(() => {
+    setIsMobileKeyboardActive(true)
     const ws = socket.current
     const terminal = term.current
     if (ws?.readyState !== WebSocket.OPEN || !terminal) return
@@ -225,6 +227,11 @@ export function TaskTerminal({
       ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
     }
     terminal.focus()
+  }, [])
+
+  const hideMobileKeyboard = useCallback(() => {
+    setIsMobileKeyboardActive(false)
+    term.current?.blur()
   }, [])
 
   // Ref to hold connectSocket so reconnect and event listeners can call it
@@ -290,6 +297,7 @@ export function TaskTerminal({
     let disposed = false
     let resize: ResizeObserver | undefined
     let cleanupTouch: (() => void) | undefined
+    let cleanupHelper: (() => void) | undefined
     let terminal: Terminal | undefined
 
     setConnection('loading')
@@ -463,6 +471,17 @@ export function TaskTerminal({
 
         terminal.open(mount.current)
         term.current = terminal
+
+        const helperTextarea = mount.current.querySelector<HTMLTextAreaElement>(
+          'textarea.xterm-helper-textarea',
+        )
+        const onHelperFocus = () => {
+          setIsMobileKeyboardActive(true)
+        }
+        helperTextarea?.addEventListener('focus', onHelperFocus)
+        cleanupHelper = () => {
+          helperTextarea?.removeEventListener('focus', onHelperFocus)
+        }
 
         const fitTerminal = () => {
           if (
@@ -696,6 +715,7 @@ export function TaskTerminal({
 
     return () => {
       disposed = true
+      cleanupHelper?.()
       cleanupTouch?.()
       resize?.disconnect()
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
@@ -1069,16 +1089,32 @@ export function TaskTerminal({
         t={t}
       />
 
-      {/* Mobile Accessory Keyboard Bar (Blink & Fural style) */}
-      {liveId && (
+      {/* Mobile Accessory Keyboard Bar (Blink & Fural style) - Conditional on active focus/toggle */}
+      {liveId && isMobileKeyboardActive && (
         <MobileTerminalKeyboard
           onInject={sendKey}
           onCopy={handleCopy}
           onPaste={handlePaste}
           onClear={handleClear}
           onToggleKeyboard={showKeyboard}
+          onClose={hideMobileKeyboard}
           disabled={connection !== 'connected'}
         />
+      )}
+
+      {/* Floating Kbd button when accessory keyboard is collapsed on mobile */}
+      {liveId && !isMobileKeyboardActive && connection === 'connected' && (
+        <button
+          type="button"
+          className="absolute bottom-3 right-3 z-20 sm:hidden inline-flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900/90 px-3 py-1.5 font-mono text-xs font-semibold text-neutral-200 shadow-xl backdrop-blur transition-all active:scale-95 hover:bg-neutral-800 hover:text-white"
+          aria-label={t('Show keyboard')}
+          title={t('Show keyboard')}
+          disabled={connection !== 'connected'}
+          onClick={showKeyboard}
+        >
+          <Keyboard className="h-4 w-4 text-emerald-400" />
+          <span>Kbd</span>
+        </button>
       )}
 
       <p className="sr-only">

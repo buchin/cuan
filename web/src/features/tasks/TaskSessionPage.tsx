@@ -268,9 +268,9 @@ export function TaskSessionPage({
       className="flex h-full min-h-0 flex-col bg-background overscroll-contain"
     >
       <GitHubPrerequisite task={detail} />
-      <header className="flex flex-col sm:flex-row shrink-0 border-b bg-background sm:h-12 sm:items-center sm:justify-between px-2 sm:px-3">
-        {/* Primary Row: Navigation & Task Title */}
-        <div className="flex h-11 sm:h-full sm:flex-1 min-w-0 items-center gap-1.5 sm:gap-2">
+      <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
+        {/* Navigation & Task Title */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
           <Link
             to={backURL}
             state={state}
@@ -289,46 +289,39 @@ export function TaskSessionPage({
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h2 className="truncate text-sm sm:text-base font-semibold text-foreground" title={detail.title}>
+            <h2 className="truncate text-sm sm:text-base font-semibold text-foreground min-w-0" title={detail.title}>
               {detail.title}
             </h2>
-            <div className="hidden sm:inline-flex items-center">
-              {statusBadge}
-            </div>
           </div>
         </div>
 
-        {/* Secondary Row on Mobile (Navbar Terminal) / Inline Actions on Desktop */}
-        <div className="flex h-11 sm:h-full items-center justify-between sm:justify-end gap-1.5 sm:gap-2 border-t border-border/40 sm:border-t-0">
-          <div className="sm:hidden flex min-w-0 items-center">
-            {statusBadge}
-          </div>
-          <div className="relative flex shrink-0 items-center gap-1">
-            <div ref={setTerminalControls} className="flex shrink-0 items-center gap-1" />
-            <ReloadButton
-              className="icon-action shrink-0"
-              iconClassName="h-4 w-4"
-              title={t('Reload app')}
-            />
+        {/* Action and status controls: clean single row, mobile-safe (< 360px) */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+          {statusBadge}
+          <div ref={setTerminalControls} className="hidden sm:flex shrink-0 items-center gap-1" />
+          <ReloadButton
+            className="icon-action shrink-0 hidden sm:inline-flex"
+            iconClassName="h-4 w-4"
+            title={t('Reload app')}
+          />
+          <button
+            className="icon-action shrink-0"
+            aria-label="Detail"
+            title="Detail"
+            onClick={() => setShowDetail(true)}
+          >
+            <Info className="h-4 w-4" />
+          </button>
+          {active && (
             <button
-              className="icon-action shrink-0"
-              aria-label="Detail"
-              title="Detail"
-              onClick={() => setShowDetail(true)}
+              className="icon-action shrink-0 text-destructive hover:bg-destructive/10"
+              aria-label="Cancel session"
+              title="Cancel session"
+              onClick={() => setCancel(true)}
             >
-              <Info className="h-4 w-4" />
+              <Square className="h-4 w-4" />
             </button>
-            {active && (
-              <button
-                className="icon-action shrink-0 text-destructive hover:bg-destructive/10"
-                aria-label="Cancel session"
-                title="Cancel session"
-                onClick={() => setCancel(true)}
-              >
-                <Square className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </header>
       {(error || runtimeError) && (
