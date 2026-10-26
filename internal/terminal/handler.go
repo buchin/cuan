@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -42,6 +43,7 @@ type HandlerConfig struct {
 	Manager      *Manager
 	AuthService  *auth.Service
 	TaskVerifier func(r *http.Request, taskID string) error
+	TaskResolver func(ctx context.Context, rawID string) string
 	CheckOrigin  func(r *http.Request) bool
 }
 
@@ -51,7 +53,13 @@ type Handler struct {
 	mgr          *Manager
 	authSvc      *auth.Service
 	taskVerifier func(r *http.Request, taskID string) error
+	taskResolver func(ctx context.Context, rawID string) string
 	upgrader     websocket.Upgrader
+}
+
+// SetTaskResolver assigns a function that maps attempts, messages, or room IDs to a canonical task ID.
+func (h *Handler) SetTaskResolver(resolver func(ctx context.Context, rawID string) string) {
+	h.taskResolver = resolver
 }
 
 // NewHandler constructs a new terminal WebSocket handler.
@@ -73,6 +81,7 @@ func NewHandler(cfg HandlerConfig) *Handler {
 		attachOnly:   cfg.AttachOnly,
 		authSvc:      cfg.AuthService,
 		taskVerifier: cfg.TaskVerifier,
+		taskResolver: cfg.TaskResolver,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
@@ -134,6 +143,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Extract Task ID from path or URL query
 	taskID := extractTaskID(r)
+	if h.taskResolver != nil && taskID != "" {
+		taskID = h.taskResolver(r.Context(), taskID)
+	}
 	if taskID == "" {
 		http.Error(w, "task id is required", http.StatusBadRequest)
 		return

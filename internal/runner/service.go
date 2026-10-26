@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/project"
@@ -115,6 +116,8 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 			resp.RepoURL = p.RepoURL
 			resp.DefaultBranch = p.DefaultBranch
 			resp.WorkingDir = p.LocalPath
+			settings := project.SettingsFromMetadata(p.Metadata)
+			resp.AutoDeploy = settings.IsAutoDeployEnabled()
 		}
 	}
 
@@ -140,6 +143,19 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	if status == task.AttemptStatusSucceeded && req.AgentReportRequired && !req.AgentReportConfirmed {
 		status = task.AttemptStatusFailed
 		att.ErrorMessage = "Agent finished without a confirmed final task report"
+	}
+	if status == task.AttemptStatusSucceeded && s.projectFinder != nil {
+		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
+			if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+				settings := project.SettingsFromMetadata(p.Metadata)
+				if settings.IsAutoDeployEnabled() {
+					if !req.LiveDeploymentConfirmed && !hasAutoDeployVerification(t.CompleteNote, t.Summary) {
+						status = task.AttemptStatusFailed
+						att.ErrorMessage = "Kepatuhan auto_deploy: perubahan wajib di-deploy dan terverifikasi live di production sebelum task dinyatakan selesai; commit/push saja tidak memenuhi syarat"
+					}
+				}
+			}
+		}
 	}
 	att.Status = status
 	if att.ErrorMessage == "" {
@@ -227,4 +243,10 @@ func (s *RunnerService) ListRunners(ctx context.Context) ([]*RunnerInfo, error) 
 
 func (s *RunnerService) GetRunner(ctx context.Context, id string) (*RunnerInfo, error) {
 	return s.store.GetRunner(ctx, id)
+}
+
+func hasAutoDeployVerification(note, summary string) bool {
+	combined := strings.ToLower(note + " " + summary)
+	return (strings.Contains(combined, "deploy") || strings.Contains(combined, "release") || strings.Contains(combined, "rilis")) &&
+		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
 }

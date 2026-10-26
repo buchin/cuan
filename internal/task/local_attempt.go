@@ -135,3 +135,7 @@ func (s *Service) AttemptForTask(ctx context.Context, taskID, attemptID string) 
 	}
 	return a, nil
 }
+
+func (s *Service) GetAttempt(ctx context.Context, attemptID string) (*TaskAttempt, error) {
+	return s.store.GetAttempt(ctx, attemptID)
+}

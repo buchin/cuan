@@ -23,6 +23,64 @@ import (
 
 const maxAgentRetries = 3
 
+// resolveTaskID maps attempt IDs (att_...), raw message UUIDs, and room IDs into the canonical task ID.
+func (s *Server) resolveTaskID(ctx context.Context, rawID string) string {
+	raw := strings.TrimSpace(rawID)
+	if raw == "" {
+		return ""
+	}
+
+	// 1. If it's an attempt ID (att_...)
+	if strings.HasPrefix(raw, "att_") && s.taskSvc != nil {
+		if att, err := s.taskSvc.GetAttempt(ctx, raw); err == nil && att != nil && att.TaskID != "" {
+			return att.TaskID
+		}
+	}
+
+	// 2. Direct check if raw ID is already a task ID
+	if s.taskSvc != nil {
+		if _, err := s.taskSvc.GetTaskDetail(ctx, raw); err == nil {
+			return raw
+		}
+	}
+	if s.projectStudioRepo != nil {
+		if _, err := s.projectStudioRepo.GetTaskByID(ctx, raw); err == nil {
+			return raw
+		}
+	}
+
+	// 3. Message UUID without "msg_" prefix
+	if !strings.HasPrefix(raw, "msg_") && !strings.HasPrefix(raw, "task_") {
+		msgID := "msg_" + raw
+		if s.taskSvc != nil {
+			if _, err := s.taskSvc.GetTaskDetail(ctx, msgID); err == nil {
+				return msgID
+			}
+		}
+		if s.projectStudioRepo != nil {
+			if _, err := s.projectStudioRepo.GetTaskByID(ctx, msgID); err == nil {
+				return msgID
+			}
+		}
+	}
+
+	// 4. Room or Conversation ID (conv_... or room UUID)
+	if s.taskSvc != nil {
+		roomTasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: raw})
+		if err == nil && len(roomTasks) > 0 {
+			// Find active task or latest task
+			for _, t := range roomTasks {
+				if t.Status == "doing" || t.Status == "review" || t.Status == "backlog" {
+					return t.ID
+				}
+			}
+			return roomTasks[0].ID
+		}
+	}
+
+	return raw
+}
+
 // handleTaskTerminalWebSocket handles bidirectional WebSocket PTY streaming for tasks.
 // Supports both Watch Mode (?mode=watch) and Interactive Take-Over Mode (?mode=interactive).
 // GET /api/tasks/{id}/terminal or GET /api/v1/tasks/{id}/terminal
@@ -36,18 +94,20 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 		respondJSONError(w, 401, "Sign in to Cuan to open the terminal")
 		return
 	}
-	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if taskID == "" {
-		taskID = strings.TrimSpace(r.URL.Query().Get("id"))
+	rawTaskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawTaskID == "" {
+		rawTaskID = strings.TrimSpace(r.URL.Query().Get("id"))
 	}
-	if taskID == "" {
-		taskID = strings.TrimSpace(r.URL.Query().Get("task_id"))
+	if rawTaskID == "" {
+		rawTaskID = strings.TrimSpace(r.URL.Query().Get("task_id"))
 	}
 
-	if taskID == "" {
+	if rawTaskID == "" {
 		respondJSONError(w, http.StatusBadRequest, "task id is required")
 		return
 	}
+
+	taskID := s.resolveTaskID(r.Context(), rawTaskID)
 
 	found := false
 	if s.projectStudioRepo != nil {
@@ -63,6 +123,12 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 	if !found {
 		respondJSONError(w, 404, "Task not found. No terminal was created.")
 		return
+	}
+
+	if taskID != rawTaskID {
+		q := r.URL.Query()
+		q.Set("task_id", taskID)
+		r.URL.RawQuery = q.Encode()
 	}
 
 	s.terminalHandler.ServeHTTP(w, r)
@@ -119,11 +185,18 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if taskID == "" {
+	rawID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawID == "" {
+		rawID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if rawID == "" {
+		rawID = strings.TrimSpace(r.URL.Query().Get("task_id"))
+	}
+	if rawID == "" {
 		respondJSONError(w, http.StatusBadRequest, "task id is required")
 		return
 	}
+	taskID := s.resolveTaskID(r.Context(), rawID)
 
 	if err := s.terminalManager.CloseSession(taskID); err != nil {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to close terminal session: %v", err))
@@ -655,6 +728,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
 						ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
 						if e != nil || !ready {
+							state = task.AttemptStatusFailed
 							note = "No review-ready result was recorded. Check the agent report and saved output."
 						}
 					}
@@ -813,14 +887,18 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if taskID == "" {
-		taskID = strings.TrimSpace(r.URL.Query().Get("id"))
+	rawID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawID == "" {
+		rawID = strings.TrimSpace(r.URL.Query().Get("id"))
 	}
-	if taskID == "" {
+	if rawID == "" {
+		rawID = strings.TrimSpace(r.URL.Query().Get("task_id"))
+	}
+	if rawID == "" {
 		respondJSONError(w, http.StatusBadRequest, "task id is required")
 		return
 	}
+	taskID := s.resolveTaskID(r.Context(), rawID)
 
 	history := s.terminalManager.GetTaskHistory(taskID)
 	var live map[string]any

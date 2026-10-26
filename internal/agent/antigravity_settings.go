@@ -93,6 +93,12 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 			"find_by_name(*)",
 			"view_file_outline(*)",
 			"view_code_item(*)",
+			"inspect_git_status(*)",
+			"inspect_git_log(*)",
+			"inspect_git_diff(*)",
+			"inspect_git_branches(*)",
+			"inspect_system_health(*)",
+			"inspect_typecheck(*)",
 		}
 		allowSet := make(map[string]bool)
 		for _, rule := range perms.Allow {
@@ -156,6 +162,7 @@ func writeAntigravitySettingsFile(dir, path string, settings map[string]json.Raw
 // PrepareAntigravityReadOnlyPermissions ensures read-only file/search tools are allowed in settings.json
 // to avoid interactive permission prompts or auto-denials in headless mode.
 func PrepareAntigravityReadOnlyPermissions(home string) error {
+	_ = EnsureAntigravityMCPConfig(home)
 	cliSettingsMu.Lock()
 	defer cliSettingsMu.Unlock()
 	dir := AntigravityConfigDirPath(home)
@@ -207,6 +214,12 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 		"find_by_name(*)",
 		"view_file_outline(*)",
 		"view_code_item(*)",
+		"inspect_git_status(*)",
+		"inspect_git_log(*)",
+		"inspect_git_diff(*)",
+		"inspect_git_branches(*)",
+		"inspect_system_health(*)",
+		"inspect_typecheck(*)",
 	}
 	allowSet := make(map[string]bool)
 	for _, rule := range perms.Allow {
@@ -234,5 +247,39 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 
 // PrepareAntigravitySettings configures settings.json defaults and trusts the given workspaces.
 func PrepareAntigravitySettings(home string, trustedWorkspaces ...string) error {
+	_ = EnsureAntigravityMCPConfig(home)
 	return prepareAntigravitySettings(home, trustedWorkspaces...)
+}
+
+// EnsureAntigravityMCPConfig writes the cuan-inspect MCP server config to mcp_config.json
+func EnsureAntigravityMCPConfig(home string) error {
+	cliSettingsMu.Lock()
+	defer cliSettingsMu.Unlock()
+	for _, dir := range []string{
+		filepath.Join(home, ".gemini", "config"),
+		AntigravityConfigDirPath(home),
+	} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			continue
+		}
+		path := filepath.Join(dir, "mcp_config.json")
+		var cfg struct {
+			MCPServers map[string]any `json:"mcpServers"`
+		}
+		if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
+			_ = json.Unmarshal(data, &cfg)
+		}
+		if cfg.MCPServers == nil {
+			cfg.MCPServers = make(map[string]any)
+		}
+		cfg.MCPServers["cuan-inspect"] = map[string]any{
+			"command": "cuan",
+			"args":    []string{"mcp"},
+		}
+		data, err := json.MarshalIndent(cfg, "", "  ")
+		if err == nil {
+			_ = os.WriteFile(path, append(data, '\n'), 0600)
+		}
+	}
+	return nil
 }

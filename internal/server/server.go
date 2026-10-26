@@ -517,6 +517,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		router:                 r,
 	}
 
+	termHandler.SetTaskResolver(s.resolveTaskID)
 	tSvc.SetProjectFinder(liveProjectFinder{server: s})
 	s.configureSharedGitHubAccess()
 	s.routes()
@@ -877,9 +878,10 @@ func (s *Server) SetTerminalManager(m *terminal.Manager) {
 	s.terminalManager = m
 	if m != nil {
 		s.terminalHandler = terminal.NewHandler(terminal.HandlerConfig{
-			Manager:     m,
-			AttachOnly:  true,
-			AuthService: s.authSvc,
+			Manager:      m,
+			AttachOnly:   true,
+			AuthService:  s.authSvc,
+			TaskResolver: s.resolveTaskID,
 		})
 	}
 }
@@ -2650,6 +2652,8 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 		if p, err := s.projectSvc.Get(r.Context(), resp.Task.ProjectID); err == nil && p != nil {
 			resp.ProjectRepo = p.RepoURL
 			resp.WorkingDir = p.LocalPath
+			settings := project.SettingsFromMetadata(p.Metadata)
+			resp.AutoDeploy = settings.IsAutoDeployEnabled()
 		}
 	}
 	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {

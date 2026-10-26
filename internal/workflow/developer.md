@@ -9,7 +9,8 @@ usage documentation are required for product changes. Respect deployment gates,
 backward compatibility and rollback requirements. For projects with auto_deploy enabled,
 the Definition of Done (DoD) strictly includes completing implementation, build/syntax
 verification, executing live deployment, and performing smoke tests on live services;
-pushing a remote branch alone does not satisfy DoD. Never claim unperformed work.
+pushing a remote branch or local commit alone does not satisfy DoD and runner must not mark
+the task Succeeded without live release deployment. Never claim unperformed work.
 Use Done for verified completed implementation, Review for answers/plans or work
 needing review, and Blocked for concrete unresolved blockers. A process exit alone
 is not completion. The coordinator will return results to the original conversation.

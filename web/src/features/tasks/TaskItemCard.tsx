@@ -18,6 +18,8 @@ import {
   workStatus,
   workStatusBadgeClass,
   taskTargetUrl,
+  taskDetailUrl,
+  taskTerminalUrl,
   taskSummaryText,
   taskLiveActivityText,
   cleanTerminalText,
@@ -72,6 +74,8 @@ export function TaskItemCard({
       (currentTask.status as string) === 'pending')
   const isRunning = isWorking || isQueued
   const targetUrl = taskTargetUrl(currentTask)
+  const detailUrl = taskDetailUrl(currentTask)
+  const terminalUrl = taskTerminalUrl(currentTask)
   const summary = taskSummaryText(currentTask)
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
 
@@ -296,7 +300,7 @@ export function TaskItemCard({
         {showActions && (
           <div className="flex shrink-0 items-center gap-2">
             <Link
-              to={`${targetUrl}?view=detail`}
+              to={detailUrl}
               state={{ taskReturnTo: currentReturnTo }}
               onClick={(e) => {
                 e.stopPropagation()
@@ -321,7 +325,7 @@ export function TaskItemCard({
               </button>
             ) : isRunning ? (
               <Link
-                to={targetUrl}
+                to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}
                 onClick={
                   onClick
@@ -522,7 +526,7 @@ export function TaskItemCard({
         <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/50 text-xs">
           {/* Detail Action: Always positioned on the Left */}
           <Link
-            to={`${targetUrl}?view=detail`}
+            to={detailUrl}
             state={{ taskReturnTo: currentReturnTo }}
             onClick={(e) => {
               e.stopPropagation()
@@ -566,7 +570,7 @@ export function TaskItemCard({
               </button>
             ) : isRunning ? (
               <Link
-                to={targetUrl}
+                to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}
                 onClick={
                   onClick

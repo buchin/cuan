@@ -52,7 +52,7 @@ func (s *DBStore) CreateOwner(ctx context.Context, owner *Owner) error {
 		return fmt.Errorf("begin owner setup: %w", err)
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, "LOCK TABLE owners IN SHARE ROW EXCLUSIVE MODE"); err != nil {
+	if _, err = tx.ExecContext(ctx, "LOCK TABLE owners IN SHARE ROW EXCLUSIVE MODE"); err != nil && !strings.Contains(err.Error(), "near \"LOCK\"") {
 		return fmt.Errorf("lock owner setup: %w", err)
 	}
 	var exists bool

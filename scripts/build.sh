@@ -44,7 +44,8 @@ if [[ "$TARGET" == "all" || "$TARGET" == "backend" ]]; then
   go -C "$ROOT_DIR" build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=${GIT_COMMIT}" -o "$ROOT_DIR/bin/cuan-server" ./cmd/server
   go -C "$ROOT_DIR" build -o "$ROOT_DIR/bin/cuan-runner" ./cmd/runner
   go -C "$ROOT_DIR" build -o "$ROOT_DIR/bin/cuan-migrate" ./cmd/migrate
-  echo "✓ Go backend binaries built: bin/cuan-server, bin/cuan-runner, bin/cuan-migrate"
+  ln -sf cuan-server "$ROOT_DIR/bin/cuan"
+  echo "✓ Go backend binaries built: bin/cuan-server, bin/cuan-runner, bin/cuan-migrate, bin/cuan"
 fi
 
 if [[ "$TARGET" == "all" || "$TARGET" == "frontend" ]]; then

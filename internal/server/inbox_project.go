@@ -455,7 +455,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		return "", b.String() + "Workspace unavailable.\n"
 	}
-	fmt.Fprintf(&b, "Project workspace: %s. Read-only code inspection enabled. Use native read-only tools (read_file, view_file, list_dir, grep_search, find_by_name) to inspect project source code and UI components (e.g. web/src/components, layout, navbar) in this workspace. Never call run_command.\n", dir)
+	fmt.Fprintf(&b, "Project workspace: %s. Read-only code & git inspection enabled. Use native read-only tools (read_file, view_file, list_dir, grep_search, find_by_name, inspect_git_status, inspect_git_log, inspect_system_health) to inspect project source code and UI components (e.g. web/src/components, layout, navbar) in this workspace. Never call run_command.\n", dir)
 	gitRead := func(args ...string) string {
 		cmd := exec.CommandContext(ctx, "git", append([]string{"--no-pager", "-C", dir}, args...)...)
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")

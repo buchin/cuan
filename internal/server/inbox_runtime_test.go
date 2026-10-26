@@ -190,3 +190,46 @@ func TestInboxRuntimeStreamToolBudgetExceeded(t *testing.T) {
 		t.Fatalf("unexpected finish result: out=%q failure=%q reason=%q", out, failure, reason)
 	}
 }
+
+func TestInspectionToolsRuntimeStream(t *testing.T) {
+	tools := []string{
+		"inspect_git_status",
+		"inspect_git_log",
+		"inspect_git_diff",
+		"inspect_git_branches",
+		"inspect_system_health",
+		"inspect_typecheck",
+	}
+
+	for _, name := range tools {
+		t.Run(name, func(t *testing.T) {
+			var labels []string
+			stream := &inboxRuntimeStream{step: func(k, v string) { labels = append(labels, k+":"+v) }}
+			for _, state := range []string{"ACTIVE", "DONE"} {
+				row := map[string]any{
+					"event": "step_update",
+					"step_update": map[string]any{
+						"step_index": 2,
+						"state":      state,
+						"step_type":  "tool",
+						"tool_name":  name,
+					},
+				}
+				b, _ := json.Marshal(row)
+				stream.Write(append(b, '\n'))
+			}
+			stream.Write([]byte(`{"event":"result","result":{"status":"SUCCESS","response":"ok"}}` + "\n"))
+			_, failure, _ := stream.finish()
+			if failure != "" {
+				t.Fatalf("unexpected failure for safe tool %s: %s", name, failure)
+			}
+			if stream.unsafeTool {
+				t.Fatalf("tool %s should be allowed and not marked unsafe", name)
+			}
+			trace := strings.Join(labels, "\n")
+			if !strings.Contains(trace, "runtime_tool_started") || !strings.Contains(trace, "runtime_tool_finished") {
+				t.Fatalf("missing trace for tool %s: %s", name, trace)
+			}
+		})
+	}
+}

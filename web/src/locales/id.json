@@ -827,5 +827,20 @@
   "Click \"Review & Use\" to load into the message composer for the visitor.": "Klik \"Review & Gunakan\" untuk memasukkan ke kotak pesan pengunjung.",
   "Whisper AI:": "Bisikkan ke AI:",
   "Whisper to AI team (invisible to visitor)…": "Bisikkan ke tim AI (tidak terlihat oleh pengunjung)…",
-  "Send internal whisper to AI": "Kirim bisikan internal ke AI"
+  "Send internal whisper to AI": "Kirim bisikan internal ke AI",
+  "Work not found": "Pekerjaan tidak ditemukan",
+  "Work or session not found": "Pekerjaan atau sesi tidak ditemukan",
+  "The requested task was not found in this project or its terminal session has ended.": "Tugas yang diminta tidak ditemukan dalam proyek ini atau sesi terminal telah berakhir.",
+  "Back to project": "Kembali ke proyek",
+  "Session or Task Not Found": "Sesi atau Tugas Tidak Ditemukan",
+  "Connecting to task runner and preparing terminal session...": "Menghubungkan ke runner tugas dan menyiapkan sesi terminal...",
+  "Terminal session completed": "Sesi terminal telah selesai",
+  "This task execution has finished. You can view the results, checklist, and details in the task overview.": "Pengerjaan tugas ini telah selesai. Anda dapat melihat hasil, checklist, dan detail pada ringkasan tugas.",
+  "The requested session is no longer active or was not found. Start a new session or return to details.": "Sesi yang diminta sudah tidak aktif atau tidak ditemukan. Mulai sesi baru atau kembali ke detail tugas.",
+  "Session ended": "Sesi berakhir",
+  "Type command or input...": "Ketik perintah atau input...",
+  "Send input to terminal": "Kirim input ke terminal",
+  "Send input": "Kirim input",
+  "Send": "Kirim",
+  "Not Found": "Tidak Ditemukan"
 }

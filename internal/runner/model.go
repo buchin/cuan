@@ -69,6 +69,7 @@ type ClaimTaskResponse struct {
 	RepoURL       string               `json:"repo_url,omitempty"`
 	DefaultBranch string               `json:"default_branch,omitempty"`
 	WorkingDir    string               `json:"working_dir,omitempty"`
+	AutoDeploy    bool                 `json:"auto_deploy,omitempty"`
 	LeaseExpires  time.Time            `json:"lease_expires"`
 	TaskAgent     *TaskAgentCapability `json:"task_agent,omitempty"`
 	AgentPrompt   string               `json:"agent_prompt,omitempty"`
@@ -103,6 +104,7 @@ type CompleteAttemptRequest struct {
 	CommitSHA            string `json:"commit_sha,omitempty"`
 	DiffSummary          string `json:"diff_summary,omitempty"`
 	TestSummary          string `json:"test_summary,omitempty"`
-	AgentReportConfirmed bool   `json:"agent_report_confirmed"`
-	AgentReportRequired  bool   `json:"agent_report_required"`
+	AgentReportConfirmed    bool   `json:"agent_report_confirmed"`
+	AgentReportRequired     bool   `json:"agent_report_required"`
+	LiveDeploymentConfirmed bool   `json:"live_deployment_confirmed,omitempty"`
 }
