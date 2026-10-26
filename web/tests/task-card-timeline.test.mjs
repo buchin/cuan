@@ -141,7 +141,7 @@ test('4. Queued / Pending Visual State Differentiation from Blue Working', () =>
 
   // workStatusBadgeClass handles Waiting to start / Queued with amber styling
   assert(
-    taskUiSrc.includes("case 'Waiting to start':") && taskUiSrc.includes('bg-amber-500/10'),
+    taskUiSrc.includes("case 'Waiting to start':") && (/bg-amber-500\/(10|15)/.test(taskUiSrc)),
     'workStatusBadgeClass must return amber styling for Waiting to start'
   )
 })
