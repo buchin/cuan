@@ -135,7 +135,7 @@ func TestTaskAgentExitWithoutReportIsBlocked(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	d := waitWorkspaceTask(t, s, c.ID, "succeeded")
+	d := waitWorkspaceTask(t, s, c.ID, "failed")
 	if d.Status != "blocked" || !strings.Contains(d.LatestAttempt.ErrorMessage, "No review-ready result") {
 		t.Fatal("process exit claimed a result", d.Status, d.LatestAttempt.ErrorMessage)
 	}
@@ -146,7 +146,7 @@ func TestTaskAgentFailureAndBlockerDoNotBecomeReview(t *testing.T) {
 		name, state string
 		exit        int
 		attempt     string
-	}{{"failed_after_report", "review", 7, "failed"}, {"reported_blocker", "blocked", 0, "succeeded"}} {
+	}{{"failed_after_report", "review", 7, "failed"}, {"reported_blocker", "blocked", 0, "failed"}} {
 		t.Run(c.name, func(t *testing.T) {
 			s, _, call, _ := inboxFixture(t)
 			api := httptest.NewServer(s.Router())

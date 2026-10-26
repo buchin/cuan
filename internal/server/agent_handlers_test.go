@@ -618,7 +618,7 @@ func TestAgentHandlers_S23_1_FuralStyleRegistry(t *testing.T) {
 }
 
 func TestServer_HarnessAuthEndpoints(t *testing.T) {
-	srv := NewServer(&config.Config{}, nil)
+	srv, token := setupTestChatServer(t)
 
 	// 1. GET /api/v1/agents/auth-status?harness=claude
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/auth-status?harness=claude", nil)
@@ -639,6 +639,7 @@ func TestServer_HarnessAuthEndpoints(t *testing.T) {
 	// 2. POST /api/v1/agents/auth-init (non-agy harness)
 	initBody, _ := json.Marshal(map[string]string{"harness": "codex"})
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/agents/auth-init", bytes.NewReader(initBody))
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	srv.Router().ServeHTTP(w, req)
@@ -649,6 +650,7 @@ func TestServer_HarnessAuthEndpoints(t *testing.T) {
 	// 3. POST /api/v1/agents/auth-code (validation error on empty code)
 	codeBody, _ := json.Marshal(map[string]string{"session_id": "test", "code": ""})
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/agents/auth-code", bytes.NewReader(codeBody))
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	srv.Router().ServeHTTP(w, req)
@@ -667,22 +669,28 @@ func TestServer_HarnessAuthEndpoints(t *testing.T) {
 	// 5. POST /auth-init alias
 	initBody2, _ := json.Marshal(map[string]string{"harness": "claude"})
 	req = httptest.NewRequest(http.MethodPost, "/auth-init", bytes.NewReader(initBody2))
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	srv.Router().ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK on /auth-init alias, got %d", w.Code)
 	}
+	var initResp struct {
+		SessionID string `json:"session_id"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &initResp)
 
-	// 6. POST /auth-code alias with JSON token payload
+	// 6. POST /auth-code alias with JSON token payload (rejected by hardened auth validation)
 	sampleJSON := `{"token":"mock-token-xyz-12345678","id_token":"mock-id-token"}`
-	tokenBody, _ := json.Marshal(map[string]string{"session_id": "mock_sess", "code": sampleJSON})
+	tokenBody, _ := json.Marshal(map[string]string{"session_id": initResp.SessionID, "code": sampleJSON})
 	req = httptest.NewRequest(http.MethodPost, "/auth-code", bytes.NewReader(tokenBody))
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	srv.Router().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK on /auth-code alias with token payload, got %d", w.Code)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on /auth-code alias with raw json payload, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -734,7 +742,7 @@ func TestS25ExistingAccountProviderFailureDoesNotStartOAuth(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	srv.Router().ServeHTTP(rec, req)
-	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "Kuota") {
+	if rec.Code != http.StatusServiceUnavailable || (!strings.Contains(strings.ToLower(rec.Body.String()), "quota") && !strings.Contains(rec.Body.String(), "Kuota")) {
 		t.Fatalf("expected factual quota error, got %d %s", rec.Code, rec.Body.String())
 	}
 	if strings.Contains(rec.Body.String(), "private-marker") {

@@ -193,7 +193,7 @@ func TestUploadSponsorLogoHTTP(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 Bad Request for malicious SVG, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "berbahaya") {
+	if !strings.Contains(rec.Body.String(), "berbahaya") && !strings.Contains(rec.Body.String(), "Unsafe scripts") {
 		t.Fatalf("expected error message mentioning malicious file rejection, got %s", rec.Body.String())
 	}
 

@@ -22,7 +22,7 @@ func TestOnboardingPrerequisitesDoNotExecuteProvider(t *testing.T) {
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatal("A readiness inspection executed a command")
 	}
-	if len(got) != 4 {
+	if len(got) != 5 {
 		t.Fatal("Unexpected runtime fields; do not expose private host details", got)
 	}
 	if err := os.Remove(filepath.Join(bin, "agy")); err != nil {

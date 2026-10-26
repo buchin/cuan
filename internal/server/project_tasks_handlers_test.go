@@ -460,4 +460,8 @@ func TestProjectTasks_V1AliasEndpoints(t *testing.T) {
 	}
 }
 
+func strPtr(s string) *string {
+	return &s
+}
+
 

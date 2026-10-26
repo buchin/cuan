@@ -49,6 +49,10 @@ func runQueuedLaunchScenario(t *testing.T, scenario string, database *sql.DB) {
 	if w := call("POST", "/api/v1/agents/connect-cli", `{"name":"@queued","handle":"@queued","provider":"agy","account_id":"`+account.ID+`"}`); w.Code != 201 {
 		t.Fatal(w.Code, w.Body.String())
 	}
+	if reg, err := s.agentRepo.GetAgentByID(ctx, "agent_queued"); err == nil && reg != nil {
+		reg.ModelID = "claude-sonnet-test"
+		_ = s.agentRepo.UpdateAgent(ctx, reg)
+	}
 	metaPath := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", account.ID, "account.json")
 	raw, _ := os.ReadFile(metaPath)
 	var meta map[string]any

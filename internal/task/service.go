@@ -35,6 +35,10 @@ func NewService(store Store, projectFinder ProjectFinder) *Service {
 	}
 }
 
+func (s *Service) Store() Store {
+	return s.store
+}
+
 func (s *Service) SeedSprint1Tasks(ctx context.Context) error {
 	existing, err := s.store.ListTasks(ctx, TaskFilter{})
 	if err != nil || len(existing) > 0 {

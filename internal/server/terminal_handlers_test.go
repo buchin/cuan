@@ -16,6 +16,7 @@ import (
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/config"
 	cuanDB "github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
 )
 
@@ -35,6 +36,11 @@ func TestServer_TaskTerminalWebSocket_RootAndV1Endpoints(t *testing.T) {
 		"/api/tasks/task-root-1/terminal",
 		"/api/v1/tasks/task-v1-1/terminal",
 		"/api/projects/tasks/task-alias-1/terminal",
+	}
+
+	for _, taskID := range []string{"task-root-1", "task-v1-1", "task-alias-1"} {
+		_ = srv.taskSvc.Store().CreateTask(context.Background(), &task.Task{ID: taskID, Title: "Test Task"})
+		_, _ = srv.terminalManager.GetOrCreateSession(context.Background(), taskID, "interactive", 80, 24)
 	}
 
 	for _, path := range testPaths {
@@ -79,6 +85,8 @@ func TestServer_TaskTerminalWebSocket_InteractiveTakeOverAndResize(t *testing.T)
 	defer ts.Close()
 
 	taskID := "task-interactive-drill"
+	_ = srv.taskSvc.Store().CreateTask(context.Background(), &task.Task{ID: taskID, Title: "Test Task"})
+	_, _ = srv.terminalManager.GetOrCreateSession(context.Background(), taskID, "interactive", 80, 24)
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/tasks/" + taskID + "/terminal"
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -191,6 +199,8 @@ func TestServer_TaskTerminalWebSocket_WatchMode(t *testing.T) {
 	defer ts.Close()
 
 	taskID := "task-watch-drill"
+	_ = srv.taskSvc.Store().CreateTask(context.Background(), &task.Task{ID: taskID, Title: "Test Task"})
+	_, _ = srv.terminalManager.GetOrCreateSession(context.Background(), taskID, "watch", 80, 24)
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/tasks/" + taskID + "/terminal?mode=watch"
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -241,6 +251,9 @@ func TestServer_TaskTerminalWebSocket_Authentication(t *testing.T) {
 	ts := httptest.NewServer(srv.Router())
 	defer ts.Close()
 
+	taskID := "task-auth-drill"
+	_ = srv.taskSvc.Store().CreateTask(context.Background(), &task.Task{ID: taskID, Title: "Test Task"})
+	_, _ = srv.terminalManager.GetOrCreateSession(context.Background(), taskID, "interactive", 80, 24)
 	baseURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/tasks/task-auth-drill/terminal"
 
 	// 1. Unauthenticated request without token must fail (401 Unauthorized)
@@ -290,23 +303,26 @@ func TestServer_TaskTerminalWebSocket_Authentication(t *testing.T) {
 }
 
 func TestServer_RunTaskAgentEndpoint(t *testing.T) {
-	tempBase := t.TempDir()
-
-	cfg := &config.Config{
-		WorkspacesDir: tempBase,
-		AppMode:       "studio",
-	}
-
-	srv := NewServer(cfg, nil)
+	srv, token := setupTestChatServer(t)
 	ts := httptest.NewServer(srv.Router())
 	defer ts.Close()
 
 	taskID := "task-sprint22-runner"
+	_ = srv.taskSvc.Store().CreateTask(context.Background(), &task.Task{ID: taskID, Title: "Test Task"})
+	_ = srv.agentRepo.CreateAgent(context.Background(), &cuanDB.Agent{
+		ID: "worker-flash", Name: "Worker Flash", Harness: "agy", Enabled: true, Status: cuanDB.AgentStatusActive,
+	})
 
 	// 1. Trigger POST /api/v1/tasks/{id}/run-agent
 	runURL := ts.URL + "/api/v1/tasks/" + taskID + "/run-agent"
-	reqPayload := `{"agent_id":"worker-flash","binary":"shell","prompt":"Write unit test for S22"}`
-	resp, err := http.Post(runURL, "application/json", strings.NewReader(reqPayload))
+	reqPayload := `{"agent_id":"worker-flash","binary":"agy","prompt":"Write unit test for S22"}`
+	req, err := http.NewRequest("POST", runURL, strings.NewReader(reqPayload))
+	if err != nil {
+		t.Fatalf("create POST /run-agent request failed: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST /run-agent failed: %v", err)
 	}
@@ -332,7 +348,7 @@ func TestServer_RunTaskAgentEndpoint(t *testing.T) {
 	}
 
 	// 2. Connect to the WebSocket terminal for this task
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/tasks/" + taskID + "/terminal"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/tasks/" + taskID + "/terminal?token=" + token
 	conn, wsResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("dial /terminal WebSocket failed: %v", err)
@@ -355,7 +371,12 @@ func TestServer_RunTaskAgentEndpoint(t *testing.T) {
 
 	// 3. Check history endpoint
 	histURL := ts.URL + "/api/v1/tasks/" + taskID + "/run-agent/history"
-	histResp, err := http.Get(histURL)
+	histReq, err := http.NewRequest("GET", histURL, nil)
+	if err != nil {
+		t.Fatalf("create GET /run-agent/history request failed: %v", err)
+	}
+	histReq.Header.Set("Authorization", "Bearer "+token)
+	histResp, err := http.DefaultClient.Do(histReq)
 	if err != nil {
 		t.Fatalf("GET /run-agent/history failed: %v", err)
 	}
@@ -455,13 +476,6 @@ func TestServer_AgentCLIOnboardingAndBinariesEndpoints(t *testing.T) {
 }
 
 func TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness(t *testing.T) {
-	tempBase := t.TempDir()
-
-	cfg := &config.Config{
-		WorkspacesDir: tempBase,
-		AppMode:       "studio",
-	}
-
 	repo := cuanDB.NewMemoryAgentRepository()
 	studioRepo := cuanDB.NewMemoryProjectStudioRepository()
 
@@ -491,7 +505,7 @@ func TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness(t *testing.T) {
 		t.Fatalf("failed to create task: %v", err)
 	}
 
-	srv := NewServer(cfg, nil)
+	srv, token := setupTestChatServer(t)
 	srv.SetAgentRepository(repo)
 	srv.SetProjectStudioRepository(studioRepo)
 
@@ -505,7 +519,13 @@ func TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(runPayload)
 
-	resp, err := http.Post(ts.URL+"/api/v1/tasks/"+taskID+"/run-agent", "application/json", bytes.NewReader(bodyBytes))
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/tasks/"+taskID+"/run-agent", bytes.NewReader(bodyBytes))
+	if err != nil {
+		t.Fatalf("create POST /run-agent request failed: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST /run-agent failed: %v", err)
 	}
