@@ -281,22 +281,37 @@ export function App() {
         : undefined
 
   // URL drives the SidePeek so refresh/back/forward cannot leave a stale panel.
+  const activeDetailTaskId = useMemo(() => {
+    if (rootSegment === 'tasks' && subParam && !sessionRoute) {
+      return subParam
+    }
+    if (
+      rootSegment === 'projects' &&
+      pathSegments[2] === 'tasks' &&
+      Boolean(pathSegments[3]) &&
+      !isProjectTaskSession
+    ) {
+      return pathSegments[3]
+    }
+    return null
+  }, [rootSegment, subParam, sessionRoute, pathSegments, isProjectTaskSession])
+
   useEffect(() => {
     let current = true
     setTaskRouteError('')
-    if (rootSegment !== 'tasks' || !subParam || sessionRoute) {
+    if (!activeDetailTaskId) {
       setIsSidePeekOpen(false)
       if (rootSegment === 'tasks') setSelectedTask(null)
       return
     }
     if (!isAuthenticated) return
-    const matched = tasks.find((task) => task.id === subParam)
+    const matched = tasks.find((task) => task.id === activeDetailTaskId)
     if (matched) {
       setSelectedTask(matched)
       setIsSidePeekOpen(true)
     } else
       tasksApi
-        .get(subParam)
+        .get(activeDetailTaskId)
         .then((task) => {
           if (current) {
             setSelectedTask(task)
@@ -313,7 +328,7 @@ export function App() {
     return () => {
       current = false
     }
-  }, [rootSegment, subParam, tasks, isAuthenticated, sessionRoute])
+  }, [activeDetailTaskId, tasks, isAuthenticated, rootSegment])
 
   // Deep Link Synchronization: /projects/:projectId
   useEffect(() => {
@@ -392,6 +407,19 @@ export function App() {
     void refreshTasks()
     const search = new URLSearchParams(location.search)
     search.delete('view')
+
+    const taskReturn = location.state?.taskReturnTo
+    if (
+      typeof taskReturn === 'string' &&
+      /^\/(?:tasks|projects\/[^/?#]+(?:\/tasks)?|inbox\/[^/?#]+)(?:\?[^#]*)?$/.test(
+        taskReturn,
+      ) &&
+      !taskReturn.includes('view=')
+    ) {
+      navigate(taskReturn, { state: location.state })
+      return
+    }
+
     if (rootSegment === 'tasks' && subParam) {
       const target = location.state?.workspaceReturnTo
       navigate(

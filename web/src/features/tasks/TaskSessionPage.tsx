@@ -15,6 +15,9 @@ import {
   MessageSquare,
   Rocket,
   FolderOpen,
+  AlertCircle,
+  Ban,
+  RefreshCw,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -149,37 +152,134 @@ export function TaskSessionPage({
     detail?.activities.filter(
       (a) => a.attempt_id === attempt?.id && a.activity_type === 'agent_report',
     ) || []
-  if (!detail)
+  if (!detail) {
     return (
-      <div role={error ? 'alert' : 'status'} className="p-4 text-sm">
-        {error || 'Loading session…'}
-        {error && (
-          <button
-            className="action-secondary ml-3"
-            onClick={() => void refresh()}
+      <div className="flex h-full min-h-0 flex-col bg-background">
+        <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+            <Link
+              to={backURL}
+              state={state}
+              className="icon-action shrink-0"
+              aria-label={t('Back')}
+              title={t('Back')}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <h2 className="truncate text-sm sm:text-base font-semibold text-foreground min-w-0">
+              {error ? t('Work not found') : t('Loading session…')}
+            </h2>
+          </div>
+          {error && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-destructive/20 bg-destructive/10 text-destructive">
+              {t('Error')}
+            </span>
+          )}
+        </header>
+
+        <div className="flex flex-1 items-center justify-center p-4">
+          <div
+            role={error ? 'alert' : 'status'}
+            className="flex flex-col items-center justify-center max-w-sm rounded-xl border border-border bg-card p-6 text-center text-card-foreground shadow-sm space-y-3"
           >
-            Try again
-          </button>
-        )}
-        <Link className="ml-3 underline" to={taskURL} state={state}>
-          Task details
-        </Link>
+            <div className={`flex h-12 w-12 items-center justify-center rounded-full ${error ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+              {error ? <AlertCircle className="h-6 w-6" /> : <RefreshCw className="h-6 w-6 animate-spin" />}
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-foreground">
+                {error ? t('Work or session not found') : t('Loading session…')}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {error || t('Connecting to task runner and preparing terminal session...')}
+              </p>
+            </div>
+            {error && (
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <Link to={backURL} state={state} className="action-primary text-xs px-3 py-1.5">
+                  {t('Back')}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void refresh()}
+                  className="action-secondary text-xs px-3 py-1.5 inline-flex items-center gap-1"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span>{t('Try again')}</span>
+                </button>
+                <Link to="/tasks" className="action-secondary text-xs px-3 py-1.5">
+                  {t('All tasks')}
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     )
+  }
   if ((!attempt || waitingLaunch) && sessionId === 'latest') return <TaskReadyPage task={detail} />
-  if (!attempt)
+  if (!attempt) {
+    const isCompleted = detail.status === 'done'
     return (
-      <div className="p-4 text-sm">
-        <p role="alert">Session not found for this task.</p>
-        <Link
-          className="mt-3 inline-block underline"
-          to={taskURL}
-          state={state}
-        >
-          Task details
-        </Link>
+      <div className="flex h-full min-h-0 flex-col bg-background">
+        <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+            <Link
+              to={backURL}
+              state={state}
+              className="icon-action shrink-0"
+              aria-label={t('Back')}
+              title={t('Back')}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <h2 className="truncate text-sm sm:text-base font-semibold text-foreground min-w-0" title={detail.title}>
+              {detail.title}
+            </h2>
+          </div>
+          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${isCompleted ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'}`}>
+            {t(isCompleted ? 'Completed' : 'Session ended')}
+          </span>
+        </header>
+
+        <div className="flex flex-1 items-center justify-center p-4">
+          <div
+            role="status"
+            className="flex flex-col items-center justify-center max-w-sm rounded-xl border border-border bg-card p-6 text-center text-card-foreground shadow-sm space-y-3"
+          >
+            <div className={`flex h-12 w-12 items-center justify-center rounded-full ${isCompleted ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground'}`}>
+              {isCompleted ? <CheckCircle2 className="h-6 w-6" /> : <Ban className="h-6 w-6" />}
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-foreground">
+                {isCompleted ? t('Terminal session completed') : t('Session not found for this task')}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {isCompleted
+                  ? t('This task execution has finished. You can view the results, checklist, and details in the task overview.')
+                  : t('The requested session is no longer active or was not found. Start a new session or return to details.')}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <Link to={backURL} state={state} className="action-primary text-xs px-3 py-1.5">
+                {t('Back')}
+              </Link>
+              <Link to={taskURL} state={state} className="action-secondary text-xs px-3 py-1.5">
+                {t('Task details')}
+              </Link>
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                className="action-secondary text-xs px-3 py-1.5 inline-flex items-center gap-1"
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>{t('Refresh')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     )
+  }
   const active = ['running', 'queued'].includes(attempt.status)
   const latest = detail.latest_attempt?.id === attempt.id
   const final = [...reports]

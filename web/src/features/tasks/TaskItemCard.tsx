@@ -18,6 +18,8 @@ import {
   workStatus,
   workStatusBadgeClass,
   taskTargetUrl,
+  taskDetailUrl,
+  taskTerminalUrl,
   taskSummaryText,
   taskLiveActivityText,
   cleanTerminalText,
@@ -72,6 +74,8 @@ export function TaskItemCard({
       (currentTask.status as string) === 'pending')
   const isRunning = isWorking || isQueued
   const targetUrl = taskTargetUrl(currentTask)
+  const detailUrl = taskDetailUrl(currentTask)
+  const terminalUrl = taskTerminalUrl(currentTask)
   const summary = taskSummaryText(currentTask)
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
 

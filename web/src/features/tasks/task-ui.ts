@@ -157,6 +157,14 @@ export function taskTargetUrl(task: { id: string; project_id?: string | null }) 
     : `/tasks/${encodeURIComponent(task.id)}`
 }
 
+export function taskDetailUrl(task: { id: string; project_id?: string | null }) {
+  return `/tasks/${encodeURIComponent(task.id)}?view=detail`
+}
+
+export function taskTerminalUrl(task: { id: string; project_id?: string | null }) {
+  return `/tasks/${encodeURIComponent(task.id)}`
+}
+
 // Regex to clean ANSI escape codes (CSI, OSC, etc.)
 const ANSI_REGEX = /\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\].*?(?:\x07|\x1b\\)|[PX^_].*?\x1b\\)/g
 // Regex to clean terminal spinners (Unicode braille patterns ⠋..⣯), bullets, prompts, and leading punctuation

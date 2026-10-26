@@ -259,3 +259,78 @@ test('7. Conditional Virtual Keyboard & Expandable Accessory Drawer', () => {
     'Must render floating Kbd button when keyboard is collapsed'
   )
 })
+
+test('8. Mobile Floating Prompt Bar (Isolated Input Capture)', () => {
+  const keyboardPath = path.join(
+    rootDir,
+    'src/features/tasks/terminal/MobileTerminalKeyboard.tsx',
+  )
+  const content = fs.readFileSync(keyboardPath, 'utf8')
+
+  // Isolated floating prompt form
+  assert.match(content, /handleSendPrompt/, 'Must have handleSendPrompt handler')
+  assert.match(content, /promptInputRef/, 'Must have ref for isolated input capture')
+  assert.match(content, /<form[^>]*onSubmit=\{handleSendPrompt\}/, 'Must render isolated prompt form')
+  assert.match(content, /<input[^>]*ref=\{promptInputRef\}/, 'Must render native prompt input field')
+  assert.match(content, /placeholder="Type command or input\.\.\."/, 'Must provide prompt placeholder')
+  assert.match(content, /<Send className="h-3\.5 w-3\.5"/, 'Must render Send button icon')
+
+  // History recall (Up/Down arrows)
+  assert.match(content, /handlePromptKeyDown/, 'Must have keyboard event handler for command history')
+  assert.match(content, /ArrowUp/, 'Must support ArrowUp command history recall')
+
+  // HTML viewport interactive-widget setting for Android virtual keyboard
+  const htmlPath = path.join(rootDir, 'index.html')
+  const htmlContent = fs.readFileSync(htmlPath, 'utf8')
+  assert.match(
+    htmlContent,
+    /interactive-widget=resizes-content/,
+    'Viewport meta must include interactive-widget=resizes-content for soft keyboard resilience',
+  )
+})
+
+test('9. Navigation & Deep Link Task Card Inbox: Detail vs Terminal routing', () => {
+  const taskUiPath = path.join(rootDir, 'src/features/tasks/task-ui.ts')
+  const cardPath = path.join(rootDir, 'src/features/tasks/TaskItemCard.tsx')
+  const appPath = path.join(rootDir, 'src/App.tsx')
+
+  const taskUiContent = fs.readFileSync(taskUiPath, 'utf8')
+  const cardContent = fs.readFileSync(cardPath, 'utf8')
+  const appContent = fs.readFileSync(appPath, 'utf8')
+
+  // task-ui.ts must export taskDetailUrl and taskTerminalUrl
+  assert.match(taskUiContent, /export function taskDetailUrl/, 'task-ui.ts must export taskDetailUrl')
+  assert.match(taskUiContent, /export function taskTerminalUrl/, 'task-ui.ts must export taskTerminalUrl')
+
+  // TaskItemCard must import and use taskDetailUrl and taskTerminalUrl
+  assert.match(cardContent, /taskDetailUrl/, 'TaskItemCard must import taskDetailUrl')
+  assert.match(cardContent, /taskTerminalUrl/, 'TaskItemCard must import taskTerminalUrl')
+  assert.match(cardContent, /to=\{detailUrl\}/, 'Detail button must link to detailUrl')
+  assert.match(cardContent, /to=\{terminalUrl\}/, 'Live Terminal button must link to terminalUrl')
+
+  // App.tsx must support deep link task detail via activeDetailTaskId
+  assert.match(appContent, /activeDetailTaskId/, 'App.tsx must define activeDetailTaskId')
+  assert.match(appContent, /handleCloseSidePeek/, 'App.tsx must support smooth close back to taskReturnTo')
+})
+
+test('10. Work not found & Terminal Session Error Boundary Handling', () => {
+  const sessionPagePath = path.join(rootDir, 'src/features/tasks/TaskSessionPage.tsx')
+  const projectWorkViewPath = path.join(rootDir, 'src/features/projects/ProjectWorkView.tsx')
+
+  const sessionContent = fs.readFileSync(sessionPagePath, 'utf8')
+  const projectContent = fs.readFileSync(projectWorkViewPath, 'utf8')
+
+  // TaskSessionPage must render error header and structured card on !detail (no raw unstyled p)
+  assert.match(sessionContent, /AlertCircle/, 'TaskSessionPage must import AlertCircle for error boundary')
+  assert.match(sessionContent, /role=\{error \? 'alert' : 'status'\}/, 'TaskSessionPage must render structured error boundary container')
+  assert.match(sessionContent, /t\('Work or session not found'\)/, 'TaskSessionPage must render fallback message')
+
+  // TaskSessionPage on !attempt must provide clear finished / ended state
+  assert.match(sessionContent, /t\('Terminal session completed'\)/, 'TaskSessionPage must handle finished attempt with clear title')
+
+  // ProjectWorkView must fetch direct task with tasksApi.get(taskId) and provide error boundary with Back button
+  assert.match(projectContent, /tasksApi\.get\(taskId\)/, 'ProjectWorkView must fetch missing task by ID directly')
+  assert.match(projectContent, /t\('Work or session not found'\)/, 'ProjectWorkView must render structured error state')
+  assert.match(projectContent, /to=\{backURL\}/, 'ProjectWorkView must provide back button')
+})
+
