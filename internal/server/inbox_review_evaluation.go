@@ -63,7 +63,11 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 			}
 		}
 	}
-	raw, _ := json.Marshal(map[string]any{"delivered_files": files, "original_request": truncateProjectText(d.Instructions, 9000), "task_status": d.Status, "execution_status": d.LatestAttempt.Status, "reported_summary": truncateProjectText(d.Summary, 6000), "reported_verification": truncateProjectText(d.CompleteNote, 6000), "acceptance_checklist": d.DoDChecklist, "execution_limitation": truncateProjectText(d.LatestAttempt.ErrorMessage, 1000)})
+	checklist := d.DoDChecklist
+	if len(checklist) == 0 {
+		checklist = extractDoDFromDescription(d.Instructions)
+	}
+	raw, _ := json.Marshal(map[string]any{"delivered_files": files, "original_request": truncateProjectText(d.Instructions, 9000), "task_status": d.Status, "execution_status": d.LatestAttempt.Status, "reported_summary": truncateProjectText(d.Summary, 6000), "reported_verification": truncateProjectText(d.CompleteNote, 6000), "acceptance_checklist": checklist, "execution_limitation": truncateProjectText(d.LatestAttempt.ErrorMessage, 1000)})
 	return string(raw)
 }
 

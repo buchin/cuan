@@ -526,3 +526,98 @@ func TestInboxDelegation_ArchivedDefaultFallbackToActiveProject(t *testing.T) {
 		t.Fatalf("expected delegation to start work on active project, got: %s", out)
 	}
 }
+
+func TestExtractDoDFromDescription(t *testing.T) {
+	// Test numbered list
+	desc1 := `Revisi UI Tasks:
+1. Eliminasi ikon kaca pembesar di top bar
+2. Ganti dropdown select dengan horizontal scrollable filter chips
+3. Sederhanakan label Agent @sm
+4. Pastikan build lulus verifikasi`
+	items1 := extractDoDFromDescription(desc1)
+	if len(items1) != 4 {
+		t.Fatalf("expected 4 items from numbered list, got %d", len(items1))
+	}
+	if items1[0].Text != "Eliminasi ikon kaca pembesar di top bar" {
+		t.Errorf("unexpected item 0: %s", items1[0].Text)
+	}
+	if items1[0].Completed {
+		t.Errorf("expected item 0 to not be completed")
+	}
+
+	// Test markdown checkboxes
+	desc2 := `Checklist pengerjaan:
+- [ ] Task unit test passed
+- [x] Backend endpoint verified
+- [ ] Responsive design checked`
+	items2 := extractDoDFromDescription(desc2)
+	if len(items2) != 3 {
+		t.Fatalf("expected 3 items from checkboxes, got %d", len(items2))
+	}
+	if !items2[1].Completed {
+		t.Errorf("expected item 1 to be completed")
+	}
+
+	// Test explicit DoD header with bullets
+	desc3 := `Implementation plan:
+DoD:
+- Verify API status 200
+- Run smoke tests`
+	items3 := extractDoDFromDescription(desc3)
+	if len(items3) != 2 {
+		t.Fatalf("expected 2 items from DoD block, got %d", len(items3))
+	}
+}
+
+func TestInboxDelegation_PopulatesDoDChecklist(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: resolved.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "approval", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	planPayload := attachmentMessage{
+		Text: "Approved: Tasks UI Mobile Cleanup",
+		Approval: &approvedInboxPlan{
+			Action:    "approve",
+			MessageID: db.GenerateUUID(),
+			Plan: inboxApprovalPlan{
+				Title:       "Tasks UI Mobile Cleanup",
+				Description: "Revisi UI Tasks:\n1. Eliminasi ikon search\n2. Ganti dropdown select dengan filter chips\n3. Sederhanakan label Agent @sm\n4. Pastikan build lulus verifikasi",
+				ProjectName: "Default",
+			},
+		},
+	}
+	rawMsg, _ := json.Marshal(planPayload)
+	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", Content: attachmentEnvelope + string(rawMsg), CreatedAt: now}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	delegation := inboxDelegation{
+		Action:          "run",
+		Title:           "Tasks UI Mobile Cleanup",
+		Description:     "Revisi UI Tasks:\n1. Eliminasi ikon search\n2. Ganti dropdown select dengan filter chips\n3. Sederhanakan label Agent @sm\n4. Pastikan build lulus verifikasi",
+		ProjectName:     "Default",
+		AuthorizationID: q.MessageID,
+	}
+	raw, _ := json.Marshal(delegation)
+	out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(raw)+"\n```")
+	if strings.Contains(out, "could not") {
+		t.Fatalf("unexpected delegation failure: %s", out)
+	}
+
+	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: q.RoomID})
+	if err != nil || len(tasks) == 0 {
+		t.Fatalf("expected created task, err: %v", err)
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, tasks[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(detail.DoDChecklist) != 4 {
+		t.Fatalf("expected 4 DoD checklist items populated on task, got %d", len(detail.DoDChecklist))
+	}
+	if detail.DoDChecklist[0].Text != "Eliminasi ikon search" {
+		t.Errorf("unexpected DoD item 0: %s", detail.DoDChecklist[0].Text)
+	}
+}

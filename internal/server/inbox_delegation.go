@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -215,7 +216,15 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)
 		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
-		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: d.Title, Instructions: instructions, AssignedAgent: q.AgentID})
+		dodChecklist := extractDoDFromDescription(d.Description)
+		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{
+			SourceRoomID:  q.RoomID,
+			ProjectID:     d.ProjectID,
+			Title:         d.Title,
+			Instructions:  instructions,
+			AssignedAgent: q.AgentID,
+			DoDChecklist:  dodChecklist,
+		})
 		if e != nil {
 			return fail("the task could not be saved")
 		}
@@ -378,4 +387,76 @@ func delegationScopeDigest(d inboxDelegation) string {
 	}
 	raw, _ := json.Marshal([]string{action, d.Title, d.Description, d.ProjectID})
 	return fmt.Sprintf("Approved scope digest: %x", sha256.Sum256(raw))
+}
+
+var (
+	dodCheckboxRegex = regexp.MustCompile(`(?i)^[\*\-\+]\s*\[([ xX])\]\s*(.+)`)
+	dodNumberedRegex = regexp.MustCompile(`^\d+[\.\)]\s*(.+)`)
+	dodBulletRegex   = regexp.MustCompile(`^[\*\-\+]\s*(.+)`)
+	dodHeaderRegex   = regexp.MustCompile(`(?i)^(?:dod|acceptance criteria|kriteria penerimaan|kriteria|definition of done)\s*[:—\-]?\s*$`)
+)
+
+func extractDoDFromDescription(description string) []task.DoDItem {
+	var items []task.DoDItem
+	seen := make(map[string]bool)
+	lines := strings.Split(description, "\n")
+	inDoDBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if dodHeaderRegex.MatchString(trimmed) {
+			inDoDBlock = true
+			continue
+		}
+		// 1. Markdown checkboxes (- [ ], * [x])
+		if m := dodCheckboxRegex.FindStringSubmatch(trimmed); len(m) > 2 {
+			text := strings.TrimSpace(m[2])
+			completed := strings.ToLower(m[1]) == "x"
+			if text != "" && !seen[strings.ToLower(text)] {
+				items = append(items, task.DoDItem{Text: text, Completed: completed})
+				seen[strings.ToLower(text)] = true
+			}
+			continue
+		}
+		// 2. Numbered list items (1. Foo, 2) Bar)
+		if m := dodNumberedRegex.FindStringSubmatch(trimmed); len(m) > 1 {
+			text := strings.TrimSpace(m[1])
+			if text != "" && !seen[strings.ToLower(text)] {
+				items = append(items, task.DoDItem{Text: text, Completed: false})
+				seen[strings.ToLower(text)] = true
+			}
+			continue
+		}
+		// 3. Bullet points if in explicit DoD block
+		if inDoDBlock {
+			if m := dodBulletRegex.FindStringSubmatch(trimmed); len(m) > 1 {
+				text := strings.TrimSpace(m[1])
+				if text != "" && !seen[strings.ToLower(text)] {
+					items = append(items, task.DoDItem{Text: text, Completed: false})
+					seen[strings.ToLower(text)] = true
+				}
+				continue
+			}
+		}
+	}
+	// Fallback: if no DoD block or numbered list, but multiple bullet points exist
+	if len(items) == 0 {
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if m := dodBulletRegex.FindStringSubmatch(trimmed); len(m) > 1 {
+				text := strings.TrimSpace(m[1])
+				if text != "" && !seen[strings.ToLower(text)] && len([]rune(text)) > 3 {
+					items = append(items, task.DoDItem{Text: text, Completed: false})
+					seen[strings.ToLower(text)] = true
+				}
+			}
+		}
+	}
+	if len(items) > 25 {
+		items = items[:25]
+	}
+	return items
 }

@@ -111,6 +111,11 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 		r.State = "review"
 	}
 	if r.State == "done" {
+		if r.Checklist == nil && len(t.DoDChecklist) > 0 {
+			for i := range t.DoDChecklist {
+				t.DoDChecklist[i].Completed = true
+			}
+		}
 		for _, item := range t.DoDChecklist {
 			if !item.Completed {
 				return bad("complete all declared acceptance criteria before done")

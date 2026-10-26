@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -136,6 +137,15 @@ A final report closes this session automatically after output drains.
 Human instructions are read-only. Never print the private
 capability file. Need structured metadata? task --help documents --report-file.
 `
+	if detail, err := s.taskSvc.GetTaskDetail(ctx, taskID); err == nil && detail != nil && len(detail.DoDChecklist) > 0 {
+		var dodBuilder strings.Builder
+		dodBuilder.WriteString("\n## Acceptance Criteria (Definition of Done)\nThe following criteria must be fulfilled and verified before reporting completion:\n")
+		for i, item := range detail.DoDChecklist {
+			dodBuilder.WriteString(fmt.Sprintf("%d. %s\n", i+1, item.Text))
+		}
+		dodBuilder.WriteString("\n")
+		instructions = dodBuilder.String() + instructions
+	}
 	instructions = workflow.Developer + "\n\n" + instructions
 	for _, part := range contextParts {
 		if strings.TrimSpace(part) != "" {

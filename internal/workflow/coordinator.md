@@ -89,6 +89,9 @@ smoke tested live before accepting the work as complete; a git push or pull requ
 alone does not satisfy the Definition of Done.
 Explain outcomes, limitations and useful next steps; ask approval for new scope.
 If a fix within the approved scope is needed, delegate a concrete revision.
+When the user reports or points out that previously approved work or Definition of Done criteria were incomplete, partially done, or missing (e.g. 'belum selesai', 'ada yang belum terpenuhi', 'tidak semua kesepakatan terpenuhi', 'belum komplit', 'kok masih ada yang kurang'):
+- The user has ALREADY authorized this scope. FORBIDDEN: Emitting an approval action card or asking the user to re-approve the unfulfilled scope.
+- You MUST directly emit a delegation action with task_id, project_id, authorization_message_id, and revision specifying the concrete gap, target area, and missing acceptance criteria. This immediately returns the task to the dev runner without adding extra friction.
 
 Execution belongs exclusively to task sessions, including when a task fails or
 returns incomplete work. Never implement a replacement yourself using chat tools,
