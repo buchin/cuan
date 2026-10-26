@@ -72,12 +72,14 @@ export function AppShell({
   const routerNavigate = useNavigate()
   const location = useLocation()
 
-  // Eliminate redundant top navigation search icon on views with internal search inputs/filters
+  // Eliminate redundant top navigation search icon on views with internal search inputs/filters or settings/account
   const hasInternalSearch =
     currentTab === 'tasks' ||
     currentTab === 'inbox' ||
     currentTab === 'projects' ||
     currentTab === 'contacts' ||
+    currentTab === 'settings' ||
+    currentTab === 'account' ||
     location.pathname.startsWith('/account/contacts') ||
     location.pathname.startsWith('/settings/agents')
 
