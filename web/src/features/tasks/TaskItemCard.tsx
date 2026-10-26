@@ -327,14 +327,10 @@ export function TaskItemCard({
               <Link
                 to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        onClick(currentTask)
-                      }
-                    : onNavigate
-                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate?.()
+                }}
                 className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
               >
                 <Terminal className="h-3.5 w-3.5" />
@@ -344,16 +340,12 @@ export function TaskItemCard({
               status === 'Completed' ||
               status === 'Answered' ? (
               <Link
-                to={targetUrl}
+                to={detailUrl}
                 state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        onClick(currentTask)
-                      }
-                    : onNavigate
-                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate?.()
+                }}
                 className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -361,16 +353,12 @@ export function TaskItemCard({
               </Link>
             ) : (
               <Link
-                to={targetUrl}
+                to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        onClick(currentTask)
-                      }
-                    : onNavigate
-                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate?.()
+                }}
                 className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
               >
                 <Play className="h-3.5 w-3.5" />
@@ -572,18 +560,10 @@ export function TaskItemCard({
               <Link
                 to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onClick(currentTask)
-                      }
-                    : (e) => {
-                        e.stopPropagation()
-                        onNavigate?.()
-                      }
-                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate?.()
+                }}
                 className="action-primary min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Terminal className="h-3.5 w-3.5 shrink-0" />
@@ -593,20 +573,12 @@ export function TaskItemCard({
               status === 'Completed' ||
               status === 'Answered' ? (
               <Link
-                to={targetUrl}
+                to={detailUrl}
                 state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onClick(currentTask)
-                      }
-                    : (e) => {
-                        e.stopPropagation()
-                        onNavigate?.()
-                      }
-                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate?.()
+                }}
                 className={cn(
                   'min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring',
                   currentTask.pr_url && !applied && status === 'Ready for review'
@@ -619,20 +591,12 @@ export function TaskItemCard({
               </Link>
             ) : (
               <Link
-                to={targetUrl}
+                to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}
-                onClick={
-                  onClick
-                    ? (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onClick(currentTask)
-                      }
-                    : (e) => {
-                        e.stopPropagation()
-                        onNavigate?.()
-                      }
-                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate?.()
+                }}
                 className="action-primary min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Play className="h-3.5 w-3.5 shrink-0" />

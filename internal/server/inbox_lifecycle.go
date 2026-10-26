@@ -141,7 +141,7 @@ func (s *Server) drainInboxRoom(room string) {
 	}
 }
 func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRequest) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	if s.inboxStopping.Load() {
 		cancel()
 	}
@@ -260,7 +260,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 									output = s.inboxMemorySearchFallback(ctx, q, true)
 									failure = ""
 								} else {
-									answerCtx, answerCancel := context.WithTimeout(ctx, 25*time.Second)
+									answerCtx, answerCancel := context.WithTimeout(ctx, 45*time.Second)
 									answerCtx = context.WithValue(answerCtx, inboxAnswerOnlyKey{}, true)
 									answerStep := func(kind, text string) {
 										step(kind, text)
@@ -287,7 +287,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						}
 						if s.inboxReviewedTask(ctx, q) == nil && output == "" && ctx.Err() == nil && (strings.Contains(strings.ToLower(failure), "tool permission") || strings.Contains(strings.ToLower(failure), "action outside the chat workflow") || strings.Contains(strings.ToLower(failure), "could not be validated") || strings.Contains(strings.ToLower(failure), "tool budget")) {
 							step("response_recovery", "A tool or validation issue occurred. Answering directly from conversation context with structured actions.")
-							directCtx, directCancel := context.WithTimeout(ctx, 30*time.Second)
+							directCtx, directCancel := context.WithTimeout(ctx, 60*time.Second)
 							directCtx = context.WithValue(directCtx, inboxCoordinatorDirectKey{}, true)
 							directCtx = context.WithValue(directCtx, inboxSchemaRetryKey{}, true)
 							directPrompt, contextErr := s.inboxContext(directCtx, q)
