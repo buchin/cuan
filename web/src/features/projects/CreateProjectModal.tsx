@@ -84,7 +84,7 @@ export function CreateProjectModal({
             type="button"
             id="create-project-mode-new"
             onClick={() => setMode('new')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+            className={`flex-1 min-h-11 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${
               mode === 'new'
                 ? 'bg-background text-foreground shadow-sm font-semibold'
                 : 'text-muted-foreground hover:text-foreground'
@@ -97,7 +97,7 @@ export function CreateProjectModal({
             type="button"
             id="create-project-mode-github"
             onClick={() => setMode('github')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+            className={`flex-1 min-h-11 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${
               mode === 'github'
                 ? 'bg-background text-foreground shadow-sm font-semibold'
                 : 'text-muted-foreground hover:text-foreground'

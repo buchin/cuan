@@ -136,31 +136,51 @@ export function ProjectsView({
           </button>
         </div>
       )}
-      {/* Tabs */}
-      <div className="flex items-center gap-4 border-b border-border text-sm">
+      {/* Category Chips */}
+      <nav aria-label="Project tabs" className="flex items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <button
+          type="button"
           aria-pressed={activeTab === 'active'}
           onClick={() => setActiveTab('active')}
-          className={`min-h-11 pb-2.5 font-medium transition-colors border-b-2 -mb-px ${
+          className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring ${
             activeTab === 'active'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+              : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40'
           }`}
         >
-          Active Projects ({activeProjects.length})
+          <span>Active Projects</span>
+          <span
+            className={`inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none ${
+              activeTab === 'active'
+                ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                : 'bg-muted-foreground/15 text-muted-foreground'
+            }`}
+          >
+            {activeProjects.length}
+          </span>
         </button>
         <button
+          type="button"
           aria-pressed={activeTab === 'archived'}
           onClick={() => setActiveTab('archived')}
-          className={`min-h-11 pb-2.5 font-medium transition-colors border-b-2 -mb-px ${
+          className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring ${
             activeTab === 'archived'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+              : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40'
           }`}
         >
-          Archived ({archivedProjects.length})
+          <span>Archived</span>
+          <span
+            className={`inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none ${
+              activeTab === 'archived'
+                ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                : 'bg-muted-foreground/15 text-muted-foreground'
+            }`}
+          >
+            {archivedProjects.length}
+          </span>
         </button>
-      </div>
+      </nav>
 
       {/* Projects Display or Empty State */}
       {displayedProjects.length === 0 ? (

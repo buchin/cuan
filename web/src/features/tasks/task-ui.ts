@@ -131,22 +131,23 @@ export function isTaskRunning(task: Task) {
 export function workStatusBadgeClass(status: string) {
   switch (status) {
     case 'Working':
-      return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+      return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
     case 'Waiting to start':
     case 'Queued':
-      return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+      return 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35'
     case 'Completed':
     case 'Answered':
-      return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+      return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
     case 'Ready for review':
-      return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+      return 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/35'
     case 'Needs attention':
-      return 'bg-destructive/10 text-destructive border-destructive/20'
+      return 'bg-destructive/15 text-destructive dark:text-red-400 border-destructive/35'
     case 'Cancelled':
+      return 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30'
     case 'Not running':
     case 'Not started':
     default:
-      return 'bg-muted text-muted-foreground border-border'
+      return 'bg-muted/80 text-muted-foreground border-border'
   }
 }
 

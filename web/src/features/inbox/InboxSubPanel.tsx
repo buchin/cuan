@@ -168,50 +168,93 @@ export function InboxSubPanel({
 
         </ItemActions>
 
-        {/* Filter Tabs (All, Agents, Customers) */}
-        <div className="flex gap-2 text-sm" role="group" aria-label={t('Conversation filters')}>
+        {/* Filter Chips (All, Agents, Customers, Archived) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label={t('Conversation filters')}>
           <button
+            type="button"
             aria-pressed={activeTab === 'all'}
             onClick={() => handleTabClick('all')}
             className={cn(
-              'flex-1 min-h-11 border-b-2 py-2 text-center transition-colors font-medium text-sm',
+              'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               activeTab === 'all'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
+                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
             )}
           >
-            {t('All')}
+            <span>{t('All')}</span>
           </button>
           <button
+            type="button"
             aria-pressed={activeTab === 'agents'}
             onClick={() => handleTabClick('agents')}
             className={cn(
-              'flex-1 min-h-11 border-b-2 py-2 text-center transition-colors font-medium text-sm flex items-center justify-center gap-1',
+              'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               activeTab === 'agents'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
+                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
             )}
           >
             <span>{t('Agents')}</span>
-            <span className="sr-only">({agentCount})</span>
+            <span
+              className={cn(
+                'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
+                activeTab === 'agents'
+                  ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                  : 'bg-muted-foreground/15 text-muted-foreground',
+              )}
+            >
+              {agentCount}
+            </span>
           </button>
           <button
+            type="button"
             aria-pressed={activeTab === 'customers'}
             onClick={() => handleTabClick('customers')}
             className={cn(
-              'flex-1 min-h-11 border-b-2 py-2 text-center transition-colors font-medium text-sm flex items-center justify-center gap-1',
+              'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               activeTab === 'customers'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
+                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
             )}
           >
             <span>{t('Customers')}</span>
-            <span className="sr-only">({customerCount})</span>
+            <span
+              className={cn(
+                'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
+                activeTab === 'customers'
+                  ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                  : 'bg-muted-foreground/15 text-muted-foreground',
+              )}
+            >
+              {customerCount}
+            </span>
           </button>
-          <button type="button" aria-label={t(showArchived ? 'Back to Inbox' : 'Archived conversations')} title={t(showArchived ? 'Back to Inbox' : 'Archived conversations')} aria-pressed={showArchived} onClick={() => setShowArchived(value => !value)}
-            className={cn('min-h-11 min-w-11 flex items-center justify-center gap-1 border-b-2 text-xs', showArchived ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
-            <Archive className="h-4 w-4" aria-hidden="true" />
-            {contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length > 0 && <span>{contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length}</span>}
+          <button
+            type="button"
+            aria-label={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
+            title={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived(value => !value)}
+            className={cn(
+              'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
+              showArchived
+                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
+            )}
+          >
+            <Archive className="h-3.5 w-3.5" aria-hidden="true" />
+            {contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length > 0 && (
+              <span
+                className={cn(
+                  'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
+                  showArchived
+                    ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                    : 'bg-muted-foreground/15 text-muted-foreground',
+                )}
+              >
+                {contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length}
+              </span>
+            )}
           </button>
           {totalUnreadCount > 0 && (
             <button

@@ -331,7 +331,7 @@ export function AppShell({
               projectWorkspace ||
               sessionWorkspace
               ? 'overflow-hidden'
-              : 'overflow-auto p-4 md:p-6',
+              : 'overflow-auto p-3 sm:p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',
           )}
         >
