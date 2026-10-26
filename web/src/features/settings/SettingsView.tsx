@@ -62,6 +62,7 @@ export function SettingsView({
         className="flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {[
+          ['profile', t('Profile & password')],
           ['contacts', t('Contacts')],
           ['general', t('General')],
           ['agents', t('Agents')],
@@ -161,6 +162,23 @@ export function SettingsView({
       ) : (
         <div className="space-y-4">
           <InstallAppCard />
+          <section className="rounded-lg border border-border bg-card p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">{t('Keyboard shortcuts')}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('Quick navigation and action hotkeys for desktop workflow.')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('cuan:keyboard-shortcuts'))}
+                className="action-secondary shrink-0"
+              >
+                {t('View shortcuts')}
+              </button>
+            </div>
+          </section>
           <section className="rounded-lg border border-border bg-card p-5">
             <h2 className="text-lg font-semibold">{t('Contacts')}</h2>
             <p className="my-3 text-sm text-muted-foreground">

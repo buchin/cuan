@@ -10,7 +10,6 @@ import {
   MoreHorizontal,
   Settings,
   Users,
-  CheckSquare,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -31,7 +30,6 @@ export function NavUser({
   collapsed = false,
   dropdownPosition,
   onSettings,
-  onWork,
   bottomNavigation = false,
   active = false,
 }: NavUserProps) {
@@ -143,7 +141,7 @@ export function NavUser({
             role="region"
             aria-label={t('Account menu')}
             className={cn(
-              'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1 rounded-lg',
+              'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1.5 rounded-lg max-h-[calc(100dvh-5rem)] overflow-y-auto',
               dropdownPosition === 'top-right'
                 ? 'bottom-full right-2 mb-2 w-64 max-w-[calc(100vw-1rem)]'
                 : dropdownPosition === 'bottom-right'
@@ -178,7 +176,7 @@ export function NavUser({
               <div className="grid flex-1 text-left leading-tight truncate">
                 <span className="truncate font-bold text-xs text-foreground flex items-center gap-1.5">
                   {username}
-                  <span className="inline-flex items-center px-1 py-0.5 text-[9px] font-mono bg-green-500/15 text-green-600 border border-green-500/30 rounded">
+                  <span className="inline-flex items-center px-1 py-0.5 text-[9px] font-mono bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/30 rounded">
                     OWNER
                   </span>
                 </span>
@@ -186,36 +184,12 @@ export function NavUser({
                   {email}
                 </span>
               </div>
-              <ReloadButton
-                className="h-8 w-8 rounded hover:bg-accent text-muted-foreground hover:text-foreground shrink-0"
-                iconClassName="h-4 w-4"
-                title={t('Reload app')}
-              />
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false)
-                navigate('/account/contacts')
-              }}
-              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
-            >
-              <Users className="h-4 w-4 text-primary shrink-0" />
-              <span>{t('Contacts')}</span>
-            </button>
-            <button
-              type="button"
-              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"
-              onClick={() => {
-                setMenuOpen(false)
-                if (onSettings) onSettings()
-                else navigate('/settings')
-              }}
-            >
-              <Settings className="h-4 w-4" />
-              <span>{t('Settings')}</span>
-            </button>
+            {/* Account & Security Group */}
+            <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              {t('Account & Security')}
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -227,29 +201,57 @@ export function NavUser({
               <KeyRound className="h-4 w-4 text-primary shrink-0" />
               <span>{t('Profile & password')}</span>
             </button>
-            {onWork && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                navigate('/account/contacts')
+              }}
+              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
+            >
+              <Users className="h-4 w-4 text-primary shrink-0" />
+              <span>{t('Contacts')}</span>
+            </button>
+
+            <div className="h-px bg-border my-1" />
+
+            {/* Preferences Group */}
+            <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              {t('Preferences')}
+            </div>
+            <button
+              type="button"
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
+              onClick={() => {
+                setMenuOpen(false)
+                if (onSettings) onSettings()
+                else navigate('/settings')
+              }}
+            >
+              <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>{t('Settings')}</span>
+            </button>
+            {!bottomNavigation && (
               <button
                 type="button"
-                className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"
+                className="hidden sm:flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
                 onClick={() => {
                   setMenuOpen(false)
-                  onWork()
+                  window.dispatchEvent(new Event('cuan:keyboard-shortcuts'))
                 }}
               >
-                <CheckSquare className="h-4 w-4" />
-                <span>{t('Tasks')}</span>
+                <Keyboard className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span>{t('Keyboard shortcuts')}</span>
+                <kbd className="ml-auto text-xs text-muted-foreground font-mono">?</kbd>
               </button>
             )}
-            <button type="button" className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('cuan:keyboard-shortcuts')) }}>
-              <Keyboard className="h-4 w-4" /><span>{t('Keyboard shortcuts')}</span><kbd className="ml-auto text-xs text-muted-foreground">?</kbd>
-            </button>
+
+            <div className="h-px bg-border my-1" />
 
             <ReloadButton
               variant="menu-item"
               label={t('Reload app')}
             />
-
-            <div className="h-px bg-border my-1" />
 
             <button
               type="button"
