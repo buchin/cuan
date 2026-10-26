@@ -46,11 +46,27 @@ interfaces; use host firewall rules where needed. Enable streamed responses and
 appropriate timeouts in the proxy. Ensure HTTPS and correct domain configuration
 for remote use. Staging Caddy defaults to 8082/8443, production to 80/443.
 
-## Upgrade or rollback
+## Upgrade, Rollback & VPS Migration
 
 Stop accepting new work, confirm active/pending execution is clear, and back up
 the database, persistent data, account profiles, and private environment file.
-Use the [deployment recovery procedure](deployment_recovery_guide.md). An old
-binary may not support a new schema: rollback compatibility must be verified for
+Use [`scripts/backup.sh`](../scripts/backup.sh) and [`scripts/restore.sh`](../scripts/restore.sh) for automated,
+checksum-verified database snapshots. For full VPS transfer procedures, follow the
+[Backup, Restore, and VPS Migration Guide](../operations/backup-restore-and-vps-migration.md).
+For binary deployment issues, consult the [deployment recovery procedure](deployment_recovery_guide.md).
+An old binary may not support a new schema: rollback compatibility must be verified for
 the specific release. Do not delete locks or reset work state while an execution
 process may still be alive.
+
+## Chat Coordinator Sandbox and Recovery Schema Compatibility
+
+Chat coordinator sessions run in an interactive advisory sandbox. Arbitrary terminal
+commands (`run_command`), shell scripts, and write mutations are blocked by runtime policy
+(`runtime_permission_denied`). Coordinator agents must use read-only code and git inspection
+tools (`read_file`, `list_dir`, `grep_search`, `inspect_git_status`) or delegate implementation
+to background task sessions.
+
+When a tool call is denied, Cuan initiates `analysis_recovery` using a fallback schema.
+Providers such as Google Gemini API / AGY strictly reject JSON Schemas containing empty
+string enumerations (e.g. `enum: [""]`) with HTTP 400 `INVALID_ARGUMENT`. Recovery schemas
+must use unconstrained strings (`{"type": "string"}`) rather than empty enum literals.
