@@ -1527,8 +1527,13 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			}
 		}
 	}
-	dtos := make([]ChatMessageDTO, len(rawMsgs))
-	for i, m := range rawMsgs {
+	dtos := make([]ChatMessageDTO, 0, len(rawMsgs))
+	for _, m := range rawMsgs {
+		// Filter out internal synthetic review trigger prompts from client chat timeline
+		if m.AuthorType == "system" && m.AuthorID == "cuan_work_review" {
+			continue
+		}
+
 		senderType := "visitor"
 		if isCustomer {
 			if m.AuthorID == "operator_user" || m.AuthorName == "You" || m.AuthorName == "Owner" || m.AuthorType == "agent" || m.AuthorType == "system" {
@@ -1585,9 +1590,6 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 				}
 			}
 		}
-		if m.AuthorType == "system" && m.AuthorID == "cuan_work_review" {
-			content = "I’m checking the latest work update. " + strings.TrimPrefix(strings.SplitN(m.Content, "\n", 2)[0], "Review the result for ")
-		}
 
 		var attURL, attType, attName string
 		var attSize int64
@@ -1600,8 +1602,8 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			hasAtt = true
 		}
 
-		dtos[i] = ChatMessageDTO{
-			ID:                int64(i + 1), // Monotonic numeric ID for Dojo widget
+		dtos = append(dtos, ChatMessageDTO{
+			ID:                int64(len(dtos) + 1), // Monotonic numeric ID for Dojo widget
 			UUID:              m.ID,
 			ApprovalRequestID: approvalRequestID,
 			ApprovalAccepted:  approved[m.ID],
@@ -1635,7 +1637,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			ApprovalPlan:    approvalPlan,
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
-		}
+		})
 	}
 
 	return dtos, nil

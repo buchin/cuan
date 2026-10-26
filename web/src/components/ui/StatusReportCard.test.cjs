@@ -90,13 +90,16 @@ assert.equal(parsedFailed.status, 'failed')
 assert.equal(parsedFailed.badgeText, 'Gagal')
 
 // Test 3: Work update checking (Running)
-const runningMsg = `I’m checking the latest work update. Implementasi Badge Working + Pulse di Inbox dan Optimasi Routing Kuota Agent Studio.`
+const runningMsg = `Memeriksa pembaruan pekerjaan terbaru: Implementasi Badge Working + Pulse di Inbox dan Optimasi Routing Kuota Agent Studio.`
 const parsedRunning = parseTaskReportMessage(runningMsg, 'id')
 assert.ok(parsedRunning)
 assert.equal(parsedRunning.status, 'running')
 assert.equal(parsedRunning.title, 'Pembaruan Pekerjaan')
 assert.equal(parsedRunning.badgeText, 'Sedang Berjalan')
 assert.equal(parsedRunning.body, 'Implementasi Badge Working + Pulse di Inbox dan Optimasi Routing Kuota Agent Studio.')
+
+// Internal review trigger cues must NOT be parsed as running work updates
+assert.equal(parseTaskReportMessage('I’m checking the latest work update. Show.'), null)
 
 // Test 4: Review required (Review)
 const reviewMsg = `The result still needs review. Its task and reported evidence are saved.`

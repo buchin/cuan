@@ -67,3 +67,16 @@ test('4. StatusReportCard truncates 40-character commit hashes to 7 chars and ha
     'StatusReportCard must handle explicit no-gap state without rendering false empty checkbox'
   )
 })
+
+test('5. InboxView suppresses cuan_work_review and obsolete stopped launch notifications', () => {
+  const inboxViewPath = path.resolve(__dirname, '../src/features/inbox/InboxView.tsx')
+  const src = fs.readFileSync(inboxViewPath, 'utf8')
+  assert.ok(
+    src.includes("msg.author_id === 'cuan_work_review'"),
+    'InboxView must suppress cuan_work_review internal prompt'
+  )
+  assert.ok(
+    src.includes("msgContent.includes('This pending launch has stopped')"),
+    'InboxView must check and suppress obsolete stopped launch notices'
+  )
+})

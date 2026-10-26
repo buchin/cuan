@@ -364,7 +364,7 @@ export function parseTaskReportMessage(content: string, language: string = 'en')
 
   // 3. Work update checking prefix
   const workUpdateMatch = trimmed.match(
-    /^(?:I[’']m checking the latest work update|Memeriksa pembaruan pekerjaan terbaru|Pembaruan pekerjaan|Work update)\s*[\.:]?\s*\n*/i
+    /^(?:Memeriksa pembaruan pekerjaan terbaru|Pembaruan pekerjaan|Work update)\s*[\.:]?\s*\n*/i
   )
   if (workUpdateMatch) {
     const body = trimmed.slice(workUpdateMatch[0].length).trim()

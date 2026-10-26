@@ -1137,9 +1137,46 @@ export function InboxView({
                     )
                   : undefined
 
+                // Suppress internal system cues (e.g. cuan_work_review)
+                const msgContent = msg.content || msg.message || ''
+                if (
+                  msg.author_id === 'cuan_work_review' ||
+                  msgContent.startsWith('I’m checking the latest work update') ||
+                  msgContent.startsWith("I'm checking the latest work update")
+                ) {
+                  return null
+                }
+
+                // Suppress obsolete stopped launch notifications if the task already succeeded/review/done
+                // or if there is a DoD evaluation or completion in the room
+                if (msgContent.includes('This pending launch has stopped')) {
+                  const taskIdMatch = msgContent.match(/\/tasks\/([A-Za-z0-9_-]+)/)
+                  if (taskIdMatch) {
+                    const matchedTask = linkedTasks.find((t) => t.id === taskIdMatch[1])
+                    if (
+                      matchedTask &&
+                      (matchedTask.status === 'review' ||
+                        matchedTask.status === 'done' ||
+                        matchedTask.status === 'doing')
+                    ) {
+                      return null
+                    }
+                  }
+                  const hasSubsequentReport = messages.some(
+                    (m) =>
+                      new Date(m.created_at).getTime() >=
+                        new Date(msg.created_at).getTime() &&
+                      (m.content?.includes('Definition of Done') ||
+                        m.content?.includes('Evaluasi') ||
+                        m.content?.includes('Work marked completed')),
+                  )
+                  if (hasSubsequentReport) {
+                    return null
+                  }
+                }
+
                 // Suppress pure duplicate intermediate runner progress reports that do not carry
                 // any linked task cards, drafts, action cards, or approval plans.
-                const msgContent = msg.content || msg.message || ''
                 if (
                   !linkedTaskForMsg &&
                   !msg.action_card &&
