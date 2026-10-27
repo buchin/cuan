@@ -398,18 +398,18 @@ export function TaskSessionPage({
   const statusBadge = (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-xs transition-colors',
+        'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
         workStatusBadgeClass(status)
       )}
       title={terminalConnection ? `${statusLabel} (${terminalConnection})` : statusLabel}
     >
-      <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+      <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 items-center justify-center">
         {isWorking && isConnected && (
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         )}
         <span
           className={cn(
-            'relative inline-flex h-2 w-2 rounded-full',
+            'relative inline-flex h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full',
             isConnected
               ? 'bg-emerald-500'
               : isConnecting
@@ -424,7 +424,7 @@ export function TaskSessionPage({
           )}
         />
       </span>
-      <span className="truncate max-w-[120px] min-[400px]:max-w-none">{statusLabel}</span>
+      <span className="truncate max-w-[70px] min-[380px]:max-w-[100px] min-[440px]:max-w-none">{statusLabel}</span>
     </span>
   )
 
@@ -434,13 +434,13 @@ export function TaskSessionPage({
       className="flex h-full min-h-0 flex-col bg-background overscroll-contain"
     >
       <GitHubPrerequisite task={detail} />
-      <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
+      <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2 select-none">
         {/* Navigation & Task Title */}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
           <Link
             to={backURL}
             state={state}
-            className="icon-action shrink-0"
+            className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
             aria-label={
               backURL.startsWith('/inbox/')
                 ? 'Back to conversation'
@@ -454,9 +454,17 @@ export function TaskSessionPage({
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h2 className="truncate text-sm sm:text-base font-semibold text-foreground min-w-0" title={detail.title}>
-              {detail.title}
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+            <span className="flex h-5 w-5 sm:h-6 sm:w-6 shrink-0 items-center justify-center rounded bg-muted/60 text-muted-foreground">
+              <Terminal className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-foreground/80" />
+            </span>
+            <h2
+              className="truncate text-xs sm:text-sm font-semibold text-foreground min-w-0 tracking-tight"
+              title={detail.title}
+            >
+              {detail.title.startsWith('Terminal ·')
+                ? detail.title.replace(/^Terminal\s*·\s*/, '')
+                : detail.title}
             </h2>
           </div>
         </div>
@@ -468,7 +476,7 @@ export function TaskSessionPage({
           <button
             type="button"
             className={cn(
-              'icon-action shrink-0 transition-colors',
+              'icon-action shrink-0 transition-colors hidden sm:inline-flex',
               pinTerminal
                 ? 'text-emerald-500 bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 dark:text-emerald-400'
                 : 'text-muted-foreground hover:text-foreground'
@@ -487,24 +495,26 @@ export function TaskSessionPage({
               <PinOff className="h-4 w-4" />
             )}
           </button>
+          {active && (
+            <button
+              type="button"
+              className="icon-action shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors"
+              aria-label="Cancel session"
+              title={t('Cancel session')}
+              onClick={() => setCancel(true)}
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </button>
+          )}
           <button
-            className="icon-action shrink-0"
+            type="button"
+            className="icon-action shrink-0 text-muted-foreground hover:text-foreground"
             aria-label="Detail"
-            title="Detail"
+            title={t('Detail')}
             onClick={() => setShowDetail(true)}
           >
             <Info className="h-4 w-4" />
           </button>
-          {active && (
-            <button
-              className="icon-action shrink-0 text-destructive hover:bg-destructive/10"
-              aria-label="Cancel session"
-              title="Cancel session"
-              onClick={() => setCancel(true)}
-            >
-              <Square className="h-4 w-4" />
-            </button>
-          )}
         </div>
       </header>
       {(error || runtimeError) && (
