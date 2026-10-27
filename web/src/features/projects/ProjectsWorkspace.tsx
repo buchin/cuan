@@ -2,7 +2,7 @@ import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal } from 'lucide-react'
+import { Folder, FolderGit2, Search, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { workStatus } from '../tasks/task-ui'
@@ -219,6 +219,11 @@ export function ProjectsWorkspace({
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Link>
+                {project.repo_url ? (
+                  <FolderGit2 className="h-4 w-4 text-primary shrink-0" />
+                ) : (
+                  <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                )}
                 <h2 className="truncate text-sm font-semibold">
                   {project.name}
                 </h2>

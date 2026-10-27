@@ -140,6 +140,30 @@ export function TaskSessionPage({
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
+  const active = Boolean(attempt && ['running', 'queued'].includes(attempt.status))
+
+  // Auto-close prevention: keep terminal open on task completion when pinned
+  const prevActiveRef = useRef(active)
+  useEffect(() => {
+    if (prevActiveRef.current && !active && pinTerminal) {
+      setShowTerminal(true)
+    }
+    prevActiveRef.current = active
+  }, [active, pinTerminal])
+
+  const handleTogglePin = useCallback(() => {
+    setPinTerminal((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('cuan_terminal_pin', String(next))
+      } catch {}
+      if (next) {
+        setShowTerminal(true)
+      }
+      return next
+    })
+  }, [])
+
   const waitingLaunch = detail?.launch?.state === 'queued' || detail?.launch?.state === 'claimed'
   const basePath = workspacePath(taskId, location.pathname)
   const suffix = location.search,
@@ -307,29 +331,6 @@ export function TaskSessionPage({
       </div>
     )
   }
-  const active = ['running', 'queued'].includes(attempt.status)
-
-  // Auto-close prevention: keep terminal open on task completion when pinned
-  const prevActiveRef = useRef(active)
-  useEffect(() => {
-    if (prevActiveRef.current && !active && pinTerminal) {
-      setShowTerminal(true)
-    }
-    prevActiveRef.current = active
-  }, [active, pinTerminal])
-
-  const handleTogglePin = useCallback(() => {
-    setPinTerminal((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem('cuan_terminal_pin', String(next))
-      } catch {}
-      if (next) {
-        setShowTerminal(true)
-      }
-      return next
-    })
-  }, [])
   const latest = detail.latest_attempt?.id === attempt.id
   const final = [...reports]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))

@@ -132,3 +132,48 @@ test('6. Quick Project Terminal in ProjectsWorkspace (Header & Item Actions)', (
     'ProjectsWorkspace must provide Terminal button in project header',
   )
 })
+
+test('7. ProjectsWorkspace renders FolderGit2 or Folder icon before project name in header', () => {
+  const workspacePath = path.join(
+    rootDir,
+    'src/features/projects/ProjectsWorkspace.tsx',
+  )
+  const content = fs.readFileSync(workspacePath, 'utf8')
+
+  assert.match(
+    content,
+    /FolderGit2/,
+    'ProjectsWorkspace must import and use FolderGit2 icon',
+  )
+  assert.match(
+    content,
+    /project\.repo_url\s*\?\s*\(\s*<FolderGit2 className="h-4 w-4 text-primary shrink-0" \/>\s*\)\s*:\s*\(\s*<Folder className="h-4 w-4 text-muted-foreground shrink-0" \/>\s*\)/,
+    'ProjectsWorkspace must render FolderGit2 for repo projects and Folder for local projects',
+  )
+})
+
+test('8. TaskSessionPage declares all hooks unconditionally before early returns (no React error #310)', () => {
+  const sessionPagePath = path.join(
+    rootDir,
+    'src/features/tasks/TaskSessionPage.tsx',
+  )
+  const content = fs.readFileSync(sessionPagePath, 'utf8')
+
+  const earlyReturnIdx = content.indexOf('if (!detail) {')
+  assert.ok(earlyReturnIdx > 0, 'Found early return for if (!detail)')
+
+  // Check that prevActiveRef and handleTogglePin appear before earlyReturnIdx
+  const prevActiveRefIdx = content.indexOf('const prevActiveRef = useRef(active)')
+  const handleTogglePinIdx = content.indexOf('const handleTogglePin = useCallback')
+
+  assert.ok(prevActiveRefIdx > 0, 'prevActiveRef must be defined')
+  assert.ok(handleTogglePinIdx > 0, 'handleTogglePin must be defined')
+  assert.ok(
+    prevActiveRefIdx < earlyReturnIdx,
+    'prevActiveRef must be called BEFORE early return to avoid React Error #310',
+  )
+  assert.ok(
+    handleTogglePinIdx < earlyReturnIdx,
+    'handleTogglePin must be called BEFORE early return to avoid React Error #310',
+  )
+})
