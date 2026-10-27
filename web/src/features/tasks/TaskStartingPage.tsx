@@ -1,8 +1,9 @@
 import { workspacePath } from './workspacePath'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LoaderCircle } from 'lucide-react'
+import { LoaderCircle, Bot, Play } from 'lucide-react'
 import { tasksApi, type RunTaskRequest } from '../../api/tasks'
+import { agentsApi, type Agent } from '../../api/agents'
 import { ApiError } from '../../api/client'
 
 export function TaskStartingPage({ taskId }: { taskId: string }) {
@@ -24,7 +25,9 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
   })
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
-    [title, setTitle] = useState('')
+    [title, setTitle] = useState(''),
+    [agents, setAgents] = useState<Agent[]>([]),
+    [selectedAgent, setSelectedAgent] = useState<string>('')
   const mounted = useRef(false),
     started = useRef(false),
     working = useRef(false),
@@ -44,7 +47,19 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
     void tasksApi
       .get(taskId)
       .then((t) => {
-        if (mounted.current) setTitle(t.title)
+        if (mounted.current) {
+          setTitle(t.title)
+          if (t.assignee_id) setSelectedAgent(t.assignee_id)
+        }
+      })
+      .catch(() => {})
+    void agentsApi
+      .list()
+      .then((list) => {
+        if (!mounted.current) return
+        const eligible = list.filter((a) => a.enabled !== false && a.status !== 'inactive')
+        setAgents(eligible)
+        setSelectedAgent((prev) => prev || (eligible.find((a) => a.connection_state === 'verified') || eligible[0])?.id || '')
       })
       .catch(() => {})
     return () => {
@@ -137,7 +152,7 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
               ? 'Could not start session'
               : request
                 ? 'Continue session'
-                : 'Session unavailable'}
+                : 'Pilih Agent & Mulai Sesi'}
         </h2>
         {title && (
           <p className="break-words text-sm text-muted-foreground">{title}</p>
@@ -147,7 +162,46 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
             {error}
           </p>
         )}
-        <div className="flex flex-wrap justify-center gap-2">
+
+        {!request && !busy && agents.length > 0 && (
+          <div className="space-y-3 pt-2">
+            <p className="text-xs text-muted-foreground">Pilih agent untuk menjalankan tugas ini:</p>
+            <div className="flex items-center justify-center gap-2">
+              <Bot className="h-4 w-4 text-primary shrink-0" />
+              <select
+                aria-label="Pilih agent"
+                className="field-control text-xs max-w-xs"
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+              >
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.harness || a.provider || 'agent'})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              className="action-primary inline-flex items-center gap-1.5"
+              disabled={!selectedAgent || busy}
+              onClick={() => {
+                const req: RunTaskRequest = {
+                  request_id: crypto.randomUUID(),
+                  agent_id: selectedAgent,
+                }
+                setRequest(req)
+                try {
+                  localStorage.setItem(key, JSON.stringify(req))
+                } catch {}
+              }}
+            >
+              <Play className="h-4 w-4" />
+              <span>Mulai Sesi</span>
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-center gap-2 pt-2">
           {request && !busy && (
             <button className="action-primary" onClick={() => void launch()}>
               Check session

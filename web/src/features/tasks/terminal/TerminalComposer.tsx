@@ -96,10 +96,27 @@ export function TerminalComposer({
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [loadingDiff, setLoadingDiff] = useState(false)
 
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const photosInputRef = useRef<HTMLInputElement>(null)
   const filesInputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-resize textarea to match Inbox experience (min 36-38px, max 140px, auto overflow)
+  const autoResizeTextarea = (el: HTMLTextAreaElement) => {
+    el.style.height = 'auto'
+    const scrollH = el.scrollHeight
+    const minH = window.innerWidth < 640 ? 36 : 38
+    const cap = Math.max(
+      minH,
+      Math.min(
+        140,
+        Math.max(120, (window.visualViewport?.height || window.innerHeight) * 0.35),
+      ),
+    )
+    const newH = Math.min(Math.max(scrollH, minH), cap)
+    el.style.height = newH + 'px'
+    el.style.overflowY = scrollH > cap ? 'auto' : 'hidden'
+  }
 
   // Revoke object URLs on unmount or file removal
   useEffect(() => {
@@ -237,6 +254,9 @@ export function TerminalComposer({
     }, 40)
     setText('')
     setShowSlashPopup(false)
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
     // Clear uploaded files previews after sending
     for (const f of uploadedFiles) {
       if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
@@ -244,9 +264,10 @@ export function TerminalComposer({
     setUploadedFiles([])
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setText(val)
+    autoResizeTextarea(e.target)
 
     if (val.startsWith('/')) {
       setShowSlashPopup(true)
@@ -258,7 +279,7 @@ export function TerminalComposer({
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showSlashPopup && filteredCommands.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -282,30 +303,43 @@ export function TerminalComposer({
       }
     }
 
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSend()
       return
     }
 
-    // Command history navigation
-    if (e.key === 'ArrowUp') {
-      if (history.length > 0) {
-        e.preventDefault()
-        const nextIdx = Math.min(historyIdx + 1, history.length - 1)
-        setHistoryIdx(nextIdx)
-        setText(history[nextIdx] || '')
-      }
-    } else if (e.key === 'ArrowDown') {
-      if (historyIdx > 0) {
-        e.preventDefault()
-        const nextIdx = historyIdx - 1
-        setHistoryIdx(nextIdx)
-        setText(history[nextIdx] || '')
-      } else if (historyIdx === 0) {
-        e.preventDefault()
-        setHistoryIdx(-1)
-        setText('')
+    // Command history navigation (when input is single line or empty)
+    if (!text.includes('\n')) {
+      if (e.key === 'ArrowUp') {
+        if (history.length > 0) {
+          e.preventDefault()
+          const nextIdx = Math.min(historyIdx + 1, history.length - 1)
+          setHistoryIdx(nextIdx)
+          setText(history[nextIdx] || '')
+          if (textareaRef.current) {
+            setTimeout(() => {
+              if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+            }, 0)
+          }
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (historyIdx > 0) {
+          e.preventDefault()
+          const nextIdx = historyIdx - 1
+          setHistoryIdx(nextIdx)
+          setText(history[nextIdx] || '')
+          if (textareaRef.current) {
+            setTimeout(() => {
+              if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+            }, 0)
+          }
+        } else if (historyIdx === 0) {
+          e.preventDefault()
+          setHistoryIdx(-1)
+          setText('')
+          if (textareaRef.current) textareaRef.current.style.height = 'auto'
+        }
       }
     }
   }
@@ -359,7 +393,14 @@ export function TerminalComposer({
       // Automatically append uploaded paths into composer input
       const paths = newUploaded.map((f) => `./${f.name}`).join(' ')
       setText((prev) => (prev ? `${prev.trim()} ${paths} ` : `${paths} `))
-      inputRef.current?.focus()
+      if (textareaRef.current) {
+        setTimeout(() => {
+          if (textareaRef.current) {
+            autoResizeTextarea(textareaRef.current)
+            textareaRef.current.focus()
+          }
+        }, 0)
+      }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed')
       setTimeout(() => setUploadError(''), 4000)
@@ -611,14 +652,14 @@ export function TerminalComposer({
       <div
         role="group"
         aria-label="Terminal input composer"
-        className="wa-input-capsule flex min-w-0 items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
+        className="wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
       >
         {/* Attachment Picker Button */}
         <button
           type="button"
           disabled={disabled || uploading}
           onClick={() => setShowAttachmentMenu(true)}
-          className="wa-action-btn h-9 w-9 flex items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40"
+          className="wa-action-btn h-9 w-9 flex items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40 mb-0.5"
           title="Upload file ke workspace tugas (/upload)"
           aria-label={t('Add attachment')}
         >
@@ -629,11 +670,11 @@ export function TerminalComposer({
           )}
         </button>
 
-        {/* Command Search / Text Input */}
-        <div className="relative flex-1 min-w-0">
-          <input
-            ref={inputRef}
-            type="search"
+        {/* Multiline Command / Text Input (Auto-expanding like Inbox) */}
+        <div className="relative flex-1 min-w-0 flex items-center">
+          <textarea
+            ref={textareaRef}
+            rows={1}
             name="terminal_query"
             id="terminal_composer_input"
             value={text}
@@ -653,7 +694,7 @@ export function TerminalComposer({
             data-form-type="other"
             data-lpignore="true"
             data-1p-ignore="true"
-            className="wa-input w-full min-w-0 py-1.5 px-2 pr-6 text-xs sm:text-sm font-mono appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+            className="wa-input w-full min-w-0 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 px-2 pr-6 text-xs sm:text-sm font-mono leading-relaxed"
           />
           {text && (
             <button
@@ -661,9 +702,12 @@ export function TerminalComposer({
               onClick={() => {
                 setText('')
                 setShowSlashPopup(false)
-                inputRef.current?.focus()
+                if (textareaRef.current) {
+                  textareaRef.current.style.height = 'auto'
+                  textareaRef.current.focus()
+                }
               }}
-              className="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white"
+              className="absolute right-1 top-2.5 p-1 text-neutral-400 hover:text-white transition-colors"
               title="Clear input"
             >
               <X className="h-3.5 w-3.5" />
@@ -677,7 +721,7 @@ export function TerminalComposer({
             type="button"
             disabled={disabled}
             onClick={onToggleMobileKbd}
-            className={`sm:hidden h-8 w-8 flex items-center justify-center rounded-full transition-all shrink-0 ${
+            className={`sm:hidden h-8 w-8 flex items-center justify-center rounded-full transition-all shrink-0 mb-1 ${
               isMobileKbdActive
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-neutral-400 hover:text-emerald-400 active:bg-neutral-800'
@@ -694,7 +738,7 @@ export function TerminalComposer({
           type="button"
           disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
           onClick={() => handleSend()}
-          className="wa-send h-9 w-9 sm:h-9.5 sm:w-9.5 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5"
+          className="wa-send h-9 w-9 sm:h-9.5 sm:w-9.5 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5"
           title="Kirim ke terminal (Enter)"
           aria-label="Send input"
         >

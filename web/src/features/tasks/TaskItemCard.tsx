@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
+import { agentsApi } from '../../api/agents'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import './task-workspace.css'
@@ -142,11 +143,21 @@ export function TaskItemCard({
       if (onRetry) {
         await onRetry(currentTask)
       } else {
-        const agentId =
+        let agentId =
           currentTask.latest_attempt?.agent_name ||
           currentTask.assignee_id ||
           currentTask.assignee ||
           ''
+        if (!agentId) {
+          try {
+            const list = await agentsApi.list()
+            const eligible = list.find((a) => a.enabled !== false && a.status !== 'inactive')
+            if (eligible) agentId = eligible.id
+          } catch {}
+        }
+        if (!agentId) {
+          agentId = 'agy'
+        }
         const result = await tasksApi.runAgent(currentTask.id, {
           request_id: crypto.randomUUID(),
           agent_id: agentId,
