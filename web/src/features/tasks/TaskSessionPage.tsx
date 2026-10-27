@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Pin,
   PinOff,
+  ExternalLink,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -828,66 +829,154 @@ export function TaskSessionPage({
         )}
       <ActionDialog
         open={showDetail}
-        title="Detail"
+        title={t('Detail')}
         drawer
         onClose={() => setShowDetail(false)}
       >
         <div className="space-y-4">
-          <h3 className="break-words text-sm font-semibold">{detail.title}</h3>
-          <Link className="text-sm underline" to={taskURL} state={detailState}>
-            Open task details · {taskRef(taskId)}
-          </Link>
-          <button
-            className="action-secondary"
-            onClick={() => {
-              setShowDetail(false)
-              setShowTerminal(true)
-            }}
-          >
-            Open terminal
-          </button>
-          <button className="action-secondary" onClick={async () => {
-            try { await navigator.clipboard.writeText(window.location.href); setShareState('copied') }
-            catch { setShareState('failed') }
-          }}>Copy link</button>
-          {shareState !== 'idle' && <p role="status" className="text-xs text-muted-foreground">{shareState === 'copied' ? 'Link copied. Access to this workspace is still required.' : 'Could not copy the link. Copy it from your browser’s address bar.'}</p>}
-          <label className="block text-xs text-muted-foreground">
-            Session {attempt.attempt_number}
-            <select
-              aria-label="Select session"
-              className="field-control mt-1 text-sm"
-              value={sessionId}
-              onChange={(e) => {
-                navigate(
-                  basePath +
-                    '/sessions/' +
-                    encodeURIComponent(e.target.value) +
-                    suffix,
-                  { state },
-                )
+          {/* Header Card: Title, Status Badge, and Session Timestamp */}
+          <div className="rounded-xl border bg-muted/20 p-3 sm:p-4 space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+                  <Terminal className="h-4 w-4" />
+                </span>
+                <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
+                  {detail.title}
+                </h3>
+              </div>
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                  workStatusBadgeClass(status)
+                )}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                {statusLabel}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground pt-2 border-t border-border/40">
+              <span>
+                {t('Session')} {attempt.attempt_number}
+                {attempt.exit_code !== undefined && ` · Exit ${attempt.exit_code}`}
+              </span>
+              <span>·</span>
+              <span>
+                {new Date(attempt.started_at || attempt.created_at).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Action Toolbar: Clean secondary buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(window.location.href)
+                  setShareState('copied')
+                  setTimeout(() => setShareState('idle'), 2500)
+                } catch {
+                  setShareState('failed')
+                }
               }}
             >
-              {detail.attempts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  Session {a.attempt_number} · {attemptLabel(a)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="text-xs text-muted-foreground">
-            {attemptLabel(attempt)}
-            {attempt.exit_code !== undefined &&
-              ' · Exit ' + attempt.exit_code}{' '}
-            ·{' '}
-            {new Date(attempt.started_at || attempt.created_at).toLocaleString(
-              'en-US',
+              {shareState === 'copied' ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                  <span className="text-emerald-500 font-semibold">{t('Link copied')}</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>{t('Copy link')}</span>
+                </>
+              )}
+            </button>
+
+            <Link
+              to={taskURL}
+              state={detailState}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted active:scale-95 transition-all"
+            >
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{t('Open task details')} · {taskRef(taskId)}</span>
+            </Link>
+
+            {!showTerminal && (
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
+                onClick={() => {
+                  setShowDetail(false)
+                  setShowTerminal(true)
+                }}
+              >
+                <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>{t('Open terminal')}</span>
+              </button>
             )}
-          </p>
-          {attempt.error_message && (
-            <p className="break-words text-sm text-destructive">
-              {attempt.error_message}
+          </div>
+          {shareState === 'failed' && (
+            <p role="status" className="text-xs text-destructive">
+              {t('Could not copy the link. Copy it from your browser’s address bar.')}
             </p>
           )}
+
+          {/* Session Switcher (Only shown if there are multiple attempts) */}
+          {detail.attempts.length > 1 && (
+            <label className="block text-xs text-muted-foreground space-y-1">
+              <span className="font-medium">{t('Switch session')}</span>
+              <select
+                aria-label="Select session"
+                className="field-control text-sm"
+                value={sessionId}
+                onChange={(e) => {
+                  navigate(
+                    basePath +
+                      '/sessions/' +
+                      encodeURIComponent(e.target.value) +
+                      suffix,
+                    { state },
+                  )
+                }}
+              >
+                {detail.attempts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    Session {a.attempt_number} · {attemptLabel(a)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {attempt.error_message && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive break-words">
+              {attempt.error_message}
+            </div>
+          )}
+
+          {/* Dedicated Terminal Info Card (if terminal task) */}
+          {isDedicatedTerminal && (
+            <div className="rounded-xl border bg-muted/10 p-3 text-xs text-muted-foreground space-y-1.5">
+              <div className="flex items-center gap-1.5 font-medium text-foreground">
+                <Info className="h-3.5 w-3.5 text-primary" />
+                <span>{t('Dedicated Project Terminal')}</span>
+              </div>
+              <p className="leading-relaxed">
+                {t('This session provides an interactive PTY shell directly connected to the workspace. Output is streamed live and preserved automatically.')}
+              </p>
+            </div>
+          )}
+
           {latest && checklist.length > 0 && (
             <details className="rounded-lg border p-3">
               <summary className="cursor-pointer text-sm font-medium">
@@ -938,39 +1027,43 @@ export function TaskSessionPage({
               <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Verification</summary>
               <div className="pb-2 pt-1"><ChatMarkdown content={detail.complete_note} /></div>
             </details>}
-            <details className="rounded-lg border px-3 py-2">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Your request</summary>
-              <div className="pb-2 pt-1"><ChatMarkdown content={detail.description || detail.title} /></div>
-            </details>
-
-          <aside aria-label="Agent report">
-            <h3 className="mb-3 text-sm font-semibold">Agent report</h3>
-            {!reports.length ? (
-              <p className="text-sm text-muted-foreground">
-                {active
-                  ? 'Waiting for the agent’s first checkpoint.'
-                  : 'No structured report was recorded. Check the saved output.'}
-              </p>
-            ) : (
-              <ol className="space-y-3">
-                {reports.map((r) => (
-                  <li key={r.id} className="rounded-lg border p-3">
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      {r.new_status === 'done'
-                        ? 'Completed'
-                        : r.new_status === 'review'
-                          ? 'Result ready'
-                          : r.new_status === 'blocked'
-                            ? 'Blocker'
-                            : 'Progress'}{' '}
-                      · {new Date(r.created_at).toLocaleTimeString('en-US')}
-                    </p>
-                    <ChatMarkdown content={r.message} />
-                  </li>
-                ))}
-              </ol>
+            {(!isDedicatedTerminal || (detail.description && detail.description !== detail.title)) && (
+              <details className="rounded-lg border px-3 py-2">
+                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Your request</summary>
+                <div className="pb-2 pt-1"><ChatMarkdown content={detail.description || detail.title} /></div>
+              </details>
             )}
-          </aside>
+
+          {(!isDedicatedTerminal || reports.length > 0) && (
+            <aside aria-label="Agent report">
+              <h3 className="mb-3 text-sm font-semibold">Agent report</h3>
+              {!reports.length ? (
+                <p className="text-sm text-muted-foreground">
+                  {active
+                    ? 'Waiting for the agent’s first checkpoint.'
+                    : 'No structured report was recorded. Check the saved output.'}
+                </p>
+              ) : (
+                <ol className="space-y-3">
+                  {reports.map((r) => (
+                    <li key={r.id} className="rounded-lg border p-3">
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        {r.new_status === 'done'
+                          ? 'Completed'
+                          : r.new_status === 'review'
+                            ? 'Result ready'
+                            : r.new_status === 'blocked'
+                              ? 'Blocker'
+                              : 'Progress'}{' '}
+                        · {new Date(r.created_at).toLocaleTimeString('en-US')}
+                      </p>
+                      <ChatMarkdown content={r.message} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </aside>
+          )}
         </div>
       </ActionDialog>
       <ActionDialog
