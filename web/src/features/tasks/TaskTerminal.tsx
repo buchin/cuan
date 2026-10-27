@@ -376,7 +376,7 @@ export function TaskTerminal({
             interactive.current = enabled
             setInput(enabled)
             t.options.disableStdin = !enabled
-            t.options.cursorBlink = enabled
+            t.options.cursorBlink = false
             setConnection('connected')
             setNotice('')
             setError('')
@@ -395,7 +395,7 @@ export function TaskTerminal({
             interactive.current = enabled
             setInput(enabled)
             t.options.disableStdin = !enabled
-            t.options.cursorBlink = enabled
+            t.options.cursorBlink = false
           } else if (data.type === 'error') {
             setError(data.message || 'Terminal request failed.')
           }
@@ -466,6 +466,8 @@ export function TaskTerminal({
           convertEol: true,
           disableStdin: true,
           cursorBlink: false,
+          cursorStyle: 'bar',
+          cursorInactiveStyle: 'none',
           allowProposedApi: false,
           scrollOnUserInput: false,
           reflowCursorLine: true,
@@ -473,6 +475,8 @@ export function TaskTerminal({
             background: '#141414',
             foreground: '#e5e5e5',
             selectionBackground: '#3b82f655',
+            cursor: 'transparent',
+            cursorAccent: 'transparent',
           },
         })
 
