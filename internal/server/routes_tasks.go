@@ -37,6 +37,7 @@ func (s *Server) registerTaskRoutes(pr chi.Router) {
 	pr.Post("/tasks/{id}/apply", s.handleApplyTask)
 	pr.Get("/tasks/{id}/attempts/{attemptId}/logs", s.handleGetAttemptLogs)
 	pr.Post("/tasks/{id}/files", s.handleUploadTaskFile)
+	pr.Get("/tasks/{id}/files/raw", s.handleGetTaskWorkspaceFile)
 	pr.Get("/tasks/{id}/usage", s.handleGetTaskUsage)
 	pr.Get("/tasks/{id}/diff", s.handleGetTaskDiff)
 
@@ -114,12 +115,15 @@ func (s *Server) registerTasksV1Routes(r chi.Router) {
 
 	// Workspace File Upload & Task Usage API (Sprint 43)
 	r.Post("/api/tasks/{id}/files", s.handleUploadTaskFile)
+	r.Get("/api/tasks/{id}/files/raw", s.handleGetTaskWorkspaceFile)
 	r.Get("/api/tasks/{id}/usage", s.handleGetTaskUsage)
 	r.Get("/api/tasks/{id}/diff", s.handleGetTaskDiff)
 	r.Post("/tasks/{id}/files", s.handleUploadTaskFile)
+	r.Get("/tasks/{id}/files/raw", s.handleGetTaskWorkspaceFile)
 	r.Get("/tasks/{id}/usage", s.handleGetTaskUsage)
 	r.Get("/tasks/{id}/diff", s.handleGetTaskDiff)
 	r.Post("/api/v1/tasks/{id}/files", s.handleUploadTaskFile)
+	r.Get("/api/v1/tasks/{id}/files/raw", s.handleGetTaskWorkspaceFile)
 	r.Get("/api/v1/tasks/{id}/usage", s.handleGetTaskUsage)
 	r.Get("/api/v1/tasks/{id}/diff", s.handleGetTaskDiff)
 }

@@ -17,6 +17,8 @@ import {
   LoaderCircle,
   Check,
   ChevronRight,
+  Mic,
+  MicOff,
 } from 'lucide-react'
 import { getAuthToken } from '../../../api/client'
 import { ActionDialog } from '../../../components/dialogs/ActionDialog'
@@ -101,6 +103,19 @@ export function TerminalComposer({
   const photosInputRef = useRef<HTMLInputElement>(null)
   const filesInputRef = useRef<HTMLInputElement>(null)
 
+  // Speech-to-Text (Voice Dictation)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      setSpeechSupported(Boolean(SpeechRecognition))
+    }
+  }, [])
+
   // Auto-resize textarea to match Inbox experience (min 36-38px, max 140px, auto overflow)
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto'
@@ -117,6 +132,100 @@ export function TerminalComposer({
     el.style.height = newH + 'px'
     el.style.overflowY = scrollH > cap ? 'auto' : 'hidden'
   }
+
+  // Restore draft prompt from localStorage on mount
+  useEffect(() => {
+    try {
+      const draft = localStorage.getItem(`cuan_task_draft_${taskId}`)
+      if (draft && !text) {
+        setText(draft)
+        if (textareaRef.current) {
+          setTimeout(() => {
+            if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+          }, 0)
+        }
+      }
+    } catch {}
+  }, [taskId])
+
+  // Autosave draft prompt (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        if (text.trim()) {
+          localStorage.setItem(`cuan_task_draft_${taskId}`, text)
+        } else {
+          localStorage.removeItem(`cuan_task_draft_${taskId}`)
+        }
+      } catch {}
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [text, taskId])
+
+  // Toggle Voice Dictation (Speech to Text)
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {}
+      }
+      setIsListening(false)
+      return
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    try {
+      const recognition = new SpeechRecognition()
+      recognitionRef.current = recognition
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = navigator.language || 'id-ID'
+
+      recognition.onstart = () => {
+        setIsListening(true)
+      }
+
+      recognition.onresult = (event: any) => {
+        let interim = ''
+        let final = ''
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript
+          } else {
+            interim += event.results[i][0].transcript
+          }
+        }
+        const transcript = (final || interim).trim()
+        if (transcript) {
+          setText((prev) => {
+            const base = prev.trim()
+            return base ? `${base} ${transcript}` : transcript
+          })
+          if (textareaRef.current) {
+            setTimeout(() => {
+              if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+            }, 0)
+          }
+        }
+      }
+
+      recognition.onerror = () => {
+        setIsListening(false)
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+      }
+
+      recognition.start()
+    } catch {
+      setIsListening(false)
+    }
+  }, [isListening])
 
   // Revoke object URLs on unmount or file removal
   useEffect(() => {
@@ -254,6 +363,9 @@ export function TerminalComposer({
     }, 40)
     setText('')
     setShowSlashPopup(false)
+    try {
+      localStorage.removeItem(`cuan_task_draft_${taskId}`)
+    } catch {}
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -341,6 +453,24 @@ export function TerminalComposer({
           if (textareaRef.current) textareaRef.current.style.height = 'auto'
         }
       }
+    }
+  }
+
+  // Intercept pasted images from clipboard directly into the composer
+  const handleTextareaPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items || items.length === 0) return
+    const imageFiles: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) imageFiles.push(file)
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault()
+      void handleFileUpload(imageFiles)
     }
   }
 
@@ -680,6 +810,7 @@ export function TerminalComposer({
             value={text}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onPaste={handleTextareaPaste}
             placeholder={
               uploading
                 ? 'Mengunggah file ke workspace…'
@@ -730,6 +861,24 @@ export function TerminalComposer({
             aria-label="Toggle terminal keys"
           >
             <Keyboard className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Voice Dictation (Speech-to-Text) Button */}
+        {speechSupported && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={toggleListening}
+            className={`h-9 w-9 rounded-full flex items-center justify-center transition-all shrink-0 mb-0.5 ${
+              isListening
+                ? 'bg-rose-600 text-white animate-pulse shadow-md'
+                : 'text-neutral-400 hover:text-emerald-400 hover:bg-neutral-800'
+            }`}
+            title={isListening ? 'Hentikan dikte suara' : 'Dikte suara (Speech-to-Text)'}
+            aria-label="Voice input"
+          >
+            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </button>
         )}
 

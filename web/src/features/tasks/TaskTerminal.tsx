@@ -27,6 +27,8 @@ import './task-workspace.css'
 import { MobileTerminalKeyboard } from './terminal/MobileTerminalKeyboard'
 import { TerminalContextMenu } from './terminal/TerminalContextMenu'
 import { TerminalComposer } from './terminal/TerminalComposer'
+import { FilePreviewModal } from '../../components/dialogs/FilePreviewModal'
+import type { Attachment } from '../inbox/Attachments'
 
 export function TaskTerminal({
   taskId,
@@ -68,6 +70,23 @@ export function TaskTerminal({
     y: 0,
   })
   const [isMobileKeyboardActive, setIsMobileKeyboardActive] = useState(false)
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null)
+
+  const handlePreviewFile = useCallback(
+    (filePath: string) => {
+      const clean = filePath.replace(/^['"`(]+|[)'"`]+$/g, '').trim()
+      if (!clean) return
+      const name = clean.split('/').pop() || clean
+      setPreviewAttachment({
+        id: clean,
+        name,
+        type: '',
+        size: 0,
+        url: `/api/v1/tasks/${encodeURIComponent(taskId)}/files/raw?path=${encodeURIComponent(clean)}`,
+      })
+    },
+    [taskId],
+  )
 
   const following = useRef(true)
   const interactive = useRef(false)
@@ -299,6 +318,8 @@ export function TaskTerminal({
     let resize: ResizeObserver | undefined
     let cleanupTouch: (() => void) | undefined
     let terminal: Terminal | undefined
+    let linkDisposable: { dispose: () => void } | undefined
+    let ptyResizeTimer: ReturnType<typeof setTimeout> | null = null
 
     setConnection('loading')
     setError('')
@@ -458,10 +479,22 @@ export function TaskTerminal({
 
         const isMobileScreen =
           typeof window !== 'undefined' && window.innerWidth < 480
+        const terminalFontSize = isMobileScreen ? 12 : 13
+
+        // Font gate: wait for terminal font face to be ready before computing metrics
+        try {
+          if (typeof document !== 'undefined' && document.fonts?.load) {
+            await document.fonts.load(`${terminalFontSize}px "Geist Mono Variable"`)
+          }
+        } catch {}
+
+        if (disposed || !mount.current) return
+
         terminal = new XtermTerminal({
           fontFamily: "'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace",
-          fontSize: isMobileScreen ? 12 : 13,
+          fontSize: terminalFontSize,
           lineHeight: 1.2,
+          letterSpacing: 0,
           scrollback: 10000,
           convertEol: true,
           disableStdin: true,
@@ -484,32 +517,122 @@ export function TaskTerminal({
         fitRef.current = fit
         terminal.loadAddon(fit)
 
-        // Enable clickable web links inside terminal
-        const webLinks = new WebLinksAddon()
+        // Clickable web links & file preview links
+        const webLinks = new WebLinksAddon((_event: MouseEvent, uri: string) => {
+          if (uri.startsWith('http://') || uri.startsWith('https://')) {
+            window.open(uri, '_blank', 'noopener,noreferrer')
+          } else {
+            handlePreviewFile(uri)
+          }
+        })
         terminal.loadAddon(webLinks)
+
+        // Custom Link Provider for workspace file paths (code, images, docs) in terminal output
+        const fileRegex = /(?:[\w.-]+\/)*[\w.-]+\.(?:md|json|ts|tsx|js|jsx|go|py|html|css|txt|csv|png|jpg|jpeg|svg|webp|gif|sh|yml|yaml|sql)\b/gi
+        try {
+          linkDisposable = terminal.registerLinkProvider({
+            provideLinks(bufferLineNumber: number, callback: (links: any[] | undefined) => void) {
+              const line = terminal?.buffer.active.getLine(bufferLineNumber - 1)
+              if (!line) {
+                callback(undefined)
+                return
+              }
+              const lineText = line.translateToString(true)
+              fileRegex.lastIndex = 0
+              const found: any[] = []
+              let m: RegExpExecArray | null
+              while ((m = fileRegex.exec(lineText)) !== null) {
+                const matched = m[0]
+                if (matched.startsWith('http://') || matched.startsWith('https://')) continue
+                found.push({
+                  range: {
+                    start: { x: m.index + 1, y: bufferLineNumber },
+                    end: { x: m.index + matched.length, y: bufferLineNumber },
+                  },
+                  text: matched,
+                  decorations: { underline: true, pointerCursor: true },
+                  activate: (_e: MouseEvent, text: string) => handlePreviewFile(text),
+                })
+              }
+              callback(found.length > 0 ? found : undefined)
+            },
+          })
+        } catch {}
 
         terminal.open(mount.current)
         term.current = terminal
 
+        // Prevent iOS Safari auto-zoom on textarea focus
+        if (terminal.textarea) {
+          terminal.textarea.style.fontSize = '16px'
+          terminal.textarea.setAttribute('autocorrect', 'off')
+          terminal.textarea.setAttribute('autocapitalize', 'none')
+          terminal.textarea.setAttribute('spellcheck', 'false')
+        }
+
+        // Live screen cell metrics helper
+        const cellMetrics = (t: Terminal) => {
+          const screen = t.element?.querySelector('.xterm-screen') as HTMLElement | null
+          if (screen && t.cols > 0 && t.rows > 0) {
+            try {
+              const rect = screen.getBoundingClientRect()
+              if (rect.width >= t.cols && rect.height >= t.rows) {
+                return {
+                  width: rect.width / t.cols,
+                  height: rect.height / t.rows,
+                }
+              }
+            } catch {}
+          }
+          const core = (t as any)._core
+          const width = core?._renderService?.dimensions?.css?.cell?.width ?? 0
+          const height = core?._renderService?.dimensions?.css?.cell?.height ?? 0
+          if (width > 0 && height > 0) return { width, height }
+          return { width: terminalFontSize * 0.6, height: terminalFontSize * 1.2 }
+        }
+
+        const schedulePtyResize = (cols: number, rows: number) => {
+          if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
+          ptyResizeTimer = setTimeout(() => {
+            const ws = socket.current
+            if (ws?.readyState === WebSocket.OPEN && terminal) {
+              ws.send(JSON.stringify({ type: 'resize', cols, rows }))
+            }
+          }, 60)
+        }
+
+        // Fural-style precision cell fitting with subpixel cell reclaim
         const fitTerminal = () => {
           if (
             disposed ||
             !mount.current?.clientWidth ||
-            !mount.current?.clientHeight
+            !mount.current?.clientHeight ||
+            !terminal
           )
             return
           try {
-            fit.fit()
-            const ws = socket.current
-            if (ws?.readyState === WebSocket.OPEN && terminal) {
-              ws.send(
-                JSON.stringify({
-                  type: 'resize',
-                  cols: terminal.cols,
-                  rows: terminal.rows,
-                }),
-              )
+            const widthPx = mount.current.clientWidth
+            const heightPx = mount.current.clientHeight
+            const { width: cellW, height: cellH } = cellMetrics(terminal)
+            if (cellW > 0 && cellH > 0) {
+              let cols = Math.max(2, Math.floor(widthPx / cellW))
+              let rows = Math.max(1, Math.floor(heightPx / cellH))
+
+              // Fural cell reclaim: if leftover margin > 2/3 cell width/height, absorb extra col/row
+              if (widthPx - cols * cellW > cellW * (2 / 3)) {
+                cols += 1
+              }
+              if (heightPx - rows * cellH > cellH * (2 / 3)) {
+                rows += 1
+              }
+
+              if (terminal.cols !== cols || terminal.rows !== rows) {
+                terminal.resize(cols, rows)
+              }
+            } else {
+              fit.fit()
             }
+            schedulePtyResize(terminal.cols, terminal.rows)
           } catch {
             /* Detached during responsive navigation */
           }
@@ -725,6 +848,8 @@ export function TaskTerminal({
       disposed = true
       cleanupTouch?.()
       resize?.disconnect()
+      linkDisposable?.dispose()
+      if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
       if (socket.current) {
@@ -1087,6 +1212,7 @@ export function TaskTerminal({
         x={contextMenu.x}
         y={contextMenu.y}
         hasSelection={Boolean(term.current?.getSelection())}
+        selectedText={term.current?.getSelection() || ''}
         isFullscreen={isFullscreen}
         onClose={() => setContextMenu((c) => ({ ...c, isOpen: false }))}
         onCopy={handleCopy}
@@ -1095,8 +1221,24 @@ export function TaskTerminal({
         onClear={handleClear}
         onInterrupt={handleInterrupt}
         onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
+        onPreviewFile={handlePreviewFile}
         t={t}
       />
+
+      {/* Inline File Preview Modal for files clicked or requested in workspace */}
+      {previewAttachment && (
+        <FilePreviewModal
+          open={Boolean(previewAttachment)}
+          attachment={previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+          onDownload={() => {
+            window.open(
+              `/api/v1/tasks/${encodeURIComponent(taskId)}/files/raw?path=${encodeURIComponent(previewAttachment.id)}&download=1`,
+              '_blank',
+            )
+          }}
+        />
+      )}
 
       {/* Universal Modern Terminal Composer Capsule (Desktop & Mobile) */}
       {liveId && (

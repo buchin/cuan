@@ -1,11 +1,19 @@
 import { useEffect, useRef } from 'react'
-import { Copy, Clipboard, Ban, Trash2, CheckSquare, Maximize2, Minimize2 } from 'lucide-react'
+import { Copy, Clipboard, Ban, Trash2, CheckSquare, Maximize2, Minimize2, Eye } from 'lucide-react'
+
+export function isLikelyFilePath(text: string): boolean {
+  if (!text || text.length > 200 || text.includes('\n') || text.includes(' ')) return false
+  const trimmed = text.trim().replace(/^['"`(]+|[)'"`]+$/g, '')
+  const fileExtRegex = /\.(md|json|ts|tsx|js|jsx|go|py|html|css|txt|csv|png|jpg|jpeg|svg|webp|gif|sh|yml|yaml|sql)$/i
+  return fileExtRegex.test(trimmed)
+}
 
 export type TerminalContextMenuProps = {
   isOpen: boolean
   x: number
   y: number
   hasSelection: boolean
+  selectedText?: string
   isFullscreen: boolean
   onClose: () => void
   onCopy: () => void
@@ -14,6 +22,7 @@ export type TerminalContextMenuProps = {
   onClear: () => void
   onInterrupt: () => void
   onToggleFullscreen: () => void
+  onPreviewFile?: (filePath: string) => void
   t: (key: string) => string
 }
 
@@ -22,6 +31,7 @@ export function TerminalContextMenu({
   x,
   y,
   hasSelection,
+  selectedText = '',
   isFullscreen,
   onClose,
   onCopy,
@@ -30,6 +40,7 @@ export function TerminalContextMenu({
   onClear,
   onInterrupt,
   onToggleFullscreen,
+  onPreviewFile,
   t,
 }: TerminalContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -82,6 +93,20 @@ export function TerminalContextMenu({
         <Copy className="h-3.5 w-3.5 text-neutral-400" />
         <span>{hasSelection ? t('Copy selection') : t('Copy all output')}</span>
       </button>
+
+      {hasSelection && isLikelyFilePath(selectedText) && onPreviewFile && (
+        <button
+          type="button"
+          onClick={() => {
+            onPreviewFile(selectedText.trim().replace(/^['"`(]+|[)'"`]+$/g, ''))
+            onClose()
+          }}
+          className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-emerald-400 font-medium transition-colors hover:bg-emerald-950/40 active:bg-emerald-800 active:text-white"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          <span className="truncate">Preview "{selectedText.trim().replace(/^['"`(]+|[)'"`]+$/g, '')}"</span>
+        </button>
+      )}
 
       <button
         type="button"

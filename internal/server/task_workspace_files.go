@@ -161,6 +161,68 @@ func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetTaskWorkspaceFile serves a file from the task's execution workspace for inline previewing or downloading.
+// GET /api/v1/tasks/{id}/files/raw?path=relative/file/path
+func (s *Server) handleGetTaskWorkspaceFile(w http.ResponseWriter, r *http.Request) {
+	rawTaskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawTaskID == "" {
+		respondJSONError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
+
+	_, workDir, err := s.resolveTaskExecutionWorkspace(r.Context(), rawTaskID)
+	if err != nil || workDir == "" {
+		respondJSONError(w, http.StatusNotFound, "task workspace not found")
+		return
+	}
+
+	rawPath := strings.TrimSpace(r.URL.Query().Get("path"))
+	if rawPath == "" {
+		respondJSONError(w, http.StatusBadRequest, "path query parameter is required")
+		return
+	}
+
+	// Normalize and clean path to prevent directory traversal
+	cleanRel := filepath.Clean(rawPath)
+	cleanRel = strings.TrimPrefix(cleanRel, "/")
+	cleanRel = strings.TrimPrefix(cleanRel, "./")
+	if cleanRel == "" || cleanRel == "." || strings.HasPrefix(cleanRel, "..") {
+		respondJSONError(w, http.StatusForbidden, "invalid file path")
+		return
+	}
+
+	fullPath := filepath.Join(workDir, cleanRel)
+	rel, err := filepath.Rel(workDir, fullPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		respondJSONError(w, http.StatusForbidden, "file path outside workspace")
+		return
+	}
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			respondJSONError(w, http.StatusNotFound, "file not found in task workspace")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to read file: "+err.Error())
+		return
+	}
+	if info.IsDir() {
+		respondJSONError(w, http.StatusBadRequest, "requested path is a directory")
+		return
+	}
+
+	// Set inline preview headers
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	if r.URL.Query().Get("download") == "1" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(cleanRel)))
+	} else {
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, filepath.Base(cleanRel)))
+	}
+
+	http.ServeFile(w, r, fullPath)
+}
+
 // handleGetTaskUsage returns real-time execution statistics for a task session.
 // GET /api/v1/tasks/{id}/usage
 func (s *Server) handleGetTaskUsage(w http.ResponseWriter, r *http.Request) {
