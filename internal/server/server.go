@@ -553,6 +553,19 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		router:                 r,
 	}
 
+	_ = sched.Register(&scheduler.Job{
+		ID:           "cleanup_stale_anonymous_contacts",
+		Name:         "Pembersihan Kontak Anonim Usang",
+		Description:  "Menghapus sesi kontak pengunjung anonim tanpa pesan yang berusia lebih dari 24 jam",
+		ScheduleType: scheduler.ScheduleDaily,
+		TimeOfDay:    "04:00",
+		Enabled:      true,
+		Handler: func(ctx context.Context) error {
+			_, err := s.PruneStaleAnonymousContacts(ctx, 24*time.Hour)
+			return err
+		},
+	})
+
 	termHandler.SetTaskResolver(s.resolveTaskID)
 	tSvc.SetProjectFinder(liveProjectFinder{server: s})
 	s.configureSharedGitHubAccess()

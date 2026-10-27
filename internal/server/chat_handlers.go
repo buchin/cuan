@@ -202,70 +202,119 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 	}
 	product := strings.TrimSpace(payload.Product)
 	name := strings.TrimSpace(payload.Name)
-	contact, err := s.crmUpsert(r.Context(), guestUUID, product, name, email)
-	if err != nil {
-		respondJSONError(w, 503, "Could not save the session")
-		return
-	}
-	sessionUUID := contact.SessionUUID
-	name = contact.Name
-	if name == "" {
-		name = "Visitor #" + contact.ID[:6]
-	}
-	email = contact.Email
+	msgText := strings.TrimSpace(payload.Message)
+
+	// Check if this visitor is already an existing known contact
+	existingContact, findErr := s.crmFindByGuest(r.Context(), product, guestUUID)
+	isKnownContact := findErr == nil && existingContact.ID != ""
+
+	guestKey := product + "\x00" + guestUUID
+	globalChatManager.RLock()
+	existingLive := globalChatManager.sessionByGuest[guestKey]
+	globalChatManager.RUnlock()
+
+	var sessionUUID string
+	var liveSession *LiveChatSession
 	now := time.Now().UTC()
-	liveSession := &LiveChatSession{
-		UUID:        sessionUUID,
-		GuestUUID:   guestUUID,
-		Product:     strings.TrimSpace(payload.Product),
-		Name:        name,
-		Email:       email,
-		CurrentURL:  payload.CurrentURL,
-		PageTitle:   payload.PageTitle,
-		ReferrerURL: payload.ReferrerURL,
-		Status:      "active",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+
+	// If visitor provides identity (name or email) OR an initial message OR is already known in CRM:
+	if name != "" || email != "" || msgText != "" || isKnownContact {
+		existingSessionUUID := ""
+		if existingLive != nil && existingLive.Product == product {
+			existingSessionUUID = existingLive.UUID
+		}
+		contact, err := s.crmUpsertWithSession(r.Context(), guestUUID, product, name, email, existingSessionUUID)
+		if err != nil {
+			respondJSONError(w, 503, "Could not save the session")
+			return
+		}
+		sessionUUID = contact.SessionUUID
+		name = contact.Name
+		if name == "" {
+			name = "Visitor #" + contact.ID[:6]
+		}
+		email = contact.Email
+		liveSession = &LiveChatSession{
+			UUID:        sessionUUID,
+			GuestUUID:   guestUUID,
+			Product:     product,
+			Name:        name,
+			Email:       email,
+			CurrentURL:  payload.CurrentURL,
+			PageTitle:   payload.PageTitle,
+			ReferrerURL: payload.ReferrerURL,
+			Status:      "active",
+			CreatedAt:   contact.CreatedAt,
+			UpdatedAt:   now,
+		}
+
+		// Ensure backing database room
+		if s.projectStudioRepo != nil {
+			if _, err := s.projectStudioRepo.GetRoomByID(r.Context(), sessionUUID); err != nil {
+				if err := s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
+					ID:        sessionUUID,
+					ProjectID: "default",
+					Title:     name,
+					Topic:     liveSession.Product,
+					CreatedAt: now,
+					UpdatedAt: now,
+				}); err != nil {
+					respondJSONError(w, 503, "Could not save the conversation")
+					return
+				}
+			}
+
+			// If initial message provided in session payload
+			if msgText != "" {
+				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
+					ID:         db.GenerateUUID(),
+					RoomID:     sessionUUID,
+					AuthorType: "user",
+					AuthorID:   guestUUID,
+					AuthorName: name,
+					Content:    msgText,
+					CreatedAt:  now,
+					UpdatedAt:  now,
+				}); err != nil {
+					respondJSONError(w, 503, "Message could not be saved")
+					return
+				}
+			}
+		}
+	} else {
+		// Transient anonymous visitor session: do not write to crm_contacts or project_rooms yet.
+		if existingLive != nil && existingLive.Product == product {
+			sessionUUID = existingLive.UUID
+			name = existingLive.Name
+			liveSession = existingLive
+			liveSession.CurrentURL = payload.CurrentURL
+			liveSession.PageTitle = payload.PageTitle
+			liveSession.ReferrerURL = payload.ReferrerURL
+			liveSession.UpdatedAt = now
+			liveSession.Status = "active"
+		} else {
+			sessionUUID = db.GenerateUUID()
+			name = "Visitor #" + sessionUUID[:6]
+			liveSession = &LiveChatSession{
+				UUID:        sessionUUID,
+				GuestUUID:   guestUUID,
+				Product:     product,
+				Name:        name,
+				Email:       "",
+				CurrentURL:  payload.CurrentURL,
+				PageTitle:   payload.PageTitle,
+				ReferrerURL: payload.ReferrerURL,
+				Status:      "active",
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+		}
 	}
 
 	globalChatManager.Lock()
 	globalChatManager.sessions[sessionUUID] = liveSession
-	globalChatManager.sessionByGuest[guestUUID] = liveSession
+	globalChatManager.sessionByGuest[guestKey] = liveSession
 	globalChatManager.Unlock()
-
-	// Ensure backing database room
-	if s.projectStudioRepo != nil {
-		if _, err := s.projectStudioRepo.GetRoomByID(r.Context(), sessionUUID); err != nil {
-			if err := s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
-				ID:        sessionUUID,
-				ProjectID: "default",
-				Title:     name,
-				Topic:     liveSession.Product,
-				CreatedAt: now,
-				UpdatedAt: now,
-			}); err != nil {
-				respondJSONError(w, 503, "Could not save the conversation")
-				return
-			}
-		}
-
-		// If initial message provided in session payload
-		if text := strings.TrimSpace(payload.Message); text != "" {
-			if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-				ID:         db.GenerateUUID(),
-				RoomID:     sessionUUID,
-				AuthorType: "user",
-				AuthorID:   guestUUID,
-				AuthorName: name,
-				Content:    text,
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			}); err != nil {
-				respondJSONError(w, 503, "Message could not be saved")
-				return
-			}
-		}
-	}
 
 	// Fetch existing messages for session
 	messages := s.getFormattedMessages(r.Context(), sessionUUID, liveSession.Product)
@@ -377,6 +426,19 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 	if sess != nil {
 		authorName = sess.Name
 		product = sess.Product
+	}
+
+	// Promote transient session to persistent CRM contact on first message
+	if sess != nil {
+		if _, findErr := s.crmFindByGuest(r.Context(), product, sess.GuestUUID); findErr != nil {
+			contact, upsertErr := s.crmUpsertWithSession(r.Context(), sess.GuestUUID, product, sess.Name, sess.Email, sess.UUID)
+			if upsertErr == nil {
+				if sess.Name == "" || strings.HasPrefix(sess.Name, "Visitor #") {
+					authorName = "Visitor #" + contact.ID[:6]
+					sess.Name = authorName
+				}
+			}
+		}
 	}
 
 	now := time.Now().UTC()

@@ -51,7 +51,10 @@ func scanCRM(row interface{ Scan(...any) error }) (CRMContact, error) {
 
 const crmColumns = `id,product,guest_uuid,session_uuid,name,email,tags,created_at,updated_at`
 
-func (s *Server) crmUpsert(ctx context.Context, guest, product, name, email string) (contact CRMContact, resultErr error) {
+func (s *Server) crmUpsertWithSession(ctx context.Context, guest, product, name, email, sessionUUID string) (contact CRMContact, resultErr error) {
+	if sessionUUID == "" {
+		sessionUUID = db.GenerateUUID()
+	}
 	draft := struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
@@ -70,7 +73,7 @@ func (s *Server) crmUpsert(ctx context.Context, guest, product, name, email stri
 			s.publishExtension(ctx, "contact.saved", contact.ID, "", contact.UpdatedAt)
 		}
 	}()
-	c := CRMContact{ID: db.GenerateUUID(), Product: product, GuestUUID: guest, SessionUUID: db.GenerateUUID(), Name: name, Email: email, Tags: []string{}, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	c := CRMContact{ID: db.GenerateUUID(), Product: product, GuestUUID: guest, SessionUUID: sessionUUID, Name: name, Email: email, Tags: []string{}, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	if s.db != nil {
 		return scanCRM(s.db.QueryRowContext(ctx, `INSERT INTO crm_contacts(id,product,guest_uuid,session_uuid,name,email) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(product,guest_uuid) DO UPDATE SET name=CASE WHEN $5='' THEN crm_contacts.name ELSE $5 END,email=CASE WHEN $6='' THEN crm_contacts.email ELSE $6 END,updated_at=NOW() RETURNING `+crmColumns, c.ID, product, guest, c.SessionUUID, name, email))
 	}
@@ -90,10 +93,38 @@ func (s *Server) crmUpsert(ctx context.Context, guest, product, name, email stri
 	s.crm.contacts[key] = c
 	return c, nil
 }
+
+func (s *Server) crmUpsert(ctx context.Context, guest, product, name, email string) (contact CRMContact, resultErr error) {
+	return s.crmUpsertWithSession(ctx, guest, product, name, email, db.GenerateUUID())
+}
+
+func (s *Server) crmFindByGuest(ctx context.Context, product, guest string) (CRMContact, error) {
+	if s.db != nil {
+		return scanCRM(s.db.QueryRowContext(ctx, `SELECT `+crmColumns+` FROM crm_contacts WHERE product=$1 AND guest_uuid=$2`, product, guest))
+	}
+	s.crm.Lock()
+	defer s.crm.Unlock()
+	key := product + "\x00" + guest
+	if c, ok := s.crm.contacts[key]; ok {
+		return c, nil
+	}
+	return CRMContact{}, sql.ErrNoRows
+}
+
+func (s *Server) hasMessages(roomID string) bool {
+	if s.projectStudioRepo != nil {
+		msgs, err := s.projectStudioRepo.ListMessagesByRoomID(context.Background(), roomID)
+		return err == nil && len(msgs) > 0
+	}
+	return false
+}
+
 func (s *Server) crmList(ctx context.Context) ([]CRMContact, error) {
 	out := []CRMContact{}
 	if s.db != nil {
-		rows, err := s.db.QueryContext(ctx, `SELECT `+crmColumns+` FROM crm_contacts ORDER BY updated_at DESC`)
+		rows, err := s.db.QueryContext(ctx, `SELECT `+crmColumns+` FROM crm_contacts c
+WHERE (c.name != '' OR c.email != '' OR EXISTS (SELECT 1 FROM project_messages m WHERE m.room_id = c.session_uuid))
+ORDER BY c.updated_at DESC`)
 		if err != nil {
 			return nil, err
 		}
@@ -110,23 +141,24 @@ func (s *Server) crmList(ctx context.Context) ([]CRMContact, error) {
 	s.crm.Lock()
 	defer s.crm.Unlock()
 	for _, c := range s.crm.contacts {
-		out = append(out, c)
+		if c.Name != "" || c.Email != "" || s.hasMessages(c.SessionUUID) {
+			out = append(out, c)
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
 	return out, nil
 }
 func (s *Server) crmSession(ctx context.Context, id string) (*LiveChatSession, error) {
 	var c CRMContact
+	found := false
 	if s.db != nil {
 		var err error
 		c, err = scanCRM(s.db.QueryRowContext(ctx, `SELECT `+crmColumns+` FROM crm_contacts WHERE session_uuid::text=$1`, id))
-		if err != nil {
-			return nil, err
+		if err == nil {
+			found = true
 		}
 	} else {
 		s.crm.Lock()
-		defer s.crm.Unlock()
-		found := false
 		for _, v := range s.crm.contacts {
 			if v.SessionUUID == id {
 				c = v
@@ -134,14 +166,24 @@ func (s *Server) crmSession(ctx context.Context, id string) (*LiveChatSession, e
 				break
 			}
 		}
-		if !found {
-			return nil, sql.ErrNoRows
+		s.crm.Unlock()
+	}
+	if found {
+		if c.Name == "" {
+			c.Name = "Visitor #" + c.ID[:6]
 		}
+		return &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: c.Name, Email: c.Email, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, Status: "offline"}, nil
 	}
-	if c.Name == "" {
-		c.Name = "Visitor #" + c.ID[:6]
+
+	// Fallback to active transient session in globalChatManager
+	globalChatManager.RLock()
+	live, ok := globalChatManager.sessions[id]
+	globalChatManager.RUnlock()
+	if ok && live != nil {
+		return live, nil
 	}
-	return &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: c.Name, Email: c.Email, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, Status: "offline"}, nil
+
+	return nil, sql.ErrNoRows
 }
 func normalizeCRMEmail(value string) (string, error) {
 	value = strings.TrimSpace(value)

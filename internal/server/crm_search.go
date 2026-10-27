@@ -64,6 +64,7 @@ func (s *Server) crmSearch(ctx context.Context, query, tag, source string, offse
     WHERE (strpos(lower(c.name||' '||c.email||' '||c.product||' '||c.tags::text),$1)>0 OR m.id IS NOT NULL)
     AND ($3='' OR c.tags @> to_jsonb(ARRAY[$3]::text[]))
     AND ($4='' OR COALESCE(NULLIF(btrim(c.product),''),'Live chat')=$4)
+    AND (c.name != '' OR c.email != '' OR EXISTS (SELECT 1 FROM project_messages pm WHERE pm.room_id = c.session_uuid))
     ORDER BY CASE WHEN strpos(lower(c.name||' '||c.email),$1)>0 THEN 0 WHEN strpos(lower(c.product||' '||c.tags::text),$1)>0 THEN 1 ELSE 2 END,lower(c.name),c.id
     LIMIT 51 OFFSET $2`, query, offset, tag, source)
 		if err != nil {
@@ -92,6 +93,9 @@ func (s *Server) crmSearch(ctx context.Context, query, tag, source string, offse
 	s.crm.Lock()
 	defer s.crm.Unlock()
 	for _, c := range s.crm.contacts {
+		if c.Name == "" && c.Email == "" && !s.hasMessages(c.SessionUUID) {
+			continue
+		}
 		if source != "" {
 			value := strings.TrimSpace(c.Product)
 			if value == "" {
