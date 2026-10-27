@@ -713,10 +713,16 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 
+		var attemptID string
+		if attempt != nil {
+			attemptID = attempt.ID
+		}
+
 		// 3. Spawn PTY process via Manager
 		runCfg := terminal.TaskAgentRunConfig{
 			Model:           selectedModel,
 			AttachmentPaths: attachmentPaths,
+			AttemptID:       attemptID,
 			TaskID:          taskID,
 			ProjectID:       projID,
 			AgentID:         agentID,
@@ -938,6 +944,22 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 		for _, h := range history {
 			if h.SessionID == session.ID() && h.Status == "running" {
 				live = map[string]any{"session_id": session.ID(), "attempt_id": h.AttemptID, "agent_id": h.AgentID, "started_at": h.StartedAt}
+				break
+			}
+		}
+		if live == nil {
+			live = map[string]any{
+				"session_id": session.ID(),
+				"attempt_id": "",
+				"started_at": time.Now(),
+			}
+		}
+		if live["attempt_id"] == "" && s.taskSvc != nil {
+			if t, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && t != nil && t.LatestAttempt != nil {
+				live["attempt_id"] = t.LatestAttempt.ID
+				if live["agent_id"] == nil || live["agent_id"] == "" {
+					live["agent_id"] = t.LatestAttempt.AgentName
+				}
 			}
 		}
 	}

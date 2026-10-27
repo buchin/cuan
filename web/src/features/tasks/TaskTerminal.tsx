@@ -103,7 +103,7 @@ export function TaskTerminal({
 
   const isLive =
     !!live &&
-    live.attempt_id === attempt.id &&
+    (!live.attempt_id || live.attempt_id === attempt.id) &&
     isTaskActive
   const liveId = isLive ? live.session_id : ''
   const liveIdRef = useRef(liveId)

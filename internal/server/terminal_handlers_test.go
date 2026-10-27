@@ -649,3 +649,60 @@ func TestS25NoImplicitTaskWorker(t *testing.T) {
 		}
 	}
 }
+
+func TestServer_GetTaskRunHistory_LiveSessionAttemptResolution(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// Seed task
+	detail, err := srv.taskSvc.CreateTask(context.Background(), "owner", task.CreateTaskRequest{
+		Title: "History Test Task",
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	attempt, err := srv.taskSvc.CreateAttempt(context.Background(), detail.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "agent_dev",
+	})
+	if err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+
+	// Create a dummy session directly in terminalManager
+	sess, err := srv.terminalManager.GetOrCreateSession(context.Background(), detail.ID, terminal.ModeInteractive, 80, 24)
+	if err != nil {
+		t.Fatalf("failed to create terminal session: %v", err)
+	}
+	defer sess.Close()
+
+	// Query GET /api/v1/tasks/{id}/run-agent/history
+	req := httptest.NewRequest("GET", "/api/v1/tasks/"+detail.ID+"/run-agent/history", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	srv.Router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var res struct {
+		TaskID      string                 `json:"task_id"`
+		LiveSession map[string]interface{} `json:"live_session"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("failed to parse json: %v", err)
+	}
+
+	if res.LiveSession == nil {
+		t.Fatalf("expected live_session to be populated, got nil")
+	}
+	if res.LiveSession["session_id"] != sess.ID() {
+		t.Errorf("expected session_id %s, got %v", sess.ID(), res.LiveSession["session_id"])
+	}
+	if res.LiveSession["attempt_id"] != attempt.ID {
+		t.Errorf("expected attempt_id %s, got %v", attempt.ID, res.LiveSession["attempt_id"])
+	}
+}
+
