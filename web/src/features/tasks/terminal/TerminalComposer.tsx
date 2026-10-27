@@ -621,29 +621,6 @@ export function TerminalComposer({
           )}
         </button>
 
-        {/* Mobile Terminal Keys Toggle (WhatsApp/Blink style) */}
-        {onToggleMobileKbd && (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onToggleMobileKbd}
-            className={`sm:hidden h-8 w-8 flex items-center justify-center rounded-full transition-all shrink-0 ${
-              isMobileKbdActive
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'text-neutral-400 hover:text-emerald-400 active:bg-neutral-800'
-            }`}
-            title="Toggle terminal keys (ESC, TAB, Arrows)"
-            aria-label="Toggle terminal keys"
-          >
-            <Keyboard className="h-4 w-4" />
-          </button>
-        )}
-
-        {/* Prompt Icon Indicator */}
-        <span className="text-emerald-400 font-mono text-sm font-bold select-none shrink-0 pl-0.5">
-          &gt;
-        </span>
-
         {/* Command Search / Text Input */}
         <div className="relative flex-1 min-w-0">
           <input
@@ -664,7 +641,7 @@ export function TerminalComposer({
             data-form-type="other"
             data-lpignore="true"
             data-1p-ignore="true"
-            className="wa-input w-full min-w-0 py-1.5 px-1 pr-6 text-xs sm:text-sm font-mono appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+            className="wa-input w-full min-w-0 py-1.5 px-2 pr-6 text-xs sm:text-sm font-mono appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
           {text && (
             <button
@@ -681,6 +658,24 @@ export function TerminalComposer({
             </button>
           )}
         </div>
+
+        {/* Mobile Terminal Keys Toggle (Right side before send button, like WhatsApp emoji/aux keyboard) */}
+        {onToggleMobileKbd && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onToggleMobileKbd}
+            className={`sm:hidden h-8 w-8 flex items-center justify-center rounded-full transition-all shrink-0 ${
+              isMobileKbdActive
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-neutral-400 hover:text-emerald-400 active:bg-neutral-800'
+            }`}
+            title="Toggle terminal keys (ESC, TAB, Arrows)"
+            aria-label="Toggle terminal keys"
+          >
+            <Keyboard className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Send Button (Inbox WhatsApp circular button) */}
         <button
