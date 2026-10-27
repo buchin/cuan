@@ -26,6 +26,7 @@ import '@xterm/xterm/css/xterm.css'
 import './task-workspace.css'
 import { MobileTerminalKeyboard } from './terminal/MobileTerminalKeyboard'
 import { TerminalContextMenu } from './terminal/TerminalContextMenu'
+import { TerminalComposer } from './terminal/TerminalComposer'
 
 export function TaskTerminal({
   taskId,
@@ -454,6 +455,8 @@ export function TaskTerminal({
           disableStdin: true,
           cursorBlink: false,
           allowProposedApi: false,
+          scrollOnUserInput: false,
+          reflowCursorLine: true,
           theme: {
             background: '#141414',
             foreground: '#e5e5e5',
@@ -1088,6 +1091,19 @@ export function TaskTerminal({
         onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
         t={t}
       />
+
+      {/* Universal Modern Terminal Composer Capsule (Desktop & Mobile) */}
+      {liveId && (
+        <TerminalComposer
+          taskId={taskId}
+          onSend={sendKey}
+          onClearScreen={handleClear}
+          onInterrupt={handleInterrupt}
+          onToggleMobileKbd={() => setIsMobileKeyboardActive((prev) => !prev)}
+          isMobileKbdActive={isMobileKeyboardActive}
+          disabled={connection !== 'connected'}
+        />
+      )}
 
       {/* Mobile Accessory Keyboard Bar (Blink & Developer style) - Conditional on active focus/toggle */}
       {liveId && isMobileKeyboardActive && (
