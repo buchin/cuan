@@ -2,7 +2,7 @@
 # Native SSH release: versioned payload, checksums, atomic switch, health rollback.
 set -euo pipefail
 
-approved_branch=main
+approved_branch=dev
 frontend_only=0
 
 while [[ $# -gt 0 ]]; do
@@ -16,7 +16,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --help)
-      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] (clean tree; default main). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass. Schema25 must be explicitly prepared after private backup; activation never migrates.'
+      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass. Schema25 must be explicitly prepared after private backup; activation never migrates.'
       exit 0
       ;;
     *)
