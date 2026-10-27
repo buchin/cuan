@@ -556,12 +556,10 @@ export function TerminalComposer({
         </button>
       </div>
 
-      {/* ── Inbox-Style Capsule Composer ── */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          handleSend()
-        }}
+      {/* ── Inbox-Style Capsule Composer (Div container to prevent browser/Android autofill bars) ── */}
+      <div
+        role="group"
+        aria-label="Terminal input composer"
         className="flex items-center gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl border border-neutral-700 bg-[#121214] px-2 py-1.5 focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all shadow-inner"
       >
         {/* Upload Button */}
@@ -585,11 +583,13 @@ export function TerminalComposer({
           &gt;
         </span>
 
-        {/* Text Input */}
+        {/* Text Input (type="search" and anti-autofill tokens suppress Android password/card/address popups) */}
         <div className="relative flex-1 min-w-0">
           <input
             ref={inputRef}
-            type="text"
+            type="search"
+            name="terminal_query"
+            id="terminal_composer_input"
             value={text}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
@@ -599,7 +599,11 @@ export function TerminalComposer({
             autoCorrect="off"
             autoComplete="off"
             spellCheck={false}
-            className="w-full bg-transparent text-xs sm:text-sm font-mono text-neutral-100 placeholder:text-neutral-500 outline-none border-none py-1 px-1 pr-6"
+            enterKeyHint="send"
+            data-form-type="other"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            className="w-full bg-transparent text-xs sm:text-sm font-mono text-neutral-100 placeholder:text-neutral-500 outline-none border-none py-1 px-1 pr-6 appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
           {text && (
             <button
@@ -619,8 +623,9 @@ export function TerminalComposer({
 
         {/* Send Button */}
         <button
-          type="submit"
+          type="button"
           disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
+          onClick={() => handleSend()}
           className="inline-flex h-7 sm:h-8 shrink-0 items-center justify-center gap-1 rounded-lg bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground px-2.5 sm:px-3 text-xs font-semibold font-mono transition-colors disabled:opacity-35 disabled:cursor-not-allowed shadow-xs"
           title="Kirim ke terminal (Enter)"
           aria-label="Send input"
@@ -628,7 +633,7 @@ export function TerminalComposer({
           <Send className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Send</span>
         </button>
-      </form>
+      </div>
     </div>
   )
 }
