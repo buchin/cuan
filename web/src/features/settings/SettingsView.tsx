@@ -4,6 +4,7 @@ import { NotificationSettings } from './NotificationSettings'
 import { InstallAppCard } from './InstallAppCard'
 import { AppUpdateCard } from './AppUpdateCard'
 import { ScheduledJobsCard } from './ScheduledJobsCard'
+import { SchedulesView } from '../schedules/SchedulesView'
 import {
   useLanguage,
   type LanguagePreference,
@@ -64,9 +65,10 @@ export function SettingsView({
         className="flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {[
+          ['general', t('General')],
+          ['schedules', t('Schedules')],
           ['profile', t('Profile & password')],
           ['contacts', t('Contacts')],
-          ['general', t('General')],
           ['agents', t('Agents')],
           ['integrations', t('Integrations')],
           ['appearance', t('Appearance')],
@@ -74,7 +76,7 @@ export function SettingsView({
           const isAccount = location.pathname.startsWith('/account')
           const to = isAccount
             ? `/account/${id}`
-            : id === 'general' ? '/settings' : `/settings/${id}`
+            : id === 'contacts' ? '/account/contacts' : id === 'general' ? '/settings' : `/settings/${id}`
           return (
             <Link
               key={id}
@@ -89,6 +91,8 @@ export function SettingsView({
       </nav>
       {section === 'profile' ? (
         <ProfileSettings />
+      ) : section === 'schedules' ? (
+        <SchedulesView embedded />
       ) : section === 'notifications' ? (
         <NotificationSettings />
       ) : section === 'agents' ? (
@@ -182,27 +186,6 @@ export function SettingsView({
                 {t('View shortcuts')}
               </button>
             </div>
-          </section>
-          <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t('Contacts')}</h2>
-            <p className="my-3 text-sm text-muted-foreground">
-              {t('Manage your contacts, tags, customer records, and notes.')}
-            </p>
-            <Link
-              to={location.pathname.startsWith('/account') ? '/account/contacts' : '/contacts'}
-              className="action-primary"
-            >
-              {t('View contacts')}
-            </Link>
-          </section>
-          <section className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t('Agents')}</h2>
-            <p className="my-3 text-sm text-muted-foreground">
-              {t('Add agents or check existing account connections.')}
-            </p>
-            <Link to="/settings/agents" className="action-primary">
-              {t('Manage agents')}
-            </Link>
           </section>
           <section className="rounded-lg border border-border bg-card p-5">
             <h2 className="text-lg font-semibold">{t('Project settings')}</h2>

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ReloadButton } from '../ui/ReloadButton'
 import {
+  CalendarClock,
   Keyboard,
   LogOut,
   KeyRound,
@@ -230,6 +231,17 @@ export function NavUser({
             >
               <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>{t('Settings')}</span>
+            </button>
+            <button
+              type="button"
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
+              onClick={() => {
+                setMenuOpen(false)
+                navigate('/settings/schedules')
+              }}
+            >
+              <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>{t('Schedules')}</span>
             </button>
             {!bottomNavigation && (
               <button

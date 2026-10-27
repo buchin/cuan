@@ -83,4 +83,59 @@ func TestSystemEndpoints_UpdateAndScheduler(t *testing.T) {
 	if rrTrigger.Code != http.StatusAccepted {
 		t.Fatalf("expected 202 Accepted, got %d: %s", rrTrigger.Code, rrTrigger.Body.String())
 	}
+
+	// 5. Test Scheduled Tasks (CRUD + Toggle + Trigger)
+	createTaskBody, _ := json.Marshal(map[string]interface{}{
+		"title":         "Follow Up Pelanggan",
+		"prompt":        "Kirim reminder ke pelanggan yang belum menyelesaikan transaksi",
+		"schedule_type": "daily",
+		"time_of_day":   "09:30",
+	})
+	reqCreate := httptest.NewRequest(http.MethodPost, "/api/system/scheduler/tasks", bytes.NewReader(createTaskBody))
+	rrCreate := httptest.NewRecorder()
+	s.Router().ServeHTTP(rrCreate, reqCreate)
+
+	if rrCreate.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created from POST /api/system/scheduler/tasks, got %d: %s", rrCreate.Code, rrCreate.Body.String())
+	}
+
+	var createdTask map[string]interface{}
+	_ = json.Unmarshal(rrCreate.Body.Bytes(), &createdTask)
+	taskID, _ := createdTask["id"].(string)
+	if taskID == "" {
+		t.Fatalf("expected task id in created response")
+	}
+
+	// List tasks
+	reqList := httptest.NewRequest(http.MethodGet, "/api/system/scheduler/tasks", nil)
+	rrList := httptest.NewRecorder()
+	s.Router().ServeHTTP(rrList, reqList)
+	if rrList.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from GET /api/system/scheduler/tasks, got %d", rrList.Code)
+	}
+
+	// Toggle task
+	toggleBody, _ := json.Marshal(map[string]interface{}{"enabled": false})
+	reqToggle := httptest.NewRequest(http.MethodPatch, "/api/system/scheduler/tasks/"+taskID+"/toggle", bytes.NewReader(toggleBody))
+	rrToggle := httptest.NewRecorder()
+	s.Router().ServeHTTP(rrToggle, reqToggle)
+	if rrToggle.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from PATCH /api/system/scheduler/tasks/:id/toggle, got %d", rrToggle.Code)
+	}
+
+	// Trigger task
+	reqTriggerTask := httptest.NewRequest(http.MethodPost, "/api/system/scheduler/tasks/"+taskID+"/trigger", nil)
+	rrTriggerTask := httptest.NewRecorder()
+	s.Router().ServeHTTP(rrTriggerTask, reqTriggerTask)
+	if rrTriggerTask.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 Accepted from POST /api/system/scheduler/tasks/:id/trigger, got %d", rrTriggerTask.Code)
+	}
+
+	// Delete task
+	reqDel := httptest.NewRequest(http.MethodDelete, "/api/system/scheduler/tasks/"+taskID, nil)
+	rrDel := httptest.NewRecorder()
+	s.Router().ServeHTTP(rrDel, reqDel)
+	if rrDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from DELETE /api/system/scheduler/tasks/:id, got %d", rrDel.Code)
+	}
 }

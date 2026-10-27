@@ -102,6 +102,7 @@ type Server struct {
 	taskProjectRepo        cuanDB.TaskProjectRepository
 	agentSessionStore      agent.SessionStore
 	scheduler              *scheduler.Scheduler
+	taskManager            *scheduler.TaskManager
 	updater                *updater.Service
 	router                 *chi.Mux
 }
@@ -489,6 +490,10 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	})
 	sched.Start(context.Background())
 
+	taskMgr := scheduler.NewTaskManager(filepath.Join("data", "scheduled_tasks.json"), func(ctx context.Context, task *scheduler.ScheduledTask) error {
+		return nil
+	})
+
 	s := &Server{
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
@@ -543,6 +548,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		taskProjectRepo:        tpRepo,
 		agentSessionStore:      agent.NewMemorySessionStore(),
 		scheduler:              sched,
+		taskManager:            taskMgr,
 		updater:                updateSvc,
 		router:                 r,
 	}

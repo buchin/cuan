@@ -16,6 +16,7 @@ export type AppTab =
   | 'studio'
   | 'inbox'
   | 'tasks'
+  | 'schedules'
   | 'projects'
   | 'contacts'
   | 'settings'

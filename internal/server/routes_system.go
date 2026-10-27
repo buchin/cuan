@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/scheduler"
 	"github.com/buchin/cuan/internal/updater"
 )
 
@@ -25,6 +26,11 @@ func (s *Server) registerSystemRoutes(r chi.Router) {
 	r.Patch("/api/system/update/settings", s.handleUpdateSystemUpdateSettings)
 	r.Get("/api/system/scheduler/jobs", s.handleListScheduledJobs)
 	r.Post("/api/system/scheduler/jobs/{id}/trigger", s.handleTriggerScheduledJob)
+	r.Get("/api/system/scheduler/tasks", s.handleListScheduledTasks)
+	r.Post("/api/system/scheduler/tasks", s.handleCreateScheduledTask)
+	r.Delete("/api/system/scheduler/tasks/{id}", s.handleDeleteScheduledTask)
+	r.Patch("/api/system/scheduler/tasks/{id}/toggle", s.handleToggleScheduledTask)
+	r.Post("/api/system/scheduler/tasks/{id}/trigger", s.handleTriggerScheduledTask)
 	r.Get("/install.sh", s.handleInstallScript)
 }
 
@@ -36,6 +42,11 @@ func (s *Server) registerSystemV1Routes(r chi.Router) {
 	r.Patch("/system/update/settings", s.handleUpdateSystemUpdateSettings)
 	r.Get("/system/scheduler/jobs", s.handleListScheduledJobs)
 	r.Post("/system/scheduler/jobs/{id}/trigger", s.handleTriggerScheduledJob)
+	r.Get("/system/scheduler/tasks", s.handleListScheduledTasks)
+	r.Post("/system/scheduler/tasks", s.handleCreateScheduledTask)
+	r.Delete("/system/scheduler/tasks/{id}", s.handleDeleteScheduledTask)
+	r.Patch("/system/scheduler/tasks/{id}/toggle", s.handleToggleScheduledTask)
+	r.Post("/system/scheduler/tasks/{id}/trigger", s.handleTriggerScheduledTask)
 }
 
 func (s *Server) setupStaticRoutes() {
@@ -333,5 +344,79 @@ func (s *Server) handleTriggerScheduledJob(w http.ResponseWriter, r *http.Reques
 		"status":  "triggered",
 		"job_id":  id,
 		"message": "Job execution started in background",
+	})
+}
+
+func (s *Server) handleListScheduledTasks(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		respondJSON(w, http.StatusOK, map[string]interface{}{"tasks": []interface{}{}})
+		return
+	}
+	tasks := s.taskManager.ListTasks()
+	respondJSON(w, http.StatusOK, map[string]interface{}{"tasks": tasks})
+}
+
+func (s *Server) handleCreateScheduledTask(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "task manager not available")
+		return
+	}
+	var task scheduler.ScheduledTask
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	created, err := s.taskManager.CreateTask(&task)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusCreated, created)
+}
+
+func (s *Server) handleDeleteScheduledTask(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "task manager not available")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if err := s.taskManager.DeleteTask(id); err != nil {
+		respondJSONError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "deleted", "id": id})
+}
+
+func (s *Server) handleToggleScheduledTask(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "task manager not available")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Enabled *bool `json:"enabled"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	toggled, err := s.taskManager.ToggleTask(id, req.Enabled)
+	if err != nil {
+		respondJSONError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, toggled)
+}
+
+func (s *Server) handleTriggerScheduledTask(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "task manager not available")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if err := s.taskManager.TriggerTask(context.Background(), id); err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusAccepted, map[string]interface{}{
+		"status": "triggered",
+		"id":     id,
 	})
 }

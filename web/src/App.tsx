@@ -68,6 +68,11 @@ const SettingsView = lazy(() =>
     default: m.SettingsView,
   })),
 )
+const SchedulesView = lazy(() =>
+  import('./features/schedules/SchedulesView').then((m) => ({
+    default: m.SchedulesView,
+  })),
+)
 const NewContactDialog = lazy(() =>
   import('./features/contacts/NewContactDialog').then((m) => ({
     default: m.NewContactDialog,
@@ -133,6 +138,8 @@ export function App() {
         return 'contacts'
       case 'tasks':
         return 'tasks'
+      case 'schedules':
+        return 'schedules'
       case 'projects':
         return 'projects'
       case 'team':
@@ -935,6 +942,11 @@ export function App() {
                 onArchiveProject={handleArchiveProject}
               />
             ))}
+
+          {/* 4. Schedules Hub */}
+          {currentTab === 'schedules' && (
+            <SchedulesView />
+          )}
 
           {/* 5. Settings / Account Configuration */}
         {(currentTab === 'settings' || currentTab === 'account') &&
