@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Project, Task } from '../../api/types'
+import { tasksApi } from '../../api/tasks'
+import { workStatus } from '../tasks/task-ui'
+import { useLanguage } from '../../context/LanguageContext'
 import {
   FolderGit2,
   GitBranch,
@@ -9,6 +13,7 @@ import {
   List,
   CheckSquare,
   Sparkles,
+  Terminal,
 } from 'lucide-react'
 
 interface ProjectsViewProps {
@@ -44,6 +49,51 @@ export function ProjectsView({
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const navigate = useNavigate()
+  const { t } = useLanguage()
+
+  const handleOpenProjectTerminal = async (projId: string) => {
+    const projTasks = tasks.filter((item) => item.project_id === projId)
+    // Find active working task first
+    const activeTask = projTasks.find((item) =>
+      ['Working', 'Waiting to start'].includes(workStatus(item)) ||
+      ['running', 'queued'].includes(item.latest_attempt?.status || ''),
+    )
+    if (activeTask) {
+      navigate(
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(activeTask.id)}/sessions/latest`,
+      )
+      return
+    }
+
+    // Find latest task
+    if (projTasks.length > 0) {
+      const sorted = [...projTasks].sort((a, b) => {
+        const da = a.latest_attempt?.started_at || a.created_at || ''
+        const db = b.latest_attempt?.started_at || b.created_at || ''
+        return Date.parse(db) - Date.parse(da)
+      })
+      navigate(
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(sorted[0].id)}/sessions/latest`,
+      )
+      return
+    }
+
+    // No tasks yet: create a quick interactive workspace task
+    try {
+      const targetProj = projects.find((p) => p.id === projId)
+      const created = await tasksApi.create({
+        title: `Terminal · ${targetProj?.name || 'Workspace'}`,
+        project_ids: [projId],
+        description: 'Interactive project terminal workspace session.',
+      })
+      navigate(
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(created.id)}/sessions/start`,
+      )
+    } catch {
+      navigate(`/projects/${encodeURIComponent(projId)}/tasks`)
+    }
+  }
   const archive = async (project: Project) => {
     if (
       !onArchiveProject ||
@@ -272,13 +322,27 @@ export function ProjectsView({
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => onSelectProject(project)}
-                    className="inline-flex min-h-11 items-center gap-1 text-primary font-semibold text-sm hover:underline"
-                  >
-                    <span>Open Board</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void handleOpenProjectTerminal(project.id)
+                      }}
+                      className="action-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1.5"
+                      title={t('Open terminal for this project')}
+                    >
+                      <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>{t('Terminal')}</span>
+                    </button>
+                    <button
+                      onClick={() => onSelectProject(project)}
+                      className="inline-flex min-h-11 items-center gap-1 text-primary font-semibold text-sm hover:underline"
+                    >
+                      <span>Open Board</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -336,6 +400,19 @@ export function ProjectsView({
                       <Archive className="h-3.5 w-3.5" />
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void handleOpenProjectTerminal(project.id)
+                    }}
+                    className="action-secondary text-xs px-2.5 py-1.5 inline-flex items-center gap-1.5"
+                    title={t('Open terminal for this project')}
+                  >
+                    <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="hidden sm:inline">{t('Terminal')}</span>
+                  </button>
 
                   <button
                     className="icon-action text-primary"

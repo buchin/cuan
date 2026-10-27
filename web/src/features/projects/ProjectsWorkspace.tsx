@@ -2,8 +2,10 @@ import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Folder, Search, ChevronLeft, Archive, MoreHorizontal, Sparkles } from 'lucide-react'
+import { Folder, Search, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
+import { tasksApi } from '../../api/tasks'
+import { workStatus } from '../tasks/task-ui'
 import { useLanguage } from '../../context/LanguageContext'
 import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
@@ -70,6 +72,49 @@ export function ProjectsWorkspace({
       setBusy(false)
     }
   }
+
+  const handleOpenProjectTerminal = async (projId: string) => {
+    const projTasks = tasks.filter((item) => item.project_id === projId)
+    // Find active working task first
+    const activeTask = projTasks.find((item) =>
+      ['Working', 'Waiting to start'].includes(workStatus(item)) ||
+      ['running', 'queued'].includes(item.latest_attempt?.status || ''),
+    )
+    if (activeTask) {
+      navigate(
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(activeTask.id)}/sessions/latest`,
+      )
+      return
+    }
+
+    // Find latest task
+    if (projTasks.length > 0) {
+      const sorted = [...projTasks].sort((a, b) => {
+        const da = a.latest_attempt?.started_at || a.created_at || ''
+        const db = b.latest_attempt?.started_at || b.created_at || ''
+        return Date.parse(db) - Date.parse(da)
+      })
+      navigate(
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(sorted[0].id)}/sessions/latest`,
+      )
+      return
+    }
+
+    // No tasks yet: create a quick interactive workspace task
+    try {
+      const targetProj = projects.find((p) => p.id === projId)
+      const created = await tasksApi.create({
+        title: `Terminal · ${targetProj?.name || 'Workspace'}`,
+        project_ids: [projId],
+        description: 'Interactive project terminal workspace session.',
+      })
+      navigate(
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(created.id)}/sessions/start`,
+      )
+    } catch {
+      navigate(`/projects/${encodeURIComponent(projId)}/tasks`)
+    }
+  }
   return (
     <section
       className="flex h-full min-h-0 min-w-0 overflow-hidden"
@@ -114,6 +159,7 @@ export function ProjectsWorkspace({
             <ItemActions key={item.id} label={item.name} actions={[
               { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
               { label: 'Activity', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+              { label: 'Terminal', run: () => void handleOpenProjectTerminal(item.id) },
               { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/settings') },
               ...(onArchiveProject ? [{ label: item.is_archived ? 'Restore project' : 'Archive project', run: () => onArchiveProject(item.id, !item.is_archived) }] : []),
             ]}>
@@ -182,7 +228,16 @@ export function ProjectsWorkspace({
                   </span>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleOpenProjectTerminal(project.id)}
+                  className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1.5"
+                  title={t('Open terminal for this project')}
+                >
+                  <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>{t('Terminal')}</span>
+                </button>
                 <details className="relative">
                   <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
                   <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">

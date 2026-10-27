@@ -47,7 +47,7 @@ export function TaskSessions({
               {agents.find((agent) => agent.id === a.agent_name)?.name ||
                 a.agent_name}{' '}
               · {relativeTime(a.started_at || a.created_at)}
-              {a.exit_code !== undefined && ` · Exit ${a.exit_code}`}
+              {a.status === 'failed' && ' · Failed'}
             </p>
             {a.error_message && (
               <p className="mt-2 break-words text-xs text-destructive">

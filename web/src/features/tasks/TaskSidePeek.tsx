@@ -872,11 +872,11 @@ function TaskDetailView({
                     'No instructions yet. Edit this task to describe the work.',
                   )}
                 </section>
-                <section>
-                  <h3 className="mb-2 text-sm font-semibold">
-                    Agent checklist
-                  </h3>
-                  {checklist.length ? (
+                {checklist.length > 0 && (
+                  <section>
+                    <h3 className="mb-2 text-sm font-semibold">
+                      Agent checklist
+                    </h3>
                     <div className="space-y-1">
                       {checklist.map((item, index) => (
                         <label
@@ -918,12 +918,8 @@ function TaskDetailView({
                         {checklist.length} reported by agent
                       </p>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No acceptance criteria defined yet.
-                    </p>
-                  )}
-                </section>
+                  </section>
+                )}
                 <section>
                   <h3 className="mb-2 text-sm font-semibold">Work summary</h3>
                   {emptyProse(detail.summary, 'No work summary recorded yet.')}
@@ -1007,6 +1003,11 @@ function TaskDetailView({
                 </p>
               ) : (
                 [...detail.activities]
+                  .filter(
+                    (item) =>
+                      item.activity_type !== 'attempt_transition' &&
+                      item.activity_type !== 'agent_result_kind',
+                  )
                   .sort(
                     (a, b) =>
                       Date.parse(b.created_at) - Date.parse(a.created_at),

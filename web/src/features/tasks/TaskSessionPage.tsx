@@ -624,10 +624,38 @@ export function TaskSessionPage({
               )}
             </div>}
             {!latest && (
-              <p className="text-xs text-muted-foreground">
-                Earlier session · select the latest session in Detail to
-                continue.
-              </p>
+              <div className="mt-4 rounded-xl border border-border/80 bg-muted/40 p-4 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+                      <Info className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground">
+                        {t('Viewing earlier session')} ({attemptLabel(attempt)})
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        {t('To run commands or continue working with the agent, switch to the latest session.')}
+                      </p>
+                    </div>
+                  </div>
+                  {detail.latest_attempt && (
+                    <button
+                      type="button"
+                      className="action-primary text-xs px-3.5 py-2 shrink-0 inline-flex items-center gap-1.5 ml-auto sm:ml-0"
+                      onClick={() => {
+                        navigate(
+                          basePath + '/sessions/' + encodeURIComponent(detail.latest_attempt!.id) + suffix,
+                          { replace: true, state },
+                        )
+                      }}
+                    >
+                      <span>{t('Switch to latest session')}</span>
+                      <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
             {latest && detail.status === 'done' && (
               <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-card-foreground shadow-sm space-y-3">
