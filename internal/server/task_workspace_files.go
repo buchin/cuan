@@ -12,23 +12,72 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/buchin/cuan/internal/task"
 )
+
+// resolveTaskExecutionWorkspace resolves the actual active execution workspace for a task,
+// checking active terminal sessions first, then project workspaces, and falling back to default task workspaces.
+func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID string) (string, string, error) {
+	taskID := strings.TrimSpace(rawTaskID)
+	if taskID == "" {
+		return "", "", fmt.Errorf("task id is required")
+	}
+
+	canonicalID := s.resolveTaskID(ctx, taskID)
+	if canonicalID != "" {
+		taskID = canonicalID
+	}
+
+	// 1. Check if there is an active running terminal session for this task
+	if s.terminalManager != nil {
+		if sess, ok := s.terminalManager.GetSession(taskID); ok && sess != nil && sess.PTY() != nil {
+			if dir := sess.PTY().WorkDir(); dir != "" {
+				if info, err := os.Stat(dir); err == nil && info.IsDir() {
+					return taskID, dir, nil
+				}
+			}
+		}
+	}
+
+	// 2. Check if task belongs to a project with its own execution workspace
+	if s.taskSvc != nil && s.projectSvc != nil {
+		detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
+		if err == nil && detail != nil && detail.ProjectID != "" {
+			project, pErr := s.projectSvc.TaskWorkspace(ctx, detail.ProjectID, detail.Instructions)
+			if pErr == nil && project != nil && (project.RepoURL != "" || project.LocalPath != "") {
+				workDir, e := s.projectSvc.TaskExecutionWorkspace(ctx, taskID, detail.Instructions, project)
+				if e == nil && workDir != "" {
+					_ = os.MkdirAll(workDir, 0755)
+					return taskID, workDir, nil
+				}
+			}
+		}
+	}
+
+	// 3. Fallback to terminal manager's canonical workspace directory
+	if s.terminalManager != nil {
+		workDir, err := s.terminalManager.ResolveTaskWorkspace(taskID)
+		if err != nil {
+			return taskID, "", err
+		}
+		_ = os.MkdirAll(workDir, 0755)
+		return taskID, workDir, nil
+	}
+
+	return taskID, "", fmt.Errorf("terminal manager is not configured")
+}
 
 // handleUploadTaskFile handles uploading files directly into the canonical workspace of a task.
 // POST /api/v1/tasks/{id}/files
 func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
-	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if taskID == "" {
+	rawTaskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawTaskID == "" {
 		respondJSONError(w, http.StatusBadRequest, "task id is required")
 		return
 	}
 
-	if s.terminalManager == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
-		return
-	}
-
-	workDir, err := s.terminalManager.ResolveTaskWorkspace(taskID)
+	taskID, workDir, err := s.resolveTaskExecutionWorkspace(r.Context(), rawTaskID)
 	if err != nil {
 		respondJSONError(w, http.StatusBadRequest, fmt.Sprintf("invalid task workspace: %v", err))
 		return
@@ -103,6 +152,7 @@ func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":       true,
+		"task_id":  taskID,
 		"files":    uploaded,
 		"filename": uploaded[0].Filename,
 		"path":     uploaded[0].Path,
@@ -114,13 +164,19 @@ func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
 // handleGetTaskUsage returns real-time execution statistics for a task session.
 // GET /api/v1/tasks/{id}/usage
 func (s *Server) handleGetTaskUsage(w http.ResponseWriter, r *http.Request) {
-	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if taskID == "" {
+	rawTaskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawTaskID == "" {
 		respondJSONError(w, http.StatusBadRequest, "task id is required")
 		return
 	}
 
-	detail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID)
+	taskID, workDir, _ := s.resolveTaskExecutionWorkspace(r.Context(), rawTaskID)
+
+	var detail *task.TaskDetailResponse
+	var err error
+	if s.taskSvc != nil {
+		detail, err = s.taskSvc.GetTaskDetail(r.Context(), taskID)
+	}
 	if err != nil || detail == nil {
 		respondJSONError(w, http.StatusNotFound, "task not found")
 		return
@@ -146,24 +202,22 @@ func (s *Server) handleGetTaskUsage(w http.ResponseWriter, r *http.Request) {
 
 	var branch string
 	var fileCount int
-	if s.terminalManager != nil {
-		if workDir, err := s.terminalManager.ResolveTaskWorkspace(taskID); err == nil {
-			_ = filepath.Walk(workDir, func(path string, info os.FileInfo, err error) error {
-				if err == nil && !info.IsDir() {
-					fileCount++
-				}
-				return nil
-			})
-
-			if _, statErr := os.Stat(filepath.Join(workDir, ".git")); statErr == nil {
-				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-				cmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
-				cmd.Dir = workDir
-				if out, err := cmd.Output(); err == nil {
-					branch = strings.TrimSpace(string(out))
-				}
-				cancel()
+	if workDir != "" {
+		_ = filepath.Walk(workDir, func(path string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				fileCount++
 			}
+			return nil
+		})
+
+		if _, statErr := os.Stat(filepath.Join(workDir, ".git")); statErr == nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			cmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
+			cmd.Dir = workDir
+			if out, err := cmd.Output(); err == nil {
+				branch = strings.TrimSpace(string(out))
+			}
+			cancel()
 		}
 	}
 
@@ -185,19 +239,14 @@ func (s *Server) handleGetTaskUsage(w http.ResponseWriter, r *http.Request) {
 // handleGetTaskDiff returns git diff / status of the task workspace.
 // GET /api/v1/tasks/{id}/diff
 func (s *Server) handleGetTaskDiff(w http.ResponseWriter, r *http.Request) {
-	taskID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if taskID == "" {
+	rawTaskID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawTaskID == "" {
 		respondJSONError(w, http.StatusBadRequest, "task id is required")
 		return
 	}
 
-	if s.terminalManager == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
-		return
-	}
-
-	workDir, err := s.terminalManager.ResolveTaskWorkspace(taskID)
-	if err != nil {
+	_, workDir, err := s.resolveTaskExecutionWorkspace(r.Context(), rawTaskID)
+	if err != nil || workDir == "" {
 		respondJSONError(w, http.StatusBadRequest, "invalid workspace")
 		return
 	}

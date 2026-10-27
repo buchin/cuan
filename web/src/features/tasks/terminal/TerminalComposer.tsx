@@ -325,15 +325,20 @@ export function TerminalComposer({
 
     try {
       const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
       const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/files`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers,
+        credentials: 'include',
         body: formData,
       })
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.error || errJson.message || 'Upload failed')
+        throw new Error(errJson.error || errJson.message || `Upload failed (${res.status})`)
       }
 
       const newUploaded: { name: string; path: string; size: number; previewUrl?: string }[] = []
@@ -634,7 +639,11 @@ export function TerminalComposer({
             value={text}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ketik perintah, jawaban (y/n), atau / untuk slash command..."
+            placeholder={
+              uploading
+                ? 'Mengunggah file ke workspace…'
+                : 'Ketik perintah atau pesan…'
+            }
             disabled={disabled}
             autoCapitalize="none"
             autoCorrect="off"
@@ -693,54 +702,53 @@ export function TerminalComposer({
         </button>
       </div>
 
+      {/* ── Hidden File Inputs (Always mounted in DOM root to ensure mobile file pickers never unmount) ── */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/jpeg,image/png"
+        capture="environment"
+        className="sr-only"
+        tabIndex={-1}
+        aria-label={t('Take a photo')}
+        onChange={(e) => {
+          if (e.target.files) void handleFileUpload(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={photosInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        aria-label={t('Choose photos')}
+        onChange={(e) => {
+          if (e.target.files) void handleFileUpload(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={filesInputRef}
+        type="file"
+        accept="*/*"
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        aria-label={t('Choose files')}
+        onChange={(e) => {
+          if (e.target.files) void handleFileUpload(e.target.files)
+          e.target.value = ''
+        }}
+      />
+
       {/* ── Attachment Choices Dialog (Camera, Photos, Files) ── */}
       <ActionDialog
         open={showAttachmentMenu}
         title={t('Add attachment')}
         onClose={() => setShowAttachmentMenu(false)}
       >
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/jpeg,image/png"
-          capture="environment"
-          className="sr-only"
-          tabIndex={-1}
-          aria-label={t('Take a photo')}
-          onChange={(e) => {
-            if (e.target.files) void handleFileUpload(e.target.files)
-            e.target.value = ''
-            setShowAttachmentMenu(false)
-          }}
-        />
-        <input
-          ref={photosInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          multiple
-          className="sr-only"
-          tabIndex={-1}
-          aria-label={t('Choose photos')}
-          onChange={(e) => {
-            if (e.target.files) void handleFileUpload(e.target.files)
-            e.target.value = ''
-            setShowAttachmentMenu(false)
-          }}
-        />
-        <input
-          ref={filesInputRef}
-          type="file"
-          accept="*/*"
-          multiple
-          className="sr-only"
-          tabIndex={-1}
-          aria-label={t('Choose files')}
-          onChange={(e) => {
-            if (e.target.files) void handleFileUpload(e.target.files)
-            e.target.value = ''
-            setShowAttachmentMenu(false)
-          }}
-        />
         <div className="space-y-1">
           {[
             {
@@ -767,8 +775,8 @@ export function TerminalComposer({
               type="button"
               className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent text-neutral-100 transition-colors"
               onClick={() => {
-                setShowAttachmentMenu(false)
                 ref.current?.click()
+                setShowAttachmentMenu(false)
               }}
             >
               <div className="h-9 w-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">

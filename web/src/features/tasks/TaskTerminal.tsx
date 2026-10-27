@@ -459,9 +459,9 @@ export function TaskTerminal({
         const isMobileScreen =
           typeof window !== 'undefined' && window.innerWidth < 480
         terminal = new XtermTerminal({
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          fontSize: isMobileScreen ? 11 : 13,
-          lineHeight: 1.25,
+          fontFamily: "'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontSize: isMobileScreen ? 12 : 13,
+          lineHeight: 1.2,
           scrollback: 10000,
           convertEol: true,
           disableStdin: true,
@@ -1071,7 +1071,7 @@ export function TaskTerminal({
       )}
 
       <div
-        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-2 overscroll-contain"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-1.5 sm:p-2 overscroll-contain"
         aria-label="Terminal output"
         onContextMenu={handleContextMenu}
       >

@@ -56,9 +56,9 @@ export interface RunTaskRequest {
 export function estimateViewportTerminalDimensions(): { cols: number; rows: number } {
   if (typeof window === 'undefined') return { cols: 80, rows: 24 }
   const isMobile = window.innerWidth < 480
-  const charWidth = isMobile ? 6.6 : 7.8
-  const lineHeight = isMobile ? 13.75 : 16.25
-  const paddingX = isMobile ? 16 : 32
+  const charWidth = isMobile ? 7.2 : 7.8
+  const lineHeight = isMobile ? 14.5 : 16.25
+  const paddingX = isMobile ? 12 : 32
   const availableWidth = Math.max(200, window.innerWidth - paddingX)
   const availableHeight = Math.max(200, window.innerHeight - 180)
   const cols = Math.max(30, Math.min(200, Math.floor(availableWidth / charWidth)))
@@ -110,9 +110,9 @@ export const tasksApi = {
   runAgent: (id: string, payload: RunTaskRequest): Promise<RunTaskResult> => {
     const dims = estimateViewportTerminalDimensions()
     const enriched: RunTaskRequest = {
+      ...payload,
       cols: payload.cols || dims.cols,
       rows: payload.rows || dims.rows,
-      ...payload,
     }
     return apiFetch(path(id) + '/run-agent', {
       method: 'POST',

@@ -21,6 +21,7 @@ import {
   Pin,
   PinOff,
   ExternalLink,
+  GitBranch,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -459,14 +460,22 @@ export function TaskSessionPage({
             <span className="flex h-5 w-5 sm:h-6 sm:w-6 shrink-0 items-center justify-center rounded bg-muted/60 text-muted-foreground">
               <Terminal className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-foreground/80" />
             </span>
-            <h2
-              className="truncate text-xs sm:text-sm font-semibold text-foreground min-w-0 tracking-tight"
-              title={detail.title}
-            >
-              {detail.title.startsWith('Terminal ·')
-                ? detail.title.replace(/^Terminal\s*·\s*/, '')
-                : detail.title}
-            </h2>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h2
+                className="truncate text-xs sm:text-sm font-semibold text-foreground min-w-0 tracking-tight"
+                title={detail.title}
+              >
+                {detail.title.startsWith('Terminal ·')
+                  ? detail.title.replace(/^Terminal\s*·\s*/, '')
+                  : detail.title}
+              </h2>
+              {detail.branch_name && (
+                <span className="hidden xs:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/80 text-muted-foreground shrink-0 max-w-[120px] truncate border border-border/40">
+                  <GitBranch className="h-2.5 w-2.5 shrink-0" />
+                  <span className="truncate">{detail.branch_name}</span>
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

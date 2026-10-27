@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/buchin/cuan/internal/task"
 )
 
 func TestTaskWorkspaceFilesUploadAndUsage(t *testing.T) {
@@ -101,5 +104,27 @@ func TestTaskWorkspaceFilesUploadAndUsage(t *testing.T) {
 	srv.Router().ServeHTTP(recDiff, reqDiff)
 	if recDiff.Code != http.StatusOK {
 		t.Fatalf("diff failed: %d %s", recDiff.Code, recDiff.Body.String())
+	}
+
+	// 4. Test uploading via attempt ID resolution (e.g. att_...)
+	att, err := srv.taskSvc.CreateAttempt(context.Background(), taskID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "test-agent",
+	})
+	if err == nil && att != nil {
+		var body2 bytes.Buffer
+		writer2 := multipart.NewWriter(&body2)
+		part2, _ := writer2.CreateFormFile("file", "notes.txt")
+		_, _ = part2.Write([]byte("workspace notes"))
+		_ = writer2.Close()
+
+		reqUpload2 := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/"+att.ID+"/files", &body2)
+		reqUpload2.Header.Set("Authorization", "Bearer "+token)
+		reqUpload2.Header.Set("Content-Type", writer2.FormDataContentType())
+		recUpload2 := httptest.NewRecorder()
+		srv.Router().ServeHTTP(recUpload2, reqUpload2)
+		if recUpload2.Code != http.StatusOK {
+			t.Fatalf("upload via attempt ID failed: %d %s", recUpload2.Code, recUpload2.Body.String())
+		}
 	}
 }
