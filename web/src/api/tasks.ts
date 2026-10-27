@@ -47,6 +47,23 @@ export interface RunTaskRequest {
   request_id: string
   agent_id: string
   revision?: string
+  cols?: number
+  rows?: number
+  prompt?: string
+  binary?: string
+}
+
+export function estimateViewportTerminalDimensions(): { cols: number; rows: number } {
+  if (typeof window === 'undefined') return { cols: 80, rows: 24 }
+  const isMobile = window.innerWidth < 480
+  const charWidth = isMobile ? 6.6 : 7.8
+  const lineHeight = isMobile ? 13.75 : 16.25
+  const paddingX = isMobile ? 16 : 32
+  const availableWidth = Math.max(200, window.innerWidth - paddingX)
+  const availableHeight = Math.max(200, window.innerHeight - 180)
+  const cols = Math.max(30, Math.min(200, Math.floor(availableWidth / charWidth)))
+  const rows = Math.max(10, Math.min(80, Math.floor(availableHeight / lineHeight)))
+  return { cols, rows }
 }
 export const tasksApi = {
   list: async (projectId?: string): Promise<Task[]> => {
@@ -90,11 +107,18 @@ export const tasksApi = {
   delete: async (id: string): Promise<void> => {
     await apiFetch(path(id), { method: 'DELETE' })
   },
-  runAgent: (id: string, payload: RunTaskRequest): Promise<RunTaskResult> =>
-    apiFetch(path(id) + '/run-agent', {
+  runAgent: (id: string, payload: RunTaskRequest): Promise<RunTaskResult> => {
+    const dims = estimateViewportTerminalDimensions()
+    const enriched: RunTaskRequest = {
+      cols: payload.cols || dims.cols,
+      rows: payload.rows || dims.rows,
+      ...payload,
+    }
+    return apiFetch(path(id) + '/run-agent', {
       method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+      body: JSON.stringify(enriched),
+    })
+  },
   cancel: (id: string): Promise<TaskAttempt> =>
     apiFetch(path(id) + '/cancel', { method: 'POST' }),
   runtime: (
