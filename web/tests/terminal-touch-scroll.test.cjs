@@ -24,20 +24,21 @@ const workspaceCss = fs.readFileSync(workspaceCssPath, 'utf8')
 const taskTerminal = fs.readFileSync(taskTerminalPath, 'utf8')
 const sessionPage = fs.readFileSync(sessionPagePath, 'utf8')
 
-// Check 1.1: body and html overscroll containment in index.css
+// Check 1.1: terminal session scoped overscroll containment in index.css
 assert(
-  indexCss.includes('html') && indexCss.includes('overscroll-behavior-y: contain'),
-  'FAIL: html element must have overscroll-behavior-y: contain in index.css'
+  indexCss.includes('html') && indexCss.includes('overscroll-behavior-y: contain') &&
+  (indexCss.includes('terminal-active') || indexCss.includes('.task-terminal-container')),
+  'FAIL: terminal active scoped selector must define overscroll-behavior-y: contain in index.css'
 )
 assert(
-  indexCss.includes('body {') && indexCss.includes('overscroll-behavior-y: contain'),
-  'FAIL: body element must have overscroll-behavior-y: contain in index.css'
+  indexCss.includes('overscroll-behavior-y: auto'),
+  'FAIL: general pages must have overscroll-behavior-y: auto to allow pull-to-refresh'
 )
 assert(
-  indexCss.includes('.app-shell') && indexCss.includes('overscroll-behavior-y: contain'),
-  'FAIL: .app-shell must have overscroll-behavior-y: contain in index.css'
+  indexCss.includes('.app-shell[data-session-workspace="true"]') || indexCss.includes('.app-shell.terminal-active'),
+  'FAIL: .app-shell must scope overscroll-behavior-y: contain to terminal session workspace in index.css'
 )
-console.log('✔ Check 1.1 Passed: index.css defines overscroll-behavior-y: contain on html, body, and .app-shell')
+console.log('✔ Check 1.1 Passed: index.css defines scoped overscroll-behavior-y: contain for terminal while keeping auto for regular pages')
 
 // Check 1.2: Terminal and xterm viewport overscroll containment in task-workspace.css
 assert(

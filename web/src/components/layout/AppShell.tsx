@@ -170,6 +170,7 @@ export function AppShell({
   return (
     <div
       ref={shell}
+      data-session-workspace={sessionWorkspace ? 'true' : undefined}
       className={cn(
         'app-shell flex w-full overflow-hidden bg-background',
         effectiveCollapsed && 'nav-collapsed',

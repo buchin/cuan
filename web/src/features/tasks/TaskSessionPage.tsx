@@ -112,6 +112,15 @@ export function TaskSessionPage({
     }, 4000)
     return () => clearInterval(timer)
   }, [refresh])
+
+  useEffect(() => {
+    document.documentElement.classList.add('terminal-active')
+    document.body.classList.add('terminal-active')
+    return () => {
+      document.documentElement.classList.remove('terminal-active')
+      document.body.classList.remove('terminal-active')
+    }
+  }, [])
   const attempt =
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
