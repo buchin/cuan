@@ -500,8 +500,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 
 	// Canonical tasks persist an attempt before the process is launched.
 	var attempt *task.TaskAttempt
+	var detail *task.TaskDetailResponse
 	if s.taskSvc != nil {
-		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
+		var e error
+		if detail, e = s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
 			taskFound = true
 			// A review produced by a successful attempt needs concrete feedback
 			// before it can become a revision. If the latest execution itself
@@ -674,7 +676,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		if commandCodeKey != "" {
 			reportEnv = append(reportEnv, "COMMAND_CODE_API_KEY="+commandCodeKey)
 		}
-		taskPrompt += extra
+		if expectedBinary == "commandcode" && detail != nil && strings.HasPrefix(detail.Title, "Terminal · ") && strings.TrimSpace(payload.Prompt) == "" {
+			taskPrompt = ""
+		} else {
+			taskPrompt += extra
+		}
 	}
 	quotaHit := false
 	retryCount := 0

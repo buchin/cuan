@@ -379,6 +379,8 @@ export function TaskTerminal({
             t.options.disableStdin = !enabled
             t.options.cursorBlink = enabled
             setConnection('connected')
+            setNotice('')
+            setError('')
             fitRef.current?.fit()
           } else if (data.type === 'status') {
             const enabled = data.mode === 'interactive'
@@ -736,6 +738,8 @@ export function TaskTerminal({
   // Re-connect when liveId transitions from empty to active without recreating Terminal
   useEffect(() => {
     if (liveId && term.current && connection === 'saved') {
+      setNotice('')
+      setError('')
       connectSocketRef.current()
     }
   }, [liveId, connection])
