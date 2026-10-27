@@ -31,10 +31,12 @@ import (
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publisher"
 	"github.com/buchin/cuan/internal/runner"
+	"github.com/buchin/cuan/internal/scheduler"
 	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/studio"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
+	"github.com/buchin/cuan/internal/updater"
 	"github.com/buchin/cuan/internal/wordpress"
 )
 
@@ -99,6 +101,8 @@ type Server struct {
 	projectRepo            cuanDB.ProjectRepository
 	taskProjectRepo        cuanDB.TaskProjectRepository
 	agentSessionStore      agent.SessionStore
+	scheduler              *scheduler.Scheduler
+	updater                *updater.Service
 	router                 *chi.Mux
 }
 
@@ -464,6 +468,27 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		tpRepo = cuanDB.NewMemoryTaskProjectRepository()
 	}
 
+	sched := scheduler.New()
+	updateSvc := updater.NewService(updater.Config{
+		CurrentVersion: cfg.AppVersion,
+		CurrentCommit:  cfg.CommitSHA,
+		StoragePath:    filepath.Join("data", "system_update.json"),
+	})
+
+	_ = sched.Register(&scheduler.Job{
+		ID:           "system_update_check",
+		Name:         "Pemeriksaan Pembaruan Aplikasi",
+		Description:  "Memeriksa rilis terbaru Cuan secara otomatis dari remote repository",
+		ScheduleType: scheduler.ScheduleDaily,
+		TimeOfDay:    updateSvc.GetInfo().AutoUpdateTime,
+		Enabled:      updateSvc.GetInfo().AutoUpdateEnabled,
+		Handler: func(ctx context.Context) error {
+			_, err := updateSvc.CheckForUpdate(ctx)
+			return err
+		},
+	})
+	sched.Start(context.Background())
+
 	s := &Server{
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
@@ -517,6 +542,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		projectRepo:            projRepo,
 		taskProjectRepo:        tpRepo,
 		agentSessionStore:      agent.NewMemorySessionStore(),
+		scheduler:              sched,
+		updater:                updateSvc,
 		router:                 r,
 	}
 

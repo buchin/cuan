@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/buchin/cuan/internal/updater"
 )
 
 func (s *Server) registerSystemRoutes(r chi.Router) {
@@ -17,12 +20,22 @@ func (s *Server) registerSystemRoutes(r chi.Router) {
 	r.Get("/api/info", s.handleInfo)
 	r.Get("/api/mode", s.handleGetSystemMode)
 	r.Get("/api/system/mode", s.handleGetSystemMode)
+	r.Get("/api/system/update", s.handleGetSystemUpdate)
+	r.Post("/api/system/update/check", s.handleCheckSystemUpdate)
+	r.Patch("/api/system/update/settings", s.handleUpdateSystemUpdateSettings)
+	r.Get("/api/system/scheduler/jobs", s.handleListScheduledJobs)
+	r.Post("/api/system/scheduler/jobs/{id}/trigger", s.handleTriggerScheduledJob)
 	r.Get("/install.sh", s.handleInstallScript)
 }
 
 func (s *Server) registerSystemV1Routes(r chi.Router) {
 	r.Get("/info", s.handleInfo)
 	r.Get("/system/mode", s.handleGetSystemMode)
+	r.Get("/system/update", s.handleGetSystemUpdate)
+	r.Post("/system/update/check", s.handleCheckSystemUpdate)
+	r.Patch("/system/update/settings", s.handleUpdateSystemUpdateSettings)
+	r.Get("/system/scheduler/jobs", s.handleListScheduledJobs)
+	r.Post("/system/scheduler/jobs/{id}/trigger", s.handleTriggerScheduledJob)
 }
 
 func (s *Server) setupStaticRoutes() {
@@ -230,4 +243,95 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"architecture":  "Go backend + React Vite TS frontend",
 	}
 	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleGetSystemUpdate(w http.ResponseWriter, r *http.Request) {
+	if s.updater == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "update service is not available")
+		return
+	}
+	respondJSON(w, http.StatusOK, s.updater.GetInfo())
+}
+
+func (s *Server) handleCheckSystemUpdate(w http.ResponseWriter, r *http.Request) {
+	if s.updater == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "update service is not available")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	info, err := s.updater.CheckForUpdate(ctx)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"update":  info,
+			"warning": err.Error(),
+		})
+		return
+	}
+	respondJSON(w, http.StatusOK, info)
+}
+
+func (s *Server) handleUpdateSystemUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	if s.updater == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "update service is not available")
+		return
+	}
+	var req updater.SettingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+
+	info, err := s.updater.UpdateSettings(req)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Update scheduler job parameters if changed
+	if s.scheduler != nil {
+		if job, ok := s.scheduler.GetJob("system_update_check"); ok {
+			job.Enabled = info.AutoUpdateEnabled
+			job.TimeOfDay = info.AutoUpdateTime
+			_ = s.scheduler.Register(job)
+		}
+	}
+
+	respondJSON(w, http.StatusOK, info)
+}
+
+func (s *Server) handleListScheduledJobs(w http.ResponseWriter, r *http.Request) {
+	if s.scheduler == nil {
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"jobs": []interface{}{},
+		})
+		return
+	}
+	jobs := s.scheduler.ListJobs()
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"jobs": jobs,
+	})
+}
+
+func (s *Server) handleTriggerScheduledJob(w http.ResponseWriter, r *http.Request) {
+	if s.scheduler == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "scheduler is not running")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "job id is required")
+		return
+	}
+
+	go func() {
+		_ = s.scheduler.Trigger(context.Background(), id)
+	}()
+
+	respondJSON(w, http.StatusAccepted, map[string]interface{}{
+		"status":  "triggered",
+		"job_id":  id,
+		"message": "Job execution started in background",
+	})
 }

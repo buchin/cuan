@@ -2,6 +2,8 @@ import { ProjectSettings } from './ProjectSettings'
 import { ProfileSettings } from './ProfileSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { InstallAppCard } from './InstallAppCard'
+import { AppUpdateCard } from './AppUpdateCard'
+import { ScheduledJobsCard } from './ScheduledJobsCard'
 import {
   useLanguage,
   type LanguagePreference,
@@ -161,6 +163,8 @@ export function SettingsView({
         </section>
       ) : (
         <div className="space-y-4">
+          <AppUpdateCard />
+          <ScheduledJobsCard />
           <InstallAppCard />
           <section className="rounded-lg border border-border bg-card p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
