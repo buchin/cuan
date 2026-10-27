@@ -210,6 +210,24 @@ export function InboxView({
   )
   const [showCannedManageModal, setShowCannedManageModal] = useState(false)
   const [isMultiline, setIsMultiline] = useState(false)
+  const [whisperMode, setWhisperMode] = useState(false)
+  const [whisperHandle, setWhisperHandle] = useState<'@team' | '@sm' | '@dev'>('@team')
+
+  useEffect(() => {
+    if (activeContact?.type === 'customer') {
+      const trimmed = inputMessage.trim().toLowerCase()
+      if (trimmed.startsWith('@team')) {
+        setWhisperMode(true)
+        setWhisperHandle('@team')
+      } else if (trimmed.startsWith('@sm')) {
+        setWhisperMode(true)
+        setWhisperHandle('@sm')
+      } else if (trimmed.startsWith('@dev')) {
+        setWhisperMode(true)
+        setWhisperHandle('@dev')
+      }
+    }
+  }, [inputMessage, activeContact?.type])
 
   // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
   const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
@@ -620,7 +638,10 @@ export function InboxView({
     if (!activeContact || sending || uploads.busy || retryCount >= 3) return
     const convId = activeContact.conversation_id || activeContact.id
     const pending = pendingRef.current
-    const text = pending?.convId === convId ? pending.text : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
+    let text = pending?.convId === convId ? pending.text : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
+    if (!approveMessageId && activeContact.type === 'customer' && whisperMode && text && !text.startsWith('@')) {
+      text = `${whisperHandle} ${text}`
+    }
     if (!text && !uploads.items.length && !pending?.attachmentIds?.length)
       return
     const request =
@@ -879,9 +900,16 @@ export function InboxView({
                       activeContact.type === 'agent' ? 'hidden md:block' : ''
                     }
                   >
-                    <h2 className="truncate text-base font-semibold leading-tight">
-                      {activeContact.name}
-                    </h2>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h2 className="truncate text-base font-semibold leading-tight">
+                        {activeContact.name}
+                      </h2>
+                      {activeContact.type === 'customer' && activeContact.email && (
+                        <span className="truncate text-xs text-muted-foreground font-normal">
+                          · {activeContact.email}
+                        </span>
+                      )}
+                    </div>
                     <ContactStatus
                       contact={activeContact}
                       agents={agents}
@@ -892,6 +920,16 @@ export function InboxView({
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
+                {activeContact.type === 'customer' && (
+                  <Link
+                    className="icon-action text-muted-foreground hover:text-foreground"
+                    aria-label="View contact details"
+                    title={t('View contact details & memory')}
+                    to={`/contacts?contact=${encodeURIComponent(activeContact.id)}`}
+                  >
+                    <User className="h-4 w-4" />
+                  </Link>
+                )}
                 {activeContact.type === 'agent' && (
                   <Link
                     className="icon-action hidden md:inline-flex"
@@ -1278,6 +1316,18 @@ export function InboxView({
                       { label: 'Copy message', run: () => navigator.clipboard.writeText(msg.content || msg.message) },
                       { label: 'Quote message', run: quoteMessage },
                       { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(activeContact.conversation_id || activeContact.id) + (msg.uuid ? '?message=' + encodeURIComponent(msg.uuid) : '')) },
+                      ...(activeContact.type === 'customer' ? [{
+                        label: t('Whisper to @team'),
+                        run: () => {
+                          const body = msg.content || msg.message || ''
+                          const snippet = body.length > 80 ? body.slice(0, 77) + '…' : body
+                          setWhisperMode(true)
+                          setWhisperHandle('@team')
+                          setInputMessage(`@team regarding "${snippet}": `)
+                          textareaRef.current?.focus()
+                          if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                        },
+                      }] : []),
                       ...(msg.uuid ? [{
                         label: t('Escalate to task'),
                         run: () => setEscalatingMessage(msg),
@@ -1659,21 +1709,52 @@ export function InboxView({
                 {activeContact.type === 'customer' && (
                   <div className="flex flex-wrap items-center justify-between gap-1.5 px-1.5 text-xs">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
-                        <Lock className="h-3 w-3 text-amber-500" />
-                        {t('Whisper AI:')}
-                      </span>
+                      <div className="inline-flex rounded-lg border border-border/60 bg-muted/40 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWhisperMode(false)
+                            if (inputMessage.trim().startsWith('@')) {
+                              setInputMessage(inputMessage.replace(/^@(team|sm|dev)\s*/i, ''))
+                            }
+                          }}
+                          className={cn(
+                            'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer',
+                            !whisperMode
+                              ? 'bg-background text-foreground font-semibold shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {t('Public reply')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWhisperMode(true)}
+                          className={cn(
+                            'flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer',
+                            whisperMode
+                              ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          <Lock className="h-3 w-3 text-amber-500" />
+                          <span>{t('Whisper AI:')}</span>
+                        </button>
+                      </div>
+
                       {[
-                        { handle: '@team', label: '@team (Auto)' },
-                        { handle: '@sm', label: '@sm (Scrum Master)' },
-                        { handle: '@dev', label: '@dev (Developer)' },
+                        { handle: '@team' as const, label: '@team (Auto)' },
+                        { handle: '@sm' as const, label: '@sm (Scrum Master)' },
+                        { handle: '@dev' as const, label: '@dev (Developer)' },
                       ].map((item) => {
-                        const isSelected = inputMessage.toLowerCase().startsWith(item.handle)
+                        const isSelected = (whisperMode && whisperHandle === item.handle) || inputMessage.toLowerCase().startsWith(item.handle)
                         return (
                           <button
                             key={item.handle}
                             type="button"
                             onClick={() => {
+                              setWhisperMode(true)
+                              setWhisperHandle(item.handle)
                               const trimmed = inputMessage.trim()
                               const next = trimmed
                                 ? `${item.handle} ${trimmed.replace(/^@(team|sm|dev)\s*/i, '')}`
@@ -1694,7 +1775,7 @@ export function InboxView({
                         )
                       })}
                     </div>
-                    {inputMessage.trim().startsWith('@') && (
+                    {(whisperMode || inputMessage.trim().startsWith('@')) && (
                       <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold inline-flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                         <EyeOff className="h-3 w-3" />
                         {t('Internal · Invisible to visitor')}
@@ -1706,6 +1787,8 @@ export function InboxView({
                 <div
                   className={`wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 ${
                     isMultiline ? 'is-multiline' : ''
+                  } ${
+                    activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@')) ? 'ring-1 ring-amber-500/50 border-amber-500/40' : ''
                   }`}
                 >
                   <AttachmentPicker
@@ -1731,7 +1814,7 @@ export function InboxView({
                     placeholder={
                       activeContact.type === 'agent'
                         ? t('Write a message…')
-                        : inputMessage.trim().startsWith('@')
+                        : whisperMode || inputMessage.trim().startsWith('@')
                         ? t('Whisper to AI team (invisible to visitor)…')
                         : `Reply to ${activeContact.name} or type @team to whisper AI…`
                     }

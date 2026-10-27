@@ -69,7 +69,7 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 	if d.Action != "" && d.Action != "run" && d.Action != "save" || d.TaskID != "" && d.Action == "save" {
 		return "", nil, bad
 	}
-	if (d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || (d.ProjectID != "" && d.ProjectName != "") || len([]rune(d.ProjectName)) > 100 || d.AuthorizationID == "" || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
+	if (d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || len([]rune(d.ProjectName)) > 100 || d.AuthorizationID == "" || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
 		return "", nil, bad
 	}
 	if d.TaskID == "" && (strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Description) == "") || d.TaskID != "" && strings.TrimSpace(d.Revision) == "" {
@@ -163,7 +163,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if err != nil || room == nil {
 		return fail("conversation is unavailable")
 	}
-	if roomAgentID(room.Topic) == "" && room.ProjectID != "" && room.ProjectID != d.ProjectID {
+	if roomAgentID(room.Topic) == "" && !s.isCustomerRoom(ctx, q.RoomID) && room.ProjectID != "" && room.ProjectID != "default" && room.ProjectID != d.ProjectID {
 		return fail("the plan belongs to another project")
 	}
 	if d.ProjectID == "" {
@@ -196,10 +196,22 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		}
 	}
 	p, err := s.projectSvc.Get(ctx, d.ProjectID)
+	if (err != nil || p == nil) && s.projectSvc != nil {
+		if projects, lErr := s.projectSvc.List(ctx); lErr == nil {
+			for _, candidate := range projects {
+				if strings.EqualFold(candidate.Name, d.ProjectID) || strings.EqualFold(candidate.RepoName, d.ProjectID) || (d.ProjectName != "" && strings.EqualFold(candidate.Name, d.ProjectName)) {
+					p = candidate
+					d.ProjectID = candidate.ID
+					err = nil
+					break
+				}
+			}
+		}
+	}
 	if err != nil || p == nil || p.IsArchived {
 		return fail("the selected project is unavailable or archived")
 	}
-	if d.ProjectID != "" && (room.ProjectID == "default" || room.ProjectID == "" || (roomAgentID(room.Topic) != "" && room.ProjectID != d.ProjectID)) {
+	if d.ProjectID != "" && (room.ProjectID == "default" || room.ProjectID == "" || s.isCustomerRoom(ctx, q.RoomID) || (roomAgentID(room.Topic) != "" && room.ProjectID != d.ProjectID)) {
 		room.ProjectID = d.ProjectID
 		_ = s.projectStudioRepo.UpdateRoom(ctx, room)
 	}

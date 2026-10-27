@@ -685,3 +685,179 @@ func TestInboxDelegation_PreservesAIProseExplanation(t *testing.T) {
 		t.Fatalf("expected output to contain task link, got: %s", out)
 	}
 }
+
+func TestInboxDelegation_CustomerRoomAllowsMultiProjectDelegation(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	// Register a target project "dojo"
+	projectsStore := project.NewMemoryStore()
+	if err := projectsStore.CreateProject(ctx, &project.Project{
+		ID:   "proj_dojo_test",
+		Name: "dojo",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projectsStore, nil, "", t.TempDir())
+
+	// Simulate a visitor/customer room with ProjectID "default"
+	roomID := db.GenerateUUID()
+	now := time.Now().UTC()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Title:     "Visitor #test",
+		Topic:     "",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	q := db.InboxRequest{
+		OwnerID:     "owner",
+		AgentID:     "agent_lifecycle",
+		RoomID:      roomID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   db.GenerateUUID(),
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "approval",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+
+	planPayload := attachmentMessage{
+		Text: "Approved: Aktivasi Akses PAY-74",
+		Approval: &approvedInboxPlan{
+			Action:    "approve",
+			MessageID: q.MessageID,
+			Plan: inboxApprovalPlan{
+				Title:       "Aktivasi Akses PAY-74",
+				Description: "Verifikasi payment dan aktifkan akses di Dojo",
+				ProjectID:   "proj_dojo_test",
+				ProjectName: "dojo",
+			},
+		},
+	}
+	rawMsg, _ := json.Marshal(planPayload)
+	message := &db.ProjectMessage{
+		ID:         q.MessageID,
+		RoomID:     q.RoomID,
+		AuthorType: "user",
+		Content:    attachmentEnvelope + string(rawMsg),
+		CreatedAt:  now,
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delegate using project name "dojo"
+	delegation := inboxDelegation{
+		Action:          "run",
+		Title:           "Aktivasi Akses PAY-74",
+		Description:     "Verifikasi payment dan aktifkan akses di Dojo",
+		ProjectID:       "proj_dojo_test",
+		ProjectName:     "dojo",
+		AuthorizationID: q.MessageID,
+	}
+	raw, _ := json.Marshal(delegation)
+	out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(raw)+"\n```")
+	if strings.Contains(out, "could not") || strings.Contains(out, "another project") {
+		t.Fatalf("expected delegation to succeed from default room to dojo project, got: %s", out)
+	}
+	if !strings.Contains(out, "View work") {
+		t.Fatalf("expected view work message, got: %s", out)
+	}
+
+	// Verify room's project was updated to target project
+	updatedRoom, err := s.projectStudioRepo.GetRoomByID(ctx, roomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedRoom.ProjectID != "proj_dojo_test" {
+		t.Fatalf("expected room project_id to be updated to proj_dojo_test, got: %s", updatedRoom.ProjectID)
+	}
+}
+
+func TestInboxDelegation_ResolvesProjectByName(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projectsStore := project.NewMemoryStore()
+	if err := projectsStore.CreateProject(ctx, &project.Project{
+		ID:   "proj_dojo_uuid",
+		Name: "dojo",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projectsStore, nil, "", t.TempDir())
+
+	roomID := db.GenerateUUID()
+	now := time.Now().UTC()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Title:     "Visitor #test2",
+		Topic:     "",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	q := db.InboxRequest{
+		OwnerID:     "owner",
+		AgentID:     "agent_lifecycle",
+		RoomID:      roomID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   db.GenerateUUID(),
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "approval",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+
+	planPayload := attachmentMessage{
+		Text: "Approved: Cek Akses User",
+		Approval: &approvedInboxPlan{
+			Action:    "approve",
+			MessageID: q.MessageID,
+			Plan: inboxApprovalPlan{
+				Title:       "Cek Akses User",
+				Description: "Periksa akses lisensi akun di dojo",
+				ProjectID:   "dojo", // Passed as project name
+				ProjectName: "dojo",
+			},
+		},
+	}
+	rawMsg, _ := json.Marshal(planPayload)
+	message := &db.ProjectMessage{
+		ID:         q.MessageID,
+		RoomID:     q.RoomID,
+		AuthorType: "user",
+		Content:    attachmentEnvelope + string(rawMsg),
+		CreatedAt:  now,
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	delegation := inboxDelegation{
+		Action:          "run",
+		Title:           "Cek Akses User",
+		Description:     "Periksa akses lisensi akun di dojo",
+		ProjectID:       "dojo", // Passed as project name
+		ProjectName:     "dojo",
+		AuthorizationID: q.MessageID,
+	}
+	raw, _ := json.Marshal(delegation)
+	out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(raw)+"\n```")
+	if strings.Contains(out, "could not") || strings.Contains(out, "another project") {
+		t.Fatalf("expected delegation to resolve project name 'dojo' to uuid, got: %s", out)
+	}
+	if !strings.Contains(out, "View work") {
+		t.Fatalf("expected view work message, got: %s", out)
+	}
+}
