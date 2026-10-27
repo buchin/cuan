@@ -202,6 +202,19 @@ func (s *Session) WriteInput(subID string, data []byte) (int, error) {
 	s.lastInput = s.lastActivity
 	s.mu.Unlock()
 
+	// In raw PTY mode (used by interactive Node.js/Ink CLIs like CommandCode),
+	// trailing \r or \n must arrive as a distinct keypress event so the CLI parser
+	// correctly registers a "return/enter" keypress instead of treating \r as pasted inline text.
+	if len(data) > 1 && (data[len(data)-1] == '\r' || data[len(data)-1] == '\n') {
+		n1, err := s.pty.Write(data[:len(data)-1])
+		if err != nil {
+			return n1, err
+		}
+		time.Sleep(25 * time.Millisecond)
+		n2, err := s.pty.Write(data[len(data)-1:])
+		return n1 + n2, err
+	}
+
 	return s.pty.Write(data)
 }
 

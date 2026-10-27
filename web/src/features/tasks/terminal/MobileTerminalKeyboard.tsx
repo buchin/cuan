@@ -64,7 +64,10 @@ export function MobileTerminalKeyboard({
         onInject('\r')
         return
       }
-      onInject(text + '\r')
+      onInject(text)
+      setTimeout(() => {
+        onInject('\r')
+      }, 40)
       setHistory((prev) => [text, ...prev.filter((h) => h !== text)].slice(0, 50))
       setHistoryIdx(-1)
       setPromptText('')

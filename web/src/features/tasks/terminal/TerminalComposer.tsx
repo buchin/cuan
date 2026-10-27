@@ -231,7 +231,10 @@ export function TerminalComposer({
     }
 
     addToHistory(toSend)
-    onSend(toSend + '\r')
+    onSend(toSend)
+    setTimeout(() => {
+      onSend('\r')
+    }, 40)
     setText('')
     setShowSlashPopup(false)
     // Clear uploaded files previews after sending
