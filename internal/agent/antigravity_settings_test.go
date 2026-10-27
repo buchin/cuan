@@ -179,6 +179,7 @@ func TestCLISettingsPrepareReadOnlyPermissions(t *testing.T) {
 	for _, expected := range []string{
 		"read_file(*)", "view_file(*)", "list_dir(*)", "grep_search(*)", "find_by_name(*)",
 		"inspect_git_status(*)", "inspect_git_log(*)", "inspect_system_health(*)", "inspect_typecheck(*)",
+		"list_projects(*)", "list_tasks(*)", "list_inbox_conversations(*)", "list_contacts(*)", "list_scheduled_jobs(*)", "get_system_settings(*)",
 	} {
 		if !rules[expected] {
 			t.Fatalf("missing expected permission rule %s in %v", expected, rules)

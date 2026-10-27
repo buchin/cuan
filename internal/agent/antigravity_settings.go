@@ -99,6 +99,19 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 			"inspect_git_branches(*)",
 			"inspect_system_health(*)",
 			"inspect_typecheck(*)",
+			"list_projects(*)",
+			"get_project(*)",
+			"list_tasks(*)",
+			"get_task(*)",
+			"create_task_draft(*)",
+			"list_inbox_conversations(*)",
+			"get_inbox_messages(*)",
+			"list_contacts(*)",
+			"get_contact(*)",
+			"list_scheduled_jobs(*)",
+			"get_system_settings(*)",
+			"cuan-inspect/*",
+			"cuan-inspect:*",
 		}
 		allowSet := make(map[string]bool)
 		for _, rule := range perms.Allow {
@@ -220,6 +233,19 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 		"inspect_git_branches(*)",
 		"inspect_system_health(*)",
 		"inspect_typecheck(*)",
+		"list_projects(*)",
+		"get_project(*)",
+		"list_tasks(*)",
+		"get_task(*)",
+		"create_task_draft(*)",
+		"list_inbox_conversations(*)",
+		"get_inbox_messages(*)",
+		"list_contacts(*)",
+		"get_contact(*)",
+		"list_scheduled_jobs(*)",
+		"get_system_settings(*)",
+		"cuan-inspect/*",
+		"cuan-inspect:*",
 	}
 	allowSet := make(map[string]bool)
 	for _, rule := range perms.Allow {

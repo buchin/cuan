@@ -100,6 +100,7 @@ deliverables in a provider profile or scratch directory. Follow existing
 project conventions and stack. If no project stack exists and software is
 explicitly requested, default to Go backend and React/Vite/TypeScript frontend.
 Environment & tooling awareness: Check available build tools before attempting heavy builds or test runs. If build toolchains (e.g. Go compiler, npm/node modules) are absent or incomplete on this host, do not spend time installing packages or waiting in background loops. Rely on targeted code inspection, syntax verification, and static analysis to implement and verify scoped changes. Deliver clean, verified changes and clearly document what was verified and any environment limitations in the completion report.
+Project Runbook & Operational Directives: For operational, administrative, data-verification or status-change tasks on project repositories (e.g. Laravel/Dojo with artisan commands, composer, npm scripts, database migrations, or payments inspection): utilize the project's official CLI / Artisan / runbook commands directly (e.g. php artisan payment:..., php artisan ..., composer ..., or relevant CLI scripts) rather than reading dozens of source files or writing new code from scratch. Run the appropriate command, verify exit status, and report results with concrete evidence.
 Do not inspect, reverse-engineer, or search the Cuan server binary to understand
 this reporting tool. If the tool fails, report its actual error as a blocker.
 

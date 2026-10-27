@@ -119,6 +119,186 @@ var nativeMCPTools = []mcpToolDefinition{
 			},
 		},
 	},
+	{
+		Name:        "list_projects",
+		Description: "List all projects managed by the Cuan platform, including project ID, name, repo URL, default branch, and workspace path.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum number of projects to return (default: 20)",
+				},
+			},
+		},
+	},
+	{
+		Name:        "get_project",
+		Description: "Get details of a specific project by project ID or name, including repo URL, branch, local path, and active tasks count.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID or project name (e.g. 'dojo' or UUID)",
+				},
+			},
+			"required": []string{"project_id"},
+		},
+	},
+	{
+		Name:        "list_tasks",
+		Description: "List tasks across all projects or filtered by project ID, with optional status filter (backlog, doing, review, done, blocked).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Filter by project ID or name (optional)",
+				},
+				"status": map[string]any{
+					"type":        "string",
+					"description": "Filter by status: backlog, doing, review, done, blocked (optional)",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum number of tasks (default: 20, max: 100)",
+				},
+			},
+		},
+	},
+	{
+		Name:        "get_task",
+		Description: "Get detailed task specification, status, priority, Definition of Done checklist, attempt history, and latest execution logs.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": "Task ID",
+				},
+			},
+			"required": []string{"task_id"},
+		},
+	},
+	{
+		Name:        "create_task_draft",
+		Description: "Propose or create a new task draft with title, instructions/scope, target project ID, priority, and Definition of Done checklist.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Target project ID or name",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Task title",
+				},
+				"instructions": map[string]any{
+					"type":        "string",
+					"description": "Task instructions, scope, and execution details",
+				},
+				"priority": map[string]any{
+					"type":        "string",
+					"enum":        []string{"low", "normal", "high", "urgent"},
+					"description": "Task priority (default: normal)",
+				},
+				"dod_checklist": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Definition of Done acceptance checklist",
+				},
+			},
+			"required": []string{"project_id", "title", "instructions"},
+		},
+	},
+	{
+		Name:        "list_inbox_conversations",
+		Description: "List customer chat conversations and project rooms in Cuan Inbox, including room ID, project ID, title, and topic.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Optional project ID filter",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum conversations to return (default: 20)",
+				},
+			},
+		},
+	},
+	{
+		Name:        "get_inbox_messages",
+		Description: "Get message history for a specific inbox room or visitor session UUID.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"room_id": map[string]any{
+					"type":        "string",
+					"description": "Room ID or visitor session UUID",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum messages to retrieve (default: 30)",
+				},
+			},
+			"required": []string{"room_id"},
+		},
+	},
+	{
+		Name:        "list_contacts",
+		Description: "List CRM contacts and customer profiles (name, email, guest UUID, session UUID, tags).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"query": map[string]any{
+					"type":        "string",
+					"description": "Optional search query for name, email, or guest UUID",
+				},
+				"product": map[string]any{
+					"type":        "string",
+					"description": "Optional product/project filter",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum contacts to return (default: 20)",
+				},
+			},
+		},
+	},
+	{
+		Name:        "get_contact",
+		Description: "Get customer contact details and relationship memory notes (facts, notes, interaction history).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"contact_id": map[string]any{
+					"type":        "string",
+					"description": "Contact ID (UUID) or guest UUID",
+				},
+			},
+			"required": []string{"contact_id"},
+		},
+	},
+	{
+		Name:        "list_scheduled_jobs",
+		Description: "List scheduled background jobs, cron automations, and recurring tasks in Cuan.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
+	{
+		Name:        "get_system_settings",
+		Description: "Get platform overview: server version, license, registered agent accounts, telemetry, database connection, and environment.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
 }
 
 // RunMCP implements a Stdio MCP (Model Context Protocol) JSON-RPC 2.0 server.
@@ -172,8 +352,8 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 				"tools": map[string]any{},
 			},
 			"serverInfo": map[string]any{
-				"name":    "cuan-inspection-tools",
-				"version": "1.0.0",
+				"name":    "cuan-platform-mcp",
+				"version": "1.1.0",
 			},
 		}
 
@@ -219,6 +399,69 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			toolResult, toolErr = InspectSystemHealth(ctx, pathVal)
 		case "inspect_typecheck":
 			toolResult, toolErr = InspectTypecheck(ctx, pathVal)
+		case "list_projects":
+			limit := 20
+			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
+				limit = int(rawLimit)
+			}
+			toolResult, toolErr = ListProjects(ctx, limit)
+		case "get_project":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			toolResult, toolErr = GetProject(ctx, projectID)
+		case "list_tasks":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			status, _ := callParams.Arguments["status"].(string)
+			limit := 20
+			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
+				limit = int(rawLimit)
+			}
+			toolResult, toolErr = ListTasks(ctx, projectID, status, limit)
+		case "get_task":
+			taskID, _ := callParams.Arguments["task_id"].(string)
+			toolResult, toolErr = GetTask(ctx, taskID)
+		case "create_task_draft":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			title, _ := callParams.Arguments["title"].(string)
+			instructions, _ := callParams.Arguments["instructions"].(string)
+			priority, _ := callParams.Arguments["priority"].(string)
+			var dodList []string
+			if rawDoD, ok := callParams.Arguments["dod_checklist"].([]any); ok {
+				for _, item := range rawDoD {
+					if str, ok := item.(string); ok {
+						dodList = append(dodList, str)
+					}
+				}
+			}
+			toolResult, toolErr = CreateTaskDraft(ctx, projectID, title, instructions, priority, dodList)
+		case "list_inbox_conversations":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			limit := 20
+			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
+				limit = int(rawLimit)
+			}
+			toolResult, toolErr = ListInboxConversations(ctx, projectID, limit)
+		case "get_inbox_messages":
+			roomID, _ := callParams.Arguments["room_id"].(string)
+			limit := 30
+			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
+				limit = int(rawLimit)
+			}
+			toolResult, toolErr = GetInboxMessages(ctx, roomID, limit)
+		case "list_contacts":
+			query, _ := callParams.Arguments["query"].(string)
+			product, _ := callParams.Arguments["product"].(string)
+			limit := 20
+			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
+				limit = int(rawLimit)
+			}
+			toolResult, toolErr = ListContacts(ctx, query, product, limit)
+		case "get_contact":
+			contactID, _ := callParams.Arguments["contact_id"].(string)
+			toolResult, toolErr = GetContact(ctx, contactID)
+		case "list_scheduled_jobs":
+			toolResult, toolErr = ListScheduledJobs(ctx)
+		case "get_system_settings":
+			toolResult, toolErr = GetSystemSettings(ctx)
 		default:
 			resp.Error = &jsonRPCError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 			sendResponse(out, resp)

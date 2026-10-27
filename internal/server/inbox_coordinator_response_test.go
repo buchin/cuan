@@ -369,3 +369,21 @@ func TestCoordinatorInstructionMobileSafeLayoutsAndFeasibilityMatrix(t *testing.
 		})
 	}
 }
+
+func TestCoordinatorInstructionFullPlatformMCP(t *testing.T) {
+	for _, required := range []string{
+		"scrum master",
+		"all agents in inbox",
+		"platform mcp",
+		"list_projects",
+		"list_tasks",
+		"list_inbox_conversations",
+		"list_contacts",
+		"list_scheduled_jobs",
+		"get_system_settings",
+	} {
+		if !strings.Contains(strings.ToLower(inboxCoordinatorInstruction), required) {
+			t.Fatalf("inboxCoordinatorInstruction missing required platform MCP directive %q", required)
+		}
+	}
+}
