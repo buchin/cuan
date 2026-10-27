@@ -477,8 +477,8 @@ export function TerminalComposer({
         <p className="text-xs text-destructive px-1">{uploadError}</p>
       )}
 
-      {/* ── Quick Action Chips Row ── */}
-      <div className="flex items-center gap-1 overflow-x-auto select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      {/* ── Quick Action Chips Row (Desktop only; hidden on mobile to eliminate clutter) ── */}
+      <div className="hidden sm:flex items-center gap-1 overflow-x-auto select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Mobile Accessory Keyboard Toggle (Prominently first on mobile) */}
         {onToggleMobileKbd && (
           <button
@@ -620,6 +620,24 @@ export function TerminalComposer({
             <Paperclip className="h-5 w-5" />
           )}
         </button>
+
+        {/* Mobile Terminal Keys Toggle (WhatsApp/Blink style) */}
+        {onToggleMobileKbd && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onToggleMobileKbd}
+            className={`sm:hidden h-8 w-8 flex items-center justify-center rounded-full transition-all shrink-0 ${
+              isMobileKbdActive
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-neutral-400 hover:text-emerald-400 active:bg-neutral-800'
+            }`}
+            title="Toggle terminal keys (ESC, TAB, Arrows)"
+            aria-label="Toggle terminal keys"
+          >
+            <Keyboard className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Prompt Icon Indicator */}
         <span className="text-emerald-400 font-mono text-sm font-bold select-none shrink-0 pl-0.5">
