@@ -1130,6 +1130,7 @@ export function TaskTerminal({
           onToggleKeyboard={showKeyboard}
           onClose={hideMobileKeyboard}
           disabled={connection !== 'connected'}
+          compact
         />
       )}
 

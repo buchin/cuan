@@ -21,6 +21,7 @@ export type MobileTerminalKeyboardProps = {
   onClose?: () => void
   onScrollToBottom?: () => void
   showPromptInput?: boolean
+  compact?: boolean
   disabled?: boolean
   className?: string
 }
@@ -33,11 +34,12 @@ export function MobileTerminalKeyboard({
   onToggleKeyboard,
   onClose,
   showPromptInput = false,
+  compact = false,
   disabled = false,
   className = '',
 }: MobileTerminalKeyboardProps) {
   const [mods, setMods] = useState<StickyMods>(EMPTY_STICKY_MODS)
-  const [showExtended, setShowExtended] = useState(false)
+  const [showExtended, setShowExtended] = useState(compact ? true : false)
   const [promptText, setPromptText] = useState('')
   const [history, setHistory] = useState<string[]>([])
   const [historyIdx, setHistoryIdx] = useState(-1)
@@ -224,44 +226,48 @@ export function MobileTerminalKeyboard({
 
       {/* Quick Actions Row */}
       <div className="flex items-center gap-1 overflow-x-auto px-1.5 pt-1 pb-0.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {/* Kbd Drawer / Extended Keys Toggle */}
-        <button
-          type="button"
-          disabled={disabled}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            setShowExtended((prev) => !prev)
-          }}
-          className={`inline-flex h-8 shrink-0 items-center gap-1 rounded border px-2.5 font-mono text-xs font-semibold transition-colors disabled:opacity-40 ${
-            showExtended
-              ? 'border-primary bg-primary text-primary-foreground shadow-xs'
-              : 'border-[#333] bg-[#222] text-neutral-200 active:bg-zinc-700'
-          }`}
-          title="Toggle extra keys drawer (ESC, TAB, arrows, CTRL, ALT)"
-        >
-          <Keyboard className="h-3.5 w-3.5" />
-          <span>Kbd</span>
-          {showExtended ? (
-            <ChevronUp className="h-3 w-3 opacity-70" />
-          ) : (
-            <ChevronDown className="h-3 w-3 opacity-70" />
-          )}
-        </button>
+        {/* Kbd Drawer / Extended Keys Toggle - hidden in compact mode to avoid duplicate with composer */}
+        {!compact && (
+          <button
+            type="button"
+            disabled={disabled}
+            onPointerDown={(e) => {
+              e.preventDefault()
+              setShowExtended((prev) => !prev)
+            }}
+            className={`inline-flex h-8 shrink-0 items-center gap-1 rounded border px-2.5 font-mono text-xs font-semibold transition-colors disabled:opacity-40 ${
+              showExtended
+                ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                : 'border-[#333] bg-[#222] text-neutral-200 active:bg-zinc-700'
+            }`}
+            title="Toggle extra keys drawer (ESC, TAB, arrows, CTRL, ALT)"
+          >
+            <Keyboard className="h-3.5 w-3.5" />
+            <span>Kbd</span>
+            {showExtended ? (
+              <ChevronUp className="h-3 w-3 opacity-70" />
+            ) : (
+              <ChevronDown className="h-3 w-3 opacity-70" />
+            )}
+          </button>
+        )}
 
-        {/* Ctrl+C SIGINT Quick Interrupt */}
-        <button
-          type="button"
-          disabled={disabled}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            onInject('\x03')
-          }}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded border border-rose-500/30 bg-rose-500/15 px-2.5 font-mono text-xs font-semibold text-rose-300 transition-colors active:bg-rose-600 active:text-white disabled:opacity-40"
-          title="Send Ctrl+C (Interrupt)"
-        >
-          <Ban className="h-3.5 w-3.5" />
-          <span>Ctrl+C</span>
-        </button>
+        {/* Ctrl+C SIGINT Quick Interrupt - hidden in compact mode because TerminalComposer already renders it */}
+        {!compact && (
+          <button
+            type="button"
+            disabled={disabled}
+            onPointerDown={(e) => {
+              e.preventDefault()
+              onInject('\x03')
+            }}
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded border border-rose-500/30 bg-rose-500/15 px-2.5 font-mono text-xs font-semibold text-rose-300 transition-colors active:bg-rose-600 active:text-white disabled:opacity-40"
+            title="Send Ctrl+C (Interrupt)"
+          >
+            <Ban className="h-3.5 w-3.5" />
+            <span>Ctrl+C</span>
+          </button>
+        )}
 
         {/* Enter key */}
         <button
