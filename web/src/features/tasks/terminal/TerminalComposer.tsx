@@ -1,5 +1,8 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  Camera,
+  Images,
+  FolderOpen,
   Paperclip,
   Send,
   X,
@@ -11,10 +14,15 @@ import {
   Keyboard,
   Sparkles,
   Loader2,
+  LoaderCircle,
   Check,
   ChevronRight,
 } from 'lucide-react'
 import { getAuthToken } from '../../../api/client'
+import { ActionDialog } from '../../../components/dialogs/ActionDialog'
+import { useLanguage } from '../../../context/LanguageContext'
+import { isImageFile } from '../../../components/dialogs/filePreviewUtils'
+import '../../inbox/chat-whatsapp.css'
 
 export type TerminalComposerProps = {
   taskId: string
@@ -49,6 +57,8 @@ export function TerminalComposer({
   disabled = false,
   className = '',
 }: TerminalComposerProps) {
+  const { t } = useLanguage()
+
   const [text, setText] = useState('')
   const [history, setHistory] = useState<string[]>(() => {
     try {
@@ -63,9 +73,15 @@ export function TerminalComposer({
   const [showSlashPopup, setShowSlashPopup] = useState(false)
   const [slashQuery, setSlashQuery] = useState('')
 
-  // Upload states
+  // Upload states & Attachment Picker
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; path: string; size: number }[]>([])
+  const [uploadedFiles, setUploadedFiles] = useState<{
+    name: string
+    path: string
+    size: number
+    previewUrl?: string
+  }[]>([])
   const [uploadError, setUploadError] = useState('')
 
   // Modals for slash commands
@@ -81,7 +97,18 @@ export function TerminalComposer({
   const [loadingDiff, setLoadingDiff] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const photosInputRef = useRef<HTMLInputElement>(null)
+  const filesInputRef = useRef<HTMLInputElement>(null)
+
+  // Revoke object URLs on unmount or file removal
+  useEffect(() => {
+    return () => {
+      for (const f of uploadedFiles) {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+      }
+    }
+  }, [uploadedFiles])
 
   // Save history to local storage
   const addToHistory = useCallback((cmd: string) => {
@@ -143,8 +170,8 @@ export function TerminalComposer({
     {
       command: '/upload',
       label: 'Upload File ke Workspace',
-      description: 'Unggah file lokal langsung ke folder workspace task',
-      action: () => fileInputRef.current?.click(),
+      description: 'Unggah kamera, foto, atau file ke workspace task',
+      action: () => setShowAttachmentMenu(true),
     },
     {
       command: '/diff',
@@ -160,76 +187,73 @@ export function TerminalComposer({
     },
     {
       command: '/clear',
-      label: 'Clear Terminal Screen',
-      description: 'Bersihkan tampilan buffer terminal (Ctrl+L)',
+      label: 'Clear Screen',
+      description: 'Bersihkan tampilan buffer terminal',
       action: () => onClearScreen(),
     },
     {
       command: '/stop',
-      label: 'Stop Execution (Ctrl+C)',
-      description: 'Kirim sinyal SIGINT untuk menghentikan proses',
+      label: 'Stop Process (Ctrl+C)',
+      description: 'Kirim sinyal interupsi SIGINT ke proses yang berjalan',
       action: () => onInterrupt(),
     },
   ]
 
-  const filteredCommands = slashCommands.filter(
-    (c) =>
-      c.command.toLowerCase().includes(slashQuery.toLowerCase()) ||
-      c.label.toLowerCase().includes(slashQuery.toLowerCase()),
+  const filteredCommands = slashCommands.filter((cmd) =>
+    cmd.command.toLowerCase().includes(slashQuery.toLowerCase()) ||
+    cmd.label.toLowerCase().includes(slashQuery.toLowerCase())
   )
 
-  // Handle text input changes & detect slash commands
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    setText(val)
-    if (val.startsWith('/')) {
-      setShowSlashPopup(true)
-      setSlashQuery(val.slice(1).trim())
-      setActiveSlashIndex(0)
-    } else {
-      setShowSlashPopup(false)
-    }
-  }
-
-  const executeSlashCommand = useCallback((cmd: SlashCommand) => {
+  const executeSlashCommand = (cmd: SlashCommand) => {
     setShowSlashPopup(false)
     setText('')
-    addToHistory(cmd.command)
     cmd.action({
-      sendInput: onSend,
-      openUpload: () => fileInputRef.current?.click(),
+      sendInput: (val: string) => onSend(val),
+      openUpload: () => setShowAttachmentMenu(true),
       openUsage: handleOpenUsage,
       openDiff: handleOpenDiff,
     })
-    inputRef.current?.focus()
-  }, [addToHistory, onSend, handleOpenUsage, handleOpenDiff])
+  }
 
-  const handleSend = useCallback((customText?: string) => {
+  const handleSend = (cmdText?: string) => {
     if (disabled) return
-    const toSend = typeof customText === 'string' ? customText : text
+    const toSend = cmdText !== undefined ? cmdText : text
+    if (!toSend.trim() && uploadedFiles.length === 0) return
 
-    // Check if it's an exact slash command
-    if (toSend.startsWith('/')) {
-      const match = slashCommands.find(
-        (c) => c.command.toLowerCase() === toSend.trim().toLowerCase(),
-      )
-      if (match) {
-        executeSlashCommand(match)
+    if (toSend.trim().startsWith('/')) {
+      const matched = slashCommands.find((c) => c.command.toLowerCase() === toSend.trim().toLowerCase())
+      if (matched) {
+        executeSlashCommand(matched)
+        setText('')
+        setShowSlashPopup(false)
         return
       }
     }
 
-    if (!toSend.trim()) {
-      onSend('\r')
-      return
-    }
-
-    onSend(toSend + '\r')
     addToHistory(toSend)
+    onSend(toSend + '\r')
     setText('')
     setShowSlashPopup(false)
+    // Clear uploaded files previews after sending
+    for (const f of uploadedFiles) {
+      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+    }
     setUploadedFiles([])
-  }, [disabled, text, slashCommands, executeSlashCommand, onSend, addToHistory])
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setText(val)
+
+    if (val.startsWith('/')) {
+      setShowSlashPopup(true)
+      setSlashQuery(val.slice(1))
+      setActiveSlashIndex(0)
+    } else {
+      setShowSlashPopup(false)
+      setSlashQuery('')
+    }
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (showSlashPopup && filteredCommands.length > 0) {
@@ -243,11 +267,9 @@ export function TerminalComposer({
         setActiveSlashIndex((prev) => (prev - 1 + filteredCommands.length) % filteredCommands.length)
         return
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      if (e.key === 'Enter') {
         e.preventDefault()
-        if (filteredCommands[activeSlashIndex]) {
-          executeSlashCommand(filteredCommands[activeSlashIndex])
-        }
+        executeSlashCommand(filteredCommands[activeSlashIndex])
         return
       }
       if (e.key === 'Escape') {
@@ -260,7 +282,11 @@ export function TerminalComposer({
     if (e.key === 'Enter') {
       e.preventDefault()
       handleSend()
-    } else if (e.key === 'ArrowUp') {
+      return
+    }
+
+    // Command history navigation
+    if (e.key === 'ArrowUp') {
       if (history.length > 0) {
         e.preventDefault()
         const nextIdx = Math.min(historyIdx + 1, history.length - 1)
@@ -281,17 +307,17 @@ export function TerminalComposer({
     }
   }
 
-  // File upload handler
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
+  // Upload handler for Camera, Photos, or Files
+  const handleFileUpload = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return
 
     setUploading(true)
     setUploadError('')
 
+    const fileList = Array.from(files)
     const formData = new FormData()
-    for (let i = 0; i < files.length; i++) {
-      formData.append('file', files[i])
+    for (const f of fileList) {
+      formData.append('file', f)
     }
 
     try {
@@ -307,21 +333,23 @@ export function TerminalComposer({
         throw new Error(errJson.error || errJson.message || 'Upload failed')
       }
 
-      const data = await res.json()
-      const newUploaded: { name: string; path: string; size: number }[] = []
+      const newUploaded: { name: string; path: string; size: number; previewUrl?: string }[] = []
 
-      if (data.files && Array.isArray(data.files)) {
-        for (const f of data.files) {
-          newUploaded.push({ name: f.filename, path: f.path, size: f.size })
-        }
-      } else if (data.filename) {
-        newUploaded.push({ name: data.filename, path: data.path, size: data.size })
+      for (const f of fileList) {
+        const isImg = isImageFile(f.name, f.type)
+        const previewUrl = isImg ? URL.createObjectURL(f) : undefined
+        newUploaded.push({
+          name: f.name,
+          path: f.name,
+          size: f.size,
+          previewUrl,
+        })
       }
 
       setUploadedFiles((prev) => [...prev, ...newUploaded])
 
       // Automatically append uploaded paths into composer input
-      const paths = newUploaded.map((f) => f.path).join(' ')
+      const paths = newUploaded.map((f) => `./${f.name}`).join(' ')
       setText((prev) => (prev ? `${prev.trim()} ${paths} ` : `${paths} `))
       inputRef.current?.focus()
     } catch (err) {
@@ -329,24 +357,25 @@ export function TerminalComposer({
       setTimeout(() => setUploadError(''), 4000)
     } finally {
       setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  const handleRemoveFile = (idx: number) => {
+    setUploadedFiles((prev) => {
+      const target = prev[idx]
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
+      const next = prev.filter((_, i) => i !== idx)
+      if (target) {
+        setText((current) => current.replace(`./${target.name}`, '').replace(target.name, '').trim())
+      }
+      return next
+    })
   }
 
   return (
     <div
-      className={`relative shrink-0 select-none bg-[#161616] border-t border-[#262626] px-2.5 py-2 space-y-1.5 ${className}`}
+      className={`wa-chat relative shrink-0 select-none bg-[#141414] border-t border-[#262626] px-2.5 py-2 space-y-1.5 ${className}`}
     >
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        onChange={handleFileUpload}
-        className="hidden"
-        aria-hidden="true"
-      />
-
       {/* ── Slash Commands Autocomplete Popup ── */}
       {showSlashPopup && filteredCommands.length > 0 && (
         <div className="absolute left-2.5 right-2.5 bottom-full mb-1.5 z-40 max-h-56 overflow-y-auto rounded-xl border border-neutral-700 bg-[#1f1f23] p-1 shadow-2xl backdrop-blur-md">
@@ -419,22 +448,16 @@ export function TerminalComposer({
               <span className="font-bold text-neutral-100">{usageData.workspace?.files_count ?? '—'}</span>
             </div>
           </div>
-          {usageData.workspace?.branch && (
-            <div className="flex items-center gap-1.5 text-[11px] text-neutral-400 font-mono">
-              <GitBranch className="h-3 w-3 text-amber-400" />
-              <span>Active branch: <strong>{usageData.workspace.branch}</strong></span>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ── Git Diff Overlay Card ── */}
+      {/* ── Diff Overlay Card ── */}
       {diffData && (
-        <div className="absolute left-2.5 right-2.5 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl text-xs space-y-2">
+        <div className="absolute left-2.5 right-2.5 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl text-xs space-y-2 max-h-60 overflow-y-auto">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
             <div className="flex items-center gap-2 font-semibold text-neutral-200">
               <GitBranch className="h-4 w-4 text-emerald-400" />
-              <span>Workspace Git Changes</span>
+              <span>Workspace Git Diff Summary</span>
             </div>
             <button
               type="button"
@@ -444,36 +467,9 @@ export function TerminalComposer({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          {diffData.stat || diffData.status ? (
-            <pre className="max-h-48 overflow-y-auto p-2 bg-black/60 rounded-lg text-[11px] font-mono text-neutral-300 leading-relaxed border border-neutral-800 whitespace-pre-wrap">
-              {diffData.stat && `=== Diff Stats ===\n${diffData.stat}\n\n`}
-              {diffData.status && `=== Changed Files ===\n${diffData.status}`}
-            </pre>
-          ) : (
-            <p className="text-neutral-400 py-2">Workspace clean: tidak ada perubahan file git yang belum di-commit.</p>
-          )}
-        </div>
-      )}
-
-      {/* ── Upload feedback badges ── */}
-      {uploadedFiles.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap px-1">
-          {uploadedFiles.map((f, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono"
-            >
-              <FileText className="h-3 w-3" />
-              <span className="truncate max-w-[120px]">{f.name}</span>
-              <button
-                type="button"
-                onClick={() => setUploadedFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                className="hover:text-emerald-200 ml-0.5"
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </span>
-          ))}
+          <pre className="font-mono text-[11px] text-neutral-300 bg-neutral-950 p-2 rounded border border-neutral-800 overflow-x-auto whitespace-pre-wrap">
+            {diffData.stat || diffData.status || 'No uncommitted changes in task workspace.'}
+          </pre>
         </div>
       )}
 
@@ -556,25 +552,72 @@ export function TerminalComposer({
         </button>
       </div>
 
+      {/* ── Attachment Previews Strip (Inbox-style) ── */}
+      {(uploadedFiles.length > 0 || uploading) && (
+        <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {uploadedFiles.map((f, idx) => (
+            <div
+              key={f.name + idx}
+              className="flex items-center gap-2 rounded-xl bg-neutral-900 border border-neutral-700/80 pl-1.5 pr-2 py-1 shrink-0 max-w-[220px]"
+            >
+              {f.previewUrl ? (
+                <img
+                  src={f.previewUrl}
+                  alt={f.name}
+                  className="h-8 w-8 rounded-lg object-cover border border-neutral-700 shrink-0"
+                />
+              ) : (
+                <div className="h-8 w-8 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center shrink-0">
+                  <FileText className="h-4 w-4 text-emerald-400" />
+                </div>
+              )}
+              <div className="min-w-0 flex flex-col justify-center">
+                <span className="truncate text-xs font-medium text-neutral-200 leading-tight">
+                  {f.name}
+                </span>
+                <span className="text-[10px] text-neutral-400 leading-tight">
+                  {Math.max(1, Math.ceil(f.size / 1024))} KB
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemoveFile(idx)}
+                className="p-1 text-neutral-400 hover:text-white rounded-full hover:bg-neutral-800 transition-colors ml-auto shrink-0"
+                title="Remove attachment"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+
+          {uploading && (
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono py-1 px-2 shrink-0">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              <span>{t('Uploading…')}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Inbox-Style Capsule Composer (Div container to prevent browser/Android autofill bars) ── */}
       <div
         role="group"
         aria-label="Terminal input composer"
-        className="flex items-center gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl border border-neutral-700 bg-[#121214] px-2 py-1.5 focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all shadow-inner"
+        className="wa-input-capsule flex min-w-0 items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
       >
-        {/* Upload Button */}
+        {/* Attachment Picker Button */}
         <button
           type="button"
           disabled={disabled || uploading}
-          onClick={() => fileInputRef.current?.click()}
-          className="p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors shrink-0 disabled:opacity-40"
+          onClick={() => setShowAttachmentMenu(true)}
+          className="wa-action-btn h-9 w-9 flex items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40"
           title="Upload file ke workspace tugas (/upload)"
-          aria-label="Upload file"
+          aria-label={t('Add attachment')}
         >
           {uploading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <LoaderCircle className="h-4 w-4 animate-spin text-emerald-400" />
           ) : (
-            <Paperclip className="h-4 w-4" />
+            <Paperclip className="h-5 w-5" />
           )}
         </button>
 
@@ -583,7 +626,7 @@ export function TerminalComposer({
           &gt;
         </span>
 
-        {/* Text Input (type="search" and anti-autofill tokens suppress Android password/card/address popups) */}
+        {/* Command Search / Text Input */}
         <div className="relative flex-1 min-w-0">
           <input
             ref={inputRef}
@@ -603,7 +646,7 @@ export function TerminalComposer({
             data-form-type="other"
             data-lpignore="true"
             data-1p-ignore="true"
-            className="w-full bg-transparent text-xs sm:text-sm font-mono text-neutral-100 placeholder:text-neutral-500 outline-none border-none py-1 px-1 pr-6 appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+            className="wa-input w-full min-w-0 py-1.5 px-1 pr-6 text-xs sm:text-sm font-mono appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
           {text && (
             <button
@@ -621,19 +664,108 @@ export function TerminalComposer({
           )}
         </div>
 
-        {/* Send Button */}
+        {/* Send Button (Inbox WhatsApp circular button) */}
         <button
           type="button"
           disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
           onClick={() => handleSend()}
-          className="inline-flex h-7 sm:h-8 shrink-0 items-center justify-center gap-1 rounded-lg bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground px-2.5 sm:px-3 text-xs font-semibold font-mono transition-colors disabled:opacity-35 disabled:cursor-not-allowed shadow-xs"
+          className="wa-send h-9 w-9 sm:h-9.5 sm:w-9.5 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5"
           title="Kirim ke terminal (Enter)"
           aria-label="Send input"
         >
-          <Send className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Send</span>
+          <Send className="h-4 w-4" />
         </button>
       </div>
+
+      {/* ── Attachment Choices Dialog (Camera, Photos, Files) ── */}
+      <ActionDialog
+        open={showAttachmentMenu}
+        title={t('Add attachment')}
+        onClose={() => setShowAttachmentMenu(false)}
+      >
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/jpeg,image/png"
+          capture="environment"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label={t('Take a photo')}
+          onChange={(e) => {
+            if (e.target.files) void handleFileUpload(e.target.files)
+            e.target.value = ''
+            setShowAttachmentMenu(false)
+          }}
+        />
+        <input
+          ref={photosInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-label={t('Choose photos')}
+          onChange={(e) => {
+            if (e.target.files) void handleFileUpload(e.target.files)
+            e.target.value = ''
+            setShowAttachmentMenu(false)
+          }}
+        />
+        <input
+          ref={filesInputRef}
+          type="file"
+          accept="*/*"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-label={t('Choose files')}
+          onChange={(e) => {
+            if (e.target.files) void handleFileUpload(e.target.files)
+            e.target.value = ''
+            setShowAttachmentMenu(false)
+          }}
+        />
+        <div className="space-y-1">
+          {[
+            {
+              label: t('Take a photo'),
+              description: 'Ambil foto kamera langsung ke workspace',
+              Icon: Camera,
+              ref: cameraInputRef,
+            },
+            {
+              label: t('Choose photos'),
+              description: 'Pilih gambar dari galeri perangkat',
+              Icon: Images,
+              ref: photosInputRef,
+            },
+            {
+              label: t('Choose files'),
+              description: 'Unggah file kode, teks, dokumen, dsb.',
+              Icon: FolderOpen,
+              ref: filesInputRef,
+            },
+          ].map(({ label, description, Icon, ref }) => (
+            <button
+              key={label}
+              type="button"
+              className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent text-neutral-100 transition-colors"
+              onClick={() => {
+                setShowAttachmentMenu(false)
+                ref.current?.click()
+              }}
+            >
+              <div className="h-9 w-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                <Icon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex flex-col">
+                <span className="text-sm font-medium text-neutral-100">{label}</span>
+                <span className="text-xs text-neutral-400">{description}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </ActionDialog>
     </div>
   )
 }

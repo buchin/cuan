@@ -104,3 +104,27 @@ test('6. Single Unified Input on Mobile: No duplicate prompt form or floating co
     'TaskTerminal must not render overlapping floating button at bottom-3 right-3',
   )
 })
+
+test('7. Inbox-Style Upload (Camera, Photos, Files) & WhatsApp Input Styling', () => {
+  const composerPath = path.join(
+    rootDir,
+    'src/features/tasks/terminal/TerminalComposer.tsx',
+  )
+  const content = fs.readFileSync(composerPath, 'utf8')
+
+  // Inbox style classnames
+  assert.match(content, /wa-input-capsule/, 'Must use wa-input-capsule class')
+  assert.match(content, /wa-input/, 'Must use wa-input class')
+  assert.match(content, /wa-send/, 'Must use wa-send class')
+  assert.match(content, /wa-chat/, 'Must use wa-chat palette class')
+
+  // Attachment choices: Camera, Photos, Files
+  assert.match(content, /capture="environment"/, 'Must support camera capture')
+  assert.match(content, /Camera/, 'Must render Camera attachment option')
+  assert.match(content, /Images/, 'Must render Photos attachment option')
+  assert.match(content, /FolderOpen/, 'Must render Files attachment option')
+
+  // Attachment Previews strip
+  assert.match(content, /previewUrl/, 'Must generate previewUrl for image thumbnails')
+  assert.match(content, /handleRemoveFile/, 'Must allow removing attachment items')
+})
