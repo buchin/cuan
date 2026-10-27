@@ -142,6 +142,12 @@ export function TaskSessionPage({
       : detail?.attempts.find((a) => a.id === sessionId)
   const active = Boolean(attempt && ['running', 'queued'].includes(attempt.status))
 
+  const isDedicatedTerminal = Boolean(
+    searchParams.get('terminal') === 'open' ||
+    (location.state as { openTerminal?: boolean } | null)?.openTerminal ||
+    detail?.title?.startsWith('Terminal ·')
+  )
+
   // Auto-close prevention: keep terminal open on task completion when pinned
   const prevActiveRef = useRef(active)
   useEffect(() => {
@@ -150,6 +156,16 @@ export function TaskSessionPage({
     }
     prevActiveRef.current = active
   }, [active, pinTerminal])
+
+  useEffect(() => {
+    if (isDedicatedTerminal) {
+      setShowTerminal(true)
+      setPinTerminal(true)
+      try {
+        localStorage.setItem('cuan_terminal_pin', 'true')
+      } catch {}
+    }
+  }, [isDedicatedTerminal])
 
   const handleTogglePin = useCallback(() => {
     setPinTerminal((prev) => {
@@ -193,11 +209,11 @@ export function TaskSessionPage({
       )
   }, [sessionId, attempt?.id, taskId, suffix, navigate, state, basePath, waitingLaunch])
   useEffect(() => {
-    setShowTerminal(pinTerminal)
+    setShowTerminal(pinTerminal || isDedicatedTerminal)
     setAccept(false)
     setFollowup('')
     following.current = false
-  }, [sessionId, pinTerminal])
+  }, [sessionId, pinTerminal, isDedicatedTerminal])
 
   const reports =
     detail?.activities.filter(
@@ -505,27 +521,33 @@ export function TaskSessionPage({
           Session needs attention · View detail
         </button>
       )}
-      {active || showTerminal ? (
+      {active || showTerminal || isDedicatedTerminal ? (
         <div className="flex min-h-0 flex-1 flex-col overscroll-contain">
           {!active && (
             <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                 <span className="truncate font-medium text-foreground">
-                  {pinTerminal ? t('Terminal pinned · Work finished') : t('Work finished')}
-                  {attempt.status ? ` (${attempt.status})` : ''}
+                  {isDedicatedTerminal
+                    ? t('Project terminal · Live with agent')
+                    : pinTerminal
+                      ? t('Terminal pinned · Work finished')
+                      : t('Work finished')}
+                  {attempt.status && !isDedicatedTerminal ? ` (${attempt.status})` : ''}
                 </span>
                 <span className="hidden sm:inline text-muted-foreground/60">·</span>
                 <span className="hidden sm:inline text-muted-foreground">{t('Terminal output saved')}</span>
               </div>
-              <button
-                type="button"
-                className="action-secondary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5 ml-2"
-                onClick={() => setShowTerminal(false)}
-              >
-                <span>{t('View result')}</span>
-                <ArrowLeft className="h-3 w-3 rotate-180" />
-              </button>
+              {!isDedicatedTerminal && (
+                <button
+                  type="button"
+                  className="action-secondary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5 ml-2"
+                  onClick={() => setShowTerminal(false)}
+                >
+                  <span>{t('View result')}</span>
+                  <ArrowLeft className="h-3 w-3 rotate-180" />
+                </button>
+              )}
             </div>
           )}
           <div className="min-h-0 flex-1 overscroll-contain">

@@ -177,3 +177,61 @@ test('8. TaskSessionPage declares all hooks unconditionally before early returns
     'handleTogglePin must be called BEFORE early return to avoid React Error #310',
   )
 })
+
+test('9. Project terminal launches dedicated interactive session with agent and does not hijack regular tasks', () => {
+  const projectsViewPath = path.join(
+    rootDir,
+    'src/features/projects/ProjectsView.tsx',
+  )
+  const viewContent = fs.readFileSync(projectsViewPath, 'utf8')
+
+  assert.ok(
+    !viewContent.includes('const sorted = [...projTasks].sort('),
+    'ProjectsView must not redirect to old completed tasks',
+  )
+  assert.match(
+    viewContent,
+    /item\.title\.startsWith\('Terminal ·'\)/,
+    'ProjectsView must look for dedicated Terminal session if already alive',
+  )
+  assert.match(
+    viewContent,
+    /agentsApi\.list/,
+    'ProjectsView must query available agents to launch interactive session',
+  )
+
+  const workspacePath = path.join(
+    rootDir,
+    'src/features/projects/ProjectsWorkspace.tsx',
+  )
+  const workspaceContent = fs.readFileSync(workspacePath, 'utf8')
+
+  assert.ok(
+    !workspaceContent.includes('const sorted = [...projTasks].sort('),
+    'ProjectsWorkspace must not redirect to old completed tasks',
+  )
+  assert.match(
+    workspaceContent,
+    /item\.title\.startsWith\('Terminal ·'\)/,
+    'ProjectsWorkspace must look for dedicated Terminal session if already alive',
+  )
+})
+
+test('10. TaskSessionPage keeps terminal open and pinned for dedicated project terminal sessions', () => {
+  const sessionPagePath = path.join(
+    rootDir,
+    'src/features/tasks/TaskSessionPage.tsx',
+  )
+  const content = fs.readFileSync(sessionPagePath, 'utf8')
+
+  assert.match(
+    content,
+    /isDedicatedTerminal/,
+    'TaskSessionPage must recognize dedicated project terminal mode',
+  )
+  assert.match(
+    content,
+    /Project terminal · Live with agent/,
+    'TaskSessionPage must display live agent banner for project terminals',
+  )
+})

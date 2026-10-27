@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
+import { agentsApi } from '../../api/agents'
 import { workStatus } from '../tasks/task-ui'
 import { useLanguage } from '../../context/LanguageContext'
 import {
@@ -54,44 +55,98 @@ export function ProjectsView({
 
   const handleOpenProjectTerminal = async (projId: string) => {
     const projTasks = tasks.filter((item) => item.project_id === projId)
-    // Find active working task first
-    const activeTask = projTasks.find((item) =>
-      ['Working', 'Waiting to start'].includes(workStatus(item)) ||
-      ['running', 'queued'].includes(item.latest_attempt?.status || ''),
+    // 1. Reconnect to an already active dedicated project terminal session if alive
+    const activeTerminalTask = projTasks.find(
+      (item) =>
+        item.title.startsWith('Terminal ·') &&
+        (['Working', 'Waiting to start'].includes(workStatus(item)) ||
+          ['running', 'queued'].includes(item.latest_attempt?.status || '')),
     )
-    if (activeTask) {
+    if (activeTerminalTask) {
+      try {
+        localStorage.setItem('cuan_terminal_pin', 'true')
+      } catch {}
       navigate(
-        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(activeTask.id)}/sessions/latest`,
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open`,
+        {
+          state: {
+            taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
+            openTerminal: true,
+          },
+        },
       )
       return
     }
 
-    // Find latest task
-    if (projTasks.length > 0) {
-      const sorted = [...projTasks].sort((a, b) => {
-        const da = a.latest_attempt?.started_at || a.created_at || ''
-        const db = b.latest_attempt?.started_at || b.created_at || ''
-        return Date.parse(db) - Date.parse(da)
-      })
-      navigate(
-        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(sorted[0].id)}/sessions/latest`,
-      )
-      return
-    }
-
-    // No tasks yet: create a quick interactive workspace task
+    // 2. Independent from regular tasks / old completed tasks. Always launch a dedicated interactive terminal with agent.
     try {
+      setBusy(projId)
+      let agentId = 'default'
+      try {
+        const agentList = await agentsApi.list()
+        const available = agentList.filter(
+          (a) => a.enabled !== false && a.status !== 'inactive',
+        )
+        const selected =
+          available.find((a) => a.connection_state === 'verified') ||
+          available[0]
+        if (selected) agentId = selected.id
+      } catch {}
+
       const targetProj = projects.find((p) => p.id === projId)
+      const projName = targetProj?.name || 'Workspace'
       const created = await tasksApi.create({
-        title: `Terminal · ${targetProj?.name || 'Workspace'}`,
+        title: `Terminal · ${projName}`,
         project_ids: [projId],
-        description: 'Interactive project terminal workspace session.',
+        description: `Interactive terminal workspace session with AI agent for ${projName}.`,
       })
+
+      try {
+        localStorage.setItem('cuan_terminal_pin', 'true')
+      } catch {}
+
+      const launchPayload = {
+        request_id: crypto.randomUUID(),
+        agent_id: agentId,
+      }
+
+      try {
+        localStorage.setItem(
+          'cuan-task-launch:' + created.id,
+          JSON.stringify(launchPayload),
+        )
+      } catch {}
+
+      try {
+        const res = await tasksApi.runAgent(created.id, launchPayload)
+        if (res?.attempt?.id) {
+          navigate(
+            `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(res.attempt.id)}?terminal=open`,
+            {
+              state: {
+                taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
+                openTerminal: true,
+              },
+            },
+          )
+          return
+        }
+      } catch {}
+
       navigate(
-        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(created.id)}/sessions/start`,
+        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(created.id)}/sessions/start?terminal=open`,
+        {
+          state: {
+            taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
+            startRequestId: launchPayload.request_id,
+            openTerminal: true,
+          },
+        },
       )
     } catch {
       navigate(`/projects/${encodeURIComponent(projId)}/tasks`)
+    } finally {
+      setBusy('')
     }
   }
   const archive = async (project: Project) => {

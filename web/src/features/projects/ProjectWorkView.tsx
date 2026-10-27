@@ -42,7 +42,10 @@ export function ProjectWorkView({
   const [filter, setFilter] = useState('all')
   const location = useLocation()
   const base = '/projects/' + encodeURIComponent(project.id) + '/tasks'
-  const scoped = tasksForProject(tasks, project.id)
+  const allTasks = tasksForProject(tasks, project.id)
+  const scoped = allTasks.filter(
+    (task) => !task.title.startsWith('Terminal ·') || task.id === taskId,
+  )
   const filters = [
     { id: 'all', label: 'All', matches: (_task: Task) => true },
     { id: 'active', label: 'Active', matches: (task: Task) => ['Working', 'Waiting to start', 'Not started'].includes(workStatus(task)) },
