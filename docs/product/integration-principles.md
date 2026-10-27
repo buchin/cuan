@@ -33,7 +33,7 @@ Record the choice and its practical limitations in the integration guide.
 ## Implementation boundaries
 
 Run each provider with a private account/owner profile and an allowlisted process
-environment. Never inherit Fural credentials, ambient provider tokens, another
+environment. Never inherit ambient credentials, host provider tokens, another
 account's profile, SSH agent access, or a global CLI login. Store retained access
 encrypted; remove temporary credential files after a successful handoff or
 cancellation. Preserve explicit provider consent and existing preferences.

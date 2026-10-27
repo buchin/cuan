@@ -4,7 +4,7 @@ Dokumen ini merupakan panduan operasional mandiri (*self-contained operational g
 1. **Hotfix PostgreSQL Room/Message Foreign Key & Seed Default Project:** Memastikan persistensi room agen Scrum Master dan riwayat pesan chat di database PostgreSQL tanpa foreign key violation.
 2. **Deploy Fresh Frontend Bundle ke VPS Produksi:** Prosedur sinkronisasi build terbaru ke `/opt/cuan/web/dist` dan binary `cuan-server` di VPS `https://cuan.dojo.cc` sehingga auto-hide Bottom Nav di HP aktif dan input composer lega.
 3. **Restrukturisasi 4 Navigasi Utama:** Desktop Sidebar Rail & Mobile Bottom Nav Bar yang konsisten: Inbox, Tasks, Projects, Team.
-4. **Unified Team Directory:** Menampilkan Humans (Product Owner) dan AI Agents (Scrum Master & Workers) berdampingan dalam satu direktori lengkap dengan onboarding model Fural tanpa API key raw.
+4. **Unified Team Directory:** Menampilkan Humans (Product Owner) dan AI Agents (Scrum Master & Workers) berdampingan dalam satu direktori lengkap dengan onboarding model mandiri tanpa API key raw.
 5. **Global Task Board View:** Antarmuka papan Kanban Unified Backlog lintas seluruh proyek dengan filter status, pencarian instan, dan pembuatan task cepat.
 
 ---
@@ -59,7 +59,7 @@ team_view: "Unified Team Directory (TeamView.tsx)" {
   po: "Product Owner: Buchin (Human Owner)"
   sm: "Scrum Master: @sm (AI Manager Autonomous)"
   dev: "Dev Team: Antigravity Flash & Pro Workers"
-  modal: "Add Agent Modal (Model Fural — No API Key)"
+  modal: "Add Agent Modal (Model Mandiri — No API Key)"
 }
 
 tasks_view: "Global Task Board (TaskBoardView.tsx)" {
@@ -131,7 +131,7 @@ Tab Team kini menjadi direktori terpadu yang menampilkan:
 - **Human Owner:** Buchin (Product Owner) dengan tanggung jawab sprint planning, approval 1-klik, dan evaluasi hasil produksi.
 - **AI Scrum Master:** `@sm` (Agent Manager) yang bertugas melakukan triage pesan Inbox otomatis, merumuskan Problem Statement & checklist Definition of Done (DoD), serta mendelegasikan tugas ke worker agents.
 - **Development Team (Workers):** Antigravity Flash (`@pin`), Antigravity Pro (`@pin2`), dan agen worker tambahan yang terhubung.
-- **Add Agent Modal (Model Fural — No API Key):** Pengguna dapat mendaftarkan agen baru menggunakan handle preset (`@dev`, `@sm`, `@assistant`, `@tester`), runtime provider (`Antigravity CLI`, `Gemini CLI`, `Claude CLI`), dan mekanisme otorisasi sesi CLI tanpa meminta API key mentah berbayar.
+- **Add Agent Modal (Model Mandiri — No API Key):** Pengguna dapat mendaftarkan agen baru menggunakan handle preset (`@dev`, `@sm`, `@assistant`, `@tester`), runtime provider (`Antigravity CLI`, `Gemini CLI`, `Claude CLI`), dan mekanisme otorisasi sesi CLI tanpa meminta API key mentah berbayar.
 
 ---
 

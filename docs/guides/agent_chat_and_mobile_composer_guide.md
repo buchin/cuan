@@ -9,7 +9,7 @@ Sprint 20 (#QVEQM) menyelesaikan dua kapabilitas inti untuk platform Cuan:
    - Menerapkan tinggi dinamis `h-[100dvh]` untuk mengantisipasi keyboard virtual dan address bar browser mobile.
    - Memastikan kolom input dan tombol kirim menempel kokoh di dasar layar dengan safe-area padding (`pb-[max(0.75rem,env(safe-area-inset-bottom))]`).
    - Mengembalikan Bottom Nav secara mulus ketika tombol Back (`<`) diklik.
-2. **S20.2 Registrasi & Login Agen Mandiri Tanpa API Key (Model Fural):**
+2. **S20.2 Registrasi & Login Agen Mandiri Tanpa API Key (Model CLI Mandiri):**
    - Menghadirkan antarmuka pendaftaran agen (`AgentsView.tsx`) dengan model login sesi CLI otonom tanpa memerlukan input manual API key pihak ketiga yang berisiko.
    - Pilihan handle cepat: `@sm` (Scrum Master), `@dev` (Dev Worker), `@assistant` (Executive Assistant).
    - Runtime CLI didukung: `Antigravity CLI (agy)` (default bawaan sistem), `Gemini CLI`, dan `Claude CLI`.
@@ -24,7 +24,7 @@ Sprint 20 (#QVEQM) menyelesaikan dua kapabilitas inti untuk platform Cuan:
 
 ## 2. Diagram Alur Kerja & Arsitektur (D2 TALA)
 
-Diagram berikut merinci arsitektur responsif mobile, alur otorisasi CLI Model Fural tanpa API Key, dan loop eksekusi chat-ke-CLI runner:
+Diagram berikut merinci arsitektur responsif mobile, alur otorisasi CLI Model CLI Mandiri tanpa API Key, dan loop eksekusi chat-ke-CLI runner:
 
 ```d2
 vars: {
@@ -55,7 +55,7 @@ mobile_ux: "Mobile Responsive Viewport (< md)" {
   }
 }
 
-agent_auth: "Manajemen Autentikasi Agen (Model Fural)" {
+agent_auth: "Manajemen Autentikasi Agen (Model CLI Mandiri)" {
   connect_modal: "Modal Tambah / Hubungkan Agen" {
     preset_handles: "Pilihan Handle (@sm, @dev, @assistant)"
     runtime_select: "Runtime CLI (Antigravity / Gemini / Claude)"
@@ -118,7 +118,7 @@ execution_loop.db_persistence -> execution_loop.reply_payload: "Kembalikan Respo
 
 ### B. UI Login Agen Mandiri Tanpa API Key (S20.2)
 - **`web/src/features/agents/AgentsView.tsx`**:
-  - Menggantikan modal API key lama dengan modal **Model Fural (Zero API Key)**.
+  - Menggantikan modal API key lama dengan modal **Model CLI Mandiri (Zero API Key)**.
   - Pilihan handle cepat:
     * `@sm` — Scrum Master
     * `@dev` — Development Worker

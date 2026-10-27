@@ -19,7 +19,7 @@ func deviceLoginFixture(t *testing.T) (*Server, func(string, string) *httptest.R
 	s, token := setupTestChatServer(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("GH_TOKEN", "AMBIENT_FURAL_TOKEN_SENTINEL")
+	t.Setenv("GH_TOKEN", "AMBIENT_HOST_TOKEN_SENTINEL")
 	t.Setenv("GITHUB_TOKEN", "AMBIENT_GITHUB_TOKEN_SENTINEL")
 	t.Setenv("CUAN_GITHUB_CLIENT_ID", "")
 	if err := os.MkdirAll(filepath.Join(home, ".config", "gh"), 0700); err != nil {

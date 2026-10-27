@@ -1,12 +1,12 @@
-# Panduan Operasional: Fural-Style BYO Agent Connection & Dynamic Chat Roles
+# Panduan Operasional: Universal Style BYO Agent Connection & Dynamic Chat Roles
 
-Dokumen ini merupakan panduan teknis dan operasional untuk arsitektur Fural-Style Bring Your Own (BYO) Agent dan Dynamic Contextual Chat Roles pada platform Cuan.
+Dokumen ini merupakan panduan teknis dan operasional untuk arsitektur Universal Style Bring Your Own (BYO) Agent dan Dynamic Contextual Chat Roles pada platform Cuan.
 
 ---
 
-## 1. Arsitektur Fural-Style BYO Agent Connection
+## 1. Arsitektur Universal Style BYO Agent Connection
 
-Arsitektur Fural-Style BYO Agent di Cuan mengeliminasi dependensi peran bisnis statis. Agen didefinisikan secara murni oleh identitas (@handle), Harness eksekusi (Antigravity, Claude, Codex, atau Custom Model), dan Sesi Autentikasi.
+Arsitektur Universal Style BYO Agent di Cuan mengeliminasi dependensi peran bisnis statis. Agen didefinisikan secara murni oleh identitas (@handle), Harness eksekusi (Antigravity, Claude, Codex, atau Custom Model), dan Sesi Autentikasi.
 
 ### Diagram Arsitektur Komponen (D2 TALA Engine)
 
@@ -20,13 +20,13 @@ PoUser: "Product Owner / User\n(Buchin)" {
 }
 
 WebUI: "Cuan Web Interface\n(React 18 + Vite + Tailwind)" {
-  AddModal: "Fural-Style Add Modal\n(@handle + Harness)"
+  AddModal: "Universal Style Add Modal\n(@handle + Harness)"
   ChatHub: "Unified Chat Hub\n(Dynamic Context Persona)"
   TaskBoard: "Global Task Board\n(Agent Runner + xterm.js)"
 }
 
 Backend: "Cuan Control Plane (Go REST/WS Engine)" {
-  AgentRegistry: "Agent Registry API\n(Format Fural: {id, name, harness})"
+  AgentRegistry: "Agent Registry API\n(Format Universal: {id, name, harness})"
   ContextClassifier: "Dynamic Context Classifier\n(Scrum Master | Dev | Friendly)"
   PtyRunner: "PTY Process Manager\n(Task Runner Engine)"
 }
@@ -64,11 +64,11 @@ Backend.PtyRunner -> Storage.Workspace: "Binds PTY to Task Dir"
 
 ---
 
-## 2. Eliminasi Peran Kaku & Standarisasi Registry Fural
+## 2. Eliminasi Peran Kaku & Standarisasi Registry Universal
 
 Pada arsitektur lama, agen memiliki peran statis yang dikunci pada profil (seperti "CS Toko", "Admin", atau "Lead Architect"). Pada Sprint 23, konsep peran kaku dieliminasi sepenuhnya:
 
-- **Format Entitas Fural Standar:**
+- **Format Entitas Universal Standar:**
   ```json
   {
     "id": "c053475c-0513-435b-9bb2-b548ab5b0068",
@@ -80,7 +80,7 @@ Pada arsitektur lama, agen memiliki peran statis yang dikunci pada profil (seper
   ```
 - **Endpoints REST API Standar:**
   - `GET /api/v1/agents`: Mengambil seluruh agen terdaftar.
-  - `POST /api/v1/agents`: Mendaftarkan agen baru format Fural.
+  - `POST /api/v1/agents`: Mendaftarkan agen baru format Universal.
   - `GET /api/v1/agents/{id}`: Detail agen berdasarkan ID.
   - `PATCH /api/v1/agents/{id}`: Memperbarui parsial atribut agen (nama, harness, status enabled).
   - `DELETE /api/v1/agents/{id}`: Menghapus agen dari sistem.
@@ -89,7 +89,7 @@ Pada arsitektur lama, agen memiliki peran statis yang dikunci pada profil (seper
 
 ## 3. Modal Tambah Agen & Pilihan Harness
 
-Modal pendaftaran agen (`web/src/features/team/TeamView.tsx`) didesain ulang mengadopsi standar UX Fural:
+Modal pendaftaran agen (`web/src/features/team/TeamView.tsx`) didesain ulang mengadopsi standar UX Universal:
 
 1. **Pilihan Harness:**
    - **Antigravity (`agy`)**: Runner CLI otonom cerdas untuk pemecahan masalah end-to-end.

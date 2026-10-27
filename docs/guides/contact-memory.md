@@ -49,7 +49,7 @@ Kinds: `note`, `fact`, `birthday`. Body: 1–6000 Unicode characters. Birthday: 
 
 ## Deploy and rollback
 
-Schema24 is additive: a new `contact_memory` table and contact/date index. Existing contact/message rows are unchanged. Validate a private database/profile backup and the no-active-work gate before applying migration24 explicitly with the native migration CLI. `CUAN_AUTO_MIGRATE` remains false. Verify old application readiness on schema24, then deploy with `scripts/fural-deploy.sh --branch <approved-branch>`; activation requires schema24 and uses atomic switching, a lock, health checks and application rollback.
+Schema24 is additive: a new `contact_memory` table and contact/date index. Existing contact/message rows are unchanged. Validate a private database/profile backup and the no-active-work gate before applying migration24 explicitly with the native migration CLI. `CUAN_AUTO_MIGRATE` remains false. Verify old application readiness on schema24, then deploy with `scripts/deploy.sh --branch <approved-branch>`; activation requires schema24 and uses atomic switching, a lock, health checks and application rollback.
 
 For application rollback use the current activation script with `--rollback --schema-count 24`; leave schema24 in place so notes survive. Do not run the destructive down migration as routine rollback. Smoke-check Contacts, an existing note read, Projects and readiness without sending live agent messages. Verify retained tables and account profiles against the private backup. The notes UI and owner-only API can be checked with synthetic data in an isolated database before production activation.
 
@@ -57,4 +57,4 @@ For application rollback use the current activation script with `--rollback --sc
 
 Archive/delete for whole contacts and Inbox conversations are not part of this release. Recommended semantics: reversible archive with an Archived view; explicit confirmed deletion with clearly stated effects; contact notes and chat history have separate lifecycles. Do not delete linked task evidence implicitly.
 
-Fural's inspected bubble gesture is swipe-right to open actions on mobile, right-click on desktop, and long-press for native text selection. It yields to vertical scrolling and horizontal code/table scrolling. For Cuan a future menu can expose Copy and Save to contact, with an accessible visible menu button as an alternative. Swiping must never immediately delete data. No Fural source code was copied into Cuan.
+Reference bubble gesture is swipe-right to open actions on mobile, right-click on desktop, and long-press for native text selection. It yields to vertical scrolling and horizontal code/table scrolling. For Cuan a future menu can expose Copy and Save to contact, with an accessible visible menu button as an alternative. Swiping must never immediately delete data. No external source code was copied into Cuan.

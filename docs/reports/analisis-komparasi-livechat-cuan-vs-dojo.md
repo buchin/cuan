@@ -5,7 +5,7 @@
 **Subjek:** Evaluasi Kesiapan Cuan sebagai Pengganti Penuh (*Drop-In Replacement*) Live Chat Dojo  
 **Repositori Terkait:**  
 - Cuan: `https://github.com/buchin/cuan.git` (Go Backend, React/TypeScript Frontend)
-- Dojo: `https://github.com/imdojo/dojo.git` (Laravel Backend, React/Fural Operator UI)
+- Dojo: `https://github.com/imdojo/dojo.git` (Laravel Backend, React Operator UI)
 
 ---
 
@@ -77,9 +77,9 @@ Audit komparasi menyeluruh telah dilakukan antara kapabilitas live chat pada rep
 - **Model & Database Schema**:
   - `chat_sessions`: Menyimpan `uuid`, `user_id`, `guest_uuid`, `name`, `email`, `status` (`active`, `closed`, `resolved`), `current_url`, `page_title`, `referrer_url`, `last_page_updated_at`.
   - `chat_messages`: Mendukung kolom relasional lampiran (`attachment_url`, `attachment_type`, `attachment_name`, `attachment_size`) dan status baca (`read_at`, `delivered_at`).
-  - `chat_escalations`: Relasi eskalasi tugas ke issue tracker Fural.
+  - `chat_escalations`: Relasi eskalasi tugas ke issue tracker eksternal.
   - `chat_email_deliveries`: Pencatatan log email notifikasi pengunjung dan operator.
-- **Operator Dashboard**: `resources/fural/LiveChatOperator.tsx` (5.696 baris kode) berbasis React dan `@fural/ui` yang sangat komprehensif.
+- **Operator Dashboard**: `LiveChatOperator.tsx` (5.696 baris kode) berbasis React UI komprehensif.
 - **Visitor Widget**: `public/chat/widget.js` (1.922 baris kode), memiliki fitur file upload, audio chimes, markdown formatting, lightbox, dan deteksi offline.
 
 ### 3.2 Transport & Real-Time
@@ -115,7 +115,7 @@ Audit komparasi menyeluruh telah dilakukan antara kapabilitas live chat pada rep
 ### 3.6 Notifikasi & Email Fallback
 - **Queue Jobs Otomatis**:
   - `SendDelayedChatEmailDigestJob`: Mengirim email digest kepada tim operator jika pesan pengunjung tidak direspons dalam jangka waktu tertentu.
-  - `SendChatFuralAlertJob` & `SyncChatFuralBadgeJob`: Sinkronisasi notifikasi badge dan alert ke platform tim.
+  - `SendChatTeamAlertJob` & `SyncChatTeamBadgeJob`: Sinkronisasi notifikasi badge dan alert ke platform tim.
 - **Email Transkrip**: `ChatTranscriptMail` mengirimkan riwayat percakapan secara rapi ke email pengunjung saat sesi ditandai selesai (*resolved*).
 - **Pemberitahuan Suara**: Web Audio API Chime pada widget pengunjung saat pesan baru tiba.
 
@@ -149,7 +149,7 @@ Berikut adalah rekapitulasi perbandingan kapabilitas antara kedua sistem:
 | | Audio Chime Ping di Widget | Tersedia (Web Audio API) | Belum Ada | **Gap Minor (P-3)** |
 | **AI & Workflow** | Saran Balasan AI | Tersedia (`ChatAiSuggestionService`)| Tersedia via interaksi Scrum Master | **Setara** |
 | | **1-Click Agent Action Card & DoD** | Tidak Ada | **Tersedia Penuh** | **Cuan Unggul Signifikan** |
-| | **Eskalasi Task & Isolasi Branch** | Terbatas (Fural Issue Task) | **Tersedia Penuh** (Workspace & Git)| **Cuan Unggul Signifikan** |
+| | **Eskalasi Task & Isolasi Branch** | Terbatas (External Issue Task) | **Tersedia Penuh** (Workspace & Git)| **Cuan Unggul Signifikan** |
 
 ---
 

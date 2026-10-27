@@ -84,7 +84,7 @@ ask the user to repeat a working connection. GitHub consent and private reposito
 Production runs `09a3fc4`/schema25; dedicated Dracin staging runs `8b2ed65`/schema25.
 Production Default is neutral (name Default, no repository); legacy Cuan data was
 preserved in its own project. Private Cuan repository access still needs GitHub
-setup; no Fural token was borrowed.
+setup; no ambient token was borrowed.
 
 The real Studio proposal was approved through the UI and created one task. A
 controlled interruption stopped its first execution. Earlier coordinator review
@@ -455,7 +455,7 @@ pass together (6.992s).
 This closes a combined process/worktree pending-state fixture gap, not actual
 model reasoning, database reconstruction in this particular test, or real GitHub
 delivery. The authenticated provider prerequisite was requested explicitly;
-profiles from Fural or production must not be silently reused for testing.
+profiles from ambient environments or production must not be silently reused for testing.
 
 
 ## Actual-provider completion gate blocked — 2026-10-21

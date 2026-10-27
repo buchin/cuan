@@ -486,10 +486,10 @@ func TestAgentConnectionHandlers_ValidationAndErrors(t *testing.T) {
 	}
 }
 
-func TestAgentHandlers_S23_1_FuralStyleRegistry(t *testing.T) {
+func TestAgentHandlers_S23_1_UniversalStyleRegistry(t *testing.T) {
 	srv, _, _ := setupTestServer(t)
 
-	// 1. POST /api/v1/agents with Fural entity format { id, name, harness, connection_id, enabled }
+	// 1. POST /api/v1/agents with Universal entity format { id, name, harness, connection_id, enabled }
 	createPayload := map[string]interface{}{
 		"name":          "@dev",
 		"harness":       "custom",

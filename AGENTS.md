@@ -7,5 +7,5 @@ Before adding or changing an external integration, follow
 [the integration design principles](docs/product/integration-principles.md).
 Prefer a maintained official provider CLI where appropriate, with a simple Cuan
 UI for connection, status, retry and cancellation. Use official APIs/SDKs where
-better suited; a CLI is not mandatory for every capability. Never reuse Fural or
+better suited; a CLI is not mandatory for every capability. Never reuse
 ambient developer credentials as Cuan user credentials.

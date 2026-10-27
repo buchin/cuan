@@ -1,8 +1,8 @@
-# Panduan Arsitektur & Operasional: Mobile Responsive Overhaul & Minimalist Task Creation Form (Model Fural)
+# Panduan Arsitektur & Operasional: Mobile Responsive Overhaul & Minimalist Task Creation Form (Model Minimalis)
 
 ## 1. Ikhtisar & Mental Model Arsitektur
 
-Sprint 19 mentransformasi antarmuka Cuan agar **100% responsif, ergonomis, dan intuitif di perangkat mobile (< md / 360px–414px)** sekaligus menghadirkan **Minimalist Task Creation Form (Model Fural)** yang memungkinkan pencatatan ide dan tugas tuntas dalam waktu kurang dari 3 detik.
+Sprint 19 mentransformasi antarmuka Cuan agar **100% responsif, ergonomis, dan intuitif di perangkat mobile (< md / 360px–414px)** sekaligus menghadirkan **Minimalist Task Creation Form (Model Minimalis)** yang memungkinkan pencatatan ide dan tugas tuntas dalam waktu kurang dari 3 detik.
 
 ### Latar Belakang Masalah (Pre-Sprint 19)
 Pada versi sebelumnya, layout Cuan dirancang dengan paradigma desktop 3-tier:
@@ -24,7 +24,7 @@ Ketika dibuka pada layar smartphone (misalnya iPhone SE 375px atau Android stand
      * **Mode Chat (Chat Stream):** Saat kontak diklik, layar berganti menampilkan obrolan **100% lebar layar HP** dengan tombol Back (`<`) di kiri atas header.
      * Mengetuk tombol Back (`<`) mengembalikan tampilan ke daftar kontak.
    - Pada desktop (`>= md`), sistem tetap mempertahankan tata letak split view berdampingan (subpanel 240px di kiri + chat stream di kanan).
-3. **Minimalist Task Creation Form — Model Fural (S19.3):**
+3. **Minimalist Task Creation Form — Model Minimalis (S19.3):**
    - Input judul tugas langsung mendapatkan fokus otomatis (`autoFocus`) dengan placeholder `"Apa yang ingin dikerjakan?..."`.
    - Textarea deskripsi opsional.
    - Dropdown project otomatis terisi project yang sedang aktif.
@@ -68,7 +68,7 @@ mobile_flow: "Arsitektur Mobile Viewport (< md)" {
     }
   }
 
-  quick_task: "Minimalist Task Modal (Model Fural)" {
+  quick_task: "Minimalist Task Modal (Model Minimalis)" {
     title_input: "Autofocus Title ('Apa yang ingin dikerjakan?...')"
     project_select: "Active Project Dropdown"
     shortcuts: "Enter or Ctrl+Enter to Submit (< 3s)"
@@ -192,10 +192,10 @@ Di layar desktop (`>= md`), kelas `hidden md:flex` dan `md:hidden` memastikan:
 
 ---
 
-## 5. Minimalist Task Creation Form (Model Fural)
+## 5. Minimalist Task Creation Form (Model Minimalis)
 
 ### 5.1 Desain Zero-Friction
-Formulir pembuatan task pada `web/src/features/tasks/CreateTaskModal.tsx` dirombak total dari model lama yang kaku menjadi formulir minimalis modern ala Fural:
+Formulir pembuatan task pada `web/src/features/tasks/CreateTaskModal.tsx` dirombak total dari model lama yang kaku menjadi formulir minimalis modern minimalis modern:
 * **Autofocus Title:** Segera setelah modal dibuka, kursor input otomatis berada di input judul dengan placeholder ramah: `"Apa yang ingin dikerjakan?..."`.
 * **Description Opsional:** Textarea ringkas 3 baris untuk catatan atau prompt instruksi tambahan tanpa kewajiban validasi.
 * **Auto Project Selector:** Dropdown otomatis memilih project aktif saat ini (`activeProjectId`).

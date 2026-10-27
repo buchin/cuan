@@ -1,7 +1,7 @@
 # Tasks workspace implementation
 
 This work is authorized directly in the Cuan AgentSession, outside Scrum. Scope:
-improve Tasks UI, UX, functionality, workflow, and terminal using relevant Fural
+improve Tasks UI, UX, functionality, workflow, and terminal using modern workspace
 patterns. All new product copy is English. Existing user content is preserved.
 
 ## Outcomes and acceptance
@@ -43,7 +43,7 @@ patterns. All new product copy is English. Existing user content is preserved.
 
 Data and workflow invariants → launch/terminal lifecycle → frontend list/detail
 and session view → integrated verification → documentation and production release.
-Fural supplies reference interaction patterns; its multi-organization model,
+External platforms supply reference interaction patterns; their multi-organization model,
 multi-agent infrastructure, roadmap, and bulk operations are outside this change.
 
 ## Completion evidence

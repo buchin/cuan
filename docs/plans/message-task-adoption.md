@@ -1,9 +1,9 @@
-# Adopsi pesan dan task Fural di Cuan
+# Adopsi siklus pesan dan task interaktif di Cuan
 
 ## Otorisasi dan tujuan
 
-Pengguna meminta adopsi siklus pesan Fural, kemudian memperluas tujuan menjadi
-“implementasi pesan dan task fural ke cuan”. Instruksi eksplisit 2026-10-19:
+Pengguna meminta adopsi siklus pesan interaktif, kemudian memperluas tujuan menjadi
+“implementasi pesan dan task ke cuan”. Instruksi eksplisit 2026-10-19:
 “kali ini ga pake scrum dulu, gas disini.” Pekerjaan langsung pada repository Cuan,
 bukan sprint baru dan tidak mengubah status/review S26.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run S25 OAuth staging on port 8081 with an SSH tunnel to its isolated DB.
 
-Use through `fural-agent sandboxes serve`; credentials stay outside the repo.
+Use through sandbox runner; credentials stay outside the repo.
 """
 import json
 import os

@@ -65,7 +65,7 @@ func NormalizeConnectionStatus(status string) (string, error) {
 	}
 }
 
-// Agent represents an autonomous or interactive AI assistant persona in the system (standardized to Fural format).
+// Agent represents an autonomous or interactive AI assistant persona in the system (standardized to Universal Agent format).
 type Agent struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
@@ -120,7 +120,7 @@ func (a *Agent) Clone() *Agent {
 	}
 }
 
-// AgentDTO represents the public Data Transfer Object for an Agent in Fural format.
+// AgentDTO represents the public Data Transfer Object for an Agent in Universal Agent format.
 type AgentDTO struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`

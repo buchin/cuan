@@ -123,7 +123,7 @@ func (s *Server) cancelGitHubDeviceOwner(owner string) {
 	}
 }
 
-// gh must never inherit Fural's GH_TOKEN, global gh config, keyring or git
+// gh must never inherit ambient GH_TOKEN, global gh config, keyring or git
 // credentials. Its temporary private profile is removed after token extraction.
 func githubDeviceEnvironment(home string) []string {
 	return []string{"HOME=" + home, "GH_CONFIG_DIR=" + filepath.Join(home, ".config", "gh"), "GH_BROWSER=/bin/true", "BROWSER=/bin/true", "GH_PROMPT_DISABLED=1", "GIT_TERMINAL_PROMPT=0", "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "TERM=dumb", "NO_COLOR=1"}

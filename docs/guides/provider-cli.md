@@ -5,7 +5,7 @@ This guide explains how to add a new AI provider CLI (e.g. CommandCode, Claude C
 ## Principles
 
 - Prefer the provider's maintained official CLI where it provides reliable authentication or execution. Present the integration through Cuan's UI — users should not need a terminal, command flags, manual tokens, or knowledge of the implementation.
-- Never reuse Fural or ambient developer credentials as Cuan user credentials. User API keys belong to the user and are stored encrypted in ProviderAccount.
+- Never reuse ambient developer credentials as Cuan user credentials. User API keys belong to the user and are stored encrypted in ProviderAccount.
 - Users choose between connection modes (subscription connect via OAuth, or custom BYOK API key) from the UI.
 
 ## Two connection modes
@@ -16,7 +16,7 @@ Uses the provider's CLI browser sign-in flow. Cuan starts an isolated CLI login,
 
 ### 2. Custom provider BYOK (Bring Your Own Key)
 
-The user supplies an API key directly from the provider's dashboard. Cuan encrypts it and stores it in ProviderAccount. The key belongs to the user, not Fural or the developer.
+The user supplies an API key directly from the provider's dashboard. Cuan encrypts it and stores it in ProviderAccount. The key belongs to the user, not the ambient developer environment.
 
 ## Files to change
 

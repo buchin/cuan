@@ -1,6 +1,6 @@
 /**
  * Mobile terminal accessory keyboard layout and sticky modifier state machine.
- * Provides developer-grade terminal control on mobile touch screens (Blink / Fural style).
+ * Provides developer-grade terminal control on mobile touch screens (Blink / Developer style).
  */
 
 export type StickyMods = {

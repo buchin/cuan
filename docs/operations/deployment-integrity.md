@@ -43,7 +43,7 @@ This prevents leaving an outdated Go server process running in memory with an ou
 
 ## 4. End-to-End Post-Deployment Verification Gate
 
-`scripts/fural-deploy.sh` executes an end-to-end verification gate against `https://cuan.dojo.cc/healthz`:
+`scripts/deploy.sh` executes an end-to-end verification gate against `https://cuan.dojo.cc/healthz`:
 - Must return `HTTP 200 OK` with `"status": "healthy"`.
 - Must return `"commit_sha"` identical to the target `$release_sha`.
 - If the running process reports a stale SHA, the deploy script waits and retries for service restart. If the SHA fails to match within the threshold, deployment halts with an error.

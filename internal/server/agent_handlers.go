@@ -337,7 +337,7 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handlePatchAgent modifies an existing agent partially (Fural format { id, name, harness, connection_id, enabled }).
+// handlePatchAgent modifies an existing agent partially (Universal Agent format { id, name, harness, connection_id, enabled }).
 // Route: PATCH /api/agents/{id}
 // Aliases: PATCH /api/v1/agents/{id}
 func (s *Server) handlePatchAgent(w http.ResponseWriter, r *http.Request) {
@@ -522,7 +522,7 @@ func (s *Server) handleCreateAgentConnection(w http.ResponseWriter, r *http.Requ
 	if rawSecret == "" {
 		rawSecret = strings.TrimSpace(req.Credentials)
 	}
-	if rawSecret == "" && (req.AuthType == "cli_login" || req.AuthType == "oauth" || provider == "antigravity" || provider == "fural" || provider == "gemini-cli" || provider == "claude-cli" || req.SessionToken != "") {
+	if rawSecret == "" && (req.AuthType == "cli_login" || req.AuthType == "oauth" || provider == "antigravity" || provider == "gemini-cli" || provider == "claude-cli" || req.SessionToken != "") {
 		if req.SessionToken != "" {
 			rawSecret = req.SessionToken
 		} else {
@@ -1047,7 +1047,7 @@ func (s *Server) handleConnectCLIAgent(w http.ResponseWriter, r *http.Request) {
 		"provider":        provider,
 		"room_id":         roomID,
 		"conversation_id": roomID,
-		"auth_model":      "fural_cli_session",
+		"auth_model":      "cuan_cli_session",
 		"message":         "Agent connected successfully via CLI login without API Key",
 	})
 }

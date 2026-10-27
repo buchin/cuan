@@ -146,7 +146,7 @@ and attempt-request hash with defaults. It does not rewrite existing rows.
    Production keeps `CUAN_AUTO_MIGRATE=false`. Confirm schema count23 and the
    existing application remains healthy before activation.
 4. Commit and push the approved branch. Run
-   `scripts/fural-deploy.sh --branch sprint26-agents` for checksummed versioned
+   `scripts/deploy.sh --branch sprint26-agents` for checksummed versioned
    deployment, lock, atomic switch, health/readiness checks, and health rollback.
 5. Verify exact assets, task create/edit/reload/approval/delete, retained data and
    profiles. Run deterministic PTY checks in isolation without calling a provider.

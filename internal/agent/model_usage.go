@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-// Same model quota RPC used by the installed Antigravity CLI and Fural.
+// Model quota RPC used by the installed Antigravity CLI and model providers.
 // Reading usage never runs a model. Expired OAuth access tokens are refreshed
 // atomically under the same exclusive lease used by execution.
 var modelUsageClient = &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

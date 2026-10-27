@@ -121,7 +121,7 @@ profiles, check that Inbox/task execution is idle, and validate the backup befor
 restarting. Keep production auto-migration disabled. Test migrations against an
 isolated staging schema and apply them explicitly using the standard migrator.
 
-The native deployment procedure uses `scripts/fural-deploy.sh`, a release lock,
+The native deployment procedure uses `scripts/deploy.sh`, a release lock,
 private backup, checksums, atomic activation, readiness checks, and rollback.
 For an application-only rollback, preserve schema22 and contact data; do not run
 a down migration or restore the database. Installation-specific commands and

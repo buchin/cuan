@@ -18,7 +18,7 @@ Staging runs on port 8081 at https://cuan-s25-dojo.fural.space with an isolated 
 
 1. Finish targeted tests and `npm run build --prefix web`. Verify the actual provider/Inbox and task/PTY evidence under `docs/sprints/evidence/S25/`.
 2. Commit and push the tested feature, merge into main with the configured human author, and require a clean working tree.
-3. Run `fural-agent repos ship RPcd484fc4229ae192d17a0f01 --mode script --script scripts/fural-deploy.sh`. The same native mechanism is available as `scripts/fural-deploy.sh --help`.
+3. Run `scripts/deploy.sh`. The same native mechanism is available as `scripts/deploy.sh --help`.
 4. The script builds a static server and frontend; uploads only a versioned payload by SCP and synchronizes it with native VPS rsync; verifies its SHA-256 manifest; takes an exclusive host release lock and private `pg_dump` backup; retains the previous release; atomically switches `/opt/cuan/current`; and restarts systemd. It polls health/readiness and requires migration count 19. A failed gate restores the previous pointer and restarts automatically.
 5. Verify public `/healthz` and `/readyz`, active frontend bundle and `/tasks/:id` SPA routing, authenticated OAuth/provider probe, real agent registration and a real Inbox reply retrievable after refresh/restart. A Git push alone is not deployment.
 
@@ -38,7 +38,7 @@ The owner completed consent in staging. For this release, the same account's CLI
 
 The retained private systemd EnvironmentFile takes precedence over Environment directives. Activation therefore writes non-secret `/opt/cuan/release.env` and loads it after `.env` to select the active static payload and disable migrations. Health gates compare the actual `/tasks` HTML with the selected release index, so a healthy API serving stale frontend fails activation.
 
-Fural's ship process may not inherit injected AgentSession secrets. If it fails with an unset DOJO_TERMAPI variable before uploading, run the same checked-in `scripts/fural-deploy.sh` directly from the authorized AgentSession environment. Do not copy credentials into the repository or shared runtime. Upload uses SCP with the injected service-host credential; native VPS rsync performs the final synchronization.
+The ship process may not inherit injected secrets. If it fails with an unset DOJO_TERMAPI variable before uploading, run the same checked-in `scripts/deploy.sh` directly from the authorized environment. Do not copy credentials into the repository or shared runtime. Upload uses SCP with the injected service-host credential; native VPS rsync performs the final synchronization.
 
 ## Verified S25 release
 

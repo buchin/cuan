@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// Public installed-application OAuth client used by agy and Fural. These are
+// Public installed-application OAuth client used by CLI tools. These are
 // application identifiers, not user credentials. Refresh tokens remain private.
 const usageOAuthClientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
 const usageOAuthClientSecret = "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"

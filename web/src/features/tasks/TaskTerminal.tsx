@@ -1089,7 +1089,7 @@ export function TaskTerminal({
         t={t}
       />
 
-      {/* Mobile Accessory Keyboard Bar (Blink & Fural style) - Conditional on active focus/toggle */}
+      {/* Mobile Accessory Keyboard Bar (Blink & Developer style) - Conditional on active focus/toggle */}
       {liveId && isMobileKeyboardActive && (
         <MobileTerminalKeyboard
           onInject={sendKey}

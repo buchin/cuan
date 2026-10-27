@@ -200,7 +200,7 @@ identifies this authorization as GitHub CLI. Its normal OAuth scopes apply; this
 is not a repository-selective GitHub App installation.
 
 Each login uses a temporary private HOME and GH_CONFIG_DIR, with an allowlisted
-subprocess environment. Ambient GH_TOKEN, GITHUB_TOKEN, Fural credentials, SSH
+subprocess environment. Ambient GH_TOKEN, GITHUB_TOKEN, ambient credentials, SSH
 agent and global gh configuration are never inherited. After verification, Cuan
 stores the token encrypted in its existing owner connection and removes the
 temporary profile. Cancel/disconnect prevent a pending login from saving later.

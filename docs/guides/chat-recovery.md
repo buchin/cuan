@@ -20,7 +20,7 @@ child identity, so racing them cannot duplicate the attempt.
 
 No task, deployment or uncertain tool action is replayed by these controls. Cuan currently makes a fresh provider turn with the
 saved conversation context; it does not resume a native provider session or
-checkpoint. This differs from Fural's Resume implementation.
+checkpoint. This differs from alternative Resume implementations.
 
 ## History and duplicate prevention
 

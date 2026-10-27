@@ -372,7 +372,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		ptyArgs = []string{cfg.Prompt}
 		if commandLabel == "agy" {
 			// Task execution is explicitly authorized by Start/Create. Keep the
-			// interactive conversation alive between turns, as in Fural.
+			// interactive conversation alive between turns.
 			// Inbox uses its own restricted launcher and does not inherit this flag.
 			ptyArgs = []string{"--dangerously-skip-permissions", "--prompt-interactive", cfg.Prompt, "--add-dir", workDir}
 			cfg.Env = append(cfg.Env, "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
