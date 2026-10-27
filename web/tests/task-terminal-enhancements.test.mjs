@@ -251,11 +251,11 @@ test('7. Conditional Virtual Keyboard & Expandable Accessory Drawer', () => {
     'MobileTerminalKeyboard must only render when active'
   )
 
-  // TaskTerminal must render floating Kbd button when keyboard is collapsed
+  // TaskTerminal integrates mobile keyboard toggle with TerminalComposer without floating collision
   assert.match(
     terminalContent,
-    /\{liveId && !isMobileKeyboardActive && connection === 'connected' && \(\s*<button[^>]*sm:hidden/,
-    'Must render floating Kbd button when keyboard is collapsed'
+    /onToggleMobileKbd=\{.*?setIsMobileKeyboardActive/,
+    'TaskTerminal must integrate onToggleMobileKbd into TerminalComposer'
   )
 })
 

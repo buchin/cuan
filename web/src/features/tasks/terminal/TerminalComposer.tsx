@@ -483,6 +483,24 @@ export function TerminalComposer({
 
       {/* ── Quick Action Chips Row ── */}
       <div className="flex items-center gap-1 overflow-x-auto select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        {/* Mobile Accessory Keyboard Toggle (Prominently first on mobile) */}
+        {onToggleMobileKbd && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onToggleMobileKbd}
+            className={`inline-flex sm:hidden h-6 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-mono font-semibold transition-colors disabled:opacity-40 ${
+              isMobileKbdActive
+                ? 'border-emerald-500 bg-emerald-600 text-white shadow-xs'
+                : 'border-neutral-700 bg-neutral-800 text-emerald-400 hover:bg-neutral-700 active:bg-neutral-600'
+            }`}
+            title="Toggle extra virtual keys drawer (ESC, Arrows, CTRL, ALT)"
+          >
+            <Keyboard className="h-3 w-3" />
+            <span>Kbd</span>
+          </button>
+        )}
+
         <button
           type="button"
           disabled={disabled}
@@ -536,23 +554,6 @@ export function TerminalComposer({
         >
           <span>Tab</span>
         </button>
-
-        {onToggleMobileKbd && (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onToggleMobileKbd}
-            className={`inline-flex sm:hidden h-6 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-mono font-medium transition-colors disabled:opacity-40 ${
-              isMobileKbdActive
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-[#333] bg-[#222] text-neutral-300 hover:bg-[#333]'
-            }`}
-            title="Toggle extra virtual keys drawer (ESC, Arrows, CTRL, ALT)"
-          >
-            <Keyboard className="h-2.5 w-2.5" />
-            <span>Kbd</span>
-          </button>
-        )}
       </div>
 
       {/* ── Inbox-Style Capsule Composer ── */}

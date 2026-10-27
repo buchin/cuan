@@ -1118,21 +1118,6 @@ export function TaskTerminal({
         />
       )}
 
-      {/* Floating Kbd button when accessory keyboard is collapsed on mobile */}
-      {liveId && !isMobileKeyboardActive && connection === 'connected' && (
-        <button
-          type="button"
-          className="absolute bottom-3 right-3 z-20 sm:hidden inline-flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900/90 px-3 py-1.5 font-mono text-xs font-semibold text-neutral-200 shadow-xl backdrop-blur transition-all active:scale-95 hover:bg-neutral-800 hover:text-white"
-          aria-label={t('Show keyboard')}
-          title={t('Show keyboard')}
-          disabled={connection !== 'connected'}
-          onClick={showKeyboard}
-        >
-          <Keyboard className="h-4 w-4 text-emerald-400" />
-          <span>Kbd</span>
-        </button>
-      )}
-
       <p className="sr-only">
         {liveId
           ? 'Closing this view does not stop the task. Use Cancel session to stop execution.'

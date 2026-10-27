@@ -20,6 +20,7 @@ export type MobileTerminalKeyboardProps = {
   onToggleKeyboard?: () => void
   onClose?: () => void
   onScrollToBottom?: () => void
+  showPromptInput?: boolean
   disabled?: boolean
   className?: string
 }
@@ -31,6 +32,7 @@ export function MobileTerminalKeyboard({
   onClear,
   onToggleKeyboard,
   onClose,
+  showPromptInput = false,
   disabled = false,
   className = '',
 }: MobileTerminalKeyboardProps) {
@@ -164,59 +166,61 @@ export function MobileTerminalKeyboard({
       aria-label="Terminal Mobile Toolbar"
       className={`sm:hidden shrink-0 select-none touch-manipulation border-t border-[#262626] bg-[#161616] pb-1 ${className}`}
     >
-      {/* Mobile Floating Prompt Bar - Isolated from xterm re-render stream */}
-      <form
-        onSubmit={handleSendPrompt}
-        className="flex items-center gap-1.5 px-2 py-1.5 bg-[#1b1b1b] border-b border-[#2d2d2d]"
-      >
-        <span className="text-emerald-400 font-mono text-xs font-bold pl-0.5 select-none shrink-0">&gt;</span>
-        <div className="relative flex-1 min-w-0">
-          <input
-            ref={promptInputRef}
-            type="text"
-            value={promptText}
-            onChange={(e) => setPromptText(e.target.value)}
-            onKeyDown={handlePromptKeyDown}
-            placeholder="Type command or input..."
-            disabled={disabled}
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
-            className="w-full h-8 bg-[#111] border border-[#333] focus:border-emerald-500 rounded px-2.5 pr-7 text-xs font-mono text-neutral-100 placeholder:text-neutral-500 outline-none transition-colors"
-          />
-          {promptText && (
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.preventDefault()
-                setPromptText('')
-                promptInputRef.current?.focus()
-              }}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-white"
-              title="Clear input"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={disabled || !promptText.trim()}
-          onPointerDown={(e) => {
-            if (promptText.trim()) {
-              e.preventDefault()
-              handleSendPrompt()
-            }
-          }}
-          className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white px-2.5 text-xs font-semibold font-mono transition-colors disabled:opacity-35 disabled:cursor-not-allowed shadow-xs"
-          title="Send input to terminal"
-          aria-label="Send input"
+      {/* Mobile Floating Prompt Bar - Isolated from xterm re-render stream (when standalone) */}
+      {showPromptInput && (
+        <form
+          onSubmit={handleSendPrompt}
+          className="flex items-center gap-1.5 px-2 py-1.5 bg-[#1b1b1b] border-b border-[#2d2d2d]"
         >
-          <Send className="h-3.5 w-3.5" />
-          <span>Send</span>
-        </button>
-      </form>
+          <span className="text-emerald-400 font-mono text-xs font-bold pl-0.5 select-none shrink-0">&gt;</span>
+          <div className="relative flex-1 min-w-0">
+            <input
+              ref={promptInputRef}
+              type="text"
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              onKeyDown={handlePromptKeyDown}
+              placeholder="Type command or input..."
+              disabled={disabled}
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full h-8 bg-[#111] border border-[#333] focus:border-emerald-500 rounded px-2.5 pr-7 text-xs font-mono text-neutral-100 placeholder:text-neutral-500 outline-none transition-colors"
+            />
+            {promptText && (
+              <button
+                type="button"
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  setPromptText('')
+                  promptInputRef.current?.focus()
+                }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-white"
+                title="Clear input"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={disabled || !promptText.trim()}
+            onPointerDown={(e) => {
+              if (promptText.trim()) {
+                e.preventDefault()
+                handleSendPrompt()
+              }
+            }}
+            className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white px-2.5 text-xs font-semibold font-mono transition-colors disabled:opacity-35 disabled:cursor-not-allowed shadow-xs"
+            title="Send input to terminal"
+            aria-label="Send input"
+          >
+            <Send className="h-3.5 w-3.5" />
+            <span>Send</span>
+          </button>
+        </form>
+      )}
 
       {/* Quick Actions Row */}
       <div className="flex items-center gap-1 overflow-x-auto px-1.5 pt-1 pb-0.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">

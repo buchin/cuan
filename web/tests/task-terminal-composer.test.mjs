@@ -76,4 +76,31 @@ test('5. Quick Action Chips (y/n, Ctrl+C, Clear, Tab, Kbd)', () => {
   assert.match(content, /Ctrl\+C/, 'Must render Ctrl+C stop quick chip')
   assert.match(content, /Clear/, 'Must render Clear screen quick chip')
   assert.match(content, /Tab/, 'Must render Tab autocomplete quick chip')
+  assert.match(content, /onToggleMobileKbd/, 'Must render mobile Kbd toggle chip')
+})
+
+test('6. Single Unified Input on Mobile: No duplicate prompt form or floating collisions', () => {
+  const mobileKbdPath = path.join(
+    rootDir,
+    'src/features/tasks/terminal/MobileTerminalKeyboard.tsx',
+  )
+  const terminalPath = path.join(
+    rootDir,
+    'src/features/tasks/TaskTerminal.tsx',
+  )
+  const mobileKbdContent = fs.readFileSync(mobileKbdPath, 'utf8')
+  const terminalContent = fs.readFileSync(terminalPath, 'utf8')
+
+  // MobileTerminalKeyboard must not render duplicate prompt bar by default
+  assert.match(
+    mobileKbdContent,
+    /showPromptInput\s*=\s*false/,
+    'MobileTerminalKeyboard must default showPromptInput to false to prevent duplicate input bars',
+  )
+
+  // TaskTerminal must not render floating bottom-right Kbd button over composer
+  assert.ok(
+    !terminalContent.includes('absolute bottom-3 right-3'),
+    'TaskTerminal must not render overlapping floating button at bottom-3 right-3',
+  )
 })
