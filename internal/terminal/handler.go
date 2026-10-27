@@ -203,6 +203,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if cols > 0 && rows > 0 {
+		_ = session.Resize(cols, rows)
+	}
+
 	// Negotiate subprotocol if requested
 	responseHeader := make(http.Header)
 	for _, sub := range websocket.Subprotocols(r) {

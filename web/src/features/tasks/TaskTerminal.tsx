@@ -382,6 +382,15 @@ export function TaskTerminal({
             setNotice('')
             setError('')
             fitRef.current?.fit()
+            if (t && ws.readyState === WebSocket.OPEN) {
+              ws.send(
+                JSON.stringify({
+                  type: 'resize',
+                  cols: t.cols,
+                  rows: t.rows,
+                }),
+              )
+            }
           } else if (data.type === 'status') {
             const enabled = data.mode === 'interactive'
             interactive.current = enabled
@@ -448,9 +457,11 @@ export function TaskTerminal({
 
         if (disposed || !mount.current) return
 
+        const isMobileScreen =
+          typeof window !== 'undefined' && window.innerWidth < 480
         terminal = new XtermTerminal({
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          fontSize: 13,
+          fontSize: isMobileScreen ? 11 : 13,
           lineHeight: 1.25,
           scrollback: 10000,
           convertEol: true,
