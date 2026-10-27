@@ -1,6 +1,5 @@
 import { KeyboardShortcuts } from './KeyboardShortcuts'
 import { UniversalSearch } from './UniversalSearch'
-import { ReloadButton } from '../ui/ReloadButton'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -308,11 +307,6 @@ export function AppShell({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <UniversalSearch hideTrigger={shouldHideSearch} />
-            <ReloadButton
-              className="icon-action"
-              iconClassName="h-4 w-4 sm:h-5 sm:w-5"
-              title={t('Reload app')}
-            />
             {headerActions}
             {currentTab === 'inbox' && (
               <button

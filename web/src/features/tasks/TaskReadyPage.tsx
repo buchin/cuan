@@ -18,7 +18,6 @@ import {
 import { agentsApi, type Agent } from '../../api/agents'
 import type { TaskDetail } from '../../api/types'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
-import { ReloadButton } from '../../components/ui/ReloadButton'
 import { useLanguage } from '../../context/LanguageContext'
 import { relativeTime, agentDisplayName } from './task-ui'
 
@@ -142,11 +141,6 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
           {task.title}
         </h2>
-        <ReloadButton
-          className="icon-action shrink-0"
-          iconClassName="h-4 w-4"
-          title={t('Reload app')}
-        />
         <Link
           aria-label="Detail"
           title="Detail"

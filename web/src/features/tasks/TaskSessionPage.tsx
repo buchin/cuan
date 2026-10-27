@@ -30,7 +30,6 @@ const TaskTerminal = lazy(() =>
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { AttachmentFile } from '../inbox/Attachments'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
-import { ReloadButton } from '../../components/ui/ReloadButton'
 import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime, workStatusBadgeClass } from './task-ui'
 import { cn } from '../../lib/utils'
 import { useLanguage } from '../../context/LanguageContext'
@@ -403,11 +402,6 @@ export function TaskSessionPage({
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           {statusBadge}
           <div ref={setTerminalControls} className="hidden sm:flex shrink-0 items-center gap-1" />
-          <ReloadButton
-            className="icon-action shrink-0 hidden sm:inline-flex"
-            iconClassName="h-4 w-4"
-            title={t('Reload app')}
-          />
           <button
             className="icon-action shrink-0"
             aria-label="Detail"

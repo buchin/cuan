@@ -184,16 +184,15 @@ test('6. Mobile-Safe Top Navbar Layout (< 360px): Single clean row and no button
     'Task title must truncate with min-w-0 to prevent layout blow-out'
   )
 
-  // Terminal quick action toolbar and ReloadButton must be hidden on mobile to prevent overlapping Working badge
+  // Terminal quick action toolbar must be hidden on mobile to prevent overlapping Working badge
   assert.match(
     content,
     /ref=\{setTerminalControls\}\s+className="hidden sm:flex shrink-0 items-center gap-1"/,
     'Terminal action buttons must be hidden on mobile (hidden sm:flex)'
   )
-  assert.match(
-    content,
-    /<ReloadButton[^>]*hidden sm:inline-flex/,
-    'Reload button must be hidden on mobile (hidden sm:inline-flex)'
+  assert.ok(
+    !content.includes('<ReloadButton'),
+    'Reload button eliminated from terminal navbar to prevent header clutter'
   )
 
   // Working badge and info button must be present in clean right container
