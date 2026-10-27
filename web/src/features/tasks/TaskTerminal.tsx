@@ -517,14 +517,8 @@ export function TaskTerminal({
         fitRef.current = fit
         terminal.loadAddon(fit)
 
-        // Clickable web links & file preview links
-        const webLinks = new WebLinksAddon((_event: MouseEvent, uri: string) => {
-          if (uri.startsWith('http://') || uri.startsWith('https://')) {
-            window.open(uri, '_blank', 'noopener,noreferrer')
-          } else {
-            handlePreviewFile(uri)
-          }
-        })
+        // Clickable web links
+        const webLinks = new WebLinksAddon()
         terminal.loadAddon(webLinks)
 
         // Custom Link Provider for workspace file paths (code, images, docs) in terminal output
