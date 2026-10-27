@@ -128,3 +128,31 @@ test('7. Inbox-Style Upload (Camera, Photos, Files) & WhatsApp Input Styling', (
   assert.match(content, /previewUrl/, 'Must generate previewUrl for image thumbnails')
   assert.match(content, /handleRemoveFile/, 'Must allow removing attachment items')
 })
+
+test('8. Pin Terminal Toggle & Auto-Close Prevention in TaskSessionPage', () => {
+  const sessionPagePath = path.join(
+    rootDir,
+    'src/features/tasks/TaskSessionPage.tsx',
+  )
+  const content = fs.readFileSync(sessionPagePath, 'utf8')
+
+  // Must import Pin and PinOff
+  assert.match(content, /import\s*\{[^}]*\bPin\b[^}]*\}\s*from\s*'lucide-react'/, 'Must import Pin from lucide-react')
+  assert.match(content, /import\s*\{[^}]*\bPinOff\b[^}]*\}\s*from\s*'lucide-react'/, 'Must import PinOff from lucide-react')
+
+  // Must have pinTerminal state persisted via localStorage
+  assert.match(content, /cuan_terminal_pin/, 'Must persist pin preference in cuan_terminal_pin localStorage key')
+  assert.match(content, /pinTerminal,\s*setPinTerminal/, 'Must manage pinTerminal state')
+
+  // Auto-close prevention when task completes
+  assert.match(content, /prevActiveRef\.current\s*&&\s*!active\s*&&\s*pinTerminal/, 'Must keep terminal open when task transitions to completed if pinned')
+
+  // Pin toggle button in navbar
+  assert.match(content, /handleTogglePin/, 'Must provide handleTogglePin toggle handler')
+  assert.match(content, /<PinOff\b/, 'Must render PinOff icon when unpinned')
+  assert.match(content, /<Pin\b/, 'Must render Pin icon when pinned')
+
+  // Pinned notification banner
+  assert.match(content, /Terminal pinned · Work finished/, 'Must render pinned banner with status and saved output')
+})
+

@@ -18,6 +18,8 @@ import {
   AlertCircle,
   Ban,
   RefreshCw,
+  Pin,
+  PinOff,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -57,7 +59,20 @@ export function TaskSessionPage({
     [followup, setFollowup] = useState(''),
     [cancel, setCancel] = useState(false),
     [busy, setBusy] = useState(false),
-    [showTerminal, setShowTerminal] = useState(false),
+    [pinTerminal, setPinTerminal] = useState<boolean>(() => {
+      try {
+        return localStorage.getItem('cuan_terminal_pin') === 'true'
+      } catch {
+        return false
+      }
+    }),
+    [showTerminal, setShowTerminal] = useState<boolean>(() => {
+      try {
+        return localStorage.getItem('cuan_terminal_pin') === 'true'
+      } catch {
+        return false
+      }
+    }),
     [accept, setAccept] = useState(false),
     [acceptNote, setAcceptNote] = useState(''),
     [applying, setApplying] = useState(false),
@@ -154,11 +169,11 @@ export function TaskSessionPage({
       )
   }, [sessionId, attempt?.id, taskId, suffix, navigate, state, basePath, waitingLaunch])
   useEffect(() => {
-    setShowTerminal(false)
+    setShowTerminal(pinTerminal)
     setAccept(false)
     setFollowup('')
     following.current = false
-  }, [sessionId])
+  }, [sessionId, pinTerminal])
 
   const reports =
     detail?.activities.filter(
@@ -293,6 +308,28 @@ export function TaskSessionPage({
     )
   }
   const active = ['running', 'queued'].includes(attempt.status)
+
+  // Auto-close prevention: keep terminal open on task completion when pinned
+  const prevActiveRef = useRef(active)
+  useEffect(() => {
+    if (prevActiveRef.current && !active && pinTerminal) {
+      setShowTerminal(true)
+    }
+    prevActiveRef.current = active
+  }, [active, pinTerminal])
+
+  const handleTogglePin = useCallback(() => {
+    setPinTerminal((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('cuan_terminal_pin', String(next))
+      } catch {}
+      if (next) {
+        setShowTerminal(true)
+      }
+      return next
+    })
+  }, [])
   const latest = detail.latest_attempt?.id === attempt.id
   const final = [...reports]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
@@ -412,6 +449,28 @@ export function TaskSessionPage({
           {statusBadge}
           <div ref={setTerminalControls} className="hidden sm:flex shrink-0 items-center gap-1" />
           <button
+            type="button"
+            className={cn(
+              'icon-action shrink-0 transition-colors',
+              pinTerminal
+                ? 'text-emerald-500 bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 dark:text-emerald-400'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+            aria-label={pinTerminal ? t('Terminal pinned (Active)') : t('Pin terminal')}
+            title={
+              pinTerminal
+                ? t('Terminal pinned: do not auto-close when completed')
+                : t('Pin terminal: keep open when completed')
+            }
+            onClick={handleTogglePin}
+          >
+            {pinTerminal ? (
+              <Pin className="h-4 w-4 fill-emerald-500/20 dark:fill-emerald-400/20" />
+            ) : (
+              <PinOff className="h-4 w-4" />
+            )}
+          </button>
+          <button
             className="icon-action shrink-0"
             aria-label="Detail"
             title="Detail"
@@ -448,12 +507,25 @@ export function TaskSessionPage({
       {active || showTerminal ? (
         <div className="flex min-h-0 flex-1 flex-col overscroll-contain">
           {!active && (
-            <button
-              className="action-secondary m-2 text-xs"
-              onClick={() => setShowTerminal(false)}
-            >
-              Back to result
-            </button>
+            <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                <span className="truncate font-medium text-foreground">
+                  {pinTerminal ? t('Terminal pinned · Work finished') : t('Work finished')}
+                  {attempt.status ? ` (${attempt.status})` : ''}
+                </span>
+                <span className="hidden sm:inline text-muted-foreground/60">·</span>
+                <span className="hidden sm:inline text-muted-foreground">{t('Terminal output saved')}</span>
+              </div>
+              <button
+                type="button"
+                className="action-secondary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5 ml-2"
+                onClick={() => setShowTerminal(false)}
+              >
+                <span>{t('View result')}</span>
+                <ArrowLeft className="h-3 w-3 rotate-180" />
+              </button>
+            </div>
           )}
           <div className="min-h-0 flex-1 overscroll-contain">
             <Suspense fallback={<div className="h-full w-full bg-black/90 flex items-center justify-center text-xs font-mono text-muted-foreground">Connecting terminal...</div>}>
