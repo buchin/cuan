@@ -1,0 +1,18 @@
+{
+  "release": "3b230b7c2225e69b4036983b657920328210e1d6",
+  "schema": 24,
+  "checkedAgentConversations": 7,
+  "recoveryActions": {
+    "check_status": 5,
+    "check_usage": 1
+  },
+  "mobileDesktopRecoveryUI": true,
+  "retainedApplicationTables": 36,
+  "retainedProfileFiles": 863,
+  "providerCalls": 0,
+  "retriesStarted": 0,
+  "nonLoginWrites": [],
+  "limitations": [
+    "Native provider checkpoint resume is not implemented."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "permanentAfterStudioDismissal": true,
+  "mobileAndDesktop": true,
+  "noOverflow": true,
+  "providerCalls": 0,
+  "profileWrites": 0,
+  "errors": []
+}

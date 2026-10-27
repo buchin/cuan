@@ -1,0 +1,89 @@
+{
+  "release": "3a904dbc6dbe0ad1bb01158af242ed2703e4555e",
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "font": "16px",
+      "line": "24.8px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "font": "16px",
+      "line": "24.8px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "font": "16px",
+      "line": "24.8px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "font": "16px",
+      "line": "24.8px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "font": "15px",
+      "line": "23.25px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "font": "15px",
+      "line": "23.25px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "font": "15px",
+      "line": "23.25px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "font": "15px",
+      "line": "23.25px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "font": "15px",
+      "line": "23.25px",
+      "noOverflow": true,
+      "composer16": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "font": "15px",
+      "line": "23.25px",
+      "noOverflow": true,
+      "composer16": true
+    }
+  ],
+  "exactAssets": true,
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "errors": []
+}

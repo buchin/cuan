@@ -1,0 +1,27 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "tokenHiddenByDefault": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "tokenHiddenByDefault": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "tokenHiddenByDefault": true,
+      "noOverflow": true
+    }
+  ],
+  "oauthNavigation": true,
+  "availabilityRetry": true,
+  "startFailureRetry": true,
+  "unconfiguredHonestState": true,
+  "manualAdvancedWorks": true,
+  "sameTaskReturn": true,
+  "liveGitHubCalls": 0,
+  "providerCalls": 0
+}

@@ -1,0 +1,17 @@
+{
+  "stagingRelease": "9911437b396db987bc2683a93a1458426d2ef350",
+  "realGitHubDeviceFlowStarted": true,
+  "noOAuthAppConfiguration": true,
+  "noManualToken": true,
+  "deviceCodeReturned": true,
+  "reloadResumesSameLogin": true,
+  "realCancellation": true,
+  "noSavedAccountAfterCancellation": true,
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "fullAuthorizationVerified": false,
+  "providerInferenceCalls": 0
+}

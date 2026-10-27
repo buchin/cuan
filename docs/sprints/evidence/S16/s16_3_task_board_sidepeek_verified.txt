@@ -1,0 +1,42 @@
+================================================================================
+AUDIT PACK: S16.3 — Agentic Task Board & Side-Peek Execution Panel
+================================================================================
+Timestamp: 2026-10-18T13:16:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 16 (Clean Slate Frontend Rebuild: Linear-Class Agentic Workplace)
+Task: S16.3
+
+1. SCOPE & GOAL VERIFICATION
+- Rebuilt `web/src/features/tasks/TaskBoardView.tsx`:
+  * Linear-style 5-column Kanban: Backlog, To Do, In Progress, In Review, Completed.
+  * Task card displays priority badge, title, prompt/description snippet, creation date, and AI agent assignee.
+  * Interactive 1-click status advancement (ChevronRight button) alongside drag/select transitions.
+  * Quick "Run Agent" trigger directly on the task card.
+  * Filter tasks by project or show aggregated task overview.
+- Rebuilt `web/src/features/tasks/TaskSidePeek.tsx`:
+  * Side-peek drawer smoothly opens on task click without modal backdrop blinding the Kanban board.
+  * Dual tab layout:
+    1. "Task Brief & DoD": Title, Status, Priority, Prompt/Description, and interactive Definition of Done checklist.
+    2. "Agent Runner Console": Real-time terminal log viewer, agent execution state, and live trigger button (`POST /api/v1/tasks/{id}/run`).
+  * Direct Save and Delete actions connected to API endpoints.
+- Rebuilt `web/src/features/tasks/CreateTaskModal.tsx`:
+  * Clean modal for task creation with Title, Project selection, Priority, Status, and dynamic DoD acceptance criteria items.
+
+2. BUILD VERIFICATION
+- Command: `npm run build` (tsc && vite build)
+- Output Bundle:
+  * dist/index.html: 0.55 kB (gzip: 0.37 kB)
+  * dist/assets/index.css: 39.99 kB
+  * dist/assets/index.js: 261.14 kB (gzip: 72.85 kB)
+- Result: PASS (0 errors, 2.57s).
+
+3. BACKEND API INTEGRATION
+- Targeted test suite: `go test ./internal/server/... -run "TestProjectTasks_CRUD|TestProjectTasks_QueryFiltering"`
+  * TestProjectTasks_CRUD: PASS
+  * TestProjectTasks_QueryFiltering: PASS
+- Result: PASS (100% tests pass).
+
+4. CONCLUSION
+Task S16.3 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S16.4.
+================================================================================

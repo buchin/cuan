@@ -1,0 +1,96 @@
+{
+  "checks": [
+    {
+      "theme": "light",
+      "width": 360,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 820,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 820,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "noExecutionBeforeSubmission": true,
+      "directGoogleConnection": true,
+      "noAgentNameForm": true,
+      "connectFlowReturnsToStudio": true,
+      "draftRetained": true,
+      "projectOptional": true,
+      "noOverflow": true
+    }
+  ],
+  "accountFetchFailureHandled": true,
+  "existingWorkspaceUnchanged": true,
+  "oneSubmissionAfterSetup": true,
+  "realProviderCalls": 0
+}

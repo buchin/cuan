@@ -1,0 +1,17 @@
+{
+  "furalReference": "coding-agents-manager.tsx forceNew + OrganizationAgentsNewPage addMode (read-only)",
+  "sameDialogForNameGoogleURLAndCode": true,
+  "newAccountChooser": {
+    "host": "accounts.google.com",
+    "prompt": "select_account consent",
+    "responseType": "code"
+  },
+  "implicitLegacyAuthRequests": 0,
+  "layout": {
+    "viewport": 390,
+    "documentWidth": 390
+  },
+  "cancelClosesDialog": true,
+  "actualConsent": false,
+  "registrationClaimed": false
+}

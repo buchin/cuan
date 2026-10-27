@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "rootShowsOwnerSetup": true,
+      "explicitPassword": true,
+      "noSharedCredentials": true,
+      "failedSetupRetainsDraft": true,
+      "successfulSetupEntersAiOnboarding": true,
+      "sessionSurvivesReload": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "rootShowsOwnerSetup": true,
+      "explicitPassword": true,
+      "noSharedCredentials": true,
+      "failedSetupRetainsDraft": true,
+      "successfulSetupEntersAiOnboarding": true,
+      "sessionSurvivesReload": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "rootShowsOwnerSetup": true,
+      "explicitPassword": true,
+      "noSharedCredentials": true,
+      "failedSetupRetainsDraft": true,
+      "successfulSetupEntersAiOnboarding": true,
+      "sessionSurvivesReload": true,
+      "noOverflow": true
+    }
+  ],
+  "loginErrorRetainsDraft": true,
+  "concurrentOwnerSetupHandled": true,
+  "statusFailureRetry": true,
+  "setupWrites": 7,
+  "realAccountsCreated": 0,
+  "providerCalls": 0
+}

@@ -1,0 +1,109 @@
+{
+  "release": "345051604ed7f6810b647ae466cbe8917bf8c23f",
+  "production": "https://cuan.dojo.cc",
+  "measurements": [
+    {
+      "width": 360,
+      "theme": "light",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "latestSessionPrimary": true,
+      "requestAndResult": true,
+      "terminalNotLoaded": true,
+      "noOverflow": true
+    }
+  ],
+  "assets": [
+    "addon-fit-YJmn1quW.js",
+    "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+    "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+    "geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+    "geist-latin-wght-normal-BgDaEnEv.woff2",
+    "geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+    "geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+    "geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+    "geist-mono-latin-wght-normal-XN7g48iV.woff2",
+    "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+    "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+    "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+    "index-Dv_f6Gr7.js",
+    "index-nGB0UmFr.css",
+    "xterm-BT7tBf8A.js"
+  ],
+  "errors": [],
+  "providerInvocations": 0,
+  "syntheticTasksCleaned": 2,
+  "syntheticAttemptsCleaned": 2,
+  "noResultApproved": true,
+  "metadataReturn": true,
+  "historyIsolation": true,
+  "readyWithoutExecution": true,
+  "taskClickToLatest": true,
+  "ready": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 23,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "contextualCreationActions": true,
+  "mobile44pxIconOnly": true,
+  "desktopLabelsPreserved": true,
+  "creationDialogsOpenWithoutSubmission": true,
+  "retainedTables": 35,
+  "retainedProfiles": 706
+}

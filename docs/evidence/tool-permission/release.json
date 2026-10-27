@@ -1,0 +1,10 @@
+{
+  "release": "48dc35a42ce95bbdb3d7b1277b990b529090ee49",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "autoMigrate": false,
+  "appSmoke": "read-only,8 viewport/theme combinations, exact public assets",
+  "providerProbes": "2 isolated CLI probes before release; no original-message replay",
+  "limitation": "Read-only tool selection is prompt guidance; AGY permission enforcement remains unchanged. Empty denied results stay failed with explanation, never invented agent output.",
+  "rollback": "sudo python3 /home/ubuntu/.local/share/cuan-s25/activate-release.py --rollback --schema-count 22"
+}

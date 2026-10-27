@@ -1,0 +1,23 @@
+{
+  "release": "ac25b73f0a0c3767078934e70d8697ce6dd36d91",
+  "owner_login": true,
+  "registered_agent": "agent_pin1",
+  "conversation_id": "d8e125f2-8f04-420a-a029-e81eb228e87d",
+  "reply": {
+    "uuid": "ea3c15fa-7427-448e-9815-c565b127e19d",
+    "content": "[@pin1] Halo rekan, ini hasilnya ya: S25_PROD_22c59f398c63 = 589. Semoga pekerjaanmu hari ini lancar terus, kabari saja kalau ada yang butuh dibantu lagi!"
+  },
+  "persisted": true,
+  "task_count": 1,
+  "tasks_ok": true,
+  "ok": true,
+  "persisted_after_restart": true,
+  "post_restart_auth": {
+    "authenticated": true,
+    "credentials_present": true,
+    "harness": "agy",
+    "message": "Koneksi provider Antigravity terverifikasi",
+    "status": "success",
+    "verified": true
+  }
+}

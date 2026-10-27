@@ -1,0 +1,105 @@
+=== CUAN SPRINT 5 (S05.1) EVIDENCE: CUSTOM DOMAINS SCHEMA 000010, DOMAIN MODEL & SPRINT 5 DOCS VERIFIED ===
+Timestamp: 2026-10-17T08:56:00+07:00
+Task ID: aumlriqtagwjleuaflkrwitc
+Title: S05.1 — Database Migration 000010 (Custom Domains Schema & Model), Domain Service & Sprint 5 SSOT Docs
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SSOT Dokumen Sprint 5:
+   - File: docs/sprints/S5.md
+   - Status: running (Approved PO Buchin 2026-10-17)
+   - Scope: S05.1 sampai S05.5 lengkap beserta alur, dependency, dan DoD
+   - Arsitektur: Bring Your Own Domain (BYOD) & On-Demand TLS (Caddy Ask-Endpoint, DNS Verification Engine, Custom Domain Store, Studio UI Custom Domains Management)
+   - D2 Diagrams: TALA layout engine terverifikasi render SVG 100% valid (arsitektur sistem BYOD TLS & dependency backlog S05.1–S05.5)
+
+2. Migrasi Database PostgreSQL:
+   - Migrasi Up: migrations/000010_custom_domains.up.sql
+   - Migrasi Down: migrations/000010_custom_domains.down.sql
+   - Tabel Dibuat:
+     * custom_domains:
+       - id VARCHAR(64) PRIMARY KEY
+       - deployment_id VARCHAR(64) NOT NULL REFERENCES deployments(id) ON DELETE CASCADE
+       - domain VARCHAR(255) NOT NULL UNIQUE
+       - dns_status VARCHAR(32) NOT NULL DEFAULT 'pending'
+       - ssl_status VARCHAR(32) NOT NULL DEFAULT 'pending'
+       - verification_token VARCHAR(64)
+       - last_checked_at TIMESTAMP WITH TIME ZONE
+       - created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+   - Index Dibuat:
+     * idx_custom_domains_deployment_id ON custom_domains(deployment_id)
+     * idx_custom_domains_domain ON custom_domains(domain)
+     * idx_custom_domains_dns_status ON custom_domains(dns_status)
+     * idx_custom_domains_ssl_status ON custom_domains(ssl_status)
+   - Backward Compatibility:
+     * 100% aditif; tidak mengubah atau merusak skema dan data Sprint 1 (owners, projects, tasks), Sprint 2 (sponsorship_batches, sponsors, sponsorship_orders), Sprint 3 (deployments, deployment_logs), dan Sprint 4 (servers).
+     * Uji rollback down migration bersih dan terisolasi: DROP INDEX & DROP TABLE CASCADE.
+
+3. Domain Model, DTO & Validation (internal/db/domain.go):
+   - Model CustomDomain: Representasi entitas domain kustom dengan ID, DeploymentID, Domain, DNSStatus, SSLStatus, VerificationToken, LastCheckedAt, CreatedAt, UpdatedAt.
+   - CustomDomainDTO & Sanitasi: Struct DTO aman dengan method ToDTO() dan ToSanitizedDTO() untuk masking verification token pada serialisasi respons publik (contoh: "abcd...7890").
+   - Domain Validation & Normalization:
+     * ValidateDomain(domain string): Menegakkan standar DNS hostname RFC 1123 / RFC 952 (label 1-63 chars, alphanumeric & hyphen, penolakan scheme http/https, path, port, whitespace, dan numeric-only TLD).
+     * NormalizeDomain(domain string): Pembersihan whitespace dan konversi lowercase seragam.
+
+4. Domain Repository & Data Access Store (internal/db/domain.go):
+   - DomainRepository: Interface kontrak persistensi:
+     * CreateCustomDomain(ctx context.Context, domain *CustomDomain) error
+     * GetCustomDomainByID(ctx context.Context, id string) (*CustomDomain, error)
+     * GetCustomDomainByDomain(ctx context.Context, domainName string) (*CustomDomain, error)
+     * ListCustomDomainsByDeploymentID(ctx context.Context, deploymentID string) ([]CustomDomain, error)
+     * ListAllCustomDomains(ctx context.Context) ([]CustomDomain, error)
+     * UpdateCustomDomainStatus(ctx context.Context, id string, dnsStatus, sslStatus string, lastCheckedAt *time.Time) error
+     * DeleteCustomDomain(ctx context.Context, id string) error
+   - SQLDomainRepository: Implementasi PostgreSQL production dengan query parameter terikat ($1, $2, ...) dan deteksi duplicate unique constraint.
+   - MemoryDomainRepository: Implementasi in-memory thread-safe (sync.RWMutex) untuk pengujian unit, dev mock, dan automated test suites.
+
+5. Targeted Automated Test Verification:
+   === RUN   TestValidateDomain
+   --- PASS: TestValidateDomain (0.00s)
+   === RUN   TestNormalizeDomain
+   --- PASS: TestNormalizeDomain (0.00s)
+   === RUN   TestCustomDomain_DTOAndSanitization
+   --- PASS: TestCustomDomain_DTOAndSanitization (0.00s)
+   === RUN   TestMemoryDomainRepository_CRUD
+   --- PASS: TestMemoryDomainRepository_CRUD (0.00s)
+   === RUN   TestLoadMigrations
+   --- PASS: TestLoadMigrations (0.00s)
+   === RUN   TestDryRun
+   --- PASS: TestDryRun (0.00s)
+   === RUN   TestServer_JSONSerializationSanitization
+   --- PASS: TestServer_JSONSerializationSanitization (0.00s)
+   === RUN   TestMemoryServerRepository_CRUD
+   --- PASS: TestMemoryServerRepository_CRUD (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/db	0.012s
+
+   === RUN   TestEncryptDecrypt_Success
+   --- PASS: TestEncryptDecrypt_Success (0.00s)
+   === RUN   TestCalculateSSHFingerprint
+   --- PASS: TestCalculateSSHFingerprint (0.04s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/crypto	0.046s
+
+   === RUN   TestRealCaddyIntegration
+   --- PASS: TestRealCaddyIntegration (0.28s)
+   === RUN   TestZipSlipProtection
+   --- PASS: TestZipSlipProtection (0.01s)
+   === RUN   TestDeployerMigrations
+   --- PASS: TestDeployerMigrations (0.00s)
+   === RUN   TestDriverFactory_Routing
+   --- PASS: TestDriverFactory_Routing (0.01s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	1.636s
+
+6. Definition of Done Checklist:
+   [x] 1. Dokumen docs/sprints/S5.md tercatat rapi di repository sebagai SSOT.
+   [x] 2. Migrasi 000010_custom_domains up dan down lulus 100% tanpa merusak skema tabel Sprint 1–4.
+   [x] 3. Model CustomDomain dan repository CRUD beroperasi penuh pada SQL dan Memory store.
+   [x] 4. Validasi domain string menolak format tidak valid (skema http/https, spasi, port, invalid characters).
+   [x] 5. Targeted unit tests Go lulus 100% dan zero regression terhadap internal/crypto, internal/deployer, dan internal/db.
+   [x] 6. Bukti audit verifikasi tersimpan di docs/sprints/evidence/S5/s05_1_custom_domains_schema_model_verified.txt.
+   [x] 7. Commit diautentikasi author Buchin <buchin@dropsugar.com> dan terdorong ke main.
+
+=== RESULT: PASS (100% LULUS, SELURUH KRITERIA DoD TERPENUHI) ===

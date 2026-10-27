@@ -1,0 +1,10 @@
+{
+  "http_status": 200,
+  "elapsed_seconds": 21.85,
+  "agent_name": "@pin1",
+  "marker": "CUAN_REAL_8c3189bf673d",
+  "reply": "[@pin1] Halo, ini hasil hitungan yang kamu minta ya!\n\nCUAN_REAL_8c3189bf673d = 391",
+  "agent_reply_uuid": "c809659e-59f5-460d-8789-82a2988022f5",
+  "provider_reply_verified": true,
+  "error": null
+}

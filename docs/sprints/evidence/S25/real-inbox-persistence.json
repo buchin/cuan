@@ -1,0 +1,10 @@
+{
+  "history_http": 200,
+  "agent_name": "@pin1",
+  "agent_reply_uuid": "c809659e-59f5-460d-8789-82a2988022f5",
+  "persisted": true,
+  "author_type": "agent",
+  "content_matches": true,
+  "after_restart_persisted": true,
+  "browser_rendered": true
+}

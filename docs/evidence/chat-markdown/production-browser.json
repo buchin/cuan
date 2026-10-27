@@ -1,0 +1,59 @@
+{
+  "url": "https://cuan.dojo.cc",
+  "release": "dedf65dc384055c0aa846146ed9b73a4b543b7b5",
+  "ownerLogin": 200,
+  "markdown": {
+    "messages": 3,
+    "strong": 4,
+    "lists": 4,
+    "code": 9
+  },
+  "checks": [
+    {
+      "path": "/healthz",
+      "status": 200
+    },
+    {
+      "path": "/readyz",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/agents/",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/projects",
+      "status": 200
+    }
+  ],
+  "assets": [
+    {
+      "path": "/assets/index-BgFuuhfc.js",
+      "sha256": "b4a9cd1ba09bdfde733d099430b97f5cb7d7c789e8ed8216d526f36cc46646d4"
+    },
+    {
+      "path": "/assets/index-DzZvfTta.css",
+      "sha256": "0316be2291ff7b82bd1ba03921d2337e454e5a6ca8635cc18e7c1eddbf7823eb"
+    }
+  ],
+  "layouts": [
+    {
+      "width": 360,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "overflow": false
+    }
+  ],
+  "javascriptErrors": 0,
+  "providerInvocation": false
+}

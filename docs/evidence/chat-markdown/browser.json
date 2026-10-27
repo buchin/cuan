@@ -1,0 +1,35 @@
+{
+  "fixture": true,
+  "mockedHistory": true,
+  "providerInvoked": false,
+  "checks": [
+    "real InboxView integration",
+    "nested Markdown/GFM",
+    "user input remains literal",
+    "unsafe links and HTML blocked",
+    "remote images not loaded",
+    "exact clipboard content",
+    "clipboard denial shows error",
+    "incomplete fence and snapshot update",
+    "light/dark"
+  ],
+  "widths": [
+    {
+      "width": 360,
+      "noPageOverflow": true,
+      "tableScrolls": true
+    },
+    {
+      "width": 390,
+      "noPageOverflow": true,
+      "tableScrolls": true
+    },
+    {
+      "width": 1280,
+      "noPageOverflow": true,
+      "tableScrolls": true
+    }
+  ],
+  "javascriptErrors": [],
+  "externalRequests": []
+}

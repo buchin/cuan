@@ -1,0 +1,121 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 3: S03.4 — Frontend Studio Dashboard, Project Intake (ZIP/Git) & Live Control Panel
+================================================================================
+Task ID:       cdlqiapmtawvegqoacqthszj
+Author:        Buchin <buchin@dropsugar.com>
+Date:          2026-10-16T23:41:00+07:00
+Komponen:      web/src/components/studio/ (Dashboard, DeployWizardModal, ProjectDrawer, types),
+               web/src/App.tsx, internal/server/deployer_handlers.go, internal/server/deployer_handlers_test.go,
+               internal/deployer/local_driver.go, internal/deployer/driver.go, internal/deployer/model.go
+Status:        LULUS VERIFIKASI 100%
+
+================================================================================
+1. HASIL TARGETED FRONTEND BUILD (TypeScript & Vite)
+================================================================================
+Command: cd web && npx tsc --noEmit && npm run build
+
+> cuan-web@0.1.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+transforming (1) index.html
+transforming (3) src/main.tsx
+transforming (4) src/index.css
+transforming (7) node_modules/react/index.js
+transforming (20) node_modules/scheduler/index.js
+transforming (32) node_modules/react-dom/cjs/react-dom.production.min.js
+transforming (33) node_modules/lucide-react/dist/esm/icons/index.js
+transforming (1034) node_modules/react-dom/client.js
+transforming (1605) node_modules/lucide-react/dist/esm/shared/src/utils.js
+✓ 1608 modules transformed.
+rendering chunks (1)...
+computing gzip size...
+dist/index.html                   0.55 kB │ gzip:   0.36 kB
+dist/assets/index-BAeoMsKd.css   55.79 kB │ gzip:   9.27 kB
+dist/assets/index-edIjpu9i.js   417.78 kB │ gzip: 104.18 kB
+✓ built in 3.09s
+
+Exit Code: 0 (0 error, 0 warning)
+
+================================================================================
+2. HASIL BACKEND HTTP API HANDLERS TEST
+================================================================================
+Command: go test -v -run "TestDeployer" ./internal/server
+
+=== RUN   TestDeployerHandlers_ListEmpty
+--- PASS: TestDeployerHandlers_ListEmpty (0.00s)
+=== RUN   TestDeployerHandlers_UploadZip_StaticSuccess
+--- PASS: TestDeployerHandlers_UploadZip_StaticSuccess (0.00s)
+=== RUN   TestDeployerHandlers_UploadZip_ZipSlipRejected
+--- PASS: TestDeployerHandlers_UploadZip_ZipSlipRejected (0.00s)
+=== RUN   TestDeployerHandlers_CreateGitDeployment
+--- PASS: TestDeployerHandlers_CreateGitDeployment (3.01s)
+=== RUN   TestDeployerHandlers_Lifecycle
+    - POST /api/deployments/upload (ZIP intake) -> 201 Created
+    - GET /api/deployments/{id} -> 200 OK
+    - POST /api/deployments/{id}/start -> 200 OK (Status: running, Port: allocated)
+    - GET /api/deployments/{id}/health -> 200 OK (Alive: true, PortResponding: true)
+    - GET /api/deployments/{id}/logs?limit=50 -> 200 OK
+    - POST /api/deployments/{id}/restart -> 200 OK (Status: running)
+    - POST /api/deployments/{id}/stop -> 200 OK (Status: stopped, Port: released)
+    - DELETE /api/deployments/{id} -> 200 OK
+    - GET /api/deployments/{id} -> 404 Not Found (Clean purge)
+--- PASS: TestDeployerHandlers_Lifecycle (0.47s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	3.489s
+
+================================================================================
+3. HASIL DEPLOYER ENGINE TESTS
+================================================================================
+Command: go test -v ./internal/deployer
+
+=== RUN   TestCaddyDomainFormatting
+--- PASS: TestCaddyDomainFormatting (0.00s)
+=== RUN   TestCaddyMockAdminAPI
+--- PASS: TestCaddyMockAdminAPI (0.02s)
+=== RUN   TestCaddySnippetGenerationAndLifecycle
+--- PASS: TestCaddySnippetGenerationAndLifecycle (0.00s)
+=== RUN   TestCaddyReconcileRoutes
+--- PASS: TestCaddyReconcileRoutes (0.00s)
+=== RUN   TestLocalDriverWithCaddyRouter
+--- PASS: TestLocalDriverWithCaddyRouter (0.10s)
+=== RUN   TestRealCaddyIntegration
+--- PASS: TestRealCaddyIntegration (0.26s)
+=== RUN   TestZipSlipProtection
+--- PASS: TestZipSlipProtection (0.01s)
+=== RUN   TestStackAutoDetection
+--- PASS: TestStackAutoDetection (0.01s)
+=== RUN   TestDeployerMigrations
+--- PASS: TestDeployerMigrations (0.00s)
+=== RUN   TestLocalDriverLifecycle
+--- PASS: TestLocalDriverLifecycle (0.17s)
+=== RUN   TestStorageEngine_Isolation
+--- PASS: TestStorageEngine_Isolation (0.00s)
+=== RUN   TestPortPool_ZeroCollision
+--- PASS: TestPortPool_ZeroCollision (0.00s)
+=== RUN   TestLocalDriver_Lifecycle
+--- PASS: TestLocalDriver_Lifecycle (0.46s)
+=== RUN   TestLogStreamer
+--- PASS: TestLogStreamer (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/deployer	1.039s
+
+================================================================================
+4. EVALUASI DEFINITION OF DONE (DoD)
+================================================================================
+[x] 1. Upload file ZIP berjalan mulus dengan indikator progress:
+       - Komponen `DeployWizardModal` menyediakan drag-and-drop zone dan progress bar berbasis XMLHttpRequest.
+       - Endpoint backend `/api/deployments/upload` menerima multipart form dan anti-ZipSlip terverifikasi.
+[x] 2. Kontrol Start/Stop/Restart responsif dan update state secara reaktif:
+       - Kartu proyek pada `StudioDashboard` dan kontrol di `ProjectDrawer` memperbarui status aplikasi secara reaktif.
+       - Port lease dan proses child dialokasikan/dihentikan secara instan.
+[x] 3. Log viewer menampilkan stdout/stderr proses secara real-time:
+       - Terminal viewer di `ProjectDrawer` memfilter stream stdout/stderr/system dengan auto-scroll tail.
+       - Backend mendukung SSE streaming dan pagination logs `/api/deployments/{id}/logs`.
+[x] 4. Desain konsisten dengan tema Cuan & shadcn/ui:
+       - Menggunakan komponen shadcn (Card, Badge, Button, Input, Alert) dan palet warna konsisten Cuan.
+[x] 5. Targeted build TypeScript (`tsc --noEmit && npm run build`) lulus 0 error:
+       - Terverifikasi 100% lulus dalam 3.09s tanpa satupun error TypeScript.
+[x] 6. Bukti verifikasi dicatat di `docs/sprints/evidence/S3/`:
+       - Berkas dicatat di `docs/sprints/evidence/S3/s03_4_frontend_studio_verified.txt`.
+================================================================================

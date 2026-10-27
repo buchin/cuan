@@ -1,0 +1,135 @@
+=== CUAN SPRINT 7 (S07.3) EVIDENCE: DISCUSSION-TO-TASK DISTILLER ENGINE & AGENT EXECUTION HOOK VERIFIED ===
+Timestamp: 2026-10-17T12:15:00+07:00
+Task ID: hkturbkgoztphrurswscnpym
+Title: S07.3 — Discussion-to-Task Distiller Engine & Agent Execution Hook
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+================================================================================
+1. SCOPE IMPLEMENTASI DISTILLER ENGINE & AGENT EXECUTION HOOK (S07.3)
+================================================================================
+A. Discussion-to-Task Distiller Engine Service (internal/studio/distiller.go):
+   - Parser cerdas ekstraksi konteks diskusi room menjadi proposal task terstruktur:
+     * Title: Ekstraksi padat dan jelas. Prioritas: explicit override -> regex header in-message (# Task: ..., Task: ..., Sprint ...: ...) -> room title ("Task: <Room.Title>") -> room topic -> generic fallback ("Distilled Task from Discussion").
+     * Description berkonteks: Menyusun transkrip kronologis pesan berformat '[author_type - author_name]: content' disertai prefix Room Topic dan dukungan filtering MessageIDs spesifik.
+     * DoD Checklist minimal 3 butir kriteria terverifikasi (Jaminan DoD >= 3):
+       - Ekstraksi markdown checkboxes: '- [ ]', '- [x]', '- [X]', '* [ ]', '* [x]', '+ [ ]', '+ [x]' dengan penanda status completed yang tepat.
+       - Ekstraksi inline criteria: 'DoD: ...', 'dod: ...', 'DOD: ...', 'Acceptance Criteria: ...', 'Kriteria Penerimaan: ...', 'AC: ...', serta numbered list di bawah blok kriteria.
+       - Deduplikasi case-insensitive untuk mencegah duplikasi butir checklist.
+   - Intelligent Inference Mechanism:
+     * Jika jumlah butir DoD eksplisit < 3 butir, engine menganalisis topik room dan korpus pesan chat untuk menginferensikan kriteria teknis terverifikasi yang relevan:
+       - Keyword backend/API/endpoint/handler -> "Implement backend endpoints and request handlers adhering to REST contract standards"
+       - Keyword database/migration/schema/sql -> "Ensure database schema operations and queries maintain backward compatibility and data retention"
+       - Keyword frontend/UI/component/react -> "Implement user interface components with clear navigation and intuitive error feedback"
+       - Keyword SSE/stream/event/broker -> "Validate real-time event broadcasting and streaming lifecycle cleanup"
+       - Keyword security/auth/validation -> "Enforce strict payload validation and authorization security gates"
+       - Universal Baseline -> "Implement core functional requirements and business logic discussed in the room", "Verify behavior with targeted automated tests (100% PASS rate)", "Record audit trail evidence and verify zero regressions against existing modules"
+     * Hasil: Selalu terjamin len(DoDChecklist) >= 3 butir kriteria terverifikasi.
+
+B. Agent Execution Hook & Runner Queue Dispatching:
+   - Interface AgentExecutionHook (internal/studio/distiller.go):
+     * OnTaskStatusChanged(ctx context.Context, t *db.ProjectTask, oldStatus, newStatus string) (*ExecutionDispatchResult, error)
+   - Implementasi DefaultAgentExecutionHook:
+     * Mendeteksi transisi status task ke 'doing' (baik dari 'backlog' maupun siklus revisi dari 'review').
+     * Mengabaikan transisi status yang tidak beralih ke 'doing' ('doing' -> 'doing', 'doing' -> 'review', dsb.).
+     * Mendukung pendaftaran listener notification post-dispatch.
+   - RunnerTaskBridgeDispatcher (Bridge ke Runner Daemon):
+     * Menghubungkan db.ProjectTask ke antrean runner internal/task (task.Store & runner.RunnerService).
+     * Memastikan entitas task pendukung ada di task.Store dan membuat TaskAttempt baru berstatus 'queued' dengan penomoran attempt inkremental.
+     * Memungkinkan runner daemon latar belakang (RunnerService.Claim) secara otomatis mengklaim dan menjalankan attempt via adapter agen (e.g. 'agy').
+
+C. Integrasi Endpoint REST & Real-Time Event Streaming:
+   - Endpoint POST /api/projects/rooms/{id}/distill & POST /api/rooms/{id}/distill:
+     * Memanggil s.distillerEngine.DistillWithResult(...) untuk menghasilkan proposal task dan metrics ekstraksi.
+     * Menyimpan task ke database via projectStudioRepo.CreateTask.
+     * Memancarkan event SSE 'task.distilled' ke seluruh client yang tersambung pada room.
+     * Mengembalikan response 201 Created dengan DTO task, hitungan pesan, explicit_dod_count, dan inferred_dod_count.
+   - Endpoint PATCH /api/tasks/{id}/status & PUT /api/tasks/{id}:
+     * Terintegrasi dengan s.agentExecutionHook: saat status beralih ke 'doing', hook otomatis terpicu untuk men-dispatch attempt eksekusi agen.
+     * Informasi dispatch disertakan pada event SSE 'task.status_changed' dan response payload HTTP.
+   - Backward Compatibility:
+     * Fungsi DistillTaskFromMessages dipertahankan sebagai wrapper ke studio.DefaultDistiller.Distill untuk menjamin kompatibilitas 100% terhadap pemanggil terdahulu.
+
+================================================================================
+2. HASIL TARGETED UNIT TESTS (internal/studio/distiller_test.go - 100% PASS)
+================================================================================
+Command: go test -count=1 -v ./internal/studio/...
+
+=== RUN   TestDistillerEngine_ExtractTitle
+--- PASS: TestDistillerEngine_ExtractTitle (0.00s)
+=== RUN   TestDistillerEngine_ExtractDoDChecklist_CheckboxesAndPrefixes
+--- PASS: TestDistillerEngine_ExtractDoDChecklist_CheckboxesAndPrefixes (0.00s)
+=== RUN   TestDistillerEngine_InferDoDChecklist_Minimal3ItemsGuaranteed
+--- PASS: TestDistillerEngine_InferDoDChecklist_Minimal3ItemsGuaranteed (0.00s)
+=== RUN   TestDistillerEngine_BuildDescription_AndFiltering
+--- PASS: TestDistillerEngine_BuildDescription_AndFiltering (0.00s)
+=== RUN   TestDistillerEngine_DistillWithResult_FullAttributes
+--- PASS: TestDistillerEngine_DistillWithResult_FullAttributes (0.00s)
+=== RUN   TestAgentExecutionHook_StatusTransitions
+--- PASS: TestAgentExecutionHook_StatusTransitions (0.00s)
+=== RUN   TestRunnerTaskBridgeDispatcher_Integration
+--- PASS: TestRunnerTaskBridgeDispatcher_Integration (0.00s)
+=== RUN   TestDistillerEngine_ConcurrentSafety
+--- PASS: TestDistillerEngine_ConcurrentSafety (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/studio	0.012s
+
+================================================================================
+3. HASIL SERVER INTEGRATION & E2E TESTS (100% PASS)
+================================================================================
+Command: go test -v ./internal/server/ -run 'Test(ProjectDiscussions_Distiller|DistillerEngine_And_ExecutionHook_E2E|ProjectTasks)'
+
+=== RUN   TestProjectDiscussions_Distiller
+--- PASS: TestProjectDiscussions_Distiller (0.00s)
+=== RUN   TestDistillerEngine_And_ExecutionHook_E2E
+  * Room diskusi dibuat
+  * Client SSE terhubung ke /api/rooms/{id}/events (handshake 'connected')
+  * POST /api/projects/rooms/{id}/distill dieksekusi dengan 1 explicit checkbox
+  * DistillerEngine berhasil menyimpulkan minimal 3 DoD items (1 explicit + 2 inferred)
+  * Event SSE 'task.distilled' berhasil diterima real-time
+  * PATCH /api/tasks/{id}/status beralih ke 'doing'
+  * AgentExecutionHook berhasil men-dispatch runner attempt (Dispatched: true, attempt_id: att-...)
+  * Event SSE 'task.status_changed' dengan payload execution_dispatch berhasil diterima real-time
+--- PASS: TestDistillerEngine_And_ExecutionHook_E2E (0.13s)
+=== RUN   TestProjectTasks_CRUD
+--- PASS: TestProjectTasks_CRUD (0.00s)
+=== RUN   TestProjectTasks_QueryFiltering
+--- PASS: TestProjectTasks_QueryFiltering (0.00s)
+=== RUN   TestProjectTasks_SSEBroadcasting
+--- PASS: TestProjectTasks_SSEBroadcasting (0.18s)
+=== RUN   TestProjectTasks_V1AliasEndpoints
+--- PASS: TestProjectTasks_V1AliasEndpoints (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.330s
+
+================================================================================
+4. VERIFIKASI ZERO REGRESSION (internal/server & internal/db)
+================================================================================
+A. Test Suite internal/db/...:
+Command: go test -count=1 ./internal/db/...
+Output:
+ok  	github.com/buchin/cuan/internal/db	0.354s
+Status: 100% PASS (Zero Regression)
+
+B. Test Suite internal/server/...:
+Command: go test ./internal/server/...
+Output:
+ok  	github.com/buchin/cuan/internal/server	59.597s
+Status: 100% PASS (Zero Regression across all Sprint 1-6 and Sprint 7 modules)
+
+================================================================================
+5. DEFINITION OF DONE (DoD) S07.3 VERIFICATION
+================================================================================
+[x] 1. Service Distiller Engine terimplementasi di internal/studio/distiller.go:
+       - Parser cerdas ekstraksi konteks diskusi room menjadi proposal task terstruktur (Title, Description, DoD Checklist).
+       - Ekstraksi markdown checkbox ('- [ ]', '- [x]', 'DoD: ...') dan inferensi scope obrolan ke structured checklist.
+       - Checklist DoD dijamin minimal 3 butir kriteria terverifikasi.
+[x] 2. Endpoint POST /api/projects/rooms/{id}/distill dan /api/rooms/{id}/distill tersambung sepenuhnya dengan Distiller Engine dan memancarkan SSE 'task.distilled'.
+[x] 3. Integrasi hook pengikatan task ke runner deployment/eksekusi agen (Agent Execution Hook) untuk auto-trigger / dispatching runner bila status beralih ke doing.
+[x] 4. Targeted unit tests di internal/studio/distiller_test.go lulus 100% (8 unit test scenarios).
+[x] 5. Zero regression terverifikasi pada internal/server dan internal/db.
+[x] 6. Berkas audit bukti pemenuhan tersimpan di docs/sprints/evidence/S7/s07_3_distiller_engine_verified.txt.
+[x] 7. Git commit diautentikasi author 'Buchin <buchin@dropsugar.com>' dan terdorong ke main.
+
+STATUS TASK S07.3: SELESAI (DONE) & VERIFIED 100%

@@ -1,0 +1,16 @@
+{
+  "removedVerifiedUploadCopies": 16,
+  "bytesReclaimed": 597987328,
+  "freeBytesBefore": 1609854976,
+  "freeBytesAfter": 2207842304,
+  "applicationReleasesDeleted": 0,
+  "backupsDeleted": 0,
+  "accountOrWorkspaceFilesDeleted": 0,
+  "currentRelease": "98f8811f2b5c7a504aae40e01b53ff8e3ea249ce",
+  "previousRelease": "f40909a78f1357e6d72da13970f1e7685728bfa5",
+  "retainedTablesVerified": 37,
+  "retainedProfilesVerified": 930,
+  "profileFilesChanged": 0,
+  "retainedItemStates": 7,
+  "retainedReadFlags": 11
+}

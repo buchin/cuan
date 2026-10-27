@@ -1,0 +1,63 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 18: S18.1 — NEUTRAL THEME MIGRATION & DIRECT CHAT CORE API (NO TOPIC)
+================================================================================
+Timestamp:     2026-10-18T11:21:45Z
+Title:         S18.1 — Neutral Theme Migration & Direct Chat Core API (No Topic)
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. NEUTRAL THEME MIGRATION (SHADCN/UI ZINC/SLATE)
+================================================================================
+   - Eliminasi Total Tokyo Night Palette:
+     * Hex codes (#1a1b26, #eaeef6, #1f2335, #24283b, #7aa2f7, #c0caf5, #9aa5ce, #565f89) dibersihkan dari seluruh file React/TSX:
+       - web/src/components/layout/AppShell.tsx
+       - web/src/components/ui/ErrorBoundary.tsx
+       - web/src/features/projects/CreateProjectModal.tsx
+       - web/src/features/settings/SettingsView.tsx
+       - web/src/features/tasks/CreateTaskModal.tsx
+       - web/src/features/tasks/TaskSidePeek.tsx
+     * Verifikasi `git grep -E "#1a1b26|#eaeef6|#1f2335|#24283b|#7aa2f7|#c0caf5|#9aa5ce|#565f89" web/src/` -> 0 MATCHES (CLEAN).
+   - Penggunaan Standar shadcn/ui Zinc/Slate CSS Variables:
+     * Mode Light: --background 0 0% 100%, --foreground 240 10% 3.9%, --card, --border, --muted, --primary.
+     * Mode Dark: --background 240 10% 3.9%, --foreground 0 0% 98%, --card 240 10% 3.9%, --primary 0 0% 98%.
+
+================================================================================
+2. DIRECT CHAT CORE REST API & NO-TOPIC CONVERSATION FLOW
+================================================================================
+   - Penghapusan Kewajiban Field Title/Topic:
+     * POST /api/v1/inbox & POST /api/inbox tidak lagi mewajibkan field title. Jika kosong, otomatis fallback ke cuplikan pesan atau 'Direct Message'.
+     * Percakapan langsung antar-kontak tanpa perlu mengisi judul topik.
+   - Entitas ChatContact & ChatConversation:
+     * ChatContact (id, type: agent|customer, name, avatar, status, product, guest_uuid, conversation_id, unread_count, last_message).
+     * ChatConversation (id, contact, messages, created_at, updated_at).
+   - Internal REST Endpoints:
+     * GET /api/v1/chat/contacts -> 200 OK (Mendukung filter type: all, agents, customers & query q).
+     * GET /api/v1/chat/conversations/{id}/messages -> 200 OK (Riwayat pesan kontak).
+     * POST /api/v1/chat/conversations/{id}/messages -> 200 OK (Kirim pesan langsung ke kontak).
+
+================================================================================
+3. VISITOR LIVE CHAT API (DOJO CONTRACT COMPATIBLE) & OPEN CORS
+================================================================================
+   - Endpoint Visitor Live Chat:
+     * POST /api/chat/session -> 200 OK (Init sesi via guest_uuid/session_uuid, initial message support).
+     * GET /api/chat/messages?session_uuid=...&after_id=... -> 200 OK (Polling pesan baru dengan monotonic numeric id).
+     * POST /api/chat/messages -> 200 OK (Kirim pesan dari visitor).
+     * POST /api/chat/sessions/{uuid}/page -> 200 OK (Telemetri URL, page title, product).
+     * POST /api/chat/receipts -> 200 OK (Receipts acknowledgment).
+   - Header CORS Terbuka:
+     * Access-Control-Allow-Origin: * terpasang pada seluruh rute /api/chat/* dan /chat/widget.js.
+     * Preflight OPTIONS request ditangani dengan status 200 OK.
+   - Backward-Compatibility:
+     * Percakapan legacy S17 otomatis dimapping ke kontak default Scrum Master.
+     * 19 migrasi database PostgreSQL utuh 100% tanpa modifikasi destruktif.
+
+================================================================================
+4. TARGETED TEST VERIFICATION
+================================================================================
+   - TestChatHandlers_CompleteFlow: PASS (0.12s)
+   - TestInboxHandlers_CompleteFlow: PASS (0.12s)
+
+=== FINAL VERDICT: S18.1 NEUTRAL THEME MIGRATION & DIRECT CHAT CORE API PASSED 100% ===

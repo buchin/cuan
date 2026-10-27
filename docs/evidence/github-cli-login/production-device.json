@@ -1,0 +1,18 @@
+{
+  "production": "PASS",
+  "release": "758f9f3107b08f2dd8faeed31bd3ecc0526e99fe",
+  "nativeGitHubCLI": true,
+  "noManualOAuthConfiguration": true,
+  "noManualToken": true,
+  "state": "awaiting_authorization",
+  "reloadResumesPendingLogin": true,
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "ownerMustAuthorizeOnGitHub": true,
+  "livePrivateRepositoryAccessVerified": false,
+  "providerInferenceCalls": 0,
+  "noTaskOrChatWrites": true
+}

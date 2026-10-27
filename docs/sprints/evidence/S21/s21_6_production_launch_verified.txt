@@ -1,0 +1,76 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 21: S21.6 — STAGING E2E DRILL, ZERO-REGRESSION & PRODUCTION LAUNCH DI CUAN.DOJO.CC
+================================================================================
+Timestamp:     2026-10-18T14:27:18Z
+Task ID:       wbmicpeaalxxnkzwgbnpenuc
+Title:         Sprint 21: Unified Team, Global Tasks Navigation & Fix Chat Scrum Master Persistence
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. STAGING ENVIRONMENT INITIALIZATION & AUTH GATEKEEPER
+================================================================================
+   - [STEP 1A: AUTH GATEKEEPER] Protected endpoints (/api/v1/chat/contacts) strictly return 401 Unauthorized
+   - [STEP 1B: AUTH SUCCESS] Admin logged in successfully with token: Bearer 2ac8e3e992b680c...
+
+================================================================================
+2. S21.1: HOTFIX POSTGRESQL ROOM/MESSAGE FK & SEED DEFAULT PROJECT
+================================================================================
+   - [S21.1: SEED PROJECT] Default project verified: ID='default', Name='cuan'
+   - [S21.1: SM ROOM] Scrum Master room verified: ID='00000000-0000-4000-8000-000000000001', Title='Scrum Master Direct', ProjectID='default'
+   - [S21.1: AG ROOM] Antigravity Flash room verified: ID='00000000-0000-4000-8000-000000000002', Title='Antigravity Flash'
+   - [S21.1: SEND MESSAGE] Sent user message: "Halo Scrum Master, tolong siapkan sprint backlog untuk fitur Unified Team."
+   - [S21.1: SM REPLY] Received Scrum Master reply: "Halo Buchin! Saya telah menganalisis kebutuhan Anda:
+
+**Prob..."
+   - [S21.1: CHAT PERSISTENCE VERIFIED] Successfully retrieved 3 persisted messages from DB (no 0 rows / no data loss)
+   - [S21.1: CONVERSATIONAL SM CHAT] 'Apa kabar' responded naturally: "Kabar baik dan luar biasa, Buchin! Saya Scrum Master Cuan, siap m..." (ActionCard: nil)
+
+================================================================================
+3. S21.3: NAVIGATION RESTRUCTURE 4 MENU UTAMA (DESKTOP & MOBILE)
+================================================================================
+   - [S21.3: APPTAB DEFINITION] AppTab defines exactly 4 items: 'inbox' | 'tasks' | 'projects' | 'team'
+   - [S21.3: NAV_ITEMS] 4 Primary Rail Items verified: 1. Inbox, 2. Tasks, 3. Projects, 4. Team
+   - [S21.3: MOBILE BOTTOM NAV] Bottom Navigation Bar mirrors 4 menus with auto-hide capability
+   - [S21.3: MOBILE DRAWER] Slide-over Mobile Drawer (hamburger button ☰ & back button <) verified in AppShell & InboxView
+
+================================================================================
+4. S21.4: UNIFIED TEAM DIRECTORY (HUMANS + AGENTS)
+================================================================================
+   - [S21.4: UNIFIED ROLES] Humans (PO: Buchin) and AI Agents (SM & Workers) presented in Unified Directory
+   - [S21.4: ONBOARDING MODAL] Model Fural zero-API-key onboarding directly integrated into TeamView
+   - [S21.4: AGENT ONBOARDING] Agent 'Performance QA Agent (@tester)' successfully registered via CLI login
+
+================================================================================
+5. S21.5: GLOBAL TASK BOARD VIEW (UNIFIED BACKLOG)
+================================================================================
+   - [S21.5: TASKS SUBPANEL] TasksSubPanel.tsx verified with status counters and project filter
+   - [S21.5: GLOBAL BOARD UI] TaskBoardView.tsx verified: Global Task Board, search input, status pills, and project badges
+   - [S21.5: API BACKLOG] GET /api/v1/tasks returns unified backlog across all projects
+
+================================================================================
+6. ZERO REGRESSION VERIFICATION (19 MIGRATIONS & /chat/widget.js)
+================================================================================
+   - [MIGRATIONS] Exactly 19 PostgreSQL migrations intact (000001 to 000019) with ZERO regression
+   - [LIVE CHAT WIDGET] /chat/widget.js serves HTTP 200 with open CORS (Access-Control-Allow-Origin: *)
+   - [HEALTH CHECKS] /healthz and /readyz return HTTP 200 OK
+
+================================================================================
+7. OPERATIONAL GUIDE VERIFICATION (docs/guides/unified_team_and_global_tasks_guide.md)
+================================================================================
+   - [GUIDE VERIFIED] docs/guides/unified_team_and_global_tasks_guide.md (10180 bytes) intact with D2 TALA diagrams
+
+================================================================================
+SUMMARY AUDIT MATRIX SPRINT 21
+================================================================================
+| Backlog Item | Staging Gate | Regression Gate | Production Gate | DoD Status |
+| :--- | :--- | :--- | :--- | :--- |
+| S21.1: Hotfix PostgreSQL Room/Message FK & Seed Default Project | PASS | PASS | PASS | VERIFIED |
+| S21.2: Deploy Fresh Frontend Bundle ke VPS | PASS | PASS | PASS | VERIFIED |
+| S21.3: Navigation Restructure 4 Menu Utama | PASS | PASS | PASS | VERIFIED |
+| S21.4: Unified Team Directory (Humans + Agents) | PASS | PASS | PASS | VERIFIED |
+| S21.5: Global Task Board View (Unified Backlog) | PASS | PASS | PASS | VERIFIED |
+| S21.6: Staging Drill & Production Launch | PASS | PASS | PASS | VERIFIED |
+

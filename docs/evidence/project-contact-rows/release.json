@@ -1,0 +1,12 @@
+{
+  "release": "f6ea56039f0e2497318575b07daaa72f4ef450aa",
+  "healthy": true,
+  "rollbackReactivationVerified": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "retainedTables": 37,
+  "unchangedProfileFiles": 930,
+  "unchangedItemStates": 7,
+  "unchangedReadFlags": 11,
+  "verifierProviderCalls": 0
+}

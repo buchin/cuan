@@ -1,0 +1,139 @@
+================================================================================
+S14.3 AUDIT EVIDENCE: Global Navigation, Breadcrumb Switcher & Contextual Project Module Sidebar
+================================================================================
+Timestamp: 2026-10-18T06:30:00+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Task ID: wtvnigcbmnrzjgwsggcyksop (#WTVNI)
+Task Title: S14.3 — Global Navigation, Breadcrumb Switcher & Contextual Project Module Sidebar
+Git Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. GLOBAL NAVIGATION MENU (SHADCN SIDEBAR-07 SHELL)
+--------------------------------------------------------------------------------
+Target Files:
+  - web/src/components/layout/Sidebar07Layout.tsx
+  - web/src/components/studio/TeamView.tsx
+  - web/src/components/studio/StudioDashboard.tsx
+  - web/src/App.tsx
+
+Menu Utama Navigasi Global Terverifikasi:
+  1. Dashboard    -> /dashboard / /studio (Platform overview & quick metrics)
+  2. Tasks        -> /tasks / /studio/tasks (Multi-Project Kanban & Task Board)
+  3. Projects     -> /projects / /studio/projects (Workspace & Projects Directory)
+  4. Discussions  -> /discussions / /studio/discussions (Project Rooms & Distillation)
+  5. Agents       -> /agents / /studio/agents (AI Agents Hub & Connections)
+  6. Team         -> /team / /studio/team (Workspace Team & Collaborators View)
+
+Infrastruktur & Admin Group:
+  - BYOS Servers     -> /studio/servers
+  - Custom Domains   -> /studio/domains
+  - Moderasi Sponsor -> /admin/sponsors
+
+TeamView Component (web/src/components/studio/TeamView.tsx):
+  - Ringkasan Metrik: Total Members, Autonomous Agents, dan Single-Owner Access Model.
+  - Daftar Kolaborator: Buchin (Owner), agy (Dev Team Agent), Jean (Scrum Master Agent), Webmaster AI Studio.
+  - Dialog Interaktif: Modal 'Invite Team Member' dengan form Nama, Email, dan pilihan Peran (Developer / Administrator).
+  - Status Indicator: Online (hijau) & Pending Invitation (kuning).
+
+--------------------------------------------------------------------------------
+2. NAVBAR HEADER BREADCRUMB & PROJECT SWITCHER
+--------------------------------------------------------------------------------
+Target Files:
+  - web/src/components/layout/BreadcrumbProjectSwitcher.tsx
+  - web/src/components/layout/Sidebar07Layout.tsx
+
+Format Breadcrumb Header:
+  Dashboard / [Project Switcher Dropdown] / [Nama Halaman/Modul]
+
+Elemen Switcher Jean-Model Terverifikasi:
+  1. Trigger Button:
+     - Icon proyek sesuai tipe (Globe untuk WordPress, Sparkles untuk Creator, Layers untuk SaaS, FolderGit2 untuk Custom).
+     - Nama proyek aktif dengan truncation responsif.
+     - Status badge aktif ('Active' hijau berkedip / 'Arsip' abu-abu).
+     - ChevronDown indicator dengan animasi rotasi saat popover terbuka.
+  2. Popover Dropdown Interaktif:
+     - Input Filter Cepat: Pencarian realtime berdasarkan nama, ID, dan tipe proyek.
+     - Filter Pills: Tab 'Semua', 'Aktif', dan 'Arsip' untuk penyaringan instan.
+     - 1-Klik Switch: Mengganti workspace aktif secara instan tanpa reload halaman browser.
+     - Indikator Pemilihan: Checkmark hijau pada proyek yang sedang aktif.
+     - Tombol Aksi Cepat: '+ Create New Project' yang langsung membuka dialog pembuatan proyek baru.
+
+--------------------------------------------------------------------------------
+3. CONTEXTUAL MODULE SIDEBAR DI HALAMAN PROJECT
+--------------------------------------------------------------------------------
+Target Files:
+  - web/src/components/layout/Sidebar07Layout.tsx
+  - web/src/components/studio/StudioDashboard.tsx
+
+Transformasi Modul Kontekstual:
+  Saat pengguna masuk ke mode proyek (atau menavigasi ke sub-modul proyek),
+  sidebar bertransformasi menampilkan navigasi sub-modul kontekstual:
+  1. Overview        -> /studio (Ringkasan aplikasi & metrik kesehatan)
+  2. WordPress Cloud -> /studio/wordpress (Turnkey WP, WP-CLI, & AI Webmaster Panel)
+  3. Repos           -> /studio/repositories (Git branches, sync & monorepo status)
+  4. Deployments     -> /studio/deployer (1-Click Script Deployer & container logs)
+  5. Telemetry       -> /studio/observability (Health checks, alert channels & logs)
+  6. Studio Rooms    -> /studio/discussions (Room diskusi & kolaborasi agent)
+  7. Settings        -> /studio/domains / /studio/servers (Infrastruktur & modul toggle)
+
+Mekanisme Kembali ke Navigasi Global:
+  - Tombol '← Navigasi Global' pada SidebarHeader dengan icon panah kiri dan transisi halus.
+  - Tautan klik 'Dashboard' pada Navbar Header Breadcrumb yang langsung mereset mode kembali ke Navigasi Global.
+
+--------------------------------------------------------------------------------
+4. DASHBOARD EMPTY STATE & CREATE PROJECT MODAL
+--------------------------------------------------------------------------------
+Target Files:
+  - web/src/components/studio/DashboardEmptyState.tsx
+  - web/src/components/studio/CreateProjectModal.tsx
+  - web/src/components/studio/StudioDashboard.tsx
+
+Dashboard Empty State:
+  - Ditampilkan saat pengguna belum memiliki proyek aktif atau instance dalam kondisi fresh.
+  - Banner Edukatif Tokyo Night:
+    - Hero headline: "Mulai Perjalanan Anda dengan Proyek Pertama".
+    - 3 Pilar Utama: Modul Proyek Kontekstual, Autonomous AI Agents, Turnkey Cloud & Multi-Stack.
+    - Panduan 3 Langkah: Buat Proyek -> Hubungkan Repositori -> Beralih 1-Klik.
+    - Tombol Aksi Utama: 'Create New Project' dengan icon FolderPlus.
+
+CreateProjectModal Component:
+  - Input: Nama Proyek (wajib) dengan auto-slug generator (misal: "Cuan Platform Core" -> "cuan-platform-core").
+  - Pilihan Blueprint: SaaS / Web App, WordPress Turnkey, Creator Hub, dan Blank Custom Project.
+  - Input Repositori: Git URL opsional untuk sinkronisasi GitHub/Git.
+  - Checklist Modul Kontekstual: Overview, WordPress Cloud, Repos, Deployments, Telemetry, Studio Rooms, Settings.
+  - Submit Action: Membuat proyek baru, memperbarui daftar proyek di state & switcher, dan otomatis beralih ke proyek baru.
+
+--------------------------------------------------------------------------------
+5. FRONTEND VERIFIKASI & BUILD
+--------------------------------------------------------------------------------
+TypeScript Compilation (npx tsc --noEmit):
+  Command: cd web && npx tsc --noEmit
+  Exit Code: 0
+  Result: 0 Error (Type safety 100% PASS)
+
+Production Bundle Build (npm run build):
+  Command: cd web && npm run build
+  Exit Code: 0
+  Output:
+    vite v5.4.21 building for production...
+    ✓ 1657 modules transformed.
+    dist/index.html                     0.55 kB │ gzip:   0.37 kB
+    dist/assets/index-B_gm58PB.css    106.63 kB │ gzip:  17.43 kB
+    dist/assets/index-g2zNA4v-.js   1,327.82 kB │ gzip: 304.97 kB
+    ✓ built in 5.18s
+  Result: 100% PASS
+
+Backend Regression Check:
+  Command: go test ./internal/server/... ./internal/auth/... ./internal/project/...
+  Exit Code: 0
+  Result:
+    ok  github.com/buchin/cuan/internal/server   109.002s
+    ok  github.com/buchin/cuan/internal/auth     1.018s
+    ok  github.com/buchin/cuan/internal/project  25.946s
+    Zero regression across backend services and database handlers.
+
+================================================================================
+AUDIT STATUS: 100% VERIFIED & ACCEPTED FOR REVIEW
+================================================================================

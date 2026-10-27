@@ -1,0 +1,35 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "lostResponseSafeRetry": true,
+      "sameSourceId": true,
+      "oneUserMessage": true,
+      "unknownOutcomeOnlyChecksStatus": true,
+      "quotaLinksToSettings": true,
+      "automaticRecoveryNeedsNoClick": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 820,
+      "lostResponseSafeRetry": true,
+      "sameSourceId": true,
+      "oneUserMessage": true,
+      "unknownOutcomeOnlyChecksStatus": true,
+      "quotaLinksToSettings": true,
+      "automaticRecoveryNeedsNoClick": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "lostResponseSafeRetry": true,
+      "sameSourceId": true,
+      "oneUserMessage": true,
+      "unknownOutcomeOnlyChecksStatus": true,
+      "quotaLinksToSettings": true,
+      "automaticRecoveryNeedsNoClick": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "providerCalls": 0
+}

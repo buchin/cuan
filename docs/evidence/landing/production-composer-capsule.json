@@ -1,0 +1,46 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "attachmentLeft": true,
+      "circularSendRight": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "attachmentLeft": true,
+      "circularSendRight": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "attachmentLeft": true,
+      "circularSendRight": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "attachmentLeft": true,
+      "circularSendRight": true,
+      "emptyDisabled": true,
+      "noEmoji": true,
+      "noOverflow": true
+    }
+  ],
+  "exactAssets": true,
+  "messagesSent": 0,
+  "filesUploaded": 0,
+  "providerInvocations": 0,
+  "errors": []
+}

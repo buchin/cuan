@@ -1,0 +1,41 @@
+[
+  {
+    "case": "Synthetic visualViewport resize/offset (layout viewport unchanged)",
+    "composer": {
+      "x": 0,
+      "y": 447,
+      "width": 390,
+      "height": 73
+    },
+    "visibleBottom": 520
+  },
+  {
+    "case": "long unsent draft",
+    "client": 138,
+    "scroll": 540,
+    "max": "140px"
+  },
+  {
+    "case": "Synthetic 34px safe-area padding (not OS env)",
+    "composer": {
+      "x": 0,
+      "y": 657,
+      "width": 390,
+      "height": 187
+    },
+    "button": {
+      "x": 338,
+      "y": 770,
+      "width": 40,
+      "height": 40
+    }
+  },
+  {
+    "case": "back to contacts",
+    "passed": true
+  },
+  {
+    "case": "reopen contact",
+    "passed": true
+  }
+]

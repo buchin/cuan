@@ -1,0 +1,9 @@
+2026-10-19 read-only production inspection; no release performed.
+GET https://cuan.dojo.cc/healthz -> 200 healthy
+GET https://cuan.dojo.cc/readyz -> 200 ready, migrations_count=19
+GET /api/v1/agents/auth-status?harness=agy -> 200 authenticated=true (legacy presence-only check; NOT provider proof)
+SSH systemctl show: User=ubuntu; WorkingDirectory=/opt/cuan; executable=/opt/cuan/bin/cuan-server
+SSH process PATH inspection: service_agy_executables=[]
+Credential file present; JSON keys token,id_token. No values read into evidence. Validity not verified.
+Local real agy login: explicitly not signed in; selecting Google OAuth emits official accounts.google.com OAuth authorization URL; cancelled after extraction. Owner consent/code exchange not performed.
+Blocked acceptance: real token exchange + actual provider response persisted in Inbox. Later backlog dependency gates remain closed.

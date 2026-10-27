@@ -1,0 +1,16 @@
+=== CUAN SPRINT 1 (T7) EVIDENCE: STAGING ISOLATION VERIFIED ===
+Timestamp: 2026-10-21T13:52:08Z
+DoD Requirement: Staging menjalankan build tanpa mengganggu Stable (Volume, port, database, network terisolasi).
+
+1. Host & Port Allocation:
+   - Stable:  Port 8080 | Env: production | Version: 0.1.0 | Net: cuan-network
+   - Staging: Port 8081 | Env: staging    | Version: 0.1.0-staging | Net: cuan-staging-network
+
+2. Isolation Test Results:
+   - Stable Task Created:  task_283486918f0d (Production Core Feature)
+   - Staging Task Created: task_f43985928e1c (Staging Experimental Spike)
+   - Cross-query Stable -> Staging: HTTP 404 (Zero leakage confirmed)
+   - Cross-query Staging -> Stable: HTTP 404 (Zero leakage confirmed)
+   - Staging Mutation Impact on Stable: ZERO (Stable task remains 'backlog')
+   - Database Storage Volumes: cuan_postgres_data vs cuan_staging_postgres_data (100% decoupled)
+=== RESULT: PASS (Staging terpisah mandiri tanpa mengganggu Stable) ===

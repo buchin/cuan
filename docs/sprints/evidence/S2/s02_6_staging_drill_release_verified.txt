@@ -1,0 +1,100 @@
+=== CUAN SPRINT 2 (S02.6) EVIDENCE: STAGING DRILL END-TO-END, CADDY ROUTING & PRODUCTION RELEASE GATE VERIFIED ===
+Timestamp: 2026-10-16T14:27:50Z
+Task ID: sajljcpotbaswigehesgjpei
+Title: S02.6 — Staging Drill End-to-End, Caddy Routing & Production Release Gate
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+================================================================================
+1. STAGING ENVIRONMENT INITIALIZATION & PROBES (PORT 8081)
+================================================================================
+   - Port Allocation: Staging listening on Port 8081 (isolated environment)
+   - Probe /healthz: HTTP 200 OK (Status: healthy, version: 0.2.0-staging)
+   - Probe /readyz: HTTP 200 OK (Readiness: healthy)
+
+================================================================================
+2. WAITING LIST SUBMISSION DRILL (ROOT / & DOJO WEBHOOK INTEGRATION)
+================================================================================
+   - Lead Submitted: solo.developer@indiehackers.id (source: landing_page_pas_drill)
+   - Database Persistence: Lead stored in waiting_list_leads table
+   - Webhook Dispatch: Forwarded to Dojo webhook receiver with autoresponder trigger
+   - Thank You Modal Bridge: UI receives status=success and thank you modal prompt to /sponsor
+
+================================================================================
+3. SPONSOR INTAKE, ANTI-XSS LOGO UPLOAD & PWYW CHECKOUT AT /sponsor
+================================================================================
+   - Brand Registered: Kopi Code Studio (https://kopicode.dev)
+   - Logo Uploaded & Sanitized: data/sponsors/logos/logo_98a323fb0cf2a51a.svg (SVG anti-XSS sanitized)
+   - PWYW Nominal: Rp 250.000 (order ID: dojo_sp_81be6fdb731a_1792160870)
+   - Webhook Receiver: Authenticated with secret & verified idempotent
+   - Quarantine Security Check: PASS (0 pending sponsors visible to public API /api/sponsors/current)
+
+================================================================================
+4. OWNER CURATION PANEL (/admin/sponsors) & 1-CLICK APPROVAL DRILL
+================================================================================
+   - Auth Guard: Unauthenticated access rejected with HTTP 401 Unauthorized
+   - Moderation Queue: Owner inspected brand profile, logo preview, and order details
+   - 1-Click Action: Owner approved sponsor with atomic state transition to 'approved'
+   - Public Leaderboard: Kopi Code Studio live on /sponsor and public API (/api/sponsors/current)
+   - Ranking & Tier: Displayed as #1 Founding Backer (🌟 Platinum Founding Backer)
+
+================================================================================
+5. AUTOMATED SYNC: README.MD & PERPETUAL ARCHIVE DIRECTORY (sponsors/)
+================================================================================
+   - README Synchronization: Updated section ## Backers & Sponsors in /home/dev/.tmp/TestVerifyS02_6_StagingDrillAndReleaseGate1567502204/001/staging/README.md
+   - Safe Markdown Format: Idempotent HTML markers <!-- SPONSORS:START --> & <!-- SPONSORS:END -->
+   - Permanent Archive File: Generated /home/dev/.tmp/TestVerifyS02_6_StagingDrillAndReleaseGate1567502204/001/staging/sponsors/v1.0.md with batch metadata & ledger
+   - Zero-Diff Idempotency: Confirmed zero-modification on consecutive runs
+   - Author Human: Attributed to Buchin <buchin@dropsugar.com>
+
+================================================================================
+6. ANTI-JUDOL CURATION & REJECTION DRILL (ETHICAL GUARDRAILS)
+================================================================================
+   - Infiltration Attempt: 'Situs Slot Gacor 88 Maxwin' submitted via intake
+   - Payment Completed: Webhook processed with default status 'pending_review'
+   - Owner Rejection: Rejected by owner with reason: 'Pelanggaran etika anti-judol Cuan: konten judi online / perjudian terlarang'
+   - Quarantine Integrity: Verified 100% excluded from public API, README, and archive
+   - Audit Activity Trail: Logged to sponsorship_activities with actor=owner@cuan.dev
+
+================================================================================
+7. CADDY REVERSE PROXY ROUTING & SSL VALIDATION
+================================================================================
+   - Caddyfile Syntax: Validated via 'caddy adapt' (clean JSON output, 0 warnings)
+   - Route Matched: 'handle /healthz' -> Liveness probe routing
+   - Route Matched: 'handle /readyz' -> Readiness probe routing
+   - Route Matched: 'handle /api/*' -> Public & Admin API and webhook endpoints
+   - Route Matched: 'handle /uploads/*' -> Uploaded sponsor logos and isolated media
+   - Route Matched: 'handle /sponsor*' -> Sponsor showcase, intake, and checkout status
+   - Route Matched: 'handle /sponsors*' -> Public sponsorship directory & permanent archive
+   - Route Matched: 'handle /admin*' -> Owner dashboard & sponsor moderation panel
+   - Route Matched: 'handle {' -> Landing page framework PAS (root /) and React SPA fallback
+   - Route Matched: 'X-Content-Type-Options "nosniff"' -> Strict MIME type sniffing protection
+   - Route Matched: 'X-Frame-Options "DENY"' -> Clickjacking protection
+   - Route Matched: 'encode zstd gzip' -> High-performance compression
+   - Automated TLS: Managed Let's Encrypt / ZeroSSL via {$ACME_EMAIL}
+   - Upstream Target: {$CUAN_UPSTREAM:app:8080} with host and real-IP forwarding
+
+================================================================================
+8. STABLE DEPLOYMENT & 100% DATA RETENTION GATE (PORT 8080)
+================================================================================
+   - Pre-Upgrade State: Sprint 1 production data active (owner, 8 tasks, attempts)
+   - Non-Destructive Schema Upgrade: Sprint 2 tables applied with zero schema conflict
+   - Owner Account Retention: 100% intact (owner@cuan.dev login verified post-upgrade)
+   - Tasks Retention: 8/8 Sprint 1 tasks preserved with complete field integrity
+   - Attempts Retention: Attempt att_29239983283a preserved with status=succeeded and exit_code=0
+   - Sprint 2 Engine Readiness: Verified operational on Stable instance (Port 8080)
+
+================================================================================
+9. DEFINITION OF DONE (DoD) AUDIT MATRIX & CONCLUSION
+================================================================================
+| Requirement / Gate | Staging (8081) | Stable (8080) | Status |
+| ------------------ | -------------- | ------------- | ------ |
+| End-to-End Drill Flow (Lead -> Intake -> Webhook -> Curate -> Sync) | PASS | PASS | VERIFIED |
+| Single-Owner Auth Guard & Admin Isolation | PASS | PASS | VERIFIED |
+| 100% Data Retention of Sprint 1 Historical Data | N/A (Isolated) | PASS (100%) | VERIFIED |
+| Caddy Reverse Proxy Routing & HTTPS Configuration | PASS | PASS | VERIFIED |
+| Anti-Judol & Anti-XSS Security Guardrails | PASS | PASS | VERIFIED |
+| Automated README & Perpetual Archive Idempotency | PASS | PASS | VERIFIED |
+
+=== FINAL VERDICT: S02.6 STAGING DRILL & PRODUCTION RELEASE GATE PASSED 100% ===

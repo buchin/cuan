@@ -1,0 +1,92 @@
+=== CUAN SPRINT 6 (S06.3) EVIDENCE: INCIDENT ALERT DISPATCHER & MULTI-CHANNEL NOTIFICATION ENGINE VERIFIED ===
+Timestamp: 2026-10-17T11:00:00+07:00
+Task ID: ikyyydklolferwnkivyhasuh
+Title: S06.3 — Incident Alert Dispatcher & Multi-Channel Notification Engine (Telegram, Discord, Webhook)
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Incident Alert Dispatcher & Anti-Spam Engine (internal/observability/alerts.go):
+   - Threshold Evaluator:
+     * Deteksi outage: Failure streak >= 3 consecutive probe failures trigger status 'firing' incident.
+     * Deteksi resource overload: CPU atau RAM usage > 90.0% triggers alert incident dengan konteks resource detail.
+     * Recovery transition: Peralihan status dari 'unhealthy'/'degraded' kembali ke 'healthy' memicu notifikasi resolusi insiden secara otomatis.
+   - Anti-Spam, Deduplication & Cooldown:
+     * Per-target state tracking: Status incident (firing vs resolved) dan last alert timestamp dilacak per target (deployment / server).
+     * Cooldown window: Default cooldown 10 menit mencegah notification flood saat outage berkepanjangan.
+     * State deduplication: Notifikasi firing berulang dalam jendela cooldown diabaikan kecuali status berubah (state change).
+     * Automatic incident resolution: Pemulihan service otomatis me-resolve record di alert_incidents table dan mengirimkan notifikasi resolusi.
+
+2. Multi-Channel Notification Dispatcher:
+   - Telegram Bot API:
+     * Pengiriman pesan Markdown terformat via Telegram Bot sendMessage API (/bot<token>/sendMessage).
+     * Pesan memuat: Target, Status (OUTAGE vs RESOLVED), Response latency / Error reason, Timestamp, dan Direct Link ke Cuan Studio.
+     * Error handling: Retry otomatis (exponential backoff) untuk 5xx transient server error, immediate return untuk 4xx invalid credentials / bad request.
+   - Discord Webhook:
+     * Pengiriman Rich Embed format via Discord Webhook API.
+     * Visual color coding: Warna merah (#E02424 / decimal 14689316) untuk Alert Firing / Outage, warna hijau (#0E9F6E / decimal 958318) untuk Alert Resolved / Recovered.
+     * Embed fields: Target Type/ID, Severity, Incident Details, dan timestamp ISO-8601.
+   - Custom Generic Webhook:
+     * Pengiriman standard JSON payload dengan informasi insiden lengkap: event, incident_id, project_id, target_type, target_id, title, message, status, triggered_at, resolved_at, studio_url.
+     * Keamanan HMAC-SHA256: Header X-Cuan-Signature: sha256=<hex_hmac> dihitung menggunakan webhook secret untuk verifikasi integritas & autentikasi payload penerima.
+   - Encryption At-Rest (Security):
+     * Seluruh kredensial sensitif channel (Bot Token, Webhook URL, Webhook Secret) dienkripsi menggunakan AES-256-GCM (internal/crypto.KeyVault).
+     * Kolom config_encrypted di database menyimpan ciphertext terenkripsi (base64). Plaintext secret tidak pernah disimpan di database.
+     * Response API menyamarkan kredensial (MaskChannelConfig) sehingga token dan webhook URL aman dari kebocoran (zero credential leak).
+
+3. HTTP REST Endpoints (internal/server/observability_handlers.go & internal/server/server.go):
+   - POST /api/projects/{id}/alert-channels (dan alias /api/v1/...):
+     * Menerima registrasi channel baru (Telegram, Discord, Webhook).
+     * Melakukan validasi tipe channel & kelengkapan konfigurasi.
+     * Enkripsi kredensial sebelum persistensi ke DB dan mengembalikan DTO tersanitasi (HTTP 201 Created).
+   - GET /api/projects/{id}/alert-channels (dan alias /api/v1/...):
+     * Mengambil daftar alert channels terdaftar untuk project tertentu.
+     * Mengembalikan config tersanitasi (masked bot token, masked webhook URL, masked secret).
+   - POST /api/alert-channels/{id}/test (dan alias /api/v1/...):
+     * Mengirimkan 1-klik test alert demo ke channel target untuk verifikasi konektivitas dan webhook endpoint.
+     * Mengembalikan status keberhasilan atau HTTP 502 Bad Gateway jika delivery gagal.
+   - DELETE /api/alert-channels/{id}` (dan alias /api/v1/...):
+     * Menghapus registrasi alert channel berdasarkan ID.
+     * Mengembalikan 404 jika channel tidak ditemukan.
+   - GET /api/incidents (dan alias /api/v1/...):
+     * Mengambil daftar riwayat alert incident dan resolusinya.
+     * Mendukung query filter: project_id, target_id, status (firing/resolved), dan limit.
+
+4. Targeted Automated Unit Tests (internal/observability & internal/server):
+   === RUN   TestValidateChannelConfig
+   --- PASS: TestValidateChannelConfig (0.00s)
+   === RUN   TestMaskingHelpers
+   --- PASS: TestMaskingHelpers (0.00s)
+   === RUN   TestHMACSHA256Calculation
+   --- PASS: TestHMACSHA256Calculation (0.00s)
+   === RUN   TestTelegramNotifier_MockServer
+   --- PASS: TestTelegramNotifier_MockServer (0.00s)
+   === RUN   TestDiscordNotifier_MockServer
+   --- PASS: TestDiscordNotifier_MockServer (0.00s)
+   === RUN   TestWebhookNotifier_HMACSignatureAndMockServer
+   --- PASS: TestWebhookNotifier_HMACSignatureAndMockServer (0.00s)
+   === RUN   TestNotifier_RetryTransientErrors
+   --- PASS: TestNotifier_RetryTransientErrors (0.15s)
+   === RUN   TestNotifier_NonRetryClientErrors
+   --- PASS: TestNotifier_NonRetryClientErrors (0.00s)
+   === RUN   TestAlertDispatcher_ThresholdEvaluation
+   --- PASS: TestAlertDispatcher_ThresholdEvaluation (0.00s)
+   === RUN   TestAlertDispatcher_AntiSpamCooldownAndRecovery
+   --- PASS: TestAlertDispatcher_AntiSpamCooldownAndRecovery (0.00s)
+   === RUN   TestAlertDispatcher_TestChannelOneClick
+   --- PASS: TestAlertDispatcher_TestChannelOneClick (0.00s)
+   === RUN   TestAlertDispatcher_EncryptionAtRest
+   --- PASS: TestAlertDispatcher_EncryptionAtRest (0.00s)
+   === RUN   TestObservabilityEndpoints_AlertChannels
+   --- PASS: TestObservabilityEndpoints_AlertChannels (0.00s)
+   === RUN   TestObservabilityEndpoints_Incidents
+   --- PASS: TestObservabilityEndpoints_Incidents (0.00s)
+
+5. Zero Regression Verification:
+   ok  github.com/buchin/cuan/internal/observability 0.573s
+   ok  github.com/buchin/cuan/internal/db            0.504s
+   ok  github.com/buchin/cuan/internal/deployer      1.870s
+   ok  github.com/buchin/cuan/internal/domain        0.005s
+   ok  github.com/buchin/cuan/internal/server        53.142s
+
+All acceptance criteria and Definition of Done (DoD) for S06.3 are 100% verified.

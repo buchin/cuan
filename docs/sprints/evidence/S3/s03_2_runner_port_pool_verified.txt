@@ -1,0 +1,121 @@
+=== CUAN SPRINT 3 (S03.2) EVIDENCE: ISOLATED SANDBOX PROCESS RUNNER & AUTO-PORT MANAGEMENT POOL VERIFIED ===
+Timestamp: 2026-10-16T22:50:00+07:00
+Task ID: ijskxlcwdaqjnbwygnsdzhrm
+Title: S03.2 — Isolated Sandbox Process Runner & Auto-Port Management Pool
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Atomic Port Allocator Pool (internal/deployer/port_pool.go):
+   - Range: 9000 s/d 9999 (DefaultMinPort = 9000, DefaultMaxPort = 9999).
+   - Thread-safe atomic lease allocator dilindungi sync.Mutex.
+   - Pengecekan ketersediaan socket TCP riil pada 127.0.0.1 (via net.Listen) sebelum memberikan lease.
+   - Anti-collision / zero-collision: teruji secara concurrent melalui 100 goroutine simultan tanpa duplikasi port.
+   - Pembebasan port otomatis (Release / ReleasePort) saat proses deployment dihentikan (Stop/Restart).
+   - Penanganan kehabisan alokasi port (ErrPortPoolExhausted) dengan batasan konfigurasi dinamis.
+
+2. Isolated Sandbox Process Runner (internal/deployer/local_driver.go):
+   - PHP Executor:
+     * Command: `php -S 127.0.0.1:{port} -t {appDir}`.
+     * Root document terisolasi pada direktori data/deployments/<id>/app/.
+     * Pengujian live HTTP responsif menghasilkan 200 OK.
+   - Node.js Executor:
+     * Deteksi cerdas file entri aplikasi (server.js, index.js, app.js, main.js, atau npm start via package.json).
+     * Injeksi environment variable PORT={port}, HOST=127.0.0.1, dan custom env_vars.
+     * Pengujian live HTTP responsif menghasilkan 200 OK.
+   - Static File Server Executor:
+     * Dedicated Go static HTTP server (cmd/static-server/main.go) menggunakan net/http standard library.
+     * Auto-compile on demand ke /tmp/cuan-static-server atau fallback aman ke PHP/Python 3.
+     * Pengujian live HTTP request /index.html menghasilkan 200 OK dengan konten HTML statis.
+   - Process Subtree Isolation:
+     * cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} untuk mengisolasi process group child.
+
+3. Process Lifecycle Controller:
+   - Start:
+     * Alokasi port dinamis bebas konflik dari PortPool (9000-9999).
+     * Spawn child process di latar belakang.
+     * Catat Process PID & Internal Port ke tabel deployments dan DB store.
+     * Transisi status deployment menjadi 'running'.
+     * Menjalankan goroutine exit watcher untuk deteksi otomatis jika proses mati tak terduga.
+   - Stop:
+     * Penghentian bertingkat (graceful SIGTERM ke process group -> timeout 2 detik -> force SIGKILL).
+     * Bebaskan port kembali ke PortPool.
+     * Update status deployment di tabel deployments menjadi 'stopped' dan ProcessPID = 0.
+   - Restart:
+     * Hentikan proses lama dengan aman, jeda stabilisasi, dan nyalakan ulang dengan alokasi port segar.
+   - Health Check:
+     * Verifikasi liveness OS PID menggunakan syscall.Kill(dep.ProcessPID, 0).
+     * Verifikasi konektivitas TCP socket pada 127.0.0.1:{internal_port}.
+     * Mengembalikan struktur HealthStatus (Alive, PID, Port, PortResponding, Error).
+
+4. Real-Time Log Streamer (internal/deployer/log_streamer.go):
+   - Menangkap stream stdout dan stderr secara non-blocking dari pipe proses child.
+   - Menyimpan ke dalam in-memory ring buffer (default 1.000 log) untuk streaming latensi rendah.
+   - Menyimpan seluruh log stream secara persisten ke tabel deployment_logs via Store interface.
+   - Mendukung pub/sub real-time subscription via channel untuk live log streaming di UI.
+
+5. Verifikasi Targeted Tests Go (internal/deployer):
+   === RUN   TestZipSlipProtection
+   === RUN   TestZipSlipProtection/ParentTraversal
+   === RUN   TestZipSlipProtection/NestedParentTraversal
+   === RUN   TestZipSlipProtection/AbsoluteUnixPath
+   === RUN   TestZipSlipProtection/WindowsBackslashTraversal
+   === RUN   TestZipSlipProtection/DotDotOnly
+   === RUN   TestZipSlipProtection/SafeZipExtractsCleanly
+   --- PASS: TestZipSlipProtection (0.01s)
+   === RUN   TestStackAutoDetection
+   === RUN   TestStackAutoDetection/PHP_IndexPHP
+   === RUN   TestStackAutoDetection/PHP_WordPress_Config
+   === RUN   TestStackAutoDetection/NodeJS_PackageJSON
+   === RUN   TestStackAutoDetection/Static_IndexHTML
+   === RUN   TestStackAutoDetection/Custom_Fallback
+   === RUN   TestStackAutoDetection/NestedRoot_PHP_Archive
+   === RUN   TestStackAutoDetection/NestedRoot_NodeJS_Archive
+   === RUN   TestStackAutoDetection/NestedRoot_Static_Archive
+   --- PASS: TestStackAutoDetection (0.01s)
+   === RUN   TestDeployerMigrations
+   --- PASS: TestDeployerMigrations (0.00s)
+   === RUN   TestLocalDriverLifecycle
+   --- PASS: TestLocalDriverLifecycle (0.17s)
+   === RUN   TestStorageEngine_Isolation
+   --- PASS: TestStorageEngine_Isolation (0.00s)
+   === RUN   TestPortPool_ZeroCollision
+   === RUN   TestPortPool_ZeroCollision/PoolExhaustionHandling
+   --- PASS: TestPortPool_ZeroCollision (0.02s)
+   === RUN   TestLocalDriver_Lifecycle
+   === RUN   TestLocalDriver_Lifecycle/StaticRuntime_Lifecycle
+   === RUN   TestLocalDriver_Lifecycle/PHPRuntime_Lifecycle
+   === RUN   TestLocalDriver_Lifecycle/NodeJSRuntime_Lifecycle
+   --- PASS: TestLocalDriver_Lifecycle (0.29s)
+   === RUN   TestLogStreamer
+   --- PASS: TestLogStreamer (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	0.508s
+
+6. Verifikasi Regresi Menyeluruh (go test ./...):
+   ?   	github.com/buchin/cuan/cmd/migrate	[no test files]
+   ?   	github.com/buchin/cuan/cmd/runner	[no test files]
+   ?   	github.com/buchin/cuan/cmd/server	[no test files]
+   ?   	github.com/buchin/cuan/cmd/static-server	[no test files]
+   ok  	github.com/buchin/cuan/internal/agent	(cached)
+   ok  	github.com/buchin/cuan/internal/auth	(cached)
+   ?   	github.com/buchin/cuan/internal/config	[no test files]
+   ok  	github.com/buchin/cuan/internal/crypto	(cached)
+   ok  	github.com/buchin/cuan/internal/db	(cached)
+   ok  	github.com/buchin/cuan/internal/deployer	0.559s
+   ok  	github.com/buchin/cuan/internal/git	(cached)
+   ok  	github.com/buchin/cuan/internal/project	(cached)
+   ok  	github.com/buchin/cuan/internal/runner	(cached)
+   ok  	github.com/buchin/cuan/internal/server	30.856s
+   ok  	github.com/buchin/cuan/internal/sponsorship	(cached)
+   ok  	github.com/buchin/cuan/internal/task	(cached)
+   ?   	github.com/buchin/cuan/migrations	[no test files]
+
+7. Matriks Pemenuhan Definition of Done (DoD):
+   - [x] DoD 1: Alokasi port terbukti zero-collision (TestPortPool_ZeroCollision lulus 100%).
+   - [x] DoD 2: Lifecycle Start -> Running -> Health -> Stop -> Stopped konsisten dengan DB (TestLocalDriver_Lifecycle lulus 100% untuk Static, PHP, dan Node.js).
+   - [x] DoD 3: Log proses tertangkap rapi dan dapat diakses (TestLogStreamer lulus 100%, tersimpan di DB & in-memory buffer).
+   - [x] DoD 4: Targeted tests Go lulus 100% tanpa regresi.
+   - [x] DoD 5: Bukti verifikasi dicatat di docs/sprints/evidence/S3/s03_2_runner_port_pool_verified.txt.
+
+=== STATUS: VERIFIED & READY FOR COMMIT ===

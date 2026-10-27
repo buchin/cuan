@@ -1,0 +1,13 @@
+{
+  "actualProduction": true,
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "noAssetOverlay": true,
+  "noResponseFixtures": true,
+  "nonTelemetryPOSTs": 0,
+  "noOverflow": true,
+  "roster": "Existing production empty roster retained; real pin1/pin2 demo remains original isolated staging.",
+  "limits": "Headless Chromium viewport, not physical keyboard/device; no new provider success."
+}

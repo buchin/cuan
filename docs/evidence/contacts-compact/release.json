@@ -1,0 +1,17 @@
+{
+  "release": "1fd2b0da25d2ccea4a7e6dc696b19e9d026b6be9",
+  "healthy": true,
+  "schema": 25,
+  "rollbackReactivationPassed": true,
+  "testedReleasedAssetsMatch": {
+    "index-DmmjYW1A.js": "1fecec9752575511660906e375bff09ba65a88fe7db5ae270fea7e1aa00ef274",
+    "index-BPzzov6-.css": "109f7598862202764ded7f16ab6de5df4fe4e68182752304bd8f11d8812f3d05"
+  },
+  "retainedTables": 37,
+  "retainedItemEntries": 6,
+  "notificationReadFlags": 11,
+  "profileFiles": 896,
+  "unchangedProfileFiles": 894,
+  "concurrentOAuthTokenFileChanges": 2,
+  "tokenChangeSource": "not attributed; existing updated files preserved"
+}

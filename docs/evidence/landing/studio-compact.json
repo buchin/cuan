@@ -1,0 +1,63 @@
+{
+  "fixture": true,
+  "compact": [
+    {
+      "width": 360,
+      "theme": "light",
+      "initialHeight": 144,
+      "ctaBottom": 582.375,
+      "growthCapped": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "initialHeight": 144,
+      "ctaBottom": 582.375,
+      "growthCapped": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "initialHeight": 144,
+      "ctaBottom": 582.375,
+      "growthCapped": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "initialHeight": 144,
+      "ctaBottom": 582.375,
+      "growthCapped": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "initialHeight": 176,
+      "ctaBottom": 616.375,
+      "growthCapped": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "initialHeight": 176,
+      "ctaBottom": 616.375,
+      "growthCapped": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "initialHeight": 176,
+      "ctaBottom": 616.375,
+      "growthCapped": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "initialHeight": 176,
+      "ctaBottom": 616.375,
+      "growthCapped": true
+    }
+  ],
+  "indonesian": true,
+  "providerCalls": 0
+}

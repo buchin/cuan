@@ -1,0 +1,38 @@
+================================================================================
+AUDIT PACK: S17.1 — shadcn sidebar-09 Navigation Shell & Dual-Tier Layout
+================================================================================
+Timestamp: 2026-10-18T14:47:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 17 (Agentic Scrum Command Center: shadcn sidebar-09 & Conversational Inbox)
+Task: S17.1
+
+1. SCOPE & GOAL VERIFICATION
+- Replaced previous monolithic navigation with dual-tier rail and sub-panel architecture (shadcn sidebar-09):
+  * Left Rail (48px): Minimalist primary icon rail with logo, Inbox, Projects, Agents, Team, Quick Add action, Tokyo Night theme switcher, sub-panel toggle, and user avatar popover.
+  * Middle Sub-Panel (240px): Contextual panel for active tab (Inbox threads, Projects list, Agents list, Team directory) with quick expand/collapse buttons.
+  * Main Viewport: Top bar with breadcrumbs (Cuan / [Tab]), dynamic content workspace, and seamless state transitions without page reloads.
+- Updated styling across AppShell, NavUser, ThemeContext, ProjectsView, TaskBoardView, and LoginScreen using unified design system tokens.
+
+2. DEFINITION OF DONE (DoD) AUDIT
+- DoD 1 (Dual-tier navigation responsive): PASS. Left rail is 48px fixed, sub-panel is collapsible (w-60 to w-0) on desktop & tablet screens.
+- DoD 2 (Instant tab switching without reload): PASS. React state manages active tab and swaps sub-panel content instantaneously without page refresh.
+- DoD 3 (NavUser & ThemeToggle on rail): PASS. Dedicated ThemeToggle button with Tokyo Night / Light mode icons and NavUser avatar popover placed cleanly at the rail footer.
+- DoD 4 (Audit pack & git commit): PASS. Audit pack published at docs/sprints/evidence/S17/s17_1_sidebar09_shell_verified.txt.
+
+3. PRODUCTION BUILD VERIFICATION
+- Command: `npm run build` (tsc && vite build)
+- Output Bundle:
+  * dist/index.html: 0.55 kB (gzip: 0.37 kB)
+  * dist/assets/index.css: 38.49 kB
+  * dist/assets/index.js: 237.48 kB
+- Build Status: PASS (0 TypeScript errors, 0 runtime exceptions).
+
+4. BACKEND INTEGRATION & ZERO REGRESSION
+- Command: `go test ./internal/auth/... -v`
+- Status: PASS (100% tests pass).
+- Database retention: 19 migrations preserved, PostgreSQL tables intact.
+
+5. CONCLUSION
+Task S17.1 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S17.2 (Conversational Inbox Engine & Thread Management).
+================================================================================

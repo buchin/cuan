@@ -1,0 +1,23 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "sameTaskReturn": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "sameTaskReturn": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "sameTaskReturn": true,
+      "noOverflow": true
+    }
+  ],
+  "externalReturnRejected": true,
+  "resolvedHidesCTA": true,
+  "automaticAgentLaunchesInFixture": 0,
+  "providerCalls": 0
+}

@@ -1,0 +1,22 @@
+{
+  "release": "3f98a030f4c39b5497733134e87b5f79c73cf64f",
+  "schema": 24,
+  "englishDefaultOnIndonesianBrowser": true,
+  "explicitIndonesianPreferencePreserved": true,
+  "approvalClicks": 0,
+  "optionalActionAssetsVerified": true,
+  "checkedAgentConversations": 7,
+  "recoveryActions": {
+    "check_status": 5,
+    "check_usage": 1
+  },
+  "mobileDesktopRecoveryUI": true,
+  "retainedApplicationTables": 36,
+  "retainedProfileFiles": 863,
+  "providerCalls": 0,
+  "retriesStarted": 0,
+  "nonLoginWrites": [],
+  "limitations": [
+    "Native provider checkpoint resume is not implemented."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "production": "https://cuan.dojo.cc",
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "realCompletedReply": true,
+      "subtleSummary": true,
+      "touchTarget44": true,
+      "detailsOpen": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "realCompletedReply": true,
+      "subtleSummary": true,
+      "touchTarget44": true,
+      "detailsOpen": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "realCompletedReply": true,
+      "subtleSummary": true,
+      "touchTarget44": true,
+      "detailsOpen": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "realCompletedReply": true,
+      "subtleSummary": true,
+      "touchTarget44": true,
+      "detailsOpen": true
+    }
+  ],
+  "messagesSent": 0,
+  "providerCalls": 0,
+  "errors": []
+}

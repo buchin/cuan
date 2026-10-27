@@ -1,0 +1,103 @@
+=== CUAN SPRINT 3 (S03.1) EVIDENCE: SCHEMA DEPLOYMENTS, RUNTIME PROFILES & STORAGE INTAKE ENGINE VERIFIED ===
+Timestamp: 2026-10-16T22:38:30+07:00
+Task ID: hxmhslhwzydeskejftmkhovo
+Title: S03.1 — Schema Database Deployments, Runtime Profiles & Storage Intake Engine
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SSOT Dokumen Sprint 3:
+   - File: docs/sprints/S3.md
+   - Status: running (Approved PO Buchin 2026-10-16)
+   - Scope: S03.1 sampai S03.6 lengkap beserta alur, dependency, dan DoD
+   - Arsitektur: Co-located di Sprint 3 dengan arsitektur modular (DeployDriver interface), BYOS via SSH disiapkan di Sprint 4
+   - Base Domain: cuan.dojo.cc (dinamis via env BASE_DOMAIN)
+   - D2 Diagrams: TALA layout engine terverifikasi render SVG 100% valid
+
+2. Migrasi Database PostgreSQL:
+   - Migrasi Up: migrations/000008_deployer.up.sql
+   - Migrasi Down: migrations/000008_deployer.down.sql
+   - Tabel Dibuat:
+     * deployments:
+       - id VARCHAR(64) PRIMARY KEY
+       - project_name VARCHAR(255) NOT NULL
+       - slug VARCHAR(128) NOT NULL UNIQUE
+       - source_type VARCHAR(32) NOT NULL DEFAULT 'zip'
+       - source_ref TEXT
+       - runtime VARCHAR(32) NOT NULL DEFAULT 'custom'
+       - status VARCHAR(32) NOT NULL DEFAULT 'pending'
+       - internal_port INTEGER DEFAULT 0
+       - domain VARCHAR(255) NOT NULL DEFAULT ''
+       - env_vars JSONB NOT NULL DEFAULT '{}'::jsonb
+       - process_pid INTEGER DEFAULT 0
+       - created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     * deployment_logs:
+       - id BIGSERIAL PRIMARY KEY
+       - deployment_id VARCHAR(64) NOT NULL REFERENCES deployments(id) ON DELETE CASCADE
+       - stream VARCHAR(16) NOT NULL DEFAULT 'stdout'
+       - message TEXT NOT NULL
+       - timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   - Index Dibuat:
+     * idx_deployments_slug ON deployments(slug)
+     * idx_deployments_status ON deployments(status)
+     * idx_deployment_logs_deployment_timestamp ON deployment_logs(deployment_id, timestamp)
+   - Backward Compatibility:
+     * 100% aditif; tidak mengubah atau menghapus tabel Sprint 1 (owners, projects, tasks, task_attempts, agent_logs) dan Sprint 2 (sponsorship_batches, sponsors, sponsorship_orders, waiting_list_leads, sponsorship_activities).
+     * Uji rollback down migration bersih dan terisolasi.
+
+3. Storage & Intake Engine di Go (internal/deployer):
+   - Package: internal/deployer
+   - Modular Driver Abstraction:
+     * Interface DeployDriver (Deploy, Start, Stop, Restart, GetLogs)
+     * Implementasi awal: LocalDriver (Sprint 3)
+     * Kesiapan ekstensi: SSHDriver (Sprint 4 Bring Your Own Server)
+   - Storage Engine:
+     * Isolasi penyimpanan direktori terpisah di data/deployments/<id>/app/
+     * Dukungan pembersihan deployment direktori bersih
+   - Sanitasi Anti-ZipSlip:
+     * Menolak keras path dengan .. traversal
+     * Menolak path absolut (awalan / atau \)
+     * Menolak symlink berbahaya yang merujuk keluar dari root direktori ekstraksi
+     * Menghasilkan error standar ErrZipSlip
+   - Runtime Stack Auto-Detection:
+     * PHP: mendeteksi index.php atau wp-config.php (termasuk WordPress themes/plugins)
+     * Node.js: mendeteksi package.json
+     * Static: mendeteksi index.html
+     * Custom: fallback aman saat tidak ada marker spesifik
+     * Dukungan nested single root directory (auto-resolving zip root)
+
+4. Targeted Go Test Verification:
+   === RUN   TestZipSlipProtection
+   === RUN   TestZipSlipProtection/ParentTraversal
+   === RUN   TestZipSlipProtection/NestedParentTraversal
+   === RUN   TestZipSlipProtection/AbsoluteUnixPath
+   === RUN   TestZipSlipProtection/WindowsBackslashTraversal
+   === RUN   TestZipSlipProtection/DotDotOnly
+   === RUN   TestZipSlipProtection/SafeZipExtractsCleanly
+   --- PASS: TestZipSlipProtection (0.01s)
+   === RUN   TestStackAutoDetection
+   === RUN   TestStackAutoDetection/PHP_IndexPHP
+   === RUN   TestStackAutoDetection/PHP_WordPress_Config
+   === RUN   TestStackAutoDetection/NodeJS_PackageJSON
+   === RUN   TestStackAutoDetection/Static_IndexHTML
+   === RUN   TestStackAutoDetection/Custom_Fallback
+   === RUN   TestStackAutoDetection/NestedRoot_PHP_Archive
+   === RUN   TestStackAutoDetection/NestedRoot_NodeJS_Archive
+   === RUN   TestStackAutoDetection/NestedRoot_Static_Archive
+   --- PASS: TestStackAutoDetection (0.01s)
+   === RUN   TestDeployerMigrations
+   --- PASS: TestDeployerMigrations (0.00s)
+   === RUN   TestLocalDriverLifecycle
+   --- PASS: TestLocalDriverLifecycle (0.00s)
+   === RUN   TestStorageEngine_Isolation
+   --- PASS: TestStorageEngine_Isolation (0.00s)
+   === RUN   TestLoadMigrations
+   --- PASS: TestLoadMigrations (0.00s)
+   === RUN   TestDryRun
+   --- PASS: TestDryRun (0.00s)
+
+5. Full Regresi Check (go test ./...):
+   PASS (100% lulus pada semua paket internal: agent, auth, crypto, db, deployer, git, project, runner, server, sponsorship, task)
+
+=== RESULT: PASS (100% lulus, DoD terpenuhi lengkap) ===

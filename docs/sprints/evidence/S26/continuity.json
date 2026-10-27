@@ -1,0 +1,15 @@
+{
+  "stagingAccountPersistedAfterRepublish": true,
+  "legacyCredentialsPresent": true,
+  "pin1Retained": true,
+  "previousRealReplyRetained": true,
+  "readiness": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 19,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "productionRemainsS25": true,
+  "providerRequestExecuted": false
+}

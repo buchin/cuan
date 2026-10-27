@@ -1,0 +1,379 @@
+{
+  "release": "f7cb90025e950e09ff6b7952b0c77adae8093c54",
+  "production": "https://cuan.dojo.cc",
+  "contactsCRM": true,
+  "providerInvocations": 0,
+  "readiness": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 22,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "measurements": [
+    {
+      "width": 1440,
+      "route": "inbox",
+      "nav": 200,
+      "main": 960,
+      "context": 280
+    },
+    {
+      "width": 1440,
+      "route": "contacts",
+      "nav": 200,
+      "main": 1240,
+      "context": 0
+    },
+    {
+      "width": 1440,
+      "route": "tasks",
+      "nav": 200,
+      "main": 1240,
+      "context": 0
+    },
+    {
+      "width": 1440,
+      "route": "projects",
+      "nav": 200,
+      "main": 1240,
+      "context": 0
+    },
+    {
+      "width": 1440,
+      "route": "settings",
+      "nav": 200,
+      "main": 1240,
+      "context": 0
+    },
+    {
+      "width": 1440,
+      "route": "settings/agents",
+      "nav": 200,
+      "main": 1240,
+      "context": 0
+    },
+    {
+      "width": 1280,
+      "route": "inbox",
+      "nav": 200,
+      "main": 800,
+      "context": 280
+    },
+    {
+      "width": 1280,
+      "route": "contacts",
+      "nav": 200,
+      "main": 1080,
+      "context": 0
+    },
+    {
+      "width": 1280,
+      "route": "tasks",
+      "nav": 200,
+      "main": 1080,
+      "context": 0
+    },
+    {
+      "width": 1280,
+      "route": "projects",
+      "nav": 200,
+      "main": 1080,
+      "context": 0
+    },
+    {
+      "width": 1280,
+      "route": "settings",
+      "nav": 200,
+      "main": 1080,
+      "context": 0
+    },
+    {
+      "width": 1280,
+      "route": "settings/agents",
+      "nav": 200,
+      "main": 1080,
+      "context": 0
+    },
+    {
+      "width": 1024,
+      "route": "inbox",
+      "nav": 64,
+      "main": 960,
+      "context": 0
+    },
+    {
+      "width": 1024,
+      "route": "contacts",
+      "nav": 64,
+      "main": 960,
+      "context": 0
+    },
+    {
+      "width": 1024,
+      "route": "tasks",
+      "nav": 64,
+      "main": 960,
+      "context": 0
+    },
+    {
+      "width": 1024,
+      "route": "projects",
+      "nav": 64,
+      "main": 960,
+      "context": 0
+    },
+    {
+      "width": 1024,
+      "route": "settings",
+      "nav": 64,
+      "main": 960,
+      "context": 0
+    },
+    {
+      "width": 1024,
+      "route": "settings/agents",
+      "nav": 64,
+      "main": 960,
+      "context": 0
+    },
+    {
+      "width": 820,
+      "route": "inbox",
+      "nav": 64,
+      "main": 756,
+      "context": 0
+    },
+    {
+      "width": 820,
+      "route": "contacts",
+      "nav": 64,
+      "main": 756,
+      "context": 0
+    },
+    {
+      "width": 820,
+      "route": "tasks",
+      "nav": 64,
+      "main": 756,
+      "context": 0
+    },
+    {
+      "width": 820,
+      "route": "projects",
+      "nav": 64,
+      "main": 756,
+      "context": 0
+    },
+    {
+      "width": 820,
+      "route": "settings",
+      "nav": 64,
+      "main": 756,
+      "context": 0
+    },
+    {
+      "width": 820,
+      "route": "settings/agents",
+      "nav": 64,
+      "main": 756,
+      "context": 0
+    },
+    {
+      "width": 768,
+      "route": "inbox",
+      "nav": 64,
+      "main": 704,
+      "context": 0
+    },
+    {
+      "width": 768,
+      "route": "contacts",
+      "nav": 64,
+      "main": 704,
+      "context": 0
+    },
+    {
+      "width": 768,
+      "route": "tasks",
+      "nav": 64,
+      "main": 704,
+      "context": 0
+    },
+    {
+      "width": 768,
+      "route": "projects",
+      "nav": 64,
+      "main": 704,
+      "context": 0
+    },
+    {
+      "width": 768,
+      "route": "settings",
+      "nav": 64,
+      "main": 704,
+      "context": 0
+    },
+    {
+      "width": 768,
+      "route": "settings/agents",
+      "nav": 64,
+      "main": 704,
+      "context": 0
+    },
+    {
+      "width": 390,
+      "route": "inbox",
+      "nav": 0,
+      "main": 390,
+      "context": 0
+    },
+    {
+      "width": 390,
+      "route": "contacts",
+      "nav": 0,
+      "main": 390,
+      "context": 0
+    },
+    {
+      "width": 390,
+      "route": "tasks",
+      "nav": 0,
+      "main": 390,
+      "context": 0
+    },
+    {
+      "width": 390,
+      "route": "projects",
+      "nav": 0,
+      "main": 390,
+      "context": 0
+    },
+    {
+      "width": 390,
+      "route": "settings",
+      "nav": 0,
+      "main": 390,
+      "context": 0
+    },
+    {
+      "width": 390,
+      "route": "settings/agents",
+      "nav": 0,
+      "main": 390,
+      "context": 0
+    },
+    {
+      "width": 360,
+      "route": "inbox",
+      "nav": 0,
+      "main": 360,
+      "context": 0
+    },
+    {
+      "width": 360,
+      "route": "contacts",
+      "nav": 0,
+      "main": 360,
+      "context": 0
+    },
+    {
+      "width": 360,
+      "route": "tasks",
+      "nav": 0,
+      "main": 360,
+      "context": 0
+    },
+    {
+      "width": 360,
+      "route": "projects",
+      "nav": 0,
+      "main": 360,
+      "context": 0
+    },
+    {
+      "width": 360,
+      "route": "settings",
+      "nav": 0,
+      "main": 360,
+      "context": 0
+    },
+    {
+      "width": 360,
+      "route": "settings/agents",
+      "nav": 0,
+      "main": 360,
+      "context": 0
+    }
+  ],
+  "checks": [
+    "Contacts CRM real persistence and message workflow",
+    "legacy Team redirect",
+    "Settings Agents and return to real chat",
+    "project settings direct URL/reload",
+    "16px message/composer and 48px send",
+    "no static Connected badge",
+    "mobile Back to list",
+    "drawer focus/Escape/restore",
+    "task detail modal/Escape",
+    "navigation preference and dark persistence",
+    "all served assets match build"
+  ],
+  "assets": [
+    {
+      "file": "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+      "sha256": "2317fa4bb293c9c0b110e18315d529235c47a0ddd3338cea3d8c7955e927899e"
+    },
+    {
+      "file": "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+      "sha256": "6894439694946a589d157ece003086960a6a4013d74a813dab7602efdb3d8c09"
+    },
+    {
+      "file": "geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+      "sha256": "824f485b5d26e2f2da3c2b236132ece1bc8e4e43373452950bb0e40548b4313f"
+    },
+    {
+      "file": "geist-latin-wght-normal-BgDaEnEv.woff2",
+      "sha256": "19f9c92546aa300c312235e3125af1b81394d8db9a4bc4a425cd5b641d2d54e1"
+    },
+    {
+      "file": "geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+      "sha256": "cd8800999070b729e1cc0bf7a48da6c3ac096a044251171b9a7574b56d96d4b4"
+    },
+    {
+      "file": "geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+      "sha256": "4866787fc952dbdbd591d6923d67bc21c2d894b93f34ab69d0cdf25d47bfb2df"
+    },
+    {
+      "file": "geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+      "sha256": "1a189eb997c3e2ece68373e387afaec9e8617424186c4b1ab3cff7c54ba6223b"
+    },
+    {
+      "file": "geist-mono-latin-wght-normal-XN7g48iV.woff2",
+      "sha256": "684ad5b531f81d43c1e8c7038262d5db7cdc1f68006e04d6c7769efa8d33c8cc"
+    },
+    {
+      "file": "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+      "sha256": "5bb66d8319ba1602bb2eb67dce8d79c2b4687be8ce183a0574433e949b3c60ad"
+    },
+    {
+      "file": "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+      "sha256": "d39b60889a94a527a7f73c7988a2d6efb6c081614aef683b0b386c02d74c2175"
+    },
+    {
+      "file": "geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+      "sha256": "8fa40e5d248247735eb97a0bd593b8852440430600d6ba01364c31fe0abc1fe1"
+    },
+    {
+      "file": "index-ASbZon90.css",
+      "sha256": "dc50ccf9955393ae30c726378b7cf283b549b6b3f5089a8a957765a8ec9af3e9"
+    },
+    {
+      "file": "index-kmXOob5n.js",
+      "sha256": "ad412295d3e0c6f4998066f53273e77867580ed402da3c433dfbc33ffc87e73d"
+    }
+  ],
+  "errors": [],
+  "fixtureNetWrites": 4,
+  "note": "All product writes were synthetic CRM smoke fixtures, subsequently removed; see production-cleanup.json and production-retention.json."
+}

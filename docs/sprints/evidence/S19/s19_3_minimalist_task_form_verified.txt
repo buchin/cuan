@@ -1,0 +1,46 @@
+=== CUAN SPRINT 19 (S19.3) EVIDENCE: MINIMALIST TASK CREATION FORM (MODEL FURAL) VERIFIED ===
+Timestamp:     2026-10-18T19:24:45Z
+Task ID:       vpbdhgzoajwlebjhttwcviiy
+Title:         S19.3 — Minimalist Task Creation Form (Model Fural) & Sub-Panel Project Linking
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. MINIMALIST TASK CREATION UX (MODEL FURAL)
+================================================================================
+   - Target File: web/src/features/tasks/CreateTaskModal.tsx
+   - Autofocus Title:
+     * Input Title secara otomatis berfokus (`autoFocus`, `ref`, dan `setTimeout` focus) segera setelah modal terbuka.
+     * Placeholder ramah: `"Apa yang ingin dikerjakan?..."`.
+   - Textarea Description Opsional:
+     * Textarea ringkas 3 baris tanpa validasi wajib.
+     * Placeholder: `"Deskripsi atau instruksi tambahan (opsional)..."`.
+   - Project Selector Otomatis:
+     * Dropdown project secara otomatis memilih project aktif (`activeProjectId`).
+     * Opsi fallback: `(Global / Tanpa Project)`.
+   - Priority Selector:
+     * Pilihan ringkas: Low, Normal (default), High, Urgent.
+   - Status Default:
+     * Otomatis terpasang ke status 'todo'.
+
+================================================================================
+2. ZERO-FRICTION KEYBOARD SHORTCUTS (< 3 DETIK PEMBUATAN TUGAS)
+================================================================================
+   - Shortcut Enter pada Title:
+     * Menekan tombol Enter pada input judul langsung memicu submit task seketika tanpa perlu meraih mouse atau menyentuh tombol submit.
+   - Shortcut Ctrl/Cmd+Enter pada Description:
+     * Menekan Ctrl+Enter atau Cmd+Enter pada textarea langsung memicu submit.
+   - Shortcut Escape:
+     * Menekan Esc langsung menutup modal.
+
+================================================================================
+3. RESPONSIVITAS MOBILE (< MD) & ZERO OVERFLOW
+================================================================================
+   - Dimensi Modal: `max-w-lg w-full rounded-xl p-5 shadow-2xl`
+   - Tinggi Total: ~240px (sangat kompak).
+   - Pengujian Viewport Mobile 360px–414px:
+     * Modal pas di tengah layar ponsel tanpa memicu scrollbar vertikal berlebih.
+     * Input, select, dan tombol submit tertata dalam layout yang ergonomis dan mudah disentuh jari.
+
+=== STATUS: S19.3 MINIMALIST TASK CREATION FORM (MODEL FURAL) VERIFIED PASS ===

@@ -1,0 +1,131 @@
+=== CUAN SPRINT 7 (S07.1) EVIDENCE: PROJECT STUDIO SCHEMA 000012, DATA MODELS, REPOSITORY LAYER & S7 SSOT DOCS VERIFIED ===
+Timestamp: 2026-10-17T11:51:30+07:00
+Task ID: ukyutwynmezmdbfsrlmrrwdo
+Title: S07.1 — Database Migration 000012, Project Studio Data Models, Repository Layer & S7 SSOT Docs
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SSOT Dokumen Sprint 7:
+   - File: docs/sprints/S7.md
+   - Status: running (Approved PO Buchin 2026-10-17)
+   - Scope: S07.1 sampai S07.5 lengkap beserta arsitektur, alur, dependensi, risiko, dan DoD
+   - Arsitektur: Project-Centric Discussions & Tasks Engine (Project Rooms, Threaded Chat Messages, Project Tasks dengan Fan-Out Hierarchy, Batch Grouping, Tag Selector Array)
+   - D2 Diagrams: TALA layout engine terverifikasi validasi dan compile 100% valid (diagram arsitektur Project Studio & dependency backlog workflow S07.1–S07.5)
+   - Sprint 6 Status: docs/sprints/S6.md resmi diperbarui menjadi 'completed' setelah Sprint Review disahkan oleh PO.
+
+2. Migrasi Database PostgreSQL 000012 (Aditif & Backward Compatible):
+   - Migrasi Up: migrations/000012_project_discussions_tasks.up.sql
+   - Migrasi Down: migrations/000012_project_discussions_tasks.down.sql
+   - Tabel Dibuat:
+     * project_rooms:
+       - id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+       - project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE
+       - title VARCHAR(255) NOT NULL
+       - topic TEXT NOT NULL DEFAULT ''
+       - created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - Indeks: idx_project_rooms_project_id, idx_project_rooms_created_at
+     * project_messages:
+       - id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+       - room_id UUID NOT NULL REFERENCES project_rooms(id) ON DELETE CASCADE
+       - author_type VARCHAR(50) NOT NULL DEFAULT 'user'
+       - author_id VARCHAR(255) NOT NULL DEFAULT ''
+       - author_name VARCHAR(255) NOT NULL DEFAULT ''
+       - content TEXT NOT NULL
+       - reply_to_id UUID REFERENCES project_messages(id) ON DELETE SET NULL
+       - created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - Indeks: idx_project_messages_room_id, idx_project_messages_reply_to_id, idx_project_messages_author_id, idx_project_messages_created_at
+     * project_tasks:
+       - id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+       - project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE
+       - room_id UUID REFERENCES project_rooms(id) ON DELETE SET NULL
+       - title VARCHAR(255) NOT NULL
+       - description TEXT NOT NULL DEFAULT ''
+       - status VARCHAR(50) NOT NULL DEFAULT 'backlog' (backlog, doing, review, done)
+       - priority VARCHAR(50) NOT NULL DEFAULT 'normal' (low, normal, high, urgent)
+       - dod_checklist JSONB NOT NULL DEFAULT '[]'::jsonb
+       - assignee_id VARCHAR(255)
+       - parent_task_id UUID REFERENCES project_tasks(id) ON DELETE SET NULL (Fan-Out Hierarchy)
+       - batch_id VARCHAR(255) (Multi-Project Batch Grouping)
+       - tags JSONB NOT NULL DEFAULT '[]'::jsonb (Tag Selector Array e.g. ["wordpress", "adsense"])
+       - created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+       - Indeks: idx_project_tasks_project_id, idx_project_tasks_room_id, idx_project_tasks_status, idx_project_tasks_priority, idx_project_tasks_parent_task_id, idx_project_tasks_batch_id, idx_project_tasks_tags (GIN index), idx_project_tasks_created_at
+   - Jaminan 100% Data Retention: Migrasi murni aditif tabel baru tanpa modifikasi/alterasi kolom Sprint 1–6 (owners, projects, tasks, sponsors, deployments, servers, custom_domains, health_checks, server_metrics, alert_channels, alert_incidents).
+
+3. Model Entitas, DTO & Repositori Go:
+   - File: internal/db/project_studio.go
+     * Entitas: ProjectRoom, ProjectMessage, ProjectTask, DoDItem
+     * DTO: ProjectRoomDTO, ProjectMessageDTO, ProjectTaskDTO
+     * Filter: ProjectTaskFilter
+     * Interface: ProjectStudioRepository
+     * SQL Repository: SQLProjectStudioRepository (PostgreSQL dengan JSONB serialization)
+     * In-Memory Repository: MemoryProjectStudioRepository (Thread-Safe RWMutex, deep copy, cascading simulation)
+   - Registrasi:
+     * File: internal/db/db.go (Repositories struct, NewSQLRepositories, NewMemoryRepositories)
+     * File: internal/server/server.go (Server.projectStudioRepo, NewServer initialization, ProjectStudioRepository() getter & setter)
+
+4. Hasil Pengujian Unit Terarah (Targeted Automated Tests):
+   Command: go test -v -count=1 ./internal/db/...
+
+=== RUN   TestValidateDomain
+--- PASS: TestValidateDomain (0.00s)
+=== RUN   TestNormalizeDomain
+--- PASS: TestNormalizeDomain (0.00s)
+=== RUN   TestCustomDomain_DTOAndSanitization
+--- PASS: TestCustomDomain_DTOAndSanitization (0.00s)
+=== RUN   TestMemoryDomainRepository_CRUD
+--- PASS: TestMemoryDomainRepository_CRUD (0.00s)
+=== RUN   TestLoadMigrations
+--- PASS: TestLoadMigrations (0.00s)
+=== RUN   TestDryRun
+--- PASS: TestDryRun (0.00s)
+=== RUN   TestValidateHealthCheckURL
+--- PASS: TestValidateHealthCheckURL (0.00s)
+=== RUN   TestValidateChannelType
+--- PASS: TestValidateChannelType (0.00s)
+=== RUN   TestAlertChannel_JSONMaskingSecurity
+--- PASS: TestAlertChannel_JSONMaskingSecurity (0.00s)
+=== RUN   TestServerMetric_PercentageCalculations
+--- PASS: TestServerMetric_PercentageCalculations (0.00s)
+=== RUN   TestMemoryObservabilityRepository_HealthChecks
+--- PASS: TestMemoryObservabilityRepository_HealthChecks (0.00s)
+=== RUN   TestMemoryObservabilityRepository_Metrics
+--- PASS: TestMemoryObservabilityRepository_Metrics (0.00s)
+=== RUN   TestMemoryObservabilityRepository_AlertChannels
+--- PASS: TestMemoryObservabilityRepository_AlertChannels (0.00s)
+=== RUN   TestMemoryObservabilityRepository_AlertIncidents
+--- PASS: TestMemoryObservabilityRepository_AlertIncidents (0.00s)
+=== RUN   TestMemoryObservabilityRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryObservabilityRepository_ConcurrencyThreadSafety (0.33s)
+=== RUN   TestUUIDGenerationAndValidation
+--- PASS: TestUUIDGenerationAndValidation (0.00s)
+=== RUN   TestNormalization
+--- PASS: TestNormalization (0.00s)
+=== RUN   TestDTOConversion
+--- PASS: TestDTOConversion (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Rooms
+--- PASS: TestMemoryProjectStudioRepository_Rooms (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Messages
+--- PASS: TestMemoryProjectStudioRepository_Messages (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_Tasks
+--- PASS: TestMemoryProjectStudioRepository_Tasks (0.00s)
+=== RUN   TestMemoryProjectStudioRepository_ConcurrencyThreadSafety
+--- PASS: TestMemoryProjectStudioRepository_ConcurrencyThreadSafety (0.17s)
+=== RUN   TestRepositories_Aggregation
+--- PASS: TestRepositories_Aggregation (0.00s)
+=== RUN   TestServer_JSONSerializationSanitization
+--- PASS: TestServer_JSONSerializationSanitization (0.00s)
+=== RUN   TestMemoryServerRepository_CRUD
+--- PASS: TestMemoryServerRepository_CRUD (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/db	0.505s
+
+5. Kesimpulan Verifikasi Definition of Done (DoD):
+   - Kriteria 1 (Skema migrasi 000012 up & down valid): LULUS.
+   - Kriteria 2 (Entitas, DTO, interface & implementasi SQL/In-Memory di project_studio.go & db.go): LULUS.
+   - Kriteria 3 (Targeted unit tests project_studio_test.go CRUD rooms, messages, tasks, fan-out, batch, tags 100% PASS): LULUS.
+   - Kriteria 4 (Update docs/sprints/S6.md completed & docs/sprints/S7.md SSOT terbit): LULUS.
+   - Kriteria 5 (Berkas bukti audit tersimpan): LULUS.

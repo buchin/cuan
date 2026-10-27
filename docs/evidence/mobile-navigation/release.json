@@ -1,0 +1,15 @@
+{
+  "release": "4d62cfb3d3a08cc6e8e71d1bbd53cec3c49f8987",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "newMigration": false,
+  "fixtureRouteViewportChecks": 48,
+  "productionRouteViewportChecks": 48,
+  "apiMockedInProduction": false,
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "limits": [
+    "Chromium viewport emulation; no physical Safari/device certification",
+    "Existing CSS minifier and chunk warnings"
+  ]
+}

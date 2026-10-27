@@ -1,0 +1,135 @@
+================================================================================
+S10.4 AUDIT EVIDENCE: Frontend UI: Creator Wizard, In-Task Agent Runner & Landing Page Overhaul
+================================================================================
+Timestamp: 2026-10-17T17:12:00+07:00
+Git Branch: main
+Repository: github.com/buchin/cuan
+Fural Task ID: snvrpjfbfplptzcaodjlvavw
+Author: Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. ARCHITECTURAL OVERVIEW & FRONTEND IMPLEMENTATION
+--------------------------------------------------------------------------------
+Task S10.4 brings the full creator-focused value proposition of Cuan to life across
+both the marketing showcase and the Studio operational environment:
+
+1. Creator Project Wizard (CreatorWizardModal.tsx):
+   - Interactive modal accessible via the "Creator Wizard" button in the Studio header
+     and via a dedicated quick launcher banner in the Studio Projects view.
+   - Fetches the blueprint catalog dynamically from GET /api/v1/creator/templates
+     (with seamless fallback to built-in templates if offline).
+   - Displays 4 interactive archetype cards:
+     * Blog Publisher (SEO Specialist persona, #SEO Research room, 3 pipeline tasks)
+     * YouTube Channel (YouTube Scriptwriter persona, #Channel Production room, 4 pipeline tasks)
+     * Online Shop / Digital Product (Direct-Response Copywriter persona, #Sales Funnel room, 3 pipeline tasks)
+     * Affiliate Site (Affiliate Reviewer persona, #Niche Affiliate room, 3 pipeline tasks)
+   - Displays real-time breakdown of assigned AI Agent persona, linked discussion room,
+     and pipeline tasks with DoD checklist item counts.
+   - Triggers atomic backend instantiation via POST /api/v1/creator/projects/instantiate.
+   - Seamlessly guides the creator directly to the generated project tasks board upon creation.
+
+2. In-Task Agent Runner (ProjectTasksBoard.tsx):
+   - Every Kanban card features a prominent "Run with Agent" button with Sparkles icon.
+   - Live execution indicator reflects task.execution_status:
+     * 'idle': Ready to run
+     * 'running': Spinning loader animation, pulsing purple badge, disabled state preventing duplicate execution
+     * 'completed': Green "Output Ready" badge with direct shortcut to the Agent Output tab
+   - Trigger endpoint: POST /api/v1/tasks/{id}/execute-agent.
+   - Graceful Error Handling:
+     * Catches 422 Unprocessable Entity (MISSING_GEMINI_KEY) if Google Gemini API key
+       is not configured in Key Vault.
+     * Displays a friendly, actionable alert banner and notification directing the creator
+       to connect their API key in Agent Hub (/studio/agents).
+   - Live state updates:
+     * Replaces local task data with updated status, auto-completed DoD checklist,
+       execution_status, and full Markdown agent_output.
+
+3. Agent Output Drawer Tab & Markdown Viewer (MarkdownViewer.tsx):
+   - Integrated as a first-class tab in the Task Detail Drawer / Modal alongside
+     "Detail & DoD" and "Terminal (PTY)".
+   - Features an active indicator dot when agent_output is available.
+   - Top action bar includes deliverable status badge, "Run Again" button, and One-Click
+     "Copy to Clipboard" with instant feedback state ("Tersalin ke Clipboard!").
+   - MarkdownViewer renders headers (H1-H4), blockquotes, lists (bullet & numbered),
+     interactive checklists, syntax-styled code blocks with copy snippet buttons, and tables.
+   - Friendly empty state with prominent "Run with Agent Now" CTA if the task has not
+     been executed yet.
+
+4. Landing Page Overhaul (LandingPage.tsx):
+   - Transformed 100% of copy, headline, and narrative into "Agentic Project Management for Creators".
+   - Hero Section:
+     * Headline: "Kelola Proyek Kreator & Eksekusi Konten Tanpa To-Do List Mati."
+     * Subtitle: Positioning Cuan for Blogger, YouTuber, Olshop, and Affiliate creators.
+     * CTAs: "Buka Studio Sekarang" (zero-friction entrance to Studio) & "Eksplor 4 Blueprint".
+   - Pain Points Section:
+     * Problem 1: To-Do List Mati di Backlog (kartu task pasif tanpa tim asisten)
+     * Problem 2: Overwhelmed Multi-Channel (riset SEO, skrip video, dan sales funnel bersamaan)
+     * Problem 3: Tools AI Terfragmentasi (berlangganan belasan SaaS tanpa alur kerja terpadu)
+   - Agitation Section:
+     * Kehilangan Momentum Tren, Biaya Langganan Bocor, dan Creative Burnout.
+   - Solution Section:
+     * 6 Feature Cards: Blueprint Templates, In-Task Agent Runner, Key Vault (BYOK),
+       Markdown Viewer & One-Click Copy, Auto-Updated Definition of Done, 100% Self-Hosted.
+   - Interactive Blueprint Catalog Showcase:
+     * Dedicated section displaying the 4 creator templates with persona details and direct
+       Studio activation CTA.
+   - Maintained full sponsor bridge, legal navigation, and waiting list resilience.
+
+--------------------------------------------------------------------------------
+2. COMPONENT & CODE INTEGRITY
+--------------------------------------------------------------------------------
+Files Added:
+- web/src/components/studio/CreatorWizardModal.tsx
+- web/src/components/ui/MarkdownViewer.tsx
+
+Files Updated:
+- web/src/components/studio/types.ts (added Creator templates, instantiate & execute DTOs, agent_output, execution_status)
+- web/src/components/studio/StudioDashboard.tsx (added Creator Wizard modal launcher, banner, and navigation)
+- web/src/components/studio/ProjectTasksBoard.tsx (added Run with Agent button, status badges, Agent Output tab)
+- web/src/components/landing/LandingPage.tsx (overhauled copy, pain points, agitation, solution, blueprint showcase)
+
+--------------------------------------------------------------------------------
+3. VERIFICATION & BUILD EVIDENCE
+--------------------------------------------------------------------------------
+
+Target 1: TypeScript Check (0 Errors)
+Command: cd web && npx tsc --noEmit
+Result:
+Exit Code: 0
+Output: (clean - 0 errors, 0 warnings)
+
+Target 2: Production Build Pass
+Command: cd web && npm run build
+Result:
+Exit Code: 0
+Output:
+> cuan-web@0.1.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+✓ 1633 modules transformed.
+dist/index.html                     0.55 kB │ gzip:   0.37 kB
+dist/assets/index-Dl5Od7pP.css     86.89 kB │ gzip:  14.72 kB
+dist/assets/index-BNvmPI-O.js   1,139.88 kB │ gzip: 267.34 kB
+✓ built in 4.85s
+
+Target 3: Go Backend Regression Test Pass
+Command: go test -v ./internal/creator/... ./internal/server/... -run "Creator|Task"
+Result:
+Exit Code: 0
+All 32 targeted test suites passed with 100% success rate.
+
+--------------------------------------------------------------------------------
+4. SATISFACTION OF CRITERIA & DEFINITION OF DONE (§4, §7, §11)
+--------------------------------------------------------------------------------
+- [x] Creator Project Wizard di Studio dengan 4 template katalog (Blog, YouTube, Olshop, Affiliate).
+- [x] Fetching katalog dari GET /api/v1/creator/templates dan instantiasi via POST /api/v1/creator/projects/instantiate.
+- [x] Redireksi mulus langsung ke Tasks Board project baru lengkap dengan rooms dan pipeline tasks.
+- [x] Tombol "Run with Agent" pada setiap kartu Kanban dengan live spinner dan status indicator.
+- [x] Pemicu endpoint POST /api/v1/tasks/{id}/execute-agent dan penanganan anggun error 422 MISSING_GEMINI_KEY.
+- [x] Tab "Agent Output" pada Task Detail Drawer merender konten Markdown deliverable dan One-Click Copy to Clipboard.
+- [x] Overhaul LandingPage.tsx menyelaraskan hero section, kartu masalah kreator, dan etalase fitur Cuan.
+- [x] TypeScript validation (npx tsc --noEmit) 0 error.
+- [x] Production build (npm run build) lulus 100%.
+- [x] Bukti verifikasi terdokumentasi di docs/sprints/evidence/S10/s10_4_frontend_creator_lp_verified.txt.
+================================================================================

@@ -1,0 +1,14 @@
+{
+  "syntheticMessages": 200,
+  "syntheticRequests": 100,
+  "stepsPerRequest": 32,
+  "historyBytes": 403789,
+  "readyMs": 726,
+  "domNodes": 36189,
+  "renderedMessages": 200,
+  "collapsedTimelineNodes": 3100,
+  "idleScriptMs": 742.653,
+  "idleTaskMs": 931.3280000000001,
+  "jsHeapBytes": 59474312,
+  "providerCalls": 0
+}

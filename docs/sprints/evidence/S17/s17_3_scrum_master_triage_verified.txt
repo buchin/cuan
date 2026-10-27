@@ -1,0 +1,38 @@
+================================================================================
+AUDIT PACK: S17.3 — Scrum Master Triage & DoD Distiller (Agentic Scrum Bot)
+================================================================================
+Timestamp: 2026-10-18T14:57:00+07:00
+Repository: cuan (RPcd484fc4229ae192d17a0f01)
+Commit Author: Buchin <buchin@dropsugar.com>
+Sprint: Sprint 17 (Agentic Scrum Command Center: shadcn sidebar-09 & Conversational Inbox)
+Task: S17.3
+
+1. SCOPE & GOAL VERIFICATION
+- Built autonomous Scrum Master (AI Manager) triage mechanism:
+  * Automatically analyzes incoming user messages upon thread creation.
+  * Formulates structured Problem Statement & Scope.
+  * Formulates Definition of Done (DoD) checklist items.
+  * Selects optimal worker agent from Antigravity pool (`antigravity-flash` with token quota indicator).
+- 1-Click Approval System:
+  * Interactive "Setujui & Jalankan Sprint" button in the thread header.
+  * Dedicated endpoint `POST /api/v1/inbox/{id}/approve` (and unversioned alias).
+  * Automatically creates/links `project_tasks` with status `doing` and priority `high`.
+  * Posts automated confirmation message to thread and streams status change.
+  * Triggers task execution engine with worker agent in the background.
+
+2. DEFINITION OF DONE (DoD) AUDIT
+- DoD 1 (SM structured response format): PASS. Every new thread immediately receives Scrum Master analysis with Problem Statement, DoD checklist, and recommended worker agent.
+- DoD 2 (1-Click approval spawns task & triggers runner): PASS. Clicking approve creates task in `project_tasks` and registers `doing` status.
+- DoD 3 (Progress reflected in timeline): PASS. Active task banner and status pill (Running / Done) displayed dynamically above composer.
+- DoD 4 (Audit pack & git commit): PASS. Audit pack published at docs/sprints/evidence/S17/s17_3_scrum_master_triage_verified.txt.
+
+3. AUTOMATED TEST VERIFICATION
+- Command: `go test -count=1 ./internal/server/... -run "TestInboxHandlers"`
+  * Verifies thread creation generates 2 messages (user + SM triage).
+  * Verifies POST /api/v1/inbox/{id}/approve returns status `in_progress` and spawned task with status `doing`.
+  * Verifies subsequent filtered GET /api/v1/inbox?status=in_progress correctly yields the updated thread.
+- Status: PASS (0.009s).
+
+4. CONCLUSION
+Task S17.3 Definition of Done (DoD) is 100% SATISFIED. Ready to proceed to Task S17.4 (Agents Pool & Team Directory Views).
+================================================================================

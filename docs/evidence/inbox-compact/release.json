@@ -1,0 +1,20 @@
+{
+  "release": "b318491faec8d46676db81256db7451c22906723",
+  "testedReleaseAssetsMatch": {
+    "index-DwdCD3jz.css": "8242e6e98c6d0cc245778da13951da2004efd39892274d5a1a8d28c6fa8c0735",
+    "index-B5hs8ktR.js": "0622f41291c3b7101962bdbd7382e5dabf9f9bdc8fe315748a8d63b145e2ced8"
+  },
+  "healthy": true,
+  "rollbackReactivationPassed": true,
+  "schema": 25,
+  "retainedApplicationTables": 37,
+  "unchangedProfileFiles": 896,
+  "notificationReadFlags": 11,
+  "concurrentItemPreferenceChanges": {
+    "entriesRetained": 6,
+    "fields": [
+      "unread"
+    ],
+    "source": "not attributed; no production writes from browser checks"
+  }
+}

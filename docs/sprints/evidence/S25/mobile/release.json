@@ -1,0 +1,25 @@
+{
+  "release": "fb83e133a6ed7babc1ff603568b1e03897139035",
+  "manifest_sha": "fb83e133a6ed7babc1ff603568b1e03897139035",
+  "previous": "db4382f1a606cadd3bf9c15521bec3b566221e68",
+  "backup_present": true,
+  "up_migrations": 19,
+  "health": {
+    "app": "cuan",
+    "status": "healthy",
+    "timestamp": "2026-10-19T01:14:54Z",
+    "version": "0.1.0"
+  },
+  "readiness": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 19,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "unchanged_all_tables": true,
+  "changed_tables": [],
+  "previous_real_reply_retained_after_restarts": true,
+  "message_count": 3,
+  "new_provider_request": false
+}

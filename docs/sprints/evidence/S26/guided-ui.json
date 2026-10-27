@@ -1,0 +1,50 @@
+{
+  "results": [
+    {
+      "width": 360,
+      "height": 800,
+      "oneNameField": true,
+      "singlePrimaryActionPerStep": true,
+      "realIsolatedGoogleURL": {
+        "host": "accounts.google.com",
+        "prompt": "select_account consent"
+      },
+      "legacyAuthRequests": 0,
+      "overflow": false,
+      "escapeAndFocusTrap": true,
+      "registrationRequests": 0,
+      "fixtureErrorAndSavedStates": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "oneNameField": true,
+      "singlePrimaryActionPerStep": true,
+      "realIsolatedGoogleURL": {
+        "host": "accounts.google.com",
+        "prompt": "select_account consent"
+      },
+      "legacyAuthRequests": 0,
+      "overflow": false,
+      "escapeAndFocusTrap": true,
+      "registrationRequests": 0,
+      "fixtureErrorAndSavedStates": true
+    },
+    {
+      "width": 1280,
+      "height": 900,
+      "oneNameField": true,
+      "singlePrimaryActionPerStep": true,
+      "realIsolatedGoogleURL": {
+        "host": "accounts.google.com",
+        "prompt": "select_account consent"
+      },
+      "legacyAuthRequests": 0,
+      "overflow": false,
+      "escapeAndFocusTrap": true,
+      "registrationRequests": 0,
+      "fixtureErrorAndSavedStates": false
+    }
+  ],
+  "limits": "Actual staging name/login/cancel/Google URL, desktop/mobile CSS viewports. Error/saved screenshots named FIXTURE use intercepted synthetic responses and prove rendering only; no real code, consent, credentials or agent registration. Backend session explicitly cancelled after fixtures. No physical keyboard claim."
+}

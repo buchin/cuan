@@ -1,0 +1,70 @@
+=== CUAN SPRINT 2 (S02.1) EVIDENCE: SCHEMA SPONSORSHIP & WEBHOOK DOJO VERIFIED ===
+Timestamp: 2026-10-16T19:53:10+07:00
+Task ID: mvaepchykcmlwajcglzsmpki
+Title: S02.1 — Schema Database Sponsorship, Model Batch Rilis & Webhook Receiver Dojo
+Author: Buchin <buchin@dropsugar.com>
+
+1. SSOT Dokumen Sprint 2:
+   - File: docs/sprints/S2.md
+   - Status: running (Approved PO 2026-10-16)
+   - Scope: S02.1 sampai S02.6 lengkap beserta urutan, dependency, dan DoD
+
+2. Migrasi Database PostgreSQL:
+   - Migrasi Up: migrations/000007_sponsorship.up.sql
+   - Migrasi Down: migrations/000007_sponsorship.down.sql
+   - Tabel Dibuat:
+     * sponsorship_batches (id, batch_slug, name, status, created_at, closed_at)
+     * sponsors (id, batch_id, brand_name, website_url, slogan, logo_path, contact_email, contact_wa, status, rejection_reason, created_at, updated_at)
+     * sponsorship_orders (id, sponsor_id, dojo_order_id, amount_idr, status, paid_at, payload, created_at)
+     * waiting_list_leads (id, email, source, status, created_at)
+     * sponsorship_activities (id, sponsor_id, order_id, action, details, actor, created_at)
+   - Initial Seed: batch_slug 'v1.0' ("v1.0 Founding Backers")
+   - Kompatibilitas: Non-destructive & 100% backward-compatible terhadap tabel Sprint 1 (owners, projects, tasks, task_attempts, agent_logs)
+
+3. Endpoint Webhook Receiver Dojo:
+   - Endpoint: /api/webhooks/dojo (alias: /api/v1/webhooks/dojo)
+   - Verifikasi Secret: Constant-time comparison (subtle.ConstantTimeCompare) via X-Dojo-Secret, Authorization: Bearer, X-Webhook-Secret, dan query param.
+   - Idempotency Guard: Pengecekan dojo_order_id di database; pengiriman ganda/retry ditangani secara idempotent (HTTP 200, already_processed=true, zero error/duplikasi).
+   - Transisi Status: Order transisi ke 'paid', sponsor transisi ke 'pending_review', dan audit activity log tercatat otomatis.
+
+4. Upload & Storage Logo Sponsor (Anti-XSS):
+   - Validasi MIME: SVG, PNG, WebP (maksimal 2MB); format file lain ditolak HTTP 400.
+   - Sanitasi SVG Anti-XSS: Menghapus skrip (<script>), event handlers (onload, onerror, onclick), dangerous embed tags (<foreignObject>, <iframe>, <embed>, <object>), dan link javascript:.
+   - Penolakan File Berbahaya: File payload berbahaya aktif ditolak secara aman dengan HTTP 400 Bad Request.
+   - Isolated Serving: Endpoint /uploads/sponsors/logos/* dilengkapi security header nosniff dan Content-Security-Policy strict.
+
+5. Targeted Go Test Verification:
+   === RUN   TestDetectMimeType
+   --- PASS: TestDetectMimeType (0.00s)
+   === RUN   TestCheckMaliciousSVG
+   --- PASS: TestCheckMaliciousSVG (0.00s)
+   === RUN   TestSanitizeSVG
+   --- PASS: TestSanitizeSVG (0.00s)
+   === RUN   TestLogoStorageSaveAndRead
+   --- PASS: TestLogoStorageSaveAndRead (0.00s)
+   === RUN   TestSponsorshipBatches
+   --- PASS: TestSponsorshipBatches (0.00s)
+   === RUN   TestSponsorIntakeAndModeration
+   --- PASS: TestSponsorIntakeAndModeration (0.00s)
+   === RUN   TestDojoWebhookReceiverAndIdempotency
+   --- PASS: TestDojoWebhookReceiverAndIdempotency (0.00s)
+   === RUN   TestLeaderboardOrdering
+   --- PASS: TestLeaderboardOrdering (0.00s)
+   === RUN   TestWaitingListLeads
+   --- PASS: TestWaitingListLeads (0.00s)
+   === RUN   TestDojoWebhookHTTP
+   --- PASS: TestDojoWebhookHTTP (0.00s)
+   === RUN   TestUploadSponsorLogoHTTP
+   --- PASS: TestUploadSponsorLogoHTTP (0.00s)
+   === RUN   TestServeSponsorLogoHTTP
+   --- PASS: TestServeSponsorLogoHTTP (0.00s)
+   === RUN   TestWaitingListLeadHTTP
+   --- PASS: TestWaitingListLeadHTTP (0.00s)
+   === RUN   TestCurrentSponsorsLeaderboardHTTP
+   --- PASS: TestCurrentSponsorsLeaderboardHTTP (0.00s)
+   === RUN   TestLoadMigrations
+   --- PASS: TestLoadMigrations (0.00s)
+   === RUN   TestDryRun
+   --- PASS: TestDryRun (0.00s)
+
+=== RESULT: PASS (100% lulus, skema dan webhook terbukti aman dan idempotent) ===

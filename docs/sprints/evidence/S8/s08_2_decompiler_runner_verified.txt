@@ -1,0 +1,132 @@
+=== CUAN SPRINT 8 (S08.2) EVIDENCE: FAN-OUT DECOMPILER ENGINE & MULTI-PROJECT ISOLATED RUNNER ENGINE VERIFIED ===
+Timestamp: 2026-10-17T13:34:00+07:00
+Task ID: momviarmnonolycovzgmeqmy
+Title: S08.2 — Fan-Out Decompiler Engine & Multi-Project Isolated Runner Engine
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Fan-Out Decompiler Engine (internal/campaign/decompiler.go & model.go):
+   - Package: internal/campaign
+   - Source Files:
+     * internal/campaign/model.go
+     * internal/campaign/decompiler.go
+   - Kemampuan:
+     * TargetCriteria Parsing: Mendukung format JSON objek (project_ids, tags, all, exclude_ids) dan format array string (["proj-1", "tag:wordpress"]).
+     * Resolusi Target Proyek (ProjectResolver):
+       - Berdasarkan daftar ID proyek eksplisit.
+       - Berdasarkan filter tags (e.g. "wordpress", "adsense") mencocokkan tags proyek, nama proyek, repo, dan query task yang terasosiasi via ProjectStudioRepository.
+       - Fallback All dan filter Exclude IDs.
+     * Generasi Subtasks project_tasks:
+       - Terikat pada project_id target.
+       - Terikat pada batch_id (UUID kampanye induk).
+       - Terikat pada parent_task_id (Parent Epic task yang terintegrasi di PostgreSQL).
+       - Pemetaan tags terdeduplikasi dan terintegrasi dari kampanye, kriteria, dan template.
+       - Format Title kustom dengan template {{project_name}} dan {{project_id}} atau format standar.
+       - Deskripsi lengkap memadukan deskripsi kampanye, petunjuk instruksi, dan script payload.
+     * Garansi Kriteria DoD Minimal >= 3 Butir:
+       - Template checklist DoD dari pengguna dipertahankan seutuhnya.
+       - Bila kriteria yang diberikan kurang dari 3 butir (termasuk 0 atau 1 butir), decompiler secara otomatis melengkapi dengan kriteria verifikasi standar:
+         1) Verifikasi environment dan dependensi proyek target.
+         2) Penerapan payload/skrip modifikasi kampanye tanpa kesalahan sintaks.
+         3) Eksekusi pengujian validasi terarah 100% PASS tanpa regresi.
+         4) Validasi smoke test dan konfirmasi HTTP 200 OK.
+       - Setiap butir DoD dilengkapi UUID unik dan status completed: false.
+     * Persistence (DecompileAndPersist):
+       - Membuat parent epic task di studio repository bila belum ada parent_task_id.
+       - Menyimpan seluruh subtasks ke tabel project_tasks dengan foreign key valid tanpa pelanggaran constraint database.
+
+2. Multi-Project Isolated Runner Engine (internal/campaign/runner.go):
+   - Source File: internal/campaign/runner.go
+   - Kemampuan:
+     * Worker Pool Konkurensi Terkontrol:
+       - Batas default 5 worker paralel (DefaultMaxWorkers = 5), dapat dikonfigurasi melalui WithMaxWorkers.
+       - Semaphore concurrency guard mencegah spike beban CPU/RAM pada host VPS.
+       - Pelacakan metrik PeakWorkers memastikan konkurensi aktual tidak pernah melampaui batas yang ditentukan.
+     * Isolasi Kesalahan (Fault Isolation / Isolated Blast Radius):
+       - Eksekusi subtask per proyek diisolasi sepenuhnya pada goroutine terpisah.
+       - Panic recovery guard menangkap runtime panic atau error tanpa menghentikan worker lain atau membatalkan seluruh kampanye.
+       - Kegagalan di satu proyek menandai subtask tersebut 'failed', sementara subtask proyek lain tetap diproses hingga selesai ('done').
+     * Siklus Hidup Eksekusi & Pembaruan Status:
+       - Transisi task: backlog -> doing -> done / failed.
+       - Pembaruan checklist DoD: menandai butir DoD selesai saat eksekusi berhasil.
+       - Transisi status kampanye di database: draft/pending -> running -> completed (atau failed jika seluruh tugas gagal).
+     * Runner Lifecycle Listeners:
+       - Callback hooks OnTaskStart, OnTaskComplete, OnTaskFail, OnCampaignComplete siap diintegrasikan dengan Rollup Aggregator dan SSE streaming pada Sprint S08.3.
+
+3. REST Endpoints & Server Integration:
+   - Handler File: internal/server/campaign_handlers.go
+   - Integrasi Server: internal/server/server.go
+   - Endpoint Terpasang & Teruji:
+     * POST /api/campaigns & POST /api/v1/campaigns (HTTP 201 Created):
+       Membuat entitas BatchCampaign baru dengan validasi title, status, dan JSON payload.
+     * GET /api/campaigns & GET /api/v1/campaigns (HTTP 200 OK):
+       Mendapatkan daftar kampanye dengan filter query (?status=, ?search=, ?limit=, ?offset=).
+     * GET /api/campaigns/{id} & GET /api/v1/campaigns/{id} (HTTP 200 OK / 404 Not Found):
+       Mendapatkan detail kampanye beserta daftar child subtasks dan task_count.
+     * POST /api/campaigns/{id}/execute & POST /api/v1/campaigns/{id}/execute (HTTP 200 OK):
+       Memicu eksekusi kampanye melalui decompiler dan runner engine worker pool, mengembalikan ringkasan eksekusi, total_tasks, completed_tasks, failed_tasks, peak_concurrency, dan duration_ms.
+   - Kompatibilitas 100%: Seluruh endpoint terdaftar di root /api dan /api/v1 secara backward-compatible.
+
+4. Targeted Automated Test Results:
+
+=== RUN   TestParseTargetCriteria
+--- PASS: TestParseTargetCriteria (0.00s)
+=== RUN   TestParseTemplatePayload
+--- PASS: TestParseTemplatePayload (0.00s)
+=== RUN   TestDecompilerEngine_ProjectResolution
+--- PASS: TestDecompilerEngine_ProjectResolution (0.00s)
+=== RUN   TestDecompilerEngine_DoDChecklistGuarantee
+--- PASS: TestDecompilerEngine_DoDChecklistGuarantee (0.00s)
+=== RUN   TestDecompilerEngine_DecompileAndPersist
+--- PASS: TestDecompilerEngine_DecompileAndPersist (0.00s)
+=== RUN   TestDecompilerEngine_ErrorsAndEdgeCases
+--- PASS: TestDecompilerEngine_ErrorsAndEdgeCases (0.00s)
+=== RUN   TestMultiProjectRunner_ControlledConcurrency
+--- PASS: TestMultiProjectRunner_ControlledConcurrency (0.08s)
+=== RUN   TestMultiProjectRunner_FaultIsolation
+--- PASS: TestMultiProjectRunner_FaultIsolation (0.00s)
+=== RUN   TestMultiProjectRunner_ExecuteCampaign
+--- PASS: TestMultiProjectRunner_ExecuteCampaign (0.00s)
+=== RUN   TestMultiProjectRunner_LifecycleListeners
+--- PASS: TestMultiProjectRunner_LifecycleListeners (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/campaign	0.083s
+
+=== RUN   TestServer_CreateBatchCampaign
+--- PASS: TestServer_CreateBatchCampaign (0.00s)
+=== RUN   TestServer_ListBatchCampaigns
+--- PASS: TestServer_ListBatchCampaigns (0.00s)
+=== RUN   TestServer_GetBatchCampaign
+--- PASS: TestServer_GetBatchCampaign (0.00s)
+=== RUN   TestServer_ExecuteBatchCampaign
+--- PASS: TestServer_ExecuteBatchCampaign (0.00s)
+=== RUN   TestServer_CampaignRoutes_V1_Aliases
+--- PASS: TestServer_CampaignRoutes_V1_Aliases (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.018s
+
+5. Full Backend Test Suite Zero Regression:
+ok  	github.com/buchin/cuan/internal/agent	(cached)
+ok  	github.com/buchin/cuan/internal/auth	(cached)
+ok  	github.com/buchin/cuan/internal/campaign	0.192s
+ok  	github.com/buchin/cuan/internal/crypto	(cached)
+ok  	github.com/buchin/cuan/internal/db	1.786s
+ok  	github.com/buchin/cuan/internal/deployer	(cached)
+ok  	github.com/buchin/cuan/internal/domain	(cached)
+ok  	github.com/buchin/cuan/internal/git	(cached)
+ok  	github.com/buchin/cuan/internal/observability	(cached)
+ok  	github.com/buchin/cuan/internal/project	(cached)
+ok  	github.com/buchin/cuan/internal/runner	(cached)
+ok  	github.com/buchin/cuan/internal/server	71.712s
+ok  	github.com/buchin/cuan/internal/sponsorship	(cached)
+ok  	github.com/buchin/cuan/internal/studio	0.049s
+ok  	github.com/buchin/cuan/internal/task	(cached)
+
+6. Evaluasi Definition of Done (DoD) S08.2:
+   - DoD 1: Decompiler Engine berhasil memetakan target proyek dan memecah kampanye menjadi subtasks project_tasks terstruktur (LULUS).
+   - DoD 2: Endpoints CRUD dan eksekusi kampanye merespons format JSON standar dan status HTTP yang sesuai (LULUS).
+   - DoD 3: Worker pool menjalankan eksekusi subtask per proyek secara independen dengan batas konkurensi (LULUS).
+   - DoD 4: Targeted unit tests lulus 100% tanpa regresi (LULUS).
+   - DoD 5: Bukti audit tersimpan di docs/sprints/evidence/S8/s08_2_decompiler_runner_verified.txt (LULUS).
+   - DoD 6: Git commit author Buchin <buchin@dropsugar.com> terdorong ke origin/main (LULUS).

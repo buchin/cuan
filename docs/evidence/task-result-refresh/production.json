@@ -1,0 +1,25 @@
+{
+  "release": "09a3fc43f4a486c784820996562e8bdd9411e0c7",
+  "checks": [
+    {
+      "width": 390,
+      "noOverflow": true,
+      "neutralDefault": true
+    },
+    {
+      "width": 820,
+      "noOverflow": true,
+      "neutralDefault": true
+    },
+    {
+      "width": 1440,
+      "noOverflow": true,
+      "neutralDefault": true
+    }
+  ],
+  "assetsMatch": true,
+  "legacyTaskLinkRedirect": true,
+  "inboxInitializationPreservesDefault": true,
+  "savedTaskBlockedForGitHub": true,
+  "providerCalls": 0
+}

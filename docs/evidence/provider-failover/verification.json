@@ -1,0 +1,25 @@
+{
+  "frontendBuild": true,
+  "targetedGoTests": true,
+  "fakeProvidersOnly": true,
+  "accountAndModelRouting": true,
+  "sameAccountDifferentModel": true,
+  "taskPreflightRealPTYFixture": true,
+  "durableSingleReply": true,
+  "accountLease": true,
+  "credentialsUnchanged": true,
+  "browserFixture": "../landing/account-failover.json",
+  "runningTaskReplay": false,
+  "productionRelease": "0618dbd885a8f525046a1ca6b2d4be2f6fd59f77",
+  "bothGoogleAIProUsageAvailable": true,
+  "liveModelCounts": [
+    13,
+    2
+  ],
+  "accountAndModelPoliciesEnabled": 2,
+  "retainedApplicationTables": 35,
+  "existingProfileFilesChecked": 732,
+  "expectedOAuthAccessTokenUpdates": 2,
+  "refreshTokensAndIdentityPreserved": true,
+  "realModelInferenceCalls": 0
+}

@@ -1,0 +1,21 @@
+Source migration count: 19
+No migration files changed; production DB not inspected.
+migrations/000001_baseline.up.sql
+migrations/000002_owner_sessions.up.sql
+migrations/000003_projects_github.up.sql
+migrations/000004_tasks_activities.up.sql
+migrations/000005_runners_leases.up.sql
+migrations/000006_task_git_pr.up.sql
+migrations/000007_sponsorship.up.sql
+migrations/000008_deployer.up.sql
+migrations/000009_servers_byos.up.sql
+migrations/000010_custom_domains.up.sql
+migrations/000011_observability_alerts.up.sql
+migrations/000012_project_discussions_tasks.up.sql
+migrations/000013_batch_campaigns.up.sql
+migrations/000014_agent_hub_terminal.up.sql
+migrations/000015_creator_blueprints_execution.up.sql
+migrations/000016_modular_workspaces_and_publishing.up.sql
+migrations/000017_script_deployer_and_provisioner.up.sql
+migrations/000018_wordpress_turnkey.up.sql
+migrations/000019_auth_and_multiproject.up.sql

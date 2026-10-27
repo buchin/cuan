@@ -1,0 +1,92 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "dedicatedSession": true,
+      "noOverflow": true,
+      "terminalMinHeight": 240,
+      "reportVisible": true
+    },
+    {
+      "width": 360,
+      "height": 640,
+      "terminalScreenMinHeight": 180,
+      "verticalScroll": true
+    }
+  ],
+  "launchCalls": 3,
+  "realAttempts": 2,
+  "providerInvocations": 0,
+  "errors": [],
+  "unknown": [],
+  "workflows": [
+    "prompt-only create and server metadata",
+    "immediate detail while launch pending",
+    "background launch to dedicated session",
+    "live session refresh/reconnect without rerun",
+    "mobile report panels",
+    "session history with URL identity",
+    "strict missing-session state",
+    "cancel with retained output",
+    "lost launch recovery same request",
+    "save-only prompt and create key after reload"
+  ]
+}

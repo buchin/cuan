@@ -1,0 +1,125 @@
+================================================================================
+S11.4 AUDIT EVIDENCE: Frontend UI: Dynamic Navbar/Sidebar, ZIP Upload Wizard, Teleprompter & Publisher Drawer
+================================================================================
+Timestamp:     2026-10-17T13:20:00Z
+Git Branch:    main
+Repository:    github.com/buchin/cuan
+Repository ID: RPcd484fc4229ae192d17a0f01
+Task ID:       awhipragkopnhjyayxuxterp (#AWHIP)
+Author:        Buchin <buchin@dropsugar.com>
+
+--------------------------------------------------------------------------------
+1. SCOPE & IMPLEMENTATION VERIFICATION
+--------------------------------------------------------------------------------
+A. Dynamic Sidebar & Navbar with Modular Workspace OS:
+   - Module Filter Engine (StudioDashboard.tsx):
+     * Dynamically filters Desktop and Mobile navigation tabs based on `activeProject.enabled_modules`.
+     * Supported modules: 'tasks', 'discussions', 'repositories', 'servers', 'publishing', 'support'.
+     * Dedicated view routing and fallback safety when active tab is toggled off.
+   - Interactive Project Switcher (Dropdown & Presets):
+     * Smoothly switches between preset workspaces:
+       - SaaS / Dojo: ['tasks', 'discussions', 'repositories', 'servers']
+       - Creator Hub: ['tasks', 'discussions', 'publishing']
+       - Blank Workspace: ['tasks', 'discussions']
+     * Displays connected/imported projects from backend API (/api/v1/projects).
+   - In-App "+ Add Modules" Toggle Modal (ModuleToggleModal.tsx):
+     * Allows activating/deactivating any of the 6 workspace modules at any time.
+     * Persists updates to backend via PATCH /api/v1/projects/{id}/modules.
+     * Preserves preset configurations with 1-click quick preset buttons.
+
+B. Creator Wizard & AI Script ZIP Onboarding:
+   - Interactive Drag-and-Drop Dropzone (ZipUploadWizardModal.tsx):
+     * Visual drag-and-drop dropzone supporting .zip files up to 150MB.
+     * Real-time upload and extraction progress indicators.
+   - AI Tech Stack Inspector Integration:
+     * Inspects uploaded ZIP via /api/v1/inspector/inspect-zip before project creation.
+     * Displays informative detection cards:
+       - Detected Tech Stack (PHP/Laravel/WordPress/Node/Python/Go) with confidence match percentage.
+       - Environment Configuration (.env files with required/optional keys).
+       - Database Schemas (.sql migration files, table counts, database engines).
+       - Auto-Generated Kanban Setup Tasks (DoD checklists, priority, tags).
+   - Project Instantiation via /api/v1/projects/from-zip:
+     * Instantiates workspace with auto-generated setup tasks and extracted code.
+     * Seamlessly redirects to Kanban Tasks board upon creation.
+   - Cross-Linking:
+     * Integrated banner in CreatorWizardModal.tsx and StudioDashboard.tsx.
+
+C. Task Detail Drawer & 1-Click WordPress Publishing:
+   - CMS Publisher Tab in Task Detail Drawer (ProjectTasksBoard.tsx):
+     * Secure credential configuration via HTTP Basic Auth (Application Password).
+     * Backend encryption with AES-256-GCM (zero plaintext leakage in logs/storage).
+     * Status selector: 'draft' vs 'publish'.
+     * Markdown-to-semantic-HTML conversion toggle.
+     * 1-Click publish execution via POST /api/v1/tasks/{id}/publish.
+     * Displays live, clickable publication permalink URL upon success.
+   - Visual Indicators:
+     * Kanban cards display WordPress publication badges and external links when published.
+
+D. Fullscreen Teleprompter Studio (TeleprompterModal.tsx):
+   - Modal View with Auto-Scroll Engine:
+     * Smooth scrolling via requestAnimationFrame engine.
+     * Adjustable scroll speed (1x to 10x).
+     * Adjustable font size (20px to 72px) for various display distances.
+     * Horizontal Mirror Mode (flip-x) for physical teleprompter glass beamsplitters.
+     * Reset, Pause, and Play controls.
+   - Comprehensive Keyboard Shortcuts:
+     * [Space]: Toggle Play / Pause
+     * [Up / Down Arrow]: Increase / Decrease Scroll Speed
+     * [+ / -]: Increase / Decrease Font Size
+     * [M]: Toggle Horizontal Mirror Mode
+     * [R]: Reset to Top
+     * [Esc]: Exit Fullscreen Teleprompter
+
+E. Landing Page Update (LandingPage.tsx):
+   - Buyer Pain Point Articulation:
+     * Problem Card 4: "Script Teronggok di Hard Disk"
+     * Highlights frustrations of online script buyers (confusing .env, missing .sql schemas,
+       broken dependency installations, and intimidating VPS deployments).
+   - Four Pillars of Cuan Solution:
+     1. AI Script Onboarding from ZIP (auto-detect stack, .sql, .env, setup tasks)
+     2. Modular Workspace OS (toggle tasks, discussions, repos, servers, publishing, support)
+     3. 1-Click WordPress Publishing (publish deliverable naskah via encrypted REST API)
+     4. Fullscreen Teleprompter Studio (smooth auto-scroll with mirror mode)
+
+--------------------------------------------------------------------------------
+2. FRONTEND BUILD & TYPESCRIPT COMPILER VERIFICATION
+--------------------------------------------------------------------------------
+Command 1: npx tsc --noEmit
+Directory: /home/dev/repos/cuan/web
+Exit Code: 0
+Result:    0 ERRORS (Clean compilation)
+
+Command 2: npm run build
+Directory: /home/dev/repos/cuan/web
+Exit Code: 0
+Result:    100% BUILD PASS
+Output Summary:
+> cuan-web@0.1.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+✓ 1636 modules transformed.
+dist/index.html                     0.55 kB │ gzip:   0.37 kB
+dist/assets/index-C2REvMdI.css     91.60 kB │ gzip:  15.27 kB
+dist/assets/index-BLmbY84u.js   1,206.41 kB │ gzip: 280.72 kB
+✓ built in 4.84s
+
+--------------------------------------------------------------------------------
+3. BACKEND INTEGRATION & UNIT TESTS VERIFICATION
+--------------------------------------------------------------------------------
+Command: go test -v ./internal/inspector/... ./internal/publisher/...
+Result:  ALL TESTS PASS (Zero regressions)
+PASS: ok  github.com/buchin/cuan/internal/inspector
+PASS: ok  github.com/buchin/cuan/internal/publisher
+
+--------------------------------------------------------------------------------
+4. DEFINITION OF DONE (DoD) EVALUATION
+--------------------------------------------------------------------------------
+[x] DoD 1: Sidebar reaktif dan mulus berganti tampilan antar project (SaaS/Dojo vs Creator vs Blank).
+[x] DoD 2: Dropzone upload ZIP intuitif dengan feedback parsing stack yang informatif.
+[x] DoD 3: npx tsc --noEmit 0 error dan npm run build lulus 100%.
+[x] DoD 4: Berkas audit terbit di docs/sprints/evidence/S11/s11_4_frontend_modular_zip_verified.txt.
+[x] DoD 5: Git commit dan push ke origin/main.
+
+Status: LULUS VERIFIKASI 100% (ZERO REGRESSION)
+================================================================================

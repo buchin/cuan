@@ -1,0 +1,56 @@
+{
+  "fixture": true,
+  "mockedHistory": true,
+  "providerInvoked": false,
+  "checks": [
+    "real InboxView integration",
+    "nested Markdown/GFM",
+    "user input remains literal",
+    "unsafe links and HTML blocked",
+    "remote images not loaded",
+    "exact clipboard content",
+    "clipboard denial shows error",
+    "incomplete fence and snapshot update",
+    "light/dark"
+  ],
+  "themeName": "Muse",
+  "themeChecks": [
+    {
+      "mode": "light",
+      "allOfficialColorTokensMatch": true,
+      "radius": "1.25rem"
+    },
+    {
+      "mode": "dark",
+      "allOfficialColorTokensMatch": true,
+      "radius": "1.25rem"
+    }
+  ],
+  "fonts": {
+    "body": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+    "loaded": [
+      "Geist Variable",
+      "Geist Mono Variable"
+    ]
+  },
+  "alphaColor": "oklch(0.5334 0.2049 258.81 / 0.1)",
+  "widths": [
+    {
+      "width": 360,
+      "noPageOverflow": true,
+      "tableScrolls": true
+    },
+    {
+      "width": 390,
+      "noPageOverflow": true,
+      "tableScrolls": true
+    },
+    {
+      "width": 1280,
+      "noPageOverflow": true,
+      "tableScrolls": true
+    }
+  ],
+  "javascriptErrors": [],
+  "externalRequests": []
+}

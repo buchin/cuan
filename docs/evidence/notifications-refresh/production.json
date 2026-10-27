@@ -1,0 +1,56 @@
+{
+  "release": "5961b4a94f7e7deb07ddd589bb70f993bd8ad8ef",
+  "schema": 25,
+  "checks": [
+    {
+      "width": 390,
+      "theme": "light",
+      "relativeTimes": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "relativeTimes": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "relativeTimes": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "relativeTimes": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "relativeTimes": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "relativeTimes": true,
+      "noOverflow": true
+    }
+  ],
+  "feedItems": 11,
+  "contextualItems": 9,
+  "resolvedItems": 0,
+  "unreadExcludesResolved": true,
+  "notificationIDsUnique": true,
+  "noOldGenericReplyTitles": true,
+  "nonLoginWrites": [],
+  "providerCalls": 0,
+  "notificationsClicked": 0,
+  "rollbackReactivationVerified": true,
+  "retainedApplicationTables": 37,
+  "retainedProfileFiles": 878,
+  "existingReadFlagsVerified": 11,
+  "nonFeedPreferencesPreserved": true
+}

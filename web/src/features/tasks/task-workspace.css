@@ -1,0 +1,86 @@
+.task-workspace {
+  z-index: 40;
+}
+
+/* Terminal mobile touch scrolling and pull-to-refresh containment */
+.task-terminal-container,
+.task-terminal-viewport,
+.task-workspace,
+.xterm,
+.xterm-viewport,
+.xterm-screen {
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+}
+
+.task-terminal-viewport {
+  touch-action: none;
+}
+
+.task-terminal-container .xterm-screen,
+.task-terminal-container .xterm-viewport {
+  touch-action: none;
+}
+.task-workspace .task-prose .chat-markdown {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.task-workspace .task-prose .chat-markdown h1 {
+  font-size: 18px;
+}
+.task-workspace .task-prose .chat-markdown h2 {
+  font-size: 17px;
+}
+.task-workspace .task-prose .chat-markdown h3,
+.task-workspace .task-prose .chat-markdown h4,
+.task-workspace .task-prose .chat-markdown h5,
+.task-workspace .task-prose .chat-markdown h6 {
+  font-size: 16px;
+}
+.task-workspace .task-prose .chat-markdown p {
+  margin: 0.5em 0;
+}
+.task-workspace .task-prose .chat-markdown > :first-child {
+  margin-top: 0;
+}
+.task-workspace .task-prose .chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 767px) {
+  .task-workspace .task-prose .chat-markdown {
+    font-size: 16px;
+  }
+}
+
+/* Task Card Vertical Timeline Process Flow */
+.task-timeline-connector {
+  position: absolute;
+  left: 14px;
+  top: -12px;
+  bottom: -8px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  pointer-events: none;
+  background-color: rgba(59, 130, 246, 0.35);
+}
+
+.dark .task-timeline-connector {
+  background-color: rgba(96, 165, 250, 0.4);
+}
+
+.task-timeline-connector-queued {
+  position: absolute;
+  left: 14px;
+  top: -12px;
+  bottom: -8px;
+  width: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  border-left: 2px dashed rgba(245, 158, 11, 0.45);
+}
+
+.dark .task-timeline-connector-queued {
+  border-left: 2px dashed rgba(251, 191, 36, 0.5);
+}
+

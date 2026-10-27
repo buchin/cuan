@@ -1,0 +1,109 @@
+=== CUAN SPRINT 5 (S05.3) EVIDENCE: DNS VERIFICATION ENGINE, DOMAIN ROUTES & HEALTH POLLER VERIFIED ===
+Timestamp: 2026-10-17T09:20:00+07:00
+Task ID: zzyppvfkesnubhmuoyiapfuq
+Title: S05.3 — DNS Verification Engine (Automated CNAME & A-Record Lookup / DNS Health Poller)
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. DNS Verification Engine (internal/domain/resolver.go):
+   - DNSResolver Interface:
+     * Full mockable interface for hermetic testing: LookupCNAME(ctx, host), LookupTXT(ctx, name), LookupIP(ctx, network, host).
+     * NetDNSResolver: Production implementation wrapping Go net.DefaultResolver with configurable lookup timeouts and context cancellation.
+     * MockDNSResolver: Thread-safe in-memory test implementation for simulating CNAME, TXT, IP lookups, NXDOMAIN, and network timeouts.
+   - DNSVerifier Multi-Tier Verification Strategy:
+     * Tier 1 (CNAME): Resolves incoming domain CNAME and matches against canonical Cuan hosts (e.g. cuan.app, cuan.dojo.cc, or baseDomain).
+     * Tier 2 (TXT Challenge): Queries `_cuan-challenge.<domain>` and root `<domain>` for verification token match.
+     * Tier 3 (A-Record Fallback): Fallback check for root / apex domains where DNS providers (e.g. Cloudflare, Route53) enforce CNAME flattening; verifies if resolved IP matches platform server IPs.
+     * Generates structured VerificationResult containing verification boolean, method ("cname" | "txt" | "a_record"), matched targets, diagnostic messages, and error context.
+
+2. Background DNS Health Poller (internal/domain/poller.go):
+   - DNSHealthPoller:
+     * Periodically inspects registered custom domains in the background.
+     * Automatically verifies DNS status and updates domain state in DomainRepository (e.g. pending -> verified / failed).
+     * Dynamic Caddy Route Sync: When a custom domain transitions to 'verified', automatically configures dynamic reverse proxy route in CaddyRouter (mapping host/SNI to local port or remote BYOS runner).
+     * Lifecycle management: Safe Start(ctx) and Stop() with graceful cancellation, configurable polling interval, and optional state change callbacks.
+
+3. Custom Domain REST API Handlers (internal/server/domain_handlers.go):
+   - POST /api/deployments/{id}/domains (and /api/v1/deployments/{id}/domains):
+     * Validates deployment existence (404 if missing).
+     * Validates RFC 1123 domain syntax (400 if invalid).
+     * Prevents duplicate registrations (409 Conflict).
+     * Generates secure 32-character hex verification token and records custom_domain in DomainRepository.
+     * Returns 201 Created with domain DTO and interactive DNS setup instructions (CNAME, TXT challenge, A-record fallback).
+   - GET /api/deployments/{id}/domains (and /api/v1/deployments/{id}/domains):
+     * Retrieves all custom domains linked to a specific deployment.
+   - GET /api/domains (and /api/v1/domains):
+     * Lists platform custom domains, supporting optional ?deployment_id={id} query filter.
+   - GET /api/domains/{id} (and /api/v1/domains/{id}):
+     * Retrieves domain metadata, current status, and copyable DNS setup instructions.
+   - POST /api/domains/{id}/verify (and /api/v1/domains/{id}/verify):
+     * Triggers instant on-demand DNS verification probe.
+     * Updates domain status to 'verified' or 'failed'.
+     * If verified, registers dynamic route to CaddyRouter (zero downtime, no server reload).
+     * Returns 200 OK with detailed verification diagnostics and route registration status.
+   - DELETE /api/domains/{id} (and /api/v1/domains/{id}):
+     * Removes custom domain from repository.
+     * Dynamically removes route from CaddyRouter with zero downtime.
+
+4. Targeted Automated Unit Test Verification:
+
+A. DNS Resolver & Verifier Engine Test Suite (internal/domain/resolver_test.go & poller_test.go):
+=== RUN   TestDNSHealthPoller_PollOnce
+--- PASS: TestDNSHealthPoller_PollOnce (0.00s)
+=== RUN   TestDNSHealthPoller_StartAndStop
+--- PASS: TestDNSHealthPoller_StartAndStop (0.00s)
+=== RUN   TestDNSHealthPoller_OnlyPending
+--- PASS: TestDNSHealthPoller_OnlyPending (0.00s)
+=== RUN   TestDNSVerifier_CNAMEMatch
+--- PASS: TestDNSVerifier_CNAMEMatch (0.00s)
+=== RUN   TestDNSVerifier_CNAMEMatch_SubdomainBaseDomain
+--- PASS: TestDNSVerifier_CNAMEMatch_SubdomainBaseDomain (0.00s)
+=== RUN   TestDNSVerifier_TXTMatch
+--- PASS: TestDNSVerifier_TXTMatch (0.00s)
+=== RUN   TestDNSVerifier_TXTMatch_QuotedRecord
+--- PASS: TestDNSVerifier_TXTMatch_QuotedRecord (0.00s)
+=== RUN   TestDNSVerifier_TXTMatch_RootDomainFallback
+--- PASS: TestDNSVerifier_TXTMatch_RootDomainFallback (0.00s)
+=== RUN   TestDNSVerifier_ARecordFallback_CNAMEFlattening
+--- PASS: TestDNSVerifier_ARecordFallback_CNAMEFlattening (0.00s)
+=== RUN   TestDNSVerifier_TokenMismatch
+--- PASS: TestDNSVerifier_TokenMismatch (0.00s)
+=== RUN   TestDNSVerifier_NXDOMAIN_And_NoRecords
+--- PASS: TestDNSVerifier_NXDOMAIN_And_NoRecords (0.00s)
+=== RUN   TestDNSVerifier_TimeoutOrNetworkError
+--- PASS: TestDNSVerifier_TimeoutOrNetworkError (0.00s)
+=== RUN   TestDNSVerifier_InvalidDomainFormat
+--- PASS: TestDNSVerifier_InvalidDomainFormat (0.00s)
+=== RUN   TestDNSVerifier_OptionsAndAccessors
+--- PASS: TestDNSVerifier_OptionsAndAccessors (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/domain	0.005s
+
+B. Custom Domain HTTP REST Handlers & Security Integration Suite (internal/server/domain_handlers_test.go):
+=== RUN   TestDomainHandlers_CreateDeploymentDomain
+--- PASS: TestDomainHandlers_CreateDeploymentDomain (0.00s)
+=== RUN   TestDomainHandlers_ListDomains
+--- PASS: TestDomainHandlers_ListDomains (0.00s)
+=== RUN   TestDomainHandlers_GetDomain
+--- PASS: TestDomainHandlers_GetDomain (0.00s)
+=== RUN   TestDomainHandlers_VerifyDomain_SuccessAndFailure
+--- PASS: TestDomainHandlers_VerifyDomain_SuccessAndFailure (0.00s)
+=== RUN   TestDomainHandlers_DeleteDomain
+--- PASS: TestDomainHandlers_DeleteDomain (0.00s)
+=== RUN   TestDomainHandlers_EndToEndWithCaddyAsk
+--- PASS: TestDomainHandlers_EndToEndWithCaddyAsk (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.010s
+
+C. Security Integration (End-to-End Handshake with /api/caddy/ask):
+- Registration -> domain in 'pending' status -> /api/caddy/ask responds 403 Forbidden.
+- Instant DNS verification passes -> domain transitions to 'verified' -> Caddy route registered -> /api/caddy/ask responds 200 OK (authorized).
+- Deletion -> route unregistered -> /api/caddy/ask responds 403 Forbidden.
+
+D. Zero Regression Verification:
+ok  	github.com/buchin/cuan/internal/db	0.006s
+ok  	github.com/buchin/cuan/internal/deployer	0.292s
+ok  	github.com/buchin/cuan/internal/domain	0.005s
+ok  	github.com/buchin/cuan/internal/server	0.017s
+Result: 100% PASS across all unit, integration, and security regression test suites.

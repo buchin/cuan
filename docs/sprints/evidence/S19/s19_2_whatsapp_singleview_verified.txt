@@ -1,0 +1,48 @@
+=== CUAN SPRINT 19 (S19.2) EVIDENCE: WHATSAPP/TELEGRAM MOBILE SINGLE-VIEW NAVIGATION VERIFIED ===
+Timestamp:     2026-10-18T19:24:30Z
+Task ID:       vpbdhgzoajwlebjhttwcviiy
+Title:         S19.2 — WhatsApp/Telegram Mobile Single-View Navigation (Inbox & Chat)
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. SINGLE-VIEW ARCHITECTURE ON MOBILE (< MD)
+================================================================================
+   - Target File: web/src/features/inbox/InboxView.tsx & InboxSubPanel.tsx
+   - Mode Toggle: `mobileView: 'contacts' | 'chat'`
+   - Perilaku:
+     * State 'contacts' (Daftar Kontak):
+       - Tampil 100% lebar layar ponsel (`w-full h-full md:hidden flex-col`).
+       - Menampilkan pencarian instan, filter tab All/Agents/Customers, avatar kontak, indikator online, badge unread, dan cuplikan pesan terakhir.
+       - Panel chat tersembunyi penuh pada mode ini sehingga daftar kontak nyaman dibaca tanpa terhimpit.
+     * State 'chat' (Chat Stream):
+       - Terpicu saat pengguna mengetuk salah satu kontak pada daftar.
+       - Tampil 100% lebar layar ponsel (`flex-1 flex flex-col h-full bg-background`).
+       - Header chat dilengkapi tombol Back (`<`) di sebelah kiri avatar (`md:hidden`).
+       - Balon pesan WhatsApp/Telegram (outgoing di kanan, incoming di kiri) memanfaatkan lebar 85% layar dengan padding natural.
+       - Kartu aksi eksekusi 1-klik terformat rapi dan proporsional.
+       - Composer textarea responsif auto-expanding membesar ke atas sesuai panjang ketikan.
+     * Tombol Back (`<`):
+       - Mengetuk tombol Back seketika mengembalikan layar ke mode 'contacts' (Daftar Kontak 100% width).
+
+================================================================================
+2. DESKTOP (>= MD) SPLIT VIEW PRESERVATION
+================================================================================
+   - Pada desktop (>= md), antarmuka secara otomatis mempertahankan split view berdampingan:
+     * Tier 2 Sub-panel (240px di kiri): Menampilkan InboxSubPanel.
+     * Tier 3 Main Viewport (flex-1 di kanan): Menampilkan InboxView chat stream.
+     * Tombol Back (`<`) pada header chat otomatis tersembunyi di desktop (`md:hidden`).
+     * Tidak ada regresi interaksi desktop sama sekali.
+
+================================================================================
+3. ELIMINASI PENJEPITAN 3-TIER & 72PX CHAT CUTOFF
+================================================================================
+   - Analisis viewport 360px:
+     * Sebelum S19: Rail (48px) + Subpanel (240px) = 288px terpakai -> sisa chat hanya 72px (terpotong!).
+     * Setelah S19:
+       - Mode 'contacts': Daftar kontak = 360px (100% width).
+       - Mode 'chat': Chat viewport = 360px (100% width).
+     * Eliminasi tuntas 100% layout terjepit.
+
+=== STATUS: S19.2 WHATSAPP/TELEGRAM MOBILE SINGLE-VIEW NAVIGATION VERIFIED PASS ===

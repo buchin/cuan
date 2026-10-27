@@ -1,0 +1,66 @@
+{
+  "probe": {
+    "phase": "completed",
+    "sandboxExit": 1,
+    "sandboxOutput": "",
+    "sandboxError": "clone(child_stack=NULL, flags=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWUSER|CLONE_NEWPID|SIGCHLD) = 24\nstrace: Process 24 attached\n[pid    24] mount(NULL, \"/\", NULL, MS_REC|MS_SILENT|MS_SLAVE, NULL) = 0\n[pid    24] mount(\"tmpfs\", \"/tmp\", \"tmpfs\", MS_NOSUID|MS_NODEV, NULL) = 0\n[pid    24] mount(\"newroot\", \"newroot\", NULL, MS_MGC_VAL|MS_BIND|MS_REC|MS_SILENT, NULL) = 0\n[pid    24] mount(\"/oldroot/usr\", \"/newroot/usr\", NULL, MS_BIND|MS_REC|MS_SILENT, NULL) = 0\n[pid    24] mount(\"none\", \"/newroot/usr\", NULL, MS_RDONLY|MS_NOSUID|MS_NODEV|MS_REMOUNT|MS_BIND|MS_SILENT|MS_RELATIME, NULL) = 0\n[pid    24] mount(\"/oldroot/bin\", \"/newroot/bin\", NULL, MS_BIND|MS_REC|MS_SILENT, NULL) = 0\n[pid    24] mount(\"none\", \"/newroot/bin\", NULL, MS_RDONLY|MS_NOSUID|MS_NODEV|MS_REMOUNT|MS_BIND|MS_SILENT|MS_RELATIME, NULL) = 0\n[pid    24] mount(\"/oldroot/lib\", \"/newroot/lib\", NULL, MS_BIND|MS_REC|MS_SILENT, NULL) = 0\n[pid    24] mount(\"none\", \"/newroot/lib\", NULL, MS_RDONLY|MS_NOSUID|MS_NODEV|MS_REMOUNT|MS_BIND|MS_SILENT|MS_RELATIME, NULL) = 0\n[pid    24] mount(\"proc\", \"/newroot/proc\", \"proc\", MS_NOSUID|MS_NODEV|MS_NOEXEC, NULL) = -1 EPERM (Operation not permitted)\nbwrap: Can't mount proc on /newroot/proc: Operation not permitted\n[pid    24] +++ exited with 1 +++\n+++ exited with 1 +++",
+    "privileged": false,
+    "capAdd": null,
+    "securityOpt": [
+      "experimental seccomp",
+      "apparmor=cuan-runtime-probe (unloaded after test)"
+    ],
+    "daemonVersion": "28.5.2",
+    "apparmorProfile": "cuan-runtime-probe",
+    "profileUnloadExit": 0
+  },
+  "containerImage": "alpine:3.20",
+  "packageInstalled": "bubblewrap",
+  "executionUser": "cuan (non-root)",
+  "networkForPackageInstallation": "host",
+  "namespacePolicy": "experimental seccomp plus temporary AppArmor parent with mount denial and Bubblewrap child transition; default Docker system paths retained; no added capabilities or privileged mode",
+  "experimentalPolicy": {
+    "apparmorSha256": "3008a19de0a953627b8488d1170b0f36eebe201d610bb5fad6e56be955a266fa",
+    "sha256": "6bae67fcd6802a17aa1941f91d769b18230000eaac3506e3f07d060c4b6755a2",
+    "addedRules": [
+      {
+        "names": [
+          "unshare"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "args": [
+          {
+            "index": 0,
+            "value": 2214461439,
+            "valueTwo": 0,
+            "op": "SCMP_CMP_MASKED_EQ"
+          }
+        ]
+      },
+      {
+        "names": [
+          "clone"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "args": [
+          {
+            "index": 0,
+            "value": 1006764049,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      },
+      {
+        "names": [
+          "mount",
+          "umount2",
+          "pivot_root"
+        ],
+        "action": "SCMP_ACT_ALLOW"
+      }
+    ]
+  },
+  "cleanupComplete": true,
+  "freeDiskGiB": 6.03,
+  "productionHealthExit": 0
+}

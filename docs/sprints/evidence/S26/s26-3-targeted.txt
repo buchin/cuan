@@ -1,0 +1,63 @@
+=== RUN   TestS26AccountAPIAuthOwnerAndQuotaIsolation
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000001] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 59.202804ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000002] "GET http://example.com/api/v1/provider-accounts HTTP/1.1" from 192.0.2.1:1234 - 401 42B in 17.187µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000003] "POST http://example.com/api/v1/provider-accounts/acct_00000000000000000000000000000000/auth-init HTTP/1.1" from 192.0.2.1:1234 - 401 42B in 6.87µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000004] "POST http://example.com/api/v1/provider-accounts HTTP/1.1" from 192.0.2.1:1234 - 201 213B in 1.164604ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000005] "POST http://example.com/api/v1/provider-accounts/acct_408f64e343cb7053797d4fc9cdbc318e/auth-init HTTP/1.1" from 192.0.2.1:1234 - 404 33B in 98.51µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000006] "POST http://example.com/api/v1/provider-accounts/acct_408f64e343cb7053797d4fc9cdbc318e/auth-init HTTP/1.1" from 192.0.2.1:1234 - 200 407B in 1.434673ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000007] "POST http://example.com/api/v1/agents/auth-code?cancel=true HTTP/1.1" from 192.0.2.1:1234 - 404 38B in 25.389µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000008] "POST http://example.com/api/v1/provider-accounts/acct_408f64e343cb7053797d4fc9cdbc318e/auth-code?cancel=true HTTP/1.1" from 192.0.2.1:1234 - 200 23B in 100.470292ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000009] "GET http://example.com/api/v1/provider-accounts HTTP/1.1" from 192.0.2.1:1234 - 200 422B in 401.839µs
+--- PASS: TestS26AccountAPIAuthOwnerAndQuotaIsolation (0.28s)
+=== RUN   TestS26RecreateAgentDoesNotCollideWithRetainedConnection
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000010] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 56.160183ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000011] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 881B in 175.216µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000012] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 881B in 16.655µs
+--- PASS: TestS26RecreateAgentDoesNotCollideWithRetainedConnection (0.11s)
+=== RUN   TestS26DedicatedAgentRegistrationAndRuntimeIsolation
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000013] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 55.789842ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000014] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 945B in 627.951µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000015] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 946B in 608.512µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000016] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 409 50B in 128.906µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000017] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 200 874B in 78.669µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000018] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 409 56B in 62.905µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000019] "POST http://example.com/api/v1/chat/conversations/agent_first/messages HTTP/1.1" from 192.0.2.1:1234 - 200 620B in 4.795766ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000020] "POST http://example.com/api/v1/chat/conversations/agent_second/messages HTTP/1.1" from 192.0.2.1:1234 - 200 627B in 2.574901ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000021] "POST http://example.com/api/v1/tasks/profile-fixture-agent_first/run-agent HTTP/1.1" from 192.0.2.1:1234 - 200 222B in 2.624928ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000022] "POST http://example.com/api/v1/tasks/profile-fixture-agent_second/run-agent HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 1.18118ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000023] "POST http://example.com/api/v1/agents/agent_first/connection/verify HTTP/1.1" from 192.0.2.1:1234 - 404 41B in 15.093µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000024] "POST http://example.com/api/v1/agents/agent_first/connection/verify HTTP/1.1" from 192.0.2.1:1234 - 409 80B in 146.582µs
+--- PASS: TestS26DedicatedAgentRegistrationAndRuntimeIsolation (0.16s)
+=== RUN   TestS26FailedRegistrationPreservesLoginAndUnbinds
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000025] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 55.969885ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000026] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 500 57B in 1.065023ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000027] "POST http://example.com/api/v1/agents/connect-cli HTTP/1.1" from 192.0.2.1:1234 - 201 960B in 585.847µs
+--- PASS: TestS26FailedRegistrationPreservesLoginAndUnbinds (0.12s)
+=== RUN   TestS26LegacyPinCheckSurvivesRosterReload
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000028] "POST http://example.com/api/v1/auth/login HTTP/1.1" from 192.0.2.1:1234 - 200 226B in 56.69222ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000029] "POST http://example.com/api/v1/agents/agent_pin1/connection/verify HTTP/1.1" from 192.0.2.1:1234 - 200 197B in 3.47847ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000030] "GET http://example.com/api/v1/agents HTTP/1.1" from 192.0.2.1:1234 - 200 436B in 162.456µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000031] "GET http://example.com/api/v1/agents HTTP/1.1" from 192.0.2.1:1234 - 200 436B in 79.14µs
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000032] "POST http://example.com/api/v1/agents/agent_pin1/connection/verify HTTP/1.1" from 192.0.2.1:1234 - 200 302B in 4.028684ms
+2026/10/19 09:41:30 [p1-mv/fSD6fKiIbz-000033] "GET http://example.com/api/v1/agents HTTP/1.1" from 192.0.2.1:1234 - 200 394B in 234.436µs
+--- PASS: TestS26LegacyPinCheckSurvivesRosterReload (0.12s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.817s
+=== RUN   TestS26AccountPersistenceOwnerAndPaths
+--- PASS: TestS26AccountPersistenceOwnerAndPaths (0.01s)
+=== RUN   TestS26ProfileEnvironmentDoesNotInheritSecrets
+--- PASS: TestS26ProfileEnvironmentDoesNotInheritSecrets (0.00s)
+=== RUN   TestS26ScopedOAuthRejectsOtherOwnerAccountAndLegacy
+--- PASS: TestS26ScopedOAuthRejectsOtherOwnerAccountAndLegacy (0.00s)
+=== RUN   TestS26ScopedExpiryAndProfileCredentialTimestamp
+--- PASS: TestS26ScopedExpiryAndProfileCredentialTimestamp (0.00s)
+=== RUN   TestS26DedicatedProfileBinding
+--- PASS: TestS26DedicatedProfileBinding (0.00s)
+=== RUN   TestS26LegacyCheckPersistsAndInvalidates
+--- PASS: TestS26LegacyCheckPersistsAndInvalidates (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/agent	0.019s
+=== RUN   TestSanitizeEnvironment
+--- PASS: TestSanitizeEnvironment (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/terminal	0.006s

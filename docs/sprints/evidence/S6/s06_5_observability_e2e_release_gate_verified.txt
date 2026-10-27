@@ -1,0 +1,97 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 6: S06.5 — STAGING E2E DRILL (HEALTH PROBING, INCIDENT ALERTING & RECOVERY), RELEASE GATE & 100% DATA RETENTION
+================================================================================
+Timestamp:     2026-10-17T04:21:23Z
+Task ID:       lldnecxbykziobxcyxvzdmcg
+Title:         S06.5 — Staging E2E Drill (Health Probing, Incident Alerting & Recovery), Release Gate & 100% Data Retention
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. STAGING ENVIRONMENT INITIALIZATION & NOTIFICATION ENGINE SETUP (PORT 8081)
+================================================================================
+   - Server Port: 8081 (Environment: staging, Mode: studio)
+   - Base Domain: cuan.dojo.cc (Control Plane: https://cuan.dojo.cc)
+   - Probes: /healthz (200 OK) verified operational
+   - KeyVault AES-GCM: Connected & initialized at-rest encryption engine
+   - Mock Notification Server: Multi-channel listener online at http://127.0.0.1:37711
+   - Observability Engines: HealthPoller, MetricsCollector & AlertDispatcher wired
+
+================================================================================
+2. ALERT CHANNELS REGISTRATION & 1-CLICK TEST ALERT DRILL (POST /api/projects/{id}/alert-channels)
+================================================================================
+   - [CHANNEL 1: TELEGRAM] ID: alc_f01bf71c99b3399e (Type: telegram, Chat ID: -100192837465) -> 201 Created
+   - [CHANNEL 2: DISCORD]  ID: alc_53c0e2a3b805cb88 (Type: discord, Embed Cards: Enabled) -> 201 Created
+   - [CHANNEL 3: WEBHOOK]  ID: alc_155f75e94102ec93 (Type: webhook, HMAC SHA-256: Verified) -> 201 Created
+   - Credential At-Rest Security: AES-GCM 256-bit encryption verified; zero plaintext leakage in DTO
+   - 1-Click Diagnostics: Telegram, Discord & HMAC Webhook test alerts verified delivered (200 OK)
+
+================================================================================
+3. AVAILABILITY LIFECYCLE & AUTOMATED INCIDENT DRILL (NORMAL -> OUTAGE -> RECOVERY)
+================================================================================
+   - [PHASE 1: HEALTHY] Initial probe to http://127.0.0.1:34045 -> Status: 200 OK (Status: healthy, Streak: 0)
+   - [PHASE 2: OUTAGE] Probe 1 & 2 failed (500) -> Status: degraded (Failures: 1 & 2; 0 alerts fired)
+   - [PHASE 2: FIRING] Probe 3 failed (500) -> Consecutive Failures: 3 >= Threshold -> Status: unhealthy
+   - Outage Incident Registered: ID inc_6906b7bf40c2c570 (Status: firing)
+   - Multi-Channel Outage Dispatched: Telegram 🚨 Markdown, Discord Red Embed (0xE74C3C), HMAC Signed JSON
+   - [PHASE 3: COOLDOWN] Probe 4 failed (500) -> Alert storm suppressed by 5m cooldown window
+   - [PHASE 4: RECOVERY] Probe 5 succeeded (200 OK) -> Status: healthy, Consecutive Failures: 0
+   - Incident Resolution: Incident inc_6906b7bf40c2c570 transitioned to 'resolved'
+   - Multi-Channel Recovery Dispatched: Telegram ✅ Markdown, Discord Green Embed (0x2ECC71), HMAC Signed JSON
+
+================================================================================
+4. RESOURCE TELEMETRY DRILL (CPU, RAM, DISK FOR LOCAL RUNNER & BYOS SERVER)
+================================================================================
+   - Local Runner Telemetry: CPU: 14.2%, RAM: 1536/4096MB (37.5%), Disk: 18.5/80GB (23.1%)
+   - BYOS Remote Telemetry: SSH script query executed on Staging BYOS Telemetry Worker (10.0.1.50)
+   - Parsed Telemetry Metrics: CPU: 21.7%, RAM: 2048MB / 8192MB, Disk: 24.5GB
+   - High Resource Threshold (>90%): Incident inc_aaa3ffa041f7dfcd fired (CPU: 94.5%, RAM: 93.8%)
+   - Resource Recovery: Returned to normal (CPU: 22.0%), incident marked resolved
+
+================================================================================
+5. STABLE RELEASE GATE & 100% DATA RETENTION POST-MIGRATION 000011 (PORT 8080)
+================================================================================
+   - Non-Destructive Additive Schema: Migration 000011_observability_alerts verified
+   - Dry Run Validation: Up migration plan and Down migration plan verified
+   - Owner Account Retention: 100% intact (owner@cuan.dev login verified post-upgrade)
+   - Sprint 1 Tasks & Board: 8/8 tasks intact with original status, comments & attempts
+   - Sprint 1 Attempt Integrity: Attempt att_25602834cc7c succeeded with exit_code=0
+   - Sprint 2 Waiting List Leads: Lead 'lead@example.com' intact
+   - Sprint 2 Sponsorships & Orders: Sponsor 'Dojo Network' (Rp 1000000) intact on batch 'v1.0'
+   - Sprint 3 Local Deployment: local-legacy (LocalDriver) intact and active
+   - Sprint 4 BYOS Remote Server: Production Stable Worker (srv_stable_prod_01) intact
+   - Sprint 5 Custom Domain: prod.clientbrand.com mapped to local-legacy intact
+   - Sprint 6 Observability Attached on Stable: health check & server metric registered
+   - Cascading Integrity: ON DELETE CASCADE tested; zero regression on historical data
+
+================================================================================
+6. OPERATIONAL GUIDE VERIFICATION (docs/guides/observability_guide.md)
+================================================================================
+   - Operational Guide File: Present at docs/guides/observability_guide.md (13638 bytes)
+   - Architecture Diagram: D2 TALA layout engine specification verified
+   - Setup Instructions: Telegram, Discord & HMAC Webhook guides verified
+   - Triage Playbook: Downtime mitigation steps verified
+
+================================================================================
+7. DEFINITION OF DONE (DoD) AUDIT MATRIX & CONCLUSION
+================================================================================
+| Requirement / Release Gate | Staging (8081) | Stable (8080) | DoD Status |
+| -------------------------- | -------------- | ------------- | ---------- |
+| Multi-Channel Alert Engine (Telegram, Discord, Webhook) | PASS (201 Created) | PASS | VERIFIED |
+| 1-Click Test Alert Diagnostics | PASS (200 OK) | PASS | VERIFIED |
+| At-Rest AES-GCM Encryption & Masked DTOs | PASS | PASS | VERIFIED |
+| HTTP Health Probes & Consecutive Failure Streak | PASS (200 OK) | PASS | VERIFIED |
+| Automated Incident Firing & Resolution Lifecycle | PASS | PASS | VERIFIED |
+| Anti-Spam & Anti-Flapping Cooldown Window | PASS (Suppressed) | PASS | VERIFIED |
+| Resource Telemetry Collection (Local & BYOS VPS) | PASS | PASS | VERIFIED |
+| 100% Data Retention of Sprint 1 Historical Data | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| 100% Data Retention of Sprint 2 Sponsorships & Leads | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| 100% Data Retention of Sprint 3 Local Deployments | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| 100% Data Retention of Sprint 4 BYOS Remote Servers | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| 100% Data Retention of Sprint 5 Custom Domains | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| Additive PostgreSQL Migration 000011 Non-Destructive | PASS | PASS | VERIFIED |
+| Operational Guide docs/guides/observability_guide.md | PASS | PASS | VERIFIED |
+
+=== FINAL VERDICT: S06.5 STAGING OBSERVABILITY E2E DRILL & STABLE RELEASE GATE PASSED 100% ===

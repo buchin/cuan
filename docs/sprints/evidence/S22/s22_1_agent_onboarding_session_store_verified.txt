@@ -1,0 +1,36 @@
+================================================================================
+AUDIT EVIDENCE S22.1: AGENT CLI ONBOARDING & SESSION STORE
+================================================================================
+Timestamp:     2026-10-18T22:07:00+07:00
+Task ID:       glwranojpmdwqjkyawlbzrrb
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. HOST CLI BINARY DETECTOR:
+   - Evaluated host PATH binaries for native Agent CLIs.
+   - Detected Binaries:
+     * agy:    /home/dev/.local/bin/agy (version: 1.4.2, installed: true)
+     * claude: /home/dev/.local/bin/claude (version: 2.1.302, installed: true)
+     * shell:  /bin/bash (version: 5.2.21(1)-release, installed: true)
+
+2. AGENT SESSION STORE IMPLEMENTATION:
+   - File-backed session store at ~/.cuan/agent_sessions.json.
+   - File permissions: 0600 (read/write only for owner).
+   - In-memory thread-safe cache with sync.RWMutex.
+   - Operations verified: SaveSession, GetSession, ListSessions, DeleteSession.
+
+3. REST API ENDPOINTS:
+   - GET  /api/v1/agents/binaries (Public): Returns list of detected host binaries.
+   - POST /api/v1/agents/pair     (Auth): Pairs local agent CLI with device token.
+   - GET  /api/v1/agents/sessions (Auth): Returns all active agent sessions.
+
+4. CLI FLAGS:
+   - `cuan-server --detect-agents`: Outputs JSON scan of host binaries and exits.
+   - `cuan-server --pair-agent <type> --agent-name <name> --agent-token <tok>`: Pairs agent directly via CLI.
+
+5. VERIFICATION CHECKS:
+   - [x] internal/agent/session_store.go unit tests pass 100%.
+   - [x] GET /api/v1/agents/binaries returns 200 OK with agy, claude, shell.
+   - [x] POST /api/v1/agents/pair returns 201 Created and persists to disk.
+   - [x] GET /api/v1/agents/sessions returns 200 OK with masked token.

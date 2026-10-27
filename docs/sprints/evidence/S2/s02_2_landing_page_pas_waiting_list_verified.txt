@@ -1,0 +1,78 @@
+=== CUAN SPRINT 2 (S02.2) EVIDENCE: LANDING PAGE PAS & WAITING LIST DOJO VERIFIED ===
+Timestamp: 2026-10-16T20:14:30+07:00
+Task ID: mhhkcxcnvzovrgvrarcnzfpc
+Title: S02.2 — Landing Page PAS di Root (/) & Integrasi Waiting List Dojo
+Author: Buchin <buchin@dropsugar.com>
+
+1. Halaman Publik Responsif di Root (/) Framework PAS:
+   - URL: /
+   - Framework Copywriting: PAS (Problem, Agitation, Solution) terarah untuk Solo Developer, Indie Hacker, dan Non-Tech Founders:
+     * Problem: Purchased code sitting idle ($30-$300 di CodeCanyon/Dojo/Envato) hanya mengendap di hard drive karena kerumitan terminal SSH, Docker, dan database; ketergantungan pada freelancer mahal ($50-$100/jam); portofolio tercecer tanpa kendali.
+     * Agitation: Kehilangan momentum pasar dan cuan sementara kompetitor sudah launch; modal runway bocor membayar biaya cloud bulanan; burnout teknis begadang memperbaiki 502 Bad Gateway dan sertifikat SSL mati.
+     * Solution: Cuan v1.0 Digital Project Studio — Universal ZIP & Git upload (deteksi stack otomatis), Turnkey isolated Docker containers dengan auto-SSL Caddy, Visual Environment Editor (.env tanpa nano/SSH), Agentic AI Co-pilot (Chat-to-Modify dengan staging preview), 100% Self-Hosted & Open Source Apache-2.0.
+   - Komponen UI: React 18 + TypeScript + Tailwind CSS + shadcn/ui (Button, Card, Badge, Alert, Input).
+   - Responsivitas: Mobile menu drawer, stack layout adaptif, zero layout shift (pre-sized elements & smooth client-side state router).
+
+2. Integrasi Form Waiting List & Dojo Webhook:
+   - Frontend Form: Dua titik konversi (Hero Form & Bottom CTA Form) dengan validasi regex ketat seketika, status loading spinner, dan handling pesan error.
+   - Backend Endpoint:
+     * Primary: POST /api/waiting-list
+     * Alias: POST /api/v1/waiting-list, POST /api/leads
+   - Validasi Email Ketat (Backend):
+     * Format RFC 5322 via net/mail.ParseAddress
+     * Trim whitespace otomatis
+     * Pengecekan domain dan dot (.) minimal
+     * Maksimal panjang 254 karakter
+     * Input invalid atau kosong ditolak secara tegas dengan HTTP 400 Bad Request.
+   - Persistence Database: Disimpan ke PostgreSQL tabel `waiting_list_leads` (id, email, source, status, created_at).
+   - Dojo Webhook Dispatcher:
+     * Event payload: {"event": "waiting_list.signup", "lead_id": "...", "email": "...", "source": "...", "action": "send_welcome_email", "trigger_email": true}
+     * Header autentikasi: X-Dojo-Secret, Authorization: Bearer, Content-Type: application/json
+     * Configurable via DOJO_WAITING_LIST_WEBHOOK_URL dengan graceful fallback jika URL tidak disetel/offline.
+
+3. State & Modal Transisi Thank You Menuju Founding Sponsor (/sponsor):
+   - Muncul otomatis seketika setelah formulir waiting list berhasil disubmit.
+   - Menampilkan konfirmasi email tersimpan dan penjelasan bahwa autoresponder Dojo telah memicu Welcome & Thank You Email ke inbox pengguna.
+   - Menjembatani ajakan Founding Sponsorship Cuan v1.0:
+     * Penawaran Pay-What-You-Want (min Rp 10.000 via Dojo gateway)
+     * Posisi Top 30 Leaderboard Homepage (Top 5 dominan dengan slogan & dofollow link)
+     * Pencatatan permanen di README.md GitHub repositori buchin/cuan
+     * Etika ketat anti-judol/pornografi
+   - Tombol aksi navigasi mulus mengarahkan pengguna ke /sponsor tanpa reload halaman (zero layout shift).
+
+4. Halaman Founding Sponsor Bridge (/sponsor & /sponsors):
+   - Menampilkan showcase program Founding Backers Batch v1.0.
+   - Menghubungi API live /api/sponsors/current untuk merender leaderboard dinamis (ORDER BY amount DESC, paid_at ASC).
+   - Navigasi kembali ke Beranda (/) dan Studio Dashboard (/app).
+
+5. Bukti Pengujian & Targeted Tests:
+   - Frontend Build:
+     > cuan-web@0.1.0 build
+     > tsc && vite build
+     vite v5.4.21 building for production...
+     ✓ 1602 modules transformed.
+     dist/index.html                   0.55 kB │ gzip:  0.36 kB
+     dist/assets/index-Bbxta7LO.css   42.30 kB │ gzip:  7.59 kB
+     dist/assets/index-B_AUVO1_.js   311.81 kB │ gzip: 82.98 kB
+     ✓ built in 2.56s (PASS)
+
+   - Targeted Go Test Suite:
+     === RUN   TestWaitingListLeadHTTP
+     --- PASS: TestWaitingListLeadHTTP (0.00s)
+     === RUN   TestWaitingListEndpoints
+     --- PASS: TestWaitingListEndpoints (0.00s)
+     === RUN   TestLandingPageAndSponsorRoutes
+     --- PASS: TestLandingPageAndSponsorRoutes (0.00s)
+     === RUN   TestWaitingListLeads
+     --- PASS: TestWaitingListLeads (0.00s)
+     === RUN   TestHTTPDojoDispatcher
+     --- PASS: TestHTTPDojoDispatcher (0.00s)
+     === RUN   TestDojoWebhookHTTP
+     --- PASS: TestDojoWebhookHTTP (0.00s)
+     === RUN   TestDojoWebhookReceiverAndIdempotency
+     --- PASS: TestDojoWebhookReceiverAndIdempotency (0.00s)
+     === RUN   TestLeaderboardOrdering
+     --- PASS: TestLeaderboardOrdering (0.00s)
+     PASS: 100% lulus (zero regression terhadap Sprint 1).
+
+=== RESULT: PASS (DoD S02.2 Terpenuhi 100%) ===

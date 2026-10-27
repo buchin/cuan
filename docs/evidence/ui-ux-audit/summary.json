@@ -1,0 +1,91 @@
+{
+  "scope": "UI/UX read-only audit of production and source; no implementation/deploy",
+  "url": "https://cuan.dojo.cc",
+  "routes": [
+    "inbox",
+    "tasks",
+    "projects",
+    "team",
+    "settings"
+  ],
+  "viewport_widths": [
+    1440,
+    1280,
+    1024,
+    820,
+    768,
+    390,
+    360
+  ],
+  "route_viewport_observations": 35,
+  "confirmed": [
+    {
+      "finding": "tablet contextual sidebar always open at md breakpoint",
+      "width820_main": 532,
+      "rail": 48,
+      "context_panel": 240
+    },
+    {
+      "finding": "mixed typography",
+      "agent_reply_px": 14,
+      "user_message_px": 12,
+      "contact_name_px": 12,
+      "contact_preview_px": 11,
+      "agent_badges_px": 9,
+      "timestamp_px": 10,
+      "composer_mobile_px": 16,
+      "composer_desktop_px": 12
+    },
+    {
+      "finding": "small controls",
+      "rail_buttons_px": [
+        36,
+        36
+      ],
+      "mobile_chat_header_buttons_px": [
+        32,
+        32
+      ],
+      "project_grid_toggle_px": [
+        28,
+        28
+      ],
+      "project_archive_icon_button_px": [
+        14,
+        14
+      ],
+      "message_task_action_height_px": 16
+    },
+    {
+      "finding": "hidden drawer remains keyboard-focusable",
+      "confirmed_at_tab": 14,
+      "escape_closes_drawer": false
+    },
+    {
+      "finding": "navigation inconsistency",
+      "primary_label": "Team",
+      "content_heading": "Agen"
+    },
+    {
+      "finding": "agent Connected badge hardcoded",
+      "source": "web/src/features/inbox/InboxSubPanel.tsx"
+    },
+    {
+      "finding": "global settings instructions refer to missing breadcrumb project dropdown",
+      "source": "web/src/features/settings/SettingsView.tsx"
+    },
+    {
+      "finding": "project settings save only sends repo_url/default_branch despite domain/server/env controls",
+      "source": "web/src/features/settings/SettingsView.tsx"
+    },
+    {
+      "finding": "Delete Project action maps to archive",
+      "source": "web/src/App.tsx"
+    }
+  ],
+  "limitations": [
+    "Chromium viewport emulation; not real iPad/iPhone, Safari keyboard or screen reader certification",
+    "No interviews or task-based user study; recommendations are expert audit hypotheses",
+    "No saves, provider executions, agent changes or destructive interactions performed"
+  ]
+}

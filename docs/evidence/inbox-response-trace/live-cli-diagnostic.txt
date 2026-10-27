@@ -1,0 +1,6 @@
+=== RUN   TestLiveInboxAgyDiagnostic
+    inbox_cli_test.go:82: Actual Cuan executeInboxCLI + bound profile + project CWD: structured reply validated, exit0/duration trace; no user-message replay or database writes
+--- PASS: TestLiveInboxAgyDiagnostic (13.36s)
+PASS
+
+

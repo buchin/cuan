@@ -1,0 +1,23 @@
+{
+  "applicationRelease": "3f98a030f4c39b5497733134e87b5f79c73cf64f",
+  "userExplicitlyRequestedRecovery": true,
+  "oldRuntimeProcesses": 0,
+  "mode": "same-conversation-continuation",
+  "oldRetryStatus": 409,
+  "startedAt": "2026-10-20T09:40:46.483Z",
+  "finishedAt": "2026-10-20T09:41:54.889Z",
+  "result": {
+    "state": "completed",
+    "stepCount": 29,
+    "toolFailures": 0,
+    "permissionDenials": 0,
+    "linkedNewTasks": 0,
+    "lastStep": "finished",
+    "replyPresent": true,
+    "replyLength": 786,
+    "safeError": "",
+    "activeRequests": 0
+  },
+  "documentedAddressMatchesConfiguredProductionHost": true,
+  "rawReplyAndCredentialsOmitted": true
+}

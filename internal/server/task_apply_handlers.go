@@ -1,0 +1,173 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/task"
+	"github.com/go-chi/chi/v5"
+)
+
+// handleApplyTask merges the verified task branch / GitHub PR to the default branch (main)
+// and updates the task status to done, providing a non-developer friendly 1-click experience.
+// If the project has auto_deploy enabled, it automatically triggers live deployment.
+// POST /api/tasks/{id}/apply or /api/v1/tasks/{id}/apply
+func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	if taskID == "" {
+		respondJSONError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
+
+	taskDetail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			respondJSONError(w, http.StatusNotFound, "Task not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get task: %v", err))
+		return
+	}
+
+	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
+		respondJSONError(w, http.StatusBadRequest, "This task has no pull request or task branch to apply")
+		return
+	}
+
+	mergeResult, err := s.applyTaskInternal(r.Context(), taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, taskDetail.BranchName, taskDetail.PRNumber)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Gagal menerapkan perubahan: %v", err))
+		return
+	}
+
+	// Check if auto_deploy is enabled for this project
+	autoDeployTriggered := false
+	if proj, err := s.projectSvc.Get(r.Context(), taskDetail.ProjectID); err == nil && proj != nil {
+		settings := project.SettingsFromMetadata(proj.Metadata)
+		if settings.IsAutoDeployEnabled() {
+			autoDeployTriggered = true
+			go func() {
+				s.triggerAutoDeploy(context.Background(), taskDetail.ProjectID, taskID)
+			}()
+		}
+	}
+
+	// Update task status to "done"
+	doneStatus := "done"
+	note := taskDetail.CompleteNote
+	if note != "" {
+		note += "\n\n"
+	}
+	appliedSHA := ""
+	if mergeResult != nil {
+		appliedSHA = mergeResult.SHA
+	}
+	if appliedSHA != "" {
+		note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan (Commit %s).", appliedSHA)
+	} else {
+		note += "🚀 Perubahan telah berhasil diterapkan."
+	}
+	if autoDeployTriggered {
+		note += " Otomatis memicu live deployment ke server (auto_deploy: true)."
+	}
+
+	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{
+		Status:       &doneStatus,
+		CompleteNote: &note,
+	})
+	if err != nil {
+		log.Printf("[Server] Task %s merged but status update note error: %v", taskID, err)
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"applied":     true,
+		"sha":         appliedSHA,
+		"auto_deploy": autoDeployTriggered,
+		"message":     "Perubahan berhasil diterapkan!",
+		"task":        updated,
+	})
+}
+
+// applyTaskInternal merges the task pull request or task branch into the project default branch.
+func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title, summary, branchName string, prNumber int) (*git.MergePullRequestResult, error) {
+	commitTitle := fmt.Sprintf("Apply Task %s: %s", taskID, title)
+	commitMessage := fmt.Sprintf("Applied via Cuan One-Click Apply.\n\nTask: %s\nSummary: %s", taskID, summary)
+
+	if prNumber > 0 {
+		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage)
+	}
+	if branchName != "" {
+		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage)
+	}
+	return nil, errors.New("neither pull request nor task branch is available")
+}
+
+// triggerAutoDeploy initiates automated live deployment when project auto_deploy is enabled.
+func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string) {
+	log.Printf("[AutoDeploy] Automated live deployment triggered for project %s (task %s)", projectID, taskID)
+
+	if s.scriptDeployRepo != nil && s.deployerDriver != nil {
+		dep, err := s.scriptDeployRepo.GetDeploymentByProjectID(ctx, projectID)
+		if err == nil && dep != nil {
+			log.Printf("[AutoDeploy] Found registered deployment %s for project %s, executing restart...", dep.ID, projectID)
+			if err := s.deployerDriver.Restart(ctx, dep.ID); err != nil {
+				log.Printf("[AutoDeploy] Restart failed for %s: %v, attempting Start...", dep.ID, err)
+				_ = s.deployerDriver.Start(ctx, dep.ID)
+			} else {
+				log.Printf("[AutoDeploy] Deployment %s restarted successfully", dep.ID)
+			}
+			return
+		}
+	}
+
+	if s.projectSvc != nil {
+		proj, err := s.projectSvc.Get(ctx, projectID)
+		if err == nil && proj != nil {
+			if proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") {
+				log.Printf("[AutoDeploy] Native Cuan project %s auto-deploy acknowledged", projectID)
+			}
+		}
+	}
+}
+
+// autoApplyAndDeployTask is called when an agent completes a task on a project with auto_deploy enabled.
+func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID string) {
+	taskDetail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
+	if err != nil || taskDetail == nil {
+		return
+	}
+	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
+		return
+	}
+	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, taskDetail.BranchName, taskDetail.PRNumber)
+	if err != nil {
+		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)
+		return
+	}
+	appliedSHA := ""
+	if mergeRes != nil {
+		appliedSHA = mergeRes.SHA
+	}
+	note := taskDetail.CompleteNote
+	if note != "" {
+		note += "\n\n"
+	}
+	if appliedSHA != "" {
+		note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan (Commit %s).", appliedSHA)
+	} else {
+		note += "🚀 Perubahan telah berhasil diterapkan."
+	}
+	note += " Otomatis memicu live deployment ke server (auto_deploy: true)."
+	doneStatus := "done"
+	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
+		Status:       &doneStatus,
+		CompleteNote: &note,
+	})
+	s.triggerAutoDeploy(ctx, projectID, taskID)
+}

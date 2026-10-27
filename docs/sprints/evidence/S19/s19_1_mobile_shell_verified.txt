@@ -1,0 +1,53 @@
+=== CUAN SPRINT 19 (S19.1) EVIDENCE: MOBILE RESPONSIVE SHELL & BOTTOM NAVIGATION BAR VERIFIED ===
+Timestamp:     2026-10-18T19:24:00Z
+Task ID:       vpbdhgzoajwlebjhttwcviiy
+Title:         S19.1 — Mobile Responsive Shell & Bottom Navigation Bar
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. PRIMARY ICON RAIL (48PX) MOBILE ELIMINATION
+================================================================================
+   - File: web/src/components/layout/AppShell.tsx
+   - Class applied: `hidden md:flex w-12 shrink-0 flex-col border-r border-border bg-sidebar`
+   - Verification:
+     * Pada viewport mobile (< md / 360px-414px): Rail 48px tersembunyi penuh (0px width).
+     * Pada viewport desktop (>= md): Rail 48px tetap tampil stabil dengan logo 'C', 4 icon nav, quick project add, theme toggle, collapse button, dan user avatar.
+     * Tidak ada lagi konsumsi horizontal 48px yang merampas lebar layar smartphone.
+
+================================================================================
+2. MOBILE BOTTOM NAVIGATION BAR (MD:HIDDEN)
+================================================================================
+   - File: web/src/components/layout/AppShell.tsx
+   - Class applied: `md:hidden fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-border z-30 flex items-center justify-around px-2 shadow-lg`
+   - Tab Items:
+     1. Inbox (Icon: Inbox, label: 'Inbox')
+     2. Projects (Icon: FolderGit2, label: 'Projects')
+     3. Agents (Icon: Bot, label: 'Agents')
+     4. Team (Icon: Users, label: 'Team')
+   - Active Indicator:
+     * Tab aktif disorot dengan warna primer: `text-primary font-bold`.
+     * Tab inaktif berpenampilan hening: `text-muted-foreground hover:text-foreground`.
+   - Content Padding Gate:
+     * Main container diberikan padding bawah `pb-16 md:pb-0` sehingga tidak ada konten atau form yang terpotong di balik bottom bar.
+     * Tab Inbox menggunakan `p-0 pb-16 md:pb-0` agar chat dapat mencapai batas tepi layar ponsel secara natural.
+
+================================================================================
+3. MOBILE TOP BAR HEADER (THEME TOGGLE & USER PROFILE)
+================================================================================
+   - File: web/src/components/layout/AppShell.tsx & NavUser.tsx
+   - Mobile Header Features:
+     * Left: Brand badge 'C' (primary font-mono) + breadcrumb 'Cuan / TabName'.
+     * Right:
+       - Theme Toggle button (Moon/Sun) langsung aktif dengan 1 ketukan (`md:hidden`).
+       - User Avatar button dengan dropdown popover (`md:hidden`, `dropdownPosition="bottom-right"`).
+       - Popover menyediakan menu lengkap: username, email, OWNER badge, 'Profil & Ganti Password', dan 'Keluar (Logout)'.
+
+================================================================================
+4. BUILD & TYPE INTEGRITY
+================================================================================
+   - TypeScript compiler (tsc): Clean, 0 errors.
+   - Vite bundle: dist/assets/index-*.js dan dist/assets/index-*.css terkompilasi optimal.
+
+=== STATUS: S19.1 MOBILE RESPONSIVE SHELL & BOTTOM NAVIGATION BAR VERIFIED PASS ===

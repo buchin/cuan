@@ -1,0 +1,26 @@
+=== CUAN SPRINT 1 (T6) EVIDENCE: DEFAULT BRANCH PROTECTION ===
+Timestamp: 2026-10-16T15:19:00Z
+DoD Requirement: Branch default terlindungi (tidak dipush langsung oleh agent).
+
+1. Dual-Layer Defense Architecture:
+   Layer 1 (Application / Engine Guardrail):
+     - Function: PushTaskBranch(ctx, workspacePath, branchName, defaultBranch, token)
+     - Guard: If branchName == defaultBranch || branchName == "main" || branchName == "master", immediate rejection with ErrDefaultBranchProtected.
+   Layer 2 (Git Pre-Push Hook Guardrail):
+     - Hook Location: <workspace>/.git/hooks/pre-push (executable 0755)
+     - Guard: Inspects all ref updates being pushed. Rejects any target ref pointing to refs/heads/main, refs/heads/master, or refs/heads/<defaultBranch>.
+     - Exit Code: 1 with explicit diagnostic message:
+       "ERROR: Direct push to protected default branch 'refs/heads/main' is PROHIBITED. All changes must be committed to a task branch and merged via Pull Request."
+
+2. Verification Drill:
+   A. Application Layer Test:
+      - Attempt 1: Push targeting "main" -> REJECTED: cannot push directly to protected default branch (main/master).
+      - Attempt 2: Push targeting "master" -> REJECTED: cannot push directly to protected default branch (main/master).
+   B. Pre-Push Hook Simulation Test:
+      - Simulating git push origin refs/heads/main via hook stdin -> Exit Code: 1 (PROHIBITED).
+
+3. Automated Test Verification:
+   - Test: github.com/buchin/cuan/internal/git.TestBranchProtection_DirectPushRejected
+   - Outcome: PASS (0.05s)
+
+=== RESULT: PASS (Branch default main/master terlindungi secara berlapis; agent dilarang push langsung) ===

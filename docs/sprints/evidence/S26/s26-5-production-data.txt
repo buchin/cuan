@@ -1,0 +1,1 @@
+{"allExistingTablesUnchangedAfterReleaseAndRollback": true, "changedTables": [], "tableCount": 34, "agentCountBefore": 0, "agentCountAfter": 0, "autoMigrateOff": true}

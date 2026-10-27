@@ -1,0 +1,11 @@
+{
+  "actualProbeHTTP": 200,
+  "connection_state": "verified",
+  "last_checked_at": "2026-10-19T02:29:17.764542121Z",
+  "verified_at": "2026-10-19T02:29:17.764542121Z",
+  "firstRow": "@pin2\n\nAntigravity · Terhubung\n\nDiperiksa 09:29 AM",
+  "rowAfterReload": "@pin2\n\nAntigravity · Terhubung\n\nDiperiksa 09:29 AM",
+  "persistsAfterReload": true,
+  "verifiedUsesRefreshIcon": true,
+  "fixture": false
+}

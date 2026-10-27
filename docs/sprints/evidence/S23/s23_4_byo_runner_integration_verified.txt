@@ -1,0 +1,44 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 23: S23.4 — BYO AGENT TASK RUNNER INTEGRATION
+================================================================================
+Timestamp:     2026-10-18T16:29:00Z
+Task ID:       khiopzibgiyozwqjddtmwuxb
+Title:         Sprint 23: Fural-Style BYO Agent Connection & Dynamic Chat Roles
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. BYO AGENT RUNNER INTEGRATION & PTY DISPATCH
+================================================================================
+- Mengintegrasikan akun BYO Agent yang didaftarkan (dengan nama @handle dan harness) dengan PTY Task Runner:
+  * Backend API POST /api/v1/tasks/{id}/run-agent menerima agent_id dan binary runner, secara otomatis menyelesaikan konfigurasi agen dari registry jika terdaftar.
+  * Mendukung eksekusi harness: Antigravity (`agy`), Claude Code (`claude`), Codex (`codex`), dan fallback Interactive Shell (`shell`).
+  * Mengupdate status eksekusi task (`execution_status = "running"`) dan status pengerjaan saat runner aktif.
+  * Callback exit code runtime mencatat riwayat eksekusi dan memperbarui status task ke database studio.
+
+- Sinkronisasi Frontend Task Board & SidePeek:
+  * Dropdown penugasan agen (Assignee) memuat daftar agen BYO dinamis dari API `/api/v1/agents` dengan label `@handle (harness)`.
+  * TaskSidePeek mengikat eksekusi xterm.js PTY ke binary runner harness yang dipilih.
+  * TaskBoardView menampilkan avatar bot, handle agen, harness, dan badge animasi status eksekusi (`running` dengan pulse hijau, `completed`, `failed`) secara konsisten di setiap kartu task.
+
+================================================================================
+2. HASIL TARGETED UNIT TEST (100% PASS)
+================================================================================
+=== RUN   TestServer_TaskTerminalWebSocket_RootAndV1Endpoints
+--- PASS: TestServer_TaskTerminalWebSocket_RootAndV1Endpoints (0.01s)
+=== RUN   TestServer_TaskTerminalWebSocket_InteractiveTakeOverAndResize
+--- PASS: TestServer_TaskTerminalWebSocket_InteractiveTakeOverAndResize (0.01s)
+=== RUN   TestServer_TaskTerminalWebSocket_WatchMode
+--- PASS: TestServer_TaskTerminalWebSocket_WatchMode (0.00s)
+=== RUN   TestServer_TaskTerminalWebSocket_Authentication
+--- PASS: TestServer_TaskTerminalWebSocket_Authentication (0.10s)
+=== RUN   TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness
+--- PASS: TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.130s
+
+================================================================================
+KESIMPULAN: DoD S23.4 TERPENUHI 100%
+================================================================================

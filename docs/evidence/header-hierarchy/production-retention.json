@@ -1,0 +1,2 @@
+{"retainedTablesVerified": 35, "authSessionsExcluded": true, "profileFilesVerified": 493, "differentTables": [], "changedProfileFiles": 0, "schema": 22, "autoMigrate": false, "release": "cb7ad7e3142bb34804dc969c6b50395de69e59f9", "readiness": {"database": "connected", "migrations": "applied", "migrations_count": 22, "owner_configured": true, "status": "ready"}, "remainingSmokeContacts": "0"}
+

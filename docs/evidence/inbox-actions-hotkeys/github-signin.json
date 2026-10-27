@@ -1,0 +1,20 @@
+{
+  "production": "PASS",
+  "release": "803277ef3cc2ae3fef311f5d3a6dcbbd736e3c99",
+  "singlePrimarySignIn": true,
+  "tokenAndSetupHiddenByDefault": true,
+  "unconfiguredClickFeedback": true,
+  "advancedSetupWorks": true,
+  "responsive": [
+    390,
+    820,
+    1440
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "oauthConfigured": false,
+  "providerCalls": 0,
+  "postLoginWritesBlocked": true
+}

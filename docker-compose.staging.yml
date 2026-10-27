@@ -1,0 +1,98 @@
+services:
+  # Cuan Application Server — Staging Instance
+  # Runs isolated from Stable: dedicated database, network, port, and volume storage.
+  app:
+    image: ${CUAN_IMAGE:-cuan:staging}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8081}:8080"
+    environment:
+      CUAN_ENV: staging
+      CUAN_APP_VERSION: ${CUAN_APP_VERSION:-0.1.0-staging}
+      PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-cuan_staging}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}@db:5432/${POSTGRES_DB:-cuan_staging}?sslmode=disable
+      CUAN_AUTH_SECRET: ${CUAN_AUTH_SECRET:?Set CUAN_AUTH_SECRET in your environment file}
+      CUAN_STATIC_DIR: /app/web/dist
+      CUAN_AUTO_MIGRATE: "true"
+      CUAN_DB_MAX_OPEN_CONNS: ${CUAN_DB_MAX_OPEN_CONNS:-15}
+      CUAN_DB_MAX_IDLE_CONNS: ${CUAN_DB_MAX_IDLE_CONNS:-5}
+      CUAN_DB_CONN_MAX_LIFETIME: ${CUAN_DB_CONN_MAX_LIFETIME:-5m}
+    volumes:
+      - cuan_staging_app_data:/app/data
+      - cuan_staging_app_home:/home/cuan
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/cuan-server", "--healthcheck"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    networks:
+      - cuan-staging-network
+
+  # Staging PostgreSQL Persistent Storage
+  # Note: Port 5432 is strictly internal to cuan-staging-network; no host collision with Stable.
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cuan_staging}
+      POSTGRES_USER: ${POSTGRES_USER:-cuan_staging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment file}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - cuan_staging_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-cuan_staging} -d $${POSTGRES_DB:-cuan_staging}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cuan-staging-network
+
+  # Optional Caddy Reverse Proxy for Staging with dedicated subdomain
+  # e.g. staging.cuan.example.com
+  caddy:
+    image: caddy:2-alpine
+    profiles:
+      - proxy
+    restart: unless-stopped
+    ports:
+      - "${STAGING_HTTP_PORT:-8082}:80"
+      - "${STAGING_HTTPS_PORT:-8443}:443"
+    environment:
+      CUAN_DOMAIN: ${CUAN_STAGING_DOMAIN:-staging.localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - cuan_staging_caddy_data:/data
+      - cuan_staging_caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - cuan-staging-network
+
+volumes:
+  cuan_staging_app_data:
+    name: cuan_staging_app_data
+  cuan_staging_app_home:
+    name: cuan_staging_app_home
+  cuan_staging_postgres_data:
+    name: cuan_staging_postgres_data
+  cuan_staging_caddy_data:
+    name: cuan_staging_caddy_data
+  cuan_staging_caddy_config:
+    name: cuan_staging_caddy_config
+
+networks:
+  cuan-staging-network:
+    name: cuan-staging-network
+    driver: bridge

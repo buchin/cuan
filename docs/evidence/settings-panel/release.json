@@ -1,0 +1,18 @@
+{
+  "release": "fd20e716e6f0fab907b9657da5df7b6652a71441",
+  "healthy": true,
+  "schema": 25,
+  "rollbackReactivationPassed": true,
+  "testedReleasedFrontendAssetsMatch": {
+    "index-ByRBNaNf.js": "1246e894084dfb37a566ae21d683447b92bc37fda1477f83007848e36527a18d",
+    "index-DilZK64u.css": "a97829fa1194bccd9f586990b5b55156d551c1b63a1dceb68cf5bc53cb6af969"
+  },
+  "productionSidebarPositionRetained": true,
+  "productionTasksLinkVerified": true,
+  "retainedTables": 37,
+  "unchangedProfileFiles": 904,
+  "retainedItemEntries": 6,
+  "notificationReadFlags": 11,
+  "productionApplicationWrites": 0,
+  "providerInvocations": 0
+}

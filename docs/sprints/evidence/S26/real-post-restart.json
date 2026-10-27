@@ -1,0 +1,29 @@
+{
+  "restartExecuted": true,
+  "initialReadDuringStartup": "502; readiness subsequently returned healthy before verification",
+  "pin2RealReplyPersists": true,
+  "pin1PriorRealReplyRetained": true,
+  "agents": [
+    {
+      "id": "agent_pin2",
+      "connection_id": "conn_profile_c6e4bd8b-67eb-41b8-9ada-96ed6b8cd356",
+      "state": "verified",
+      "last_checked_at": "2026-10-19T02:29:17.764542121Z",
+      "verified_at": "2026-10-19T02:29:17.764542121Z"
+    },
+    {
+      "id": "agent_pin1",
+      "connection_id": "conn_agent_pin1",
+      "state": "quota_limited",
+      "last_checked_at": "2026-10-19T02:24:50.75570042Z"
+    }
+  ],
+  "readiness": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 19,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "productionUnchanged": true
+}

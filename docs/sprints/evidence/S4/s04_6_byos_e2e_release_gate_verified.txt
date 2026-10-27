@@ -1,0 +1,99 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 4: S04.6 — STAGING E2E DRILL (BYOS SSH), RELEASE GATE & 100% DATA RETENTION
+================================================================================
+Timestamp:     2026-10-17T01:19:48Z
+Task ID:       pfwzwzxjrieycoyoofmomagy
+Title:         S04.6 — Staging E2E Drill (BYOS SSH), Release Gate & 100% Data Retention
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. STAGING ENVIRONMENT INITIALIZATION & PROBES (PORT 8081)
+================================================================================
+   - Server Port: 8081 (Environment: staging)
+   - Base Domain: cuan.dojo.cc (Subdomain Pattern: {slug}.cuan.dojo.cc)
+   - Active App Mode: studio (/api/system/mode verified)
+   - Probes: /healthz (200 OK) & /readyz (200 OK) verified operational
+   - Dynamic Caddy Engine: Connected to Admin API at http://127.0.0.1:41597
+
+================================================================================
+2. BYOS REMOTE SERVER CONNECTION & SSH HEALTH PROBE DRILL
+================================================================================
+   - Server ID: srv_5cf0438907ba0985 (Name: Production BYOS Worker Node)
+   - Remote Target: ubuntu@127.0.0.1:39169 (Auth: key)
+   - OpenSSH Fingerprint: SHA256:mwnKd53lhDLL417OOrdJJ0YuFG5ocHEQ2c+TSpeGIo0
+   - Instant Health Probe: Status=online, OS='Ubuntu 22.04.4 LTS', CPU=8 Cores, RAM=16384 MB
+   - SSH Handshake Latency: 1 ms (Verified <= 5s timeout guardrail)
+
+================================================================================
+3. BYOS REMOTE DEPLOYMENT WORKFLOW (ZIP -> SFTP/SSH STREAM -> RUNNER)
+================================================================================
+   - Deployment ID: dep_0db0e26845e95ed2 (Slug: remote-worker)
+   - Target Server ID: srv_5cf0438907ba0985 (Remote Worker Dispatched)
+   - Detected Runtime: nodejs (Extracted Path: ~/cuan-apps/dep_0db0e26845e95ed2)
+   - Anti-ZipSlip Stream Extraction: Verified (4 files received on remote host)
+
+================================================================================
+4. REMOTE PROCESS LIFECYCLE CONTROLS DRILL (START -> HEALTH -> RESTART -> LOGS -> STOP -> DELETE)
+================================================================================
+   - [START] Remote process spawned with PID 1337 on port 9000
+   - [START] Dynamic Caddy Route registered for subdomain 'remote-worker.cuan.dojo.cc'
+   - [HEALTH] Process liveness probe: alive=true, port_responding=true (PID 1337)
+   - [RESTART] 1-Click graceful restart executed cleanly on remote host without port collision
+   - [LOGS] Streamed 14 audit & process log entries via /api/deployments/{id}/logs
+   - [STOP] Deployment stopped cleanly (SIGTERM/SIGKILL sent, port lease released, Caddy route revoked)
+
+================================================================================
+5. KEY VAULT SECURITY AUDIT (AES-256-GCM AT-REST & ZERO-LEAKAGE SERIALIZATION)
+================================================================================
+   - At-Rest Encryption: Verified AES-256-GCM ciphertext in PostgreSQL table 'servers'
+   - Master Key Derivation: KeyVault SHA-256 domain-separated derivation verified
+   - Tamper Detection: Verified (authentication tag mismatch triggers immediate rejection)
+   - Key Isolation: Verified (decryption with unauthorized master key fails)
+   - Nonce Randomness: Verified unique 12-byte cryptographically secure nonce per encryption
+   - Model Sanitization: db.Server json:"-" tag verified (EncryptedKey omitted)
+   - DTO Sanitization: db.ServerDTO zero credential fields verified
+   - Endpoint Audit GET /api/servers: 0 sensitive tokens in public response
+   - Endpoint Audit GET /api/servers/{id}: 0 sensitive tokens in public response
+   - Endpoint Audit POST /api/servers/{id}/test: 0 sensitive tokens in public response
+
+================================================================================
+6. CADDY REVERSE PROXY ROUTING & REMOTE PATH TRAVERSAL DEFENSE
+================================================================================
+   - Caddyfile Syntax: Validated via 'caddy adapt' (clean JSON output, 0 warnings)
+   - Remote Path Traversal Defense: 8 attack vectors safely blocked (ErrRemotePathTraversal)
+   - Sandbox Directory Boundary: Strictly constrained to ~/cuan-apps/<deployment_id>/
+
+================================================================================
+7. STABLE DEPLOYMENT GATE & 100% DATA RETENTION POST-MIGRATION (PORT 8080)
+================================================================================
+   - Non-Destructive Additive Schema: Migration 000009 (BYOS servers) verified
+   - Owner Account Retention: 100% intact (owner@cuan.dev login verified)
+   - Sprint 1 Tasks & Board: 8/8 tasks intact with original status, comments & attempts
+   - Sprint 1 Attempt Integrity: Attempt att_919e2953c617 succeeded with exit_code=0
+   - Sprint 2 Waiting List Leads: Lead 'lead@example.com' intact
+   - Sprint 2 Sponsorships & Orders: Sponsor 'Dojo Network' (Rp 1000000) intact on batch 'v1.0'
+   - Sprint 3 Local Deployment: local-legacy (LocalDriver) intact and active
+   - Sprint 4 BYOS Remote Deployment: stable-byos (RemoteSSHDriver) dispatched successfully
+   - Hybrid Coexistence: DriverFactory seamlessly delegates Local vs Remote targets
+
+================================================================================
+8. DEFINITION OF DONE (DoD) AUDIT MATRIX & CONCLUSION
+================================================================================
+| Requirement / Release Gate | Staging (8081) | Stable (8080) | DoD Status |
+| -------------------------- | -------------- | ------------- | ---------- |
+| BYOS SSH Server Registration & KeyVault AES-256-GCM | PASS (201 Created) | PASS | VERIFIED |
+| SSH Handshake & System Fingerprint Probe (OS, CPU, RAM) | PASS (200 OK) | PASS | VERIFIED |
+| Remote Bundle Transfer & Anti-ZipSlip Stream Extraction | PASS (201 Created) | PASS | VERIFIED |
+| Lifecycle Controls (Start, Health, Restart, Logs, Stop) | PASS | PASS | VERIFIED |
+| KeyVault AES-256-GCM At-Rest & Zero-Leakage Serialization | PASS (Encrypted) | PASS (Masked) | VERIFIED |
+| Remote Path Traversal Defense (~/cuan-apps/<id>/ Boundary) | PASS (Blocked) | PASS (Blocked) | VERIFIED |
+| Dynamic Caddy Subdomain Routing ({slug}.cuan.dojo.cc) | PASS | PASS | VERIFIED |
+| 100% Data Retention of Sprint 1 Historical Data | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| 100% Data Retention of Sprint 2 Historical Data | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| 100% Data Retention of Sprint 3 Local Deployments | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| Hybrid Co-located Local + Remote BYOS Architecture | PASS | PASS | VERIFIED |
+
+=== FINAL VERDICT: S04.6 STAGING BYOS DRILL & STABLE RELEASE GATE PASSED 100% ===

@@ -1,0 +1,51 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 23: S23.1 — FURAL-STYLE AGENT REGISTRY & BACKEND API REFACTORING
+================================================================================
+Timestamp:     2026-10-18T16:17:00Z
+Task ID:       khiopzibgiyozwqjddtmwuxb
+Title:         Sprint 23: Fural-Style BYO Agent Connection & Dynamic Chat Roles
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. ELIMINASI PERAN KAKU & STANDARISASI FORMAT ENTITAS FURAL
+================================================================================
+- Entitas Agen dan DTO telah distandarisasi ke format Fural:
+  {
+    "id": "c053475c-0513-435b-9bb2-b548ab5b0068",
+    "name": "@dev",
+    "harness": "agy",
+    "connection_id": "conn_dev_session_123",
+    "enabled": true
+  }
+- Field peran bisnis kaku (CS Toko, Admin, dll.) telah dieliminasi dari skema penyimpanan agen.
+- Agen murni didefinisikan oleh Nama (@handle), Harness, dan Sesi Koneksi Akun.
+
+================================================================================
+2. VERIFIKASI REST API ENDPOINTS
+================================================================================
+- POST   /api/v1/agents      -> 201 Created (registrasi agen format Fural {id, name, harness, connection_id, enabled})
+- GET    /api/v1/agents      -> 200 OK (daftar agen aktif & terpasang)
+- GET    /api/v1/agents/{id} -> 200 OK (detail agen format Fural)
+- PATCH  /api/v1/agents/{id} -> 200 OK (update parsial nama, harness, connection_id, status enabled)
+- DELETE /api/v1/agents/{id} -> 200 OK (penghapusan agen, 404 pada get berikutnya)
+
+================================================================================
+3. HASIL TARGETED UNIT TEST
+================================================================================
+=== RUN   TestAgentHandlers_S23_1_FuralStyleRegistry
+2026/10/18 23:16:57 "POST /api/v1/agents" - 201 Created in 247.4µs
+2026/10/18 23:16:57 "GET /api/v1/agents/c053475c-0513-435b-9bb2-b548ab5b0068" - 200 OK in 9.1µs
+2026/10/18 23:16:57 "GET /api/v1/agents" - 200 OK in 14.1µs
+2026/10/18 23:16:57 "PATCH /api/v1/agents/c053475c-0513-435b-9bb2-b548ab5b0068" - 200 OK in 20.6µs
+2026/10/18 23:16:57 "DELETE /api/v1/agents/c053475c-0513-435b-9bb2-b548ab5b0068" - 200 OK in 3.6µs
+2026/10/18 23:16:57 "GET /api/v1/agents/c053475c-0513-435b-9bb2-b548ab5b0068" - 404 Not Found in 7.6µs
+--- PASS: TestAgentHandlers_S23_1_FuralStyleRegistry (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/server	0.006s
+
+================================================================================
+KESIMPULAN: DoD S23.1 TERPENUHI 100%
+================================================================================

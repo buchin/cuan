@@ -1,0 +1,17 @@
+{
+  "release": "7b5362de7a0b396bbd431ad5f212ba344998fe55",
+  "healthy": true,
+  "schema": 25,
+  "autoMigrate": false,
+  "rollbackReactivationPassed": true,
+  "testedReleasedFrontendAssetsMatch": {
+    "index-Cybj63Pa.css": "6ab376c10c2008de20ad501e08ddc9bada5680b72b4314ecb4ac0f647df0553e",
+    "index-mrBfTS3V.js": "8393c802a86244e5c97dac72f0bcf54734094bfae80289df62e261b4930197f9"
+  },
+  "retainedApplicationTables": 37,
+  "unchangedProfileFiles": 904,
+  "retainedItemPreferences": 6,
+  "notificationReadFlags": 11,
+  "productionApplicationWrites": 0,
+  "productionProviderCalls": 0
+}

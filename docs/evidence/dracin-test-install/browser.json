@@ -1,0 +1,20 @@
+{
+  "url": "https://cuan-goal-test-dojo-dojo.fural.space",
+  "checks": [
+    {
+      "width": 390,
+      "agentsPageReady": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "agentsPageReady": true,
+      "noOverflow": true
+    }
+  ],
+  "ownerLoginVerified": true,
+  "googleConnectFormVerified": true,
+  "noPageErrors": true,
+  "googleConsentPending": true,
+  "providerCalls": 0
+}

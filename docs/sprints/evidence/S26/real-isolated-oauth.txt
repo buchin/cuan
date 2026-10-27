@@ -1,0 +1,5 @@
+=== RUN   TestS26RealIsolatedOAuthURL
+    account_profiles_test.go:146: Two actual isolated CLI profiles produced official Google OAuth URLs with distinct sessions; URL/session withheld. No consent/code submitted.
+--- PASS: TestS26RealIsolatedOAuthURL (2.14s)
+PASS
+ok  	github.com/buchin/cuan/internal/agent	2.140s

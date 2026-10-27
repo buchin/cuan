@@ -1,0 +1,14 @@
+{
+  "code": "0232d2360ddf8834c1ab2ffd84b2d0d3647a001e",
+  "targetedRegressionPassed": true,
+  "isolatedProductionHostPTYAndDelegationPassed": true,
+  "productionUIAndAssetsPassed": true,
+  "retainedTables": 35,
+  "retainedProfileFiles": 706,
+  "migrations": 0,
+  "schema": 23,
+  "realProviderInvocations": 0,
+  "liveModelAdherenceTested": false,
+  "semanticConsentModelResponsibility": true,
+  "checkoutFastForwarded": true
+}

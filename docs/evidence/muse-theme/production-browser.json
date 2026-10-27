@@ -1,0 +1,114 @@
+{
+  "url": "https://cuan.dojo.cc",
+  "release": "9708a0d69f6ec800923356d1607b08db9fa13f32",
+  "ownerLogin": 200,
+  "markdown": {
+    "messages": 3,
+    "strong": 4,
+    "lists": 4,
+    "code": 9
+  },
+  "themeChecks": [
+    {
+      "mode": "light",
+      "officialColorsMatch": true,
+      "radius": "1.25rem"
+    },
+    {
+      "mode": "dark",
+      "officialColorsMatch": true,
+      "radius": "1.25rem"
+    }
+  ],
+  "fonts": {
+    "family": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+    "loaded": [
+      "Geist Variable",
+      "Geist Mono Variable"
+    ]
+  },
+  "fontAssets": [
+    "geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+    "geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+    "geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+    "geist-latin-wght-normal-BgDaEnEv.woff2",
+    "geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2",
+    "geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2",
+    "geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2",
+    "geist-mono-latin-wght-normal-XN7g48iV.woff2",
+    "geist-mono-symbols2-wght-normal-CO5SzqOn.woff2",
+    "geist-mono-vietnamese-wght-normal-DadHysG0.woff2",
+    "geist-vietnamese-wght-normal-6IgcOCM7.woff2"
+  ],
+  "routes": [
+    {
+      "route": "inbox",
+      "status": "rendered",
+      "noOverflow": true
+    },
+    {
+      "route": "tasks",
+      "status": "rendered",
+      "noOverflow": true
+    },
+    {
+      "route": "projects",
+      "status": "rendered",
+      "noOverflow": true
+    },
+    {
+      "route": "settings",
+      "status": "rendered",
+      "noOverflow": true
+    }
+  ],
+  "darkModePersists": true,
+  "checks": [
+    {
+      "path": "/healthz",
+      "status": 200
+    },
+    {
+      "path": "/readyz",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/agents/",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/projects",
+      "status": 200
+    }
+  ],
+  "assets": [
+    {
+      "path": "/assets/index-DmiaAhjJ.js",
+      "sha256": "b4a9cd1ba09bdfde733d099430b97f5cb7d7c789e8ed8216d526f36cc46646d4"
+    },
+    {
+      "path": "/assets/index-CiciDnsy.css",
+      "sha256": "2b4e01a558ee0eac575f039d0884bbeef82dfca5a8f68c9c37e3dd1561cbbd4d"
+    }
+  ],
+  "layouts": [
+    {
+      "width": 360,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "overflow": false
+    }
+  ],
+  "javascriptErrors": 0,
+  "providerInvocation": false
+}

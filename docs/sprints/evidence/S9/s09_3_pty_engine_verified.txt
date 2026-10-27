@@ -1,0 +1,125 @@
+=== CUAN SPRINT 9 (S09.3) EVIDENCE: WEBSOCKET PSEUDO-TERMINAL (PTY) ENGINE VERIFIED ===
+Timestamp: 2026-10-17T15:15:00+07:00
+Task ID: ozlmhujuzonftqdngeojeqih
+Title: S09.3 — WebSocket Pseudo-Terminal (PTY) Engine (github.com/creack/pty)
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. SCOPE & DEFINITION OF DONE (DoD) VERIFICATION:
+   [x] 1. Engine PTY di internal/terminal/pty.go, session.go, dan manager.go menggunakan library standar github.com/creack/pty.
+   [x] 2. Endpoint WebSocket GET /api/tasks/{id}/terminal (dengan subprotokol/token autentikasi) dan alias GET /api/v1/tasks/{id}/terminal.
+   [x] 3. Dua mode operasional: Watch Mode (live output stream read-only) dan Interactive Take-Over Mode (bidirectional PTY: stdin, stdout, stderr, resize window SIGWINCH).
+   [x] 4. Isolasi direktori kerja shell pada workspace Git task, heartbeat interval (15s), dan graceful termination (SIGKILL/SIGHUP) saat client disconnect untuk mencegah orphan/zombie process.
+   [x] 5. Targeted unit tests di internal/terminal/... (spawn shell, bidirectional I/O, window resize, process termination) 100% PASS bebas regresi.
+   [x] 6. Guardrail keamanan: shell terbatas pada working directory task dengan hak akses terkontrol dan pembersihan (sanitasi) otomatis terhadap environment variables sensitif.
+   [x] 7. Berkas bukti audit di docs/sprints/evidence/S9/s09_3_pty_engine_verified.txt dan docs/sprints/evidence/S9/s09_3_pty_terminal_verified.txt.
+   [x] 8. Git commit author Buchin <buchin@dropsugar.com> dan push ke origin/main.
+
+2. ARSITEKTUR & KOMPONEN TEKNIS:
+   a. PTY Process & Shell Spawning Engine (internal/terminal/pty.go):
+      - Berbasis library standar github.com/creack/pty (v1.1.24).
+      - Deteksi shell host otomatis (/bin/bash, /usr/bin/bash, fallback ke /bin/sh).
+      - PTYProcess membungkus slave TTY dan master PTY descriptor dengan manipulasi ukuran window dinamis (pty.Setsize & SIGWINCH).
+      - Graceful termination: pengiriman sinyal SIGHUP ke process group, penutupan master descriptor, dan eskalasi SIGKILL jika proses tidak keluar dalam timeout, diikuti wait async pencegah zombie process (<defunct>).
+      - Sanitasi Environment Variables (SanitizeEnvironment):
+        * Whitelist variabel lingkungan aman: TERM (xterm-256color), LANG/LC_ALL (en_US.UTF-8), COLORTERM, TASK_ID, PWD, WORKSPACE_DIR, PATH, HOME, USER, SHELL.
+        * Redaksi dan blokir otomatis seluruh variabel bernilai rahasia: SECRET, PASSWORD, TOKEN, KEY, CREDENTIAL, AUTH, PRIVATE, AWS_, DOJO_, DATABASE_URL, RESEND, TINYFISH, NERD_, S3_.
+
+   b. Multi-Client Session & Operational Modes (internal/terminal/session.go):
+      - Mode Operasional:
+        * Watch Mode (ModeWatch): Read-only output streaming untuk observasi langsung pengerjaan kode oleh agent. Input stdin dari client diblokir dengan ErrReadOnlySession.
+        * Interactive Take-Over Mode (ModeInteractive): Bidirectional streaming di mana input keyboard pengguna langsung dipompa ke stdin PTY dan output di-broadcast secara real-time.
+        * Dynamic Mode Switching / Take-Over: Client dapat berpindah dari mode watch ke interactive take-over secara langsung melalui pesan WebSocket {"type": "takeover"} atau {"type": "mode", "mode": "interactive"}.
+      - Circular Scrollback Ring Buffer (128 KB):
+        * Setiap client baru yang tersambung langsung menerima snapshot buffer riwayat terminal sebelumnya sehingga tampilan tidak kosong saat reload/sambung ulang.
+      - Broadcast Fan-Out:
+        * Satu sesi task mendukung banyak subscriber bersamaan (misal operator lain yang sedang mengamati).
+
+   c. Workspace Isolation & Session Lifecycle Manager (internal/terminal/manager.go):
+      - Isolasi Direktori Kerja Task:
+        * ResolveTaskWorkspace memvalidasi task ID dengan strict alphanumeric regex.
+        * Memblokir seluruh upaya path traversal (../, ..\\, etc.) dan mengunci workspace di dalam base workspaces directory.
+      - Thread-Safe Registry & Lifecycle:
+        * Pembuatan dan pemakaian ulang sesi aktif berdasarkan task ID.
+        * Auto-cleanup hook: jika seluruh client disconnect, grace period timer (30s) akan membersihkan sesi.
+        * Background Sweeper (idleSweeper): membersihkan sesi idle/terbengkalai secara periodik (15 menit).
+
+   d. WebSocket Gateway & Server Integration (internal/terminal/handler.go & internal/server/terminal_handlers.go):
+      - Routing:
+        * GET    /api/tasks/{id}/terminal
+        * DELETE /api/tasks/{id}/terminal
+        * GET    /api/v1/tasks/{id}/terminal
+        * DELETE /api/v1/tasks/{id}/terminal
+        * GET    /api/projects/tasks/{id}/terminal
+        * GET    /api/terminal/sessions
+      - Autentikasi Fleksibel:
+        * Header: Authorization: Bearer <token>
+        * Query Param: ?token=<token> (ramah WebSocket browser native)
+        * Subprotokol WebSocket: Sec-WebSocket-Protocol: token.<token> atau cuan-terminal
+      - Protokol Pesan:
+        * Control JSON: {"type": "resize", "cols": 120, "rows": 40}, {"type": "mode", "mode": "watch"}, {"type": "takeover"}, {"type": "ping"} / {"type": "pong"}, {"type": "connected"}, {"type": "error"}.
+        * Raw I/O: Mendukung frame binary dan raw text string stdin langsung dari @xterm/xterm tanpa overhead serialization berlebih.
+        * Heartbeat: Ping/pong periodik 15 detik untuk menjaga koneksi tetap hidup melalui Caddy / Nginx reverse proxy.
+
+3. RINGKASAN HASIL TEST EKSEKUSI (100% PASS):
+   a. internal/terminal/... (Uncached):
+      === RUN   TestHandler_WebSocketInteractiveIO
+      --- PASS: TestHandler_WebSocketInteractiveIO (0.01s)
+      === RUN   TestHandler_WebSocketWatchModeAndTakeover
+      --- PASS: TestHandler_WebSocketWatchModeAndTakeover (0.00s)
+      === RUN   TestHandler_WebSocketResizeAndPingPong
+      --- PASS: TestHandler_WebSocketResizeAndPingPong (0.05s)
+      === RUN   TestManager_GetOrCreateAndReuse
+      --- PASS: TestManager_GetOrCreateAndReuse (0.00s)
+      === RUN   TestManager_SecurityPathTraversalPrevention
+      --- PASS: TestManager_SecurityPathTraversalPrevention (0.00s)
+      === RUN   TestManager_CloseSession
+      --- PASS: TestManager_CloseSession (0.00s)
+      === RUN   TestManager_IdleSweeper
+      --- PASS: TestManager_IdleSweeper (0.10s)
+      === RUN   TestFindShell
+      --- PASS: TestFindShell (0.00s)
+      === RUN   TestSanitizeEnvironment
+      --- PASS: TestSanitizeEnvironment (0.00s)
+      === RUN   TestSpawnPTY_BasicAndIO
+      --- PASS: TestSpawnPTY_BasicAndIO (0.00s)
+      === RUN   TestSpawnPTY_ResizeWindow
+      --- PASS: TestSpawnPTY_ResizeWindow (0.00s)
+      === RUN   TestSpawnPTY_GracefulTermination
+      --- PASS: TestSpawnPTY_GracefulTermination (0.00s)
+      === RUN   TestSpawnPTY_WorkingDirectoryLocked
+      --- PASS: TestSpawnPTY_WorkingDirectoryLocked (0.05s)
+      === RUN   TestSession_WatchModeBlocksInput
+      --- PASS: TestSession_WatchModeBlocksInput (0.00s)
+      === RUN   TestSession_InteractiveModeBidirectional
+      --- PASS: TestSession_InteractiveModeBidirectional (0.00s)
+      === RUN   TestSession_TakeoverAndModeSwitch
+      --- PASS: TestSession_TakeoverAndModeSwitch (0.00s)
+      === RUN   TestSession_HistoryBuffer
+      --- PASS: TestSession_HistoryBuffer (0.10s)
+      === RUN   TestSession_MultipleSubscribers
+      --- PASS: TestSession_MultipleSubscribers (0.00s)
+      PASS
+      ok  	github.com/buchin/cuan/internal/terminal	0.346s
+
+   b. internal/server/ (Targeted Terminal Tests):
+      === RUN   TestServer_TaskTerminalWebSocket_RootAndV1Endpoints
+      --- PASS: TestServer_TaskTerminalWebSocket_RootAndV1Endpoints (0.02s)
+      === RUN   TestServer_TaskTerminalWebSocket_InteractiveTakeOverAndResize
+      --- PASS: TestServer_TaskTerminalWebSocket_InteractiveTakeOverAndResize (0.01s)
+      === RUN   TestServer_TaskTerminalWebSocket_WatchMode
+      --- PASS: TestServer_TaskTerminalWebSocket_WatchMode (0.00s)
+      === RUN   TestServer_TaskTerminalWebSocket_Authentication
+      --- PASS: TestServer_TaskTerminalWebSocket_Authentication (0.07s)
+      PASS
+      ok  	github.com/buchin/cuan/internal/server	0.105s
+
+   c. Regresi Suite (internal/agent & internal/db):
+      PASS
+      ok  	github.com/buchin/cuan/internal/agent	56.896s
+      ok  	github.com/buchin/cuan/internal/db	0.904s
+
+4. KESIMPULAN & STATUS:
+   Implementasi task S09.3 WebSocket Pseudo-Terminal (PTY) Engine berbasis github.com/creack/pty selesai secara sempurna.
+   Seluruh kriteria DoD terpenuhi 100%, guardrail isolasi workspace & credential sanitization aktif, dan siap mendukung TaskTerminal.tsx pada frontend di S09.4.

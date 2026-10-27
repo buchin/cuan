@@ -1,0 +1,74 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "neutralInactiveAccount": true,
+      "notificationsAndProfile": true,
+      "noOverflow": true
+    }
+  ],
+  "manifestErrors": [],
+  "installability": {
+    "installabilityErrors": []
+  },
+  "profileAndUsername": true,
+  "pushOptInSimulated": true,
+  "notificationReadAndDeepLink": true,
+  "quietPreferences": true,
+  "cameraPhotosFiles": true,
+  "offlineNetworkOnly": true,
+  "providerInvocations": 0,
+  "errors": [],
+  "unknown": []
+}

@@ -1,0 +1,7 @@
+{
+  "productionHTMLMatchesRetainedS25MobileBundle": true,
+  "originalMigrationFilesUnchangedVsS25": true,
+  "migrationUpFiles": 19,
+  "productionDeployPerformed": false,
+  "stagingCode": "ed97cfa; S26.2 type validation patch verified in targeted tests, awaiting later staging/release gate"
+}

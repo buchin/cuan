@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cuan Task Card - Vertical Timeline & Queued Status Visual Report</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .report-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .report-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 6px 0;
+    }
+    .report-desc {
+      font-size: 14px;
+      color: #475569;
+      margin: 0;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    .preview-box {
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .preview-light {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+    }
+    .preview-dark {
+      background: #121212;
+      color: #f1f5f9;
+      border: 1px solid #27272a;
+    }
+    .preview-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge-check {
+      background: #10b981;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+    }
+    .badge-amber {
+      background: #f59e0b;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+    }
+
+    /* Process Timeline Connectors */
+    .task-timeline-connector {
+      position: absolute;
+      left: 14px;
+      top: -12px;
+      bottom: -8px;
+      width: 2px;
+      transform: translateX(-50%);
+      border-radius: 9999px;
+      pointer-events: none;
+      background-color: rgba(59, 130, 246, 0.35);
+    }
+    .dark .task-timeline-connector {
+      background-color: rgba(96, 165, 250, 0.4);
+    }
+
+    .task-timeline-connector-queued {
+      position: absolute;
+      left: 14px;
+      top: -12px;
+      bottom: -8px;
+      width: 2px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      border-left: 2px dashed rgba(245, 158, 11, 0.45);
+    }
+    .dark .task-timeline-connector-queued {
+      border-left: 2px dashed rgba(251, 191, 36, 0.5);
+    }
+
+    /* Common Card Styles */
+    .task-card {
+      position: relative;
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .preview-dark .task-card {
+      background: #18181b;
+      border-color: #27272a;
+    }
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      position: relative;
+      z-index: 10;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+    }
+    .badge-working-light {
+      background: rgba(59, 130, 246, 0.1);
+      color: #2563eb;
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+    .badge-working-dark {
+      background: rgba(59, 130, 246, 0.1);
+      color: #60a5fa;
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+    .badge-queued-light {
+      background: rgba(245, 158, 11, 0.1);
+      color: #b45309;
+      border-color: rgba(245, 158, 11, 0.25);
+    }
+    .badge-queued-dark {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fcd34d;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    .dot-box {
+      position: relative;
+      display: flex;
+      width: 8px;
+      height: 8px;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .dot-ping {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 9999px;
+      background: #3b82f6;
+      opacity: 0.75;
+      animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    .dot-solid-blue {
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      background: #2563eb;
+    }
+    .dot-pulse-amber {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 9999px;
+      background: #f59e0b;
+      opacity: 0.75;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .dot-solid-amber {
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      background: #d97706;
+    }
+    @keyframes ping {
+      75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+    @keyframes pulse {
+      50% {
+        opacity: .3;
+      }
+    }
+    .card-title-flow {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .title-indent {
+      padding-left: 28px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+      margin: 0;
+    }
+    .progress-pill-working {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: #1d4ed8;
+    }
+    .preview-dark .progress-pill-working {
+      color: #93c5fd;
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+    .progress-pill-queued {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #92400e;
+    }
+    .preview-dark .progress-pill-queued {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fde68a;
+    }
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 8px;
+      font-size: 12px;
+    }
+    .preview-dark .card-footer {
+      border-top-color: #27272a;
+      color: #a1a1aa;
+    }
+    .btn-terminal {
+      padding: 4px 12px;
+      border-radius: 8px;
+      background: #2563eb;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 12px;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-detail {
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .preview-dark .btn-detail {
+      background: #27272a;
+      border-color: #3f3f46;
+      color: #e4e4e7;
+    }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <h1 class="report-title">Cuan Task Card - Vertical Timeline &amp; State Visualization</h1>
+    <p class="report-desc">Verifikasi visual: Pemulihan garis timeline vertikal dan indikator progress aktif (Working - Biru), serta visualisasi status antrean pembeda yang konsisten (Queued/Pending - Amber Dashed) pada sumbu 14px.</p>
+  </div>
+
+  <h2>1. Working State (Status: Sedang Dikerjakan / Working)</h2>
+  <div class="grid-container">
+    <!-- Light Mode: Working -->
+    <div class="preview-box preview-light">
+      <div class="preview-label">
+        <span class="badge-check">Pass</span>
+        <span>Light Mode - Working (Garis Biru Solid + Ping Biru)</span>
+      </div>
+      <div class="task-card">
+        <div class="card-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-badge badge-working-light">
+              <span class="dot-box">
+                <span class="dot-ping"></span>
+                <span class="dot-solid-blue"></span>
+              </span>
+              <span>Working</span>
+            </span>
+            <span style="font-size:12px; color:#64748b;">📁 cuan</span>
+            <span style="font-size:12px; font-family:monospace; color:#94a3b8;">#56E754</span>
+          </div>
+          <span style="font-size:12px; color:#94a3b8;">13m ago</span>
+        </div>
+        <div class="card-title-flow">
+          <div style="position:relative;">
+            <div class="task-timeline-connector"></div>
+            <div class="title-indent">
+              <h4 class="card-title">Penyempurnaan Layout Multiline dan Posisi Tombol Saved Replies Chat Input Mobile</h4>
+            </div>
+          </div>
+          <div class="progress-pill-working">
+            <span class="dot-box">
+              <span class="dot-ping"></span>
+              <span class="dot-solid-blue"></span>
+            </span>
+            <span style="font-size:11px; font-weight:500;">Editing files.</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div>Agent: <strong>@dm</strong></div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-detail">Detail</button>
+            <button class="btn-terminal">&gt;_ Live Terminal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dark Mode: Working -->
+    <div class="preview-box preview-dark dark">
+      <div class="preview-label">
+        <span class="badge-check">Pass</span>
+        <span>Dark Mode - Working (Garis Biru Solid + Ping Biru)</span>
+      </div>
+      <div class="task-card">
+        <div class="card-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-badge badge-working-dark">
+              <span class="dot-box">
+                <span class="dot-ping"></span>
+                <span class="dot-solid-blue"></span>
+              </span>
+              <span>Working</span>
+            </span>
+            <span style="font-size:12px; color:#a1a1aa;">📁 cuan</span>
+            <span style="font-size:12px; font-family:monospace; color:#71717a;">#56E754</span>
+          </div>
+          <span style="font-size:12px; color:#71717a;">13m ago</span>
+        </div>
+        <div class="card-title-flow">
+          <div style="position:relative;">
+            <div class="task-timeline-connector"></div>
+            <div class="title-indent">
+              <h4 class="card-title">Penyempurnaan Layout Multiline dan Posisi Tombol Saved Replies Chat Input Mobile</h4>
+            </div>
+          </div>
+          <div class="progress-pill-working">
+            <span class="dot-box">
+              <span class="dot-ping"></span>
+              <span class="dot-solid-blue"></span>
+            </span>
+            <span style="font-size:11px; font-weight:500;">Editing files.</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div>Agent: <strong>@dm</strong></div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-detail">Detail</button>
+            <button class="btn-terminal">&gt;_ Live Terminal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>2. Queued / Pending State (Status: Waiting to start / Dalam Antrean)</h2>
+  <div class="grid-container">
+    <!-- Light Mode: Queued -->
+    <div class="preview-box preview-light">
+      <div class="preview-label">
+        <span class="badge-amber">Queue</span>
+        <span>Light Mode - Queued (Garis Amber Dashed + Pulse Amber)</span>
+      </div>
+      <div class="task-card">
+        <div class="card-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-badge badge-queued-light">
+              <span class="dot-box">
+                <span class="dot-pulse-amber"></span>
+                <span class="dot-solid-amber"></span>
+              </span>
+              <span>Waiting to start</span>
+            </span>
+            <span style="font-size:12px; color:#64748b;">📁 cuan</span>
+            <span style="font-size:12px; font-family:monospace; color:#94a3b8;">#A89F01</span>
+          </div>
+          <span style="font-size:12px; color:#94a3b8;">just now</span>
+        </div>
+        <div class="card-title-flow">
+          <div style="position:relative;">
+            <div class="task-timeline-connector-queued"></div>
+            <div class="title-indent">
+              <h4 class="card-title">Migrasi Skema PostgreSQL dan Isolasi Multi-Akun OAuth Sprint 26</h4>
+            </div>
+          </div>
+          <div class="progress-pill-queued">
+            <span class="dot-box">
+              <span class="dot-pulse-amber"></span>
+              <span class="dot-solid-amber"></span>
+            </span>
+            <span style="font-size:11px; font-weight:500;">Dalam antrean eksekusi runner...</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div>Agent: <strong>@sm</strong></div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-detail">Detail</button>
+            <button class="btn-terminal">&gt;_ Live Terminal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dark Mode: Queued -->
+    <div class="preview-box preview-dark dark">
+      <div class="preview-label">
+        <span class="badge-amber">Queue</span>
+        <span>Dark Mode - Queued (Garis Amber Dashed + Pulse Amber)</span>
+      </div>
+      <div class="task-card">
+        <div class="card-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-badge badge-queued-dark">
+              <span class="dot-box">
+                <span class="dot-pulse-amber"></span>
+                <span class="dot-solid-amber"></span>
+              </span>
+              <span>Waiting to start</span>
+            </span>
+            <span style="font-size:12px; color:#a1a1aa;">📁 cuan</span>
+            <span style="font-size:12px; font-family:monospace; color:#71717a;">#A89F01</span>
+          </div>
+          <span style="font-size:12px; color:#71717a;">just now</span>
+        </div>
+        <div class="card-title-flow">
+          <div style="position:relative;">
+            <div class="task-timeline-connector-queued"></div>
+            <div class="title-indent">
+              <h4 class="card-title">Migrasi Skema PostgreSQL dan Isolasi Multi-Akun OAuth Sprint 26</h4>
+            </div>
+          </div>
+          <div class="progress-pill-queued">
+            <span class="dot-box">
+              <span class="dot-pulse-amber"></span>
+              <span class="dot-solid-amber"></span>
+            </span>
+            <span style="font-size:11px; font-weight:500;">Dalam antrean eksekusi runner...</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div>Agent: <strong>@sm</strong></div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-detail">Detail</button>
+            <button class="btn-terminal">&gt;_ Live Terminal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3. Non-Running Completed State (Tanpa Garis Timeline Vertikal)</h2>
+  <div class="grid-container">
+    <div class="preview-box preview-light">
+      <div class="preview-label">
+        <span class="badge-check">Pass</span>
+        <span>Completed Task (Alignment Normal tanpa Garis)</span>
+      </div>
+      <div class="task-card">
+        <div class="card-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-badge" style="background:rgba(16,185,129,0.1); color:#059669; border-color:rgba(16,185,129,0.2);">Completed</span>
+            <span style="font-size:12px; color:#64748b;">📁 cuan</span>
+            <span style="font-size:12px; font-family:monospace; color:#94a3b8;">#8A12BC</span>
+          </div>
+          <span style="font-size:12px; color:#94a3b8;">1h ago</span>
+        </div>
+        <div class="card-title-flow">
+          <div>
+            <h4 class="card-title">Setup Database Migration for Subagent Collaboration Matrix</h4>
+          </div>
+          <p style="font-size:12px; color:#64748b; margin:0; line-height:1.5;">
+            Semua migrasi database berhasil dieksekusi dengan bersih.
+          </p>
+        </div>
+        <div class="card-footer">
+          <div>Agent: <strong>@builder</strong></div>
+          <button class="btn-terminal">View result</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

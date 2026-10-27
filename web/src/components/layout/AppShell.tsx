@@ -1,0 +1,404 @@
+import { KeyboardShortcuts } from './KeyboardShortcuts'
+import { UniversalSearch } from './UniversalSearch'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
+import { useEffect, useRef, useState, type ComponentType } from 'react'
+import { Link } from 'react-router-dom'
+import { CuanMark } from '../brand/CuanMark'
+import { NavUser } from './NavUser'
+import { CreateAction } from './CreateAction'
+import { Inbox, CheckSquare, FolderGit2, PanelLeft } from 'lucide-react'
+import { cn } from '../../lib/utils'
+
+export type AppTab =
+  | 'notifications'
+  | 'studio'
+  | 'inbox'
+  | 'tasks'
+  | 'projects'
+  | 'contacts'
+  | 'settings'
+  | 'account'
+interface AppShellProps {
+  currentTab: AppTab
+  onSelectTab: (tab: AppTab) => void
+  children: React.ReactNode
+  headerActions?: React.ReactNode
+  secondaryNavigation?: React.ReactNode
+  newAction?: { label: string; onClick: () => void }
+  hideBottomNav?: boolean
+  sessionWorkspace?: boolean
+  projectWorkspace?: boolean
+  contentHeader?: boolean
+  inboxSubPanel?: React.ReactNode
+  inboxUnread?: number
+  inboxUnreadCount?: number
+  pageTitleIsContent?: boolean
+  pageTitle?: string
+  breadcrumbs?: { label: string; to: string }[]
+  hideSearch?: boolean
+}
+const NAV_ITEMS = [
+  { id: 'studio', label: 'Studio', icon: CuanMark },
+  { id: 'inbox', label: 'Inbox', icon: Inbox },
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+  { id: 'projects', label: 'Projects', icon: FolderGit2 },
+] as const
+
+export function AppShell({
+  currentTab,
+  onSelectTab,
+  children,
+  headerActions,
+  secondaryNavigation,
+  newAction,
+  hideBottomNav = false,
+  sessionWorkspace = false,
+  projectWorkspace = false,
+  contentHeader = false,
+  inboxSubPanel,
+  inboxUnread = 0,
+  inboxUnreadCount,
+  pageTitleIsContent = false,
+  pageTitle,
+  breadcrumbs = [],
+  hideSearch,
+}: AppShellProps) {
+  const { t } = useLanguage()
+  const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
+
+  const routerNavigate = useNavigate()
+  const location = useLocation()
+
+  // Eliminate redundant top navigation search icon on views with internal search inputs/filters or settings/account
+  const hasInternalSearch =
+    currentTab === 'tasks' ||
+    currentTab === 'inbox' ||
+    currentTab === 'projects' ||
+    currentTab === 'contacts' ||
+    currentTab === 'settings' ||
+    currentTab === 'account' ||
+    location.pathname.startsWith('/account/contacts') ||
+    location.pathname.startsWith('/settings/agents')
+
+  const shouldHideSearch = hideSearch ?? hasInternalSearch
+  const shell = useRef<HTMLDivElement>(null)
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('cuan-nav-collapsed') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [sessionExpanded, setSessionExpanded] = useState(false)
+  const effectiveCollapsed = sessionWorkspace ? !sessionExpanded : collapsed
+  const [listOpen, setListOpen] = useState(true)
+  useEffect(() => {
+    const viewport = window.visualViewport
+    const update = () => {
+      if (viewport) {
+        shell.current?.style.setProperty(
+          '--visible-height',
+          `${viewport.height}px`,
+        )
+        shell.current?.style.setProperty(
+          '--visible-top',
+          `${viewport.offsetTop}px`,
+        )
+      }
+    }
+    update()
+    viewport?.addEventListener('resize', update)
+    viewport?.addEventListener('scroll', update)
+    return () => {
+      viewport?.removeEventListener('resize', update)
+      viewport?.removeEventListener('scroll', update)
+    }
+  }, [])
+  const label =
+    currentTab === 'notifications'
+      ? 'Notifications'
+      : currentTab === 'tasks'
+        ? t('Tasks')
+        : currentTab === 'settings'
+          ? t('Settings')
+          : currentTab === 'account'
+            ? t('Account')
+            : currentTab === 'contacts'
+              ? t('Contacts')
+              : NAV_ITEMS.find((n) => n.id === currentTab)?.label
+  const navigate = (id: AppTab) => {
+    onSelectTab(id)
+  }
+  const navButton = (
+    id: AppTab,
+    text: string,
+    Icon: ComponentType<{ className?: string }>,
+  ) => (
+    <button
+      key={id}
+      title={t(text)}
+      aria-label={t(text)}
+      aria-current={currentTab === id ? 'page' : undefined}
+      onClick={() => navigate(id)}
+      className={cn(
+        'nav-action',
+        currentTab === id &&
+          'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
+      )}
+    >
+      <span className="relative">
+        {id === 'studio' ? (
+          <CuanMark decorative className="h-5 w-5 text-inherit" />
+        ) : (
+          <Icon className="h-5 w-5 shrink-0" />
+        )}
+        {id === 'inbox' && effectiveInboxUnread > 0 && (
+          <span
+            data-testid="inbox-unread-badge-rail"
+            aria-label={`${effectiveInboxUnread} unread messages`}
+            className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
+          >
+            {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
+          </span>
+        )}
+      </span>
+      <span className="nav-label">{t(text)}</span>
+    </button>
+  )
+  return (
+    <div
+      ref={shell}
+      data-session-workspace={sessionWorkspace ? 'true' : undefined}
+      className={cn(
+        'app-shell flex w-full overflow-hidden bg-background',
+        effectiveCollapsed && 'nav-collapsed',
+      )}
+    >
+      <KeyboardShortcuts />
+      <nav
+        aria-label={t('Main navigation')}
+        className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"
+      >
+        <div className="sidebar-brand flex h-16 shrink-0 items-center gap-2 border-b border-border px-2.5">
+          <Link
+            to="/studio"
+            aria-label={t('Go to Studio')}
+            className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <CuanMark decorative className="h-9 w-9" />
+            <span className="nav-label text-lg font-semibold tracking-tight">
+              cuan
+            </span>
+          </Link>
+          <button
+            className="sidebar-collapse icon-action hidden min-[1200px]:inline-flex"
+            title={
+              effectiveCollapsed ? t('Expand sidebar') : t('Collapse sidebar')
+            }
+            aria-label={
+              effectiveCollapsed ? t('Expand sidebar') : t('Collapse sidebar')
+            }
+            onClick={() =>
+              sessionWorkspace
+                ? setSessionExpanded((value) => !value)
+                : setCollapsed((value) => {
+                    const next = !value
+                    try {
+                      localStorage.setItem('cuan-nav-collapsed', String(next))
+                    } catch {}
+                    return next
+                  })
+            }
+          >
+            <PanelLeft className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 space-y-1 p-2.5">
+          {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon))}
+        </div>
+        <div className="space-y-2 border-t border-border p-2.5">
+          <NavUser
+            sidebar
+            collapsed={effectiveCollapsed}
+            active={
+              currentTab === 'settings' ||
+              currentTab === 'account' ||
+              currentTab === 'contacts'
+            }
+            onWork={() => navigate('tasks')}
+            onSettings={() => navigate('settings')}
+          />
+        </div>
+      </nav>
+      {currentTab === 'inbox' && listOpen && (
+        <section
+          aria-label={t('Conversations')}
+          className="conversation-sidebar hidden h-full w-[280px] shrink-0 flex-col border-r border-border min-[1200px]:flex"
+        >
+          <div className="flex h-16 shrink-0 items-center border-b border-border px-4 text-base font-semibold">
+            {t('Conversations')}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">{inboxSubPanel}</div>
+        </section>
+      )}
+      <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header
+          className={cn(
+            'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
+            'app-page-header h-14 md:h-16',
+            sessionWorkspace || contentHeader ? 'hidden' : hideBottomNav && 'hidden md:flex',
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            {currentTab === 'notifications' ? (
+              <button
+                type="button"
+                className="icon-action shrink-0"
+                aria-label={t('Back')}
+                onClick={() => {
+                  const from = location.state?.notificationReturnTo
+                  if (
+                    typeof from === 'string' &&
+                    from.startsWith('/') &&
+                    !from.startsWith('//') &&
+                    !from.split(/[?#]/)[0].startsWith('/notifications')
+                  ) {
+                    if (window.history.state?.idx > 0) routerNavigate(-1)
+                    else routerNavigate(from, { replace: true })
+                  } else routerNavigate('/studio', { replace: true })
+                }}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            ) : (
+              <Link
+                to="/studio"
+                aria-label={t('Go to Studio')}
+                className="icon-action md:hidden"
+              >
+                <CuanMark decorative className="h-6 w-6" />
+              </Link>
+            )}
+            {breadcrumbs.length > 0 && (
+              <nav
+                aria-label={t('Breadcrumbs')}
+                className="hidden min-w-0 items-center gap-2 text-sm text-muted-foreground md:flex"
+              >
+                {breadcrumbs.map((crumb) => (
+                  <span
+                    key={crumb.to}
+                    className="flex min-w-0 items-center gap-2"
+                  >
+                    <Link
+                      className="inline-flex min-h-11 max-w-40 items-center hover:text-foreground focus-visible:underline"
+                      to={crumb.to}
+                    >
+                      <span className="truncate">{crumb.label}</span>
+                    </Link>
+                    <span aria-hidden="true">/</span>
+                  </span>
+                ))}
+              </nav>
+            )}
+            <h1 className="page-title min-w-0 truncate text-xl font-semibold tracking-tight">
+              {pageTitleIsContent ? pageTitle : t(pageTitle || label || '')}
+            </h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <UniversalSearch hideTrigger={shouldHideSearch} />
+            {headerActions}
+            {currentTab === 'inbox' && (
+              <button
+                className="icon-action hidden min-[1200px]:inline-flex"
+                aria-label={
+                  listOpen ? t('Hide conversations') : t('Show conversations')
+                }
+                onClick={() => setListOpen((v) => !v)}
+              >
+                <PanelLeft className="h-5 w-5" />
+              </button>
+            )}
+            {newAction && (
+              <div className={(['projects', 'contacts', 'inbox'].includes(currentTab) || (currentTab === 'account' && location.pathname.includes('/contacts'))) && !(currentTab === 'inbox' && !listOpen) ? 'min-[1200px]:hidden' : undefined}>
+              <CreateAction
+                id="header-new-action"
+                label={newAction.label}
+                onClick={newAction.onClick}
+                kind={currentTab}
+              />
+              </div>
+            )}
+          </div>
+        </header>
+        {secondaryNavigation}
+        <div
+          className={cn(
+            'min-h-0 min-w-0 flex-1',
+            currentTab === 'inbox' ||
+              currentTab === 'contacts' ||
+              projectWorkspace ||
+              sessionWorkspace
+              ? 'overflow-hidden'
+              : 'overflow-auto p-3 sm:p-4 md:p-6',
+            !hideBottomNav && 'mobile-content-bottom',
+          )}
+        >
+          {children}
+        </div>
+      </main>
+      {!hideBottomNav && (
+        <nav
+          aria-label={t('Bottom navigation')}
+          className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
+        >
+          {NAV_ITEMS.map(({ id, label: text, icon: Icon }) => (
+            <button
+              key={id}
+              aria-current={currentTab === id ? 'page' : undefined}
+              onClick={() => navigate(id)}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                currentTab === id
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <span className="relative">
+                {id === 'studio' ? (
+                  <CuanMark decorative className="h-5 w-5 text-inherit" />
+                ) : (
+                  <Icon className="h-5 w-5" />
+                )}
+                {id === 'inbox' && effectiveInboxUnread > 0 && (
+                  <span
+                    data-testid="inbox-unread-badge-bottom"
+                    aria-label={`${effectiveInboxUnread} unread messages`}
+                    className="absolute -right-3 -top-2 min-w-4 rounded-full bg-primary px-1 text-[10px] font-bold font-mono leading-4 text-primary-foreground"
+                  >
+                    {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
+                  </span>
+                )}
+              </span>
+              {t(text)}
+            </button>
+          ))}
+          <div className="min-w-0 flex-1">
+            <NavUser
+              bottomNavigation
+              active={
+                currentTab === 'settings' ||
+                currentTab === 'account' ||
+                currentTab === 'contacts'
+              }
+              onWork={() => navigate('tasks')}
+              dropdownPosition="top-right"
+              onSettings={() => navigate('settings')}
+            />
+          </div>
+        </nav>
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,22 @@
+================================================================================
+AUDIT EVIDENCE S21.4: UNIFIED TEAM DIRECTORY (HUMANS + AGENTS)
+================================================================================
+Timestamp:     2026-10-18T13:56:00Z
+Task ID:       wbmicpeaalxxnkzwgbnpenuc
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. UNIFIED DIRECTORY OVERVIEW:
+   - Eliminated redundant standalone "Agents" tab in navigation rail.
+   - Humans and AI Agents presented side-by-side in TeamView.tsx.
+   - Clear visual differentiation via badge roles:
+     * Human Owner: Buchin (Product Owner)
+     * Autonomous SM: Scrum Master (@sm)
+     * Worker Agents: Antigravity Flash (@pin), Antigravity Pro (@pin2), and custom connected agents.
+
+2. MODEL FURAL ONBOARDING (ZERO RAW API KEY):
+   - Integrated modal "Tambah Akun Agent (Model Fural — No API Key)" directly in Team tab.
+   - Preset handles (@dev, @sm, @assistant, @tester), runtime providers (Antigravity CLI, Gemini CLI, Claude CLI).
+   - Generates and verifies CLI session credentials securely stored in backend DB.
+   - Connected agents instantly appear in team directory and chat contact hub with [Connected] status badge.

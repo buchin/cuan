@@ -1,0 +1,6 @@
+=== RUN   TestCRMSQLPersistence
+    crm_sql_test.go:83: Actual PostgreSQL: additive schema, reconnect, separate email identities, fresh server lookup, tags; isolated schema removed
+--- PASS: TestCRMSQLPersistence (0.18s)
+PASS
+
+

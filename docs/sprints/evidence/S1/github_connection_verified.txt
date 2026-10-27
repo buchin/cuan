@@ -1,0 +1,63 @@
+=== BUKTI VERIFIKASI DOD T3: KONEKSI REPOSITORY GITHUB EXISTING ===
+Sprint: S1 (T3 — Hubungkan repository GitHub existing)
+Timestamp: 2026-10-16T14:16:16+07:00
+Target Repository: https://github.com/buchin/cuan (Repository Cuan Monorepo)
+
+1. Pre-flight Git Remote Verification (git ls-remote --heads --symref)
+Perintah:
+  git ls-remote --heads --symref https://github.com/buchin/cuan.git
+
+Keluaran:
+  a62df7d1a455d939f47f5567de648efecab0e99e	refs/heads/main
+  Exit Code: 0 (Success)
+  Detected Default Branch: main
+
+2. API Connection via Cuan Backend (POST /api/v1/projects)
+Request:
+  POST /api/v1/projects HTTP/1.1
+  Host: localhost:8080
+  Authorization: Bearer <owner_session_token>
+  Content-Type: application/json
+
+  {
+    "name": "Cuan Monorepo",
+    "repo_url": "https://github.com/buchin/cuan",
+    "default_branch": "main"
+  }
+
+Response Status: 201 Created
+Response Body:
+  {
+    "id": "proj_810b51dd0d6c",
+    "name": "Cuan Monorepo",
+    "repo_url": "https://github.com/buchin/cuan",
+    "repo_owner": "buchin",
+    "repo_name": "cuan",
+    "default_branch": "main",
+    "local_path": "/home/dev/.tmp/cuan-data-2330988965/proj_810b51dd0d6c",
+    "has_token": false,
+    "clone_status": "synced",
+    "last_fetched_at": "2026-10-16T07:16:13.804785037Z",
+    "created_at": "2026-10-16T07:16:13.804785037Z",
+    "updated_at": "2026-10-16T07:16:13.804785037Z"
+  }
+
+3. Remote Branches Retrieval via Cuan Backend (GET /api/v1/projects/{id}/branches)
+Request:
+  GET /api/v1/projects/proj_810b51dd0d6c/branches HTTP/1.1
+  Authorization: Bearer <owner_session_token>
+
+Response Status: 200 OK
+Response Body:
+  {
+    "branches": ["main"],
+    "default_branch": "main"
+  }
+
+4. Clone & Local Workspace Status
+  - Target Path: data/projects/proj_810b51dd0d6c
+  - Git status: valid git repository clone with origin pointing to https://github.com/buchin/cuan.git
+  - Clone Status: "synced"
+
+Kesimpulan DoD:
+  Repo Cuan nyata berhasil dihubungkan, default branch 'main' terdeteksi, remote branches dapat dibaca, dan sinkronisasi awal berhasil.

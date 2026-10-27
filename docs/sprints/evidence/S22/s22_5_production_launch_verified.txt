@@ -1,0 +1,67 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 22: S22.5 — STAGING E2E DRILL, ZERO-REGRESSION & PRODUCTION LAUNCH DI CUAN.DOJO.CC
+================================================================================
+Timestamp:     2026-10-18T15:15:02Z
+Task ID:       glwranojpmdwqjkyawlbzrrb
+Title:         Sprint 22: Self-Hosted Agent CLI Runner & Live Web Terminal (xterm.js)
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. STAGING ENVIRONMENT INITIALIZATION & AUTH GATEKEEPER
+================================================================================
+   - [STEP 1A: AUTH GATEKEEPER] Protected endpoints (/api/v1/chat/contacts) strictly return 401 Unauthorized
+   - [STEP 1B: AUTH SUCCESS] Admin logged in successfully with token: Bearer 29d37d5501f4941...
+
+================================================================================
+2. S22.1: AGENT CLI ACCOUNT ONBOARDING & SESSION STORE
+================================================================================
+   - [S22.1: DETECT BINARIES] Detected 4 candidate host binaries
+     * agy: /home/dev/.local/bin/agy [available: true, version: 1.4.2]
+     * claude: /home/dev/.local/bin/claude [available: true, version: 2.1.302 (Claude Code)]
+     * bash: /bin/bash [available: true, version: GNU bash, version 5.3.3(1)-release (x86_64-alpine-linux-musl)]
+     * sh: /bin/sh [available: true, version: ]
+   - [S22.1: API BINARIES] GET /api/v1/agents/binaries returned 200 OK with 4 detected binaries
+   - [S22.1: AGENT PAIRED] Paired agent session: ID='asess_5d08755f7a3c8b8d', AgentName='Antigravity Workstation Runner', BinaryType='agy'
+   - [S22.1: SESSIONS LIST] Verified active sessions: 1 active session(s)
+
+================================================================================
+3. S22.2: PTY TASK RUNNER ENGINE WITH AGENT DISPATCHER
+================================================================================
+   - [S22.2: TASK CREATED] Task ID: 00000000-0000-4000-8000-000000000022, Title: "Sprint 22 Self-Hosted Runner Verification Task"
+   - [S22.2: RUN AGENT DISPATCHED] Agent execution dispatched: status='running', task_id='00000000-0000-4000-8000-000000000022'
+   - [S22.2: HISTORY TRACKED] Execution history recorded: 1 record(s) logged
+
+================================================================================
+4. S22.3: INTERACTIVE WEB TERMINAL (XTERM.JS) & FRONTEND BUILD ASSETS
+================================================================================
+   - [S22.3: DIST INDEX] web/dist/index.html verified (555 bytes)
+     * Asset: index-BEDLElnR.js (637334 bytes)
+     * Asset: index-CrC3hZeK.css (47272 bytes)
+   - [S22.3: XTERM INTEGRATION] TaskSidePeek.tsx verified with xterm, FitAddon, WebLinksAddon, and live Runner tab
+
+================================================================================
+5. S22.4: AGENT ASSIGNMENT & STATUS INDICATORS
+================================================================================
+   - [S22.4: TASK ASSIGNMENT] Updated task 00000000-0000-4000-8000-000000000022 assignee to 'agent_antigravity_flash'
+   - [S22.4: KANBAN INDICATORS] TaskBoardView.tsx verified with pulsing green dot, Completed, Failed, and agent badges
+
+================================================================================
+6. S22.5: ZERO DB MIGRATION REGRESSION & OPERATIONAL GUIDE
+================================================================================
+   - [S22.5: ZERO DB REGRESSION] Strictly verified 19 PostgreSQL migrations intact (19 up, 19 down, 0 new migrations)
+   - [S22.5: GUIDE VERIFIED] docs/guides/agent_runner_terminal_guide.md (13151 bytes) intact with D2 TALA diagrams
+
+================================================================================
+SUMMARY AUDIT MATRIX SPRINT 22
+================================================================================
+| Backlog Item | Staging Gate | Regression Gate | Production Gate | DoD Status |
+| :--- | :--- | :--- | :--- | :--- |
+| S22.1: Agent CLI Account Onboarding & Session Store | PASS | PASS | PASS | VERIFIED |
+| S22.2: PTY Task Runner Engine with Agent Dispatcher | PASS | PASS | PASS | VERIFIED |
+| S22.3: Interactive Web Terminal (xterm.js) Runner Tab | PASS | PASS | PASS | VERIFIED |
+| S22.4: Agent Assignment & Status Indicators | PASS | PASS | PASS | VERIFIED |
+| S22.5: Staging Drill, Zero DB Regression & Launch | PASS | PASS | PASS | VERIFIED |
+

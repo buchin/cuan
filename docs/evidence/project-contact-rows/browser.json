@@ -1,0 +1,80 @@
+{
+  "checks": [
+    {
+      "kind": "projects",
+      "theme": "light",
+      "width": 360,
+      "noOverflow": true
+    },
+    {
+      "kind": "contacts",
+      "theme": "light",
+      "width": 360,
+      "noOverflow": true
+    },
+    {
+      "kind": "projects",
+      "theme": "light",
+      "width": 820,
+      "noOverflow": true
+    },
+    {
+      "kind": "contacts",
+      "theme": "light",
+      "width": 820,
+      "noOverflow": true
+    },
+    {
+      "kind": "projects",
+      "theme": "light",
+      "width": 1440,
+      "noOverflow": true
+    },
+    {
+      "kind": "contacts",
+      "theme": "light",
+      "width": 1440,
+      "noOverflow": true
+    },
+    {
+      "kind": "projects",
+      "theme": "dark",
+      "width": 360,
+      "noOverflow": true
+    },
+    {
+      "kind": "contacts",
+      "theme": "dark",
+      "width": 360,
+      "noOverflow": true
+    },
+    {
+      "kind": "projects",
+      "theme": "dark",
+      "width": 820,
+      "noOverflow": true
+    },
+    {
+      "kind": "contacts",
+      "theme": "dark",
+      "width": 820,
+      "noOverflow": true
+    },
+    {
+      "kind": "projects",
+      "theme": "dark",
+      "width": 1440,
+      "noOverflow": true
+    },
+    {
+      "kind": "contacts",
+      "theme": "dark",
+      "width": 1440,
+      "noOverflow": true
+    }
+  ],
+  "selectedRowsContinuous": true,
+  "menusKeyboardAccessible": true,
+  "touchTargets44": true,
+  "providerCalls": 0
+}

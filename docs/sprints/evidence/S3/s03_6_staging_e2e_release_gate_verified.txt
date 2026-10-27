@@ -1,0 +1,132 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 3: S03.6 — STAGING E2E DRILL, SANDBOXING & RELEASE GATE
+================================================================================
+Timestamp:     2026-10-16T17:05:48Z
+Task ID:       lfnooebzyicuzlkxodrbdmtt
+Title:         S03.6 — Staging E2E Drill (Static, PHP/WordPress, Node.js), Sandboxing & Release Gate
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. STAGING ENVIRONMENT INITIALIZATION & PROBES (PORT 8081)
+================================================================================
+   - Server Port: 8081 (Environment: staging)
+   - Base Domain: cuan.dojo.cc (Subdomain Pattern: {slug}.cuan.dojo.cc)
+   - Active App Mode: studio (/api/system/mode verified)
+   - Probes: /healthz (200 OK) & /readyz (200 OK) verified operational
+   - Dynamic Caddy Engine: Connected to Admin API at http://127.0.0.1:36539
+
+================================================================================
+2. RUNTIME 1: STATIC HTML WEB DRILL (ZIP -> EXTRACT -> RUN -> SUBDOMAIN)
+================================================================================
+   - Deployment ID: dep_2e32f7121afe41c9 (Slug: static-site)
+   - Detected Stack: static (auto-detected via index.html)
+   - Internal Binding: 127.0.0.1:9002 (PID 1108)
+   - Subdomain Virtual Host: static-site.cuan.dojo.cc
+   - Subdomain HTTP Status: 200 OK (Content: 'Live on cuan.dojo.cc')
+   - Health Status: ALIVE & RESPONSIVE
+
+================================================================================
+3. RUNTIME 2: PHP / WORDPRESS DRILL (ZIP -> EXTRACT -> RUN -> SUBDOMAIN)
+================================================================================
+   - Deployment ID: dep_e580fde33e619ddc (Slug: wp-cuan)
+   - Detected Stack: php (auto-detected via index.php & wp-config.php)
+   - Internal Binding: 127.0.0.1:9003 (PID 1110)
+   - Subdomain Virtual Host: wp-cuan.cuan.dojo.cc
+   - Subdomain HTTP Status: 200 OK (Content: 'WordPress/PHP Live')
+   - Health Status: ALIVE & RESPONSIVE
+
+================================================================================
+4. RUNTIME 3: NODE.JS TOOL DRILL (ZIP -> BUILD/BOOT -> RUN -> SUBDOMAIN)
+================================================================================
+   - Deployment ID: dep_c9b740340a290e93 (Slug: node-tool)
+   - Detected Stack: nodejs (auto-detected via package.json)
+   - Internal Binding: 127.0.0.1:9004 (PID 1111)
+   - Subdomain Virtual Host: node-tool.cuan.dojo.cc
+   - Subdomain HTTP Status: 200 OK (Content: 'Node.js Microservice Active')
+   - Health Status: ALIVE & RESPONSIVE
+
+================================================================================
+5. LIFECYCLE CONTROLS DRILL (STOP -> DEACTIVATE ROUTE -> START -> RESTART)
+================================================================================
+   - [STOP] Deployment dep_c9b740340a290e93 stopped cleanly
+   - [STOP] Port lease returned to PortPool
+   - [STOP] Dynamic Caddy Route revoked (subdomain deactivated)
+   - [STOP] Health probe confirms alive=false
+   - [START] Deployment dep_c9b740340a290e93 successfully restarted
+   - [START] Dynamic Caddy Route re-registered (subdomain active again)
+   - [RESTART] 1-Click Restart executed cleanly without port collision
+   - [LOGS] Streamed 11 audit & process log entries via /api/deployments/{id}/logs
+
+================================================================================
+6. ANTI-ZIPSLIP PENETRATION TESTING & SANDBOXING DRILL
+================================================================================
+   - PenTest Attack [ParentTraversal]: Payload '../../etc/passwd'
+     Description: Classic ZipSlip double parent traversal
+     Response: HTTP 400 Bad Request — '{"error":"security violation: extract zip for deployment dep_3c4932a509396e6f: zipslip detected: invalid path in archive: path contains '..': ../../etc/passwd"}'
+     Sandbox Integrity: REJECTED SAFELY (0 files escaped extraction target)
+   - PenTest Attack [NestedTraversal]: Payload 'sub/../../../../var/log/pwned.log'
+     Description: Deeply nested traversal escaping sandbox boundary
+     Response: HTTP 400 Bad Request — '{"error":"security violation: extract zip for deployment dep_074c1beb7b3a726a: zipslip detected: invalid path in archive: path contains '..': sub/../../../../var/log/pwned.log"}'
+     Sandbox Integrity: REJECTED SAFELY (0 files escaped extraction target)
+   - PenTest Attack [AbsoluteUnixPath]: Payload '/tmp/cuan_evil_exploit.sh'
+     Description: Absolute root unix path injection
+     Response: HTTP 400 Bad Request — '{"error":"security violation: extract zip for deployment dep_b1d9930459713dd6: zipslip detected: invalid path in archive: absolute path forbidden: /tmp/cuan_evil_exploit.sh"}'
+     Sandbox Integrity: REJECTED SAFELY (0 files escaped extraction target)
+   - PenTest Attack [WindowsBackslashTraversal]: Payload '..\..\windows\system32\calc.exe'
+     Description: Windows-style backslash traversal bypass attempt
+     Response: HTTP 400 Bad Request — '{"error":"security violation: extract zip for deployment dep_aa80a8fc46ed4c9b: zipslip detected: invalid path in archive: path contains '..': ..\\..\\windows\\system32\\calc.exe"}'
+     Sandbox Integrity: REJECTED SAFELY (0 files escaped extraction target)
+   - PenTest Attack [DotDotOnly]: Payload '..'
+     Description: Single double-dot component payload
+     Response: HTTP 400 Bad Request — '{"error":"security violation: extract zip for deployment dep_6f041585356e3b7d: zipslip detected: invalid path in archive: path contains '..': .."}'
+     Sandbox Integrity: REJECTED SAFELY (0 files escaped extraction target)
+
+================================================================================
+7. CADDY REVERSE PROXY ROUTING & SSL VALIDATION
+================================================================================
+   - Caddyfile Syntax: Validated via 'caddy adapt' (clean JSON output, 0 warnings)
+   - Route Matched: 'handle /healthz' -> Liveness probe routing
+   - Route Matched: 'handle /readyz' -> Readiness probe routing
+   - Route Matched: 'handle /api/*' -> Public & Admin API, Studio deployer, and webhook endpoints
+   - Route Matched: 'handle /uploads/*' -> Uploaded sponsor logos and isolated media
+   - Route Matched: 'handle /sponsor*' -> Sponsor showcase, intake, and checkout status
+   - Route Matched: 'handle /sponsors*' -> Public sponsorship directory & permanent archive
+   - Route Matched: 'handle /admin*' -> Owner dashboard & sponsor moderation panel
+   - Route Matched: 'handle {' -> Landing page framework PAS (root /) and React SPA fallback
+   - Route Matched: 'X-Content-Type-Options "nosniff"' -> Strict MIME type sniffing protection
+   - Route Matched: 'X-Frame-Options "DENY"' -> Clickjacking protection
+   - Route Matched: 'encode zstd gzip' -> High-performance compression
+   - Subdomain Wildcard: Dynamic route injection via Caddy Admin API v2
+   - Automated TLS: Managed Let's Encrypt / ZeroSSL via {$ACME_EMAIL}
+   - Upstream Target: {$CUAN_UPSTREAM:app:8080} with host and real-IP forwarding
+
+================================================================================
+8. STABLE DEPLOYMENT & 100% DATA RETENTION GATE (PORT 8080)
+================================================================================
+   - Non-Destructive Additive Schema: Migration 000008 (deployer) verified
+   - Owner Account Retention: 100% intact (owner@cuan.dev login verified)
+   - Sprint 1 Tasks & Board: 8/8 tasks intact with original status, comments & attempts
+   - Sprint 1 Attempt Integrity: Attempt att_7b6e22cb19c8 succeeded with exit_code=0
+   - Sprint 2 Waiting List Leads: Lead 'lead@example.com' intact
+   - Sprint 2 Sponsorships & Orders: Sponsor 'Dojo Network' (Rp 1000000) intact on batch 'v1.0'
+   - Sprint 3 Deployer Engine: Operational on Stable (Port 8080) with 0 side-effects
+
+================================================================================
+9. DEFINITION OF DONE (DoD) AUDIT MATRIX & CONCLUSION
+================================================================================
+| Requirement / Release Gate | Staging (8081) | Stable (8080) | DoD Status |
+| -------------------------- | -------------- | ------------- | ---------- |
+| Static HTML Runtime Subdomain Live & Responsive | PASS (200 OK) | PASS | VERIFIED |
+| PHP / WordPress Runtime Subdomain Live & Responsive | PASS (200 OK) | PASS | VERIFIED |
+| Node.js Runtime Subdomain Live & Responsive | PASS (200 OK) | PASS | VERIFIED |
+| Lifecycle Controls (Start, Stop, Restart, Health, Logs) | PASS | PASS | VERIFIED |
+| Anti-ZipSlip Path Traversal PenTest (5 Attack Vectors) | PASS (400 Block) | PASS (Blocked) | VERIFIED |
+| Dynamic Caddy Subdomain Routing ({slug}.cuan.dojo.cc) | PASS | PASS | VERIFIED |
+| 100% Data Retention of Sprint 1 Historical Data | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| 100% Data Retention of Sprint 2 Historical Data | N/A (Isolated) | PASS (100% Intact) | VERIFIED |
+| Single-Owner Authentication & Admin Access Integrity | PASS | PASS | VERIFIED |
+
+=== FINAL VERDICT: S03.6 STAGING DRILL & PRODUCTION RELEASE GATE PASSED 100% ===

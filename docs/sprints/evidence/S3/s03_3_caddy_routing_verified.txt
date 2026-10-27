@@ -1,0 +1,76 @@
+=== RUN   TestCaddyDomainFormatting
+=== RUN   TestCaddyDomainFormatting/Standard_production_subdomain
+=== RUN   TestCaddyDomainFormatting/Localhost_development_subdomain
+=== RUN   TestCaddyDomainFormatting/Uppercase_and_trimmed_slug_handling
+=== RUN   TestCaddyDomainFormatting/Empty_slug_defaults_to_app
+--- PASS: TestCaddyDomainFormatting (0.00s)
+    --- PASS: TestCaddyDomainFormatting/Standard_production_subdomain (0.00s)
+    --- PASS: TestCaddyDomainFormatting/Localhost_development_subdomain (0.00s)
+    --- PASS: TestCaddyDomainFormatting/Uppercase_and_trimmed_slug_handling (0.00s)
+    --- PASS: TestCaddyDomainFormatting/Empty_slug_defaults_to_app (0.00s)
+=== RUN   TestCaddyMockAdminAPI
+--- PASS: TestCaddyMockAdminAPI (0.00s)
+=== RUN   TestCaddySnippetGenerationAndLifecycle
+--- PASS: TestCaddySnippetGenerationAndLifecycle (0.00s)
+=== RUN   TestCaddyReconcileRoutes
+--- PASS: TestCaddyReconcileRoutes (0.00s)
+=== RUN   TestLocalDriverWithCaddyRouter
+--- PASS: TestLocalDriverWithCaddyRouter (0.04s)
+=== RUN   TestRealCaddyIntegration
+    caddy_test.go:561: CURRENT CADDY CONFIG:
+        {"admin":{"listen":"127.0.0.1:22019"},"apps":{"http":{"servers":{"srv0":{"automatic_https":{"disable":true},"errors":{"routes":[{"@id":"cuan-error-test-graceful","handle":[{"handler":"subroute","routes":[{"handle":[{"body":"\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"id\"\u003e\n\u003chead\u003e\n    \u003cmeta charset=\"utf-8\"\u003e\n    \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\"\u003e\n    \u003cmeta http-equiv=\"refresh\" content=\"5\"\u003e\n    \u003ctitle\u003eAplikasi Sedang Dimuat | Cuan Deployer\u003c/title\u003e\n    \u003cstyle\u003e\n        * { box-sizing: border-box; margin: 0; padding: 0; }\n        body {\n            font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif;\n            background-color: #0f172a;\n            color: #f8fafc;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            min-height: 100vh;\n            padding: 1.5rem;\n        }\n        .container {\n            background-color: #1e293b;\n            border: 1px solid #334155;\n            border-radius: 1rem;\n            padding: 2.5rem 2rem;\n            max-width: 520px;\n            width: 100%;\n            text-align: center;\n            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);\n        }\n        .spinner {\n            width: 48px;\n            height: 48px;\n            border: 4px solid #334155;\n            border-top: 4px solid #38bdf8;\n            border-radius: 50%;\n            animation: spin 1s linear infinite;\n            margin: 0 auto 1.5rem;\n        }\n        @keyframes spin {\n            0% { transform: rotate(0deg); }\n            100% { transform: rotate(360deg); }\n        }\n        h1 {\n            font-size: 1.35rem;\n            font-weight: 700;\n            color: #f1f5f9;\n            margin-bottom: 0.75rem;\n            line-height: 1.3;\n        }\n        p {\n            font-size: 0.925rem;\n            color: #94a3b8;\n            line-height: 1.6;\n            margin-bottom: 1.5rem;\n        }\n        .badge {\n            display: inline-flex;\n            align-items: center;\n            background-color: #0369a1;\n            color: #e0f2fe;\n            padding: 0.35rem 0.85rem;\n            border-radius: 9999px;\n            font-size: 0.75rem;\n            font-weight: 600;\n            letter-spacing: 0.025em;\n            text-transform: uppercase;\n        }\n        .hint {\n            font-size: 0.8rem;\n            color: #64748b;\n            margin-top: 1.25rem;\n        }\n    \u003c/style\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n    \u003cdiv class=\"container\"\u003e\n        \u003cdiv class=\"spinner\"\u003e\u003c/div\u003e\n        \u003ch1\u003eAplikasi Sedang Dimuat (Booting)\u003c/h1\u003e\n        \u003cp\u003eAplikasi Anda di Cuan Deployer sedang dalam proses inisialisasi runtime atau backend port belum siap menerima koneksi. Halaman ini akan otomatis memuat ulang dalam 5 detik.\u003c/p\u003e\n        \u003cspan class=\"badge\"\u003eStatus: 503 Initializing Runtime\u003c/span\u003e\n        \u003cdiv class=\"hint\"\u003eCuan Virtual Host Routing Engine • Graceful Fallback\u003c/div\u003e\n    \u003c/div\u003e\n\u003c/body\u003e\n\u003c/html\u003e","handler":"static_response","headers":{"Content-Type":["text/html; charset=utf-8"],"Retry-After":["5"]},"status_code":503}]}]}],"match":[{"host":["test-graceful.cuan.localhost"]}],"terminal":true}]},"listen":[":28443"],"routes":[{"@id":"cuan-route-test-graceful","handle":[{"handler":"reverse_proxy","headers":{"request":{"set":{"Host":["{http.request.host}"],"X-Forwarded-For":["{http.request.remote.host}"],"X-Forwarded-Proto":["{http.request.scheme}"],"X-Real-IP":["{http.request.remote.host}"]}}},"upstreams":[{"dial":"127.0.0.1:29099"}]}],"match":[{"host":["test-graceful.cuan.localhost"]}],"terminal":true}]}}}}}
+--- PASS: TestRealCaddyIntegration (0.17s)
+=== RUN   TestZipSlipProtection
+=== RUN   TestZipSlipProtection/ParentTraversal
+=== RUN   TestZipSlipProtection/NestedParentTraversal
+=== RUN   TestZipSlipProtection/AbsoluteUnixPath
+=== RUN   TestZipSlipProtection/WindowsBackslashTraversal
+=== RUN   TestZipSlipProtection/DotDotOnly
+=== RUN   TestZipSlipProtection/SafeZipExtractsCleanly
+--- PASS: TestZipSlipProtection (0.00s)
+    --- PASS: TestZipSlipProtection/ParentTraversal (0.00s)
+    --- PASS: TestZipSlipProtection/NestedParentTraversal (0.00s)
+    --- PASS: TestZipSlipProtection/AbsoluteUnixPath (0.00s)
+    --- PASS: TestZipSlipProtection/WindowsBackslashTraversal (0.00s)
+    --- PASS: TestZipSlipProtection/DotDotOnly (0.00s)
+    --- PASS: TestZipSlipProtection/SafeZipExtractsCleanly (0.00s)
+=== RUN   TestStackAutoDetection
+=== RUN   TestStackAutoDetection/PHP_IndexPHP
+=== RUN   TestStackAutoDetection/PHP_WordPress_Config
+=== RUN   TestStackAutoDetection/NodeJS_PackageJSON
+=== RUN   TestStackAutoDetection/Static_IndexHTML
+=== RUN   TestStackAutoDetection/Custom_Fallback
+=== RUN   TestStackAutoDetection/NestedRoot_PHP_Archive
+=== RUN   TestStackAutoDetection/NestedRoot_NodeJS_Archive
+=== RUN   TestStackAutoDetection/NestedRoot_Static_Archive
+--- PASS: TestStackAutoDetection (0.01s)
+    --- PASS: TestStackAutoDetection/PHP_IndexPHP (0.00s)
+    --- PASS: TestStackAutoDetection/PHP_WordPress_Config (0.00s)
+    --- PASS: TestStackAutoDetection/NodeJS_PackageJSON (0.00s)
+    --- PASS: TestStackAutoDetection/Static_IndexHTML (0.00s)
+    --- PASS: TestStackAutoDetection/Custom_Fallback (0.00s)
+    --- PASS: TestStackAutoDetection/NestedRoot_PHP_Archive (0.00s)
+    --- PASS: TestStackAutoDetection/NestedRoot_NodeJS_Archive (0.00s)
+    --- PASS: TestStackAutoDetection/NestedRoot_Static_Archive (0.00s)
+=== RUN   TestDeployerMigrations
+--- PASS: TestDeployerMigrations (0.00s)
+=== RUN   TestLocalDriverLifecycle
+--- PASS: TestLocalDriverLifecycle (0.17s)
+=== RUN   TestStorageEngine_Isolation
+--- PASS: TestStorageEngine_Isolation (0.00s)
+=== RUN   TestPortPool_ZeroCollision
+=== RUN   TestPortPool_ZeroCollision/PoolExhaustionHandling
+--- PASS: TestPortPool_ZeroCollision (0.01s)
+    --- PASS: TestPortPool_ZeroCollision/PoolExhaustionHandling (0.00s)
+=== RUN   TestLocalDriver_Lifecycle
+=== RUN   TestLocalDriver_Lifecycle/StaticRuntime_Lifecycle
+=== RUN   TestLocalDriver_Lifecycle/PHPRuntime_Lifecycle
+=== RUN   TestLocalDriver_Lifecycle/NodeJSRuntime_Lifecycle
+--- PASS: TestLocalDriver_Lifecycle (0.30s)
+    --- PASS: TestLocalDriver_Lifecycle/StaticRuntime_Lifecycle (0.19s)
+    --- PASS: TestLocalDriver_Lifecycle/PHPRuntime_Lifecycle (0.04s)
+    --- PASS: TestLocalDriver_Lifecycle/NodeJSRuntime_Lifecycle (0.07s)
+=== RUN   TestLogStreamer
+--- PASS: TestLogStreamer (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/deployer	0.721s

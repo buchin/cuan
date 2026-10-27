@@ -1,0 +1,94 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "directLatestSession": true,
+      "requestAndResult": true,
+      "evidenceCollapsed": true,
+      "noTerminalUntilRequested": true,
+      "answerWithoutAccept": true,
+      "noOverflow": true
+    }
+  ],
+  "explicitStartOnly": true,
+  "acceptanceGates": true,
+  "historySnapshot": true,
+  "readyTaskAndMetadataReturn": true,
+  "interactiveAttachOnly": true,
+  "followup": true,
+  "providerInvocations": 0,
+  "errors": [],
+  "unknown": []
+}

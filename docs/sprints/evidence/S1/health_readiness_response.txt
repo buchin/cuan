@@ -1,0 +1,77 @@
+================================================================================
+Cuan Sprint 1 — Task T2: Health & Readiness Endpoints Verification
+Date: 2026-10-16
+SSOT Reference: docs/sprints/S1.md (T2 DoD: "Bukti: health response, smoke install/login/restart")
+================================================================================
+
+1. LIVENESS CHECK (/healthz)
+--------------------------------------------------------------------------------
+Purpose: Verifies the Cuan server process is responsive and running.
+Request: GET http://127.0.0.1:8080/healthz
+
+Response (HTTP 200 OK):
+Content-Type: application/json; charset=utf-8
+
+{
+  "app": "cuan",
+  "status": "healthy",
+  "timestamp": "2026-10-16T13:58:32Z",
+  "version": "0.1.0-dev"
+}
+
+2. READINESS CHECK (/readyz) — HEALTHY / CONNECTED STATE
+--------------------------------------------------------------------------------
+Purpose: Verifies PostgreSQL connection pool, schema migrations table, and single-owner setup state.
+Request: GET http://127.0.0.1:8080/readyz
+
+Response (HTTP 200 OK):
+Content-Type: application/json; charset=utf-8
+
+{
+  "database": "connected",
+  "migrations": "applied",
+  "migrations_count": 2,
+  "owner_configured": true,
+  "status": "ready"
+}
+
+3. READINESS CHECK (/readyz) — IN-MEMORY / DEV STANDALONE MODE
+--------------------------------------------------------------------------------
+Purpose: Verifies server operates gracefully during local development without a database.
+Request: GET http://127.0.0.1:8080/readyz (DATABASE_URL="")
+
+Response (HTTP 200 OK):
+Content-Type: application/json; charset=utf-8
+
+{
+  "database": "in_memory_dev",
+  "status": "ready"
+}
+
+4. READINESS CHECK (/readyz) — DATABASE DISCONNECTED / FAILURE STATE
+--------------------------------------------------------------------------------
+Purpose: Verifies container orchestrator readiness probe detects database outage.
+Request: GET http://127.0.0.1:8080/readyz (PostgreSQL stopped / connection refused)
+
+Response (HTTP 503 Service Unavailable):
+Content-Type: application/json; charset=utf-8
+
+{
+  "database": "disconnected",
+  "error": "dial tcp 127.0.0.1:5432: connect: connection refused",
+  "status": "not_ready"
+}
+
+5. CLI HEALTHCHECK FLAG (--healthcheck)
+--------------------------------------------------------------------------------
+Purpose: Embedded healthcheck for minimal Docker Alpine containers without requiring curl/wget.
+Command:
+  $ /app/cuan-server --healthcheck
+  $ echo $?
+  0
+
+When server is running: Exit Code 0 (Success)
+When server is stopped or unhealthy: Exit Code 1 (Failure)
+================================================================================
+Verification completed successfully.
+================================================================================

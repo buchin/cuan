@@ -1,0 +1,16 @@
+{
+  "release": "98f8811f2b5c7a504aae40e01b53ff8e3ea249ce",
+  "previous": "f40909a78f1357e6d72da13970f1e7685728bfa5",
+  "cleanCheckoutTargetedTests": "passed 7.386s",
+  "schema": 25,
+  "autoMigrate": false,
+  "health": "healthy",
+  "rollbackReactivationVerified": true,
+  "retainedApplicationTables": 37,
+  "retainedProfileFiles": 930,
+  "changedProfileFiles": 0,
+  "retainedItemStates": 7,
+  "retainedReadFlags": 11,
+  "productionInference": false,
+  "privateBackup": "/opt/cuan/backups/cancel-recovery-release-20261021"
+}

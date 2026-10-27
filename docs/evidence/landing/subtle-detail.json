@@ -1,0 +1,73 @@
+{
+  "fixture": true,
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "compactSuccess": true,
+      "noStatusBubble": true,
+      "minimumTouchHeight44": true,
+      "keyboardDetails": true
+    }
+  ],
+  "indonesianDuration": true,
+  "missingDuration": true,
+  "runningAndFailurePreserved": true,
+  "providerCalls": 0
+}

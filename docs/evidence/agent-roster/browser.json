@@ -1,0 +1,48 @@
+{
+  "fixture": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "settings/agents",
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "clear fresh/expired status",
+    "labeled check action",
+    "no automatic provider requests",
+    "details only when results exist",
+    "delete hidden behind menu and confirmation; cancel makes no request",
+    "Escape/outside/focus menu dismissal",
+    "return chat only safe origin query",
+    "Settings button absent on Settings"
+  ],
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/v1/agents/agent_unknown/connection/verify"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/agents/agent_login"
+    }
+  ],
+  "errors": [],
+  "unknown": [],
+  "actualProviderInvocations": 0
+}

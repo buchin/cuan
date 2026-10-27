@@ -1,0 +1,22 @@
+{
+  "roster": [
+    {
+      "id": "agent_pin1",
+      "name": "@pin1",
+      "connection_id": "conn_agent_pin1",
+      "connection_state": "unknown"
+    }
+  ],
+  "pin1Retained": true,
+  "previousRealReplyRetained": true,
+  "readiness": {
+    "database": "connected",
+    "migrations": "applied",
+    "migrations_count": 19,
+    "owner_configured": true,
+    "status": "ready"
+  },
+  "productionRemainsS25": true,
+  "newActualProviderConsent": false,
+  "providerRequestExecuted": false
+}

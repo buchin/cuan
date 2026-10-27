@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {
+      "width": 390,
+      "latestSafeActivity": true,
+      "sessionIdExcluded": true,
+      "logoToStudio": true,
+      "draftPreserved": true
+    },
+    {
+      "width": 1440,
+      "latestSafeActivity": true,
+      "sessionIdExcluded": true,
+      "logoToStudio": true,
+      "draftPreserved": true
+    }
+  ],
+  "providerCalls": 0
+}

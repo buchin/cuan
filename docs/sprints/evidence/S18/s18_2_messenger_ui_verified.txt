@@ -1,0 +1,38 @@
+=== CUAN SPRINT 18 (S18.2) EVIDENCE: DIRECT MESSENGER HUB UI VERIFIED ===
+Timestamp: 2026-10-18T18:25:00Z
+DoD Requirement: WhatsApp/Telegram-style unified messenger UI replacing thread cards, neutral theme, 1-click agent cards, 0 Tokyo Night hexes, TypeScript & Vite build clean.
+
+1. Layout & Architecture Verification:
+- InboxSubPanel:
+  * Filter Tabs: All, Agents, Customers with dynamic badge counts.
+  * Real-time search filter across names, last messages, and product tags.
+  * Contact list items with avatars, green online indicator (status === 'online'), timestamp, unread counter badge.
+  * Customer badges showing active product context (e.g., 'TermAPI Cloud').
+- InboxView:
+  * Persistent conversation header with contact avatar, name, subtitle/status, and manual refresh button.
+  * WhatsApp/Telegram style bubble stream:
+    - User outgoing messages: Right-aligned, primary neutral background (bg-primary text-primary-foreground), double checkmark.
+    - Incoming messages (Agent/Visitor/Customer): Left-aligned, neutral secondary background (bg-secondary text-foreground).
+  * Agent 1-Click Execution Cards:
+    - Automatically parses action cards in assistant messages.
+    - Displays action title, target task/project, status, and interactive DoD checklist preview.
+    - "Approve & Run" trigger button executes tasks instantly via tasksApi.runAgent.
+  * Auto-expanding multiline composer:
+    - Enter key sends message immediately.
+    - Shift+Enter inserts newline without sending.
+    - Auto-grows vertically up to max-height (160px).
+- Thread Modal Deprecation:
+  * CreateThreadModal.tsx completely removed from codebase.
+  * App.tsx updated to wire direct chat contacts and conversation streaming.
+
+2. Tokyo Night Hex Elimination Audit:
+- Grep pattern: 1a1b26|eaeef6|2ac3de|7aa2f7|16161e|24283b|1f2335|414868|565f89|c0caf5|9ece6a|e0af68|bb9af7|f7768e|7dcfff
+- Scope: web/src
+- Matches found: 0 (Tokyo Night 100% cleansed, replaced with semantic shadcn neutral zinc/slate tokens).
+
+3. Frontend Build Verification:
+$ cd web && npm run build
+- TypeScript compiler (tsc): Clean, 0 errors.
+- Vite build: Clean, bundled dist/assets/index-*.js and dist/assets/index-*.css.
+
+Status: S18.2 VERIFIED PASS

@@ -1,0 +1,16 @@
+{
+  "release": "252c36d7a2c0a5990faff23ce28b75eb7aff5d99",
+  "production": "https://cuan.dojo.cc",
+  "schema": 22,
+  "newMigration": false,
+  "themeViewportChecks": 8,
+  "loginChecked": true,
+  "faviconAndExportsVerified": true,
+  "productWrites": 0,
+  "providerInvocations": 0,
+  "limits": [
+    "Chromium emulation, not physical device/Safari certification",
+    "Favicon follows OS/browser color preference; app logo follows Settings theme override",
+    "Existing build CSS/chunk warnings"
+  ]
+}

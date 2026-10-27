@@ -1,0 +1,236 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "checks": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "mobileDetailFocused": false,
+      "desktopSplit": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "mobileDetailFocused": false,
+      "desktopSplit": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "mobileDetailFocused": true,
+      "desktopSplit": false,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "mobileDetailFocused": true,
+      "desktopSplit": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "mobileDetailFocused": true,
+      "desktopSplit": false,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "mobileDetailFocused": true,
+      "desktopSplit": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "mobileDetailFocused": true,
+      "desktopSplit": false,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "mobileDetailFocused": true,
+      "desktopSplit": false,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "light",
+      "route": "settings/agents",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "tasks",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "projects",
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "route": "settings/agents",
+      "noOverflow": true
+    }
+  ],
+  "workflows": [
+    "compact list, max2 tags",
+    "mobile focused detail/Back and desktop split",
+    "query deep link and reload",
+    "chip add/remove, existing tags and case-insensitive duplicates",
+    "40character and20tag validation",
+    "draft preserved on Back, save failure retry, empty tags save",
+    "source/tag/search filters and reset",
+    "unknown contact, load error retry and empty state",
+    "Tasks reset includes project",
+    "Projects view preference and reset",
+    "Agents search without provider probes"
+  ],
+  "errors": [],
+  "writes": [
+    {
+      "method": "PATCH",
+      "path": "/api/v1/contacts/crm1"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/contacts/crm1"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/contacts/crm1"
+    }
+  ],
+  "unknown": [],
+  "providerInvocations": 0
+}

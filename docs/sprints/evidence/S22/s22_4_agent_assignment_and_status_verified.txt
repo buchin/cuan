@@ -1,0 +1,33 @@
+================================================================================
+AUDIT EVIDENCE S22.4: AGENT ASSIGNMENT & STATUS INDICATORS
+================================================================================
+Timestamp:     2026-10-18T22:07:00+07:00
+Task ID:       glwranojpmdwqjkyawlbzrrb
+Repository:    https://github.com/buchin/cuan
+Author:        Buchin <buchin@dropsugar.com>
+Status:        PASS (100% VERIFIED)
+
+1. AGENT ASSIGNMENT DROPDOWN:
+   - Integrated into TaskSidePeek.tsx header/details.
+   - Available assignees:
+     * Antigravity Flash (Autonomous Worker)
+     * Antigravity Pro (Complex Refactor)
+     * Scrum Master (@sm)
+     * Buchin (Human Owner)
+   - Assigning updates `assignee_id` via `tasksApi.updateTask(task.id, { assignee_id: ... })`.
+
+2. STATUS BADGES & PULSING INDICATORS:
+   - Kanban Cards (TaskBoardView.tsx):
+     * Running: Pulsing green dot (`animate-ping bg-emerald-400`) + emerald border/text.
+     * Completed: Teal badge with checkmark.
+     * Failed: Red badge with alert.
+     * Idle: Slate badge.
+     * Agent Tag: Displays agent badge icon and formatted name (e.g., "Antigravity Flash").
+   - SidePeek Runner Tab (TaskSidePeek.tsx):
+     * Live status indicator reflecting backend task `execution_status`.
+     * Status polling / refresh upon running agent or closing terminal.
+
+3. VERIFICATION CHECKS:
+   - [x] UI status reflects backend execution_status accurately.
+   - [x] Agent assignee selection persists to project_tasks.assignee_id.
+   - [x] Responsive on desktop rail and mobile bottom nav views.

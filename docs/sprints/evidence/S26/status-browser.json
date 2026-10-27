@@ -1,0 +1,11 @@
+{
+  "actualProbeHTTP": 200,
+  "connection_state": "quota_limited",
+  "last_checked_at": "2026-10-19T02:24:50.75570042Z",
+  "verified_at": null,
+  "firstRow": "@pin1\n\nAntigravity · Kuota habis\n\nDiperiksa 09:24 AM\n\nPeriksa",
+  "rowAfterReload": "@pin1\n\nAntigravity · Kuota habis\n\nDiperiksa 09:24 AM\n\nPeriksa",
+  "persistsAfterReload": true,
+  "verifiedUsesRefreshIcon": false,
+  "fixture": false
+}

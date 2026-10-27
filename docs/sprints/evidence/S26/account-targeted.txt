@@ -1,0 +1,22 @@
+=== RUN   TestS26AccountPersistenceOwnerAndPaths
+--- PASS: TestS26AccountPersistenceOwnerAndPaths (0.00s)
+=== RUN   TestS26ProfileEnvironmentDoesNotInheritSecrets
+--- PASS: TestS26ProfileEnvironmentDoesNotInheritSecrets (0.00s)
+=== RUN   TestS26ScopedOAuthRejectsOtherOwnerAccountAndLegacy
+--- PASS: TestS26ScopedOAuthRejectsOtherOwnerAccountAndLegacy (0.00s)
+=== RUN   TestS26RealIsolatedOAuthURL
+    account_profiles_test.go:119: explicit actual CLI check
+--- SKIP: TestS26RealIsolatedOAuthURL (0.00s)
+=== RUN   TestS25RejectCredentialInjection
+--- PASS: TestS25RejectCredentialInjection (0.00s)
+=== RUN   TestS25ExpiredSession
+--- PASS: TestS25ExpiredSession (0.00s)
+=== RUN   TestS25RealOAuthURL
+    antigravityauth_s25_test.go:35: explicit real CLI check only
+--- SKIP: TestS25RealOAuthURL (0.00s)
+=== RUN   TestS25AuthorizationCodeUsesTerminalEnter
+--- PASS: TestS25AuthorizationCodeUsesTerminalEnter (0.00s)
+=== RUN   TestS25ProbeErrorsDoNotExposeProviderOutput
+--- PASS: TestS25ProbeErrorsDoNotExposeProviderOutput (0.00s)
+PASS
+ok  	github.com/buchin/cuan/internal/agent	0.009s

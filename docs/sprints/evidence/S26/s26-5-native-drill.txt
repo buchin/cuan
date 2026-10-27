@@ -1,0 +1,9 @@
+{"oldS25ActualBinaryOnStagingSchema20": true, "productionPointerUnchanged": true, "isolatedService": "cuan-s26-gate", "port": 8082, "database": "cuan_s25", "providerCalls": 0}
+PASS actual host exclusive-lock rejection
+PASS actual host checksum rejection
+Private pre-release database backup created; no migrations will run.
+{"release": "b3cd134832121df920c43262b8d367a410fd35d7", "previous": "fb83e133a6ed7babc1ff603568b1e03897139035", "health": "healthy", "migrations": 20}
+{"release": "fb83e133a6ed7babc1ff603568b1e03897139035", "previous": "b3cd134832121df920c43262b8d367a410fd35d7", "health": "healthy", "migrations": 20}
+{"release": "b3cd134832121df920c43262b8d367a410fd35d7", "previous": "fb83e133a6ed7babc1ff603568b1e03897139035", "health": "healthy", "migrations": 20}
+{"actualNativeActivationRollbackReactivation": true, "schema20Throughout": true, "oldS25Usable": true, "backupMode": "0600", "backupBytes": 215416, "productionUntouched": true, "noDownMigrationOrRestore": true}
+Isolated drill service stopped; private archive and payload retained.

@@ -1,0 +1,54 @@
+=== CUAN AGENT ADAPTER SPIKE EVIDENCE ===
+Date: 2026-10-16T06:44:40Z
+Selected Official Agent: agy
+Agent Version: 1.4.0 (binary: /home/dev/.local/bin/agy)
+
+--- 1. Agent Candidate Comparison ---
+• agy (1.4.0):
+  - Auth: Authenticated on server with active session.
+  - Headless: Supported via -p / --print with --dangerously-skip-permissions.
+  - Formats: Structured JSON output with conversation_id, status, token usage, duration.
+  - Cancelable: Subprocess group (Setpgid: true) terminates cleanly via SIGINT/SIGKILL in <400ms.
+  - Secrets: Masked before writing to logs/output ([REDACTED]).
+  - Verdict: SELECTED.
+
+• claude (2.1.301 - Claude Code):
+  - Auth: Failed (OAuth session expired on server). Requires interactive web browser login.
+  - Verdict: Deferred.
+
+• codex (0.163.0 - Codex CLI):
+  - Auth: Failed (no Codex credentials found in ~/.codex/auth.json).
+  - Verdict: Deferred.
+
+• grok (1.0.60):
+  - Auth: Failed (Not signed in, requires device code / XAI_API_KEY).
+  - Verdict: Deferred.
+
+--- 2. Automated Spike Verification (internal/agent) ---
+Command: go test -v -timeout 150s ./internal/agent/...
+Results:
+=== RUN   TestMaskSecrets
+--- PASS: TestMaskSecrets (0.00s)
+=== RUN   TestAGYAdapter_Basics
+    agent_test.go:46: Detected AGY Adapter version: 1.4.0
+--- PASS: TestAGYAdapter_Basics (0.09s)
+=== RUN   TestAGYAdapter_SpikeFixtureEditAndSecrets
+    agent_test.go:89: Spike Result: Status=SUCCESS, ExitCode=0, Duration=1m13.904771543s, PeakRSS=222928896 bytes
+    agent_test.go:107: Updated fixture content: "spike-edited-by-agy\n"
+--- PASS: TestAGYAdapter_SpikeFixtureEditAndSecrets (73.91s)
+=== RUN   TestAGYAdapter_Cancelation
+    agent_test.go:147: Cancelation test finished in 362.06227ms: Status=CANCELED, ExitCode=-1
+--- PASS: TestAGYAdapter_Cancelation (0.36s)
+PASS
+ok  	github.com/buchin/cuan/internal/agent	74.37s
+
+--- 3. DoD Verification Checklist ---
+[✓] Agent terpilih mampu menerima instruksi headless (agy v1.4.0 via -p / --output-format json).
+[✓] Agent mengedit fixture repository (fixture.txt diubah menjadi "spike-edited-by-agy").
+[✓] Agent melaporkan selesai (Status=SUCCESS, ExitCode=0).
+[✓] Agent dapat dihentikan / cancel (SIGINT/SIGKILL process group, Status=CANCELED, ExitCode=-1).
+[✓] Auth server & konsumsi resource terukur tanpa membuka secrets:
+    - Auth: Active server session
+    - Peak RSS: 222,928,896 bytes (~212.6 MB)
+    - Execution Duration: 1m13.9s
+    - Secret Masking: Verified (SENSITIVE_SECRET_TOKEN_9999 masked as [REDACTED]).

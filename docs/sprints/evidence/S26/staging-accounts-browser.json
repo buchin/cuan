@@ -1,0 +1,19 @@
+{
+  "officialOAuth": {
+    "host": "accounts.google.com",
+    "path": "/o/oauth2/auth",
+    "responseType": "code",
+    "redirectHost": "antigravity.google",
+    "prompt": "select_account consent"
+  },
+  "geometry": {
+    "width": 390,
+    "documentWidth": 390
+  },
+  "legacyAccountRetained": true,
+  "newAccountPersistsAfterReload": true,
+  "cancelRemovesLoginUI": true,
+  "actualSecondConsent": false,
+  "realProviderReply": false,
+  "limits": "Actual staging HTTP/API/CLI and Chromium mobile viewport; no owner consent or second-account success claimed."
+}

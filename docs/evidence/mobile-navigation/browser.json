@@ -1,0 +1,306 @@
+{
+  "fixture": true,
+  "exactProductionBuild": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1200,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1200,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1200,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1200,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1200,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1200,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1024,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 768,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 767,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 767,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 767,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 767,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 767,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 767,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "inbox",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "contacts",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "tasks",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "projects",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "settings",
+      "noDrawer": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "route": "settings/integrations/live-chat",
+      "noDrawer": true,
+      "noOverflow": true
+    }
+  ],
+  "checks": [
+    "no mobile hamburger or navigation drawer",
+    "four bottom tabs navigate with current state",
+    "Settings and account header accessible",
+    "chat hides bottom navigation, Back restores list and navigation",
+    "tablet sidebar and desktop collapse retained",
+    "resize creates no drawer or focus trap"
+  ],
+  "errors": [],
+  "unknown": [],
+  "writes": [],
+  "providerInvocations": 0
+}

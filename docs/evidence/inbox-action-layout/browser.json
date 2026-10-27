@@ -1,0 +1,49 @@
+{
+  "checks": [
+    {
+      "width": 360,
+      "theme": "light",
+      "cancelStable": true,
+      "detailExpandable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 360,
+      "theme": "dark",
+      "cancelStable": true,
+      "detailExpandable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "light",
+      "cancelStable": true,
+      "detailExpandable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 820,
+      "theme": "dark",
+      "cancelStable": true,
+      "detailExpandable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "cancelStable": true,
+      "detailExpandable": true,
+      "noOverflow": true
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "cancelStable": true,
+      "detailExpandable": true,
+      "noOverflow": true
+    }
+  ],
+  "selectedRowContinuous": true,
+  "menuKeyboardAccessible": true,
+  "providerCalls": 0
+}

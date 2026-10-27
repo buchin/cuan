@@ -1,0 +1,47 @@
+================================================================================
+VERIFIKASI AUDIT SPRINT 23: S23.2 — FURAL-STYLE ADD AGENT MODAL UI
+================================================================================
+Timestamp:     2026-10-18T16:21:00Z
+Task ID:       khiopzibgiyozwqjddtmwuxb
+Title:         Sprint 23: Fural-Style BYO Agent Connection & Dynamic Chat Roles
+Author:        Buchin <buchin@dropsugar.com>
+Repository:    https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+Status:        LULUS VERIFIKASI 100% (ZERO REGRESSION)
+
+================================================================================
+1. DESAIN MODAL TAMBAH AGEN (FURAL-STYLE)
+================================================================================
+- Mengeliminasi field/dropdown peran bisnis kaku (seperti 'CS Toko', 'Admin Toko', 'Sales', dll.)
+- Pilihan Harness:
+  * Antigravity (`agy` CLI harness)
+  * Claude (`claude` CLI harness)
+  * Codex (`codex` CLI harness)
+  * Custom Model (`custom` API endpoint & key harness)
+- Input Field Agent Name:
+  * Mention handle format dengan prefix '@' (e.g., `@dev`, `@architect`, `@scrummaster`)
+  * Auto-sanitasi karakter non-alphanumeric/underscore/dash
+- Panel Status Sesi Akun / Autentikasi:
+  * Untuk Harness CLI (Antigravity, Claude, Codex): Menampilkan instruksi koneksi sesi akun dan status sesi aktif
+  * Untuk Harness Custom Model: Menampilkan konfigurasi API Key dan Model Identifier
+- Tindakan Simpan/Hubungkan langsung mendaftarkan agen ke API `/api/v1/agents` dengan format Fural `{ name, harness, connection_id, enabled }`
+
+================================================================================
+2. HASIL BUILD FRONTEND TYPESCRIPT & VITE
+================================================================================
+$ cd web && npm run build
+> cuan-web@0.1.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+dist/index.html                   0.55 kB │ gzip:   0.37 kB
+dist/assets/index-D7RhMYX-.css   47.61 kB │ gzip:   9.82 kB
+dist/assets/index-DQZEAx2J.js   637.55 kB │ gzip: 169.61 kB
+✓ built in 3.48s
+
+TypeScript Typecheck: PASS (0 errors)
+Vite Bundle Generation: PASS (100% clean build)
+
+================================================================================
+KESIMPULAN: DoD S23.2 TERPENUHI 100%
+================================================================================

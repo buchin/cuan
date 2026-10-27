@@ -1,0 +1,91 @@
+=== CUAN SPRINT 4 (S04.2) EVIDENCE: SSH CONNECTOR, HEALTH PROBE & REMOTE FINGERPRINTING VERIFIED ===
+Timestamp: 2026-10-17T07:26:30+07:00
+Task ID: bfnghkgryteuiznknvuieheq
+Title: S04.2 — SSH Connector, Health Probe & Remote Fingerprinting
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Implementasi SSH Connector & Connection Pooling:
+   - File: internal/deployer/ssh_client.go
+   - Library: golang.org/x/crypto/ssh
+   - Batas Timeout: Strict 5 detik connection timeout (DefaultSSHTimeout = 5 * time.Second).
+   - Handshake Safety: Timeout deadline diterapkan pada net.Conn untuk menjamin handshake tidak hang jika server membuka port namun tidak merespons banner SSH.
+   - Keepalive Mechanism: Background ticker berkala (DefaultKeepaliveInterval = 30 * time.Second) mengirimkan global keepalive request (keepalive@openssh.com). Jika koneksi mati/terputus, client otomatis menutup diri secara rapi.
+   - Connection Pooling (ClientPool): Thread-safe manager dengan sync.RWMutex untuk caching koneksi SSH per server ID, auto-reconnect bila koneksi tertutup, serta CloseServer dan CloseAll untuk pembersihan soket.
+   - Zero Leakage: Goroutine keepalive memiliki stopChan terisolasi, channel session ditutup aman, dan memori private key di-parse langsung tanpa disimpan dalam variabel global.
+
+2. Health Probe & Remote Fingerprinting Engine:
+   - Script Probe Komposit (posix-compliant):
+     * Deteksi OS: /etc/os-release dengan parsing PRETTY_NAME, NAME, VERSION_ID, ID distro, dengan fallback ke uname -a.
+     * Deteksi Kernel & Arsitektur: uname -s -r -m (mengekstrak kernel version dan CPU arch x86_64 / aarch64).
+     * Deteksi CPU Cores: nproc dengan fallback ke /proc/cpuinfo processor count.
+     * Deteksi RAM: free -m (mengekstrak Mem total dalam MB) dengan fallback ke /proc/meminfo MemTotal.
+     * Deteksi Hostname: hostname sistem target.
+     * Pengukuran Latensi: Mengukur round-trip ping latency dalam milidetik (PingMS).
+   - Struktur Data: deployer.SystemSpecs dengan method ToMap() yang menghasilkan format serialisasi terstandar untuk kolom JSONB os_info di PostgreSQL.
+
+3. HTTP Handlers & Routing Server Management:
+   - File: internal/server/server_handlers.go & internal/server/server.go
+   - Endpoint Terdaftar (mendukung path /api/servers dan /api/v1/servers):
+     * GET /api/servers : Mengembalikan seluruh server terdaftar via ServerDTO (field EncryptedKey terisolasi tag json:"-" sehingga kredensial SSH 100% aman dari kebocoran publik).
+     * POST /api/servers : Mendaftarkan server remote baru. Memvalidasi field name, host, private_key, menghitung fingerprint OpenSSH (SHA256:...), mengenkripsi private key menggunakan AES-256-GCM KeyVault, dan menetapkan status awal 'pending'.
+     * GET /api/servers/{id} : Mengambil detail spesifikasi server terdaftar (404 bila tidak ditemukan).
+     * POST /api/servers/{id}/test : Menjalankan uji koneksi dan health probe instan. Mendekripsi kredensial via KeyVault, dial SSH dengan timeout 5s, mengeksekusi probe, dan mengupdate database dengan status 'online' (atau 'error' / 'offline' jika gagal), last_ping_at, dan os_info.
+     * DELETE /api/servers/{id} : Memutus koneksi aktif di SSHManager dan menghapus record server dari database (404 bila tidak ditemukan).
+
+4. Bukti Eksekusi Targeted Automated Tests:
+   
+   A. SSH Connector & Probe (internal/deployer/ssh_client_test.go):
+   === RUN   TestSSHConnector_Success
+   --- PASS: TestSSHConnector_Success (0.01s)
+   === RUN   TestSSHConnector_AuthFailure
+   --- PASS: TestSSHConnector_AuthFailure (0.00s)
+   === RUN   TestSSHConnector_HostUnreachableAndTimeout
+   --- PASS: TestSSHConnector_HostUnreachableAndTimeout (0.10s)
+   === RUN   TestSSHClientPool_Lifecycle
+   --- PASS: TestSSHClientPool_Lifecycle (0.01s)
+   === RUN   TestParseProbeOutput_Variations
+   --- PASS: TestParseProbeOutput_Variations (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/deployer	0.128s
+
+   B. HTTP Handlers /api/servers (internal/server/server_handlers_test.go):
+   === RUN   TestServerHandlers_ListServers_EmptyAndPopulated
+   --- PASS: TestServerHandlers_ListServers_EmptyAndPopulated (0.00s)
+   === RUN   TestServerHandlers_CreateServer_ValidationAndEncryption
+   --- PASS: TestServerHandlers_CreateServer_ValidationAndEncryption (0.00s)
+       --- PASS: TestServerHandlers_CreateServer_ValidationAndEncryption/Missing_name (0.00s)
+       --- PASS: TestServerHandlers_CreateServer_ValidationAndEncryption/Missing_host (0.00s)
+       --- PASS: TestServerHandlers_CreateServer_ValidationAndEncryption/Missing_private_key (0.00s)
+       --- PASS: TestServerHandlers_CreateServer_ValidationAndEncryption/Invalid_private_key_format (0.00s)
+   === RUN   TestServerHandlers_GetServer_And_DeleteServer
+   --- PASS: TestServerHandlers_GetServer_And_DeleteServer (0.00s)
+   === RUN   TestServerHandlers_TestServer_ProbeSuccessAndDBPersistence
+   --- PASS: TestServerHandlers_TestServer_ProbeSuccessAndDBPersistence (0.01s)
+   === RUN   TestServerHandlers_TestServer_AuthFailureAndUnreachable
+   --- PASS: TestServerHandlers_TestServer_AuthFailureAndUnreachable (0.00s)
+   === RUN   TestServerHandlers_APIV1_Compatibility
+   --- PASS: TestServerHandlers_APIV1_Compatibility (0.00s)
+   PASS
+   ok  	github.com/buchin/cuan/internal/server	0.047s
+
+   C. Zero Regression Verification (Sprint 1, 2, 3):
+   - internal/auth: PASS (cached)
+   - internal/project: PASS (20.488s)
+   - internal/task: PASS (0.005s)
+   - internal/sponsorship: PASS (cached)
+   - internal/runner: PASS (0.007s)
+   - internal/crypto: PASS (cached)
+   - internal/db: PASS (cached)
+   - internal/deployer (LocalDriver, Caddy, Storage, ZipSlip): PASS (0.843s)
+
+5. Definition of Done (DoD) Checklist:
+   [x] 1. SSH connector dapat melakukan handshake dan autentikasi key aman dengan batas timeout 5s.
+   [x] 2. Fingerprint OS, CPU, RAM, dan status ping berhasil diekstrak dan disimpan di database.
+   [x] 3. Seluruh endpoint HTTP /api/servers/* terverifikasi via automated tests.
+   [x] 4. Targeted tests Go lulus 100% tanpa blocking atau connection leak.
+   [x] 5. Bukti audit tersimpan di docs/sprints/evidence/S4/s04_2_ssh_connector_probe_verified.txt.
+   [x] 6. Commit diautentikasi author Buchin <buchin@dropsugar.com> dan terdorong ke main.
+
+=== RESULT: PASS (100% LULUS, SELURUH KRITERIA DoD TERPENUHI TANPA REGRESI) ===

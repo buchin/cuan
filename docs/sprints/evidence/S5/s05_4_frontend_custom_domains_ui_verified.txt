@@ -1,0 +1,124 @@
+=== CUAN SPRINT 5 (S05.4) EVIDENCE: FRONTEND CUSTOM DOMAINS MANAGEMENT HUB & CUSTOM DOMAIN BINDER VERIFIED ===
+Timestamp: 2026-10-17T09:35:00+07:00
+Task ID: glbmgbgfmzkmxopxsftdklns
+Title: S05.4 — Frontend Domains Management Hub & Custom Domain Binder di Studio Dashboard
+Author: Buchin <buchin@dropsugar.com>
+Repository: https://github.com/buchin/cuan
+Fural Repo ID: RPcd484fc4229ae192d17a0f01
+
+1. Frontend Architecture & Components (web/src/components/studio/):
+
+   A. DomainsView Hub (web/src/components/studio/DomainsView.tsx):
+      - Integrated directly into Studio Dashboard navigation tabs alongside Projects and Servers (BYOS).
+      - Route support: /studio/domains with dynamic URL synchronization.
+      - Fetches all custom domains via GET /api/domains with periodic background refresh (8s).
+      - Top Stat Summary Cards:
+        * Total Custom Domains
+        * DNS Verified (with live indicator pulse)
+        * Menunggu DNS (Pending propagation)
+        * On-Demand TLS Ready (Active SSL certificates)
+      - Search and Filter Toolbar:
+        * Text search against domain name, deployment project name, or slug.
+        * Status filter buttons: All, Verified, Pending, Failed.
+        * Quick Refresh action.
+      - Interactive Domain Cards:
+        * Domain name header with direct HTTPS outbound link (external icon).
+        * Target deployment metadata: project name, slug, runtime stack, port, target node (Local Sandbox vs Remote VPS).
+        * Status Badges: DNS (verified [emerald], pending [amber], failed [red]) & SSL (active [blue], pending [slate], error [red]).
+        * Relative last checked timestamp ("timeAgo") and verification token preview.
+        * Action "Verify DNS Now" (POST /api/domains/{id}/verify) with loading spinner and instant feedback notification.
+        * Action "DNS Guide" with expandable cards for CNAME, TXT challenge token, and A-record fallback.
+        * Action "Delete Domain" (DELETE /api/domains/{id}) with safe confirmation modal preventing accidental teardown.
+
+   B. AddDomainModal & Zero-Friction DNS Setup Guide (web/src/components/studio/AddDomainModal.tsx):
+      - Form input for registering new custom domain (POST /api/deployments/{id}/domains).
+      - Target deployment selector when opened globally from DomainsView, or pre-locked when opened from a specific deployment.
+      - Strict client-side RFC 1123 domain validation:
+        * Auto-normalizes whitespace and lowercase.
+        * Strips accidental http://, https://, trailing paths, and port numbers.
+        * Rejects spaces, @ characters, single-label domains, and labels exceeding 63 characters.
+        * Rejects hyphens at the start or end of domain labels.
+        * Rejects purely numeric TLDs (e.g. IP addresses).
+        * Real-time visual feedback with green check / red error indicator.
+      - Interactive Zero-Friction DNS Setup Guide (Step 2 upon registration):
+        * Option 1 (Recommended Subdomains): CNAME Record (Host name & Target canonical host with 1-click Copy).
+        * Option 2 (Ownership Verification): TXT Record (Host `_cuan-challenge.<domain>` & Token with 1-click Copy).
+        * Option 3 (Apex / Root Domains): A Record Fallback (Host `@` & Target Server IP with 1-click Copy).
+        * Immediate "Verify DNS Now" button directly inside modal for zero-friction verification probe.
+
+   C. CustomDomainsModal (web/src/components/studio/CustomDomainsModal.tsx):
+      - Deployment-scoped domain binder modal opened from ProjectDrawer or ProjectCard.
+      - Reads domains for specific deployment via GET /api/deployments/{id}/domains.
+      - Displays all connected domains, live DNS and SSL status badges, last checked time, and verification token.
+      - Inline collapsible DNS instructions card.
+      - Integrated "Verify DNS Now" and "Delete Domain" actions.
+      - Embedded "Add Domain" action launching the registration wizard.
+
+   D. ProjectCard (web/src/components/studio/ProjectCard.tsx):
+      - Standalone, modular project card component for Studio Dashboard.
+      - Displays active custom domains badge: single domain name or count with DNS verification status.
+      - Shortcut button with Globe icon to open CustomDomainsModal directly from project card.
+      - 1-click controls: Start, Stop, Restart, Custom Domains, and Logs & Drawer.
+
+   E. ProjectDrawer (web/src/components/studio/ProjectDrawer.tsx):
+      - Integrated "Custom Domains" section displaying all linked domains and verification status.
+      - 1-Click Runtime Controls toolbar equipped with dedicated "Custom Domains" action button.
+      - Mounts CustomDomainsModal with automatic state synchronization on close.
+
+   F. StudioDashboard & Types (web/src/components/studio/StudioDashboard.tsx & types.ts):
+      - Navigation tabs expanded: Projects ({count}), Domains ({count}), and Servers ({count}).
+      - Mobile navigation tab bar mirrors desktop tabs with responsive layout.
+      - Added TypeScript interfaces: DNSInstructionDetail, CustomDomainInstructions, CustomDomainItem, DomainVerifyResult, CreateDomainResult.
+
+2. Build & Verification Gate Results:
+
+   A. TypeScript Typecheck (tsc --noEmit):
+      Command: cd web && npx tsc --noEmit
+      Result: Exit code 0 (100% clean, 0 errors, 0 warnings).
+
+   B. Production Bundle Build (npm run build):
+      Command: cd web && npm run build
+      Result: Exit code 0
+      Output:
+        dist/index.html                   0.55 kB │ gzip:   0.37 kB
+        dist/assets/index-CHNMDAgF.css   63.51 kB │ gzip:  10.28 kB
+        dist/assets/index-DtP7DlRz.js   531.34 kB │ gzip: 124.74 kB
+        built in 3.35s
+
+   C. RFC 1123 Validation Test Suite (12 hermetic test cases):
+      - app.startupku.id -> VALID
+      - my-project.com -> VALID
+      - api.v1.service.org -> VALID
+      - http://app.startupku.id -> VALID (auto-normalized)
+      - https://app.startupku.id/path -> VALID (auto-normalized)
+      - app.startupku.id:8080 -> VALID (auto-normalized)
+      - empty string -> INVALID (rejected)
+      - invalid (no TLD) -> INVALID (rejected)
+      - -leading.com -> INVALID (rejected)
+      - trailing-.com -> INVALID (rejected)
+      - has space.com -> INVALID (rejected)
+      - 192.168.1.1 (numeric TLD) -> INVALID (rejected)
+      Result: 12/12 PASSED (100%).
+
+   D. Backend Go Test Suite (go test ./...):
+      - github.com/buchin/cuan/internal/agent: PASS
+      - github.com/buchin/cuan/internal/auth: PASS
+      - github.com/buchin/cuan/internal/crypto: PASS
+      - github.com/buchin/cuan/internal/db: PASS
+      - github.com/buchin/cuan/internal/deployer: PASS
+      - github.com/buchin/cuan/internal/domain: PASS
+      - github.com/buchin/cuan/internal/git: PASS
+      - github.com/buchin/cuan/internal/project: PASS
+      - github.com/buchin/cuan/internal/runner: PASS
+      - github.com/buchin/cuan/internal/server: PASS
+      - github.com/buchin/cuan/internal/sponsorship: PASS
+      - github.com/buchin/cuan/internal/task: PASS
+      Result: 100% PASS, zero regressions.
+
+3. Definition of Done Checklist:
+   [x] UI Custom Domains tampil intuitif mengikuti standar shadcn/ui dan tema Studio Cuan.
+   [x] Pengguna dapat menambah, memverifikasi, dan menghapus custom domain dengan instruksi DNS yang jelas.
+   [x] Zero-friction DNS setup guide menyediakan copy-paste CNAME, TXT token, dan A-record fallback.
+   [x] Integrasi tombol "Custom Domains" pada ProjectDrawer.tsx dan badge custom domain aktif di ProjectCard.tsx.
+   [x] TypeScript check dan build Vite lulus 100% tanpa error atau warning.
+   [x] Commit diautentikasi author Buchin <buchin@dropsugar.com> dan terdorong ke origin/main.

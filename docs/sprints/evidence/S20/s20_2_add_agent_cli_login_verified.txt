@@ -1,0 +1,35 @@
+================================================================================
+BUKTI AUDIT SPRINT 20: S20.2 — ADD AGENT & CLI LOGIN UI (MODEL FURAL — NO API KEY)
+================================================================================
+Timestamp:     2026-10-18T20:06:00Z
+Task ID:       qveqmzikganyzqnysvbdegfy
+Title:         Sprint 20: Interactive Agent Chat (No API Key Login) & Mobile Composer Fix
+Author:        Buchin <buchin@dropsugar.com>
+Target Files:  web/src/features/agents/AgentsView.tsx
+               web/src/features/team/TeamView.tsx
+               web/src/features/inbox/InboxSubPanel.tsx
+               web/src/features/inbox/InboxView.tsx
+               web/src/api/agents.ts
+               internal/server/agent_handlers.go
+               internal/server/server.go
+
+HASIL AUDIT IMPLEMENTASI & MODEL FURAL:
+1. Formulir Modal Add Agent Tanpa API Key:
+   - Nama Agen & Pilihan Handle (@dev, @assistant, @sm, @reviewer, @qa).
+   - Pilihan Runtime / Provider: Antigravity CLI (agy), Gemini CLI, Claude CLI.
+   - Pilihan Engine: Gemini 3.8 Flash (High-Speed), Gemini Pro / Claude Sonnet, In-Process Go Runner.
+   - Otorisasi akun Model Fural via CLI Session Token / Device Auth code (contoh: CUAN-8892).
+   - Snippet perintah terminal: `cuan agent auth --handle @dev --runtime agy` dengan tombol salin instan.
+   - Banner: "✓ Model Fural: Tanpa API Key (Zero Raw API Key Required)".
+
+2. Persistensi Backend & Keamanan:
+   - Endpoint `POST /api/v1/agents/connect-cli` menyimpan entitas agent di `agentRepo` dan koneksi sesi terenkripsi di `connectionRepo`.
+   - Menggunakan AES-256-GCM credential encryption tanpa kebocoran kredensial plaintext.
+
+3. Tampilan Status Badge di UI:
+   - Kontak agen di InboxSubPanel dan header InboxView menampilkan badge status:
+     `Agent • [● Connected]` dengan indikator hijau aktif.
+   - Kartu anggota tim di TeamView menampilkan badge status: `[● Connected]`.
+
+STATUS: VERIFIED (PASS)
+================================================================================

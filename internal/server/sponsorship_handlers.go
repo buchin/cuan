@@ -1,0 +1,467 @@
+package server
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/buchin/cuan/internal/auth"
+	"github.com/buchin/cuan/internal/sponsorship"
+)
+
+// handleDojoWebhook handles incoming webhook events from Dojo payment gateway.
+// Verifies webhook secret, performs idempotency check, and transitions order and sponsor status.
+func (s *Server) handleDojoWebhook(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	// 1. Extract secret from various supported headers and params
+	secret := r.Header.Get("X-Dojo-Secret")
+	if secret == "" {
+		secret = r.Header.Get("X-Webhook-Secret")
+	}
+	if secret == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			secret = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if authHeader != "" {
+			secret = authHeader
+		}
+	}
+	if secret == "" {
+		secret = r.URL.Query().Get("secret")
+	}
+
+	// 2. Decode payload
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024) // 1MB limit
+	var payload sponsorship.DojoWebhookPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Invalid webhook JSON: "+err.Error())
+		return
+	}
+
+	// 3. Process via Service
+	result, err := s.sponsorshipSvc.ProcessDojoWebhook(r.Context(), secret, &payload)
+	if err != nil {
+		if errors.Is(err, sponsorship.ErrInvalidWebhookSecret) {
+			respondJSONError(w, http.StatusUnauthorized, "invalid webhook secret")
+			return
+		}
+		if errors.Is(err, sponsorship.ErrMissingOrderID) {
+			respondJSONError(w, http.StatusBadRequest, "missing order_id")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "Could not process webhook: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
+// handleUploadSponsorLogo handles isolated logo upload with MIME validation & SVG anti-XSS sanitization.
+func (s *Server) handleUploadSponsorLogo(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	// Limit body to 2MB + multipart overhead
+	r.Body = http.MaxBytesReader(w, r.Body, sponsorship.MaxLogoSizeBytes+1024*64)
+	if err := r.ParseMultipartForm(sponsorship.MaxLogoSizeBytes); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Upload exceeds the 2 MB limit")
+		return
+	}
+
+	file, header, err := r.FormFile("logo")
+	if err != nil {
+		file, header, err = r.FormFile("file")
+	}
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Include a logo file in form-data (field 'logo' or 'file')")
+		return
+	}
+	defer file.Close()
+
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Could not read uploaded file: "+err.Error())
+		return
+	}
+
+	relPath, mimeType, err := s.sponsorshipSvc.SaveLogo(fileBytes, header.Filename)
+	if err != nil {
+		if errors.Is(err, sponsorship.ErrMaliciousSVG) {
+			respondJSONError(w, http.StatusBadRequest, "Upload rejected. Unsafe scripts or an XSS payload were detected")
+			return
+		}
+		if errors.Is(err, sponsorship.ErrUnsupportedMimeType) {
+			respondJSONError(w, http.StatusBadRequest, "Unsupported file type. Only SVG, PNG, and WebP are allowed")
+			return
+		}
+		if errors.Is(err, sponsorship.ErrFileTooLarge) {
+			respondJSONError(w, http.StatusBadRequest, "Logo file exceeds the 2 MB limit")
+			return
+		}
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":    "success",
+		"logo_path": relPath,
+		"mime_type": mimeType,
+	})
+}
+
+// handleServeSponsorLogo safely serves uploaded sponsor logos with strict security headers.
+func (s *Server) handleServeSponsorLogo(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil || s.sponsorshipSvc.LogoStorage() == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	path := r.URL.Path
+	prefix := "/uploads/sponsors/logos/"
+	if !strings.HasPrefix(path, prefix) {
+		http.NotFound(w, r)
+		return
+	}
+
+	filename := strings.TrimPrefix(path, prefix)
+	data, mimeType, err := s.sponsorshipSvc.LogoStorage().ReadLogo(filename)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Security headers to prevent SVG XSS execution in browser context
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+	w.Header().Set("Content-Type", mimeType)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+// handleSponsorIntake handles prospective founding sponsor submission.
+func (s *Server) handleSponsorIntake(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	var req sponsorship.CreateSponsorRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
+		return
+	}
+
+	sp, err := s.sponsorshipSvc.CreateSponsor(r.Context(), req)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, sp)
+}
+
+// handleSponsorCheckout handles PWYW sponsorship intake and creates checkout session.
+func (s *Server) handleSponsorCheckout(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	var req sponsorship.CreateCheckoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
+		return
+	}
+
+	result, err := s.sponsorshipSvc.CreateCheckoutSession(r.Context(), req)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, result)
+}
+
+// handleGetSponsorshipStatus returns real-time order and sponsor curation status.
+func (s *Server) handleGetSponsorshipStatus(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	orderID := r.URL.Query().Get("order_id")
+	sponsorID := r.URL.Query().Get("sponsor_id")
+
+	status, err := s.sponsorshipSvc.GetSponsorshipStatus(r.Context(), orderID, sponsorID)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not check sponsorship status: "+err.Error())
+		return
+	}
+
+	if !status.Found {
+		respondJSON(w, http.StatusNotFound, status)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, status)
+}
+
+// handleListBatches returns all sponsorship batches for directory archive filtering.
+func (s *Server) handleListBatches(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	batches, err := s.sponsorshipSvc.ListBatches(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not load batches: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"batches": batches,
+		"count":   len(batches),
+	})
+}
+
+// handleListCurrentSponsors lists approved sponsors for public leaderboard (ORDER BY amount DESC, paid_at ASC).
+func (s *Server) handleListCurrentSponsors(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	batchSlug := r.URL.Query().Get("batch")
+	if batchSlug == "" {
+		batchSlug = "v1.0"
+	}
+
+	sponsors, err := s.sponsorshipSvc.ListApprovedSponsors(r.Context(), batchSlug)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not load sponsors: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"batch":    batchSlug,
+		"total":    len(sponsors),
+		"sponsors": sponsors,
+	})
+}
+
+// handleCreateLead handles waiting list signups.
+func (s *Server) handleCreateLead(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	var req struct {
+		Email  string `json:"email"`
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
+		return
+	}
+
+	lead, err := s.sponsorshipSvc.SubmitWaitingListLead(r.Context(), req.Email, req.Source)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, map[string]interface{}{
+		"status":         "success",
+		"message":        "Terima kasih telah bergabung di Waiting List Cuan v1.0",
+		"lead":           lead,
+		"dojo_forwarded": s.sponsorshipSvc.DojoDispatcher() != nil,
+	})
+}
+
+// handleAdminListSponsors lists all sponsors with status filter and status counters for owner curation.
+func (s *Server) handleAdminListSponsors(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	batchID := r.URL.Query().Get("batch_id")
+	status := r.URL.Query().Get("status")
+	if status == "all" {
+		status = ""
+	}
+
+	sponsors, err := s.sponsorshipSvc.ListSponsors(r.Context(), batchID, status)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Calculate counts across all statuses for dashboard badge indicators
+	var pendingCount, approvedCount, rejectedCount, totalCount int
+	allSponsors, errAll := s.sponsorshipSvc.ListSponsors(r.Context(), batchID, "")
+	if errAll == nil {
+		totalCount = len(allSponsors)
+		for _, sp := range allSponsors {
+			switch sp.Status {
+			case sponsorship.SponsorStatusPendingReview:
+				pendingCount++
+			case sponsorship.SponsorStatusApproved:
+				approvedCount++
+			case sponsorship.SponsorStatusRejected:
+				rejectedCount++
+			}
+		}
+	} else {
+		totalCount = len(sponsors)
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"sponsors":       sponsors,
+		"count":          len(sponsors),
+		"pending_count":  pendingCount,
+		"approved_count": approvedCount,
+		"rejected_count": rejectedCount,
+		"total_count":    totalCount,
+	})
+}
+
+// handleAdminApproveSponsor approves sponsor and publishes to leaderboard.
+func (s *Server) handleAdminApproveSponsor(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	actor := "owner"
+	if o := auth.GetOwnerFromContext(r.Context()); o != nil && o.Email != "" {
+		actor = o.Email
+	}
+
+	if err := s.sponsorshipSvc.ApproveSponsor(r.Context(), id, actor); err != nil {
+		if errors.Is(err, sponsorship.ErrSponsorNotFound) {
+			respondJSONError(w, http.StatusNotFound, "Sponsor not found")
+			return
+		}
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":        "approved",
+		"id":            id,
+		"actor":         actor,
+		"message":       "Sponsor approved and published to the leaderboard",
+		"readme_synced": s.sponsorshipSvc.Syncer() != nil,
+	})
+}
+
+// handleAdminSyncReadme manually triggers README.md and permanent archive directory synchronization.
+func (s *Server) handleAdminSyncReadme(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	batchSlug := r.URL.Query().Get("batch")
+	if batchSlug == "" {
+		batchSlug = sponsorship.DefaultBatchSlug
+	}
+
+	result, err := s.sponsorshipSvc.SyncReadmeAndArchive(r.Context(), batchSlug)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not sync README: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
+// handleAdminRejectSponsor rejects sponsor with anti-judol violation reason.
+func (s *Server) handleAdminRejectSponsor(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	actor := "owner"
+	if o := auth.GetOwnerFromContext(r.Context()); o != nil && o.Email != "" {
+		actor = o.Email
+	}
+
+	if err := s.sponsorshipSvc.RejectSponsor(r.Context(), id, req.Reason, actor); err != nil {
+		if errors.Is(err, sponsorship.ErrSponsorNotFound) {
+			respondJSONError(w, http.StatusNotFound, "Sponsor not found")
+			return
+		}
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":  "rejected",
+		"id":      id,
+		"reason":  req.Reason,
+		"actor":   actor,
+		"message": "Sponsor rejected",
+	})
+}
+
+// handleAdminListSponsorActivities returns audit activity logs for a sponsor.
+func (s *Server) handleAdminListSponsorActivities(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	activities, err := s.sponsorshipSvc.ListActivities(r.Context(), id)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"sponsor_id": id,
+		"activities": activities,
+		"count":      len(activities),
+	})
+}
+
+// handleAdminListLeads lists all registered leads for owner inspection.
+func (s *Server) handleAdminListLeads(w http.ResponseWriter, r *http.Request) {
+	if s.sponsorshipSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Sponsorship service is not initialized")
+		return
+	}
+
+	leads, err := s.sponsorshipSvc.ListWaitingListLeads(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"leads": leads,
+		"count": len(leads),
+	})
+}
