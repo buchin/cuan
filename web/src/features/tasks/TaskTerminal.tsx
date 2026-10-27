@@ -298,7 +298,6 @@ export function TaskTerminal({
     let disposed = false
     let resize: ResizeObserver | undefined
     let cleanupTouch: (() => void) | undefined
-    let cleanupHelper: (() => void) | undefined
     let terminal: Terminal | undefined
 
     setConnection('loading')
@@ -487,17 +486,6 @@ export function TaskTerminal({
 
         terminal.open(mount.current)
         term.current = terminal
-
-        const helperTextarea = mount.current.querySelector<HTMLTextAreaElement>(
-          'textarea.xterm-helper-textarea',
-        )
-        const onHelperFocus = () => {
-          setIsMobileKeyboardActive(true)
-        }
-        helperTextarea?.addEventListener('focus', onHelperFocus)
-        cleanupHelper = () => {
-          helperTextarea?.removeEventListener('focus', onHelperFocus)
-        }
 
         const fitTerminal = () => {
           if (
@@ -731,7 +719,6 @@ export function TaskTerminal({
 
     return () => {
       disposed = true
-      cleanupHelper?.()
       cleanupTouch?.()
       resize?.disconnect()
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
