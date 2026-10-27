@@ -26,6 +26,7 @@ func TestSanitizeEnvironment(t *testing.T) {
 		"DATABASE_URL=postgres://user:pass@localhost:5432/db",
 		"RESEND_KEY=re_12345",
 		"SAFE_FEATURE_FLAG=true",
+		"COMMAND_CODE_API_KEY=cmd_test_key_123",
 	}
 
 	env := SanitizeEnvironment(custom, "task-123", "/tmp/workspace-123")
@@ -47,6 +48,9 @@ func TestSanitizeEnvironment(t *testing.T) {
 	}
 	if !strings.Contains(joined, "SAFE_FEATURE_FLAG=true") {
 		t.Errorf("missing SAFE_FEATURE_FLAG in sanitized env: %s", joined)
+	}
+	if !strings.Contains(joined, "COMMAND_CODE_API_KEY=cmd_test_key_123") {
+		t.Errorf("missing delegated COMMAND_CODE_API_KEY in sanitized env: %s", joined)
 	}
 
 	// Verify sensitive variables are stripped out

@@ -81,9 +81,9 @@ func FindShell(preferred string) string {
 // IsSensitiveKey returns true if an environment variable key is considered sensitive.
 func IsSensitiveKey(key string) bool {
 	upper := strings.ToUpper(key)
-	// Git author identity is human attribution, not an authentication secret.
+	// Git author identity and harness provider keys explicitly delegated to agent executions are permitted.
 	switch upper {
-	case "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL":
+	case "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "COMMAND_CODE_API_KEY":
 		return false
 	}
 
