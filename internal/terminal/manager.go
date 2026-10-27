@@ -391,6 +391,28 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	case "codex":
 		executable, err = exec.LookPath("codex")
 		ptyArgs = []string{"--full-auto", cfg.Prompt}
+	case "commandcode":
+		executable, err = exec.LookPath("commandcode")
+		if err != nil || executable == "" {
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/commandcode",
+				"/home/ubuntu/.local/bin/commandcode",
+				"/usr/local/bin/commandcode",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					executable = candidate
+					err = nil
+					break
+				}
+			}
+		}
+		ptyArgs = []string{"--yolo", "--add-dir", workDir}
+		if cfg.Prompt != "" {
+			ptyArgs = append(ptyArgs, cfg.Prompt)
+		}
+		if cfg.Model != "" && cfg.Model != "commandcode-default" && cfg.Model != "default" {
+			ptyArgs = append(ptyArgs, "-m", cfg.Model)
+		}
 	case "shell":
 		executable = FindShell(m.cfg.DefaultShell)
 		ptyArgs = []string{"-i"}

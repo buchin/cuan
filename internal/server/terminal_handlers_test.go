@@ -566,6 +566,78 @@ func TestServer_TaskTerminal_RunTaskAgent_BYOAgentHarness(t *testing.T) {
 	}
 }
 
+func TestServer_TaskTerminal_RunTaskAgent_CommandCodeHarness(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	repo := cuanDB.NewMemoryAgentRepository()
+	studioRepo := cuanDB.NewMemoryProjectStudioRepository()
+
+	ccAgent := &cuanDB.Agent{
+		ID:           cuanDB.GenerateUUID(),
+		Name:         "@dev2",
+		Harness:      "commandcode",
+		ConnectionID: "conn_cc_runner_test",
+		Enabled:      true,
+		Provider:     "commandcode",
+		Status:       cuanDB.AgentStatusActive,
+	}
+	if err := repo.CreateAgent(context.Background(), ccAgent); err != nil {
+		t.Fatalf("failed to seed agent: %v", err)
+	}
+
+	taskID := cuanDB.GenerateUUID()
+	projectID := cuanDB.GenerateUUID()
+	if err := studioRepo.CreateTask(context.Background(), &cuanDB.ProjectTask{
+		ID:              taskID,
+		ProjectID:       projectID,
+		Title:           "CommandCode Terminal Task",
+		Status:          "todo",
+		ExecutionStatus: "idle",
+	}); err != nil {
+		t.Fatalf("failed to seed task: %v", err)
+	}
+
+	srv, token := setupTestChatServer(t)
+	srv.SetAgentRepository(repo)
+	srv.SetProjectStudioRepository(studioRepo)
+
+	ts := httptest.NewServer(srv.Router())
+	defer ts.Close()
+
+	bodyBytes, _ := json.Marshal(map[string]interface{}{
+		"agent_id": ccAgent.ID,
+		"prompt":   "echo commandcode ready",
+	})
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/tasks/"+taskID+"/run-agent", bytes.NewReader(bodyBytes))
+	if err != nil {
+		t.Fatalf("create POST /run-agent request failed: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST /run-agent failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for CommandCode agent /run-agent, got %d", resp.StatusCode)
+	}
+
+	var runResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&runResp); err != nil {
+		t.Fatalf("failed to decode run-agent response: %v", err)
+	}
+
+	if runResp["status"] != "running" {
+		t.Errorf("expected status 'running', got %v", runResp["status"])
+	}
+	if runResp["agent_name"] != "@dev2" {
+		t.Errorf("expected agent_name '@dev2', got %v", runResp["agent_name"])
+	}
+}
+
 func TestS25NoImplicitTaskWorker(t *testing.T) {
 	srv := NewServer(&config.Config{AppMode: "studio"}, nil)
 	for _, payload := range []string{`{}`, `{"agent_id":"worker-flash"}`} {

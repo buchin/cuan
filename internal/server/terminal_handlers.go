@@ -395,6 +395,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		expectedBinary = "claude"
 	case "codex":
 		expectedBinary = "codex"
+	case "commandcode":
+		expectedBinary = "commandcode"
 	case "", "agy", "antigravity":
 	default:
 		respondJSONError(w, 409, "This agent type cannot run tasks")
@@ -448,6 +450,27 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			model = "provider default"
 		}
 		routeNote = fmt.Sprintf("Provider preflight selected %s; model: %s. Agent identity and task scope are unchanged.", source, model)
+	}
+	var commandCodeKey string
+	if expectedBinary == "commandcode" {
+		var conn *db.AgentConnection
+		if registeredAgent.ConnectionID != "" {
+			conn, _ = s.agentRepo.GetConnectionByID(r.Context(), registeredAgent.ConnectionID)
+		}
+		if (conn == nil || conn.CredentialsEncrypted == "") && ownerID != "" {
+			if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
+				conn = userConn
+			}
+		}
+		if conn != nil && conn.CredentialsEncrypted != "" {
+			if key, err := agent.DecryptCredential(conn.CredentialsEncrypted); err == nil {
+				commandCodeKey = key
+			}
+		}
+		selectedModel = registeredAgent.ModelID
+		if idx := strings.Index(selectedModel, "#"); idx != -1 {
+			selectedModel = selectedModel[idx+1:]
+		}
 	}
 	agentName := registeredAgent.Name
 
@@ -648,6 +671,9 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			return
 		}
 		reportEnv = append(reportEnv, gitEnv...)
+		if commandCodeKey != "" {
+			reportEnv = append(reportEnv, "COMMAND_CODE_API_KEY="+commandCodeKey)
+		}
 		taskPrompt += extra
 	}
 	quotaHit := false
