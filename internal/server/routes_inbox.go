@@ -1,8 +1,37 @@
 package server
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 )
+
+// registerVisitorChatRoutes mounts public Dojo-compatible live chat widget and visitor APIs.
+func (s *Server) registerVisitorChatRoutes(r chi.Router) {
+	r.With(chatCORSMiddleware).Get("/chat/widget.js", s.handleChatWidgetJS)
+	r.With(chatCORSMiddleware).Options("/chat/widget.js", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	r.Route("/api/chat", func(cr chi.Router) {
+		cr.Use(chatCORSMiddleware)
+		cr.Post("/session", s.handleVisitorChatSession)
+		cr.Get("/messages", s.handleVisitorGetMessages)
+		cr.Post("/messages", s.handleVisitorSendMessage)
+		cr.Post("/attachments", s.handleVisitorUploadAttachment)
+		cr.Get("/attachments/{id}", s.handleVisitorDownloadAttachment)
+		cr.Post("/sessions/{uuid}/page", s.handleVisitorPageTelemetry)
+		cr.Post("/receipts", s.handleVisitorReceipts)
+		cr.Get("/contacts", s.handleInternalListContacts)
+		cr.Get("/canned-responses", s.handleListCannedResponses)
+		cr.Get("/conversations/{id}/messages", s.handleInternalGetConversationMessages)
+		cr.Post("/conversations/{id}/messages", s.handleInternalSendConversationMessage)
+		cr.Get("/conversations/{id}/events", s.handleInboxStream)
+		cr.Post("/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
+		cr.Post("/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
+		cr.Post("/conversations/{id}/requests/{requestID}/retry", s.handleRetryInboxRequest)
+	})
+}
 
 // registerInboxRoutes mounts conversational inbox, chat messages, canned responses, attachments, and approvals.
 func (s *Server) registerInboxRoutes(pr chi.Router) {

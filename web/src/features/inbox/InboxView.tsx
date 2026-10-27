@@ -10,7 +10,6 @@ import {
   useAttachments,
 } from './Attachments'
 import { CannedResponsesPicker } from './CannedResponsesPicker'
-import { CannedResponsesDialog } from './CannedResponsesDialog'
 import { Link, useLocation } from 'react-router-dom'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { type Agent, isModelVisionCapable } from '../../api/agents'
@@ -23,6 +22,8 @@ import {
   useMemo,
   useRef,
   useCallback,
+  lazy,
+  Suspense,
 } from 'react'
 import {
   ChatContact,
@@ -59,9 +60,19 @@ import { ApprovalCard } from './ApprovalCard'
 import { ConversationWorkMonitor } from './ConversationWorkMonitor'
 import { TaskItemCard } from '../tasks/TaskItemCard'
 import { getQueuedTasksPositions } from '../tasks/task-ui'
-import { EscalateTaskDialog } from './EscalateTaskDialog'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
+
+const CannedResponsesDialog = lazy(() =>
+  import('./CannedResponsesDialog').then((m) => ({
+    default: m.CannedResponsesDialog,
+  })),
+)
+const EscalateTaskDialog = lazy(() =>
+  import('./EscalateTaskDialog').then((m) => ({
+    default: m.EscalateTaskDialog,
+  })),
+)
 
 interface InboxViewProps {
   onNewMessage?: () => void
@@ -1802,26 +1813,34 @@ export function InboxView({
         </div>
       </ActionDialog>
 
-      <EscalateTaskDialog
-        open={!!escalatingMessage}
-        message={escalatingMessage}
-        conversationId={activeContact?.conversation_id || activeContact?.id || ''}
-        onClose={() => setEscalatingMessage(null)}
-        onTaskCreated={(newTask) => {
-          setLinkedTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)])
-          setConvTab('tasks')
-        }}
-      />
+      {escalatingMessage && (
+        <Suspense fallback={null}>
+          <EscalateTaskDialog
+            open={!!escalatingMessage}
+            message={escalatingMessage}
+            conversationId={activeContact?.conversation_id || activeContact?.id || ''}
+            onClose={() => setEscalatingMessage(null)}
+            onTaskCreated={(newTask) => {
+              setLinkedTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)])
+              setConvTab('tasks')
+            }}
+          />
+        </Suspense>
+      )}
 
-      <CannedResponsesDialog
-        open={showCannedManageModal}
-        onClose={() => setShowCannedManageModal(false)}
-        onSelect={(content) => {
-          setInputMessage(content)
-          textareaRef.current?.focus()
-          if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-        }}
-      />
+      {showCannedManageModal && (
+        <Suspense fallback={null}>
+          <CannedResponsesDialog
+            open={showCannedManageModal}
+            onClose={() => setShowCannedManageModal(false)}
+            onSelect={(content) => {
+              setInputMessage(content)
+              textareaRef.current?.focus()
+              if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { workspacePath } from './workspacePath'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -22,7 +22,11 @@ import {
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
 import { TaskReadyPage } from './TaskReadyPage'
-import { TaskTerminal } from './TaskTerminal'
+const TaskTerminal = lazy(() =>
+  import('./TaskTerminal').then((m) => ({
+    default: m.TaskTerminal,
+  })),
+)
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { AttachmentFile } from '../inbox/Attachments'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
@@ -449,15 +453,17 @@ export function TaskSessionPage({
             </button>
           )}
           <div className="min-h-0 flex-1 overscroll-contain">
-            <TaskTerminal
-              key={sessionId}
-              taskId={taskId}
-              attempt={attempt}
-              live={live}
-              onRefresh={() => void refresh()}
-              controlsTarget={terminalControls}
-              onConnectionChange={setTerminalConnection}
-            />
+            <Suspense fallback={<div className="h-full w-full bg-black/90 flex items-center justify-center text-xs font-mono text-muted-foreground">Connecting terminal...</div>}>
+              <TaskTerminal
+                key={sessionId}
+                taskId={taskId}
+                attempt={attempt}
+                live={live}
+                onRefresh={() => void refresh()}
+                controlsTarget={terminalControls}
+                onConnectionChange={setTerminalConnection}
+              />
+            </Suspense>
           </div>
         </div>
       ) : (

@@ -1,4 +1,3 @@
-import { LandingPage } from './features/landing/LandingPage'
 import {
   NotificationsView,
   NotificationsNavigation,
@@ -7,7 +6,6 @@ import {
 import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
-import { LoginScreen } from './components/auth/LoginScreen'
 import { AppShell, AppTab } from './components/layout/AppShell'
 import { ActionDialog } from './components/dialogs/ActionDialog'
 import { agentsApi, type Agent } from './api/agents'
@@ -20,6 +18,16 @@ import { useMediaQuery } from './hooks/useMediaQuery'
 import { Loader2 } from 'lucide-react'
 
 // Code-splitting via dynamic imports for heavy routes and dialogs
+const LandingPage = lazy(() =>
+  import('./features/landing/LandingPage').then((m) => ({
+    default: m.LandingPage,
+  })),
+)
+const LoginScreen = lazy(() =>
+  import('./components/auth/LoginScreen').then((m) => ({
+    default: m.LoginScreen,
+  })),
+)
 const StudioView = lazy(() =>
   import('./features/inbox/StudioView').then((m) => ({
     default: m.StudioView,
@@ -588,7 +596,11 @@ export function App() {
     rootSegment === 'about' ||
     (location.pathname === '/' && !token && !isAuthenticated && setupRequired !== true)
   )
-    return <LandingPage />
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <LandingPage />
+      </Suspense>
+    )
 
   if (authLoading) {
     return (
@@ -657,8 +669,18 @@ export function App() {
 
   // 2. Unauthenticated: Auth Gatekeeper
   if (!isAuthenticated) {
-    if (location.pathname === '/' && setupRequired !== true) return <LandingPage />
-    return <LoginScreen />
+    if (location.pathname === '/' && setupRequired !== true) {
+      return (
+        <Suspense fallback={<ViewFallback />}>
+          <LandingPage />
+        </Suspense>
+      )
+    }
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <LoginScreen />
+      </Suspense>
+    )
   }
 
   // 3. Authenticated: Sidebar-09 App Shell

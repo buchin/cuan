@@ -43,6 +43,73 @@ func (s *Server) registerTaskRoutes(pr chi.Router) {
 	pr.Post("/runner/reconcile", s.handleReconcileLeases)
 }
 
+// registerTasksRootRoutes mounts task studio, terminal, and agent routes on the root router.
+func (s *Server) registerTasksRootRoutes(r chi.Router) {
+	// Project Tasks
+	r.Post("/api/projects/{id}/tasks", s.handleCreateProjectTask)
+	r.Get("/api/projects/{id}/tasks", s.handleListProjectTasks)
+	r.Get("/api/projects/{id}/runner-state", s.handleGetProjectRunnerState)
+	r.Get("/api/tasks/{id}", s.handleGetProjectTask)
+	r.Put("/api/tasks/{id}", s.handleUpdateProjectTask)
+	r.Patch("/api/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+	r.Delete("/api/tasks/{id}", s.handleDeleteProjectTask)
+
+	// Project Tasks alias routes (/api/projects/tasks/{id})
+	r.Get("/api/projects/tasks/{id}", s.handleGetProjectTask)
+	r.Put("/api/projects/tasks/{id}", s.handleUpdateProjectTask)
+	r.Patch("/api/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+	r.Delete("/api/projects/tasks/{id}", s.handleDeleteProjectTask)
+
+	// In-Task Agentic Execution Engine (Sprint 10 S10.3)
+	r.Post("/api/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	r.Post("/api/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	r.Post("/api/tasks/{id}/apply", s.handleApplyTask)
+	r.Post("/api/projects/tasks/{id}/apply", s.handleApplyTask)
+
+	// WebSocket Pseudo-Terminal (PTY) Engine (Sprint 9 S09.3)
+	r.Get("/api/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	r.Delete("/api/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	r.Get("/api/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	r.Delete("/api/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	r.Get("/api/terminal/sessions", s.handleGetTerminalSessionsStatus)
+
+	// Autonomous PTY Agent Task Runner (Sprint 22 S22.2)
+	r.Post("/api/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	r.Post("/api/projects/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	r.Get("/api/tasks/{id}/run-agent/history", s.handleGetTaskRunHistory)
+}
+
+// registerTasksV1Routes mounts task studio, terminal, and agent routes inside /api/v1 router.
+func (s *Server) registerTasksV1Routes(r chi.Router) {
+	// Project Tasks in v1
+	r.Post("/projects/{id}/tasks", s.handleCreateProjectTask)
+	r.Get("/projects/{id}/tasks", s.handleListProjectTasks)
+	r.Get("/projects/{id}/runner-state", s.handleGetProjectRunnerState)
+	r.Get("/projects/tasks/{id}", s.handleGetProjectTask)
+	r.Put("/projects/tasks/{id}", s.handleUpdateProjectTask)
+	r.Patch("/projects/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+	r.Delete("/projects/tasks/{id}", s.handleDeleteProjectTask)
+	r.Patch("/tasks/{id}/status", s.handlePatchProjectTaskStatus)
+
+	// In-Task Agentic Execution Engine in v1 (Sprint 10 S10.3)
+	r.Post("/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	r.Post("/projects/tasks/{id}/execute-agent", s.handleExecuteTaskAgent)
+	r.Post("/tasks/{id}/apply", s.handleApplyTask)
+	r.Post("/projects/tasks/{id}/apply", s.handleApplyTask)
+
+	// WebSocket Pseudo-Terminal (PTY) Engine in v1 (Sprint 9 S09.3)
+	r.Get("/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	r.Delete("/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	r.Get("/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
+	r.Delete("/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
+	r.Get("/terminal/sessions", s.handleGetTerminalSessionsStatus)
+
+	// Autonomous PTY Agent Task Runner (Sprint 22 S22.2)
+	r.Post("/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	r.Post("/projects/tasks/{id}/run-agent", s.handleRunTaskAgent)
+	r.Get("/tasks/{id}/run-agent/history", s.handleGetTaskRunHistory)
+}
+
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	var projectIDs []string
 	if pids := r.URL.Query().Get("project_ids"); pids != "" {

@@ -1,0 +1,233 @@
+package server
+
+import (
+	"context"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+)
+
+func (s *Server) registerSystemRoutes(r chi.Router) {
+	r.Get("/healthz", s.handleHealthz)
+	r.Get("/readyz", s.handleReadyz)
+	r.Get("/api/info", s.handleInfo)
+	r.Get("/api/mode", s.handleGetSystemMode)
+	r.Get("/api/system/mode", s.handleGetSystemMode)
+	r.Get("/install.sh", s.handleInstallScript)
+}
+
+func (s *Server) registerSystemV1Routes(r chi.Router) {
+	r.Get("/info", s.handleInfo)
+	r.Get("/system/mode", s.handleGetSystemMode)
+}
+
+func (s *Server) setupStaticRoutes() {
+	staticDir := s.cfg.StaticDir
+	if staticDir == "" {
+		staticDir = "web/dist"
+	}
+
+	if fi, err := os.Stat(staticDir); err == nil && fi.IsDir() {
+		fileServer := http.FileServer(http.Dir(staticDir))
+		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+			path := filepath.Clean(r.URL.Path)
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || strings.HasPrefix(path, "/chat") || path == "/install.sh" {
+				http.NotFound(w, r)
+				return
+			}
+
+			filePath := filepath.Join(staticDir, path)
+			if f, err := os.Stat(filePath); err == nil && !f.IsDir() {
+				w.Header().Set("X-Content-Type-Options", "nosniff")
+				if strings.HasPrefix(path, "/assets/") {
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				} else if path == "/sw.js" {
+					w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+					w.Header().Set("Service-Worker-Allowed", "/")
+				} else if path == "/manifest.webmanifest" {
+					w.Header().Set("Content-Type", "application/manifest+json")
+					w.Header().Set("Cache-Control", "public, max-age=86400")
+				}
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+		})
+	} else {
+		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+			path := filepath.Clean(r.URL.Path)
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || path == "/install.sh" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<!DOCTYPE html>
+<html>
+<head><title>Cuan Server</title></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 2rem; max-width: 600px; margin: 0 auto; line-height: 1.5;">
+  <h2>Cuan API Server</h2>
+  <p>Status: Healthy. Backend services are operational.</p>
+  <p>To view the React UI shell, build the frontend bundle:</p>
+  <pre style="background: #f1f5f9; padding: 1rem; border-radius: 6px;">cd web && npm run build</pre>
+  <ul>
+    <li><a href="/healthz">/healthz</a> — Liveness check</li>
+    <li><a href="/readyz">/readyz</a> — Readiness check</li>
+    <li><a href="/api/v1/info">/api/v1/info</a> — Server metadata</li>
+  </ul>
+</body>
+</html>`))
+		})
+	}
+}
+
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	version := "0.1.0"
+	commitSHA := ""
+	if s.cfg != nil {
+		if s.cfg.AppVersion != "" {
+			version = s.cfg.AppVersion
+		}
+		commitSHA = s.cfg.CommitSHA
+	}
+	resp := map[string]interface{}{
+		"status":     "healthy",
+		"app":        "cuan",
+		"version":    version,
+		"commit_sha": commitSHA,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
+	}
+	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
+	candidates := []string{
+		filepath.Join(".", "scripts", "install.sh"),
+		filepath.Join("..", "scripts", "install.sh"),
+		filepath.Join("..", "..", "scripts", "install.sh"),
+		"/opt/cuan/scripts/install.sh",
+	}
+	for _, p := range candidates {
+		if data, err := os.ReadFile(p); err == nil && len(data) > 0 {
+			w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(data)
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("#!/usr/bin/env bash\necho 'Cuan installer script temporarily unavailable. Please visit https://github.com/buchin/cuan'\nexit 1\n"))
+}
+
+func (s *Server) handleGetSystemMode(w http.ResponseWriter, r *http.Request) {
+	mode := "marketing"
+	version := "0.1.0"
+	baseDomain := "cuan.dojo.cc"
+
+	if s.cfg != nil {
+		if s.cfg.AppMode != "" {
+			mode = s.cfg.AppMode
+		}
+		if s.cfg.AppVersion != "" {
+			version = s.cfg.AppVersion
+		}
+		if s.cfg.BaseDomain != "" {
+			baseDomain = s.cfg.BaseDomain
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"app_mode":    mode,
+		"version":     version,
+		"base_domain": baseDomain,
+	})
+}
+
+func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil {
+		if s.cfg.DatabaseURL == "" {
+			respondJSON(w, http.StatusOK, map[string]interface{}{
+				"status":   "ready",
+				"database": "in_memory_dev",
+			})
+			return
+		}
+		respondJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
+			"status":   "not_ready",
+			"database": "disconnected",
+			"error":    "database pool is not initialized",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	if err := s.db.PingContext(ctx); err != nil {
+		respondJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
+			"status":   "not_ready",
+			"database": "disconnected",
+			"error":    err.Error(),
+		})
+		return
+	}
+
+	var migrationCount int
+	err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM cuan_schema_migrations").Scan(&migrationCount)
+	if err != nil {
+		respondJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
+			"status":     "not_ready",
+			"database":   "connected",
+			"migrations": "table_missing_or_error",
+			"error":      err.Error(),
+		})
+		return
+	}
+
+	status, _ := s.authSvc.Status(ctx)
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":           "ready",
+		"database":         "connected",
+		"migrations":       "applied",
+		"migrations_count": migrationCount,
+		"owner_configured": status.OwnerConfigured,
+	})
+}
+
+func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
+	version := "0.1.0"
+	commitSHA := ""
+	if s.cfg != nil {
+		if s.cfg.AppVersion != "" {
+			version = s.cfg.AppVersion
+		}
+		commitSHA = s.cfg.CommitSHA
+	}
+	resp := map[string]interface{}{
+		"name":          "Cuan",
+		"version":       version,
+		"commit_sha":    commitSHA,
+		"description":   "Agentic project management for self-hosted teams",
+		"license":       "Apache-2.0",
+		"repository":    "https://github.com/buchin/cuan",
+		"documentation": "https://github.com/buchin/cuan#readme",
+		"release_stage": "release-candidate",
+		"author":        "Buchin <buchin@dropsugar.com>",
+		"sprint":        "S1",
+		"status":        "running",
+		"adapter":       "agy",
+		"architecture":  "Go backend + React Vite TS frontend",
+	}
+	respondJSON(w, http.StatusOK, resp)
+}
