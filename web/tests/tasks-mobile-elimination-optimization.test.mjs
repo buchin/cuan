@@ -120,14 +120,16 @@ test('4. Requirement 3: Elimination of Repetitive "Agent: @sm" on Card Footer', 
     'TaskItemCard must render dedicated footer for CTA action buttons'
   )
 
-  // Verify CTA buttons have generous touch targets (min-h-9)
+  // Verify CTA buttons have generous touch targets (min-h-9 or WCAG min-h-11)
   assert.ok(
-    taskItemCardSource.includes('min-h-9 inline-flex items-center gap-1.5'),
-    'Primary CTA action buttons must have min-h-9 touch targets'
+    taskItemCardSource.includes('min-h-9 inline-flex items-center gap-1.5') ||
+      taskItemCardSource.includes('min-h-11 min-w-[44px] inline-flex items-center gap-1.5'),
+    'Primary CTA action buttons must have min-h-9 or min-h-11 touch targets'
   )
   assert.ok(
-    taskItemCardSource.includes('min-h-9 inline-flex items-center gap-1'),
-    'Secondary CTA action buttons must have min-h-9 touch targets'
+    taskItemCardSource.includes('min-h-9 inline-flex items-center gap-1') ||
+      taskItemCardSource.includes('min-h-11 min-w-[44px] inline-flex items-center gap-1'),
+    'Secondary CTA action buttons must have min-h-9 or min-h-11 touch targets'
   )
 })
 

@@ -3,8 +3,15 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import React from 'react'
-import ReactDOMServer from 'react-dom/server'
+
+let React = null
+let ReactDOMServer = null
+try {
+  React = (await import('react')).default
+  ReactDOMServer = (await import('react-dom/server')).default
+} catch {
+  // Optional runtime dependency in environments without node_modules
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const approvalCardPath = path.resolve(__dirname, '../src/features/inbox/ApprovalCard.tsx')
@@ -49,6 +56,13 @@ test('2. ApprovalCard uses ChatMarkdown for plan description and handles Markdow
   )
 
   // Verify Markdown parser capability on the actual sample data from user attachment 1000283721.jpg
+  if (!React || !ReactDOMServer) {
+    const chatMarkdownSrc = fs.readFileSync(path.resolve(__dirname, '../src/features/inbox/ChatMarkdown.tsx'), 'utf8')
+    assert.ok(chatMarkdownSrc.includes('react-markdown'), 'ChatMarkdown must import react-markdown')
+    assert.ok(chatMarkdownSrc.includes('remark-gfm'), 'ChatMarkdown must import remark-gfm')
+    return
+  }
+
   const { default: ReactMarkdown } = await import('react-markdown')
   const { default: remarkGfm } = await import('remark-gfm')
 
