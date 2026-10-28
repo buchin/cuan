@@ -192,8 +192,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if expected := q.Get("session_id"); expected != "" && expected != session.ID() {
-			http.Error(w, "The selected session is no longer live.", http.StatusConflict)
-			return
+			if q.Get("reconnect") != "1" {
+				http.Error(w, "The selected session is no longer live.", http.StatusConflict)
+				return
+			}
 		}
 	} else {
 		session, err = h.mgr.GetOrCreateSession(r.Context(), taskID, clientMode, cols, rows)

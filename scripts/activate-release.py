@@ -115,23 +115,25 @@ def assert_idle_work(no_restart=False):
             except Exception:
                 pass
 
-        for table, states in [('inbox_requests',"'running','queued','cancelling'"),('task_attempts',"'running','queued'"),('task_launches',"'queued','claimed'")]:
-            if database_scalar("SELECT to_regclass('public."+table+"') IS NOT NULL",env) != 't':
-                continue
-            column='state' if table!='task_attempts' else 'status'
-            query = 'SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')'
-            if table == 'task_attempts' and exclude_attempt:
-                excluded_attempts = [a.strip() for a in exclude_attempt.split(',') if a.strip()]
-                if excluded_attempts:
-                    quoted = ", ".join("'" + a.replace("'", "''") + "'" for a in excluded_attempts)
-                    query += " AND id NOT IN (" + quoted + ")"
-            if table == 'task_launches' and exclude_task:
-                excluded_tasks = [t.strip() for t in exclude_task.split(',') if t.strip()]
-                if excluded_tasks:
-                    quoted = ", ".join("'" + t.replace("'", "''") + "'" for t in excluded_tasks)
-                    query += " AND task_id NOT IN (" + quoted + ")"
-            if int(database_scalar(query,env)):
-                raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
+        allow_resume = os.environ.get('CUAN_DEPLOY_ALLOW_RESUME', '').strip().lower() in ('1', 'true', 'yes')
+        if not allow_resume:
+            for table, states in [('inbox_requests',"'running','queued','cancelling'"),('task_attempts',"'running','queued'"),('task_launches',"'queued','claimed'")]:
+                if database_scalar("SELECT to_regclass('public."+table+"') IS NOT NULL",env) != 't':
+                    continue
+                column='state' if table!='task_attempts' else 'status'
+                query = 'SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')'
+                if table == 'task_attempts' and exclude_attempt:
+                    excluded_attempts = [a.strip() for a in exclude_attempt.split(',') if a.strip()]
+                    if excluded_attempts:
+                        quoted = ", ".join("'" + a.replace("'", "''") + "'" for a in excluded_attempts)
+                        query += " AND id NOT IN (" + quoted + ")"
+                if table == 'task_launches' and exclude_task:
+                    excluded_tasks = [t.strip() for t in exclude_task.split(',') if t.strip()]
+                    if excluded_tasks:
+                        quoted = ", ".join("'" + t.replace("'", "''") + "'" for t in excluded_tasks)
+                        query += " AND task_id NOT IN (" + quoted + ")"
+                if int(database_scalar(query,env)):
+                    raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
 
     assert_no_github_login()
 

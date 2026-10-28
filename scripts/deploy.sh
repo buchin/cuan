@@ -150,7 +150,7 @@ if [[ "$is_local" == 1 ]]; then
     cp -a "$release_dir" "$HOME/.local/share/cuan-releases/"
   fi
   sudo -n rsync -a --delete "$release_dir/" "/opt/cuan/releases/$release_sha/"
-  sudo -n CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" python3 scripts/activate-release.py --release "$release_sha"
+  sudo -n CUAN_DEPLOY_ALLOW_RESUME="${CUAN_DEPLOY_ALLOW_RESUME:-1}" CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" python3 scripts/activate-release.py --release "$release_sha"
 else
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha"
   # Use native remote rsync; sandbox rsync wrappers may alter SSH authentication.
@@ -158,7 +158,7 @@ else
   sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
   sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
-  sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
+  sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
   unset SSHPASS
 fi
 

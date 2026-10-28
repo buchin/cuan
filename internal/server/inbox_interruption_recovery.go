@@ -13,11 +13,20 @@ import (
 // Reuse the durable approval and launch guards instead of asking the chat model
 // to run tools or reconstruct a task. Other failures still need result review.
 func interruptedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusBlocked || taskRevisionAttemptCount(d) >= 3 {
+	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusBlocked {
 		return false
 	}
 	a := d.LatestAttempt
-	return a.Status == task.AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 137 && !a.CancelRequested && a.CanceledAt == nil
+	if a.CancelRequested || a.CanceledAt != nil {
+		return false
+	}
+	if a.Status == task.AttemptStatusInterrupted {
+		return taskRevisionAttemptCount(d) < 5
+	}
+	if taskRevisionAttemptCount(d) >= 3 {
+		return false
+	}
+	return a.Status == task.AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 137
 }
 
 func providerLimitedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
@@ -38,7 +47,10 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	key := "task-interruption-recovery:" + d.LatestAttempt.ID
 	gap := "the previous execution was interrupted (exit 137)"
 	notice := "The previous run was interrupted. Your approved work and context are saved."
-	if providerLimitedInboxTaskCanResume(d) {
+	if d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusInterrupted {
+		gap = "the previous execution was interrupted during server restart or system update; working tree and files are preserved"
+		notice = "The previous run was interrupted during a server update. Resuming automatically from saved worktree..."
+	} else if providerLimitedInboxTaskCanResume(d) {
 		key = "task-provider-recovery:" + d.LatestAttempt.ID
 		gap = "the provider stopped the previous execution because of an access limit; its failed route is cooling down"
 		notice = "The previous AI route could not continue. I’m checking another permitted route and preserving your approved work."

@@ -351,6 +351,9 @@ export function TaskTerminal({
       url.searchParams.set('mode', 'interactive')
       url.searchParams.set('attach', '1')
       url.searchParams.set('session_id', currentLiveId)
+      if (isReconnecting.current) {
+        url.searchParams.set('reconnect', '1')
+      }
       if (term.current) {
         url.searchParams.set('cols', String(term.current.cols))
         url.searchParams.set('rows', String(term.current.rows))
@@ -378,12 +381,15 @@ export function TaskTerminal({
         try {
           const data = JSON.parse(String(event.data))
           if (data.type === 'connected') {
-            if (data.session_id !== currentLiveId) {
+            if (data.session_id !== currentLiveId && !isReconnecting.current) {
               ws.close()
               setError(
                 'The terminal belongs to a different session. Refresh and open the selected session again.',
               )
               return
+            }
+            if (data.session_id) {
+              liveIdRef.current = data.session_id
             }
 
             // Zero-flicker reset before replay
@@ -444,18 +450,22 @@ export function TaskTerminal({
         if (
           isTaskActiveRef.current &&
           event.code !== 1000 &&
-          retryCount.current < 5
+          retryCount.current < 8
         ) {
           const delay = Math.min(
-            1000 * Math.pow(2, retryCount.current),
-            8000,
+            1000 * Math.pow(1.5, retryCount.current),
+            5000,
           )
           retryCount.current++
           isReconnecting.current = true
           setConnection('connecting')
+          setNotice('Sistem sedang diperbarui / menyambungkan kembali...')
           if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
           reconnectTimer.current = setTimeout(() => {
-            if (!disposed) connectSocket()
+            if (!disposed) {
+              refreshRef.current?.()
+              connectSocket()
+            }
           }, delay)
         } else {
           if (refreshTimer.current) clearTimeout(refreshTimer.current)

@@ -278,6 +278,13 @@ func (m *Manager) CloseAll() error {
 	return lastErr
 }
 
+// BroadcastNotice sends raw terminal bytes to all active sessions.
+func (m *Manager) BroadcastNotice(chunk []byte) {
+	for _, s := range m.ActiveSessions() {
+		s.BroadcastBytes(chunk)
+	}
+}
+
 // CleanIdleSessions sweeps sessions that have been idle longer than the specified duration.
 func (m *Manager) CleanIdleSessions(maxIdle time.Duration) int {
 	if maxIdle <= 0 {

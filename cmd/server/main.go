@@ -237,6 +237,7 @@ func main() {
 		log.Fatalf("Server error: %v", err)
 	case sig := <-shutdown:
 		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+		srv.PrepareGracefulShutdown(10 * time.Second)
 		stopInbox()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

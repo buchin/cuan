@@ -225,6 +225,22 @@ func (s *Session) LastInputAt() time.Time {
 	return s.lastInput
 }
 
+// BroadcastBytes sends raw byte chunk to all active subscribers.
+func (s *Session) BroadcastBytes(chunk []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.historyBuffer.Write(chunk)
+	for _, sub := range s.subscribers {
+		select {
+		case sub.SendChan <- chunk:
+		default:
+		}
+	}
+}
+
 // Resize updates the terminal size.
 func (s *Session) Resize(cols, rows uint16) error {
 	s.mu.Lock()

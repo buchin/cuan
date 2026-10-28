@@ -586,7 +586,24 @@ func (s *Server) reconcileStartupState(ctx context.Context) {
 	if s.runnerSvc != nil {
 		_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
 	}
+	s.deliverInboxTaskUpdates(ctx)
 	s.kickTaskLaunches()
+}
+
+// PrepareGracefulShutdown broadcasts restart notifications to active terminal sessions
+// and flushes/closes active session runners cleanly before server exit.
+func (s *Server) PrepareGracefulShutdown(_ time.Duration) {
+	if s.terminalManager == nil {
+		return
+	}
+	sessions := s.terminalManager.ActiveSessions()
+	if len(sessions) == 0 {
+		return
+	}
+	notice := []byte("\r\n\x1b[1;33m[⚡ Pembaruan sistem sedang diterapkan... Sesi akan otomatis tersambung kembali setelah restart]\x1b[0m\r\n")
+	s.terminalManager.BroadcastNotice(notice)
+	time.Sleep(200 * time.Millisecond)
+	_ = s.terminalManager.CloseAll()
 }
 
 func (s *Server) Router() http.Handler {

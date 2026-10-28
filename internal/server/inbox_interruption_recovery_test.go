@@ -39,6 +39,19 @@ func TestInterruptionRecoveryExcludesCancellationAndUnrelatedFailures(t *testing
 	}
 }
 
+func TestServerRestartInterruptionRecovery(t *testing.T) {
+	d := &task.TaskDetailResponse{
+		Status: task.TaskStatusBlocked,
+		LatestAttempt: &task.TaskAttempt{
+			Status:       task.AttemptStatusInterrupted,
+			ErrorMessage: "Execution was interrupted during server restart.",
+		},
+	}
+	if !interruptedInboxTaskCanResume(d) {
+		t.Fatal("expected server restart interrupted attempt to be eligible for auto-resume")
+	}
+}
+
 func TestTaskRevisionBudgetExcludesCancelledAttempts(t *testing.T) {
 	d := &task.TaskDetailResponse{Attempts: []*task.TaskAttempt{
 		{Status: task.AttemptStatusFailed},
