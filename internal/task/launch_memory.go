@@ -58,12 +58,14 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 		}
 		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked) {
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
-				j.State = "stopped"
-				j.SafeError = "Task is in terminal status."
-				j.UpdatedAt = now
-				j.LeaseToken = ""
-				j.LeaseUntil = nil
-				continue
+				if len(wanted) == 0 {
+					j.State = "stopped"
+					j.SafeError = "Task is in terminal status."
+					j.UpdatedAt = now
+					j.LeaseToken = ""
+					j.LeaseUntil = nil
+					continue
+				}
 			}
 		}
 		if j.State == "queued" && !j.AvailableAt.After(now) || j.State == "claimed" && j.LeaseUntil != nil && !j.LeaseUntil.After(now) {

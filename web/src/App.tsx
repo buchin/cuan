@@ -595,6 +595,16 @@ export function App() {
     handleCloseSidePeek()
   }
 
+  useEffect(() => {
+    const handleTaskDeleted = () => {
+      void refreshTasks()
+    }
+    window.addEventListener('cuan:task-deleted', handleTaskDeleted)
+    return () => {
+      window.removeEventListener('cuan:task-deleted', handleTaskDeleted)
+    }
+  }, [refreshTasks])
+
   const handleRunAgent = async (_taskId: string) => {
     await refreshTasks()
   }
@@ -857,6 +867,7 @@ export function App() {
                 onUpdateTaskStatus={(taskId, status) =>
                   handleUpdateTask(taskId, { status })
                 }
+                onDeleteTask={handleDeleteTask}
                 onRunAgent={handleRunAgent}
               />
             </div>

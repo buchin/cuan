@@ -38,6 +38,7 @@ interface Props {
   onStatusFilterChange?: (status: string) => void
   onSelectTask: (task: Task) => void
   onUpdateTaskStatus: (id: string, status: TaskStatus) => void
+  onDeleteTask?: (id: string) => Promise<void> | void
   onRunAgent: (id: string) => void
 }
 export const TASK_FILTERS = ['All', ...TASK_STATUSES.map((s) => s.label)]
@@ -48,6 +49,7 @@ export function TaskBoardView({
   activeProject,
   onSelectTask,
   onStatusFilterChange,
+  onDeleteTask,
   onRunAgent,
   loading = false,
   error = '',
@@ -818,6 +820,7 @@ export function TaskBoardView({
                   queuePosition={queuedPositions.get(t.id)}
                   showProject={!activeProject}
                   onClick={onSelectTask}
+                  onDelete={onDeleteTask ? () => onDeleteTask(t.id) : undefined}
                 />
               ))
             })()}

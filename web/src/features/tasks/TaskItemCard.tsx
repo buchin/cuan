@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   Folder,
@@ -8,12 +8,16 @@ import {
   Rocket,
   RefreshCw,
   FileText,
+  Trash2,
+  MoreHorizontal,
+  Loader2,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { agentsApi } from '../../api/agents'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
+import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import './task-workspace.css'
 import {
   workStatus,
@@ -40,6 +44,7 @@ export interface TaskItemCardProps {
   onClick?: (task: Task) => void
   onNavigate?: () => void
   onRetry?: (task: Task) => void | Promise<void>
+  onDelete?: (task: Task) => void | Promise<void>
 }
 
 export function TaskItemCard({
@@ -53,6 +58,7 @@ export function TaskItemCard({
   onClick,
   onNavigate,
   onRetry,
+  onDelete,
 }: TaskItemCardProps) {
   const { t } = useLanguage()
   const location = useLocation()
@@ -116,6 +122,55 @@ export function TaskItemCard({
   )
   const [retrying, setRetrying] = useState(false)
   const [retryError, setRetryError] = useState('')
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [menuOpen])
+
+  const handleOpenDeleteModal = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDeleteError('')
+    setDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (deleting) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      if (onDelete) {
+        await onDelete(currentTask)
+      } else {
+        await tasksApi.delete(currentTask.id)
+      }
+      window.dispatchEvent(
+        new CustomEvent('cuan:task-deleted', { detail: { id: currentTask.id } })
+      )
+      setDeleteModalOpen(false)
+      onNavigate?.()
+    } catch (err: any) {
+      setDeleteError(err?.message || t('Failed to cancel task'))
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const handleApply = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -326,6 +381,19 @@ export function TaskItemCard({
               <span className="hidden sm:inline">{t('Detail')}</span>
             </Link>
 
+            {status === 'Not started' && (
+              <button
+                type="button"
+                onClick={handleOpenDeleteModal}
+                className="action-secondary min-h-11 min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20 transition-colors cursor-pointer"
+                aria-label={`${t('Cancel draft')} ${currentTask.title}`}
+                title={t('Cancel draft')}
+              >
+                <Trash2 className="h-3.5 w-3.5 shrink-0 text-destructive/80" />
+                <span className="hidden sm:inline">{t('Cancel draft')}</span>
+              </button>
+            )}
+
             {status === 'Needs attention' ? (
               <button
                 type="button"
@@ -446,13 +514,65 @@ export function TaskItemCard({
           )}
         </div>
 
-        <time
-          dateTime={currentTask.updated_at}
-          title={new Date(currentTask.updated_at).toLocaleString()}
-          className="text-xs text-muted-foreground whitespace-nowrap"
-        >
-          {t(relativeTime(currentTask.updated_at))}
-        </time>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <time
+            dateTime={currentTask.updated_at}
+            title={new Date(currentTask.updated_at).toLocaleString()}
+            className="text-xs text-muted-foreground whitespace-nowrap"
+          >
+            {t(relativeTime(currentTask.updated_at))}
+          </time>
+          {status === 'Not started' && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  setMenuOpen((prev) => !prev)
+                }}
+                className="h-7 w-7 min-h-7 min-w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+                aria-label={t('Task options menu')}
+                title={t('Task options menu')}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {menuOpen && (
+                <div
+                  ref={menuRef}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 top-full mt-1 z-30 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-50 zoom-in-95"
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMenuOpen(false)
+                      handleOpenDeleteModal(e)
+                    }}
+                    className="flex min-h-10 w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>{t('Cancel / Delete task')}</span>
+                  </button>
+                  <Link
+                    to={detailUrl}
+                    state={{ taskReturnTo: currentReturnTo }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMenuOpen(false)
+                      onNavigate?.()
+                    }}
+                    className="flex min-h-10 w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted rounded-md transition-colors"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span>{t('Edit draft')}</span>
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Title & Live Activity / Summary with Vertical Timeline flow */}
@@ -525,20 +645,35 @@ export function TaskItemCard({
       {/* Footer: Action buttons */}
       {showActions && (
         <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/50 text-xs">
-          {/* Detail Action: Always positioned on the Left */}
-          <Link
-            to={detailUrl}
-            state={{ taskReturnTo: currentReturnTo }}
-            onClick={(e) => {
-              e.stopPropagation()
-              onNavigate?.()
-            }}
-            className="action-secondary min-h-11 min-w-[44px] inline-flex items-center gap-1 px-3.5 text-xs font-medium rounded-lg justify-center transition-colors focus-visible:outline-2 focus-visible:outline-ring"
-            aria-label={`${t('Detail')} for ${currentTask.title}`}
-          >
-            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span>{t('Detail')}</span>
-          </Link>
+          {/* Left Actions: Detail & Cancel draft */}
+          <div className="flex items-center gap-2">
+            <Link
+              to={detailUrl}
+              state={{ taskReturnTo: currentReturnTo }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onNavigate?.()
+              }}
+              className="action-secondary min-h-11 min-w-[44px] inline-flex items-center gap-1 px-3.5 text-xs font-medium rounded-lg justify-center transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+              aria-label={`${t('Detail')} for ${currentTask.title}`}
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span>{t('Detail')}</span>
+            </Link>
+
+            {status === 'Not started' && (
+              <button
+                type="button"
+                onClick={handleOpenDeleteModal}
+                className="action-secondary min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-3 text-xs font-medium rounded-lg justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20 transition-colors focus-visible:outline-2 focus-visible:outline-ring cursor-pointer"
+                aria-label={`${t('Cancel draft')} ${currentTask.title}`}
+                title={t('Cancel draft')}
+              >
+                <Trash2 className="h-3.5 w-3.5 shrink-0 text-destructive/80" />
+                <span>{t('Cancel draft')}</span>
+              </button>
+            )}
+          </div>
 
           {/* Primary Action: Always positioned on the Right */}
           <div className="flex items-center gap-2">
@@ -624,6 +759,71 @@ export function TaskItemCard({
           {retryError}
         </div>
       )}
+
+      {/* Cancel/Delete Draft Confirmation Dialog */}
+      <ActionDialog
+        open={deleteModalOpen}
+        title={t('Cancel draft task?')}
+        onClose={() => {
+          if (!deleting) setDeleteModalOpen(false)
+        }}
+        busy={deleting}
+      >
+        <div className="space-y-4 text-sm" onClick={(e) => e.stopPropagation()}>
+          <p className="text-muted-foreground leading-relaxed">
+            {t(
+              'This draft task has not been started. Remove it from your task list?'
+            )}
+          </p>
+
+          <div className="rounded-lg bg-muted/50 p-2.5 text-xs">
+            <span className="font-semibold text-foreground line-clamp-1">
+              {currentTask.title}
+            </span>
+            {summary && (
+              <span className="text-muted-foreground line-clamp-1 mt-0.5">
+                {summary}
+              </span>
+            )}
+          </div>
+
+          {deleteError && (
+            <p className="text-xs font-medium text-destructive">{deleteError}</p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              className="action-secondary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg"
+              disabled={deleting}
+              onClick={(e) => {
+                e.stopPropagation()
+                setDeleteModalOpen(false)
+              }}
+            >
+              {t('Keep draft')}
+            </button>
+            <button
+              type="button"
+              className="action-primary bg-destructive text-destructive-foreground hover:bg-destructive/90 min-h-11 min-w-[44px] px-4 text-xs font-medium rounded-lg inline-flex items-center gap-1.5"
+              disabled={deleting}
+              onClick={handleConfirmDelete}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  <span>{t('Deleting...')}</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('Cancel task')}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </ActionDialog>
     </div>
   )
 }

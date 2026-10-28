@@ -58,8 +58,8 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='The launch window expired before execution could start.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed') AND expires_at<=$1`, now); e != nil {
 		return nil, e
 	}
-	// Reconcile orphan launches whose task is already completed or inactive.
-	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked'))`, now); e != nil {
+	// Reconcile orphan launches whose task is already completed or inactive (unless explicitly wanted for drain).
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND ($2 = '' OR id != $2) AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked'))`, now, id); e != nil {
 		return nil, e
 	}
 	// Reconcile zombie started launches without any active running attempt.

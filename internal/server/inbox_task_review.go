@@ -41,6 +41,9 @@ func (s *Server) inboxStaleReviewOutcome(ctx context.Context, q db.InboxRequest)
 		if err != nil || d == nil || d.LatestAttempt == nil {
 			continue
 		}
+		if (d.AssignedAgent != "" && d.AssignedAgent != q.AgentID) || (d.LatestAttempt.AgentName != "" && d.LatestAttempt.AgentName != q.AgentID) {
+			continue
+		}
 		a := d.LatestAttempt
 		if a.CancelRequested || a.Status == task.AttemptStatusCanceled || a.CanceledAt != nil {
 			return "The work has stopped. Your conversation and saved work are preserved. I will wait for your instruction before continuing it."
