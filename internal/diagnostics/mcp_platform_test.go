@@ -57,6 +57,9 @@ func TestPlatformMCPToolsList(t *testing.T) {
 		"get_contact",
 		"list_scheduled_jobs",
 		"get_system_settings",
+		"inspect_database_query",
+		"inspect_database_schema",
+		"inspect_app_logs",
 	}
 
 	foundMap := make(map[string]bool)
@@ -91,6 +94,9 @@ func TestPlatformMCPToolsExecution(t *testing.T) {
 		{"get_contact", `{"contact_id":"test-contact-id"}`},
 		{"list_scheduled_jobs", `{}`},
 		{"get_system_settings", `{}`},
+		{"inspect_database_query", `{"query":"SELECT 1 AS num"}`},
+		{"inspect_database_schema", `{}`},
+		{"inspect_app_logs", `{"lines":10}`},
 	}
 
 	var reqs strings.Builder
@@ -129,6 +135,29 @@ func TestPlatformMCPToolsExecution(t *testing.T) {
 		content, ok := resMap["content"].([]any)
 		if !ok || len(content) == 0 {
 			t.Errorf("[%s] expected content array in tool result: %+v", tc.name, resMap)
+		}
+	}
+}
+
+func TestInspectDatabaseQuerySafety(t *testing.T) {
+	ctx := t.Context()
+
+	// Should reject mutations
+	mutations := []string{
+		"INSERT INTO users VALUES (1)",
+		"UPDATE users SET name = 'evil'",
+		"DELETE FROM users",
+		"DROP TABLE users",
+		"ALTER TABLE users ADD COLUMN foo int",
+		"TRUNCATE users",
+		"GRANT ALL ON users TO evil",
+		"SELECT 1; DROP TABLE users",
+	}
+
+	for _, m := range mutations {
+		_, err := InspectDatabaseQuery(ctx, m, 10)
+		if err == nil {
+			t.Errorf("expected error for mutation query %q, got nil", m)
 		}
 	}
 }

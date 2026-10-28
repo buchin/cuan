@@ -211,6 +211,9 @@ func TestInspectionToolsRuntimeStream(t *testing.T) {
 		"get_contact",
 		"list_scheduled_jobs",
 		"get_system_settings",
+		"inspect_database_query",
+		"inspect_database_schema",
+		"inspect_app_logs",
 		"call_mcp_tool",
 	}
 

@@ -299,6 +299,54 @@ var nativeMCPTools = []mcpToolDefinition{
 			"properties": map[string]any{},
 		},
 	},
+	{
+		Name:        "inspect_database_query",
+		Description: "Execute a strictly read-only SQL query (SELECT, EXPLAIN, WITH) against the Cuan platform PostgreSQL database. All mutations (INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, etc.) are strictly forbidden. Results are bounded to limit (default: 50, max: 100) and sensitive columns (password, secret, token) are automatically masked.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"query": map[string]any{
+					"type":        "string",
+					"description": "SQL query string (SELECT, EXPLAIN, WITH)",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum rows to return (default: 50, max: 100)",
+				},
+			},
+			"required": []string{"query"},
+		},
+	},
+	{
+		Name:        "inspect_database_schema",
+		Description: "Inspect Cuan database schema: list all tables in the public schema with estimated row counts, or inspect column names, data types, nullability, and defaults for a specific table.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"table_name": map[string]any{
+					"type":        "string",
+					"description": "Optional table name. If omitted, lists all tables in the public schema.",
+				},
+			},
+		},
+	},
+	{
+		Name:        "inspect_app_logs",
+		Description: "Inspect recent server and agent application logs (bounded to 10-100 lines) with optional keyword filtering (e.g. 'error', 'failed', 'timeout', 'panic').",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"lines": map[string]any{
+					"type":        "integer",
+					"description": "Number of log lines to inspect (default: 50, max: 100)",
+				},
+				"filter": map[string]any{
+					"type":        "string",
+					"description": "Optional case-insensitive substring filter",
+				},
+			},
+		},
+	},
 }
 
 // RunMCP implements a Stdio MCP (Model Context Protocol) JSON-RPC 2.0 server.
@@ -462,6 +510,23 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			toolResult, toolErr = ListScheduledJobs(ctx)
 		case "get_system_settings":
 			toolResult, toolErr = GetSystemSettings(ctx)
+		case "inspect_database_query":
+			query, _ := callParams.Arguments["query"].(string)
+			limit := 50
+			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
+				limit = int(rawLimit)
+			}
+			toolResult, toolErr = InspectDatabaseQuery(ctx, query, limit)
+		case "inspect_database_schema":
+			tableName, _ := callParams.Arguments["table_name"].(string)
+			toolResult, toolErr = InspectDatabaseSchema(ctx, tableName)
+		case "inspect_app_logs":
+			lines := 50
+			if rawLines, ok := callParams.Arguments["lines"].(float64); ok {
+				lines = int(rawLines)
+			}
+			filter, _ := callParams.Arguments["filter"].(string)
+			toolResult, toolErr = InspectAppLogs(ctx, lines, filter)
 		default:
 			resp.Error = &jsonRPCError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 			sendResponse(out, resp)

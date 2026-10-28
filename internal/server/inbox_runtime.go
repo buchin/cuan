@@ -53,7 +53,9 @@ func isSafeInboxTool(tool string) bool {
 		"search_web",
 		"list_projects", "get_project", "list_tasks", "get_task", "create_task_draft",
 		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
-		"list_scheduled_jobs", "get_system_settings", "call_mcp_tool":
+		"list_scheduled_jobs", "get_system_settings",
+		"inspect_database_query", "inspect_database_schema", "inspect_app_logs",
+		"call_mcp_tool":
 		return true
 	default:
 		return false
@@ -243,6 +245,9 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				"get_contact":              "Get contact",
 				"list_scheduled_jobs":      "List scheduled jobs",
 				"get_system_settings":      "Get system settings",
+				"inspect_database_query":   "Inspect database query",
+				"inspect_database_schema":  "Inspect database schema",
+				"inspect_app_logs":         "Inspect app logs",
 				"call_mcp_tool":            "Call MCP tool",
 			}
 			name := names[u.Tool]

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -740,5 +741,298 @@ func GetSystemSettings(ctx context.Context) (any, error) {
 			"tasks":    taskCount,
 			"agents":   agentCount,
 		},
+	}, nil
+}
+
+// InspectDatabaseQuery executes a bounded, strictly read-only SQL query against the platform PostgreSQL database.
+func InspectDatabaseQuery(ctx context.Context, query string, limit int) (any, error) {
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("database connection unavailable")
+	}
+
+	clean := strings.TrimSpace(query)
+	if clean == "" {
+		return nil, fmt.Errorf("empty query")
+	}
+
+	// Safety checks: Reject any statements that aren't SELECT, EXPLAIN, WITH (CTE select), or SHOW
+	upper := strings.ToUpper(clean)
+	for strings.HasPrefix(upper, "--") || strings.HasPrefix(upper, "/*") {
+		if strings.HasPrefix(upper, "--") {
+			if idx := strings.Index(upper, "\n"); idx != -1 {
+				upper = strings.TrimSpace(upper[idx+1:])
+				clean = strings.TrimSpace(clean[idx+1:])
+			} else {
+				return nil, fmt.Errorf("invalid comment-only query")
+			}
+		} else if strings.HasPrefix(upper, "/*") {
+			if idx := strings.Index(upper, "*/"); idx != -1 {
+				upper = strings.TrimSpace(upper[idx+2:])
+				clean = strings.TrimSpace(clean[idx+2:])
+			} else {
+				return nil, fmt.Errorf("unclosed comment in query")
+			}
+		}
+	}
+
+	if !strings.HasPrefix(upper, "SELECT") &&
+		!strings.HasPrefix(upper, "EXPLAIN") &&
+		!strings.HasPrefix(upper, "WITH") &&
+		!strings.HasPrefix(upper, "SHOW") {
+		return nil, fmt.Errorf("only read-only queries (SELECT, EXPLAIN, WITH, SHOW) are permitted")
+	}
+
+	forbidden := []string{
+		"INSERT ", "UPDATE ", "DELETE ", "DROP ", "ALTER ", "TRUNCATE ", "GRANT ",
+		"REVOKE ", "CREATE ", "REPLACE ", "EXEC ", "EXECUTE ", "CALL ", "COPY ",
+		"VACUUM ", "REINDEX ", "LOCK ", "DISCARD ", "DO ",
+	}
+	for _, word := range forbidden {
+		if strings.Contains(upper, word) {
+			return nil, fmt.Errorf("query contains forbidden mutating keyword: %s", strings.TrimSpace(word))
+		}
+	}
+
+	semiIdx := strings.Index(clean, ";")
+	if semiIdx != -1 && strings.TrimSpace(clean[semiIdx+1:]) != "" {
+		return nil, fmt.Errorf("multiple SQL statements are not permitted")
+	}
+	clean = strings.TrimSuffix(clean, ";")
+
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	execQuery := clean
+	if strings.HasPrefix(upper, "SELECT") || strings.HasPrefix(upper, "WITH") {
+		if !strings.Contains(upper, "LIMIT ") {
+			execQuery = fmt.Sprintf("SELECT * FROM (%s) AS _cuan_ro_q LIMIT %d", clean, limit)
+		}
+	}
+
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(queryCtx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start read-only transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, _ = tx.ExecContext(queryCtx, "SET LOCAL statement_timeout = '5000'")
+
+	start := time.Now()
+	rows, err := tx.QueryContext(queryCtx, execQuery)
+	if err != nil {
+		return nil, fmt.Errorf("query execution failed: %w", err)
+	}
+	defer rows.Close()
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	isMasked := make([]bool, len(cols))
+	for i, col := range cols {
+		colLower := strings.ToLower(col)
+		if strings.Contains(colLower, "password") ||
+			strings.Contains(colLower, "secret") ||
+			strings.Contains(colLower, "token") ||
+			strings.Contains(colLower, "private_key") ||
+			strings.Contains(colLower, "access_key") {
+			isMasked[i] = true
+		}
+	}
+
+	var resultRows []map[string]any
+	for rows.Next() {
+		if len(resultRows) >= limit {
+			break
+		}
+		columnPointers := make([]any, len(cols))
+		columnValues := make([]any, len(cols))
+		for i := range columnValues {
+			columnPointers[i] = &columnValues[i]
+		}
+
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		rowMap := make(map[string]any, len(cols))
+		for i, col := range cols {
+			if isMasked[i] {
+				rowMap[col] = "[REDACTED_SECRET]"
+				continue
+			}
+			val := columnValues[i]
+			if b, ok := val.([]byte); ok {
+				rowMap[col] = string(b)
+			} else {
+				rowMap[col] = val
+			}
+		}
+		resultRows = append(resultRows, rowMap)
+	}
+
+	duration := time.Since(start)
+
+	return map[string]any{
+		"columns":        cols,
+		"rows":           resultRows,
+		"row_count":      len(resultRows),
+		"execution_time": fmt.Sprintf("%.2fms", float64(duration.Microseconds())/1000.0),
+		"limit_applied":  limit,
+	}, nil
+}
+
+// InspectDatabaseSchema returns tables in the public schema or detailed column information for a table.
+func InspectDatabaseSchema(ctx context.Context, tableName string) (any, error) {
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("database connection unavailable")
+	}
+
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	tableName = strings.TrimSpace(tableName)
+	if tableName == "" {
+		rows, err := db.QueryContext(queryCtx, `
+			SELECT table_name,
+			       COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = table_name), 0) AS estimated_rows
+			FROM information_schema.tables
+			WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+			ORDER BY table_name;
+		`)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list tables: %w", err)
+		}
+		defer rows.Close()
+
+		type TableInfo struct {
+			Name          string `json:"table_name"`
+			EstimatedRows int64  `json:"estimated_rows"`
+		}
+		var tables []TableInfo
+		for rows.Next() {
+			var t TableInfo
+			if err := rows.Scan(&t.Name, &t.EstimatedRows); err == nil {
+				tables = append(tables, t)
+			}
+		}
+		return map[string]any{
+			"schema":       "public",
+			"tables_count": len(tables),
+			"tables":       tables,
+		}, nil
+	}
+
+	rows, err := db.QueryContext(queryCtx, `
+		SELECT column_name, data_type, is_nullable, column_default
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = $1
+		ORDER BY ordinal_position;
+	`, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect table columns: %w", err)
+	}
+	defer rows.Close()
+
+	type ColumnInfo struct {
+		Name       string  `json:"column_name"`
+		DataType   string  `json:"data_type"`
+		IsNullable string  `json:"is_nullable"`
+		Default    *string `json:"default,omitempty"`
+	}
+	var columns []ColumnInfo
+	for rows.Next() {
+		var c ColumnInfo
+		if err := rows.Scan(&c.Name, &c.DataType, &c.IsNullable, &c.Default); err == nil {
+			columns = append(columns, c)
+		}
+	}
+
+	if len(columns) == 0 {
+		return nil, fmt.Errorf("table %q not found in public schema", tableName)
+	}
+
+	return map[string]any{
+		"table_name":   tableName,
+		"column_count": len(columns),
+		"columns":      columns,
+	}, nil
+}
+
+// InspectAppLogs retrieves recent application logs via journalctl or agent_logs table.
+func InspectAppLogs(ctx context.Context, lines int, filter string) (any, error) {
+	if lines <= 0 || lines > 100 {
+		lines = 50
+	}
+	filter = strings.TrimSpace(filter)
+
+	queryCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
+	cmdArgs := []string{"-u", "cuan", "-n", fmt.Sprintf("%d", lines), "--no-pager"}
+	if filter != "" {
+		cmdArgs = append(cmdArgs, "-g", filter)
+	}
+	cmd := exec.CommandContext(queryCtx, "journalctl", cmdArgs...)
+	out, err := cmd.CombinedOutput()
+	if err == nil && len(out) > 0 {
+		rawLines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		return map[string]any{
+			"source":     "journalctl",
+			"line_count": len(rawLines),
+			"lines":      rawLines,
+		}, nil
+	}
+
+	db := getPlatformDB()
+	if db != nil {
+		var query string
+		var args []any
+		if filter != "" {
+			query = `SELECT id, stream, line, logged_at 
+			         FROM agent_logs 
+			         WHERE line ILIKE $1 
+			         ORDER BY id DESC LIMIT $2`
+			args = []any{"%" + filter + "%", lines}
+		} else {
+			query = `SELECT id, stream, line, logged_at 
+			         FROM agent_logs 
+			         ORDER BY id DESC LIMIT $1`
+			args = []any{lines}
+		}
+		rows, qErr := db.QueryContext(queryCtx, query, args...)
+		if qErr == nil {
+			defer rows.Close()
+			type LogEntry struct {
+				ID       int64      `json:"id"`
+				Stream   string     `json:"stream"`
+				Line     string     `json:"line"`
+				LoggedAt *time.Time `json:"logged_at,omitempty"`
+			}
+			var entries []LogEntry
+			for rows.Next() {
+				var e LogEntry
+				if err := rows.Scan(&e.ID, &e.Stream, &e.Line, &e.LoggedAt); err == nil {
+					entries = append(entries, e)
+				}
+			}
+			return map[string]any{
+				"source":      "agent_logs",
+				"entry_count": len(entries),
+				"entries":     entries,
+			}, nil
+		}
+	}
+
+	return map[string]any{
+		"source":  "none",
+		"message": "No recent logs found via journalctl or agent_logs",
 	}, nil
 }
