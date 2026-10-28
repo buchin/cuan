@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 )
 
 // InboxThreadItem represents a summarized thread item for the inbox sub-panel list.
@@ -96,24 +97,44 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		tasks, _ := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
 		taskCount := len(tasks)
 		activeTasks := 0
+		hasDone := false
+		hasDoing := false
+
+		seenTaskIDs := make(map[string]bool)
 		for _, t := range tasks {
-			if strings.ToLower(t.Status) != "done" {
+			seenTaskIDs[t.ID] = true
+			st := strings.ToLower(strings.TrimSpace(t.Status))
+			if st != "done" {
 				activeTasks++
+			}
+			if st == "doing" || st == "review" {
+				hasDoing = true
+			} else if st == "done" {
+				hasDone = true
+			}
+		}
+
+		if s.taskSvc != nil {
+			if svcTasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{SourceRoomID: rm.ID}); err == nil && len(svcTasks) > 0 {
+				for _, st := range svcTasks {
+					if !seenTaskIDs[st.ID] {
+						taskCount++
+						stStatus := strings.ToLower(strings.TrimSpace(st.Status))
+						if stStatus != "done" {
+							activeTasks++
+						}
+						if stStatus == "doing" || stStatus == "review" {
+							hasDoing = true
+						} else if stStatus == "done" {
+							hasDone = true
+						}
+					}
+				}
 			}
 		}
 
 		derivedStatus := "unread"
 		if taskCount > 0 {
-			hasDone := false
-			hasDoing := false
-			for _, t := range tasks {
-				st := strings.ToLower(t.Status)
-				if st == "doing" || st == "review" {
-					hasDoing = true
-				} else if st == "done" {
-					hasDone = true
-				}
-			}
 			if hasDoing {
 				derivedStatus = "in_progress"
 			} else if hasDone {

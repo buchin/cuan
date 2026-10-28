@@ -204,10 +204,18 @@ export const chatApi = {
       params.set('q', filter.q)
     }
     const query = params.toString() ? `?${params.toString()}` : ''
-    const res = await apiFetch<{ contacts: ChatContact[]; total: number }>(
-      `/api/v1/chat/contacts${query}`,
-    )
-    return res.contacts || []
+    const res = await apiFetch<{
+      contacts?: ChatContact[]
+      conversations?: ChatContact[]
+      threads?: ChatContact[]
+      total?: number
+    }>(`/api/v1/chat/contacts${query}`)
+    const list = res.contacts || res.conversations || res.threads || []
+    return list.map((c) => ({
+      ...c,
+      task_count: typeof c.task_count === 'number' ? c.task_count : Number(c.task_count) || 0,
+      active_tasks: typeof c.active_tasks === 'number' ? c.active_tasks : Number(c.active_tasks) || 0,
+    }))
   },
 
   getConversation: async (

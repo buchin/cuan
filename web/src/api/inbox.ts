@@ -62,8 +62,13 @@ export const inboxApi = {
       params.set('project_id', filter.project_id)
     }
     const query = params.toString() ? `?${params.toString()}` : ''
-    const res = await apiFetch<{ threads: InboxThreadItem[]; total: number }>(`/api/v1/inbox${query}`)
-    return res.threads || []
+    const res = await apiFetch<{ threads?: InboxThreadItem[]; conversations?: InboxThreadItem[]; total?: number }>(`/api/v1/inbox${query}`)
+    const list = res.threads || res.conversations || []
+    return list.map((t) => ({
+      ...t,
+      task_count: typeof t.task_count === 'number' ? t.task_count : Number(t.task_count) || 0,
+      active_tasks: typeof t.active_tasks === 'number' ? t.active_tasks : Number(t.active_tasks) || 0,
+    }))
   },
 
   get: async (id: string): Promise<InboxThreadDetail> => {

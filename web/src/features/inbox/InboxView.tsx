@@ -265,8 +265,12 @@ export function InboxView({
         setLinkedTasks(data.tasks || [])
         if (activeContact && data.tasks) {
           const at = data.tasks.filter((t) => t.status !== 'done').length
+          const changed = activeContact.task_count !== data.tasks.length || activeContact.active_tasks !== at
           activeContact.task_count = data.tasks.length
           activeContact.active_tasks = at
+          if (changed) {
+            onContactUpdated?.()
+          }
         }
         const pending = pendingRef.current
         if (

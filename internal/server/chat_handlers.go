@@ -623,7 +623,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			for _, t := range allTasks {
 				if t.SourceRoomID != "" {
 					taskCountByRoom[t.SourceRoomID]++
-					if t.Status != task.TaskStatusDone {
+					if !strings.EqualFold(strings.TrimSpace(t.Status), "done") {
 						activeTasksByRoom[t.SourceRoomID]++
 					}
 				}
@@ -639,7 +639,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						taskCountByRoom[rm.ID] = len(pTasks)
 						active := 0
 						for _, pt := range pTasks {
-							if pt.Status != "done" {
+							if !strings.EqualFold(strings.TrimSpace(pt.Status), "done") {
 								active++
 							}
 						}
@@ -650,16 +650,16 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	getRoomTaskCounts := func(roomID, altID string) (int, int) {
-		tc := taskCountByRoom[roomID]
-		at := activeTasksByRoom[roomID]
-		if tc == 0 && altID != "" {
-			if taskCountByRoom[altID] > 0 {
-				tc = taskCountByRoom[altID]
-				at = activeTasksByRoom[altID]
+	getRoomTaskCounts := func(ids ...string) (int, int) {
+		for _, id := range ids {
+			if id == "" {
+				continue
+			}
+			if tc := taskCountByRoom[id]; tc > 0 {
+				return tc, activeTasksByRoom[id]
 			}
 		}
-		return tc, at
+		return 0, 0
 	}
 
 	if typeFilter != "customers" {
@@ -704,7 +704,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							})
 						}
 					}
-					tc, at := getRoomTaskCounts(roomID, "contact_"+a.ID)
+					tc, at := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
 					c := ChatContact{
 						ID:      "contact_" + a.ID,
 						AgentID: a.ID, AgentName: a.Name,
@@ -747,7 +747,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					at = messages[len(messages)-1].CreatedAt
 					unread = countUnread(room.ID, messages, true)
 				}
-				tc, activeCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID)
+				tc, activeCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
 				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt})
 			}
 		}

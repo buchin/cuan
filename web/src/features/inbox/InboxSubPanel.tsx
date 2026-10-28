@@ -396,8 +396,8 @@ export function InboxSubPanel({
               ].includes(status.state)
             const id = contact.conversation_id || contact.id
             const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
-            const activeTasks = contact.active_tasks ?? 0
-            const totalTasks = contact.task_count ?? 0
+            const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
+            const totalTasks = typeof contact.task_count === 'number' ? contact.task_count : Number(contact.task_count) || 0
             const taskBadgeCount = activeTasks > 0 ? activeTasks : totalTasks
             const openContact = () => {
               onSelectContact(contact)
@@ -441,10 +441,28 @@ export function InboxSubPanel({
 
                 {/* Details */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-normal")}>
-                      {contact.name}
-                    </span>
+                  <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-normal")}>
+                        {contact.name}
+                      </span>
+                      {taskBadgeCount > 0 && (
+                        <span
+                          data-testid="task-count-badge"
+                          aria-label={`${taskBadgeCount} active tasks`}
+                          title={`${taskBadgeCount} ${taskBadgeCount === 1 ? t('task') : t('tasks')}`}
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors",
+                            activeTasks > 0
+                              ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25"
+                              : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
+                          )}
+                        >
+                          <CheckSquare className="h-2.5 w-2.5" aria-hidden="true" />
+                          <span>{taskBadgeCount}</span>
+                        </span>
+                      )}
+                    </div>
                     <span className={cn("text-xs shrink-0 tabular-nums", unread ? "text-primary font-medium" : "text-muted-foreground")}>
                       {formatTime(
                         contact.last_message_at || contact.updated_at,
@@ -462,27 +480,14 @@ export function InboxSubPanel({
                     <p className="text-xs text-muted-foreground truncate leading-5">
                       {conversationPreview(contact.last_message)}
                     </p>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {taskBadgeCount > 0 && (
-                        <span
-                          data-testid="task-count-badge"
-                          aria-label={`${taskBadgeCount} active tasks`}
-                          title={`${taskBadgeCount} ${taskBadgeCount === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex items-center gap-1 h-4 min-w-4 px-1.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-bold tabular-nums"
-                        >
-                          <CheckSquare className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{taskBadgeCount}</span>
-                        </span>
-                      )}
-                      {unread > 0 && (
-                        <span
-                          aria-label={`${unread} unread messages`}
-                          className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center"
-                        >
-                          {unread}
-                        </span>
-                      )}
-                    </div>
+                    {unread > 0 && (
+                      <span
+                        aria-label={`${unread} unread messages`}
+                        className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center"
+                      >
+                        {unread}
+                      </span>
+                    )}
                   </div>
                   {warning && (
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
