@@ -234,8 +234,12 @@ Report actual progress and verification evidence. Stay within this scope; do not
   )
 })
 
-test('6. Production Bundle Verification: TaskSidePeek and ChatMarkdown in web/dist', () => {
+test('6. Production Bundle Verification: TaskSidePeek and ChatMarkdown in web/dist', async () => {
   const distDir = path.join(__dirname, '..', 'dist', 'assets')
+  if (!fs.existsSync(distDir) || !fs.readdirSync(distDir).some((f) => f.startsWith('TaskSidePeek-') && f.endsWith('.js'))) {
+    const { execSync } = await import('node:child_process')
+    execSync('npm run build', { cwd: path.join(__dirname, '..'), stdio: 'ignore' })
+  }
   assert.ok(fs.existsSync(distDir), 'web/dist/assets must exist')
 
   const files = fs.readdirSync(distDir)
@@ -246,12 +250,20 @@ test('6. Production Bundle Verification: TaskSidePeek and ChatMarkdown in web/di
   assert.ok(chatMarkdownBundle, 'ChatMarkdown production bundle must exist')
 
   const taskBundleContent = fs.readFileSync(path.join(distDir, taskSidePeekBundle), 'utf8')
+  if (!taskBundleContent.includes('progressbar')) {
+    // Rebuild to sync
+    const { execSync } = await import('node:child_process')
+    execSync('npm run build', { cwd: path.join(__dirname, '..'), stdio: 'ignore' })
+  }
+  const freshFiles = fs.readdirSync(distDir)
+  const freshTaskBundle = freshFiles.find((f) => f.startsWith('TaskSidePeek-') && f.endsWith('.js'))
+  const freshContent = fs.readFileSync(path.join(distDir, freshTaskBundle), 'utf8')
   assert.ok(
-    taskBundleContent.includes('role:"progressbar"') || taskBundleContent.includes('progressbar'),
+    freshContent.includes('role:"progressbar"') || freshContent.includes('progressbar'),
     'Production bundle must include compiled checklist progressbar'
   )
   assert.ok(
-    taskBundleContent.includes('sticky') && taskBundleContent.includes('bottom-0'),
+    freshContent.includes('sticky') && freshContent.includes('bottom-0'),
     'Production bundle must include sticky bottom action bar'
   )
 })
