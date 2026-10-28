@@ -24,6 +24,7 @@ type Settings struct {
 	Instructions      string `json:"instructions"`
 	WorkspaceRevision string `json:"workspace_revision,omitempty"`
 	AutoDeploy        *bool  `json:"auto_deploy,omitempty"`
+	DeployBranch      string `json:"deploy_branch,omitempty"`
 }
 
 func (s Settings) IsAutoDeployEnabled() bool {
@@ -39,6 +40,7 @@ type UpdateSettingsRequest struct {
 	Instructions      string    `json:"instructions"`
 	RepoURL           string    `json:"repo_url"`
 	DefaultBranch     string    `json:"default_branch"`
+	DeployBranch      string    `json:"deploy_branch,omitempty"`
 	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
 }
@@ -54,6 +56,7 @@ type taskProjectSnapshot struct {
 	Goal               string `json:"goal,omitempty"`
 	Instructions       string `json:"instructions,omitempty"`
 	AutoDeploy         *bool  `json:"auto_deploy,omitempty"`
+	DeployBranch       string `json:"deploy_branch,omitempty"`
 }
 
 func SettingsFromMetadata(raw json.RawMessage) Settings {
@@ -81,6 +84,7 @@ func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 		Goal:               settings.Goal,
 		Instructions:       settings.Instructions,
 		AutoDeploy:         &autoDeploy,
+		DeployBranch:       settings.DeployBranch,
 	})
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
 }
@@ -167,6 +171,10 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	if branch != "" && (len(branch) > 200 || strings.HasPrefix(branch, "-") || exec.CommandContext(ctx, "git", "check-ref-format", "--branch", branch).Run() != nil) {
 		return nil, errors.New("Enter a valid branch name.")
 	}
+	deployBranch := strings.TrimSpace(req.DeployBranch)
+	if deployBranch != "" && (len(deployBranch) > 200 || strings.HasPrefix(deployBranch, "-") || exec.CommandContext(ctx, "git", "check-ref-format", "--branch", deployBranch).Run() != nil) {
+		return nil, errors.New("Enter a valid deployment branch name.")
+	}
 	repo := strings.TrimSpace(req.RepoURL)
 	owner, repoName := "", ""
 	if repo != "" {
@@ -206,6 +214,7 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	settings := SettingsFromMetadata(current.Metadata)
 	settings.Goal = strings.TrimSpace(req.Goal)
 	settings.Instructions = strings.TrimSpace(req.Instructions)
+	settings.DeployBranch = deployBranch
 	if req.AutoDeploy != nil {
 		settings.AutoDeploy = req.AutoDeploy
 	}

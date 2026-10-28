@@ -213,3 +213,40 @@ func TestProjectSettingsAutoDeploy(t *testing.T) {
 		t.Fatal("expected auto_deploy to be true after update")
 	}
 }
+
+func TestProjectSettingsDeployBranch(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	initial := &Project{ID: "proj_deploy_branch", Name: "DeployBranch Test", DefaultBranch: "dev", Metadata: json.RawMessage(`{}`), UpdatedAt: time.Now().UTC()}
+	if err := store.CreateProject(ctx, initial); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store, nil, "fixture-secret", t.TempDir())
+	p, _ := service.Get(ctx, initial.ID)
+
+	// Update with custom deploy_branch
+	req := UpdateSettingsRequest{
+		Name:              "DeployBranch Test",
+		DefaultBranch:     "dev",
+		DeployBranch:      "main",
+		ExpectedUpdatedAt: p.UpdatedAt,
+	}
+	saved, err := service.UpdateSettings(ctx, p.ID, req)
+	if err != nil {
+		t.Fatalf("expected update to succeed, got %v", err)
+	}
+	settings := SettingsFromMetadata(saved.Metadata)
+	if settings.DeployBranch != "main" {
+		t.Fatalf("expected deploy_branch 'main', got %q", settings.DeployBranch)
+	}
+
+	// Update with invalid deploy branch name
+	badReq := UpdateSettingsRequest{
+		Name:              "DeployBranch Test",
+		DeployBranch:      "-invalid-branch-name",
+		ExpectedUpdatedAt: saved.UpdatedAt,
+	}
+	if _, err := service.UpdateSettings(ctx, p.ID, badReq); err == nil {
+		t.Fatal("expected error for invalid branch name, got nil")
+	}
+}

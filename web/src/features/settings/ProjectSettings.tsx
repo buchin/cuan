@@ -19,6 +19,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
     name: p.name, goal: String(p.metadata?.cuan_settings?.goal || ''),
     instructions: String(p.metadata?.cuan_settings?.instructions || ''),
     repo_url: p.repo_url || '', default_branch: p.default_branch || '',
+    deploy_branch: String(p.metadata?.cuan_settings?.deploy_branch || ''),
     auto_deploy: p.metadata?.cuan_settings?.auto_deploy !== false,
   })
   const [baseline, setBaseline] = useState(() => values(project))
@@ -102,6 +103,9 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
           <div className="space-y-2"><label htmlFor="project-branch" className="text-sm font-medium">{t('Default branch')}</label>
             <input id="project-branch" className="field-control" disabled={busy} maxLength={200} value={form.default_branch} placeholder={t('Use repository default')} onChange={event => change('default_branch', event.target.value)} /></div>
           <p className="text-xs leading-5 text-muted-foreground">{t('Leave the branch empty to use the repository default. Changes apply to new work; existing work keeps its connection.')}</p>
+          <div className="space-y-2"><label htmlFor="project-deploy-branch" className="text-sm font-medium">{t('Deployment branch')}</label>
+            <input id="project-deploy-branch" className="field-control" disabled={busy} maxLength={200} value={form.deploy_branch} placeholder={t('Same as default branch')} onChange={event => change('deploy_branch', event.target.value)} /></div>
+          <p className="text-xs leading-5 text-muted-foreground">{t('Leave empty to deploy from default branch. Used when production release branch differs from development.')}</p>
         </div>
       </details>
       </section>)}

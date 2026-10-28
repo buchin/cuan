@@ -2,7 +2,8 @@
 # Native SSH release: versioned payload, checksums, atomic switch, health rollback.
 set -euo pipefail
 
-approved_branch=dev
+approved_branch=""
+explicit_branch=0
 frontend_only=0
 force_local=0
 
@@ -10,6 +11,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --branch)
       approved_branch="$2"
+      explicit_branch=1
       shift 2
       ;;
     --frontend-only|--assets-only)
@@ -32,7 +34,45 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$(dirname "$0")/.."
-[[ "$(git branch --show-current)" == "$approved_branch" ]] || { echo "Release must run from the explicitly approved branch ($approved_branch)." >&2; exit 1; }
+
+# Resolve approved deployment branch if not explicitly given:
+# 1. Flag --branch <NAME> (handled above)
+# 2. CUAN_DEPLOY_BRANCH environment variable
+# 3. git config cuan.deployBranch
+# 4. Fallback default: dev
+if [[ "$explicit_branch" == 0 ]]; then
+  if [[ -n "${CUAN_DEPLOY_BRANCH:-}" ]]; then
+    approved_branch="$CUAN_DEPLOY_BRANCH"
+  elif git_deploy_cfg="$(git config --get cuan.deployBranch 2>/dev/null)" && [[ -n "$git_deploy_cfg" ]]; then
+    approved_branch="$git_deploy_cfg"
+  else
+    approved_branch="dev"
+  fi
+fi
+
+current_branch="$(git branch --show-current 2>/dev/null || true)"
+if [[ -z "$current_branch" ]]; then
+  echo "ERROR: Could not determine current branch (detached HEAD?)." >&2
+  exit 1
+fi
+
+# Guardrail: Never deploy directly from a temporary task/feature branch
+if [[ "$current_branch" =~ ^(cuan/task-|task/|feat/|fix/|chore/|spike/) ]]; then
+  echo "❌ ERROR: Direct deployment from working branch '$current_branch' is prohibited." >&2
+  echo "Guardrail: You must merge and push your changes to the deployment branch ('$approved_branch') before deploying." >&2
+  echo "Steps to release safely:" >&2
+  echo "  1. Complete and test all changes in '$current_branch'." >&2
+  echo "  2. Merge '$current_branch' into '$approved_branch' (via PR or git merge)." >&2
+  echo "  3. Switch to '$approved_branch' and run ./scripts/deploy.sh." >&2
+  exit 1
+fi
+
+if [[ "$current_branch" != "$approved_branch" ]]; then
+  echo "❌ ERROR: Release must run from the approved deployment branch ('$approved_branch'), but currently on '$current_branch'." >&2
+  echo "Switch to '$approved_branch' or pass --branch '$current_branch' if explicitly approved." >&2
+  exit 1
+fi
+
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
 
 echo "==> Verifying branch sync with origin/$approved_branch..."
