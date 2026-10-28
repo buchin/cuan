@@ -56,7 +56,7 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 			j.LeaseUntil = nil
 			continue
 		}
-		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked) {
+		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
 				if len(wanted) == 0 {
 					j.State = "stopped"
@@ -212,7 +212,7 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 	defer m.mu.Unlock()
 	for _, j := range m.launches {
 		t := m.tasks[j.TaskID]
-		if t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked) {
+		if t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
 				j.State = "stopped"
 				j.SafeError = "Task is in terminal status."

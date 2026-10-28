@@ -59,7 +59,7 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		return nil, e
 	}
 	// Reconcile orphan launches whose task is already completed or inactive (unless explicitly wanted for drain).
-	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND ($2 = '' OR id != $2) AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked'))`, now, id); e != nil {
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND ($2 = '' OR id != $2) AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked','review'))`, now, id); e != nil {
 		return nil, e
 	}
 	// Reconcile zombie started launches without any active running attempt.
@@ -95,7 +95,7 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 }
 func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) error {
 	// 1. Reconcile launches whose task is in terminal status
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked'))`, now); err != nil {
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked','review'))`, now); err != nil {
 		return err
 	}
 	// 1b. Self-heal orphan ghost-queued tasks: if a task is queued but its unexpired launch was stopped due to terminal status false alarm, revive it

@@ -7,7 +7,7 @@ import (
 )
 
 func TestInterruptionRecoveryExcludesCancellationAndUnrelatedFailures(t *testing.T) {
-	for _, name := range []string{"interrupted", "user-cancelled", "cancellation-recorded", "running", "completed", "other-exit", "missing-exit", "retry-limit"} {
+	for _, name := range []string{"interrupted", "user-cancelled", "cancellation-recorded", "running", "completed", "committed", "other-exit", "missing-exit", "retry-limit"} {
 		t.Run(name, func(t *testing.T) {
 			exit := 137
 			d := &task.TaskDetailResponse{LatestAttempt: &task.TaskAttempt{Status: task.AttemptStatusFailed, ExitCode: &exit}}
@@ -22,6 +22,8 @@ func TestInterruptionRecoveryExcludesCancellationAndUnrelatedFailures(t *testing
 				d.LatestAttempt.Status = task.AttemptStatusRunning
 			case "completed":
 				d.Status = task.TaskStatusDone
+			case "committed":
+				d.CommitSHA = "1b0f00ae0bb49ddc0512868b54df35dcbb77d976"
 			case "other-exit":
 				exit = 3
 			case "missing-exit":

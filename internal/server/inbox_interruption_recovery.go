@@ -20,6 +20,9 @@ func interruptedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
 	if a.CancelRequested || a.CanceledAt != nil {
 		return false
 	}
+	if d.CommitSHA != "" && len(d.CommitSHA) >= 7 {
+		return false
+	}
 	if a.Status == task.AttemptStatusInterrupted {
 		return taskRevisionAttemptCount(d) < 5
 	}
