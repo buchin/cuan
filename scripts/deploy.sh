@@ -145,8 +145,10 @@ PY
 if [[ "$is_local" == 1 ]]; then
   echo "==> Deploying release payload locally to /opt/cuan/releases/$release_sha..."
   sudo -n mkdir -p "/opt/cuan/releases/$release_sha"
-  mkdir -p "$HOME/.local/share/cuan-releases"
-  cp -a "$release_dir" "$HOME/.local/share/cuan-releases/"
+  if [[ "$release_dir" != "$HOME/.local/share/cuan-releases/"* ]]; then
+    mkdir -p "$HOME/.local/share/cuan-releases"
+    cp -a "$release_dir" "$HOME/.local/share/cuan-releases/"
+  fi
   sudo -n rsync -a --delete "$release_dir/" "/opt/cuan/releases/$release_sha/"
   sudo -n CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" python3 scripts/activate-release.py --release "$release_sha"
 else
