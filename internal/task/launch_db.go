@@ -63,7 +63,8 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		return nil, e
 	}
 	// Reconcile zombie started launches without any active running attempt.
-	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='No active runner process detected.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state = 'started' AND updated_at < $1 - INTERVAL '2 minutes' AND NOT EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = task_launches.task_id AND a.status = 'running')`, now); e != nil {
+	zombieCutoff := now.Add(-2 * time.Minute)
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='No active runner process detected.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state = 'started' AND updated_at < $2 AND NOT EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = task_launches.task_id AND a.status = 'running')`, now, zombieCutoff); e != nil {
 		return nil, e
 	}
 	return scanLaunch(s.db.QueryRowContext(ctx, `WITH candidate AS (
@@ -102,11 +103,13 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 		return err
 	}
 	// 2. Reconcile zombie started launches without any active running attempt
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution attempt is no longer active (orphan launch reconciled).',lease_token='',lease_until=NULL,updated_at=$1 WHERE state = 'started' AND updated_at < $1 - INTERVAL '2 minutes' AND NOT EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = task_launches.task_id AND a.status = 'running')`, now); err != nil {
+	zombieCutoff := now.Add(-2 * time.Minute)
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution attempt is no longer active (orphan launch reconciled).',lease_token='',lease_until=NULL,updated_at=$1 WHERE state = 'started' AND updated_at < $2 AND NOT EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = task_launches.task_id AND a.status = 'running')`, now, zombieCutoff); err != nil {
 		return err
 	}
 	// 3. Auto-cancel abandoned interactive terminal tasks queued for > 5 minutes
-	if _, err := s.db.ExecContext(ctx, `UPDATE tasks SET status = 'cancelled', updated_at = $1 WHERE status = 'queued' AND title LIKE 'Terminal · %' AND created_at < $1 - INTERVAL '5 minutes'`, now); err != nil {
+	staleCutoff := now.Add(-5 * time.Minute)
+	if _, err := s.db.ExecContext(ctx, `UPDATE tasks SET status = 'cancelled', updated_at = $1 WHERE status = 'queued' AND title LIKE 'Terminal · %' AND created_at < $2`, now, staleCutoff); err != nil {
 		return err
 	}
 	// 4. Mark launches for cancelled tasks as stopped
