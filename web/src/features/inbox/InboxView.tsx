@@ -969,44 +969,6 @@ export function InboxView({
                     <Settings className="h-5 w-5" />
                   </Link>
                 )}
-                <button
-                  onClick={() =>
-                    loadConversation(
-                      activeContact.conversation_id || activeContact.id,
-                      false,
-                    )
-                  }
-                  title={t('Refresh messages')}
-                  className="icon-action text-muted-foreground"
-                >
-                  <RefreshCw
-                    className={cn('h-4 w-4', loading && 'animate-spin')}
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConvTab(convTab === 'tasks' ? 'chat' : 'tasks')}
-                  title={convTab === 'tasks' ? t('Switch to chat') : t('Tasks')}
-                  aria-label={convTab === 'tasks' ? t('Switch to chat') : t('Tasks')}
-                  className={cn(
-                    "icon-action relative transition-colors",
-                    convTab === 'tasks'
-                      ? "bg-accent text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <CheckSquare className="h-4 w-4" />
-                  {linkedTasks.length > 0 && (
-                    <span className={cn(
-                      "absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm",
-                      convTab === 'tasks'
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-primary text-primary-foreground"
-                    )}>
-                      {linkedTasks.length}
-                    </span>
-                  )}
-                </button>
               </div>
             </div>
 
