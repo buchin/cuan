@@ -386,12 +386,14 @@ func CreateTaskDraft(ctx context.Context, projectID, title, instructions, priori
 
 // InboxConversation represents an inbox room / conversation.
 type InboxConversation struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"project_id"`
-	Title     string `json:"title"`
-	Topic     string `json:"topic"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID          string `json:"id"`
+	ProjectID   string `json:"project_id"`
+	Title       string `json:"title"`
+	Topic       string `json:"topic"`
+	TaskCount   int    `json:"task_count"`
+	ActiveTasks int    `json:"active_tasks"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // ListInboxConversations lists customer chat sessions and project rooms.
@@ -434,6 +436,12 @@ func ListInboxConversations(ctx context.Context, projectID string, limit int) (a
 		}
 		c.CreatedAt = createdAt.Format(time.RFC3339)
 		c.UpdatedAt = updatedAt.Format(time.RFC3339)
+
+		var tc, at int
+		_ = db.QueryRowContext(ctx, "SELECT COUNT(*), COUNT(CASE WHEN status != 'done' THEN 1 END) FROM tasks WHERE room_id = $1", c.ID).Scan(&tc, &at)
+		c.TaskCount = tc
+		c.ActiveTasks = at
+
 		convs = append(convs, c)
 	}
 	if convs == nil {

@@ -21,6 +21,8 @@ export interface ChatContact {
   is_online?: boolean
   current_url?: string
   page_title?: string
+  task_count?: number
+  active_tasks?: number
 }
 
 export interface AgentActionCard {

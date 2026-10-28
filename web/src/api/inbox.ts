@@ -23,6 +23,7 @@ export interface InboxThreadItem {
   last_message?: InboxMessage
   message_count: number
   task_count: number
+  active_tasks?: number
   created_at: string
   updated_at: string
 }

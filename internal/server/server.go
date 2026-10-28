@@ -596,6 +596,8 @@ func (s *Server) routes() {
 
 	s.router.Get("/api/v1/item-preferences", s.handleItemPreferences)
 	s.router.Patch("/api/v1/item-preferences", s.handleItemPreferences)
+	s.router.Get("/api/inbox/conversations", s.handleInternalListContacts)
+	s.router.Get("/api/conversations", s.handleInternalListContacts)
 
 	s.router.Route("/api/v1", func(r chi.Router) {
 		// Domain endpoints in v1

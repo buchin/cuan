@@ -21,6 +21,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 )
 
 // ChatContact represents a contact in the direct messenger hub (agent or customer).
@@ -44,6 +45,8 @@ type ChatContact struct {
 	IsOnline       bool      `json:"is_online"`
 	CurrentURL     string    `json:"current_url,omitempty"`
 	PageTitle      string    `json:"page_title,omitempty"`
+	TaskCount      int       `json:"task_count"`
+	ActiveTasks    int       `json:"active_tasks"`
 }
 
 // AgentActionCard represents an interactive 1-click execution card in an agent bubble.
@@ -611,6 +614,54 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	}
 	contacts := make([]ChatContact, 0)
 
+	// Count active tasks and total tasks per conversation room
+	taskCountByRoom := make(map[string]int)
+	activeTasksByRoom := make(map[string]int)
+
+	if s.taskSvc != nil {
+		if allTasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{}); err == nil {
+			for _, t := range allTasks {
+				if t.SourceRoomID != "" {
+					taskCountByRoom[t.SourceRoomID]++
+					if t.Status != task.TaskStatusDone {
+						activeTasksByRoom[t.SourceRoomID]++
+					}
+				}
+			}
+		}
+	}
+	if s.projectStudioRepo != nil {
+		if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+			for _, rm := range allRooms {
+				pTasks, err := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
+				if err == nil && len(pTasks) > 0 {
+					if len(pTasks) > taskCountByRoom[rm.ID] {
+						taskCountByRoom[rm.ID] = len(pTasks)
+						active := 0
+						for _, pt := range pTasks {
+							if pt.Status != "done" {
+								active++
+							}
+						}
+						activeTasksByRoom[rm.ID] = active
+					}
+				}
+			}
+		}
+	}
+
+	getRoomTaskCounts := func(roomID, altID string) (int, int) {
+		tc := taskCountByRoom[roomID]
+		at := activeTasksByRoom[roomID]
+		if tc == 0 && altID != "" {
+			if taskCountByRoom[altID] > 0 {
+				tc = taskCountByRoom[altID]
+				at = activeTasksByRoom[altID]
+			}
+		}
+		return tc, at
+	}
+
 	if typeFilter != "customers" {
 		// Include any agents from s.agentRepo that are active and not already included
 		if s.agentRepo != nil {
@@ -653,6 +704,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							})
 						}
 					}
+					tc, at := getRoomTaskCounts(roomID, "contact_"+a.ID)
 					c := ChatContact{
 						ID:      "contact_" + a.ID,
 						AgentID: a.ID, AgentName: a.Name,
@@ -668,6 +720,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						HasMessages:    true,
 						MessageCount:   1,
 						IsOnline:       true,
+						TaskCount:      tc,
+						ActiveTasks:    at,
 					}
 					contacts = append(contacts, c)
 				}
@@ -693,7 +747,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					at = messages[len(messages)-1].CreatedAt
 					unread = countUnread(room.ID, messages, true)
 				}
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true})
+				tc, activeCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID)
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt})
 			}
 		}
 	}
@@ -790,6 +845,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
+			tc, at := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
 			custContact := ChatContact{
 				ID:             "cust_" + sess.UUID,
 				Type:           "customer",
@@ -808,6 +864,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				IsOnline:       isOnline,
 				CurrentURL:     currURL,
 				PageTitle:      pageTitle,
+				TaskCount:      tc,
+				ActiveTasks:    at,
 			}
 			contacts = append(contacts, custContact)
 		}
@@ -833,8 +891,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	}
 	sort.SliceStable(contacts, func(i, j int) bool { return contacts[i].UpdatedAt.After(contacts[j].UpdatedAt) })
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"contacts": contacts,
-		"total":    len(contacts),
+		"contacts":      contacts,
+		"conversations": contacts,
+		"total":         len(contacts),
 	})
 }
 
@@ -1181,8 +1240,19 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		respondJSONError(w, 503, "Could not read conversation tasks")
 		return
 	}
+	activeTasks := 0
+	for _, t := range linked {
+		if t.Status != task.TaskStatusDone {
+			activeTasks++
+		}
+	}
+	contact.TaskCount = len(linked)
+	contact.ActiveTasks = activeTasks
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":           linked,
+		"task_count":      len(linked),
+		"active_tasks":    activeTasks,
 		"requests":        inboxRecoveryRequests(requests),
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,
