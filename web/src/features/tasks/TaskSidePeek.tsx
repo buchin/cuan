@@ -15,6 +15,16 @@ import {
   Rocket,
   CheckCircle2,
   FolderOpen,
+  ChevronDown,
+  Clock,
+  ShieldCheck,
+  Flame,
+  Bot,
+  User,
+  ListChecks,
+  FileText,
+  Sparkles,
+  MessageSquare,
 } from 'lucide-react'
 import { AttachmentFile } from '../inbox/Attachments'
 import { useLanguage } from '../../context/LanguageContext'
@@ -43,6 +53,9 @@ import {
   taskRef,
   executionLabel,
   relativeTime,
+  taskStatusBadgeClass,
+  taskPriorityBadgeClass,
+  parseTaskInstructions,
 } from './task-ui'
 import './task-workspace.css'
 interface Props {
@@ -413,12 +426,38 @@ function TaskDetailView({
   const authorName = (id: string) => agents.find((a) => a.id === id)?.name || id
   const field = (key: keyof Draft, value: string) =>
     setDraft((d) => ({ ...d, [key]: value }))
+  function renderChecklistText(text: string) {
+    if (!text) return null
+    const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return (
+          <strong key={i} className="font-semibold text-foreground">
+            {part.slice(2, -2)}
+          </strong>
+        )
+      }
+      if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+        return (
+          <code
+            key={i}
+            className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-primary"
+          >
+            {part.slice(1, -1)}
+          </code>
+        )
+      }
+      return <span key={i}>{part}</span>
+    })
+  }
   const emptyProse = (text: string | undefined, empty: string) => (
     <div className="task-prose min-w-0">
       {text ? (
         <ChatMarkdown content={text} />
       ) : (
-        <p className="text-sm text-muted-foreground">{empty}</p>
+        <p className="rounded-lg border border-dashed border-border/70 bg-muted/10 p-3 text-xs sm:text-sm text-muted-foreground italic">
+          {empty}
+        </p>
       )}
     </div>
   )
@@ -441,12 +480,12 @@ function TaskDetailView({
       )}
     >
       <GitHubPrerequisite task={detail} />
-      <header className="shrink-0 border-b px-4 pb-3 pt-2 sm:px-6">
+      <header className="shrink-0 border-b px-3.5 pb-3 pt-2.5 sm:px-6 sm:pt-3.5 sm:pb-3.5">
         <div className="flex min-h-11 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <span className="shrink-0 font-mono">{taskRef(detail.id)}</span>
+            <span className="shrink-0 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-muted/80 text-foreground border border-border/60">{taskRef(detail.id)}</span>
             {selectedProject && (
-              <span className="truncate">· {selectedProject.name}</span>
+              <span className="truncate text-xs text-muted-foreground font-medium">· {selectedProject.name}</span>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -482,8 +521,18 @@ function TaskDetailView({
               </button>
               {menu && (
                 <div className="absolute right-0 top-full z-20 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
+                  {detail.source_room_id && (
+                    <a
+                      href={`/inbox/${encodeURIComponent(detail.source_room_id)}`}
+                      className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-accent rounded-md transition-colors"
+                      onClick={() => setMenu(false)}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      Open conversation
+                    </a>
+                  )}
                   <button
-                    className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm"
+                    className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-accent rounded-md transition-colors"
                     onClick={async () => {
                       setMenu(false)
                       try {
@@ -502,7 +551,7 @@ function TaskDetailView({
                     Copy link
                   </button>
                   <button
-                    className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm text-destructive disabled:opacity-50"
+                    className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
                     disabled={running || busy}
                     onClick={() => {
                       setMenu(false)
@@ -527,23 +576,25 @@ function TaskDetailView({
             </button>
           </div>
         </div>
-        <h2 className="break-words text-lg font-semibold leading-snug sm:text-xl">
+        <h2 className="mt-1 break-words text-base sm:text-lg lg:text-xl font-bold tracking-tight text-foreground leading-snug">
           {detail.title}
         </h2>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span>{statusLabel(detail.status)}</span>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+          <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize", taskStatusBadgeClass(detail.status))}>
+            {statusLabel(detail.status)}
+          </span>
           {['running', 'queued'].includes(
             detail.latest_attempt?.status || '',
           ) && (
-            <span>
-              {['running', 'queued'].includes(
-                detail.latest_attempt?.status || '',
-              )
-                ? executionLabel(detail)
-                : ''}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/25">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+              {executionLabel(detail)}
             </span>
           )}
-          <span>Updated {relativeTime(detail.updated_at)}</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
+            <Clock className="h-3 w-3" />
+            Updated {relativeTime(detail.updated_at)}
+          </span>
         </div>
       </header>
       <nav
@@ -777,44 +828,69 @@ function TaskDetailView({
               </form>
             ) : (
               <>
-                <section className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 text-sm">
-                  <label className="grid gap-1 text-xs text-muted-foreground">
-                    Status
-                    <select
-                      aria-label="Task status"
-                      className="field-control text-sm"
-                      disabled={busy || running || !loaded}
-                      value={detail.status}
-                      onChange={(e) =>
-                        changeStatus(e.target.value as TaskStatus)
-                      }
-                    >
-                      {TASK_STATUSES.filter(
-                        (s) =>
-                          s.id === detail.status ||
-                          ['backlog', 'todo', 'blocked'].includes(s.id) ||
-                          (s.id === 'review' && detail.attempts.length === 0),
-                      ).map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Priority</p>
-                    <p className="mt-2 capitalize">{detail.priority}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-xs text-muted-foreground">Assignee</p>
-                    <p className="mt-1 break-words">
-                      {authorName(
-                        detail.assignee_id || detail.assignee || '',
-                      ) || 'Unassigned'}
-                    </p>
+                <section className="rounded-xl border border-border/80 bg-card p-3 sm:p-4 shadow-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/60">
+                    <div className="pb-3 sm:pb-0 sm:pr-4 flex flex-col justify-between">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        Status
+                      </span>
+                      <select
+                        aria-label="Task status"
+                        className="field-control h-10 min-h-10 text-xs font-medium rounded-lg border-input bg-background/80 hover:bg-background transition-colors"
+                        disabled={busy || running || !loaded}
+                        value={detail.status}
+                        onChange={(e) =>
+                          changeStatus(e.target.value as TaskStatus)
+                        }
+                      >
+                        {TASK_STATUSES.filter(
+                          (s) =>
+                            s.id === detail.status ||
+                            ['backlog', 'todo', 'blocked'].includes(s.id) ||
+                            (s.id === 'review' && detail.attempts.length === 0),
+                        ).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="py-3 sm:py-0 sm:px-4 flex flex-col justify-between">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                        <Flame className="h-3.5 w-3.5 text-muted-foreground" />
+                        Priority
+                      </span>
+                      <div className="flex items-center min-h-10">
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border capitalize',
+                            taskPriorityBadgeClass(detail.priority),
+                          )}
+                        >
+                          {detail.priority || 'Normal'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="pt-3 sm:pt-0 sm:pl-4 flex flex-col justify-between">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        Assignee
+                      </span>
+                      <div className="flex items-center min-h-10">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted/60 border border-border/50 text-foreground">
+                          <Bot className="h-3.5 w-3.5 text-primary" />
+                          <span className="truncate max-w-[140px] font-mono">
+                            {authorName(
+                              detail.assignee_id || detail.assignee || '',
+                            ) || 'Unassigned'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   {detail.pr_url && /^https?:\/\//i.test(detail.pr_url) && (
-                    <div className="col-span-2 mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2.5">
+                    <div className="mt-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Rocket className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -863,70 +939,274 @@ function TaskDetailView({
                     </div>
                   )}
                 </section>
-                <section>
-                  <h3 className="mb-2 text-sm font-semibold">
-                    Human instructions
-                  </h3>
-                  {emptyProse(
-                    detail.description,
-                    'No instructions yet. Edit this task to describe the work.',
-                  )}
-                </section>
-                {checklist.length > 0 && (
-                  <section>
-                    <h3 className="mb-2 text-sm font-semibold">
-                      Agent checklist
-                    </h3>
-                    <div className="space-y-1">
-                      {checklist.map((item, index) => (
-                        <label
-                          key={item.id || index}
-                          className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md py-2 text-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            aria-label={`Verify: ${item.text}`}
-                            checked={!!item.completed}
-                            disabled={busy || detail.status === 'done'}
-                            onChange={() =>
-                              void working(async () => {
-                                const next = checklist.map((c, i) =>
-                                  i === index
-                                    ? { ...c, completed: !c.completed }
-                                    : c,
-                                )
-                                await update({
-                                  dod_checklist: next,
-                                  expected_updated_at: detail.updated_at,
-                                })
-                              })
-                            }
-                            className="mt-1 h-4 w-4 shrink-0"
-                          />
+
+                {(() => {
+                  const parsed = parseTaskInstructions(detail.description)
+                  return (
+                    <section className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          <span>Human instructions</span>
+                        </h3>
+                        {parsed.isDelegation && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                            Managed Delegation
+                          </span>
+                        )}
+                      </div>
+                      {emptyProse(
+                        parsed.cleanText || detail.description,
+                        'No instructions yet. Edit this task to describe the work.',
+                      )}
+                      {parsed.isDelegation && parsed.metadata && (
+                        <details className="group rounded-xl border border-border/80 bg-muted/20 overflow-hidden text-xs transition-colors">
+                          <summary className="flex min-h-11 cursor-pointer select-none items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-muted/40 transition-colors">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                                <ShieldCheck className="h-4 w-4 text-primary" />
+                              </span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-foreground">
+                                    Metadata Delegasi & Scope Digest
+                                  </span>
+                                  {parsed.metadata.scopeDigest && (
+                                    <span className="font-mono text-[10px] rounded bg-muted/80 px-1.5 py-0.5 border border-border/60 text-muted-foreground">
+                                      digest: {parsed.metadata.scopeDigest.slice(0, 8)}…
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                  Cuan managed delegation · Rincian otorisasi & verifikasi
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+                              <span className="text-[11px] hidden sm:inline group-open:hidden">
+                                Detail
+                              </span>
+                              <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
+                            </div>
+                          </summary>
+                          <div className="border-t border-border/60 bg-muted/10 p-3.5 space-y-3 font-sans">
+                            {parsed.metadata.scopeDigest && (
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  Approved Scope Digest
+                                </span>
+                                <div className="flex items-center justify-between gap-2 rounded-lg border bg-background/80 p-2 font-mono text-[11px]">
+                                  <span className="truncate">{parsed.metadata.scopeDigest}</span>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await navigator.clipboard.writeText(parsed.metadata?.scopeDigest || '')
+                                        setNotice('Scope digest copied.')
+                                      } catch {
+                                        setError('Could not copy digest.')
+                                      }
+                                    }}
+                                    aria-label="Copy scope digest"
+                                    className="icon-action h-7 w-7 min-h-7 min-w-7 shrink-0"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {parsed.metadata.approvalMessage && (
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  Approval Message ID
+                                </span>
+                                <div className="flex items-center justify-between gap-2 rounded-lg border bg-background/80 p-2 font-mono text-[11px]">
+                                  <span className="truncate">{parsed.metadata.approvalMessage}</span>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await navigator.clipboard.writeText(parsed.metadata?.approvalMessage || '')
+                                        setNotice('Approval message ID copied.')
+                                      } catch {
+                                        setError('Could not copy approval message ID.')
+                                      }
+                                    }}
+                                    aria-label="Copy approval message ID"
+                                    className="icon-action h-7 w-7 min-h-7 min-w-7 shrink-0"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {parsed.metadata.userAuth && (
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  User Authorization
+                                </span>
+                                <div className="rounded-lg border bg-background/80 p-2 text-xs text-foreground leading-relaxed">
+                                  {parsed.metadata.userAuth}
+                                </div>
+                              </div>
+                            )}
+
+                            {parsed.metadata.conversationId && (
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  Source Conversation
+                                </span>
+                                <div className="flex items-center justify-between gap-2 rounded-lg border bg-background/80 p-2 text-xs">
+                                  <span className="font-mono text-[11px] truncate">
+                                    {parsed.metadata.conversationId}
+                                  </span>
+                                  <a
+                                    href={`/inbox/${encodeURIComponent(parsed.metadata.conversationId)}`}
+                                    className="inline-flex items-center gap-1 text-primary hover:underline text-xs font-medium shrink-0"
+                                  >
+                                    <span>Buka Chat</span>
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      )}
+                    </section>
+                  )
+                })()}
+
+                {checklist.length > 0 && (() => {
+                  const completedCount = checklist.filter((i) => i.completed).length
+                  const totalCount = checklist.length
+                  const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+                  const isAllDone = totalCount > 0 && completedCount === totalCount
+
+                  return (
+                    <section className="rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className={cn(
+                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+                                isAllDone
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-primary/10 text-primary',
+                              )}
+                            >
+                              <ListChecks className="h-4 w-4" />
+                            </span>
+                            <h3 className="text-sm font-bold text-foreground">
+                              Agent checklist
+                            </h3>
+                          </div>
+
                           <span
                             className={cn(
-                              'min-w-0 break-words',
-                              item.completed && 'text-muted-foreground',
+                              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border',
+                              isAllDone
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                : 'bg-muted text-muted-foreground border-border/60',
                             )}
                           >
-                            {item.text}
+                            {isAllDone && (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            )}
+                            <span>
+                              {completedCount} / {totalCount} ({percent}%)
+                            </span>
                           </span>
-                        </label>
-                      ))}
-                      <p className="text-xs text-muted-foreground">
-                        {checklist.filter((i) => i.completed).length} of{' '}
-                        {checklist.length} reported by agent
-                      </p>
-                    </div>
-                  </section>
-                )}
-                <section>
-                  <h3 className="mb-2 text-sm font-semibold">Work summary</h3>
+                        </div>
+
+                        {/* Visual Progress Bar Track */}
+                        <div
+                          className="h-2 w-full rounded-full bg-muted/80 overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={percent}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label="Agent checklist progress"
+                        >
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-all duration-300 ease-out',
+                              isAllDone
+                                ? 'bg-emerald-500 dark:bg-emerald-400'
+                                : 'bg-primary',
+                            )}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                          {isAllDone
+                            ? 'Semua kriteria selesai terverifikasi oleh agen.'
+                            : `${completedCount} dari ${totalCount} kriteria dilaporkan agen.`}
+                        </p>
+                      </div>
+
+                      {/* Checklist items with min-44px touch targets and markdown formatting */}
+                      <div className="divide-y divide-border/40 pt-1">
+                        {checklist.map((item, index) => (
+                          <label
+                            key={item.id || index}
+                            className={cn(
+                              'flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2.5 py-2.5 transition-colors hover:bg-muted/40',
+                              item.completed && 'bg-muted/15',
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              aria-label={`Verify: ${item.text}`}
+                              checked={!!item.completed}
+                              disabled={busy || detail.status === 'done'}
+                              onChange={() =>
+                                void working(async () => {
+                                  const next = checklist.map((c, i) =>
+                                    i === index
+                                      ? { ...c, completed: !c.completed }
+                                      : c,
+                                  )
+                                  await update({
+                                    dod_checklist: next,
+                                    expected_updated_at: detail.updated_at,
+                                  })
+                                })
+                              }
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-input text-primary focus:ring-primary focus:ring-offset-background"
+                            />
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 break-words text-xs sm:text-sm leading-relaxed',
+                                item.completed
+                                  ? 'text-muted-foreground line-through decoration-muted-foreground/50'
+                                  : 'text-foreground font-medium',
+                              )}
+                            >
+                              {renderChecklistText(item.text)}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  )
+                })()}
+
+                <section className="space-y-2">
+                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>Work summary</span>
+                  </h3>
                   {emptyProse(detail.summary, 'No work summary recorded yet.')}
                 </section>
-                <section>
-                  <h3 className="mb-2 text-sm font-semibold">
-                    Completion notes & verification
+                <section className="space-y-2">
+                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    <span>Completion notes & verification</span>
                   </h3>
                   {emptyProse(
                     detail.complete_note,
@@ -952,21 +1232,27 @@ function TaskDetailView({
                   </section>
                 )}
                 {(detail.diff_summary || detail.test_summary) && (
-                  <details className="rounded-lg border p-3 text-sm">
-                    <summary className="cursor-pointer">
-                      Additional execution evidence
+                  <details className="group rounded-xl border border-border/80 bg-muted/20 p-3 text-xs sm:text-sm transition-colors">
+                    <summary className="flex cursor-pointer select-none items-center justify-between font-medium text-foreground hover:text-primary">
+                      <span>Additional execution evidence</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
                     </summary>
-                    {emptyProse(detail.diff_summary, '')}
-                    {emptyProse(detail.test_summary, '')}
+                    <div className="mt-3 space-y-3 pt-3 border-t border-border/60">
+                      {emptyProse(detail.diff_summary, '')}
+                      {emptyProse(detail.test_summary, '')}
+                    </div>
                   </details>
                 )}
                 {detail.source_room_id && (
-                  <a
-                    href={`/inbox/${encodeURIComponent(detail.source_room_id)}`}
-                    className="action-secondary text-sm"
-                  >
-                    Open source conversation
-                  </a>
+                  <div className="pt-1">
+                    <a
+                      href={`/inbox/${encodeURIComponent(detail.source_room_id)}`}
+                      className="action-secondary min-h-11 min-w-[44px] inline-flex items-center gap-2 text-xs sm:text-sm"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Open source conversation</span>
+                    </a>
+                  </div>
                 )}
               </>
             )}
@@ -1079,11 +1365,11 @@ function TaskDetailView({
           </div>
         )}
       </main>
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-card px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-6">
+      <footer className="sticky bottom-0 z-30 shrink-0 border-t border-border/80 bg-card/95 backdrop-blur-md px-3.5 sm:px-6 py-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.25)]">
         {editing ? (
-          <>
+          <div className="flex w-full items-center justify-between gap-3">
             <button
-              className="action-secondary"
+              className="action-secondary min-h-11 min-w-[44px] px-4 text-xs sm:text-sm font-medium"
               disabled={busy}
               onClick={() => {
                 if (dirty && !window.confirm('Discard unsaved task changes?'))
@@ -1095,28 +1381,28 @@ function TaskDetailView({
               Cancel edit
             </button>
             <button
-              className="action-primary"
+              className="action-primary min-h-11 min-w-[44px] px-5 text-xs sm:text-sm font-medium"
               type="submit"
               form="task-edit-form"
               disabled={busy || !loaded}
             >
               {busy ? 'Saving…' : 'Save changes'}
             </button>
-          </>
+          </div>
         ) : (
-          <>
+          <div className="flex w-full items-center justify-between gap-2.5">
             <button
-              className="action-secondary"
+              className="action-secondary min-h-11 min-w-[44px] px-3.5 sm:px-4 text-xs sm:text-sm font-medium shrink-0"
               disabled={busy || running || !loaded}
               onClick={startEdit}
             >
               <Pencil className="h-4 w-4" />
-              Edit
+              <span>Edit</span>
             </button>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2 shrink-0 sm:shrink">
               {detail.status === 'done' ? (
                 <button
-                  className="action-secondary"
+                  className="action-secondary min-h-11 min-w-[44px] px-4 text-xs sm:text-sm font-medium"
                   disabled={busy}
                   onClick={() => changeStatus('todo')}
                 >
@@ -1126,7 +1412,7 @@ function TaskDetailView({
                 <>
                   {detail.status === 'review' && !running && (
                     <button
-                      className="action-secondary"
+                      className="action-secondary min-h-11 min-w-[44px] px-3.5 sm:px-4 text-xs sm:text-sm font-medium"
                       disabled={busy || !loaded}
                       onClick={() => {
                         setApprovalNote(detail.complete_note || '')
@@ -1138,7 +1424,7 @@ function TaskDetailView({
                     </button>
                   )}
                   <button
-                    className="action-primary"
+                    className="action-primary min-h-11 min-w-[44px] px-4 sm:px-5 text-xs sm:text-sm font-medium shadow-sm"
                     disabled={busy || !loaded || !!pending || launching}
                     onClick={taskAction}
                   >
@@ -1147,12 +1433,12 @@ function TaskDetailView({
                     ) : (
                       !running && <Play className="h-4 w-4" />
                     )}
-                    {runLabel}
+                    <span>{runLabel}</span>
                   </button>
                 </>
               )}
             </div>
-          </>
+          </div>
         )}
       </footer>
       <ActionDialog

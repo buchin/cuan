@@ -151,6 +151,99 @@ export function workStatusBadgeClass(status: string) {
   }
 }
 
+export function taskStatusBadgeClass(status: TaskStatus | string) {
+  switch (status) {
+    case 'doing':
+      return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
+    case 'queued':
+      return 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35'
+    case 'review':
+      return 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/35'
+    case 'done':
+      return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+    case 'blocked':
+    case 'failed':
+      return 'bg-destructive/15 text-destructive dark:text-red-400 border-destructive/35'
+    case 'todo':
+    case 'backlog':
+    default:
+      return 'bg-muted text-muted-foreground border-border/60'
+  }
+}
+
+export function taskPriorityBadgeClass(priority?: string) {
+  switch (priority) {
+    case 'urgent':
+      return 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30'
+    case 'high':
+      return 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35'
+    case 'normal':
+      return 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25'
+    case 'low':
+      return 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/20'
+    default:
+      return 'bg-muted text-muted-foreground border-border/60'
+  }
+}
+
+export interface ParsedTaskInstructions {
+  cleanText: string
+  isDelegation: boolean
+  metadata: {
+    protocol?: string
+    scopeDigest?: string
+    approvalMessage?: string
+    userAuth?: string
+    conversationId?: string
+  } | null
+}
+
+export function parseTaskInstructions(text?: string): ParsedTaskInstructions {
+  if (!text) return { cleanText: '', isDelegation: false, metadata: null }
+  const isDelegation = /^Cuan managed delegation/im.test(text.trim())
+  if (!isDelegation) return { cleanText: text, isDelegation: false, metadata: null }
+
+  let scopeDigest: string | undefined
+  const digestMatch = text.match(/^Approved scope digest:\s*([a-f0-9]+)/im)
+  if (digestMatch) scopeDigest = digestMatch[1]
+
+  let approvalMessage: string | undefined
+  const appMsgMatch = text.match(/^Approval message:\s*([^\n]+)/im)
+  if (appMsgMatch) approvalMessage = appMsgMatch[1].trim()
+
+  let userAuth: string | undefined
+  const userAuthMatch = text.match(/^User authorization:\s*([^\n]+)/im)
+  if (userAuthMatch) userAuth = userAuthMatch[1].trim()
+
+  let conversationId: string | undefined
+  const convMatch = text.match(/^Conversation:\s*([a-f0-9-]+)/im)
+  if (convMatch) conversationId = convMatch[1].trim()
+
+  // Clean the human instructions body
+  let clean = text
+    .replace(/^Cuan managed delegation[^\n]*\n?/im, '')
+    .replace(/^Approved scope digest:[^\n]*\n?/im, '')
+    .replace(/^Approval message:[^\n]*(\n|$)/im, '')
+    .replace(/^User authorization:[^\n]*(\n|$)/im, '')
+    .replace(/^Conversation:[^\n]*(\n|$)/im, '')
+    .replace(/^Report actual progress[^\n]*(\n|$)/im, '')
+    .replace(/^Project guidance snapshot[\s\S]*?```\s*$/im, '')
+    .replace(/^## User attachments[\s\S]*?(?=(?:\n[A-Z]|\n\n|$))/im, '')
+    .trim()
+
+  return {
+    cleanText: clean,
+    isDelegation: true,
+    metadata: {
+      protocol: 'Cuan managed delegation v1',
+      scopeDigest,
+      approvalMessage,
+      userAuth,
+      conversationId,
+    },
+  }
+}
+
 export function taskTargetUrl(task: { id: string; project_id?: string | null }) {
   return task.project_id
     ? `/projects/${encodeURIComponent(task.project_id)}/tasks/${encodeURIComponent(task.id)}`
