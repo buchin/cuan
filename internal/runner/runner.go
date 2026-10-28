@@ -22,6 +22,12 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+type activeAttempt struct {
+	attempt *task.TaskAttempt
+	lane    string
+	cancel  context.CancelFunc
+}
+
 type Runner struct {
 	cfg        *config.Config
 	adapter    agent.Adapter
@@ -29,7 +35,13 @@ type Runner struct {
 	httpClient *http.Client
 	baseURL    string
 
-	mu             sync.Mutex
+	// Multi-Lane Concurrency Mutexes (Pemisahan Mutex Runner)
+	gitDeployMu sync.Mutex   // Code lane: git operations, builds, deploys
+	opsMu       sync.Mutex   // Ops lane: non-blocking operational tasks (artisan, sync, etc.)
+	readersMu   sync.RWMutex // Readonly lane: shared reader pool
+
+	mu             sync.Mutex // Protects active attempts registry & backward-compatible state
+	activeAttempts map[string]*activeAttempt
 	currentAttempt *task.TaskAttempt
 	cancelAttempt  context.CancelFunc
 }
@@ -43,11 +55,12 @@ func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*h
 	baseURL := strings.TrimRight(cfg.RunnerServerURL, "/")
 
 	return &Runner{
-		cfg:        cfg,
-		adapter:    adapter,
-		gitClient:  git.NewClient(),
-		httpClient: client,
-		baseURL:    baseURL,
+		cfg:            cfg,
+		adapter:        adapter,
+		gitClient:      git.NewClient(),
+		httpClient:     client,
+		baseURL:        baseURL,
+		activeAttempts: make(map[string]*activeAttempt),
 	}
 }
 
@@ -98,9 +111,17 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 	metrics := CollectHostMetrics()
 
 	r.mu.Lock()
-	attemptID := ""
-	if r.currentAttempt != nil {
-		attemptID = r.currentAttempt.ID
+	var attemptIDs []string
+	primaryAttemptID := ""
+	for attID := range r.activeAttempts {
+		attemptIDs = append(attemptIDs, attID)
+		if primaryAttemptID == "" {
+			primaryAttemptID = attID
+		}
+	}
+	if primaryAttemptID == "" && r.currentAttempt != nil {
+		primaryAttemptID = r.currentAttempt.ID
+		attemptIDs = append(attemptIDs, primaryAttemptID)
 	}
 	r.mu.Unlock()
 
@@ -108,7 +129,8 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 		RunnerID:         r.cfg.RunnerID,
 		Hostname:         hostname,
 		SupportedAgents:  []string{r.adapter.Name()},
-		CurrentAttemptID: attemptID,
+		CurrentAttemptID: primaryAttemptID,
+		ActiveAttemptIDs: attemptIDs,
 		CPUPercent:       metrics.CPUPercent,
 		MemoryUsedBytes:  metrics.MemoryUsedBytes,
 		MemoryTotalBytes: metrics.MemoryTotalBytes,
@@ -126,8 +148,13 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 	if resp.StatusCode == http.StatusOK {
 		var hbResp HeartbeatResponse
 		if err := json.NewDecoder(resp.Body).Decode(&hbResp); err == nil {
-			if hbResp.ShouldCancel {
-				log.Printf("[Runner %s] Heartbeat received cancellation directive for active attempt %s", r.cfg.RunnerID, attemptID)
+			if len(hbResp.CanceledAttemptIDs) > 0 {
+				for _, cid := range hbResp.CanceledAttemptIDs {
+					log.Printf("[Runner %s] Heartbeat received cancellation directive for attempt %s", r.cfg.RunnerID, cid)
+					r.cancelSpecificAttempt(cid)
+				}
+			} else if hbResp.ShouldCancel {
+				log.Printf("[Runner %s] Heartbeat received cancellation directive for active attempts", r.cfg.RunnerID)
 				r.cancelCurrentExecution()
 			}
 		}
@@ -135,17 +162,41 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 }
 
 func (r *Runner) pollAndExecute(ctx context.Context) {
-	// CONCURRENCY LIMIT: if currently busy executing, do not claim another task!
+	// Determine available lanes based on active executions
+	var availableLanes []string
 	r.mu.Lock()
-	if r.currentAttempt != nil {
-		r.mu.Unlock()
-		return
+	hasCode := false
+	hasOps := false
+	readCount := 0
+	for _, act := range r.activeAttempts {
+		switch act.lane {
+		case task.ExecutionCategoryCode:
+			hasCode = true
+		case task.ExecutionCategoryOps:
+			hasOps = true
+		case task.ExecutionCategoryReadOnly:
+			readCount++
+		}
+	}
+	if !hasCode {
+		availableLanes = append(availableLanes, task.ExecutionCategoryCode)
+	}
+	if !hasOps {
+		availableLanes = append(availableLanes, task.ExecutionCategoryOps)
+	}
+	if readCount < 4 {
+		availableLanes = append(availableLanes, task.ExecutionCategoryReadOnly)
 	}
 	r.mu.Unlock()
+
+	if len(availableLanes) == 0 {
+		return
+	}
 
 	claimReq := ClaimTaskRequest{
 		RunnerID:        r.cfg.RunnerID,
 		SupportedAgents: []string{r.adapter.Name()},
+		AvailableLanes:  availableLanes,
 	}
 
 	resp, err := r.doRequest(ctx, http.MethodPost, "/api/v1/runner/claim", claimReq)
@@ -164,25 +215,68 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 		return
 	}
 
-	log.Printf("[Runner %s] Claimed task attempt %s (Task: '%s')", r.cfg.RunnerID, claimResp.Attempt.ID, claimResp.Task.Title)
+	lane := task.NormalizeExecutionCategory(claimResp.Task.ExecutionCategory)
+	if lane == "" {
+		lane = task.ExecutionCategoryCode
+	}
+
+	log.Printf("[Runner %s] Claimed %s task attempt %s (Task: '%s')", r.cfg.RunnerID, lane, claimResp.Attempt.ID, claimResp.Task.Title)
+
+	// Acquire specific lane mutex:
+	// - code: git deployment mutex (build/git isolated)
+	// - ops: operational mutex (non-blocking vs code)
+	// - readonly: reader pool RLock (shared concurrent readers)
+	switch lane {
+	case task.ExecutionCategoryCode:
+		r.gitDeployMu.Lock()
+	case task.ExecutionCategoryOps:
+		r.opsMu.Lock()
+	case task.ExecutionCategoryReadOnly:
+		r.readersMu.RLock()
+	}
 
 	execCtx, cancelFunc := context.WithCancel(ctx)
 	r.mu.Lock()
+	if r.activeAttempts == nil {
+		r.activeAttempts = make(map[string]*activeAttempt)
+	}
+	r.activeAttempts[claimResp.Attempt.ID] = &activeAttempt{
+		attempt: claimResp.Attempt,
+		lane:    lane,
+		cancel:  cancelFunc,
+	}
 	r.currentAttempt = claimResp.Attempt
 	r.cancelAttempt = cancelFunc
 	r.mu.Unlock()
 
-	// Execute attempt in background goroutine so heartbeat ticker continues running
-	go func(claim ClaimTaskResponse) {
+	// Execute attempt in background goroutine so heartbeat ticker and other lanes continue running concurrently
+	go func(claim ClaimTaskResponse, claimedLane string) {
 		defer func() {
+			switch claimedLane {
+			case task.ExecutionCategoryCode:
+				r.gitDeployMu.Unlock()
+			case task.ExecutionCategoryOps:
+				r.opsMu.Unlock()
+			case task.ExecutionCategoryReadOnly:
+				r.readersMu.RUnlock()
+			}
+
 			r.mu.Lock()
-			r.currentAttempt = nil
-			r.cancelAttempt = nil
+			delete(r.activeAttempts, claim.Attempt.ID)
+			if r.currentAttempt != nil && r.currentAttempt.ID == claim.Attempt.ID {
+				r.currentAttempt = nil
+				r.cancelAttempt = nil
+				for _, rem := range r.activeAttempts {
+					r.currentAttempt = rem.attempt
+					r.cancelAttempt = rem.cancel
+					break
+				}
+			}
 			r.mu.Unlock()
 		}()
 
 		r.runAttempt(execCtx, claim)
-	}(claimResp)
+	}(claimResp, lane)
 }
 
 func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
@@ -190,13 +284,18 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	t := claim.Task
 	startTime := time.Now()
 
+	lane := task.NormalizeExecutionCategory(t.ExecutionCategory)
+	if lane == "" {
+		lane = task.ExecutionCategoryCode
+	}
+
 	// Stream initial start log
-	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Runner '%s' memulai eksekusi attempt %s dengan agent '%s'.", r.cfg.RunnerID, att.ID, r.adapter.Name()))
+	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Runner '%s' memulai eksekusi attempt %s (%s lane) dengan agent '%s'.", r.cfg.RunnerID, att.ID, lane, r.adapter.Name()))
 
 	// Prepare isolated workspace per task
 	var ws *git.TaskWorkspace
 	workingDir := ""
-	if r.gitClient != nil {
+	if r.gitClient != nil && lane == task.ExecutionCategoryCode {
 		branchName := t.BranchName
 		if branchName == "" {
 			branchName = fmt.Sprintf("task/%s", t.ID)
@@ -228,6 +327,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			workingDir = ws.Path
 			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Workspace terisolasi siap di '%s' pada branch '%s'.", ws.Path, ws.BranchName))
 		}
+	} else if lane != task.ExecutionCategoryCode {
+		if claim.WorkingDir != "" {
+			workingDir = claim.WorkingDir
+		} else if t.ProjectID != "" {
+			workingDir = filepath.Join("data", "projects", t.ProjectID)
+		}
+		r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Lane %s: menggunakan direktori operasional '%s' tanpa checkout git branch baru.", lane, workingDir))
 	}
 
 	// Prepare execution request
@@ -322,7 +428,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					compReq.ErrorMessage = verification.Error
 				}
 			}
-			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy {
+			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy && lane == task.ExecutionCategoryCode {
 				deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim)
 				if !deployed {
 					compReq.Status = task.AttemptStatusFailed
@@ -338,8 +444,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		compReq.ErrorMessage = "No execution result returned from agent adapter"
 	}
 
-	// Post-execution Git & GitHub PR Flow
-	if compReq.Status == task.AttemptStatusSucceeded && ws != nil && r.gitClient != nil {
+	// Post-execution Git & GitHub PR Flow (Code lane only)
+	if lane == task.ExecutionCategoryCode && compReq.Status == task.AttemptStatusSucceeded && ws != nil && r.gitClient != nil {
 		defaultBranch := claim.DefaultBranch
 		if defaultBranch == "" {
 			defaultBranch = "main"
@@ -401,6 +507,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				}
 			}
 		}
+	} else if lane != task.ExecutionCategoryCode {
+		if compReq.TestSummary == "" {
+			compReq.TestSummary = fmt.Sprintf("Lane '%s' executed operational/read-only task without modifying git deployment branch.", lane)
+		}
+		r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Lane '%s' selesai: git branch deployment dan PR tidak dimodifikasi.", lane))
 	}
 
 	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Attempt %s selesai: %s (exit: %d, durasi: %v, peak RSS: %d bytes).",
@@ -629,6 +740,19 @@ func (r *Runner) cancelCurrentExecution() {
 	defer r.mu.Unlock()
 	if r.cancelAttempt != nil {
 		r.cancelAttempt()
+	}
+	for _, act := range r.activeAttempts {
+		if act.cancel != nil {
+			act.cancel()
+		}
+	}
+}
+
+func (r *Runner) cancelSpecificAttempt(attemptID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if act, ok := r.activeAttempts[attemptID]; ok && act.cancel != nil {
+		act.cancel()
 	}
 }
 

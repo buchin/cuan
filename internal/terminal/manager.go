@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskprocess"
 	"io"
 	"os"
@@ -54,8 +55,9 @@ type TaskAgentRunConfig struct {
 	AgentName       string
 	Command         string // "agy", "claude", "shell", or auto
 	Args            []string
-	Prompt          string
-	WorkDir         string
+	Prompt            string
+	ExecutionCategory string
+	WorkDir           string
 	Env             []string
 	Cols            uint16
 	Rows            uint16
@@ -474,31 +476,69 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		return nil, fmt.Errorf("task execution ownership unavailable: %w", lockErr)
 	}
 
+	category := task.NormalizeExecutionCategory(cfg.ExecutionCategory)
+	if category == "" {
+		category = task.ExecutionCategoryCode
+	}
+
 	var projLease io.Closer
 	if cfg.ProjectID != "" {
-		if activeTaskID, exists := m.projectSessions[cfg.ProjectID]; exists && activeTaskID != taskID {
-			if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
+		// Schema migration barrier: check if migration lock is active
+		if migPath, mErr := m.projectMigrationLockPath(cfg.ProjectID); mErr == nil {
+			if mActive, _ := taskprocess.Active(migPath); mActive {
 				m.mu.Unlock()
 				return nil, taskprocess.ErrActive
 			}
 		}
-		pPath, pErr := m.projectLockPath(cfg.ProjectID)
-		if pErr != nil {
-			m.mu.Unlock()
-			return nil, pErr
-		}
-		pActive, pErr := taskprocess.Active(pPath)
-		if pErr != nil || pActive {
-			m.mu.Unlock()
-			if pActive {
-				return nil, taskprocess.ErrActive
+
+		if category == task.ExecutionCategoryOps {
+			// Ops lane: check ops lock only (non-blocking vs code lock!)
+			pPath, pErr := m.projectOpsLockPath(cfg.ProjectID)
+			if pErr != nil {
+				m.mu.Unlock()
+				return nil, pErr
 			}
-			return nil, fmt.Errorf("project execution ownership unavailable: %w", pErr)
-		}
-		projLease, pErr = taskprocess.Acquire(pPath)
-		if pErr != nil {
-			m.mu.Unlock()
-			return nil, pErr
+			pActive, pErr := taskprocess.Active(pPath)
+			if pErr != nil || pActive {
+				m.mu.Unlock()
+				if pActive {
+					return nil, taskprocess.ErrActive
+				}
+				return nil, fmt.Errorf("project ops execution ownership unavailable: %w", pErr)
+			}
+			projLease, pErr = taskprocess.Acquire(pPath)
+			if pErr != nil {
+				m.mu.Unlock()
+				return nil, pErr
+			}
+		} else if category == task.ExecutionCategoryReadOnly {
+			// Readonly: shared reader pool! Only blocked by active migration lock (checked above)
+		} else {
+			// Code lane: git deployment lock
+			if activeTaskID, exists := m.projectSessions[cfg.ProjectID]; exists && activeTaskID != taskID {
+				if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
+					m.mu.Unlock()
+					return nil, taskprocess.ErrActive
+				}
+			}
+			pPath, pErr := m.projectLockPath(cfg.ProjectID)
+			if pErr != nil {
+				m.mu.Unlock()
+				return nil, pErr
+			}
+			pActive, pErr := taskprocess.Active(pPath)
+			if pErr != nil || pActive {
+				m.mu.Unlock()
+				if pActive {
+					return nil, taskprocess.ErrActive
+				}
+				return nil, fmt.Errorf("project execution ownership unavailable: %w", pErr)
+			}
+			projLease, pErr = taskprocess.Acquire(pPath)
+			if pErr != nil {
+				m.mu.Unlock()
+				return nil, pErr
+			}
 		}
 	}
 
@@ -702,10 +742,74 @@ func (m *Manager) projectLockPath(projectID string) (string, error) {
 	return filepath.Join(root, "project_"+projectID+".lock"), nil
 }
 
-func (m *Manager) ProjectExecutionActive(projectID string) (bool, error) {
+func (m *Manager) projectOpsLockPath(projectID string) (string, error) {
+	if !validTaskIDRegex.MatchString(projectID) {
+		return "", fmt.Errorf("invalid project ID: %s", projectID)
+	}
+	root, err := filepath.Abs(filepath.Join(m.cfg.WorkspacesDir, ".task-execution-locks"))
+	if err != nil {
+		return "", err
+	}
+	if err = os.MkdirAll(root, 0700); err != nil {
+		return "", err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "project_"+projectID+"_ops.lock"), nil
+}
+
+func (m *Manager) projectMigrationLockPath(projectID string) (string, error) {
+	if !validTaskIDRegex.MatchString(projectID) {
+		return "", fmt.Errorf("invalid project ID: %s", projectID)
+	}
+	root, err := filepath.Abs(filepath.Join(m.cfg.WorkspacesDir, ".task-execution-locks"))
+	if err != nil {
+		return "", err
+	}
+	if err = os.MkdirAll(root, 0700); err != nil {
+		return "", err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "project_"+projectID+"_migration.lock"), nil
+}
+
+func (m *Manager) ProjectLaneActive(projectID string, lane string) (bool, error) {
 	if projectID == "" {
 		return false, nil
 	}
+	normalizedLane := task.NormalizeExecutionCategory(lane)
+	if normalizedLane == "" {
+		normalizedLane = task.ExecutionCategoryCode
+	}
+
+	// Active schema migration blocks ALL lanes
+	migPath, err := m.projectMigrationLockPath(projectID)
+	if err == nil {
+		if active, aErr := taskprocess.Active(migPath); aErr == nil && active {
+			return true, nil
+		}
+	}
+
+	if normalizedLane == task.ExecutionCategoryReadOnly {
+		// Readonly lane only blocked by active schema migration
+		return false, nil
+	}
+
+	if normalizedLane == task.ExecutionCategoryOps {
+		// Ops lane: check ops lock
+		opsPath, err := m.projectOpsLockPath(projectID)
+		if err != nil {
+			return false, err
+		}
+		return taskprocess.Active(opsPath)
+	}
+
+	// Code lane: check git deployment lock
 	m.mu.RLock()
 	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" {
 		if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
@@ -719,6 +823,10 @@ func (m *Manager) ProjectExecutionActive(projectID string) (bool, error) {
 		return false, err
 	}
 	return taskprocess.Active(path)
+}
+
+func (m *Manager) ProjectExecutionActive(projectID string) (bool, error) {
+	return m.ProjectLaneActive(projectID, task.ExecutionCategoryCode)
 }
 
 func (m *Manager) AcquireProjectExecutionLease(projectID string) (io.Closer, error) {

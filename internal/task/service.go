@@ -212,20 +212,32 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 			return nil, fmt.Errorf("%w: instructions and project guidance exceed 24000 characters", ErrInvalidTaskInput)
 		}
 	}
+	executionCategory := NormalizeExecutionCategory(req.ExecutionCategory)
+	if executionCategory == "" {
+		executionCategory = NormalizeExecutionCategory(req.TaskType)
+	}
+	if executionCategory == "" {
+		executionCategory = NormalizeExecutionCategory(req.Category)
+	}
+	if executionCategory == "" {
+		executionCategory = InferExecutionCategory(title, instructions)
+	}
 	t := &Task{
-		CreationHash: taskCreationHash(req),
-		DoDChecklist: append([]DoDItem{}, req.DoDChecklist...),
-		ID:           id,
-		SourceRoomID: req.SourceRoomID, SourceMessageID: req.SourceMessageID,
-		ProjectID:     projectID,
-		ProjectIDs:    projectIDs,
-		Title:         title,
-		Instructions:  instructions,
-		Status:        initialStatus,
-		Priority:      priority,
-		AssignedAgent: assignedAgent,
-		CreatedAt:     time.Now().UTC(),
-		UpdatedAt:     time.Now().UTC(),
+		CreationHash:      taskCreationHash(req),
+		DoDChecklist:      append([]DoDItem{}, req.DoDChecklist...),
+		ID:                id,
+		SourceRoomID:      req.SourceRoomID,
+		SourceMessageID:   req.SourceMessageID,
+		ProjectID:         projectID,
+		ProjectIDs:        projectIDs,
+		Title:             title,
+		Instructions:      instructions,
+		Status:            initialStatus,
+		Priority:          priority,
+		ExecutionCategory: executionCategory,
+		AssignedAgent:     assignedAgent,
+		CreatedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
 	}
 
 	if err := s.store.CreateTask(ctx, t); err != nil {
@@ -239,7 +251,7 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		ActivityType: ActivityTypeCreated,
 		Author:       author,
 		NewStatus:    t.Status,
-		Message:      fmt.Sprintf("Task created with priority '%s' and agent '%s'.", t.Priority, t.AssignedAgent),
+		Message:      fmt.Sprintf("Task created with priority '%s', agent '%s', category '%s'.", t.Priority, t.AssignedAgent, t.ExecutionCategory),
 		CreatedAt:    t.CreatedAt,
 	}
 	_ = s.store.CreateActivity(ctx, act)
@@ -513,6 +525,12 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 		}
 	}
 
+	if req.ExecutionCategory != nil {
+		cat := NormalizeExecutionCategory(*req.ExecutionCategory)
+		if cat != "" {
+			t.ExecutionCategory = cat
+		}
+	}
 	if req.BranchName != nil {
 		t.BranchName = strings.TrimSpace(*req.BranchName)
 	}

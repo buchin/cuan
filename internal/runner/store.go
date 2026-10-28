@@ -17,7 +17,7 @@ type Store interface {
 	RegisterOrUpdateHeartbeat(ctx context.Context, info *RunnerInfo) error
 	GetRunner(ctx context.Context, id string) (*RunnerInfo, error)
 	ListRunners(ctx context.Context) ([]*RunnerInfo, error)
-	ClaimNextQueuedAttempt(ctx context.Context, runnerID string, supportedAgents []string, leaseDuration time.Duration) (*task.TaskAttempt, *task.Task, error)
+	ClaimNextQueuedAttempt(ctx context.Context, runnerID string, supportedAgents []string, leaseDuration time.Duration, availableLanes ...[]string) (*task.TaskAttempt, *task.Task, error)
 	RenewLease(ctx context.Context, attemptID, runnerID string, leaseDuration time.Duration) (bool, error)
 	MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttempt, error)
 }

@@ -34,6 +34,13 @@ const (
 	PriorityUrgent = "urgent"
 )
 
+// Task execution category constants (Multi-lane queue architecture)
+const (
+	ExecutionCategoryCode     = "code"
+	ExecutionCategoryOps      = "ops"
+	ExecutionCategoryReadOnly = "readonly"
+)
+
 // Activity type constants
 const (
 	ActivityTypeCreated         = "task_created"
@@ -74,9 +81,10 @@ type Task struct {
 	Summary         string    `json:"summary"`
 	CompleteNote    string    `json:"complete_note"`
 	DoDChecklist    []DoDItem `json:"dod_checklist"`
-	Status          string    `json:"status"`         // backlog, doing, review, done, blocked
-	Priority        string    `json:"priority"`       // low, normal, high, urgent
-	AssignedAgent   string    `json:"assigned_agent"` // e.g. agy
+	Status            string    `json:"status"`             // backlog, doing, review, done, blocked
+	Priority          string    `json:"priority"`           // low, normal, high, urgent
+	ExecutionCategory string    `json:"execution_category"` // code, ops, readonly
+	AssignedAgent     string    `json:"assigned_agent"`     // e.g. agy
 	BranchName      string    `json:"branch_name,omitempty"`
 	PRURL           string    `json:"pr_url,omitempty"`
 	PRNumber        int       `json:"pr_number,omitempty"`
@@ -164,9 +172,12 @@ type CreateTaskRequest struct {
 	ProjectID       string    `json:"project_id"`
 	ProjectIDs      []string  `json:"project_ids,omitempty"`
 	Title           string    `json:"title"`
-	Instructions    string    `json:"instructions"`
-	Priority        string    `json:"priority,omitempty"`
-	AssignedAgent   string    `json:"assigned_agent,omitempty"`
+	Instructions      string    `json:"instructions"`
+	Priority          string    `json:"priority,omitempty"`
+	ExecutionCategory string    `json:"execution_category,omitempty"`
+	TaskType          string    `json:"task_type,omitempty"`
+	Category          string    `json:"category,omitempty"`
+	AssignedAgent     string    `json:"assigned_agent,omitempty"`
 	DoDChecklist    []DoDItem `json:"dod_checklist,omitempty"`
 }
 
@@ -180,6 +191,7 @@ type UpdateTaskRequest struct {
 	Instructions      *string    `json:"instructions,omitempty"`
 	Status            *string    `json:"status,omitempty"`
 	Priority          *string    `json:"priority,omitempty"`
+	ExecutionCategory *string    `json:"execution_category,omitempty"`
 	AssignedAgent     *string    `json:"assigned_agent,omitempty"`
 	BranchName        *string    `json:"branch_name,omitempty"`
 	PRURL             *string    `json:"pr_url,omitempty"`

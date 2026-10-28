@@ -65,19 +65,27 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 	}
 
 	shouldCancel := false
-	if req.CurrentAttemptID != "" {
-		var err error
-		shouldCancel, err = s.store.RenewLease(ctx, req.CurrentAttemptID, req.RunnerID, leaseDuration)
-		if err != nil {
-			// If attempt not found or canceled, flag shouldCancel
+	var canceledIDs []string
+	attemptIDsToCheck := req.ActiveAttemptIDs
+	if len(attemptIDsToCheck) == 0 && req.CurrentAttemptID != "" {
+		attemptIDsToCheck = []string{req.CurrentAttemptID}
+	}
+	for _, attID := range attemptIDsToCheck {
+		if attID == "" {
+			continue
+		}
+		canceled, err := s.store.RenewLease(ctx, attID, req.RunnerID, leaseDuration)
+		if err != nil || canceled {
 			shouldCancel = true
+			canceledIDs = append(canceledIDs, attID)
 		}
 	}
 
 	return &HeartbeatResponse{
-		Status:           "ok",
-		LeaseDurationSec: int(leaseDuration.Seconds()),
-		ShouldCancel:     shouldCancel,
+		Status:             "ok",
+		LeaseDurationSec:   int(leaseDuration.Seconds()),
+		ShouldCancel:       shouldCancel,
+		CanceledAttemptIDs: canceledIDs,
 	}, nil
 }
 
@@ -87,7 +95,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		return nil, fmt.Errorf("runner_id is required")
 	}
 
-	att, t, err := s.store.ClaimNextQueuedAttempt(ctx, req.RunnerID, req.SupportedAgents, leaseDuration)
+	att, t, err := s.store.ClaimNextQueuedAttempt(ctx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
 	if err != nil {
 		return nil, fmt.Errorf("claim attempt: %w", err)
 	}
@@ -148,7 +156,8 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
 			if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
 				settings := project.SettingsFromMetadata(p.Metadata)
-				if settings.IsAutoDeployEnabled() {
+				isCodeLane := t.ExecutionCategory == "" || t.ExecutionCategory == task.ExecutionCategoryCode
+				if settings.IsAutoDeployEnabled() && isCodeLane {
 					if !req.LiveDeploymentConfirmed && !hasAutoDeployVerification(t.CompleteNote, t.Summary) {
 						status = task.AttemptStatusFailed
 						att.ErrorMessage = "Kepatuhan auto_deploy: perubahan wajib di-deploy dan terverifikasi live di production sebelum task dinyatakan selesai; commit/push saja tidak memenuhi syarat"

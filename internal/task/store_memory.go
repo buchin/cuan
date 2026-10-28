@@ -40,6 +40,9 @@ func (m *MemoryStore) CreateTask(ctx context.Context, t *Task) error {
 	}
 	cp := *t
 	cp.DoDChecklist = append([]DoDItem{}, t.DoDChecklist...)
+	if cp.ExecutionCategory == "" {
+		cp.ExecutionCategory = ExecutionCategoryCode
+	}
 	if cp.CreatedAt.IsZero() {
 		cp.CreatedAt = time.Now().UTC()
 	}
@@ -531,10 +534,19 @@ func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[s
 	return result, nil
 }
 
-func (m *MemoryStore) IsProjectActive(_ context.Context, projectID string, excludeTaskID string) (bool, error) {
+func (m *MemoryStore) IsProjectActive(ctx context.Context, projectID string, excludeTaskID string) (bool, error) {
+	return m.IsProjectLaneActive(ctx, projectID, ExecutionCategoryCode, excludeTaskID)
+}
+
+func (m *MemoryStore) IsProjectLaneActive(_ context.Context, projectID string, lane string, excludeTaskID string) (bool, error) {
 	if projectID == "" {
 		return false, nil
 	}
+	normalizedLane := NormalizeExecutionCategory(lane)
+	if normalizedLane == "" {
+		normalizedLane = ExecutionCategoryCode
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, t := range m.tasks {
@@ -542,18 +554,47 @@ func (m *MemoryStore) IsProjectActive(_ context.Context, projectID string, exclu
 			if t.Status == TaskStatusDone || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview || t.Status == "failed" || t.Status == "cancelled" || t.Status == TaskStatusQueued {
 				continue
 			}
+
+			taskActive := false
 			if t.Status == TaskStatusDoing || t.Status == "working" {
+				taskActive = true
+			}
+			if !taskActive {
+				for _, a := range m.attempts {
+					if a.TaskID == t.ID && a.Status == AttemptStatusRunning {
+						taskActive = true
+						break
+					}
+				}
+			}
+			if !taskActive {
+				for _, l := range m.launches {
+					if l.TaskID == t.ID && l.State == "started" {
+						taskActive = true
+						break
+					}
+				}
+			}
+			if !taskActive {
+				continue
+			}
+
+			// Active database schema migration blocks ALL lanes
+			if IsTaskSchemaMigration(t) {
 				return true, nil
 			}
-			for _, a := range m.attempts {
-				if a.TaskID == t.ID && a.Status == AttemptStatusRunning {
-					return true, nil
-				}
+
+			if normalizedLane == ExecutionCategoryReadOnly {
+				// Read-only lane only blocked by active migration
+				continue
 			}
-			for _, l := range m.launches {
-				if l.TaskID == t.ID && l.State == "started" {
-					return true, nil
-				}
+
+			tLane := t.ExecutionCategory
+			if tLane == "" {
+				tLane = ExecutionCategoryCode
+			}
+			if tLane == normalizedLane {
+				return true, nil
 			}
 		}
 	}

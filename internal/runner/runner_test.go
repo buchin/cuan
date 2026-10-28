@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -394,3 +398,432 @@ func TestRunner_AutoDeployEnforcement(t *testing.T) {
 		t.Fatalf("Expected attempt to succeed with live deployment confirmed, got: %s (err: %s)", completedAtt2.Status, completedAtt2.ErrorMessage)
 	}
 }
+
+func TestRunner_MetadataInference(t *testing.T) {
+	// Test inference of execution categories
+	tests := []struct {
+		title        string
+		instructions string
+		expected     string
+	}{
+		{"Build user registration API", "Implement new auth flow with JWT", task.ExecutionCategoryCode},
+		{"Grant access to admin", "grant access to user test@example.com for finance role", task.ExecutionCategoryOps},
+		{"Run artisan cache clear", "Execute php artisan cache:clear and route:clear", task.ExecutionCategoryOps},
+		{"Sync contacts data", "Trigger contact sync from CRM endpoint", task.ExecutionCategoryOps},
+		{"Audit user access logs", "Inspect and audit authentication telemetry logs", task.ExecutionCategoryReadOnly},
+		{"Query system performance", "Review database query status and telemetry", task.ExecutionCategoryReadOnly},
+		{"Database migration for payments", "Run migration to alter table orders add column status", task.ExecutionCategoryCode},
+	}
+
+	for _, tc := range tests {
+		cat := task.InferExecutionCategory(tc.title, tc.instructions)
+		if cat != tc.expected {
+			t.Errorf("InferExecutionCategory(%q, %q) = %q; expected %q", tc.title, tc.instructions, cat, tc.expected)
+		}
+	}
+}
+
+func TestRunner_MultiLaneQueue_Concurrency(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+	projectID := "proj_multilane_test"
+
+	// 1. Setup Task 1: CODE task (e.g. coding / build)
+	tCode1 := &task.Task{
+		ID:                "task_code_1",
+		ProjectID:         projectID,
+		Title:             "Implement Payment Feature",
+		Instructions:      "Build payment gateway integration",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		Status:            task.TaskStatusBacklog,
+		CreatedAt:         time.Now().UTC().Add(-10 * time.Minute),
+	}
+	_ = taskStore.CreateTask(ctx, tCode1)
+	aCode1 := &task.TaskAttempt{
+		ID:        "att_code_1",
+		TaskID:    tCode1.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: tCode1.CreatedAt,
+	}
+	_ = taskStore.CreateAttempt(ctx, aCode1)
+
+	// 2. Setup Task 2: OPS task (e.g. artisan command / grant access / contact sync)
+	tOps1 := &task.Task{
+		ID:                "task_ops_1",
+		ProjectID:         projectID,
+		Title:             "Grant Access to Accountant",
+		Instructions:      "grant access to account finance@example.com",
+		ExecutionCategory: task.ExecutionCategoryOps,
+		Status:            task.TaskStatusBacklog,
+		CreatedAt:         time.Now().UTC().Add(-8 * time.Minute),
+	}
+	_ = taskStore.CreateTask(ctx, tOps1)
+	aOps1 := &task.TaskAttempt{
+		ID:        "att_ops_1",
+		TaskID:    tOps1.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: tOps1.CreatedAt,
+	}
+	_ = taskStore.CreateAttempt(ctx, aOps1)
+
+	// 3. Setup Task 3: READONLY task (e.g. audit / analysis)
+	tRead1 := &task.Task{
+		ID:                "task_read_1",
+		ProjectID:         projectID,
+		Title:             "Audit Authentication Logs",
+		Instructions:      "audit and review telemetry logs",
+		ExecutionCategory: task.ExecutionCategoryReadOnly,
+		Status:            task.TaskStatusBacklog,
+		CreatedAt:         time.Now().UTC().Add(-6 * time.Minute),
+	}
+	_ = taskStore.CreateTask(ctx, tRead1)
+	aRead1 := &task.TaskAttempt{
+		ID:        "att_read_1",
+		TaskID:    tRead1.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: tRead1.CreatedAt,
+	}
+	_ = taskStore.CreateAttempt(ctx, aRead1)
+
+	// 4. Setup Task 4: Second CODE task for same project (to verify git deployment lock)
+	tCode2 := &task.Task{
+		ID:                "task_code_2",
+		ProjectID:         projectID,
+		Title:             "Second Feature Coding",
+		Instructions:      "Build another feature",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		Status:            task.TaskStatusBacklog,
+		CreatedAt:         time.Now().UTC().Add(-4 * time.Minute),
+	}
+	_ = taskStore.CreateTask(ctx, tCode2)
+	aCode2 := &task.TaskAttempt{
+		ID:        "att_code_2",
+		TaskID:    tCode2.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: tCode2.CreatedAt,
+	}
+	_ = taskStore.CreateAttempt(ctx, aCode2)
+
+	// 5. Setup Task 5: Second OPS task for same project (to verify operational lock serialization)
+	tOps2 := &task.Task{
+		ID:                "task_ops_2",
+		ProjectID:         projectID,
+		Title:             "Sync Contacts CRM",
+		Instructions:      "php artisan contacts:sync",
+		ExecutionCategory: task.ExecutionCategoryOps,
+		Status:            task.TaskStatusBacklog,
+		CreatedAt:         time.Now().UTC().Add(-2 * time.Minute),
+	}
+	_ = taskStore.CreateTask(ctx, tOps2)
+	aOps2 := &task.TaskAttempt{
+		ID:        "att_ops_2",
+		TaskID:    tOps2.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: tOps2.CreatedAt,
+	}
+	_ = taskStore.CreateAttempt(ctx, aOps2)
+
+	// --- VERIFICATION STEP A: Code Task 1 is claimed by Runner A ---
+	runnerA := "runner_node_a"
+	claimedCode1, taskC1, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerA, []string{"agy"}, 10*time.Second)
+	if err != nil || claimedCode1 == nil || claimedCode1.ID != aCode1.ID {
+		t.Fatalf("Runner A failed to claim Code Task 1: %v", err)
+	}
+	if taskC1.ExecutionCategory != task.ExecutionCategoryCode {
+		t.Fatalf("Expected category 'code', got '%s'", taskC1.ExecutionCategory)
+	}
+	t.Logf("✓ Code Task 1 (%s) claimed by Runner A (Git deployment lock held)", claimedCode1.ID)
+
+	// --- VERIFICATION STEP B: Runner B claims OPS Task 1 concurrently (Non-Blocking Ops Lane!) ---
+	runnerB := "runner_node_b"
+	claimedOps1, taskO1, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerB, []string{"agy"}, 10*time.Second)
+	if err != nil || claimedOps1 == nil {
+		t.Fatalf("CRITICAL: Ops task was blocked by running code task! err: %v", err)
+	}
+	if claimedOps1.ID != aOps1.ID {
+		t.Fatalf("Expected oldest ops task %s, got %s", aOps1.ID, claimedOps1.ID)
+	}
+	if taskO1.ExecutionCategory != task.ExecutionCategoryOps {
+		t.Fatalf("Expected category 'ops', got '%s'", taskO1.ExecutionCategory)
+	}
+	t.Logf("✓ Non-Blocking Ops Lane Verified: Ops Task 1 (%s) claimed and running PARALLEL with Code Task 1!", claimedOps1.ID)
+
+	// --- VERIFICATION STEP C: Runner C claims READONLY Task 1 concurrently (Shared Reader Pool!) ---
+	runnerC := "runner_node_c"
+	claimedRead1, taskR1, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerC, []string{"agy"}, 10*time.Second)
+	if err != nil || claimedRead1 == nil {
+		t.Fatalf("CRITICAL: Readonly task was blocked! err: %v", err)
+	}
+	if claimedRead1.ID != aRead1.ID {
+		t.Fatalf("Expected oldest readonly task %s, got %s", aRead1.ID, claimedRead1.ID)
+	}
+	if taskR1.ExecutionCategory != task.ExecutionCategoryReadOnly {
+		t.Fatalf("Expected category 'readonly', got '%s'", taskR1.ExecutionCategory)
+	}
+	t.Logf("✓ Shared Reader Pool Verified: Readonly Task 1 (%s) claimed and running PARALLEL with Code & Ops!", claimedRead1.ID)
+
+	// --- VERIFICATION STEP D: Git Deployment Lock strictly blocks second Code Task ---
+	runnerD := "runner_node_d"
+	claimedCode2, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerD, []string{"agy"}, 10*time.Second, []string{task.ExecutionCategoryCode})
+	if err != nil {
+		t.Fatalf("Runner D claim error: %v", err)
+	}
+	if claimedCode2 != nil {
+		t.Fatalf("CRITICAL CONCURRENCY VIOLATION: Second code task was claimed while another code task is running!")
+	}
+	t.Logf("✓ Git Deployment Lock Verified: Second code task blocked from collision while Code Task 1 is active")
+
+	// --- VERIFICATION STEP E: Operational Lock strictly blocks second Ops Task (Protects DB mutations) ---
+	claimedOps2, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerD, []string{"agy"}, 10*time.Second, []string{task.ExecutionCategoryOps})
+	if err != nil {
+		t.Fatalf("Runner D claim error: %v", err)
+	}
+	if claimedOps2 != nil {
+		t.Fatalf("CRITICAL CONCURRENCY VIOLATION: Second ops task was claimed while Ops Task 1 is active (DB mutation race condition)!")
+	}
+	t.Logf("✓ Operational Mutation Lock Verified: Second ops task safely queued to prevent concurrent DB mutations")
+
+	// --- VERIFICATION STEP F: Finish Ops Task 1 -> Handover to second Ops Task ---
+	claimedOps1.Status = task.AttemptStatusSucceeded
+	_ = taskStore.UpdateAttempt(ctx, claimedOps1)
+	doneStatus := task.TaskStatusDone
+	_ = taskStore.UpdateTask(ctx, &task.Task{ID: tOps1.ID, ProjectID: projectID, ExecutionCategory: task.ExecutionCategoryOps, Status: doneStatus})
+
+	claimedOps2After, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerD, []string{"agy"}, 10*time.Second, []string{task.ExecutionCategoryOps})
+	if err != nil || claimedOps2After == nil || claimedOps2After.ID != aOps2.ID {
+		t.Fatalf("Expected Runner D to claim Ops Task 2 after Ops Task 1 completed, got: %+v (err: %v)", claimedOps2After, err)
+	}
+	t.Logf("✓ Operational Lock Handover Verified: Ops Task 2 claimed successfully after Ops Task 1 finished")
+
+	// --- VERIFICATION STEP G: Schema Migration Exclusivity Barrier ---
+	// Create an active schema migration task
+	tMig := &task.Task{
+		ID:                "task_mig_1",
+		ProjectID:         projectID,
+		Title:             "Database Schema Migration",
+		Instructions:      "Run migration: alter table users add column phone_number text",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		Status:            task.TaskStatusDoing,
+	}
+	_ = taskStore.CreateTask(ctx, tMig)
+	aMig := &task.TaskAttempt{
+		ID:        "att_mig_1",
+		TaskID:    tMig.ID,
+		RunnerID:  "runner_mig",
+		Status:    task.AttemptStatusRunning,
+		CreatedAt: time.Now().UTC(),
+	}
+	_ = taskStore.CreateAttempt(ctx, aMig)
+
+	// Queue a new Ops task
+	tOps3 := &task.Task{
+		ID:                "task_ops_3",
+		ProjectID:         projectID,
+		Title:             "Artisan Command with Active Migration",
+		Instructions:      "php artisan cache:clear",
+		ExecutionCategory: task.ExecutionCategoryOps,
+		Status:            task.TaskStatusBacklog,
+	}
+	_ = taskStore.CreateTask(ctx, tOps3)
+	aOps3 := &task.TaskAttempt{
+		ID:        "att_ops_3",
+		TaskID:    tOps3.ID,
+		Status:    task.AttemptStatusQueued,
+		CreatedAt: time.Now().UTC(),
+	}
+	_ = taskStore.CreateAttempt(ctx, aOps3)
+
+	runnerE := "runner_node_e"
+	claimedDuringMig, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerE, []string{"agy"}, 10*time.Second, []string{task.ExecutionCategoryOps})
+	if err != nil {
+		t.Fatalf("Claim check during migration error: %v", err)
+	}
+	if claimedDuringMig != nil {
+		t.Fatalf("CRITICAL VIOLATION: Ops task was claimed during active database schema migration!")
+	}
+	t.Logf("✓ Schema Migration Barrier Verified: Ops tasks held safely during active database schema migration")
+
+	// Complete migration
+	aMig.Status = task.AttemptStatusSucceeded
+	_ = taskStore.UpdateAttempt(ctx, aMig)
+	_ = taskStore.UpdateTask(ctx, &task.Task{ID: tMig.ID, ProjectID: projectID, Status: task.TaskStatusDone})
+
+	// Also finish Ops Task 2 so ops lane is clear
+	claimedOps2After.Status = task.AttemptStatusSucceeded
+	_ = taskStore.UpdateAttempt(ctx, claimedOps2After)
+	_ = taskStore.UpdateTask(ctx, &task.Task{ID: tOps2.ID, ProjectID: projectID, ExecutionCategory: task.ExecutionCategoryOps, Status: task.TaskStatusDone})
+
+	claimedAfterMig, _, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerE, []string{"agy"}, 10*time.Second, []string{task.ExecutionCategoryOps})
+	if err != nil || claimedAfterMig == nil || claimedAfterMig.ID != aOps3.ID {
+		t.Fatalf("Expected Ops Task 3 to be claimed after schema migration completed, got: %+v (err: %v)", claimedAfterMig, err)
+	}
+	t.Logf("✓ Migration Resume Verified: Ops Task 3 proceeded automatically after migration finished")
+}
+
+type blockingMockAdapter struct {
+	executingCode chan struct{}
+	executingOps  chan struct{}
+	releaseCode   chan struct{}
+	releaseOps    chan struct{}
+}
+
+func (b *blockingMockAdapter) Name() string { return "agy" }
+func (b *blockingMockAdapter) Version() (string, error) { return "1.0.0", nil }
+func (b *blockingMockAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+	if req.TaskID == "task_code_d" {
+		close(b.executingCode)
+		select {
+		case <-b.releaseCode:
+		case <-ctx.Done():
+		}
+	} else if req.TaskID == "task_ops_d" {
+		close(b.executingOps)
+		select {
+		case <-b.releaseOps:
+		case <-ctx.Done():
+		}
+	}
+	return &agent.ExecutionResult{
+		Status:   "SUCCEEDED",
+		ExitCode: 0,
+	}, nil
+}
+
+func TestRunner_Daemon_ParallelLanesExecution(t *testing.T) {
+	adapter := &blockingMockAdapter{
+		executingCode: make(chan struct{}),
+		executingOps:  make(chan struct{}),
+		releaseCode:   make(chan struct{}),
+		releaseOps:    make(chan struct{}),
+	}
+
+	codeClaimed := false
+	opsClaimed := false
+	var serverMu sync.Mutex
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverMu.Lock()
+		defer serverMu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "/claim") {
+			var claimReq ClaimTaskRequest
+			_ = json.NewDecoder(r.Body).Decode(&claimReq)
+
+			wantsCode := false
+			wantsOps := false
+			for _, l := range claimReq.AvailableLanes {
+				if l == task.ExecutionCategoryCode {
+					wantsCode = true
+				}
+				if l == task.ExecutionCategoryOps {
+					wantsOps = true
+				}
+			}
+
+			if wantsCode && !codeClaimed {
+				codeClaimed = true
+				_ = json.NewEncoder(w).Encode(ClaimTaskResponse{
+					Claimed: true,
+					Attempt: &task.TaskAttempt{ID: "att_code_d", TaskID: "task_code_d", Status: task.AttemptStatusQueued},
+					Task: &task.Task{
+						ID:                "task_code_d",
+						Title:             "Code task",
+						ExecutionCategory: task.ExecutionCategoryCode,
+					},
+				})
+				return
+			}
+
+			if wantsOps && !opsClaimed {
+				opsClaimed = true
+				_ = json.NewEncoder(w).Encode(ClaimTaskResponse{
+					Claimed: true,
+					Attempt: &task.TaskAttempt{ID: "att_ops_d", TaskID: "task_ops_d", Status: task.AttemptStatusQueued},
+					Task: &task.Task{
+						ID:                "task_ops_d",
+						Title:             "Ops task",
+						ExecutionCategory: task.ExecutionCategoryOps,
+					},
+				})
+				return
+			}
+
+			_ = json.NewEncoder(w).Encode(ClaimTaskResponse{Claimed: false})
+			return
+		}
+
+		if strings.Contains(r.URL.Path, "/complete") || strings.Contains(r.URL.Path, "/logs") || strings.Contains(r.URL.Path, "/heartbeat") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+	}))
+	defer ts.Close()
+
+	cfg := &config.Config{
+		RunnerID:        "daemon_test_runner",
+		RunnerServerURL: ts.URL,
+		RunnerInterval:  100 * time.Millisecond,
+	}
+	r := NewRunner(cfg, adapter, ts.Client())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1. First poll: Code lane available, claims code task
+	r.pollAndExecute(ctx)
+	select {
+	case <-adapter.executingCode:
+		t.Log("✓ Daemon started Code Task in background goroutine")
+	case <-time.After(3 * time.Second):
+		t.Fatal("Timeout waiting for code task to start")
+	}
+
+	// 2. Second poll: While Code task is RUNNING, Ops lane is free -> claims ops task concurrently!
+	r.pollAndExecute(ctx)
+	select {
+	case <-adapter.executingOps:
+		t.Log("✓ Daemon started Ops Task CONCURRENTLY while Code Task is executing!")
+	case <-time.After(3 * time.Second):
+		t.Fatal("Timeout waiting for ops task to start concurrently")
+	}
+
+	// 3. Verify that both attempts are registered as active simultaneously in runner
+	r.mu.Lock()
+	activeCount := len(r.activeAttempts)
+	_, hasCodeAttempt := r.activeAttempts["att_code_d"]
+	_, hasOpsAttempt := r.activeAttempts["att_ops_d"]
+	r.mu.Unlock()
+
+	if activeCount != 2 || !hasCodeAttempt || !hasOpsAttempt {
+		t.Fatalf("Expected 2 active concurrent attempts (att_code_d and att_ops_d), got: %d (code=%v, ops=%v)", activeCount, hasCodeAttempt, hasOpsAttempt)
+	}
+	t.Log("✓ Verified Runner has 2 active concurrent attempts across separate lanes")
+
+	// 4. Release tasks and let them finalize cleanly
+	close(adapter.releaseOps)
+	close(adapter.releaseCode)
+
+	// Wait for cleanup
+	for i := 0; i < 50; i++ {
+		time.Sleep(50 * time.Millisecond)
+		r.mu.Lock()
+		remaining := len(r.activeAttempts)
+		r.mu.Unlock()
+		if remaining == 0 {
+			break
+		}
+	}
+
+	r.mu.Lock()
+	finalCount := len(r.activeAttempts)
+	r.mu.Unlock()
+	if finalCount != 0 {
+		t.Fatalf("Expected 0 active attempts after cleanup, got %d", finalCount)
+	}
+	t.Log("✓ Both lanes cleanly finished and released mutexes")
+}
+
+

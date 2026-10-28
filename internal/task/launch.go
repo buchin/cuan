@@ -115,6 +115,10 @@ func (s *Service) IsProjectActive(ctx context.Context, projectID string, exclude
 	return s.store.IsProjectActive(ctx, projectID, excludeTaskID)
 }
 
+func (s *Service) IsProjectLaneActive(ctx context.Context, projectID string, lane string, excludeTaskID string) (bool, error) {
+	return s.store.IsProjectLaneActive(ctx, projectID, lane, excludeTaskID)
+}
+
 func (s *Service) GetLaunch(ctx context.Context, id string) (*TaskLaunch, error) {
 	store, e := launchStore(s)
 	if e != nil {

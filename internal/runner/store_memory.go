@@ -93,7 +93,7 @@ func (m *MemoryStore) ListRunners(ctx context.Context) ([]*RunnerInfo, error) {
 	return list, nil
 }
 
-func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, supportedAgents []string, leaseDuration time.Duration) (*task.TaskAttempt, *task.Task, error) {
+func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, supportedAgents []string, leaseDuration time.Duration, availableLanes ...[]string) (*task.TaskAttempt, *task.Task, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -113,47 +113,136 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 		m.runners[runnerID] = runner
 	}
 
-	// CONCURRENCY LIMIT: 1 task aktif per runner
 	tasks, err := m.taskStore.ListTasks(ctx, task.TaskFilter{})
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// 1. Calculate active executions per lane for this runner
+	activeCodeCount := 0
+	activeOpsCount := 0
+	activeReadCount := 0
 
 	for _, t := range tasks {
 		attempts, err := m.taskStore.ListAttempts(ctx, t.ID)
 		if err != nil {
 			continue
 		}
+		tLane := t.ExecutionCategory
+		if tLane == "" {
+			tLane = task.ExecutionCategoryCode
+		}
 		for _, a := range attempts {
 			if a.RunnerID == runnerID && a.Status == task.AttemptStatusRunning {
-				// Runner already has an active running attempt!
-				return nil, nil, nil
+				switch tLane {
+				case task.ExecutionCategoryCode:
+					activeCodeCount++
+				case task.ExecutionCategoryOps:
+					activeOpsCount++
+				case task.ExecutionCategoryReadOnly:
+					activeReadCount++
+				}
 			}
 		}
 	}
 
-	// Find the oldest queued attempt
+	canClaimCode := activeCodeCount == 0
+	canClaimOps := activeOpsCount == 0
+	canClaimRead := activeReadCount < 4
+
+	// If caller specified availableLanes, filter by that
+	if len(availableLanes) > 0 && len(availableLanes[0]) > 0 {
+		requested := make(map[string]bool)
+		for _, l := range availableLanes[0] {
+			requested[task.NormalizeExecutionCategory(l)] = true
+		}
+		canClaimCode = canClaimCode && requested[task.ExecutionCategoryCode]
+		canClaimOps = canClaimOps && requested[task.ExecutionCategoryOps]
+		canClaimRead = canClaimRead && requested[task.ExecutionCategoryReadOnly]
+	}
+
+	if !canClaimCode && !canClaimOps && !canClaimRead {
+		return nil, nil, nil
+	}
+
+	// 2. Find the oldest queued attempt matching lane and project lock rules
 	var oldestQueued *task.TaskAttempt
 	var matchedTask *task.Task
 
 	for _, t := range tasks {
-		// Strict Project Concurrency Lock: only 1 active runner per project
+		candidateLane := t.ExecutionCategory
+		if candidateLane == "" {
+			candidateLane = task.ExecutionCategoryCode
+		}
+
+		switch candidateLane {
+		case task.ExecutionCategoryCode:
+			if !canClaimCode {
+				continue
+			}
+		case task.ExecutionCategoryOps:
+			if !canClaimOps {
+				continue
+			}
+		case task.ExecutionCategoryReadOnly:
+			if !canClaimRead {
+				continue
+			}
+		}
+
+		// Project Concurrency Lock separation:
+		// - Git deployment lock: serializes code tasks
+		// - Operational lock: serializes ops tasks
+		// - Shared reader pool: permits concurrent readonly tasks
+		// - Schema migration: exclusive barrier blocking all lanes
 		if t.ProjectID != "" {
 			projectBusy := false
+			isCandidateMigration := task.IsTaskSchemaMigration(t)
+
 			for _, otherTask := range tasks {
 				if otherTask.ID != t.ID && (otherTask.ProjectID == t.ProjectID || containsString(otherTask.ProjectIDs, t.ProjectID)) {
+					isOtherActive := false
 					if otherTask.Status == task.TaskStatusDoing || otherTask.Status == "working" {
+						isOtherActive = true
+					} else {
+						otherAttempts, _ := m.taskStore.ListAttempts(ctx, otherTask.ID)
+						for _, oa := range otherAttempts {
+							if oa.Status == task.AttemptStatusRunning {
+								isOtherActive = true
+								break
+							}
+						}
+					}
+					if !isOtherActive {
+						continue
+					}
+
+					otherLane := otherTask.ExecutionCategory
+					if otherLane == "" {
+						otherLane = task.ExecutionCategoryCode
+					}
+
+					// Active schema migration blocks ALL lanes
+					if task.IsTaskSchemaMigration(otherTask) {
 						projectBusy = true
 						break
 					}
-					otherAttempts, _ := m.taskStore.ListAttempts(ctx, otherTask.ID)
-					for _, oa := range otherAttempts {
-						if oa.Status == task.AttemptStatusRunning {
-							projectBusy = true
-							break
-						}
+
+					// If candidate is schema migration, any active task blocks it
+					if isCandidateMigration {
+						projectBusy = true
+						break
 					}
-					if projectBusy {
+
+					// Git deployment lock: code tasks cannot run concurrently with other code tasks
+					if candidateLane == task.ExecutionCategoryCode && otherLane == task.ExecutionCategoryCode {
+						projectBusy = true
+						break
+					}
+
+					// Operational lock: ops tasks cannot run concurrently with other ops tasks
+					if candidateLane == task.ExecutionCategoryOps && otherLane == task.ExecutionCategoryOps {
+						projectBusy = true
 						break
 					}
 				}

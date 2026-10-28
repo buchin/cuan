@@ -21,6 +21,7 @@ web/dist/
 # Temporary and local
 tmp/
 internal/server/data/
+internal/runner/data/
 backups/*.sql.gz
 backups/*.sha256
 backups/*.meta.json
@@ -30,3 +31,5 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+.agents/
+.gemini/

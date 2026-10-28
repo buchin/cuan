@@ -40,4 +40,5 @@ type Store interface {
 
 	// Concurrency & project status
 	IsProjectActive(ctx context.Context, projectID string, excludeTaskID string) (bool, error)
+	IsProjectLaneActive(ctx context.Context, projectID string, lane string, excludeTaskID string) (bool, error)
 }

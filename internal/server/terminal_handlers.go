@@ -317,9 +317,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	var projID string
+	taskCategory := task.ExecutionCategoryCode
 	if s.taskSvc != nil {
 		if tDetail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && tDetail != nil {
 			projID = tDetail.ProjectID
+			if tDetail.ExecutionCategory != "" {
+				taskCategory = tDetail.ExecutionCategory
+			}
 		}
 	}
 	if projID == "" && s.projectStudioRepo != nil {
@@ -327,7 +331,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			projID = pt.ProjectID
 		}
 	}
-	if projID != "" && s.isProjectActive(r.Context(), projID, taskID) {
+	if projID != "" && s.isProjectLaneActive(r.Context(), projID, taskCategory, taskID) {
 		status := task.TaskStatusQueued
 		if s.taskSvc != nil {
 			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
@@ -722,10 +726,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		runCfg := terminal.TaskAgentRunConfig{
 			Model:           selectedModel,
 			AttachmentPaths: attachmentPaths,
-			AttemptID:       attemptID,
-			TaskID:          taskID,
-			ProjectID:       projID,
-			AgentID:         agentID,
+			AttemptID:         attemptID,
+			TaskID:            taskID,
+			ProjectID:         projID,
+			ExecutionCategory: taskCategory,
+			AgentID:           agentID,
 			AgentName:       agentName,
 			Command:         payload.Binary,
 			Prompt:          taskPrompt,

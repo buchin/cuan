@@ -29,7 +29,11 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if job.State == "cancelled" || job.State == "stopped" {
 		return "This launch has stopped. No new execution was started." + link
 	}
-	if s.isProjectActive(ctx, t.ProjectID, t.ID) {
+	lane := t.ExecutionCategory
+	if lane == "" {
+		lane = task.ExecutionCategoryCode
+	}
+	if s.isProjectLaneActive(ctx, t.ProjectID, lane, t.ID) {
 		status := task.TaskStatusQueued
 		_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
 		return "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link

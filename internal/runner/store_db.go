@@ -178,25 +178,47 @@ func (s *DBStore) ListRunners(ctx context.Context) ([]*RunnerInfo, error) {
 	return list, nil
 }
 
-func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, supportedAgents []string, leaseDuration time.Duration) (*task.TaskAttempt, *task.Task, error) {
+func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, supportedAgents []string, leaseDuration time.Duration, availableLanes ...[]string) (*task.TaskAttempt, *task.Task, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return nil, nil, fmt.Errorf("begin claim tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// 1. CONCURRENCY LIMIT: 1 task aktif per runner
-	var activeCount int
-	err = tx.QueryRowContext(ctx, "SELECT count(*) FROM task_attempts WHERE runner_id = $1 AND status = 'running'", runnerID).Scan(&activeCount)
+	// 1. Calculate active executions per lane for this runner
+	var activeCode, activeOps, activeRead int
+	err = tx.QueryRowContext(ctx, `
+		SELECT 
+			COALESCE(SUM(CASE WHEN COALESCE(t.execution_category, 'code') = 'code' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN COALESCE(t.execution_category, 'code') = 'ops' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN COALESCE(t.execution_category, 'code') = 'readonly' THEN 1 ELSE 0 END), 0)
+		FROM task_attempts a
+		JOIN tasks t ON a.task_id = t.id
+		WHERE a.runner_id = $1 AND a.status = 'running'
+	`, runnerID).Scan(&activeCode, &activeOps, &activeRead)
 	if err != nil {
 		return nil, nil, fmt.Errorf("check runner active count: %w", err)
 	}
-	if activeCount > 0 {
-		// Runner is already executing an active task
+
+	canClaimCode := activeCode == 0
+	canClaimOps := activeOps == 0
+	canClaimRead := activeRead < 4
+
+	if len(availableLanes) > 0 && len(availableLanes[0]) > 0 {
+		requested := make(map[string]bool)
+		for _, l := range availableLanes[0] {
+			requested[task.NormalizeExecutionCategory(l)] = true
+		}
+		canClaimCode = canClaimCode && requested[task.ExecutionCategoryCode]
+		canClaimOps = canClaimOps && requested[task.ExecutionCategoryOps]
+		canClaimRead = canClaimRead && requested[task.ExecutionCategoryReadOnly]
+	}
+
+	if !canClaimCode && !canClaimOps && !canClaimRead {
 		return nil, nil, nil
 	}
 
-	// 2. DUPLICATE CLAIM PROTECTION: Atomically select next queued attempt using SKIP LOCKED
+	// 2. Multi-lane claim query with separated git deployment lock, operational lock, and shared reader pool
 	query := `
 		SELECT 
 			a.id, a.task_id, a.runner_id, a.agent_name, a.status, a.exit_code, a.peak_rss_bytes,
@@ -205,35 +227,99 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 			t.id, t.project_id, t.title, t.instructions, t.status, t.priority, COALESCE(t.assigned_agent, 'agy'),
 			COALESCE(t.branch_name, ''), COALESCE(t.pr_url, ''), COALESCE(t.pr_number, 0),
 			COALESCE(t.commit_sha, ''), COALESCE(t.diff_summary, ''), COALESCE(t.test_summary, ''),
-			t.created_at, t.updated_at
+			t.created_at, t.updated_at, COALESCE(t.execution_category, 'code')
 		FROM task_attempts a
 		JOIN tasks t ON a.task_id = t.id
 		WHERE a.status = 'queued'
 		  AND (
+		      ($1 = true AND COALESCE(t.execution_category, 'code') = 'code')
+		      OR ($2 = true AND COALESCE(t.execution_category, 'code') = 'ops')
+		      OR ($3 = true AND COALESCE(t.execution_category, 'code') = 'readonly')
+		  )
+		  AND (
 		      COALESCE(t.project_id, '') = ''
 		      OR (
+		          -- Schema migration exclusivity barrier: no active schema migration task in project
 		          NOT EXISTS (
 		              SELECT 1 FROM task_attempts active_att
 		              JOIN tasks active_t ON active_att.task_id = active_t.id
 		              WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                AND active_att.status = 'running'
-		          )
-		          AND NOT EXISTS (
-		              SELECT 1 FROM tasks active_t
-		              WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
-		                AND active_t.id != t.id
-		                AND active_t.status IN ('doing', 'working')
-		          )
-		          AND NOT EXISTS (
-		              SELECT 1 FROM task_launches active_tl
-		              JOIN tasks active_t ON active_tl.task_id = active_t.id
-		              WHERE active_tl.project_id = t.project_id
-		                AND active_tl.task_id != t.id
-		                AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review')
+		                AND COALESCE(active_t.execution_category, 'code') = 'code'
 		                AND (
-		                    active_tl.state = 'started'
-		                    OR (active_tl.state = 'claimed' AND active_tl.lease_until > NOW())
+		                    active_t.instructions ILIKE '%migration%' OR active_t.instructions ILIKE '%migrate%' OR active_t.title ILIKE '%migration%' OR active_t.title ILIKE '%migrate%'
 		                )
+		          )
+		          -- If candidate task is a schema migration, no active task of any kind in project
+		          AND (
+		              COALESCE(t.execution_category, 'code') != 'code'
+		              OR NOT (t.instructions ILIKE '%migration%' OR t.instructions ILIKE '%migrate%' OR t.title ILIKE '%migration%' OR t.title ILIKE '%migrate%')
+		              OR (
+		                  NOT EXISTS (
+		                      SELECT 1 FROM task_attempts active_att
+		                      JOIN tasks active_t ON active_att.task_id = active_t.id
+		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                        AND active_att.status = 'running'
+		                  )
+		                  AND NOT EXISTS (
+		                      SELECT 1 FROM tasks active_t
+		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                        AND active_t.id != t.id
+		                        AND active_t.status IN ('doing', 'working')
+		                  )
+		              )
+		          )
+		          -- Git deployment lock: if candidate is code, no other code task active in project
+		          AND (
+		              COALESCE(t.execution_category, 'code') != 'code'
+		              OR (
+		                  NOT EXISTS (
+		                      SELECT 1 FROM task_attempts active_att
+		                      JOIN tasks active_t ON active_att.task_id = active_t.id
+		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                        AND active_att.status = 'running'
+		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                  )
+		                  AND NOT EXISTS (
+		                      SELECT 1 FROM tasks active_t
+		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                        AND active_t.id != t.id
+		                        AND active_t.status IN ('doing', 'working')
+		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                  )
+		                  AND NOT EXISTS (
+		                      SELECT 1 FROM task_launches active_tl
+		                      JOIN tasks active_t ON active_tl.task_id = active_t.id
+		                      WHERE active_tl.project_id = t.project_id
+		                        AND active_tl.task_id != t.id
+		                        AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review')
+		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                        AND (
+		                            active_tl.state = 'started'
+		                            OR (active_tl.state = 'claimed' AND active_tl.lease_until > NOW())
+		                        )
+		                  )
+		              )
+		          )
+		          -- Operational lock: if candidate is ops, no other ops task active in project
+		          AND (
+		              COALESCE(t.execution_category, 'code') != 'ops'
+		              OR (
+		                  NOT EXISTS (
+		                      SELECT 1 FROM task_attempts active_att
+		                      JOIN tasks active_t ON active_att.task_id = active_t.id
+		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                        AND active_att.status = 'running'
+		                        AND COALESCE(active_t.execution_category, 'code') = 'ops'
+		                  )
+		                  AND NOT EXISTS (
+		                      SELECT 1 FROM tasks active_t
+		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                        AND active_t.id != t.id
+		                        AND active_t.status IN ('doing', 'working')
+		                        AND COALESCE(active_t.execution_category, 'code') = 'ops'
+		                  )
+		              )
 		          )
 		      )
 		  )
@@ -244,7 +330,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 
 	var att task.TaskAttempt
 	var t task.Task
-	err = tx.QueryRowContext(ctx, query).Scan(
+	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead).Scan(
 		&att.ID,
 		&att.TaskID,
 		&att.RunnerID,
@@ -276,6 +362,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		&t.TestSummary,
 		&t.CreatedAt,
 		&t.UpdatedAt,
+		&t.ExecutionCategory,
 	)
 	if err == sql.ErrNoRows {
 		// No queued attempt available

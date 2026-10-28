@@ -14,6 +14,7 @@ import (
 	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/task"
 )
 
 // registerProjectRoutes mounts all project CRUD and configuration endpoints on the protected router.
@@ -37,21 +38,25 @@ func (s *Server) registerProjectRoutes(pr chi.Router) {
 	pr.Post("/projects/{id}/reconcile", s.handleReconcileProject)
 }
 
-func (s *Server) isProjectActive(ctx context.Context, projectID string, excludeTaskID string) bool {
+func (s *Server) isProjectLaneActive(ctx context.Context, projectID string, lane string, excludeTaskID string) bool {
 	if projectID == "" {
 		return false
 	}
 	if s.terminalManager != nil {
-		if active, err := s.terminalManager.ProjectExecutionActive(projectID); err == nil && active {
+		if active, err := s.terminalManager.ProjectLaneActive(projectID, lane); err == nil && active {
 			return true
 		}
 	}
 	if s.taskSvc != nil {
-		if active, err := s.taskSvc.IsProjectActive(ctx, projectID, excludeTaskID); err == nil && active {
+		if active, err := s.taskSvc.IsProjectLaneActive(ctx, projectID, lane, excludeTaskID); err == nil && active {
 			return true
 		}
 	}
 	return false
+}
+
+func (s *Server) isProjectActive(ctx context.Context, projectID string, excludeTaskID string) bool {
+	return s.isProjectLaneActive(ctx, projectID, task.ExecutionCategoryCode, excludeTaskID)
 }
 
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {

@@ -20,6 +20,8 @@ type RunnerInfo struct {
 	Hostname         string    `json:"hostname"`
 	SupportedAgents  []string  `json:"supported_agents"`
 	Status           string    `json:"status"` // idle, busy, offline
+	ActiveLanes      []string  `json:"active_lanes,omitempty"`
+	ActiveAttemptIDs []string  `json:"active_attempt_ids,omitempty"`
 	LastHeartbeatAt  time.Time `json:"last_heartbeat_at"`
 	CurrentTaskID    string    `json:"current_task_id,omitempty"`
 	CurrentAttemptID string    `json:"current_attempt_id,omitempty"`
@@ -38,6 +40,7 @@ type HeartbeatRequest struct {
 	Hostname         string   `json:"hostname,omitempty"`
 	SupportedAgents  []string `json:"supported_agents,omitempty"`
 	CurrentAttemptID string   `json:"current_attempt_id,omitempty"`
+	ActiveAttemptIDs []string `json:"active_attempt_ids,omitempty"`
 	CPUPercent       float64  `json:"cpu_percent"`
 	MemoryUsedBytes  int64    `json:"memory_used_bytes"`
 	MemoryTotalBytes int64    `json:"memory_total_bytes"`
@@ -47,15 +50,17 @@ type HeartbeatRequest struct {
 
 // HeartbeatResponse instructs the runner on lease renewal and whether cancellation is requested.
 type HeartbeatResponse struct {
-	Status           string `json:"status"`
-	LeaseDurationSec int    `json:"lease_duration_sec"`
-	ShouldCancel     bool   `json:"should_cancel"`
+	Status             string   `json:"status"`
+	LeaseDurationSec   int      `json:"lease_duration_sec"`
+	ShouldCancel       bool     `json:"should_cancel"`
+	CanceledAttemptIDs []string `json:"canceled_attempt_ids,omitempty"`
 }
 
-// ClaimTaskRequest is sent by an idle runner to acquire the next queued task attempt.
+// ClaimTaskRequest is sent by a runner to acquire the next queued task attempt for available lanes.
 type ClaimTaskRequest struct {
 	RunnerID        string   `json:"runner_id"`
 	SupportedAgents []string `json:"supported_agents"`
+	AvailableLanes  []string `json:"available_lanes,omitempty"` // code, ops, readonly
 }
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.

@@ -31,13 +31,19 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 	t.CreatedAt = t.CreatedAt.Truncate(time.Microsecond)
 	t.UpdatedAt = t.CreatedAt
 
+	if t.ExecutionCategory == "" {
+		t.ExecutionCategory = ExecutionCategoryCode
+	}
+
 	query := `
 		INSERT INTO tasks (
 			id, project_id, title, instructions, status, priority, assigned_agent,
 			branch_name, pr_url, pr_number, commit_sha, diff_summary, test_summary,
-			created_at, updated_at,source_room_id,source_message_id,summary,complete_note,dod_checklist,creation_hash
+			created_at, updated_at,source_room_id,source_message_id,summary,complete_note,dod_checklist,creation_hash,
+			execution_category
 		) VALUES (
-			$1, NULLIF($2,''), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,NULLIF($16,'')::uuid,NULLIF($17,'')::uuid,$18,$19,$20::jsonb,$21
+			$1, NULLIF($2,''), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,NULLIF($16,'')::uuid,NULLIF($17,'')::uuid,$18,$19,$20::jsonb,$21,
+			$22
 		)
 	`
 	_, err = tx.ExecContext(ctx, query,
@@ -56,6 +62,7 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 		t.TestSummary,
 		t.CreatedAt,
 		t.UpdatedAt, t.SourceRoomID, t.SourceMessageID, t.Summary, t.CompleteNote, checklistJSON(t.DoDChecklist), t.CreationHash,
+		t.ExecutionCategory,
 	)
 	if err != nil {
 		return fmt.Errorf("create task: %w", err)
@@ -95,7 +102,8 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 			COALESCE(commit_sha, ''),
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
-			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash
+			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash,
+			COALESCE(execution_category, 'code')
 		FROM tasks
 		WHERE id = $1
 	`
@@ -117,6 +125,7 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		&t.TestSummary,
 		&t.CreatedAt,
 		&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID, &t.Summary, &t.CompleteNote, &checklist, &t.CreationHash,
+		&t.ExecutionCategory,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrTaskNotFound
@@ -160,7 +169,8 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			COALESCE(commit_sha, ''),
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
-			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash
+			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash,
+			COALESCE(execution_category, 'code')
 		FROM tasks
 		WHERE ($1 = '' OR project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = tasks.id AND tp.project_id = $1))
 		  AND ($2 = '' OR status = $2)
@@ -195,6 +205,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			&t.TestSummary,
 			&t.CreatedAt,
 			&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID, &t.Summary, &t.CompleteNote, &checklist, &t.CreationHash,
+			&t.ExecutionCategory,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
@@ -265,6 +276,10 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 	}
 	defer tx.Rollback()
 
+	if t.ExecutionCategory == "" {
+		t.ExecutionCategory = ExecutionCategoryCode
+	}
+
 	t.UpdatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	query := `
 		UPDATE tasks SET
@@ -279,7 +294,8 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 			commit_sha = $10,
 			diff_summary = $11,
 			test_summary = $12,
-			updated_at = $13,summary=$14,complete_note=$15,dod_checklist=$16::jsonb,project_id=NULLIF($17,'')
+			updated_at = $13,summary=$14,complete_note=$15,dod_checklist=$16::jsonb,project_id=NULLIF($17,''),
+			execution_category = $18
 		WHERE id = $1
 	`
 	res, err := tx.ExecContext(ctx, query,
@@ -296,6 +312,7 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 		t.DiffSummary,
 		t.TestSummary,
 		t.UpdatedAt, t.Summary, t.CompleteNote, checklistJSON(t.DoDChecklist), t.ProjectID,
+		t.ExecutionCategory,
 	)
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
@@ -844,11 +861,21 @@ func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[strin
 }
 
 func (s *DBStore) IsProjectActive(ctx context.Context, projectID string, excludeTaskID string) (bool, error) {
+	return s.IsProjectLaneActive(ctx, projectID, ExecutionCategoryCode, excludeTaskID)
+}
+
+func (s *DBStore) IsProjectLaneActive(ctx context.Context, projectID string, lane string, excludeTaskID string) (bool, error) {
 	if projectID == "" {
 		return false, nil
 	}
-	var active bool
-	err := s.db.QueryRowContext(ctx, `SELECT EXISTS (
+	normalizedLane := NormalizeExecutionCategory(lane)
+	if normalizedLane == "" {
+		normalizedLane = ExecutionCategoryCode
+	}
+
+	// 1. Any active database schema migration blocks ALL lanes (exclusive barrier)
+	var migrationActive bool
+	migQuery := `SELECT EXISTS (
 		SELECT 1 FROM tasks t
 		WHERE (t.project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = t.id AND tp.project_id = $1))
 		  AND ($2 = '' OR t.id != $2)
@@ -858,6 +885,40 @@ func (s *DBStore) IsProjectActive(ctx context.Context, projectID string, exclude
 			  OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
 			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state = 'started')
 		  )
-	)`, projectID, excludeTaskID).Scan(&active)
-	return active, err
+		  AND COALESCE(t.execution_category, 'code') = 'code'
+		  AND (
+			  t.instructions ILIKE '%migration%' OR t.instructions ILIKE '%migrate%' OR
+			  t.title ILIKE '%migration%' OR t.title ILIKE '%migrate%'
+		  )
+	)`
+	if err := s.db.QueryRowContext(ctx, migQuery, projectID, excludeTaskID).Scan(&migrationActive); err != nil {
+		return false, err
+	}
+	if migrationActive {
+		return true, nil
+	}
+
+	if normalizedLane == ExecutionCategoryReadOnly {
+		// Readonly lane: only blocked by active schema migration (already checked)
+		return false, nil
+	}
+
+	// 2. Lane-specific concurrency check:
+	// - Code lane: checks if another 'code' task is active (Git deployment lock)
+	// - Ops lane: checks if another 'ops' task is active (Operational lock)
+	var laneActive bool
+	query := `SELECT EXISTS (
+		SELECT 1 FROM tasks t
+		WHERE (t.project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = t.id AND tp.project_id = $1))
+		  AND ($2 = '' OR t.id != $2)
+		  AND t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
+		  AND COALESCE(t.execution_category, 'code') = $3
+		  AND (
+			  t.status IN ('doing', 'working')
+			  OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
+			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state = 'started')
+		  )
+	)`
+	err := s.db.QueryRowContext(ctx, query, projectID, excludeTaskID, normalizedLane).Scan(&laneActive)
+	return laneActive, err
 }
