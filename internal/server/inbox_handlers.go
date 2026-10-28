@@ -29,6 +29,8 @@ type InboxThreadItem struct {
 	MessageCount int                   `json:"message_count"`
 	TaskCount    int                   `json:"task_count"`
 	ActiveTasks  int                   `json:"active_tasks"`
+	DoneTasks    int                   `json:"done_tasks"`
+	FailedTasks  int                   `json:"failed_tasks"`
 	CreatedAt    time.Time             `json:"created_at"`
 	UpdatedAt    time.Time             `json:"updated_at"`
 }
@@ -97,6 +99,8 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		tasks, _ := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
 		taskCount := len(tasks)
 		activeTasks := 0
+		doneTasks := 0
+		failedTasks := 0
 		hasDone := false
 		hasDoing := false
 
@@ -104,13 +108,16 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		for _, t := range tasks {
 			seenTaskIDs[t.ID] = true
 			st := strings.ToLower(strings.TrimSpace(t.Status))
-			if st != "done" {
+			if st == "done" {
+				doneTasks++
+				hasDone = true
+			} else if st == "blocked" || st == "failed" {
+				failedTasks++
+			} else {
 				activeTasks++
 			}
 			if st == "doing" || st == "review" {
 				hasDoing = true
-			} else if st == "done" {
-				hasDone = true
 			}
 		}
 
@@ -120,13 +127,16 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 					if !seenTaskIDs[st.ID] {
 						taskCount++
 						stStatus := strings.ToLower(strings.TrimSpace(st.Status))
-						if stStatus != "done" {
+						if stStatus == "done" {
+							doneTasks++
+							hasDone = true
+						} else if stStatus == "blocked" || stStatus == "failed" {
+							failedTasks++
+						} else {
 							activeTasks++
 						}
 						if stStatus == "doing" || stStatus == "review" {
 							hasDoing = true
-						} else if stStatus == "done" {
-							hasDone = true
 						}
 					}
 				}
@@ -174,6 +184,8 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 			MessageCount: messageCount,
 			TaskCount:    taskCount,
 			ActiveTasks:  activeTasks,
+			DoneTasks:    doneTasks,
+			FailedTasks:  failedTasks,
 			CreatedAt:    rm.CreatedAt,
 			UpdatedAt:    rm.UpdatedAt,
 		})
