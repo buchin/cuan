@@ -6,7 +6,6 @@ import {
   Copy,
   Check,
   Users,
-  ExternalLink,
 } from 'lucide-react'
 import type { ChatContact } from '../../api/chat'
 import { chatApi } from '../../api/chat'
@@ -83,7 +82,7 @@ export function RoomCard({
     }
   }, [roomId, initialContact])
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = (_e: React.MouseEvent) => {
     if (onClick && contact) {
       onClick(contact)
     } else {

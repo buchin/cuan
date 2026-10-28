@@ -4,13 +4,11 @@ import {
   Folder,
   Terminal,
   CheckCircle2,
-  Play,
   Copy,
   Check,
   RefreshCw,
   FileText,
   AlertCircle,
-  ExternalLink,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
@@ -24,7 +22,6 @@ import {
   taskTerminalUrl,
   taskSummaryText,
   taskLiveActivityText,
-  cleanTerminalText,
   taskRef,
   relativeTime,
   agentDisplayName,
@@ -82,7 +79,7 @@ export function TaskCard({
     }
   }, [taskId, initialTask])
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = (_e: React.MouseEvent) => {
     if (onClick && currentTask) {
       onClick(currentTask)
     } else {
@@ -130,7 +127,7 @@ export function TaskCard({
     let url = taskTargetUrl(currentTask)
     if (status === 'Ready for review' || status === 'Completed' || status === 'Answered') {
       url = taskDetailUrl(currentTask)
-    } else if (status === 'Working' || status === 'Waiting to start') {
+    } else if (status === 'Working' || status === 'Queued' || (status as string) === 'Waiting to start') {
       url = taskTerminalUrl(currentTask)
     }
     navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
@@ -215,7 +212,7 @@ export function TaskCard({
 
   const status = workStatus(currentTask)
   const isWorking = status === 'Working'
-  const isQueued = status === 'Waiting to start' || (currentTask.status as string) === 'queued'
+  const isQueued = status === 'Queued' || (status as string) === 'Waiting to start' || (currentTask.status as string) === 'queued'
   const isNeedsAttention = status === 'Needs attention'
   const statusBadge = workStatusBadgeClass(status)
   const agent = currentTask.latest_attempt?.agent_name || currentTask.assignee_id || currentTask.assignee

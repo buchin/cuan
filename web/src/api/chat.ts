@@ -7,6 +7,7 @@ export interface ChatContact {
   id: string
   type: 'agent' | 'customer'
   name: string
+  email?: string
   avatar: string
   status: 'online' | 'idle' | 'offline'
   product?: string

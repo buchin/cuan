@@ -99,6 +99,7 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 			"inspect_git_branches(*)",
 			"inspect_system_health(*)",
 			"inspect_typecheck(*)",
+			"search_web(*)",
 			"list_projects(*)",
 			"get_project(*)",
 			"list_tasks(*)",
@@ -110,6 +111,7 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 			"get_contact(*)",
 			"list_scheduled_jobs(*)",
 			"get_system_settings(*)",
+			"call_mcp_tool(*)",
 			"cuan-inspect/*",
 			"cuan-inspect:*",
 		}
@@ -233,6 +235,7 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 		"inspect_git_branches(*)",
 		"inspect_system_health(*)",
 		"inspect_typecheck(*)",
+		"search_web(*)",
 		"list_projects(*)",
 		"get_project(*)",
 		"list_tasks(*)",
@@ -244,6 +247,7 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 		"get_contact(*)",
 		"list_scheduled_jobs(*)",
 		"get_system_settings(*)",
+		"call_mcp_tool(*)",
 		"cuan-inspect/*",
 		"cuan-inspect:*",
 	}

@@ -46,6 +46,20 @@ func (s *inboxRuntimeStream) emit(kind, text string) {
 	s.traceCount++
 	s.step(kind, text)
 }
+func isSafeInboxTool(tool string) bool {
+	switch tool {
+	case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish",
+		"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches", "inspect_system_health", "inspect_typecheck",
+		"search_web",
+		"list_projects", "get_project", "list_tasks", "get_task", "create_task_draft",
+		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
+		"list_scheduled_jobs", "get_system_settings", "call_mcp_tool":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *inboxRuntimeStream) Write(p []byte) (int, error) {
 	n := len(p)
 	s.bytes += n
@@ -144,10 +158,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			s.unsafeTool = true
 		}
 		if e.Update.Type == "tool" {
-			switch e.Update.Tool {
-			case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish",
-				"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches", "inspect_system_health", "inspect_typecheck":
-			default:
+			if !isSafeInboxTool(e.Update.Tool) {
 				s.unsafeTool = true
 			}
 		}
@@ -176,10 +187,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			duration = fmt.Sprintf(" (%.1f s)", *u.Duration)
 		}
 		if u.Type == "tool" {
-			switch u.Tool {
-			case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish",
-				"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches", "inspect_system_health", "inspect_typecheck":
-			default:
+			if !isSafeInboxTool(u.Tool) {
 				s.unsafeTool = true
 			}
 			if u.Tool != "finish" && u.Index != nil {
@@ -221,8 +229,21 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				"inspect_git_log":       "Inspect Git log",
 				"inspect_git_diff":      "Inspect Git diff summary",
 				"inspect_git_branches":  "Inspect Git branches",
-				"inspect_system_health": "Inspect system health",
-				"inspect_typecheck":     "Inspect project typecheck",
+				"inspect_system_health":    "Inspect system health",
+				"inspect_typecheck":        "Inspect project typecheck",
+				"search_web":               "Web search",
+				"list_projects":            "List projects",
+				"get_project":              "Get project",
+				"list_tasks":                "List tasks",
+				"get_task":                 "Get task",
+				"create_task_draft":        "Create task draft",
+				"list_inbox_conversations": "List inbox conversations",
+				"get_inbox_messages":       "Get inbox messages",
+				"list_contacts":            "List contacts",
+				"get_contact":              "Get contact",
+				"list_scheduled_jobs":      "List scheduled jobs",
+				"get_system_settings":      "Get system settings",
+				"call_mcp_tool":            "Call MCP tool",
 			}
 			name := names[u.Tool]
 			if name == "" {

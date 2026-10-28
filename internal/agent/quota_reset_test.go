@@ -43,6 +43,12 @@ func TestParseProviderQuotaResetDuration(t *testing.T) {
 			wantSuccess: true,
 		},
 		{
+			input:       "Provider quota is limited (Resets in 68h12m38s). Your message is saved. Wait for the quota to reset; accounts will not be switched automatically.",
+			wantDur:     68*time.Hour + 12*time.Minute + 38*time.Second,
+			wantStr:     "68h12m38s",
+			wantSuccess: true,
+		},
+		{
 			input:       "Generic error without reset info",
 			wantDur:     0,
 			wantStr:     "",

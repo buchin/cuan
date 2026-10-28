@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var resetsInRegex = regexp.MustCompile(`(?i)resets\s+in\s+([0-9a-zA-Z\s]+?)(?:[.,;\n\r]|\z)`)
+var resetsInRegex = regexp.MustCompile(`(?i)resets\s+in\s+([0-9a-zA-Z\s]+?)(?:[.,;\n\r)]|\z)`)
 var daysRegex = regexp.MustCompile(`(?i)(\d+)\s*d`)
 var hoursRegex = regexp.MustCompile(`(?i)(\d+)\s*h`)
 var minsRegex = regexp.MustCompile(`(?i)(\d+)\s*m`)
