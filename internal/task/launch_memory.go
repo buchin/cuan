@@ -55,6 +55,16 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 			j.LeaseUntil = nil
 			continue
 		}
+		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
+			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
+				j.State = "stopped"
+				j.SafeError = "Task is in terminal status."
+				j.UpdatedAt = now
+				j.LeaseToken = ""
+				j.LeaseUntil = nil
+				continue
+			}
+		}
 		if j.State == "queued" && !j.AvailableAt.After(now) || j.State == "claimed" && j.LeaseUntil != nil && !j.LeaseUntil.After(now) {
 			projID := j.ProjectID
 			if projID == "" {
@@ -75,9 +85,12 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 						}
 					}
 					if otherProj == projID {
-						if other.State == "started" || (other.State == "claimed" && other.LeaseUntil != nil && other.LeaseUntil.After(now)) {
-							projectBusy = true
-							break
+						ot := m.tasks[other.TaskID]
+						if ot == nil || (ot.Status != TaskStatusDone && ot.Status != "cancelled" && ot.Status != "failed" && ot.Status != TaskStatusBlocked && ot.Status != TaskStatusReview) {
+							if other.State == "started" || (other.State == "claimed" && other.LeaseUntil != nil && other.LeaseUntil.After(now)) {
+								projectBusy = true
+								break
+							}
 						}
 					}
 				}
@@ -189,4 +202,36 @@ func (m *MemoryStore) LatestLaunch(_ context.Context, taskID string) (*TaskLaunc
 		}
 	}
 	return copyLaunch(latest), nil
+}
+
+func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, j := range m.launches {
+		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
+			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
+				j.State = "stopped"
+				j.SafeError = "Task is in terminal status."
+				j.UpdatedAt = now
+				j.LeaseToken = ""
+				j.LeaseUntil = nil
+			}
+		}
+	}
+	return nil
+}
+
+func (m *MemoryStore) ReconcileStartupLaunches(_ context.Context, now time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, j := range m.launches {
+		if j.State == "started" || j.State == "claimed" {
+			j.State = "stopped"
+			j.SafeError = "Execution stopped during server restart."
+			j.UpdatedAt = now
+			j.LeaseToken = ""
+			j.LeaseUntil = nil
+		}
+	}
+	return nil
 }

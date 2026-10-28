@@ -29,6 +29,8 @@ type LaunchStore interface {
 	GetLaunch(context.Context, string) (*TaskLaunch, error)
 	LatestLaunch(context.Context, string) (*TaskLaunch, error)
 	FinishTaskLaunches(context.Context, string, string) error
+	ReconcileOrphanLaunches(context.Context, time.Time) error
+	ReconcileStartupLaunches(context.Context, time.Time) error
 }
 
 func LaunchID(taskID, requestID string) string {
@@ -91,6 +93,22 @@ func (s *Service) FinishTaskLaunches(ctx context.Context, taskID string, finalSt
 		return e
 	}
 	return store.FinishTaskLaunches(ctx, taskID, finalState)
+}
+
+func (s *Service) ReconcileOrphanLaunches(ctx context.Context, now time.Time) error {
+	store, e := launchStore(s)
+	if e != nil {
+		return e
+	}
+	return store.ReconcileOrphanLaunches(ctx, now)
+}
+
+func (s *Service) ReconcileStartupLaunches(ctx context.Context, now time.Time) error {
+	store, e := launchStore(s)
+	if e != nil {
+		return e
+	}
+	return store.ReconcileStartupLaunches(ctx, now)
 }
 
 func (s *Service) IsProjectActive(ctx context.Context, projectID string, excludeTaskID string) (bool, error) {

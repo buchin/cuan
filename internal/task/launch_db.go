@@ -58,6 +58,10 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='The launch window expired before execution could start.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed') AND expires_at<=$1`, now); e != nil {
 		return nil, e
 	}
+	// Reconcile orphan launches whose task is already completed or inactive.
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked','review'))`, now); e != nil {
+		return nil, e
+	}
 	return scanLaunch(s.db.QueryRowContext(ctx, `WITH candidate AS (
 		SELECT id FROM task_launches tl
 		WHERE ($3='' OR tl.id=$3)
@@ -65,8 +69,10 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		  AND ((tl.state='queued' AND tl.available_at<=$1) OR (tl.state='claimed' AND tl.lease_until<=$1))
 		  AND NOT EXISTS (
 			  SELECT 1 FROM task_launches active_tl
+			  LEFT JOIN tasks active_task ON active_task.id = active_tl.task_id
 			  WHERE active_tl.project_id = tl.project_id
 			    AND active_tl.id != tl.id
+			    AND (active_task.id IS NULL OR active_task.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review'))
 			    AND (
 				    active_tl.state = 'started'
 				    OR (active_tl.state = 'claimed' AND active_tl.lease_until > $1)
@@ -81,6 +87,14 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		ORDER BY tl.available_at, tl.id
 		FOR UPDATE SKIP LOCKED LIMIT 1
 	) UPDATE task_launches SET state='claimed',lease_token=$2,lease_until=$1+INTERVAL '1 minute',checks=checks+1,updated_at=$1 WHERE id=(SELECT id FROM candidate) RETURNING `+launchColumns, now, token, id))
+}
+func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed','blocked','review'))`, now)
+	return err
+}
+func (s *DBStore) ReconcileStartupLaunches(ctx context.Context, now time.Time) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution stopped during server restart.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('started','claimed')`, now)
+	return err
 }
 func (s *DBStore) FinishTaskLaunches(ctx context.Context, taskID string, finalState string) error {
 	if !validLaunchFinish(finalState) && finalState != "cancelled" {

@@ -326,3 +326,159 @@ func TestTaskTransitionAutoCleansLaunches(t *testing.T) {
 		t.Fatalf("expected project to be free/inactive, but got active=%v", active)
 	}
 }
+
+func TestClaimLaunchDoesNotBlockOnOrphanStartedLaunch(t *testing.T) {
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	ctx := context.Background()
+	projectID := "proj-orphan-test"
+
+	t1, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:        "Task 1",
+		Instructions: "First task",
+		ProjectIDs:   []string{projectID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	l1, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           t1.ID,
+		ProjectID:        projectID,
+		RequestID:        "req-orphan-1",
+		SourceRequestID:  "req-source-orphan-1",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash(t1.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Claim and start l1
+	claimed1, err := svc.ClaimLaunch(ctx, now, "worker-1")
+	if err != nil || claimed1 == nil || claimed1.ID != l1.ID {
+		t.Fatalf("expected claimed l1, got %v, err=%v", claimed1, err)
+	}
+	if err := svc.FinishLaunch(ctx, claimed1.ID, claimed1.LeaseToken, "started", now, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate orphan condition: task 1 became done without finishing the launch (e.g., server restart or external update)
+	doneTask, err := store.GetTask(ctx, t1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doneTask.Status = TaskStatusDone
+	if err := store.UpdateTask(ctx, doneTask); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create Task 2 in the same project
+	t2, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:        "Task 2",
+		Instructions: "Second task",
+		ProjectIDs:   []string{projectID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l2, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           t2.ID,
+		ProjectID:        projectID,
+		RequestID:        "req-orphan-2",
+		SourceRequestID:  "req-source-orphan-2",
+		OwnerID:          "owner",
+		RoomID:           "room-2",
+		AgentID:          "agent-2",
+		InstructionsHash: LaunchInstructionsHash(t2.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ClaimLaunch should NOT be blocked by l1 because t1 is done. It should claim l2!
+	claimed2, err := svc.ClaimLaunch(ctx, now, "worker-2")
+	if err != nil {
+		t.Fatalf("unexpected error claiming launch: %v", err)
+	}
+	if claimed2 == nil {
+		t.Fatal("expected l2 to be claimed, but ClaimLaunch returned nil (blocked by orphan launch)")
+	}
+	if claimed2.ID != l2.ID {
+		t.Fatalf("expected claimed launch %s, got %s", l2.ID, claimed2.ID)
+	}
+
+	// Verify l1 was reconciled to stopped
+	reconciledL1, err := svc.GetLaunch(ctx, l1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reconciledL1.State != "stopped" {
+		t.Fatalf("expected orphan launch l1 to be reconciled to 'stopped', got '%s'", reconciledL1.State)
+	}
+}
+
+func TestReconcileStartupAndOrphanLaunches(t *testing.T) {
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	ctx := context.Background()
+	projectID := "proj-startup-reconcile"
+
+	t1, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:        "Task 1",
+		Instructions: "Task before crash",
+		ProjectIDs:   []string{projectID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	l1, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           t1.ID,
+		ProjectID:        projectID,
+		RequestID:        "req-crash-1",
+		SourceRequestID:  "req-source-crash-1",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash(t1.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	claimed1, err := svc.ClaimLaunch(ctx, now, "worker-1")
+	if err != nil || claimed1 == nil {
+		t.Fatalf("failed to claim l1: %v", err)
+	}
+	if err := svc.FinishLaunch(ctx, claimed1.ID, claimed1.LeaseToken, "started", now, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reconcile startup launches
+	if err := svc.ReconcileStartupLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileStartupLaunches failed: %v", err)
+	}
+
+	l1After, err := svc.GetLaunch(ctx, l1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l1After.State != "stopped" {
+		t.Fatalf("expected l1 state 'stopped' after startup reconciliation, got '%s'", l1After.State)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 )
 
 func TestProjectTasks_CRUD(t *testing.T) {
@@ -463,5 +464,187 @@ func TestProjectTasks_V1AliasEndpoints(t *testing.T) {
 func strPtr(s string) *string {
 	return &s
 }
+
+func TestProjectTasks_PatchStatusCleansLaunchesAndKicksQueue(t *testing.T) {
+	s := newTestServerWithMemoryDB(t)
+	projectID := "proj_11112222333344445555666677778888"
+	ctx := context.Background()
+
+	if _, err := s.projectSvc.CreateManagedWorkspace(ctx, projectID, "Test Project"); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Create Task 1
+	t1 := &db.ProjectTask{
+		ProjectID: projectID,
+		Title:     "Task 1",
+		Status:    "doing",
+	}
+	if err := s.ProjectStudioRepository().CreateTask(ctx, t1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{
+		ID:           t1.ID,
+		ProjectID:    projectID,
+		Title:        t1.Title,
+		Status:       task.TaskStatusDoing,
+		Instructions: "instructions",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Save launch for Task 1, claim and start it
+	now := time.Now().UTC()
+	l1, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{
+		TaskID:           t1.ID,
+		ProjectID:        projectID,
+		RequestID:        "req-patch-1",
+		SourceRequestID:  "req-source-patch-1",
+		OwnerID:          "owner",
+		RoomID:           "room-patch-1",
+		AgentID:          "agent-1",
+		InstructionsHash: task.LaunchInstructionsHash("instructions"),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed1, err := s.taskSvc.ClaimLaunch(ctx, now, "worker-1")
+	if err != nil || claimed1 == nil {
+		t.Fatalf("failed to claim l1: %v", err)
+	}
+	if err := s.taskSvc.FinishLaunch(ctx, claimed1.ID, claimed1.LeaseToken, "started", now, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. Patch Task 1 status to "done"
+	patchBody, _ := json.Marshal(map[string]interface{}{"status": "done"})
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/projects/tasks/%s/status", t1.ID), bytes.NewReader(patchBody))
+	rec := httptest.NewRecorder()
+	s.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on patch status, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 4. Verify launch 1 was finished to stopped
+	gotL1, err := s.taskSvc.GetLaunch(ctx, l1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotL1.State != "stopped" {
+		t.Fatalf("expected l1 state to be 'stopped', got '%s'", gotL1.State)
+	}
+
+	// 5. Create Task 2 and verify its launch can now be claimed
+	t2 := &db.ProjectTask{
+		ProjectID: projectID,
+		Title:     "Task 2",
+		Status:    "queued",
+	}
+	if err := s.ProjectStudioRepository().CreateTask(ctx, t2); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{
+		ID:           t2.ID,
+		ProjectID:    projectID,
+		Title:        t2.Title,
+		Status:       task.TaskStatusQueued,
+		Instructions: "instructions 2",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	l2, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{
+		TaskID:           t2.ID,
+		ProjectID:        projectID,
+		RequestID:        "req-patch-2",
+		SourceRequestID:  "req-source-patch-2",
+		OwnerID:          "owner",
+		RoomID:           "room-patch-2",
+		AgentID:          "agent-2",
+		InstructionsHash: task.LaunchInstructionsHash("instructions 2"),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	claimed2, err := s.taskSvc.ClaimLaunch(ctx, now, "worker-2")
+	if err != nil {
+		t.Fatalf("error claiming launch: %v", err)
+	}
+	if claimed2 == nil || claimed2.ID != l2.ID {
+		t.Fatalf("expected claimed launch %s, got %v", l2.ID, claimed2)
+	}
+}
+
+func TestServerStartup_ReconcilesOrphanLaunches(t *testing.T) {
+	s := newTestServerWithMemoryDB(t)
+	projectID := "proj_22223333444455556666777788889999"
+	ctx := context.Background()
+
+	if _, err := s.projectSvc.CreateManagedWorkspace(ctx, projectID, "Test Project"); err != nil {
+		t.Fatal(err)
+	}
+
+	t1 := &db.ProjectTask{
+		ProjectID: projectID,
+		Title:     "Task 1",
+		Status:    "doing",
+	}
+	if err := s.ProjectStudioRepository().CreateTask(ctx, t1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{
+		ID:           t1.ID,
+		ProjectID:    projectID,
+		Title:        t1.Title,
+		Status:       task.TaskStatusDoing,
+		Instructions: "instructions",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	l1, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{
+		TaskID:           t1.ID,
+		ProjectID:        projectID,
+		RequestID:        "req-startup-1",
+		SourceRequestID:  "req-source-startup-1",
+		OwnerID:          "owner",
+		RoomID:           "room-startup-1",
+		AgentID:          "agent-1",
+		InstructionsHash: task.LaunchInstructionsHash("instructions"),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	claimed1, err := s.taskSvc.ClaimLaunch(ctx, now, "worker-1")
+	if err != nil || claimed1 == nil {
+		t.Fatalf("failed to claim l1: %v", err)
+	}
+	if err := s.taskSvc.FinishLaunch(ctx, claimed1.ID, claimed1.LeaseToken, "started", now, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Trigger startup reconciliation
+	s.reconcileStartupState(ctx)
+
+	gotL1, err := s.taskSvc.GetLaunch(ctx, l1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotL1.State != "stopped" {
+		t.Fatalf("expected launch state to be 'stopped' after startup reconciliation, got '%s'", gotL1.State)
+	}
+}
+
 
 

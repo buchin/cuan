@@ -291,6 +291,10 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		_ = s.taskProjectRepo.SetTaskProjects(r.Context(), id, *req.ProjectIDs)
 	}
 
+	if req.Status != nil {
+		s.kickTaskLaunches()
+	}
+
 	respondJSON(w, http.StatusOK, updated)
 }
 
@@ -308,6 +312,11 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete task: %v", err))
 		return
+	}
+
+	if s.taskSvc != nil {
+		_ = s.taskSvc.FinishTaskLaunches(r.Context(), id, "stopped")
+		s.kickTaskLaunches()
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{

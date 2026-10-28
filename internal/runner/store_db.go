@@ -445,6 +445,9 @@ func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttemp
 		// Set task to review
 		_, _ = s.db.ExecContext(ctx, "UPDATE tasks SET status = 'review', updated_at = $2 WHERE id = $1", a.TaskID, now)
 
+		// Clean up any remaining task launches
+		_, _ = s.db.ExecContext(ctx, "UPDATE task_launches SET state = 'stopped', safe_error = 'Attempt interrupted (lease expired).', lease_token = '', lease_until = NULL, updated_at = $2 WHERE task_id = $1 AND state IN ('queued', 'claimed', 'started')", a.TaskID, now)
+
 		// Set runner to offline
 		_, _ = s.db.ExecContext(ctx, "UPDATE runners SET status = 'offline', current_attempt_id = NULL, current_task_id = NULL, updated_at = $2 WHERE id = $1", a.RunnerID, now)
 

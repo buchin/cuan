@@ -490,6 +490,17 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if s.taskSvc != nil && payload.Status != nil && oldStatus != task.Status {
+		if t, err := s.taskSvc.Store().GetTask(r.Context(), task.ID); err == nil && t != nil {
+			t.Status = task.Status
+			_ = s.taskSvc.Store().UpdateTask(r.Context(), t)
+		}
+		if task.Status == "done" || task.Status == "review" || task.Status == "blocked" || task.Status == "cancelled" || task.Status == "failed" {
+			_ = s.taskSvc.FinishTaskLaunches(r.Context(), task.ID, "stopped")
+			s.kickTaskLaunches()
+		}
+	}
+
 	var dispatchRes *studio.ExecutionDispatchResult
 	if s.agentExecutionHook != nil && task.Status == "doing" && oldStatus != "doing" {
 		dispatchRes, _ = s.agentExecutionHook.OnTaskStatusChanged(r.Context(), task, oldStatus, task.Status)
@@ -578,6 +589,17 @@ func (s *Server) handlePatchProjectTaskStatus(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if s.taskSvc != nil {
+		if t, err := s.taskSvc.Store().GetTask(r.Context(), taskID); err == nil && t != nil {
+			t.Status = normStatus
+			_ = s.taskSvc.Store().UpdateTask(r.Context(), t)
+		}
+		if normStatus == "done" || normStatus == "review" || normStatus == "blocked" || normStatus == "cancelled" || normStatus == "failed" {
+			_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "stopped")
+			s.kickTaskLaunches()
+		}
+	}
+
 	task, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID)
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, "failed to get updated project task: "+err.Error())
@@ -646,6 +668,11 @@ func (s *Server) handleDeleteProjectTask(w http.ResponseWriter, r *http.Request)
 		}
 		respondJSONError(w, http.StatusInternalServerError, "failed to delete project task: "+err.Error())
 		return
+	}
+
+	if s.taskSvc != nil {
+		_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "stopped")
+		s.kickTaskLaunches()
 	}
 
 	if s.roomEventBroker != nil && task.RoomID != nil && *task.RoomID != "" {

@@ -302,6 +302,9 @@ func (m *MemoryStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAt
 				t.Status = task.TaskStatusReview
 				t.UpdatedAt = now
 				_ = m.taskStore.UpdateTask(ctx, t)
+				if ls, ok := m.taskStore.(task.LaunchStore); ok {
+					_ = ls.FinishTaskLaunches(ctx, t.ID, "stopped")
+				}
 
 				// Update runner
 				if r, exists := m.runners[a.RunnerID]; exists {

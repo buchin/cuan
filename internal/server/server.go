@@ -572,7 +572,20 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	s.routes()
 	s.setupStaticRoutes()
 	s.SetExtensionRegistry(s.extensions)
+	s.reconcileStartupState(context.Background())
 	return s
+}
+
+func (s *Server) reconcileStartupState(ctx context.Context) {
+	now := time.Now().UTC()
+	if s.taskSvc != nil {
+		_ = s.taskSvc.ReconcileStartupLaunches(ctx, now)
+		_ = s.taskSvc.ReconcileOrphanLaunches(ctx, now)
+	}
+	if s.runnerSvc != nil {
+		_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
+	}
+	s.kickTaskLaunches()
 }
 
 func (s *Server) Router() http.Handler {
