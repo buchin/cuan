@@ -44,6 +44,7 @@ export function InboxActivity({
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
   const hasQuotaCooldown = q.steps?.some((step) => step.kind === 'provider_cooldown' || /usage limit|quota/i.test(step.text))
+  const isToolBudget = recovery === 'continue_analysis' || /tool budget/i.test(q.safe_error || '') || q.steps?.some((step) => step.kind === 'runtime_tool_budget_exceeded' || /tool budget|tool limit/i.test(step.text))
   const accessBlocked = recovery === 'check_usage' || hasQuotaCooldown || /usage limit|quota|location restriction|No allowed account\/model route/i.test(q.safe_error || '')
   const recover = async (action: () => Promise<void>) => {
     if (recovering) return
@@ -51,7 +52,14 @@ export function InboxActivity({
     setError('')
     setRecoveryStatus('')
     try { await action(); if (action === onCheckStatus) setRecoveryStatus(t('Status is up to date.')) }
-    catch { setError(t('Could not confirm recovery. Check status before trying again.')) }
+    catch (err: any) {
+      const msg = err?.message || ''
+      if (/cannot be safely repeated/i.test(msg)) {
+        setError(t('This attempt cannot be safely repeated. Check its status and details.'))
+      } else {
+        setError(t('Could not confirm recovery. Check status before trying again.'))
+      }
+    }
     finally { setRecovering(false) }
   }
 
@@ -71,6 +79,7 @@ export function InboxActivity({
         'runtime_tool_finished',
         'runtime_tool_failed',
         'runtime_permission_denied',
+        'runtime_tool_budget_exceeded',
         'result_validation',
         'persistence',
       ].includes(step.kind),
@@ -430,11 +439,13 @@ export function InboxActivity({
           <p className="mb-1 max-w-prose text-muted-foreground">
             {t(recovery === 'recovering' ? 'Your message is saved.' : accessBlocked
               ? 'All connected AI accounts reached provider usage limits. Your message is saved.'
-              : recovery === 'try_again'
-                ? 'Your message is saved. You can try again.'
-                : recovery === 'check_agent'
-                  ? 'Check the agent connection before trying again.'
-                  : (q.safe_error || 'Your reply stopped. Your message is saved.'))}
+              : isToolBudget
+                ? 'The tool budget was reached for this turn. Your message is saved.'
+                : recovery === 'try_again'
+                  ? 'Your message is saved. You can try again.'
+                  : recovery === 'check_agent'
+                    ? 'Check the agent connection before trying again.'
+                    : (q.safe_error || 'Your reply stopped. Your message is saved.'))}
           </p>
           {accessBlocked && (
             accountJustConnected ? (
@@ -505,7 +516,27 @@ export function InboxActivity({
               }}
             />
           )}
-          {!accessBlocked && recovery === 'try_again' && onRetry ? (
+          {!accessBlocked && isToolBudget && onRetry ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={recovering}
+                className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-foreground underline underline-offset-4 disabled:opacity-50"
+                onClick={() => void recover(onRetry)}
+              >
+                {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
+                {t(recovering ? 'Continuing analysis…' : 'Continue analysis')}
+              </button>
+              <button
+                type="button"
+                disabled={recovering}
+                className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+                onClick={() => void recover(onRetry)}
+              >
+                {t(recovering ? 'Trying again…' : 'Try again')}
+              </button>
+            </div>
+          ) : !accessBlocked && recovery === 'try_again' && onRetry ? (
             <button
               type="button"
               disabled={recovering}

@@ -20,6 +20,7 @@ import (
 type inboxSchemaRetryKey struct{}
 type inboxAnalysisRecoveryKey struct{}
 type inboxCoordinatorDirectKey struct{}
+type inboxToolBudgetRecoveryKey struct{}
 type commandCodeAPIKeyContext struct{}
 
 // boundedInboxOutput prevents noisy subprocesses exhausting server memory.
@@ -84,11 +85,15 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
 	directCoordinator, _ := ctx.Value(inboxCoordinatorDirectKey{}).(bool)
+	toolBudgetRecovery, _ := ctx.Value(inboxToolBudgetRecoveryKey{}).(bool)
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	system := inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nContext data:\n" + prompt
 	if directCoordinator {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted during project analysis. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). As Scrum Master, manage the dev team directly:\n- NEVER ask the user to provide manual screenshots, inspect runner status, copy-paste code, or manually inspect repository files. You have live runner and queue state visibility in Project Runner State & Concurrency Lock.\n- If the analysis requires deep investigation, the user reports an error/failure, or the user authorized work ('gas', 'lanjut', 'fixit', 'perbaiki', 'investigasi', etc.), smoothly delegate to an autonomous analysis or repair session ('Sesi Analisis Mandiri') by emitting a delegation action immediately so the dev runner executes it.\n- If the user uses affirmative triggers or reminds you of your role ('kan ente sm'), never ask '\"Gas\" ke mana?' or deflect; proactively synthesize the discussed topics into a plan with Scope & DoD and emit an approval or delegation action. Never deflect or give manual troubleshooting checklists to the user.\n- If proposing a plan, fix, code change, repair steps, deep analysis, or next steps, you MUST emit an approval or task_draft action object matching the schema so the UI renders interactive choice buttons. Never output repair or analysis recommendations without an action approval object. Never tell the user to manually open, create or run tasks.\n- If the user reports that previously approved work or Definition of Done criteria were incomplete, missing, or not finished ('belum selesai', 'ada yang belum terpenuhi', 'tidak semua kesepakatan terpenuhi'), DO NOT emit an approval card for a new plan; directly emit a delegation action with task_id, project_id, authorization_message_id, and revision to resume/return the task to the dev runner immediately.\n\nContext data:\n" + prompt
+	}
+	if toolBudgetRecovery {
+		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxAnalysisRecoverySchema + "\n\n" + inboxToolBudgetRecoveryInstruction + "\n\nContext data:\n" + prompt
 	}
 	if analysisRecovery {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
@@ -103,7 +108,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if !coordinator {
 			return reply, ""
 		}
-		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
+		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || toolBudgetRecovery)
 		if err != nil {
 			if harness == "commandcode" && strings.TrimSpace(reply) != "" {
 				cleanRaw := strings.TrimSpace(reply)
@@ -159,11 +164,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
 		timeout := "180s"
-		if directCoordinator {
+		if directCoordinator || toolBudgetRecovery {
 			timeout = "60s"
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
-		if workspace != "" {
+		if workspace != "" && !directCoordinator && !toolBudgetRecovery {
 			args = append(args, "--add-dir", workspace)
 		}
 		if answerOnly {
@@ -171,7 +176,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
-		} else if analysisRecovery {
+		} else if analysisRecovery || toolBudgetRecovery {
 			args = append(args, "--json-schema", inboxAnalysisRecoverySchema)
 		} else if coordinator {
 			args = append(args, "--json-schema", inboxCoordinatorSchema)
@@ -188,7 +193,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	default:
 		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, Codex, or CommandCode agent."
 	}
-	if (answerOnly || snapshotReview) && binary == "claude" {
+	if (answerOnly || snapshotReview || directCoordinator || toolBudgetRecovery) && binary == "claude" {
 		args = []string{"-p", "--tools", "", "--output-format", "text", system}
 	}
 	for _, file := range attachmentPaths {
@@ -296,13 +301,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
 		maxTools := 0
-		if coordinator && !directCoordinator {
+		if coordinator && !directCoordinator && !toolBudgetRecovery {
 			maxTools = 12
 		}
 		runtime = &inboxRuntimeStream{
 			step:          step,
 			maxToolCalls:  maxTools,
-			disallowTools: directCoordinator,
+			disallowTools: directCoordinator && !toolBudgetRecovery,
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()
@@ -388,14 +393,36 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
 			if step != nil {
-				step("response_recovery", "The previous tool attempt exceeded budget or encountered an issue. Answering directly from conversation context with structured actions.")
+				if reason == "tool_budget_exceeded" {
+					step("response_recovery", "Chat tool budget reached. Synthesizing findings directly from conversation context with action: null.")
+				} else {
+					step("response_recovery", "The previous tool attempt exceeded budget or encountered an issue. Answering directly from conversation context with structured actions.")
+				}
 			}
 			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
 			repairCtx = context.WithValue(repairCtx, inboxCoordinatorDirectKey{}, true)
+			if reason == "tool_budget_exceeded" {
+				repairCtx = context.WithValue(repairCtx, inboxToolBudgetRecoveryKey{}, true)
+			}
 			recoverySafe := false
 			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, &recoverySafe, attachmentPaths...)
 			if err == "" && output != "" {
 				return output, ""
+			}
+			if reason == "tool_budget_exceeded" {
+				// Prevent fatal rejection: synthesize a safe cut-off response directly with action: null.
+				fallbackReply := "Pemeriksaan tool telah mencapai batas kuota turn ini (12 tool calls). Analisis terpotong sebelum selesai seluruhnya. Dari data dan konteks yang terkumpul, Anda dapat memilih **Lanjutkan Analisis** atau **Coba Lagi** di bawah untuk melanjutkan pengambilan data lanjutan."
+				fallbackJSON, _ := json.Marshal(map[string]any{
+					"reply":       fallbackReply,
+					"topic_title": "",
+					"action":      nil,
+				})
+				if out, decodeErr := decodeInboxCoordinatorResponseForMode(string(fallbackJSON), true); decodeErr == nil && out != "" {
+					if step != nil {
+						step("response_recovery_fallback", "Tool budget was reached. Synthesized a safe cut-off response from available context.")
+					}
+					return out, ""
+				}
 			}
 		}
 
@@ -411,8 +438,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		labels := map[string]string{"coordinator_invalid": "The coordinator response could not be validated.", "coordinator_tool_rejected": "A tool action outside the chat workflow was rejected.", "runtime_missing_result": "The runtime stopped without a final result.", "runtime_invalid": "Could not validate runtime events.", "runtime_overflow": "Runtime activity size limit reached.", "runtime_process_failure": "Runtime process failed.", "runtime_interrupted": "The process was interrupted or timed out.", "provider_failure": "The provider reported a failure.", "provider_timeout": "The provider timed out.", "tool_permission_denied": "Tool permission denied. The runtime stopped without a reply.", "tool_budget_exceeded": "The chat tool budget was reached.", "empty_response": "The provider returned no reply text.", "invalid_result": "Invalid runtime final result.", "empty_output": "The runtime returned no final result."}
 		if step != nil {
 			step("result_validation", labels[reason])
-			if (reason == "provider_failure" || reason == "empty_response") && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
-				step("recovery_safe", "No action was performed. A new reply attempt is available.")
+			if (reason == "provider_failure" || reason == "empty_response" || reason == "tool_budget_exceeded") && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+				step("recovery_safe", "No modifying action was performed. A new reply attempt is available.")
 			}
 		}
 		log.Printf("inbox runtime result rejected reason=%s bytes=%d events=%d tool_failures=%d", reason, runtime.bytes, runtime.events, runtime.toolFailures)

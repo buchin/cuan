@@ -151,3 +151,96 @@ ID pesan target: target`
 	}
 	t.Log("Actual executeInboxCLI returned a valid contextual draft; no task created, no message replay")
 }
+
+func TestInboxCLIToolBudgetExceededGracefulRecovery(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	// Mock agy: on first run emits 13 tools to trigger tool budget exceeded.
+	// On second run (recovery), it synthesizes a direct answer with action: null.
+	script := `#!/bin/sh
+count_file="$HOME/tool_run_count"
+count=0
+if [ -f "$count_file" ]; then
+    count=$(cat "$count_file")
+fi
+count=$((count + 1))
+echo "$count" > "$count_file"
+
+if [ "$count" -eq 1 ]; then
+    # First invocation: emit 13 tool calls to exceed 12 tool budget
+    i=1
+    while [ "$i" -le 13 ]; do
+        printf '{"event":"step_update","step_update":{"step_index":%d,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}\n' "$i"
+        printf '{"event":"step_update","step_update":{"step_index":%d,"state":"DONE","step_type":"tool","tool_name":"read_file"}}\n' "$i"
+        i=$((i + 1))
+    done
+    # Sleep to allow cancellation
+    sleep 2
+    exit 0
+else
+    # Second invocation (recovery): return direct synthesis with action: null
+    printf '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Analisis komponen filter tasks telah diperiksa sebagian dari konteks yang ada.\",\"topic_title\":\"\",\"action\":null}"}}\n'
+    exit 0
+fi
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	var trace []string
+	safe := false
+	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Quick filter perlu perbaikan?", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) }, &safe)
+
+	if failure != "" {
+		t.Fatalf("expected graceful recovery without fatal failure, got failure: %q", failure)
+	}
+	if out == "" || !strings.Contains(out, "Analisis komponen filter tasks") {
+		t.Fatalf("expected synthesized reply in output, got: %q", out)
+	}
+	if strings.Contains(out, "```cuan-") {
+		t.Fatalf("expected action: null with no action markers, got: %q", out)
+	}
+
+	joined := strings.Join(trace, "\n")
+	if !strings.Contains(joined, "runtime_tool_budget_exceeded") {
+		t.Fatalf("expected runtime_tool_budget_exceeded trace, got: %s", joined)
+	}
+	if !strings.Contains(joined, "response_recovery") {
+		t.Fatalf("expected response_recovery trace, got: %s", joined)
+	}
+}
+
+func TestInboxCLIToolBudgetExceededFallbackWhenRecoveryFails(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	// Mock agy: both attempts exceed budget / fail. Fallback should still synthesize safely with action: null.
+	script := `#!/bin/sh
+i=1
+while [ "$i" -le 13 ]; do
+    printf '{"event":"step_update","step_update":{"step_index":%d,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}\n' "$i"
+    printf '{"event":"step_update","step_update":{"step_index":%d,"state":"DONE","step_type":"tool","tool_name":"read_file"}}\n' "$i"
+    i=$((i + 1))
+done
+sleep 2
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	var trace []string
+	safe := false
+	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Quick filter perlu perbaikan?", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) }, &safe)
+
+	if failure != "" {
+		t.Fatalf("expected graceful fallback without fatal failure, got failure: %q", failure)
+	}
+	if out == "" || !strings.Contains(out, "Pemeriksaan tool telah mencapai batas kuota turn ini") {
+		t.Fatalf("expected graceful fallback message in output, got: %q", out)
+	}
+	if strings.Contains(out, "```cuan-") {
+		t.Fatalf("expected action: null with no action markers, got: %q", out)
+	}
+}

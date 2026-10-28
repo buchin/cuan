@@ -17,6 +17,8 @@ func TestInboxRecoveryPolicy(t *testing.T) {
 		{"login", "failed", "Check the provider's sign-in status.", "", "check_agent"},
 		{"unknown", "failed", "The result is unknown.", "recovery_safe", "check_status"},
 		{"tool", "failed", "The provider could not reply.", "runtime_tool_started", "check_status"},
+		{"tool_budget_error", "failed", "Provider tool budget exceeded for chat.", "runtime_tool_started", "continue_analysis"},
+		{"tool_budget_step", "failed", "The provider could not reply.", "runtime_tool_budget_exceeded", "continue_analysis"},
 		{"legacy", "failed", "Something failed.", "", "check_status"},
 		{"interrupted", "interrupted", "", "recovery_safe", "check_status"},
 		{"done", "completed", "", "recovery_safe", ""},
@@ -310,5 +312,48 @@ func TestManualRetryPermitsUsageAndAgentFailures(t *testing.T) {
 	childInterrupted, createdInterrupted, err := r.RetryInboxRequest(ctx, interruptedReq.RoomID, interruptedReq.RequestID, interruptedReq.OwnerID)
 	if err != nil || !createdInterrupted || childInterrupted.State != "queued" {
 		t.Fatalf("expected manual retry to succeed for interrupted, got child=%+v, created=%v, err=%v", childInterrupted, createdInterrupted, err)
+	}
+}
+
+func TestInboxRetryOnToolBudgetExceeded(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	r := NewMemoryProjectStudioRepository()
+
+	req := InboxRequest{
+		RoomID:    "room-budget",
+		RequestID: "req-budget-1",
+		MessageID: "msg-budget",
+		OwnerID:   "owner1",
+		AgentID:   "agent1",
+		State:     "failed",
+		SafeError: "Provider tool budget exceeded for chat.",
+		CreatedAt: now,
+		Steps: []InboxStep{
+			{Seq: 1, Kind: "runtime_tool_started", Text: "Tool #1 · read_file started.", At: now},
+			{Seq: 2, Kind: "runtime_tool_finished", Text: "Tool #1 · read_file finished.", At: now},
+			{Seq: 3, Kind: "runtime_tool_budget_exceeded", Text: "Tool limit of 12 calls reached for coordinator chat. Finishing response.", At: now},
+			{Seq: 4, Kind: "recovery_safe", Text: "No modifying action was performed. A new reply attempt is available.", At: now},
+		},
+	}
+	r.AcceptInboxRequest(ctx, req, &ProjectMessage{ID: req.MessageID, RoomID: req.RoomID, Content: "test tool budget query", CreatedAt: now})
+
+	action := InboxRecoveryAction(req)
+	if action != "continue_analysis" {
+		t.Fatalf("expected recovery action 'continue_analysis', got %q", action)
+	}
+
+	child, created, err := r.RetryInboxRequest(ctx, req.RoomID, req.RequestID, req.OwnerID)
+	if err != nil {
+		t.Fatalf("expected retry to succeed on tool budget exceeded, got err: %v", err)
+	}
+	if !created {
+		t.Fatalf("expected child request to be newly created")
+	}
+	if child.State != "queued" {
+		t.Fatalf("expected child request to be queued, got state: %s", child.State)
+	}
+	if child.MessageID != req.MessageID {
+		t.Fatalf("expected child request to keep original message ID %s, got %s", req.MessageID, child.MessageID)
 	}
 }

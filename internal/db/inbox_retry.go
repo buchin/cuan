@@ -23,9 +23,15 @@ func InboxRecoveryAction(q InboxRequest) string {
 	}
 	safe, observedTool := false, false
 	hasQuotaCooldown := false
+	hasPermissionDenied := false
+	hasToolBudgetExceeded := false
 	for _, step := range q.Steps {
 		if step.Kind == "runtime_permission_denied" {
+			hasPermissionDenied = true
 			return "check_status"
+		}
+		if step.Kind == "runtime_tool_budget_exceeded" || strings.Contains(strings.ToLower(step.Text), "tool budget") || strings.Contains(strings.ToLower(step.Text), "tool limit") {
+			hasToolBudgetExceeded = true
 		}
 		if step.Kind == "provider_cooldown" || strings.Contains(strings.ToLower(step.Text), "usage limit") || strings.Contains(strings.ToLower(step.Text), "quota") {
 			hasQuotaCooldown = true
@@ -41,12 +47,15 @@ func InboxRecoveryAction(q InboxRequest) string {
 			safe = true
 		}
 	}
+	lower := strings.ToLower(q.SafeError)
+	if (hasToolBudgetExceeded || strings.Contains(lower, "tool budget")) && !hasPermissionDenied {
+		return "continue_analysis"
+	}
 	// The executor emits recovery_safe only after a verified final result with
 	// no unsafe/unknown tool activity. Earlier tool entries alone are not proof.
 	if observedTool && !safe {
 		return "check_status"
 	}
-	lower := strings.ToLower(q.SafeError)
 	if strings.Contains(lower, "location restriction") {
 		return "check_status"
 	}
@@ -171,7 +180,7 @@ func (r *MemoryProjectStudioRepository) retryInboxRequest(ctx context.Context, r
 		}
 	} else {
 		action := InboxRecoveryAction(q)
-		if action != "try_again" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
+		if action != "try_again" && action != "continue_analysis" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
 			return q, false, ErrInboxRetryUnavailable
 		}
 	}
@@ -260,7 +269,7 @@ func (r *SQLProjectStudioRepository) retryInboxRequest(ctx context.Context, room
 		}
 	} else {
 		action := InboxRecoveryAction(q)
-		if action != "try_again" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
+		if action != "try_again" && action != "continue_analysis" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
 			return q, false, ErrInboxRetryUnavailable
 		}
 	}
