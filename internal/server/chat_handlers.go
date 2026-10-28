@@ -865,7 +865,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
-			tc, at := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			tc, at, dt, ft := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
 			custContact := ChatContact{
 				ID:             "cust_" + sess.UUID,
 				Type:           "customer",
@@ -886,6 +886,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				PageTitle:      pageTitle,
 				TaskCount:      tc,
 				ActiveTasks:    at,
+				DoneTasks:      dt,
+				FailedTasks:    ft,
 			}
 			contacts = append(contacts, custContact)
 		}

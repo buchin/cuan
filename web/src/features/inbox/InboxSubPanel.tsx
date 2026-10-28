@@ -402,7 +402,6 @@ export function InboxSubPanel({
             const doneTasks = typeof contact.done_tasks === 'number'
               ? contact.done_tasks
               : Math.max(0, totalTasks - activeTasks - failedTasks)
-            const taskBadgeCount = activeTasks > 0 ? activeTasks : (doneTasks > 0 ? doneTasks : totalTasks)
             const hasTasks = totalTasks > 0 || activeTasks > 0 || doneTasks > 0 || failedTasks > 0
 
             const rawAgent = contact.agent_name || ''
