@@ -62,6 +62,17 @@ func TestWorkspaceRetentionProtectsLocalFiles(t *testing.T) {
 	if inspect("done", old, false, head).Eligible {
 		t.Fatal("tracked edits eligible")
 	}
+	if inspect("cancelled", now, false, head).Eligible {
+		t.Fatal("dirty cancelled task eligible")
+	}
+	// Revert gitignore so working tree is clean again
+	run("checkout", ".gitignore")
+	if !inspect("cancelled", now, false, head).Eligible {
+		t.Fatal("clean cancelled task not eligible")
+	}
+	if inspect("cancelled", now, true, head).Eligible {
+		t.Fatal("active cancelled task eligible")
+	}
 }
 
 func TestWorkspaceRetentionPeriodConfigurable(t *testing.T) {
@@ -72,5 +83,9 @@ func TestWorkspaceRetentionPeriodConfigurable(t *testing.T) {
 	t.Setenv("CUAN_WORKSPACE_RETENTION_HOURS", "24")
 	if p := WorkspaceRetentionPeriod(); p != 24*time.Hour {
 		t.Fatalf("expected 24 hours, got %v", p)
+	}
+	t.Setenv("CUAN_WORKSPACE_RETENTION_HOURS", "0")
+	if p := WorkspaceRetentionPeriod(); p != 0 {
+		t.Fatalf("expected 0 duration for immediate retention, got %v", p)
 	}
 }

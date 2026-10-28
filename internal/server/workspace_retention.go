@@ -30,8 +30,12 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 	if s.projectSvc == nil || s.taskSvc == nil || s.terminalManager == nil {
 		return cursor
 	}
-	items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: "done"})
-	if err != nil || len(items) == 0 {
+	doneItems, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: "done"})
+	cancelledItems, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: "cancelled"})
+	var items []*task.TaskItemResponse
+	items = append(items, doneItems...)
+	items = append(items, cancelledItems...)
+	if len(items) == 0 {
 		return cursor
 	}
 	count := len(items)
@@ -42,7 +46,10 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 	for i := 0; i < count; i++ {
 		item := items[cursor%len(items)]
 		cursor++
-		if now.Sub(item.UpdatedAt) < period || item.ProjectID == "" {
+		if item.Status == "done" && now.Sub(item.UpdatedAt) < period {
+			continue
+		}
+		if item.ProjectID == "" {
 			continue
 		}
 		runCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -54,10 +61,15 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 					return project.WorkspaceRetirementState{}, e
 				}
 				state := project.WorkspaceRetirementState{Status: latest.Status, UpdatedAt: latest.UpdatedAt}
-				if latest.Status != "done" || now.Sub(latest.UpdatedAt) < period {
+				if latest.Status != "done" && latest.Status != "cancelled" && latest.Status != "canceled" {
 					return state, nil
 				}
-				state.RemoteHead, e = s.projectSvc.ConfirmTaskRemoteHead(runCtx, item.ID, p)
+				if latest.Status == "done" && now.Sub(latest.UpdatedAt) < period {
+					return state, nil
+				}
+				if latest.Status == "done" {
+					state.RemoteHead, e = s.projectSvc.ConfirmTaskRemoteHead(runCtx, item.ID, p)
+				}
 				return state, e
 			})
 		}

@@ -12,9 +12,10 @@ import (
 
 // WorkspaceRetentionPeriod returns the duration completed workspaces are retained.
 // Defaults to 7 days, configurable via CUAN_WORKSPACE_RETENTION_HOURS.
+// Setting CUAN_WORKSPACE_RETENTION_HOURS=0 allows immediate retirement.
 func WorkspaceRetentionPeriod() time.Duration {
 	if val := os.Getenv("CUAN_WORKSPACE_RETENTION_HOURS"); val != "" {
-		if h, err := strconv.Atoi(val); err == nil && h > 0 {
+		if h, err := strconv.Atoi(val); err == nil && h >= 0 {
 			return time.Duration(h) * time.Hour
 		}
 	}
@@ -38,10 +39,12 @@ func InspectWorkspaceRetention(ctx context.Context, path, status string, updated
 	if active {
 		return keep("execution_active")
 	}
-	if status != "done" {
+	isDone := status == "done"
+	isCancelled := status == "cancelled" || status == "canceled"
+	if !isDone && !isCancelled {
 		return keep("task_not_done")
 	}
-	if updatedAt.IsZero() || now.Sub(updatedAt) < WorkspaceRetentionPeriod() {
+	if isDone && (updatedAt.IsZero() || now.Sub(updatedAt) < WorkspaceRetentionPeriod()) {
 		return keep("retention_period")
 	}
 	run := func(args ...string) (string, error) {
@@ -61,7 +64,7 @@ func InspectWorkspaceRetention(ctx context.Context, path, status string, updated
 	if dirty != "" {
 		return keep("local_files_retained")
 	}
-	if confirmedRemoteHead == "" || confirmedRemoteHead != head {
+	if isDone && (confirmedRemoteHead == "" || confirmedRemoteHead != head) {
 		return keep("remote_copy_unverified")
 	}
 	return WorkspaceRetentionDecision{Eligible: true, Reason: "clean_remote_copy_confirmed", Head: head}, nil
