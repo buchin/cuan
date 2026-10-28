@@ -62,10 +62,10 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 			if s.runnerSvc != nil {
 				_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
 			}
+			s.kickTaskLaunches()
 			if s.projectStudioRepo == nil {
 				return
 			}
-			s.kickTaskLaunches()
 			s.deliverInboxTaskUpdates(ctx)
 			rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
 			if err != nil {

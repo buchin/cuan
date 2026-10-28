@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -136,16 +137,25 @@ func (s *Server) kickTaskLaunches() {
 	if _, loaded := s.inboxWorkers.LoadOrStore(key, true); loaded {
 		return
 	}
-	go func() { defer s.inboxWorkers.Delete(key); s.drainTaskLaunches(context.Background(), time.Now().UTC()) }()
+	go func() {
+		defer s.inboxWorkers.Delete(key)
+		s.drainTaskLaunches(context.Background(), time.Now().UTC())
+	}()
 }
 func (s *Server) drainTaskLaunches(ctx context.Context, now time.Time) {
 	for i := 0; i < 4 && !s.inboxStopping.Load(); i++ {
 		job, e := s.taskSvc.ClaimLaunch(ctx, now, db.GenerateUUID())
-		if e != nil || job == nil {
+		if e != nil {
+			log.Printf("[TaskLaunch] ClaimLaunch error: %v", e)
 			return
 		}
+		if job == nil {
+			return
+		}
+		log.Printf("[TaskLaunch] Claimed launch %s for task %s, starting execution...", job.ID, job.TaskID)
 		run, cancel := context.WithTimeout(ctx, 30*time.Second)
-		s.executeQueuedTaskLaunch(run, *job, true)
+		res := s.executeQueuedTaskLaunch(run, *job, true)
+		log.Printf("[TaskLaunch] executeQueuedTaskLaunch for %s returned: %s", job.ID, res)
 		cancel()
 	}
 }
