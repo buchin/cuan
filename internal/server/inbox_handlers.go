@@ -29,6 +29,7 @@ type InboxThreadItem struct {
 	MessageCount int                   `json:"message_count"`
 	TaskCount    int                   `json:"task_count"`
 	ActiveTasks  int                   `json:"active_tasks"`
+	QueuedTasks  int                   `json:"queued_tasks"`
 	DoneTasks    int                   `json:"done_tasks"`
 	FailedTasks  int                   `json:"failed_tasks"`
 	CreatedAt    time.Time             `json:"created_at"`
@@ -99,6 +100,7 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		tasks, _ := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
 		taskCount := len(tasks)
 		activeTasks := 0
+		queuedTasks := 0
 		doneTasks := 0
 		failedTasks := 0
 		hasDone := false
@@ -113,6 +115,8 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 				hasDone = true
 			} else if st == "blocked" || st == "failed" {
 				failedTasks++
+			} else if st == "queued" || st == "pending" {
+				queuedTasks++
 			} else {
 				activeTasks++
 			}
@@ -132,6 +136,8 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 							hasDone = true
 						} else if stStatus == "blocked" || stStatus == "failed" {
 							failedTasks++
+						} else if stStatus == "queued" || stStatus == "pending" {
+							queuedTasks++
 						} else {
 							activeTasks++
 						}
@@ -184,6 +190,7 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 			MessageCount: messageCount,
 			TaskCount:    taskCount,
 			ActiveTasks:  activeTasks,
+			QueuedTasks:  queuedTasks,
 			DoneTasks:    doneTasks,
 			FailedTasks:  failedTasks,
 			CreatedAt:    rm.CreatedAt,

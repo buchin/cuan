@@ -17,7 +17,7 @@ const chatApiSource = fs.readFileSync(chatApiPath, 'utf8')
 const inboxApiSource = fs.readFileSync(inboxApiPath, 'utf8')
 const inboxViewSource = fs.readFileSync(inboxViewPath, 'utf8')
 
-test('1. ChatContact & InboxThreadItem interfaces define task counters including done and failed', () => {
+test('1. ChatContact & InboxThreadItem interfaces define task counters including queued, done and failed', () => {
   assert.ok(
     chatApiSource.includes('task_count?: number'),
     'ChatContact must define optional task_count'
@@ -25,6 +25,10 @@ test('1. ChatContact & InboxThreadItem interfaces define task counters including
   assert.ok(
     chatApiSource.includes('active_tasks?: number'),
     'ChatContact must define optional active_tasks'
+  )
+  assert.ok(
+    chatApiSource.includes('queued_tasks?: number'),
+    'ChatContact must define optional queued_tasks'
   )
   assert.ok(
     chatApiSource.includes('done_tasks?: number'),
@@ -43,6 +47,10 @@ test('1. ChatContact & InboxThreadItem interfaces define task counters including
     'InboxThreadItem must define optional active_tasks'
   )
   assert.ok(
+    inboxApiSource.includes('queued_tasks?: number'),
+    'InboxThreadItem must define optional queued_tasks'
+  )
+  assert.ok(
     inboxApiSource.includes('done_tasks?: number'),
     'InboxThreadItem must define optional done_tasks'
   )
@@ -52,7 +60,7 @@ test('1. ChatContact & InboxThreadItem interfaces define task counters including
   )
 })
 
-test('2. InboxSubPanel: Lucide icons imported for smart badges (Zap, XCircle, CheckSquare)', () => {
+test('2. InboxSubPanel: Lucide icons imported for smart badges (Zap, Clock, XCircle, CheckSquare)', () => {
   assert.ok(
     subPanelSource.includes('CheckSquare'),
     'InboxSubPanel must import CheckSquare icon from lucide-react'
@@ -60,6 +68,10 @@ test('2. InboxSubPanel: Lucide icons imported for smart badges (Zap, XCircle, Ch
   assert.ok(
     subPanelSource.includes('Zap'),
     'InboxSubPanel must import Zap icon from lucide-react'
+  )
+  assert.ok(
+    subPanelSource.includes('Clock'),
+    'InboxSubPanel must import Clock icon from lucide-react'
   )
   assert.ok(
     subPanelSource.includes('XCircle'),
@@ -72,6 +84,10 @@ test('2. InboxSubPanel: Lucide icons imported for smart badges (Zap, XCircle, Ch
   assert.ok(
     subPanelSource.includes('data-testid="task-badge-active"'),
     'InboxSubPanel must render active task badge with testid task-badge-active'
+  )
+  assert.ok(
+    subPanelSource.includes('data-testid="task-badge-queued"'),
+    'InboxSubPanel must render queued task badge with testid task-badge-queued'
   )
   assert.ok(
     subPanelSource.includes('data-testid="task-badge-done"'),
@@ -89,6 +105,10 @@ test('3. InboxSubPanel: Smart dynamic badges placed beside agent handle with acc
     'Active task badge must include accessible aria-label with active task count'
   )
   assert.ok(
+    subPanelSource.includes('aria-label={`${queuedTasks} queued tasks`}'),
+    'Queued task badge must include accessible aria-label with queued count'
+  )
+  assert.ok(
     subPanelSource.includes('aria-label={`${doneTasks} completed tasks`}'),
     'Done task badge must include accessible aria-label with completed count'
   )
@@ -99,6 +119,10 @@ test('3. InboxSubPanel: Smart dynamic badges placed beside agent handle with acc
   assert.ok(
     subPanelSource.includes('bg-blue-500/15'),
     'Active badge must use blue accent color theme'
+  )
+  assert.ok(
+    subPanelSource.includes('bg-amber-500/15'),
+    'Queued badge must use amber accent color theme'
   )
   assert.ok(
     subPanelSource.includes('bg-emerald-500/15'),
@@ -118,6 +142,10 @@ test('4. InboxView synchronizes activeContact task counts and triggers refresh o
   assert.ok(
     inboxViewSource.includes('activeContact.task_count = data.tasks.length'),
     'InboxView must sync task_count onto activeContact when loading conversation'
+  )
+  assert.ok(
+    inboxViewSource.includes('activeContact.queued_tasks = qt'),
+    'InboxView must sync queued_tasks onto activeContact'
   )
   assert.ok(
     inboxViewSource.includes('activeContact.done_tasks = dt'),

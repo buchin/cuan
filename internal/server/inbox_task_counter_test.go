@@ -193,6 +193,45 @@ func TestInboxTaskCounter_ContactsAndConversationsPayload(t *testing.T) {
 			break
 		}
 	}
+
+	// 8. Create a queued task linked to targetRoomID and verify queued_tasks=1, active_tasks=0
+	_, err = srv.taskSvc.CreateTask(context.Background(), "owner", task.CreateTaskRequest{
+		SourceRoomID: targetRoomID,
+		ProjectID:    "default",
+		Title:        "Queued background analysis",
+		Instructions: "Verify queued status counting",
+		Status:       task.TaskStatusQueued,
+	})
+	if err != nil {
+		t.Fatalf("failed to create queued task: %v", err)
+	}
+
+	recQueued := httptest.NewRecorder()
+	reqQueued := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts", nil)
+	reqQueued.Header.Set("Authorization", "Bearer "+token)
+	srv.Router().ServeHTTP(recQueued, reqQueued)
+
+	var respQueued struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	_ = json.Unmarshal(recQueued.Body.Bytes(), &respQueued)
+	for _, c := range respQueued.Contacts {
+		if c.ConversationID == targetRoomID {
+			if c.TaskCount != 2 {
+				t.Errorf("expected total task_count to be 2, got %d", c.TaskCount)
+			}
+			if c.QueuedTasks != 1 {
+				t.Errorf("expected queued_tasks to be 1, got %d", c.QueuedTasks)
+			}
+			if c.ActiveTasks != 0 {
+				t.Errorf("expected active_tasks to remain 0, got %d", c.ActiveTasks)
+			}
+			if c.DoneTasks != 1 {
+				t.Errorf("expected done_tasks to remain 1, got %d", c.DoneTasks)
+			}
+			break
+		}
+	}
 }
 
 func TestInboxTaskCounter_ProjectStudioRepoFallback(t *testing.T) {

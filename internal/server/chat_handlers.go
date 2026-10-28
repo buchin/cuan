@@ -47,6 +47,7 @@ type ChatContact struct {
 	PageTitle      string    `json:"page_title,omitempty"`
 	TaskCount      int       `json:"task_count"`
 	ActiveTasks    int       `json:"active_tasks"`
+	QueuedTasks    int       `json:"queued_tasks"`
 	DoneTasks      int       `json:"done_tasks"`
 	FailedTasks    int       `json:"failed_tasks"`
 }
@@ -619,6 +620,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	// Count active tasks and total tasks per conversation room
 	taskCountByRoom := make(map[string]int)
 	activeTasksByRoom := make(map[string]int)
+	queuedTasksByRoom := make(map[string]int)
 	doneTasksByRoom := make(map[string]int)
 	failedTasksByRoom := make(map[string]int)
 
@@ -632,6 +634,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						doneTasksByRoom[t.SourceRoomID]++
 					} else if st == "blocked" || st == "failed" {
 						failedTasksByRoom[t.SourceRoomID]++
+					} else if st == "queued" || st == "pending" {
+						queuedTasksByRoom[t.SourceRoomID]++
 					} else {
 						activeTasksByRoom[t.SourceRoomID]++
 					}
@@ -647,6 +651,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					if len(pTasks) > taskCountByRoom[rm.ID] {
 						taskCountByRoom[rm.ID] = len(pTasks)
 						active := 0
+						queued := 0
 						done := 0
 						failed := 0
 						for _, pt := range pTasks {
@@ -655,11 +660,14 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 								done++
 							} else if st == "blocked" || st == "failed" {
 								failed++
+							} else if st == "queued" || st == "pending" {
+								queued++
 							} else {
 								active++
 							}
 						}
 						activeTasksByRoom[rm.ID] = active
+						queuedTasksByRoom[rm.ID] = queued
 						doneTasksByRoom[rm.ID] = done
 						failedTasksByRoom[rm.ID] = failed
 					}
@@ -668,16 +676,16 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	getRoomTaskCounts := func(ids ...string) (int, int, int, int) {
+	getRoomTaskCounts := func(ids ...string) (int, int, int, int, int) {
 		for _, id := range ids {
 			if id == "" {
 				continue
 			}
 			if tc := taskCountByRoom[id]; tc > 0 {
-				return tc, activeTasksByRoom[id], doneTasksByRoom[id], failedTasksByRoom[id]
+				return tc, activeTasksByRoom[id], queuedTasksByRoom[id], doneTasksByRoom[id], failedTasksByRoom[id]
 			}
 		}
-		return 0, 0, 0, 0
+		return 0, 0, 0, 0, 0
 	}
 
 	if typeFilter != "customers" {
@@ -722,7 +730,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							})
 						}
 					}
-					tc, at, dt, ft := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
+					tc, at, qt, dt, ft := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
 					c := ChatContact{
 						ID:      "contact_" + a.ID,
 						AgentID: a.ID, AgentName: a.Name,
@@ -740,6 +748,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						IsOnline:       true,
 						TaskCount:      tc,
 						ActiveTasks:    at,
+						QueuedTasks:    qt,
 						DoneTasks:      dt,
 						FailedTasks:    ft,
 					}
@@ -767,8 +776,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					at = messages[len(messages)-1].CreatedAt
 					unread = countUnread(room.ID, messages, true)
 				}
-				tc, activeCnt, doneCnt, failedCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, DoneTasks: doneCnt, FailedTasks: failedCnt})
+				tc, activeCnt, queuedCnt, doneCnt, failedCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt})
 			}
 		}
 	}
@@ -865,7 +874,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
-			tc, at, dt, ft := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			tc, at, qt, dt, ft := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
 			custContact := ChatContact{
 				ID:             "cust_" + sess.UUID,
 				Type:           "customer",
@@ -886,6 +895,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				PageTitle:      pageTitle,
 				TaskCount:      tc,
 				ActiveTasks:    at,
+				QueuedTasks:    qt,
 				DoneTasks:      dt,
 				FailedTasks:    ft,
 			}
@@ -1263,6 +1273,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		return
 	}
 	activeTasks := 0
+	queuedTasks := 0
 	doneTasks := 0
 	failedTasks := 0
 	for _, t := range linked {
@@ -1271,12 +1282,15 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			doneTasks++
 		} else if st == task.TaskStatusBlocked || st == "failed" {
 			failedTasks++
+		} else if st == task.TaskStatusQueued || st == task.TaskStatusPending {
+			queuedTasks++
 		} else {
 			activeTasks++
 		}
 	}
 	contact.TaskCount = len(linked)
 	contact.ActiveTasks = activeTasks
+	contact.QueuedTasks = queuedTasks
 	contact.DoneTasks = doneTasks
 	contact.FailedTasks = failedTasks
 
@@ -1284,6 +1298,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		"tasks":           linked,
 		"task_count":      len(linked),
 		"active_tasks":    activeTasks,
+		"queued_tasks":    queuedTasks,
 		"done_tasks":      doneTasks,
 		"failed_tasks":    failedTasks,
 		"requests":        inboxRecoveryRequests(requests),

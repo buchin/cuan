@@ -149,6 +149,11 @@ test('Generate and verify Visual Verification Report for Smart Visibility Badges
       color: #60a5fa;
       border-color: rgba(59, 130, 246, 0.25);
     }
+    .badge-queued {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.25);
+    }
     .badge-failed {
       background: rgba(244, 63, 94, 0.15);
       color: #fb7185;
@@ -262,6 +267,7 @@ test('Generate and verify Visual Verification Report for Smart Visibility Badges
               <div class="row-2">
                 <span class="agent-handle">@sm</span>
                 <span class="badge badge-active" title="1 active task">⚡ 1</span>
+                <span class="badge badge-queued" title="2 queued tasks">⏳ 2</span>
                 <span class="badge badge-failed" title="1 blocked task">✕ 1</span>
                 <span class="badge badge-done" title="2 completed tasks">✓ 2</span>
               </div>
@@ -328,6 +334,7 @@ test('Generate and verify Visual Verification Report for Smart Visibility Badges
               <div class="row-2">
                 <span class="agent-handle">@sm</span>
                 <span class="badge badge-active" title="1 active task">⚡ 1</span>
+                <span class="badge badge-queued" title="2 queued tasks">⏳ 2</span>
                 <span class="badge badge-failed" title="1 blocked task">✕ 1</span>
                 <span class="badge badge-done" title="2 completed tasks">✓ 2</span>
               </div>
@@ -357,5 +364,6 @@ test('Generate and verify Visual Verification Report for Smart Visibility Badges
   assert.ok(html.includes('@sm'), 'Report must showcase @sm agent handle')
   assert.ok(html.includes('badge-done'), 'Report must showcase done badge')
   assert.ok(html.includes('badge-active'), 'Report must showcase active badge')
+  assert.ok(html.includes('badge-queued'), 'Report must showcase queued badge')
   assert.ok(html.includes('badge-failed'), 'Report must showcase failed badge')
 })

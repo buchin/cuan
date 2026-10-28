@@ -8,7 +8,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive, CheckCheck, CheckSquare, Zap, XCircle } from 'lucide-react'
+import { Search, Bot, User, Archive, CheckCheck, CheckSquare, Zap, XCircle, Clock } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-whatsapp.css'
 
@@ -397,12 +397,13 @@ export function InboxSubPanel({
             const id = contact.conversation_id || contact.id
             const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
             const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
+            const queuedTasks = typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0
             const totalTasks = typeof contact.task_count === 'number' ? contact.task_count : Number(contact.task_count) || 0
             const failedTasks = typeof contact.failed_tasks === 'number' ? contact.failed_tasks : Number(contact.failed_tasks) || 0
             const doneTasks = typeof contact.done_tasks === 'number'
               ? contact.done_tasks
-              : Math.max(0, totalTasks - activeTasks - failedTasks)
-            const hasTasks = totalTasks > 0 || activeTasks > 0 || doneTasks > 0 || failedTasks > 0
+              : Math.max(0, totalTasks - activeTasks - queuedTasks - failedTasks)
+            const hasTasks = totalTasks > 0 || activeTasks > 0 || queuedTasks > 0 || doneTasks > 0 || failedTasks > 0
 
             const rawAgent = contact.agent_name || ''
             const formattedAgent = rawAgent
@@ -484,6 +485,17 @@ export function InboxSubPanel({
                         >
                           <Zap className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
                           <span>{activeTasks}</span>
+                        </span>
+                      )}
+                      {queuedTasks > 0 && (
+                        <span
+                          data-testid="task-badge-queued"
+                          aria-label={`${queuedTasks} queued tasks`}
+                          title={`${queuedTasks} queued ${queuedTasks === 1 ? t('task') : t('tasks')}`}
+                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25"
+                        >
+                          <Clock className="h-2.5 w-2.5" aria-hidden="true" />
+                          <span>{queuedTasks}</span>
                         </span>
                       )}
                       {failedTasks > 0 && (

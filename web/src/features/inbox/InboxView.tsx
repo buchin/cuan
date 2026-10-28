@@ -266,7 +266,11 @@ export function InboxView({
         if (activeContact && data.tasks) {
           const at = data.tasks.filter((t) => {
             const s = (t.status || '').toLowerCase().trim()
-            return s !== 'done' && s !== 'blocked' && s !== 'failed'
+            return s !== 'done' && s !== 'blocked' && s !== 'failed' && s !== 'queued' && s !== 'pending'
+          }).length
+          const qt = data.tasks.filter((t) => {
+            const s = (t.status || '').toLowerCase().trim()
+            return s === 'queued' || s === 'pending'
           }).length
           const dt = data.tasks.filter((t) => (t.status || '').toLowerCase().trim() === 'done').length
           const ft = data.tasks.filter((t) => {
@@ -276,10 +280,12 @@ export function InboxView({
           const changed =
             activeContact.task_count !== data.tasks.length ||
             activeContact.active_tasks !== at ||
+            activeContact.queued_tasks !== qt ||
             activeContact.done_tasks !== dt ||
             activeContact.failed_tasks !== ft
           activeContact.task_count = data.tasks.length
           activeContact.active_tasks = at
+          activeContact.queued_tasks = qt
           activeContact.done_tasks = dt
           activeContact.failed_tasks = ft
           if (changed) {
