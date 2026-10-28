@@ -8,7 +8,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive, CheckCheck } from 'lucide-react'
+import { Search, Bot, User, Archive, CheckCheck, CheckSquare } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-whatsapp.css'
 
@@ -396,6 +396,9 @@ export function InboxSubPanel({
               ].includes(status.state)
             const id = contact.conversation_id || contact.id
             const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
+            const activeTasks = contact.active_tasks ?? 0
+            const totalTasks = contact.task_count ?? 0
+            const taskBadgeCount = activeTasks > 0 ? activeTasks : totalTasks
             const openContact = () => {
               onSelectContact(contact)
               void archive.markRead(id, true, contact.last_message_at).catch(() => {})
@@ -459,14 +462,27 @@ export function InboxSubPanel({
                     <p className="text-xs text-muted-foreground truncate leading-5">
                       {conversationPreview(contact.last_message)}
                     </p>
-                    {unread > 0 && (
-                      <span
-                        aria-label={`${unread} unread messages`}
-                        className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center"
-                      >
-                        {unread}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {taskBadgeCount > 0 && (
+                        <span
+                          data-testid="task-count-badge"
+                          aria-label={`${taskBadgeCount} active tasks`}
+                          title={`${taskBadgeCount} ${taskBadgeCount === 1 ? t('task') : t('tasks')}`}
+                          className="inline-flex items-center gap-1 h-4 min-w-4 px-1.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-bold tabular-nums"
+                        >
+                          <CheckSquare className="h-2.5 w-2.5" aria-hidden="true" />
+                          <span>{taskBadgeCount}</span>
+                        </span>
+                      )}
+                      {unread > 0 && (
+                        <span
+                          aria-label={`${unread} unread messages`}
+                          className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center"
+                        >
+                          {unread}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {warning && (
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">

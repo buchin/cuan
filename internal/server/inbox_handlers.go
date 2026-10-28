@@ -27,6 +27,7 @@ type InboxThreadItem struct {
 	LastMessage  *db.ProjectMessageDTO `json:"last_message,omitempty"`
 	MessageCount int                   `json:"message_count"`
 	TaskCount    int                   `json:"task_count"`
+	ActiveTasks  int                   `json:"active_tasks"`
 	CreatedAt    time.Time             `json:"created_at"`
 	UpdatedAt    time.Time             `json:"updated_at"`
 }
@@ -94,6 +95,12 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		// Fetch linked tasks to derive status
 		tasks, _ := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
 		taskCount := len(tasks)
+		activeTasks := 0
+		for _, t := range tasks {
+			if strings.ToLower(t.Status) != "done" {
+				activeTasks++
+			}
+		}
 
 		derivedStatus := "unread"
 		if taskCount > 0 {
@@ -145,6 +152,7 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 			LastMessage:  lastMsgDTO,
 			MessageCount: messageCount,
 			TaskCount:    taskCount,
+			ActiveTasks:  activeTasks,
 			CreatedAt:    rm.CreatedAt,
 			UpdatedAt:    rm.UpdatedAt,
 		})

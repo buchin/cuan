@@ -263,6 +263,11 @@ export function InboxView({
         markConversationSeen(convId, data.messages || [])
         setRequests(data.requests || [])
         setLinkedTasks(data.tasks || [])
+        if (activeContact && data.tasks) {
+          const at = data.tasks.filter((t) => t.status !== 'done').length
+          activeContact.task_count = data.tasks.length
+          activeContact.active_tasks = at
+        }
         const pending = pendingRef.current
         if (
           pending?.convId === convId &&
@@ -1906,6 +1911,11 @@ export function InboxView({
             onTaskCreated={(newTask) => {
               setLinkedTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)])
               setConvTab('tasks')
+              if (activeContact) {
+                activeContact.task_count = (activeContact.task_count || 0) + 1
+                activeContact.active_tasks = (activeContact.active_tasks || 0) + 1
+              }
+              onContactUpdated?.()
             }}
           />
         </Suspense>
