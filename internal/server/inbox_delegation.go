@@ -69,7 +69,7 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 	if d.Action != "" && d.Action != "run" && d.Action != "save" || d.TaskID != "" && d.Action == "save" {
 		return "", nil, bad
 	}
-	if (d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || len([]rune(d.ProjectName)) > 100 || d.AuthorizationID == "" || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
+	if (d.TaskID == "" && d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || len([]rune(d.ProjectName)) > 100 || d.AuthorizationID == "" || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
 		return "", nil, bad
 	}
 	if d.TaskID == "" && (strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Description) == "") || d.TaskID != "" && strings.TrimSpace(d.Revision) == "" {
@@ -163,7 +163,16 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if err != nil || room == nil {
 		return fail("conversation is unavailable")
 	}
-	if roomAgentID(room.Topic) == "" && !s.isCustomerRoom(ctx, q.RoomID) && room.ProjectID != "" && room.ProjectID != "default" && room.ProjectID != d.ProjectID {
+	var t *task.TaskDetailResponse
+	if d.TaskID != "" {
+		t, err = s.taskSvc.GetTaskDetail(ctx, d.TaskID)
+		if err != nil || t == nil {
+			return fail("the task could not be found")
+		}
+		if d.ProjectID == "" || d.ProjectID != t.ProjectID {
+			d.ProjectID = t.ProjectID
+		}
+	} else if roomAgentID(room.Topic) == "" && !s.isCustomerRoom(ctx, q.RoomID) && room.ProjectID != "" && room.ProjectID != "default" && room.ProjectID != d.ProjectID {
 		return fail("the plan belongs to another project")
 	}
 	if d.ProjectID == "" {
@@ -215,18 +224,12 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		room.ProjectID = d.ProjectID
 		_ = s.projectStudioRepo.UpdateRoom(ctx, room)
 	}
-	var t *task.TaskDetailResponse
 	if d.TaskID != "" {
-		t, err = s.taskSvc.GetTaskDetail(ctx, d.TaskID)
-		isOriginalApproval := err == nil && t != nil && strings.Contains(t.Instructions, "Approval message: "+d.AuthorizationID)
-		isRoomContinuation := err == nil && t != nil && t.SourceRoomID == q.RoomID && authorization != nil && authorization.AuthorType == "user"
-		if err != nil || t.SourceRoomID != q.RoomID || t.ProjectID != d.ProjectID || (!isOriginalApproval && !isRoomContinuation) {
-			return fail("the task is outside this approved conversation scope")
-		}
+		isOriginalApproval := strings.Contains(t.Instructions, "Approval message: "+d.AuthorizationID)
 		if !s.taskContinuationAfterCancel(ctx, q, t) {
 			return fail("the work was cancelled; a new user instruction is required to continue")
 		}
-		if taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization.ID == t.SourceMessageID {
+		if taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
 			return fail("the task reached its retry limit; its blocker needs review")
 		}
 		if t.Status == task.TaskStatusDone || t.Status == task.TaskStatusBlocked {
@@ -277,11 +280,13 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			return fail("the saved task could not be loaded")
 		}
 	}
-	if d.TaskID == "" && !strings.Contains(t.Instructions, "\n"+delegationScopeDigest(*d)+"\n") {
-		return fail("this approval is already bound to another scope; approve the changed plan separately")
-	}
-	if t.SourceRoomID != q.RoomID || t.ProjectID != d.ProjectID {
-		return fail("the saved task belongs to another scope")
+	if d.TaskID == "" {
+		if !strings.Contains(t.Instructions, "\n"+delegationScopeDigest(*d)+"\n") {
+			return fail("this approval is already bound to another scope; approve the changed plan separately")
+		}
+		if t.SourceRoomID != q.RoomID || t.ProjectID != d.ProjectID {
+			return fail("the saved task belongs to another scope")
+		}
 	}
 	if d.Action == "save" {
 		return wrapResult("The work is saved and has not been started.\n\n[View work](/tasks/" + t.ID + ")")
