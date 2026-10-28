@@ -482,3 +482,96 @@ func TestReconcileStartupAndOrphanLaunches(t *testing.T) {
 		t.Fatalf("expected l1 state 'stopped' after startup reconciliation, got '%s'", l1After.State)
 	}
 }
+
+func TestReconcileStaleQueuedTerminalTasks(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+
+	terminalTask, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Terminal · My Project",
+		ProjectIDs:   []string{"p_terminal"},
+		Instructions: "Interactive terminal session",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	qStatus := TaskStatusQueued
+	_, err = svc.UpdateTask(ctx, terminalTask.ID, "user", UpdateTaskRequest{Status: &qStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           terminalTask.ID,
+		ProjectID:        "p_terminal",
+		RequestID:        "term-req-1",
+		SourceRequestID:  "term-source-1",
+		OwnerID:          "user",
+		RoomID:           "room-term",
+		AgentID:          "agent-term",
+		InstructionsHash: "hash-term",
+		AvailableAt:      now.Add(-6 * time.Minute),
+		ExpiresAt:        now.Add(time.Hour),
+		CreatedAt:        now.Add(-6 * time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store.mu.Lock()
+	if tt := store.tasks[terminalTask.ID]; tt != nil {
+		tt.CreatedAt = now.Add(-6 * time.Minute)
+	}
+	store.mu.Unlock()
+
+	if err := svc.ReconcileOrphanLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileOrphanLaunches failed: %v", err)
+	}
+
+	updatedTask, err := svc.GetTaskDetail(ctx, terminalTask.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedTask.Status != "cancelled" {
+		t.Fatalf("expected stale terminal task status 'cancelled', got '%s'", updatedTask.Status)
+	}
+
+	updatedLaunch, err := svc.GetLaunch(ctx, l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedLaunch.State != "stopped" {
+		t.Fatalf("expected launch state 'stopped', got '%s'", updatedLaunch.State)
+	}
+}
+
+func TestIsProjectActiveQueuedTaskDoesNotBlock(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+
+	created, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Queued Task",
+		ProjectIDs:   []string{"p_queued_test"},
+		Instructions: "Waiting to run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	qStatus := TaskStatusQueued
+	_, err = svc.UpdateTask(ctx, created.ID, "user", UpdateTaskRequest{Status: &qStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active, err := svc.IsProjectActive(ctx, "p_queued_test", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if active {
+		t.Fatal("expected IsProjectActive to be false for queued task, but got true")
+	}
+}

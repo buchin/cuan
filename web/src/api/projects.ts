@@ -37,4 +37,13 @@ export const projectsApi = {
       },
     )
   },
+
+  reconcile: async (id: string): Promise<{ status: string; project_id: string; interrupted_count: number }> => {
+    return apiFetch<{ status: string; project_id: string; interrupted_count: number }>(
+      `/api/v1/projects/${encodeURIComponent(id)}/reconcile`,
+      {
+        method: 'POST',
+      },
+    )
+  },
 }

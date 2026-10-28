@@ -852,7 +852,7 @@ func (s *DBStore) IsProjectActive(ctx context.Context, projectID string, exclude
 		SELECT 1 FROM tasks t
 		WHERE (t.project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = t.id AND tp.project_id = $1))
 		  AND ($2 = '' OR t.id != $2)
-		  AND t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review')
+		  AND t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 		  AND (
 			  t.status IN ('doing', 'working')
 			  OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')

@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -208,10 +209,23 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, j := range m.launches {
-		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
+		t := m.tasks[j.TaskID]
+		if t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
 				j.State = "stopped"
 				j.SafeError = "Task is in terminal status."
+				j.UpdatedAt = now
+				j.LeaseToken = ""
+				j.LeaseUntil = nil
+			}
+		}
+		// Auto-cancel abandoned interactive terminal tasks queued > 5 min
+		if t != nil && t.Status == TaskStatusQueued && strings.HasPrefix(t.Title, "Terminal · ") && t.CreatedAt.Before(now.Add(-5*time.Minute)) {
+			t.Status = "cancelled"
+			t.UpdatedAt = now
+			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
+				j.State = "stopped"
+				j.SafeError = "Interactive terminal session expired while waiting in queue."
 				j.UpdatedAt = now
 				j.LeaseToken = ""
 				j.LeaseUntil = nil

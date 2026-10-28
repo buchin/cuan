@@ -1,5 +1,6 @@
 import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { tasksApi } from '../../api/tasks'
+import { projectsApi } from '../../api/projects'
 import { workspacePath } from './workspacePath'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -14,6 +15,7 @@ import {
   MessageSquare,
   CheckSquare,
   Rocket,
+  RefreshCw,
 } from 'lucide-react'
 import { agentsApi, type Agent } from '../../api/agents'
 import type { TaskDetail } from '../../api/types'
@@ -329,10 +331,51 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
               </p>
             </>
           )}
-          {waiting && <button className="action-secondary" disabled={busy || cancelled} onClick={async () => {
-            setBusy(true);setError('')
-            try {await tasksApi.cancel(task.id);setCancelled(true)} catch(e) {setError(e instanceof Error ? e.message : 'Could not cancel waiting work.')} finally {setBusy(false)}
-          }}>{cancelled ? 'Cancelled' : 'Cancel waiting work'}</button>}
+          {waiting && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="action-secondary"
+                disabled={busy || cancelled}
+                onClick={async () => {
+                  setBusy(true)
+                  setError('')
+                  try {
+                    await tasksApi.cancel(task.id)
+                    setCancelled(true)
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Could not cancel waiting work.')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                {cancelled ? t('Cancelled') : t('Cancel waiting work')}
+              </button>
+              {task.project_id && (
+                <button
+                  type="button"
+                  className="action-secondary text-xs px-3 py-1.5 inline-flex items-center gap-1.5"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true)
+                    setError('')
+                    try {
+                      await projectsApi.reconcile(task.project_id!)
+                      setRevision((r) => r + 1)
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : 'Could not reconcile project.')
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>{t('Bebaskan Antrean Project')}</span>
+                </button>
+              )}
+            </div>
+          )}
           {task.status !== 'done' && !waiting && (
             <form
               className="flex flex-wrap items-center gap-2"

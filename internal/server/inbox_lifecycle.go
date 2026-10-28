@@ -57,6 +57,10 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 				if err := s.taskSvc.RecoverLocalAttempts(ctx); err != nil {
 					log.Print("local attempt recovery unavailable")
 				}
+				_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
+			}
+			if s.runnerSvc != nil {
+				_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
 			}
 			if s.projectStudioRepo == nil {
 				return

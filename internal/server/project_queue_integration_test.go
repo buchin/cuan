@@ -152,3 +152,32 @@ func TestProjectLevelTaskQueueAndLock(t *testing.T) {
 		t.Fatalf("expected 0 queued tasks after tasks finish, got %d", len(runnerStateAfter.QueuedTasks))
 	}
 }
+
+func TestProjectReconcileSelfHealing(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	prepareTaskReporter(t, s)
+
+	ctx := context.Background()
+	projectID := "proj_reconcile_test"
+
+	projDir := t.TempDir()
+	store := project.NewMemoryStore()
+	store.CreateProject(ctx, &project.Project{
+		ID:        projectID,
+		Name:      "Reconcile Test Project",
+		LocalPath: projDir,
+	})
+	s.projectSvc = project.NewService(store, nil, "", t.TempDir())
+
+	res := call("POST", "/api/v1/projects/"+projectID+"/reconcile", "")
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", res.Code, res.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["status"] != "reconciled" || body["project_id"] != projectID {
+		t.Fatalf("unexpected response: %v", body)
+	}
+}

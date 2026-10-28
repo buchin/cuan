@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -33,6 +34,7 @@ func (s *Server) registerProjectRoutes(pr chi.Router) {
 	pr.Post("/projects/{id}/unarchive", s.handleUnarchiveProject)
 	pr.Patch("/projects/{id}/restore", s.handleUnarchiveProject)
 	pr.Post("/projects/{id}/restore", s.handleUnarchiveProject)
+	pr.Post("/projects/{id}/reconcile", s.handleReconcileProject)
 }
 
 func (s *Server) isProjectActive(ctx context.Context, projectID string, excludeTaskID string) bool {
@@ -287,4 +289,28 @@ func (s *Server) handleUpdateProjectModules(w http.ResponseWriter, r *http.Reque
 	}
 
 	respondJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) handleReconcileProject(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "id")
+	if projectID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+	now := time.Now().UTC()
+	var interruptedCount int
+	if s.runnerSvc != nil {
+		if interrupted, err := s.runnerSvc.ReconcileExpiredLeases(r.Context()); err == nil {
+			interruptedCount = len(interrupted)
+		}
+	}
+	if s.taskSvc != nil {
+		_ = s.taskSvc.ReconcileOrphanLaunches(r.Context(), now)
+	}
+	s.kickTaskLaunches()
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":            "reconciled",
+		"project_id":        projectID,
+		"interrupted_count": interruptedCount,
+	})
 }
