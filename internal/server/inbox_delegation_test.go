@@ -482,7 +482,7 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 }
 
 func TestInboxDelegation_CrossRoomTaskDelegationAllowedForOwnerAndTeam(t *testing.T) {
-	s, _, _, _ := inboxFixture(t)
+	s, token, _, _ := inboxFixture(t)
 	ctx := context.Background()
 
 	projects := project.NewMemoryStore()
@@ -490,7 +490,11 @@ func TestInboxDelegation_CrossRoomTaskDelegationAllowedForOwnerAndTeam(t *testin
 	projects.CreateProject(ctx, &project.Project{ID: "p2", Name: "Project Two"})
 	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
 
-	ownerID := "owner_team_1"
+	owner, err := s.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerID := owner.ID
 	now := time.Now().UTC()
 
 	// Room 1: Initial task creation
@@ -599,8 +603,11 @@ func TestInboxDelegation_CrossRoomTaskDelegationAllowedForOwnerAndTeam(t *testin
 	if strings.Contains(outCross, "belongs to another scope") {
 		t.Fatalf("cross-room delegation wrongly rejected with belongs to another scope: %s", outCross)
 	}
-	if !strings.Contains(outCross, "started") && !strings.Contains(outCross, "The work is") {
-		t.Fatalf("expected cross-room delegation to succeed, got: %s", outCross)
+	if strings.Contains(outCross, "could not start") {
+		t.Fatalf("cross-room delegation could not start: %s", outCross)
+	}
+	if !strings.Contains(outCross, "started") {
+		t.Fatalf("expected cross-room delegation to start, got: %s", outCross)
 	}
 
 	// Verify DoD checklist was expanded with the new revision item
@@ -617,6 +624,166 @@ func TestInboxDelegation_CrossRoomTaskDelegationAllowedForOwnerAndTeam(t *testin
 	}
 	if !hasEdgeCases {
 		t.Fatalf("expected updated DoD checklist to include new item from revision, got: %+v", taskDetail.DoDChecklist)
+	}
+}
+
+func TestInboxDelegation_CrossRoomRevisionWithoutAuthorizationIDUsesCurrentMessage(t *testing.T) {
+	s, token, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p1", Name: "Project One"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	owner, err := s.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerID := owner.ID
+	now := time.Now().UTC()
+
+	// Room 1: Create task
+	room1ID := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room1ID, ProjectID: "p1", Title: "Room 1", CreatedAt: now, UpdatedAt: now})
+	initMsgID := db.GenerateUUID()
+	initReq := db.InboxRequest{OwnerID: ownerID, AgentID: "agent_lifecycle", RoomID: room1ID, RequestID: db.GenerateUUID(), MessageID: initMsgID, ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	initMsg := &db.ProjectMessage{ID: initMsgID, RoomID: room1ID, AuthorType: "user", Content: "Create base task", CreatedAt: now}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, initReq, initMsg)
+
+	initDelegation := inboxDelegation{Action: "save", Title: "Base Task", Description: "Initial scope\n- [ ] Initial DoD", ProjectID: "p1", AuthorizationID: initMsgID}
+	rawInit, _ := json.Marshal(initDelegation)
+	s.applyInboxDelegation(ctx, initReq, "```cuan-delegate\n"+string(rawInit)+"\n```")
+	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: "p1"})
+	if len(tasks) == 0 {
+		t.Fatal("task was not created")
+	}
+	taskID := tasks[0].ID
+
+	// Room 2: User revises task without explicitly providing authorization_id
+	room2ID := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room2ID, ProjectID: "p1", Title: "Room 2", CreatedAt: now.Add(time.Hour), UpdatedAt: now.Add(time.Hour)})
+	userMsgID := db.GenerateUUID()
+	userReq := db.InboxRequest{OwnerID: ownerID, AgentID: "agent_lifecycle", RoomID: room2ID, RequestID: db.GenerateUUID(), MessageID: userMsgID, ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: now.Add(2 * time.Hour), Deadline: now.Add(4 * time.Hour)}
+	userMsg := &db.ProjectMessage{ID: userMsgID, RoomID: room2ID, AuthorType: "user", Content: "Tolong revisi task ini agar support cache", CreatedAt: now.Add(2 * time.Hour)}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, userReq, userMsg)
+
+	// Delegation with TaskID and Revision but empty AuthorizationID
+	revDelegation := inboxDelegation{Action: "run", TaskID: taskID, Revision: "Add cache layer\n- [ ] Cache layer tested"}
+	rawRev, _ := json.Marshal(revDelegation)
+	outRev := s.applyInboxDelegation(ctx, userReq, "```cuan-delegate\n"+string(rawRev)+"\n```")
+	if strings.Contains(outRev, "outside this approved conversation scope") {
+		t.Fatalf("cross-room delegation wrongly rejected: %s", outRev)
+	}
+	if !strings.Contains(outRev, "started") {
+		t.Fatalf("expected cross-room delegation without authorization_id to start, got: %s", outRev)
+	}
+
+	detail, _ := s.taskSvc.GetTaskDetail(ctx, taskID)
+	hasCache := false
+	for _, item := range detail.DoDChecklist {
+		if strings.Contains(item.Text, "Cache layer tested") {
+			hasCache = true
+			break
+		}
+	}
+	if !hasCache {
+		t.Fatalf("expected DoD item from revision to be added, got: %+v", detail.DoDChecklist)
+	}
+}
+
+func TestInboxDelegation_CrossRoomRevisionReferencingOriginalApproval(t *testing.T) {
+	s, token, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p1", Name: "Project One"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	owner, err := s.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerID := owner.ID
+	now := time.Now().UTC()
+
+	// Room 1: Initial task creation
+	room1ID := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room1ID, ProjectID: "p1", Title: "Room 1", CreatedAt: now, UpdatedAt: now})
+	origMsgID := db.GenerateUUID()
+	origReq := db.InboxRequest{OwnerID: ownerID, AgentID: "agent_lifecycle", RoomID: room1ID, RequestID: db.GenerateUUID(), MessageID: origMsgID, ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	origMsg := &db.ProjectMessage{ID: origMsgID, RoomID: room1ID, AuthorType: "user", Content: "Build service", CreatedAt: now}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, origReq, origMsg)
+
+	initDelegation := inboxDelegation{Action: "save", Title: "Build Service", Description: "Build core service\n- [ ] Core built", ProjectID: "p1", AuthorizationID: origMsgID}
+	rawInit, _ := json.Marshal(initDelegation)
+	s.applyInboxDelegation(ctx, origReq, "```cuan-delegate\n"+string(rawInit)+"\n```")
+	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: "p1"})
+	if len(tasks) == 0 {
+		t.Fatal("task was not created")
+	}
+	taskID := tasks[0].ID
+
+	// Room 2: Delegation explicitly referencing origMsgID from Room 1
+	room2ID := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room2ID, ProjectID: "p1", Title: "Room 2", CreatedAt: now.Add(time.Hour), UpdatedAt: now.Add(time.Hour)})
+	r2MsgID := db.GenerateUUID()
+	r2Req := db.InboxRequest{OwnerID: ownerID, AgentID: "agent_lifecycle", RoomID: room2ID, RequestID: db.GenerateUUID(), MessageID: r2MsgID, ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: now.Add(time.Hour), Deadline: now.Add(2 * time.Hour)}
+	r2Msg := &db.ProjectMessage{ID: r2MsgID, RoomID: room2ID, AuthorType: "user", Content: "Revisi task dengan approval awal", CreatedAt: now.Add(time.Hour)}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, r2Req, r2Msg)
+
+	crossDelegation := inboxDelegation{Action: "run", TaskID: taskID, AuthorizationID: origMsgID, Revision: "Continue core service with security hardening\n- [ ] Hardening applied"}
+	rawCross, _ := json.Marshal(crossDelegation)
+	out := s.applyInboxDelegation(ctx, r2Req, "```cuan-delegate\n"+string(rawCross)+"\n```")
+	if strings.Contains(out, "outside this approved conversation scope") {
+		t.Fatalf("cross-room delegation wrongly rejected: %s", out)
+	}
+	if !strings.Contains(out, "started") {
+		t.Fatalf("expected cross-room delegation with original auth ID to start, got: %s", out)
+	}
+}
+
+func TestInboxDelegation_CrossRoomRejectedForVisitorOrUnauthenticated(t *testing.T) {
+	s, token, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p1", Name: "Project One"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	owner, err := s.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+
+	// Room 1: Legitimate task creation by owner
+	room1ID := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room1ID, ProjectID: "p1", Title: "Room 1", CreatedAt: now, UpdatedAt: now})
+	origMsgID := db.GenerateUUID()
+	origReq := db.InboxRequest{OwnerID: owner.ID, AgentID: "agent_lifecycle", RoomID: room1ID, RequestID: db.GenerateUUID(), MessageID: origMsgID, ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	origMsg := &db.ProjectMessage{ID: origMsgID, RoomID: room1ID, AuthorType: "user", Content: "Build service", CreatedAt: now}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, origReq, origMsg)
+
+	initDelegation := inboxDelegation{Action: "save", Title: "Build Service", Description: "Build core service", ProjectID: "p1", AuthorizationID: origMsgID}
+	rawInit, _ := json.Marshal(initDelegation)
+	s.applyInboxDelegation(ctx, origReq, "```cuan-delegate\n"+string(rawInit)+"\n```")
+	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: "p1"})
+	if len(tasks) == 0 {
+		t.Fatal("task was not created")
+	}
+	taskID := tasks[0].ID
+
+	// Room 2: Visitor (different unauthenticated owner / visitor without accepted inbox request)
+	room2ID := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room2ID, ProjectID: "p1", Title: "Visitor Room", CreatedAt: now.Add(time.Hour), UpdatedAt: now.Add(time.Hour)})
+	visitorMsgID := db.GenerateUUID()
+	visitorReq := db.InboxRequest{OwnerID: "unauthorized_visitor", AgentID: "agent_lifecycle", RoomID: room2ID, RequestID: db.GenerateUUID(), MessageID: visitorMsgID, ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: now.Add(time.Hour), Deadline: now.Add(2 * time.Hour)}
+	// No accepted request for visitorMsgID or visitor owner
+	visitorDelegation := inboxDelegation{Action: "run", TaskID: taskID, AuthorizationID: visitorMsgID, Revision: "Malicious injection\n- [ ] hacked"}
+	rawVis, _ := json.Marshal(visitorDelegation)
+	out := s.applyInboxDelegation(ctx, visitorReq, "```cuan-delegate\n"+string(rawVis)+"\n```")
+	if !strings.Contains(out, "approval must come from a user message in this conversation") {
+		t.Fatalf("expected visitor cross-room delegation to be rejected, got: %s", out)
 	}
 }
 

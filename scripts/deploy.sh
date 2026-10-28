@@ -85,6 +85,11 @@ if [[ "$local_sha" != "$remote_sha" ]]; then
   exit 1
 fi
 
+if [ ! -d "web/dist" ] && [ -d "/opt/cuan/current/web/dist" ]; then
+  mkdir -p web
+  cp -a /opt/cuan/current/web/dist web/
+fi
+
 echo "==> Running frontend test gate..."
 npm test --prefix web
 

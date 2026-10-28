@@ -383,20 +383,19 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 							fields["terminal_failure_logs"] = truncateProjectText(taskLogs, 3000)
 						}
 					}
-					if t.SourceRoomID == q.RoomID {
-						for i := len(detail.Activities) - 1; i >= 0; i-- {
-							act := detail.Activities[i]
-							if act != nil && strings.TrimSpace(act.Message) != "" {
-								fields["latest_activity"] = truncateProjectText(act.Message, 1500)
-								break
-							}
+					for i := len(detail.Activities) - 1; i >= 0; i-- {
+						act := detail.Activities[i]
+						if act != nil && strings.TrimSpace(act.Message) != "" {
+							fields["latest_activity"] = truncateProjectText(act.Message, 1500)
+							break
 						}
 					}
 				}
-				if t.SourceRoomID == q.RoomID {
-					fields["authorization_message_id"] = t.SourceMessageID
-					fields["summary"] = truncateProjectText(t.Summary, 1500)
+				fields["authorization_message_id"] = t.SourceMessageID
+				if t.SourceRoomID != "" {
+					fields["source_room_id"] = t.SourceRoomID
 				}
+				fields["summary"] = truncateProjectText(t.Summary, 1500)
 				if (t.Status == task.TaskStatusBlocked || fields["execution_error"] != "") && len(activeBlockers) < 5 {
 					errSummary := fields["execution_error"]
 					if errSummary == "" {

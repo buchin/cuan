@@ -119,6 +119,11 @@ func (s *Server) taskArtifactOwner(ctx context.Context, d *task.TaskDetailRespon
 			return q.OwnerID, nil
 		}
 	}
+	if s.taskSvc != nil {
+		if launch, err := s.taskSvc.LatestLaunch(ctx, d.ID); err == nil && launch != nil && launch.OwnerID != "" {
+			return launch.OwnerID, nil
+		}
+	}
 	return "", errors.New("The task's original conversation owner is unavailable")
 }
 

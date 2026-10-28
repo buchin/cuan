@@ -270,8 +270,15 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": "Result is reconciled after process exit"})
-	if updated != nil && updated.SourceRoomID != "" {
-		s.publishInbox(updated.SourceRoomID)
+	if updated != nil {
+		if updated.SourceRoomID != "" {
+			s.publishInbox(updated.SourceRoomID)
+		}
+		if s.taskSvc != nil {
+			if launch, err := s.taskSvc.LatestLaunch(context.Background(), g.TaskID); err == nil && launch != nil && launch.RoomID != "" && launch.RoomID != updated.SourceRoomID {
+				s.publishInbox(launch.RoomID)
+			}
+		}
 	}
 	if report.State == "review" || report.State == "blocked" || report.State == "done" {
 		if report.State == "done" && s.projectSvc != nil {

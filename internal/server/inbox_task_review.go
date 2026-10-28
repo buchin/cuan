@@ -38,7 +38,7 @@ func (s *Server) inboxStaleReviewOutcome(ctx context.Context, q db.InboxRequest)
 	}
 	for _, match := range inboxReviewTaskLink.FindAllStringSubmatch(m.Content, -1) {
 		d, err := s.taskSvc.GetTaskDetail(ctx, match[1])
-		if err != nil || d == nil || d.SourceRoomID != q.RoomID || d.AssignedAgent != q.AgentID || d.LatestAttempt == nil {
+		if err != nil || d == nil || d.LatestAttempt == nil {
 			continue
 		}
 		a := d.LatestAttempt

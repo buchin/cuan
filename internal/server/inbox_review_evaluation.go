@@ -52,7 +52,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 	}
 	for _, match := range inboxReviewTaskLink.FindAllStringSubmatch(m.Content, -1) {
 		d, err := s.taskSvc.GetTaskDetail(ctx, match[1])
-		if err != nil || d == nil || d.LatestAttempt == nil || d.SourceRoomID != q.RoomID || d.AssignedAgent != q.AgentID {
+		if err != nil || d == nil || d.LatestAttempt == nil {
 			continue
 		}
 		for _, suffix := range []string{"", ":snapshot", ":snapshot:evaluation"} {
@@ -67,7 +67,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 
 func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse) string {
 	var files []conversationAttachment
-	if m, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID("task-delivery:"+d.LatestAttempt.ID)); err == nil && m != nil && m.RoomID == d.SourceRoomID && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == d.SourceMessageID {
+	if m, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID("task-delivery:"+d.LatestAttempt.ID)); err == nil && m != nil && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == d.SourceMessageID {
 		_, ids := decodeAttachmentMessage(m.Content)
 		if owner, err := s.taskArtifactOwner(ctx, d); err == nil {
 			for _, id := range ids {

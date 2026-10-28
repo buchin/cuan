@@ -122,7 +122,12 @@ func (s *Server) applyInboxTaskCancel(ctx context.Context, q db.InboxRequest, co
 	}
 
 	if detail, err := s.taskSvc.GetTaskDetail(ctx, action.TaskID); err == nil && detail != nil {
-		s.publishInbox(detail.SourceRoomID)
+		if detail.SourceRoomID != "" {
+			s.publishInbox(detail.SourceRoomID)
+		}
+		if q.RoomID != "" && q.RoomID != detail.SourceRoomID {
+			s.publishInbox(q.RoomID)
+		}
 		return cleanText + fmt.Sprintf("\n\n*Task [%s] (%s) has been cancelled.*", detail.ID, detail.Title)
 	}
 	return cleanText + fmt.Sprintf("\n\n*Task [%s] has been cancelled.*", action.TaskID)
@@ -158,7 +163,12 @@ func (s *Server) applyInboxTaskReopen(ctx context.Context, q db.InboxRequest, co
 	}
 
 	if detail, err := s.taskSvc.GetTaskDetail(ctx, action.TaskID); err == nil && detail != nil {
-		s.publishInbox(detail.SourceRoomID)
+		if detail.SourceRoomID != "" {
+			s.publishInbox(detail.SourceRoomID)
+		}
+		if q.RoomID != "" && q.RoomID != detail.SourceRoomID {
+			s.publishInbox(q.RoomID)
+		}
 		return cleanText + fmt.Sprintf("\n\n*Task [%s] (%s) has been reopened and moved to Backlog.*", detail.ID, detail.Title)
 	}
 	return cleanText + fmt.Sprintf("\n\n*Task [%s] has been reopened and moved to Backlog.*", action.TaskID)

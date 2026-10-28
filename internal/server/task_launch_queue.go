@@ -14,9 +14,6 @@ import (
 
 func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string) string {
 	now := time.Now().UTC()
-	// Ensure task status is queued prior to creating/claiming launch to prevent race condition with terminal state checks
-	status := task.TaskStatusQueued
-	_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
 
 	job, e := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: t.ID, ProjectID: t.ProjectID, RequestID: launchID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: sourceRequestID, AgentID: q.AgentID, Revision: revision, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
 	link := "\n\n[View work](/tasks/" + t.ID + ")"
@@ -29,6 +26,11 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if job.State == "cancelled" || job.State == "stopped" {
 		return "This launch has stopped. No new execution was started." + link
 	}
+
+	// Ensure task status is queued prior to creating/claiming launch to prevent race condition with terminal state checks
+	status := task.TaskStatusQueued
+	_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
+
 	lane := t.ExecutionCategory
 	if lane == "" {
 		lane = task.ExecutionCategoryCode
@@ -80,7 +82,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		return "This launch is no longer active. No replacement was started." + link
 	}
 	detail, e := s.taskSvc.GetTaskDetail(ctx, job.TaskID)
-	if e != nil || detail.ProjectID != job.ProjectID || detail.SourceRoomID != job.RoomID || detail.AssignedAgent != job.AgentID || task.LaunchInstructionsHash(detail.Instructions) != job.InstructionsHash {
+	if e != nil || detail.ProjectID != job.ProjectID || task.LaunchInstructionsHash(detail.Instructions) != job.InstructionsHash {
 		return finish("stopped", "The saved task scope has changed; check the current instructions before continuing.")
 	}
 	reader, ok := s.projectStudioRepo.(db.InboxRequestRepository)
@@ -91,9 +93,14 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if e != nil {
 		return finish("queued", "Conversation storage is temporarily unavailable.")
 	}
+	if detail.SourceRoomID != "" && detail.SourceRoomID != job.RoomID {
+		if srcReqs, err := reader.ListInboxRequests(ctx, detail.SourceRoomID); err == nil {
+			requests = append(requests, srcReqs...)
+		}
+	}
 	var trigger db.InboxRequest
 	for _, q := range requests {
-		if q.RequestID == job.RequestID && q.OwnerID == job.OwnerID && q.AgentID == job.AgentID {
+		if q.RequestID == job.RequestID && q.OwnerID == job.OwnerID {
 			trigger = q
 			break
 		}
@@ -102,7 +109,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	for _, q := range requests {
 		isOriginalMatch := q.RequestID == job.SourceRequestID && q.MessageID == detail.SourceMessageID
 		isContinuationMatch := (q.RequestID == job.RequestID || q.RequestID == job.SourceRequestID) && trigger.MessageID != "" && q.MessageID == trigger.MessageID
-		if (isOriginalMatch || isContinuationMatch) && q.OwnerID == job.OwnerID && q.AgentID == job.AgentID && q.State != "cancelled" && q.State != "canceled" && q.State != "cancelling" {
+		if (isOriginalMatch || isContinuationMatch) && q.OwnerID == job.OwnerID && q.State != "cancelled" && q.State != "canceled" && q.State != "cancelling" {
 			authorized = true
 		}
 	}
@@ -114,7 +121,11 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	}
 	response := &delegationResponse{header: make(http.Header)}
 	request, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-queued-launch", nil)
-	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: job.AgentID, Revision: job.Revision}, job.OwnerID)
+	targetAgent := job.AgentID
+	if detail.AssignedAgent != "" {
+		targetAgent = detail.AssignedAgent
+	}
+	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision}, job.OwnerID)
 	if response.code == 200 {
 		return finish("started", "")
 	}

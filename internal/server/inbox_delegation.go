@@ -69,7 +69,7 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 	if d.Action != "" && d.Action != "run" && d.Action != "save" || d.TaskID != "" && d.Action == "save" {
 		return "", nil, bad
 	}
-	if (d.TaskID == "" && d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || len([]rune(d.ProjectName)) > 100 || d.AuthorizationID == "" || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
+	if (d.TaskID == "" && d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || len([]rune(d.ProjectName)) > 100 || (d.TaskID == "" && d.AuthorizationID == "") || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
 		return "", nil, bad
 	}
 	if d.TaskID == "" && (strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Description) == "") || d.TaskID != "" && strings.TrimSpace(d.Revision) == "" {
@@ -123,6 +123,9 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if s.taskSvc == nil || s.projectSvc == nil || s.projectStudioRepo == nil || q.OwnerID == "" || q.AgentID == "" {
 		return fail("delegation is unavailable")
 	}
+	if d.TaskID != "" && d.AuthorizationID == "" {
+		d.AuthorizationID = q.MessageID
+	}
 	messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, q.RoomID)
 	if err != nil {
 		return fail("conversation context is unavailable")
@@ -143,6 +146,52 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 				if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
 					authenticatedApproval = true
 					authorizationRequestID = request.RequestID
+				}
+			}
+		}
+	}
+	// Support cross-room task delegation & revision:
+	// If authorization was not found in current room and task_id is present, look in the task's source room
+	// or fallback to current room's authenticated user message.
+	if (authorization == nil || !authenticatedApproval) && d.TaskID != "" {
+		if tDetail, err := s.taskSvc.GetTaskDetail(ctx, d.TaskID); err == nil && tDetail != nil {
+			if tDetail.SourceRoomID != "" && tDetail.SourceRoomID != q.RoomID {
+				if srcMessages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, tDetail.SourceRoomID); err == nil {
+					for i := range srcMessages {
+						if srcMessages[i].ID == d.AuthorizationID && srcMessages[i].AuthorType == "user" && !srcMessages[i].CreatedAt.After(q.CreatedAt) {
+							authorization = &srcMessages[i]
+						}
+					}
+				}
+				if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+					if requests, e := store.ListInboxRequests(ctx, tDetail.SourceRoomID); e == nil {
+						for _, request := range requests {
+							if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+								authenticatedApproval = true
+								authorizationRequestID = request.RequestID
+							}
+						}
+					}
+				}
+			}
+			// If d.AuthorizationID was from another room or didn't match, check if current q.MessageID is an authenticated user turn
+			if (authorization == nil || !authenticatedApproval) && d.AuthorizationID != q.MessageID {
+				for i := range messages {
+					if messages[i].ID == q.MessageID && messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
+						authorization = &messages[i]
+						d.AuthorizationID = q.MessageID
+						break
+					}
+				}
+				if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok && authorization != nil {
+					if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
+						for _, request := range requests {
+							if request.MessageID == q.MessageID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+								authenticatedApproval = true
+								authorizationRequestID = request.RequestID
+							}
+						}
+					}
 				}
 			}
 		}
@@ -295,10 +344,16 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	sourceRequestID := authorizationRequestID
 	if d.TaskID != "" {
 		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
-			if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
-				for _, request := range requests {
-					if request.MessageID == t.SourceMessageID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
-						sourceRequestID = request.RequestID
+			roomsToCheck := []string{q.RoomID}
+			if t != nil && t.SourceRoomID != "" && t.SourceRoomID != q.RoomID {
+				roomsToCheck = append(roomsToCheck, t.SourceRoomID)
+			}
+			for _, rid := range roomsToCheck {
+				if requests, e := store.ListInboxRequests(ctx, rid); e == nil {
+					for _, request := range requests {
+						if request.MessageID == t.SourceMessageID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+							sourceRequestID = request.RequestID
+						}
 					}
 				}
 			}
@@ -378,7 +433,11 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if !ok {
 		return
 	}
-	requests, err := store.ListInboxRequests(ctx, detail.SourceRoomID)
+	targetRoomID := detail.SourceRoomID
+	if launch, err := s.taskSvc.LatestLaunch(ctx, detail.ID); err == nil && launch != nil && launch.RoomID != "" {
+		targetRoomID = launch.RoomID
+	}
+	requests, err := store.ListInboxRequests(ctx, targetRoomID)
 	if err != nil {
 		return
 	}
@@ -387,6 +446,16 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		if requests[i].MessageID == detail.SourceMessageID {
 			origin = &requests[i]
 			break
+		}
+	}
+	if origin == nil && targetRoomID != detail.SourceRoomID {
+		if srcReqs, err := store.ListInboxRequests(ctx, detail.SourceRoomID); err == nil {
+			for i := range srcReqs {
+				if srcReqs[i].MessageID == detail.SourceMessageID {
+					origin = &srcReqs[i]
+					break
+				}
+			}
 		}
 	}
 	if origin == nil || origin.OwnerID == "" || origin.AgentID == "" {
@@ -430,10 +499,13 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	now := time.Now().UTC()
 	content := fmt.Sprintf("Review the result for [%s](/tasks/%s).\n\nProject: %s. Current task: %s; execution: %s.\n\nOriginal request and approved scope:\n%s\n\nReported result:\n%s\n\nVerification evidence:\n%s\n\nExecution limitation:\n%s\n\nReview the supplied task snapshot against the request without calling native tools, inspecting files or running commands. A failed attempt or missing verification is not completion. Have the task session inspect its existing workspace, perform checks and correct the concrete gap within the original approval; do not attempt that execution in Inbox. Report the outcome here in the user's language and distinguish reported evidence from checks actually observed. For a fix within approved scope emit a cuan-delegate block with a concrete revision of task_id %s; do not create duplicate work or ask the user to operate tasks. Ask for approval only for new scope. This automated result is not new user authorization.", detail.Title, detail.ID, detail.ProjectID, detail.Status, detail.LatestAttempt.Status, truncateProjectText(detail.Instructions, 9000), truncateProjectText(detail.Summary, 6000), truncateProjectText(detail.CompleteNote, 6000), truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000), detail.ID)
 	content += taskRecoveryContext(detail)
-	q := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: detail.SourceRoomID, RequestID: requestID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: requestID, State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
+	q := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: targetRoomID, RequestID: requestID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: requestID, State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", AuthorName: "Cuan", Content: content, CreatedAt: now, UpdatedAt: now}
 	if _, fresh, err := store.AcceptInboxRequest(ctx, q, message); err == nil && fresh {
 		s.publishInbox(q.RoomID)
+		if targetRoomID != detail.SourceRoomID && detail.SourceRoomID != "" {
+			s.publishInbox(detail.SourceRoomID)
+		}
 		s.kickInboxRoom(q.RoomID)
 	}
 }
