@@ -68,6 +68,7 @@ type ClaimTaskResponse struct {
 	RepoName      string               `json:"repo_name,omitempty"`
 	RepoURL       string               `json:"repo_url,omitempty"`
 	DefaultBranch string               `json:"default_branch,omitempty"`
+	DeployBranch  string               `json:"deploy_branch,omitempty"`
 	WorkingDir    string               `json:"working_dir,omitempty"`
 	AutoDeploy    bool                 `json:"auto_deploy,omitempty"`
 	LeaseExpires  time.Time            `json:"lease_expires"`

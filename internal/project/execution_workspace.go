@@ -83,6 +83,7 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 			return "", errors.New("Task workspace branch changed; retained work needs review")
 		}
 		preflightWorkspaceRebase(ctx, destination, source, p.DefaultBranch)
+		s.configureWorkspaceDeployBranch(ctx, destination, p)
 		return destination, nil
 	} else if !os.IsNotExist(err) {
 		return "", err
@@ -129,6 +130,7 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 	if _, err = run("-C", source, "worktree", "add", "-b", branch, destination, base); err != nil {
 		return "", errors.New("Could not prepare the isolated task workspace")
 	}
+	s.configureWorkspaceDeployBranch(ctx, destination, p)
 	return destination, nil
 }
 
@@ -165,5 +167,19 @@ func preflightWorkspaceRebase(ctx context.Context, destination, source, defaultB
 		_ = exec.CommandContext(ctx, "git", "-C", destination, "rebase", base).Run()
 	} else if _, err := exec.CommandContext(ctx, "git", "-C", source, "rev-parse", "--verify", "refs/heads/"+defaultBranch+"^{commit}").Output(); err == nil {
 		_ = exec.CommandContext(ctx, "git", "-C", destination, "rebase", "refs/heads/"+defaultBranch).Run()
+	}
+}
+
+func (s *Service) configureWorkspaceDeployBranch(ctx context.Context, destination string, p *ProjectResponse) {
+	if p == nil {
+		return
+	}
+	settings := SettingsFromMetadata(p.Metadata)
+	deployBranch := strings.TrimSpace(settings.DeployBranch)
+	if deployBranch == "" {
+		deployBranch = strings.TrimSpace(p.DefaultBranch)
+	}
+	if deployBranch != "" {
+		_ = exec.CommandContext(ctx, "git", "-C", destination, "config", "cuan.deployBranch", deployBranch).Run()
 	}
 }

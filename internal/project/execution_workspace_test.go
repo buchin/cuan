@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,6 +35,10 @@ func TestExecutionWorkspacesIsolateAndResume(t *testing.T) {
 	first, err := s.TaskExecutionWorkspace(ctx, "task-one", SnapshotProjectGuidance("Approved work", p), p)
 	if err != nil {
 		t.Fatal(err)
+	}
+	deployOut, err := exec.Command("git", "-C", first, "config", "--get", "cuan.deployBranch").Output()
+	if err != nil || strings.TrimSpace(string(deployOut)) != p.DefaultBranch {
+		t.Fatalf("expected cuan.deployBranch %q, got %q (err: %v)", p.DefaultBranch, strings.TrimSpace(string(deployOut)), err)
 	}
 	second, err := s.ExecutionWorkspace(ctx, "task-two", p)
 	if err != nil || first == second {
@@ -119,5 +124,37 @@ func TestRelativeExecutionWorkspaceUsesActualGitDirectory(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(resumed, "pending"))
 	if err != nil || string(data) != "original" {
 		t.Fatal("legacy pending work lost", err)
+	}
+}
+
+func TestExecutionWorkspaceCustomDeployBranch(t *testing.T) {
+	ctx := context.Background()
+	source := filepath.Join(t.TempDir(), "source")
+	os.MkdirAll(source, 0700)
+	run := func(args ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatal(string(out), err)
+		}
+	}
+	run("init", "--initial-branch=dev", source)
+	os.WriteFile(filepath.Join(source, "README"), []byte("initial"), 0600)
+	run("-C", source, "add", "README")
+	run("-C", source, "commit", "-m", "Create fixture")
+	run("-C", source, "update-ref", "refs/remotes/origin/dev", "HEAD")
+	s := NewService(NewMemoryStore(), nil, "fixture-secret", t.TempDir())
+	p := &ProjectResponse{
+		RepoURL:       "https://github.com/fixture/repo",
+		LocalPath:     source,
+		DefaultBranch: "dev",
+		Metadata:      []byte(`{"cuan_settings":{"deploy_branch":"production"}}`),
+	}
+	ws, err := s.TaskExecutionWorkspace(ctx, "task-deploy-branch", SnapshotProjectGuidance("Work", p), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deployOut, err := exec.Command("git", "-C", ws, "config", "--get", "cuan.deployBranch").Output()
+	if err != nil || strings.TrimSpace(string(deployOut)) != "production" {
+		t.Fatalf("expected cuan.deployBranch %q, got %q (err: %v)", "production", strings.TrimSpace(string(deployOut)), err)
 	}
 }

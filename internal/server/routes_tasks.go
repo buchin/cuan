@@ -481,6 +481,10 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 			resp.WorkingDir = p.LocalPath
 			settings := project.SettingsFromMetadata(p.Metadata)
 			resp.AutoDeploy = settings.IsAutoDeployEnabled()
+			resp.DeployBranch = strings.TrimSpace(settings.DeployBranch)
+			if resp.DeployBranch == "" {
+				resp.DeployBranch = strings.TrimSpace(p.DefaultBranch)
+			}
 		}
 	}
 	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {

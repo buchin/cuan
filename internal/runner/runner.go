@@ -239,6 +239,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		prompt += claim.AgentPrompt
 	}
 	env := map[string]string{}
+	if claim.DeployBranch != "" {
+		env["CUAN_DEPLOY_BRANCH"] = claim.DeployBranch
+	}
 	if claim.TaskAgent != nil {
 		encoded, _ := json.Marshal(claim.TaskAgent)
 		env["CUAN_TASK_CAPABILITY_JSON"] = string(encoded)

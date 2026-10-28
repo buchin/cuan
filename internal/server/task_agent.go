@@ -119,6 +119,7 @@ completing implementation, syntax/build verification, executing live deployment,
 conducting live smoke tests. Pushing a task branch or local commit is only an intermediate step;
 marking a task as Succeeded/Done based merely on commit/push without live release and verified deployment is strictly forbidden.
 Delivery requires verified live production readiness. For substantial work, publish meaningful task report --progress "..." checkpoints.
+Deployment Branch Guardrail: For any project, when releasing or deploying changes, all commits must be merged to the project's configured deployment branch (CUAN_DEPLOY_BRANCH or cuan.deployBranch in git config) before executing deployment. Direct deployment from temporary task branches (cuan/task-*) is strictly prohibited.
 Print the user-facing answer before the final report.
 When the requested result is a downloadable file, attach each deliverable to the
 final report with --artifact "relative/path" (repeatable, up to eight files, 10 MB
