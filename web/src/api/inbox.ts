@@ -24,6 +24,8 @@ export interface InboxThreadItem {
   message_count: number
   task_count: number
   active_tasks?: number
+  done_tasks?: number
+  failed_tasks?: number
   created_at: string
   updated_at: string
 }
@@ -68,6 +70,8 @@ export const inboxApi = {
       ...t,
       task_count: typeof t.task_count === 'number' ? t.task_count : Number(t.task_count) || 0,
       active_tasks: typeof t.active_tasks === 'number' ? t.active_tasks : Number(t.active_tasks) || 0,
+      done_tasks: typeof t.done_tasks === 'number' ? t.done_tasks : Number(t.done_tasks) || 0,
+      failed_tasks: typeof t.failed_tasks === 'number' ? t.failed_tasks : Number(t.failed_tasks) || 0,
     }))
   },
 
