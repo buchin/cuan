@@ -481,6 +481,145 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 	}
 }
 
+func TestInboxDelegation_CrossRoomTaskDelegationAllowedForOwnerAndTeam(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p1", Name: "Project One"})
+	projects.CreateProject(ctx, &project.Project{ID: "p2", Name: "Project Two"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	ownerID := "owner_team_1"
+	now := time.Now().UTC()
+
+	// Room 1: Initial task creation
+	room1ID := db.GenerateUUID()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        room1ID,
+		ProjectID: "p1",
+		Title:     "Room 1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	initMsgID := db.GenerateUUID()
+	initReq := db.InboxRequest{
+		OwnerID:     ownerID,
+		AgentID:     "agent_lifecycle",
+		RoomID:      room1ID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   initMsgID,
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "init",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+	initMsg := &db.ProjectMessage{
+		ID:         initMsgID,
+		RoomID:     room1ID,
+		AuthorType: "user",
+		AuthorName: "Team Lead",
+		Content:    "Start feature implementation",
+		CreatedAt:  now,
+	}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, initReq, initMsg)
+
+	initDelegation := inboxDelegation{
+		Action:          "save",
+		Title:           "Feature Implementation",
+		Description:     "Implement feature.\n- [ ] Task 1 done",
+		ProjectID:       "p1",
+		AuthorizationID: initMsgID,
+	}
+	rawInit, _ := json.Marshal(initDelegation)
+	outInit := s.applyInboxDelegation(ctx, initReq, "```cuan-delegate\n"+string(rawInit)+"\n```")
+	if strings.Contains(outInit, "could not") {
+		t.Fatalf("failed to create initial task in room1: %s", outInit)
+	}
+
+	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: "p1"})
+	if err != nil || len(tasks) == 0 {
+		t.Fatalf("could not retrieve saved task: %v", err)
+	}
+	existingTaskID := tasks[0].ID
+
+	// Room 2: Different room context (cross-room / cross-session)
+	room2ID := db.GenerateUUID()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        room2ID,
+		ProjectID: "p2",
+		Title:     "Discussion in Room 2",
+		CreatedAt: now.Add(time.Hour),
+		UpdatedAt: now.Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	crossRoomMsgID := db.GenerateUUID()
+	crossRoomReq := db.InboxRequest{
+		OwnerID:     ownerID,
+		AgentID:     "agent_lifecycle",
+		RoomID:      room2ID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   crossRoomMsgID,
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "cross",
+		CreatedAt:   now.Add(2 * time.Hour),
+		Deadline:    now.Add(4 * time.Hour),
+	}
+	crossRoomMsg := &db.ProjectMessage{
+		ID:         crossRoomMsgID,
+		RoomID:     room2ID,
+		AuthorType: "user",
+		AuthorName: "Team Member",
+		Content:    "Lanjut perbaikan untuk task ini",
+		CreatedAt:  now.Add(2 * time.Hour),
+	}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, crossRoomReq, crossRoomMsg)
+
+	// Cross-room delegation for the task created in Room 1
+	crossDelegation := inboxDelegation{
+		Action:          "run",
+		TaskID:          existingTaskID,
+		AuthorizationID: crossRoomMsgID,
+		Revision:        "Fix edge cases in feature.\n- [ ] Edge cases handled",
+	}
+	rawCross, _ := json.Marshal(crossDelegation)
+	outCross := s.applyInboxDelegation(ctx, crossRoomReq, "```cuan-delegate\n"+string(rawCross)+"\n```")
+	t.Logf("outCross: %s", outCross)
+
+	if strings.Contains(outCross, "outside this approved conversation scope") {
+		t.Fatalf("cross-room delegation wrongly rejected with scope error: %s", outCross)
+	}
+	if strings.Contains(outCross, "belongs to another scope") {
+		t.Fatalf("cross-room delegation wrongly rejected with belongs to another scope: %s", outCross)
+	}
+	if !strings.Contains(outCross, "started") && !strings.Contains(outCross, "The work is") {
+		t.Fatalf("expected cross-room delegation to succeed, got: %s", outCross)
+	}
+
+	// Verify DoD checklist was expanded with the new revision item
+	taskDetail, err := s.taskSvc.GetTaskDetail(ctx, existingTaskID)
+	if err != nil {
+		t.Fatalf("could not load updated task: %v", err)
+	}
+	hasEdgeCases := false
+	for _, item := range taskDetail.DoDChecklist {
+		if strings.Contains(item.Text, "Edge cases handled") {
+			hasEdgeCases = true
+			break
+		}
+	}
+	if !hasEdgeCases {
+		t.Fatalf("expected updated DoD checklist to include new item from revision, got: %+v", taskDetail.DoDChecklist)
+	}
+}
+
 func TestInboxDelegation_ArchivedDefaultFallbackToActiveProject(t *testing.T) {
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()

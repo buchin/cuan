@@ -15,6 +15,8 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Check, Copy } from 'lucide-react'
+import { TaskCard } from './TaskCard'
+import { RoomCard } from './RoomCard'
 import './chat-markdown.css'
 
 // Messages can contain untrusted URLs. File paths remain readable text until
@@ -157,8 +159,17 @@ export const ChatMarkdown = memo(function ChatMarkdown({
                 <div className="chat-reply-body">{children}</div>
               </blockquote>
             ),
-            a: ({ href, children }) =>
-              href ? (
+            a: ({ href, children }) => {
+              if (!href) return <span>{children}</span>
+              const taskMatch = href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
+              if (taskMatch) {
+                return <TaskCard taskId={taskMatch[1]} className="my-2" />
+              }
+              const inboxMatch = href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
+              if (inboxMatch) {
+                return <RoomCard roomId={inboxMatch[1]} className="my-2" />
+              }
+              return (
                 <a
                   href={href}
                   target={/^https?:/i.test(href) ? '_blank' : undefined}
@@ -166,9 +177,8 @@ export const ChatMarkdown = memo(function ChatMarkdown({
                 >
                   {children}
                 </a>
-              ) : (
-                <span>{children}</span>
-              ),
+              )
+            },
             // Avoid loading arbitrary remote images/tracking pixels from agent output.
             img: ({ alt }) => (
               <span className="text-muted-foreground">

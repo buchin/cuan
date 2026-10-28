@@ -182,8 +182,10 @@ export function TaskItemCard({
   if (variant === 'row') {
     return (
       <div
+        onClick={onClick ? () => onClick(currentTask) : undefined}
         className={cn(
           'group flex min-h-16 items-center gap-3 border-b px-2 py-3 transition-colors hover:bg-muted/50 focus-within:bg-muted/30',
+          onClick && 'cursor-pointer',
           className
         )}
       >
@@ -531,7 +533,7 @@ export function TaskItemCard({
               e.stopPropagation()
               onNavigate?.()
             }}
-            className="action-secondary min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1 px-3.5 text-xs font-medium rounded-lg justify-center transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+            className="action-secondary min-h-11 min-w-[44px] inline-flex items-center gap-1 px-3.5 text-xs font-medium rounded-lg justify-center transition-colors focus-visible:outline-2 focus-visible:outline-ring"
             aria-label={`${t('Detail')} for ${currentTask.title}`}
           >
             <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -545,7 +547,7 @@ export function TaskItemCard({
                 type="button"
                 disabled={applying}
                 onClick={handleApply}
-                className="action-primary min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-3.5 text-xs font-medium rounded-lg justify-center bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all focus-visible:outline-2 focus-visible:outline-ring"
+                className="action-primary min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-3.5 text-xs font-medium rounded-lg justify-center bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Rocket className="h-3.5 w-3.5 shrink-0" />
                 <span>{applying ? t('Applying...') : t('Apply changes')}</span>
@@ -562,7 +564,7 @@ export function TaskItemCard({
                 type="button"
                 disabled={retrying}
                 onClick={handleRetry}
-                className="action-primary min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
+                className="action-primary min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin')} />
                 <span>{retrying ? t('Retrying...') : t('Retry')}</span>
@@ -575,7 +577,7 @@ export function TaskItemCard({
                   e.stopPropagation()
                   onNavigate?.()
                 }}
-                className="action-primary min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
+                className="action-primary min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Terminal className="h-3.5 w-3.5 shrink-0" />
                 <span>{t('Live Terminal')}</span>
@@ -591,7 +593,7 @@ export function TaskItemCard({
                   onNavigate?.()
                 }}
                 className={cn(
-                  'min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring',
+                  'min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring',
                   currentTask.pr_url && !applied && status === 'Ready for review'
                     ? 'action-secondary'
                     : 'action-primary'
@@ -608,7 +610,7 @@ export function TaskItemCard({
                   e.stopPropagation()
                   onNavigate?.()
                 }}
-                className="action-primary min-h-11 min-w-[44px] min-h-9 inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
+                className="action-primary min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Play className="h-3.5 w-3.5 shrink-0" />
                 <span>{t('Start session')}</span>
