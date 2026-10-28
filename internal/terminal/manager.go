@@ -786,12 +786,20 @@ func (m *Manager) GetProjectActiveRunner(projectID string) *ProjectActiveRunner 
 func ensureResourceGuardrailEnv(env []string) []string {
 	hasGoMaxProcs := false
 	hasNodeOptions := false
+	hasGoMemLimit := false
+	hasGoGC := false
 	for _, e := range env {
 		if strings.HasPrefix(e, "GOMAXPROCS=") {
 			hasGoMaxProcs = true
 		}
 		if strings.HasPrefix(e, "NODE_OPTIONS=") {
 			hasNodeOptions = true
+		}
+		if strings.HasPrefix(e, "GOMEMLIMIT=") {
+			hasGoMemLimit = true
+		}
+		if strings.HasPrefix(e, "GOGC=") {
+			hasGoGC = true
 		}
 	}
 	res := append([]string(nil), env...)
@@ -800,6 +808,12 @@ func ensureResourceGuardrailEnv(env []string) []string {
 	}
 	if !hasNodeOptions {
 		res = append(res, "NODE_OPTIONS=--max-old-space-size=512")
+	}
+	if !hasGoMemLimit {
+		res = append(res, "GOMEMLIMIT=400MiB")
+	}
+	if !hasGoGC {
+		res = append(res, "GOGC=50")
 	}
 	return res
 }

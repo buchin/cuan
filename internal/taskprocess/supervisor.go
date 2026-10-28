@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -96,6 +97,35 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	defer signal.Stop(signals)
 	child := exec.Command(args[3], args[4:]...)
 	child.Stdin, child.Stdout, child.Stderr = stdin, stdout, stderr
+	childEnv := os.Environ()
+	hasGoMemLimit, hasGoMaxProcs, hasGoGC, hasNodeOptions := false, false, false, false
+	for _, e := range childEnv {
+		if strings.HasPrefix(e, "GOMEMLIMIT=") {
+			hasGoMemLimit = true
+		}
+		if strings.HasPrefix(e, "GOMAXPROCS=") {
+			hasGoMaxProcs = true
+		}
+		if strings.HasPrefix(e, "GOGC=") {
+			hasGoGC = true
+		}
+		if strings.HasPrefix(e, "NODE_OPTIONS=") {
+			hasNodeOptions = true
+		}
+	}
+	if !hasGoMemLimit {
+		childEnv = append(childEnv, "GOMEMLIMIT=400MiB")
+	}
+	if !hasGoMaxProcs {
+		childEnv = append(childEnv, "GOMAXPROCS=1")
+	}
+	if !hasGoGC {
+		childEnv = append(childEnv, "GOGC=50")
+	}
+	if !hasNodeOptions {
+		childEnv = append(childEnv, "NODE_OPTIONS=--max-old-space-size=512")
+	}
+	child.Env = childEnv
 	// The agent cannot survive an abruptly killed supervisor. LockOSThread keeps
 	// the Linux parent-death binding tied to this live supervisor thread.
 	child.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL, Setpgid: true}

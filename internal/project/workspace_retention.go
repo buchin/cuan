@@ -3,10 +3,23 @@ package project
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
+
+// WorkspaceRetentionPeriod returns the duration completed workspaces are retained.
+// Defaults to 7 days, configurable via CUAN_WORKSPACE_RETENTION_HOURS.
+func WorkspaceRetentionPeriod() time.Duration {
+	if val := os.Getenv("CUAN_WORKSPACE_RETENTION_HOURS"); val != "" {
+		if h, err := strconv.Atoi(val); err == nil && h > 0 {
+			return time.Duration(h) * time.Hour
+		}
+	}
+	return 7 * 24 * time.Hour
+}
 
 // WorkspaceRetentionDecision explains why a completed task can or cannot release
 // its checkout. Callers must also hold execution ownership before any removal.
@@ -28,7 +41,7 @@ func InspectWorkspaceRetention(ctx context.Context, path, status string, updated
 	if status != "done" {
 		return keep("task_not_done")
 	}
-	if updatedAt.IsZero() || now.Sub(updatedAt) < 7*24*time.Hour {
+	if updatedAt.IsZero() || now.Sub(updatedAt) < WorkspaceRetentionPeriod() {
 		return keep("retention_period")
 	}
 	run := func(args ...string) (string, error) {

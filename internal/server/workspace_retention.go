@@ -38,10 +38,11 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 	if count > 10 {
 		count = 10
 	}
+	period := project.WorkspaceRetentionPeriod()
 	for i := 0; i < count; i++ {
 		item := items[cursor%len(items)]
 		cursor++
-		if now.Sub(item.UpdatedAt) < 7*24*time.Hour || item.ProjectID == "" {
+		if now.Sub(item.UpdatedAt) < period || item.ProjectID == "" {
 			continue
 		}
 		runCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -53,7 +54,7 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 					return project.WorkspaceRetirementState{}, e
 				}
 				state := project.WorkspaceRetirementState{Status: latest.Status, UpdatedAt: latest.UpdatedAt}
-				if latest.Status != "done" || now.Sub(latest.UpdatedAt) < 7*24*time.Hour {
+				if latest.Status != "done" || now.Sub(latest.UpdatedAt) < period {
 					return state, nil
 				}
 				state.RemoteHead, e = s.projectSvc.ConfirmTaskRemoteHead(runCtx, item.ID, p)

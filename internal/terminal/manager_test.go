@@ -478,7 +478,7 @@ func TestRunTaskAgentAutoProvisionsOnboardingAndTrustedWorkspaces(t *testing.T) 
 }
 
 func TestEnsureResourceGuardrailEnv(t *testing.T) {
-	// 1. Empty env injects default GOMAXPROCS=1 and NODE_OPTIONS
+	// 1. Empty env injects default GOMAXPROCS=1, NODE_OPTIONS, GOMEMLIMIT=400MiB, and GOGC=50
 	res := ensureResourceGuardrailEnv(nil)
 	joined := strings.Join(res, ";")
 	if !strings.Contains(joined, "GOMAXPROCS=1") {
@@ -486,6 +486,12 @@ func TestEnsureResourceGuardrailEnv(t *testing.T) {
 	}
 	if !strings.Contains(joined, "NODE_OPTIONS=--max-old-space-size=512") {
 		t.Errorf("expected NODE_OPTIONS, got: %v", res)
+	}
+	if !strings.Contains(joined, "GOMEMLIMIT=400MiB") {
+		t.Errorf("expected GOMEMLIMIT=400MiB, got: %v", res)
+	}
+	if !strings.Contains(joined, "GOGC=50") {
+		t.Errorf("expected GOGC=50, got: %v", res)
 	}
 
 	// 2. Existing GOMAXPROCS is preserved
@@ -498,11 +504,17 @@ func TestEnsureResourceGuardrailEnv(t *testing.T) {
 	if !strings.Contains(joined2, "NODE_OPTIONS=--max-old-space-size=512") {
 		t.Errorf("expected NODE_OPTIONS added to custom env, got: %v", res2)
 	}
+	if !strings.Contains(joined2, "GOMEMLIMIT=400MiB") {
+		t.Errorf("expected GOMEMLIMIT added to custom env, got: %v", res2)
+	}
+	if !strings.Contains(joined2, "GOGC=50") {
+		t.Errorf("expected GOGC added to custom env, got: %v", res2)
+	}
 
-	// 3. Both existing are preserved
-	customBoth := []string{"GOMAXPROCS=2", "NODE_OPTIONS=--max-old-space-size=1024"}
-	res3 := ensureResourceGuardrailEnv(customBoth)
-	if len(res3) != 2 {
+	// 3. Existing custom variables are preserved
+	customAll := []string{"GOMAXPROCS=2", "NODE_OPTIONS=--max-old-space-size=1024", "GOMEMLIMIT=800MiB", "GOGC=80"}
+	res3 := ensureResourceGuardrailEnv(customAll)
+	if len(res3) != 4 {
 		t.Errorf("expected no additional env vars, got %v", res3)
 	}
 }
