@@ -117,6 +117,8 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 			"call_mcp_tool(*)",
 			"cuan-inspect/*",
 			"cuan-inspect:*",
+			"cuan-platform-mcp/*",
+			"cuan-platform-mcp:*",
 		}
 		allowSet := make(map[string]bool)
 		for _, rule := range perms.Allow {
@@ -256,6 +258,8 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 		"call_mcp_tool(*)",
 		"cuan-inspect/*",
 		"cuan-inspect:*",
+		"cuan-platform-mcp/*",
+		"cuan-platform-mcp:*",
 	}
 	allowSet := make(map[string]bool)
 	for _, rule := range perms.Allow {
@@ -284,6 +288,9 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 // PrepareAntigravitySettings configures settings.json defaults and trusts the given workspaces.
 func PrepareAntigravitySettings(home string, trustedWorkspaces ...string) error {
 	_ = EnsureAntigravityMCPConfig(home)
+	for _, ws := range trustedWorkspaces {
+		_ = EnsureWorkspaceMCPConfig(ws)
+	}
 	return prepareAntigravitySettings(home, trustedWorkspaces...)
 }
 
@@ -291,9 +298,16 @@ func PrepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 func EnsureAntigravityMCPConfig(home string) error {
 	cliSettingsMu.Lock()
 	defer cliSettingsMu.Unlock()
+	if home == "" {
+		home, _ = os.UserHomeDir()
+	}
+	if home == "" {
+		return nil
+	}
 	for _, dir := range []string{
 		filepath.Join(home, ".gemini", "config"),
 		AntigravityConfigDirPath(home),
+		filepath.Join(home, ".config", "antigravity"),
 	} {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			continue
@@ -315,6 +329,44 @@ func EnsureAntigravityMCPConfig(home string) error {
 		data, err := json.MarshalIndent(cfg, "", "  ")
 		if err == nil {
 			_ = os.WriteFile(path, append(data, '\n'), 0600)
+		}
+	}
+	return nil
+}
+
+// EnsureWorkspaceMCPConfig configures mcp_config.json in the project workspace directory
+// so that workspace-scoped MCP tool discovery in Antigravity automatically detects cuan-inspect.
+func EnsureWorkspaceMCPConfig(workspaceDir string) error {
+	workspaceDir = strings.TrimSpace(workspaceDir)
+	if workspaceDir == "" {
+		return nil
+	}
+	cliSettingsMu.Lock()
+	defer cliSettingsMu.Unlock()
+	for _, sub := range []string{
+		filepath.Join(workspaceDir, ".gemini", "config"),
+		filepath.Join(workspaceDir, ".agents"),
+	} {
+		if err := os.MkdirAll(sub, 0755); err != nil {
+			continue
+		}
+		path := filepath.Join(sub, "mcp_config.json")
+		var cfg struct {
+			MCPServers map[string]any `json:"mcpServers"`
+		}
+		if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
+			_ = json.Unmarshal(data, &cfg)
+		}
+		if cfg.MCPServers == nil {
+			cfg.MCPServers = make(map[string]any)
+		}
+		cfg.MCPServers["cuan-inspect"] = map[string]any{
+			"command": "cuan",
+			"args":    []string{"mcp"},
+		}
+		data, err := json.MarshalIndent(cfg, "", "  ")
+		if err == nil {
+			_ = os.WriteFile(path, append(data, '\n'), 0644)
 		}
 	}
 	return nil

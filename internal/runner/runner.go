@@ -238,6 +238,15 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if claim.AgentPrompt != "" {
 		prompt += claim.AgentPrompt
 	}
+
+	// Prepare workspace settings & MCP tool configurations for runner session
+	home, _ := os.UserHomeDir()
+	_ = agent.PrepareAntigravitySettings(home, workingDir)
+	_ = agent.EnsureAntigravityMCPConfig(home)
+	if workingDir != "" {
+		_ = agent.EnsureWorkspaceMCPConfig(workingDir)
+	}
+
 	env := map[string]string{}
 	if claim.DeployBranch != "" {
 		env["CUAN_DEPLOY_BRANCH"] = claim.DeployBranch

@@ -226,3 +226,32 @@ func TestCLISettingsEnsureAntigravityMCPConfig(t *testing.T) {
 		t.Fatalf("expected cuan-inspect mcp server in mcp_config.json, got: %+v", cfg.MCPServers)
 	}
 }
+
+func TestCLISettingsEnsureWorkspaceMCPConfig(t *testing.T) {
+	ws := t.TempDir()
+	if err := EnsureWorkspaceMCPConfig(ws); err != nil {
+		t.Fatal(err)
+	}
+	for _, sub := range []string{
+		filepath.Join(ws, ".gemini", "config", "mcp_config.json"),
+		filepath.Join(ws, ".agents", "mcp_config.json"),
+	} {
+		data, err := os.ReadFile(sub)
+		if err != nil {
+			t.Fatalf("failed to read workspace mcp_config.json at %s: %v", sub, err)
+		}
+		var cfg struct {
+			MCPServers map[string]struct {
+				Command string   `json:"command"`
+				Args    []string `json:"args"`
+			} `json:"mcpServers"`
+		}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("invalid json: %v", err)
+		}
+		cuanServer, ok := cfg.MCPServers["cuan-inspect"]
+		if !ok || cuanServer.Command != "cuan" || len(cuanServer.Args) == 0 || cuanServer.Args[0] != "mcp" {
+			t.Fatalf("expected cuan-inspect in %s, got: %+v", sub, cfg.MCPServers)
+		}
+	}
+}

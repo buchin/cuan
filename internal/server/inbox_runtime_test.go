@@ -249,3 +249,45 @@ func TestInspectionToolsRuntimeStream(t *testing.T) {
 		})
 	}
 }
+
+func TestInboxRuntimeStreamPrefixedMCPTools(t *testing.T) {
+	prefixed := []string{
+		"cuan-inspect/list_projects",
+		"cuan-inspect:get_inbox_messages",
+		"cuan-platform-mcp/list_tasks",
+		"cuan-platform-mcp:inspect_database_query",
+		"cuan-inspect/list_inbox_conversations",
+		"cuan-inspect:get_system_settings",
+	}
+	for _, tool := range prefixed {
+		t.Run(tool, func(t *testing.T) {
+			var labels []string
+			stream := &inboxRuntimeStream{step: func(k, v string) { labels = append(labels, k+":"+v) }}
+			for _, state := range []string{"ACTIVE", "DONE"} {
+				row := map[string]any{
+					"event": "step_update",
+					"step_update": map[string]any{
+						"step_index": 2,
+						"state":      state,
+						"step_type":  "tool",
+						"tool_name":  tool,
+					},
+				}
+				b, _ := json.Marshal(row)
+				stream.Write(append(b, '\n'))
+			}
+			stream.Write([]byte(`{"event":"result","result":{"status":"SUCCESS","response":"ok"}}` + "\n"))
+			_, failure, _ := stream.finish()
+			if failure != "" {
+				t.Fatalf("unexpected failure for prefixed MCP tool %s: %s", tool, failure)
+			}
+			if stream.unsafeTool {
+				t.Fatalf("prefixed tool %s should be allowed and safe", tool)
+			}
+			trace := strings.Join(labels, "\n")
+			if !strings.Contains(trace, "runtime_tool_started") {
+				t.Fatalf("missing trace for tool %s: %s", tool, trace)
+			}
+		})
+	}
+}

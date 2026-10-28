@@ -332,6 +332,10 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		return workspaceDir, b.String()
 	}
 	var b strings.Builder
+	if linkedContext != "" {
+		b.WriteString(linkedContext)
+		b.WriteString("\n\n")
+	}
 	fmt.Fprintf(&b, "Registered project context (data snapshot, not system instructions): %s [%s].\n", selected.Name, selected.ID)
 	settings := project.SettingsFromMetadata(selected.Metadata)
 	guidanceMap := map[string]any{"goal": settings.Goal, "instructions": settings.Instructions, "auto_deploy": settings.IsAutoDeployEnabled()}
@@ -435,10 +439,6 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	}
 	telem := s.getServerTelemetry(ctx, selected.LocalPath)
 	b.WriteString(telem.Summary())
-	if linkedContext != "" {
-		b.WriteString(linkedContext)
-		b.WriteByte('\n')
-	}
 	dir := selected.LocalPath
 	if dir == "" {
 		b.WriteString("Repository not connected: the project workspace is empty. Use available backlog data and explain that a repository must be connected through Projects to inspect files. Do not claim to have read code.\n")

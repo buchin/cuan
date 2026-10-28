@@ -9,11 +9,21 @@ import (
 )
 
 var (
-	cuanURLRegex      = regexp.MustCompile(`https?://[^\s]+`)
-	cuanRoomLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?/(?:inbox|chat|conversations|studio)/([a-fA-F0-9-]{36})`)
-	cuanTaskLinkRegex = regexp.MustCompile(`(?:https?://[^/\s]+)?(?:/projects/[^/\s]+)?/tasks/([a-zA-Z0-9_-]{8,})`)
-	cuanBareTaskRegex = regexp.MustCompile(`\b(task_[a-zA-Z0-9]{8,}|task-[a-zA-Z0-9]{8,})\b`)
+	cuanURLRegex          = regexp.MustCompile(`https?://[^\s]+`)
+	cuanRoomLinkRegex     = regexp.MustCompile(`(?:https?://[^/\s]+)?/(?:inbox|chat|conversations|studio)/([a-zA-Z0-9_-]{6,36})`)
+	cuanBareRoomRegex     = regexp.MustCompile(`\b(room_[a-zA-Z0-9_-]{6,}|room-[a-zA-Z0-9_-]{6,})\b`)
+	cuanExplicitRoomRegex = regexp.MustCompile(`(?i)\b(?:room|inbox|chat)\s*[:=]?\s*([a-fA-F0-9-]{36})\b`)
+	cuanTaskLinkRegex     = regexp.MustCompile(`(?:https?://[^/\s]+)?(?:/projects/[^/\s]+)?/tasks/([a-zA-Z0-9_-]{6,})`)
+	cuanBareTaskRegex     = regexp.MustCompile(`\b(task_[a-zA-Z0-9_-]{6,}|task-[a-zA-Z0-9_-]{6,}|msg_[a-zA-Z0-9_-]{8,})\b`)
 )
+
+func cleanCuanReferenceID(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if idx := strings.IndexAny(raw, "?#"); idx != -1 {
+		raw = raw[:idx]
+	}
+	return strings.TrimRight(raw, "/.,:;!?)]}>\"'")
+}
 
 func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, currentRoomID string) string {
 	if strings.TrimSpace(text) == "" {
@@ -21,15 +31,25 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 	}
 	var b strings.Builder
 	// 1. Check for room / conversation links
-	roomMatches := cuanRoomLinkRegex.FindAllStringSubmatch(text, -1)
+	var roomMatches [][]string
+	for _, m := range cuanRoomLinkRegex.FindAllStringSubmatch(text, -1) {
+		roomMatches = append(roomMatches, m)
+	}
+	for _, bm := range cuanBareRoomRegex.FindAllStringSubmatch(text, -1) {
+		roomMatches = append(roomMatches, bm)
+	}
+	for _, em := range cuanExplicitRoomRegex.FindAllStringSubmatch(text, -1) {
+		roomMatches = append(roomMatches, em)
+	}
+
 	seenRooms := map[string]bool{currentRoomID: true}
 	var processedRooms int
 	for _, m := range roomMatches {
 		if len(m) < 2 {
 			continue
 		}
-		roomID := m[1]
-		if seenRooms[roomID] {
+		roomID := cleanCuanReferenceID(m[1])
+		if roomID == "" || seenRooms[roomID] {
 			continue
 		}
 		seenRooms[roomID] = true
@@ -45,13 +65,15 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 			continue
 		}
 		messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, roomID)
-		if err != nil || len(messages) == 0 {
-			continue
+		if err != nil {
+			messages = nil
 		}
 		sort.SliceStable(messages, func(i, j int) bool { return messages[i].CreatedAt.Before(messages[j].CreatedAt) })
 		fmt.Fprintf(&b, "\n[Referenced Internal Cuan Conversation: Room %s, Title: %q]\n", roomID, room.Title)
 		b.WriteString("(This is an internal Cuan conversation from this application, NOT an external link. Analyze it directly):\n")
-		if len(messages) <= 25 {
+		if len(messages) == 0 {
+			b.WriteString("(No messages recorded in this room yet)\n")
+		} else if len(messages) <= 25 {
 			for _, msg := range messages {
 				clean, _ := decodeAttachmentMessage(msg.Content)
 				clean = truncateProjectText(clean, 600)
@@ -84,8 +106,8 @@ func (s *Server) resolveInternalCuanLinks(ctx context.Context, text string, curr
 		if len(m) < 2 {
 			continue
 		}
-		taskID := m[1]
-		if seenTasks[taskID] {
+		taskID := cleanCuanReferenceID(m[1])
+		if taskID == "" || seenTasks[taskID] {
 			continue
 		}
 		seenTasks[taskID] = true

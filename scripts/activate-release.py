@@ -307,6 +307,12 @@ def main():
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         retained_environment = database_environment()
         assert_idle_work(args.no_restart)  # Recheck after backup and unit preparation.
+        cuan_bin = target / 'bin' / 'cuan'
+        if not cuan_bin.exists() and not cuan_bin.is_symlink():
+            try:
+                cuan_bin.symlink_to('cuan-server')
+            except Exception:
+                pass
         switch(current, target)
         target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
         check_healthy = (lambda: healthy(target_sha)) if args.no_restart else (lambda: restart_and_check(target_sha))

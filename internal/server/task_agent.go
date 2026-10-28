@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
@@ -48,7 +49,9 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		}
 		_ = os.RemoveAll(dir)
 	}
+	_ = agent.EnsureAntigravityMCPConfig("")
 	if workspace, ok := ctx.Value(taskAgentWorkspaceKey{}).(string); ok && workspace != "" {
+		_ = agent.EnsureWorkspaceMCPConfig(workspace)
 		artifactRoot, e = os.OpenRoot(workspace)
 		if e != nil {
 			cleanup()

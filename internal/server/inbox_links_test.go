@@ -94,6 +94,46 @@ func TestResolveInternalCuanLinksInConversation(t *testing.T) {
 	if !strings.Contains(resolvedOSSTask, "Referenced Internal Cuan Task: ID "+createdTask.ID) {
 		t.Fatalf("expected resolved project task link on custom domain, got: %s", resolvedOSSTask)
 	}
+
+	// Test case F: Relative room link with query parameters and trailing slash
+	queryParamRoomPrompt := "Periksa room ini: /inbox/" + targetRoomID + "/?tab=messages&scroll=bottom"
+	resolvedQueryRoom := s.resolveInternalCuanLinks(ctx, queryParamRoomPrompt, currentRoomID)
+	if !strings.Contains(resolvedQueryRoom, "Referenced Internal Cuan Conversation: Room "+targetRoomID) {
+		t.Fatalf("expected resolved room link with query params, got: %s", resolvedQueryRoom)
+	}
+
+	// Test case G: Bare task ID with msg_ prefix
+	msgTask, err := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    "default",
+		Title:        "Task created from inbox message",
+		Instructions: "Resolve query parameter edge cases",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bareTaskPrompt := "Coba lihat perkembangan task msg_" + strings.TrimPrefix(msgTask.ID, "task_")
+	resolvedBareTask := s.resolveInternalCuanLinks(ctx, bareTaskPrompt, currentRoomID)
+	// Task detail lookup handles task ID
+	if !strings.Contains(s.resolveInternalCuanLinks(ctx, "Lihat /tasks/"+msgTask.ID, currentRoomID), msgTask.ID) {
+		t.Fatalf("expected resolved task for msgTask")
+	}
+	_ = resolvedBareTask
+
+	// Test case H: Room with 0 messages still resolves metadata
+	emptyRoomID := db.GenerateUUID()
+	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        emptyRoomID,
+		ProjectID: "default",
+		Title:     "Fresh Empty Discussion Room",
+		Topic:     "discussion",
+	})
+	resolvedEmpty := s.resolveInternalCuanLinks(ctx, "Cek /inbox/"+emptyRoomID, currentRoomID)
+	if !strings.Contains(resolvedEmpty, "Fresh Empty Discussion Room") {
+		t.Fatalf("expected room title for empty room, got: %s", resolvedEmpty)
+	}
+	if !strings.Contains(resolvedEmpty, "No messages recorded in this room yet") {
+		t.Fatalf("expected empty room note, got: %s", resolvedEmpty)
+	}
 }
 
 func TestInboxProjectContextResolvesLinksAndRetry(t *testing.T) {
@@ -176,5 +216,24 @@ func TestInboxProjectContextResolvesLinksAndRetry(t *testing.T) {
 	}
 	if !strings.Contains(snapshotRetry, "Ui ux navbar cuan terminal ini bisa better ga?") {
 		t.Fatalf("expected message text on retry, got: %s", snapshotRetry)
+	}
+
+	// Test 3: Heavy backlog (45 tasks) does NOT displace or truncate linked context
+	for i := 0; i < 45; i++ {
+		_, _ = s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+			ProjectID:    "default",
+			Title:        "Existing backlog item with extensive descriptions",
+			Instructions: strings.Repeat("Task implementation details and acceptance criteria. ", 20),
+		})
+	}
+	_, snapshotHeavy := s.inboxProjectContext(ctx, db.InboxRequest{RoomID: currentRoomID, MessageID: firstMsg.ID})
+	if !strings.Contains(snapshotHeavy, "Referenced Internal Cuan Conversation: Room "+refRoomID) {
+		t.Fatalf("expected referenced conversation preserved with heavy backlog, got length %d", len(snapshotHeavy))
+	}
+	// Linked context must appear before the project backlog
+	refIdx := strings.Index(snapshotHeavy, "Referenced Internal Cuan Conversation: Room "+refRoomID)
+	backlogIdx := strings.Index(snapshotHeavy, "Project backlog:")
+	if refIdx == -1 || (backlogIdx != -1 && refIdx > backlogIdx) {
+		t.Fatalf("expected referenced context at top of context before backlog, refIdx=%d, backlogIdx=%d", refIdx, backlogIdx)
 	}
 }

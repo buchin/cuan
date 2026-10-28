@@ -131,6 +131,7 @@ fi
 release_dir="$HOME/.local/share/cuan-releases/$release_sha"
 mkdir -p "$release_dir/bin" "$release_dir/web"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-server" ./cmd/server
+ln -sf cuan-server "$release_dir/bin/cuan"
 npm run build --prefix web
 cp -a web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
