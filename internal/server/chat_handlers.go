@@ -171,6 +171,10 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 		}
 	}
 
+	if s.agentRepo != nil {
+		_ = db.EnsureBuiltinAgents(ctx, s.agentRepo)
+	}
+
 }
 
 // ============================================================================
@@ -1084,6 +1088,18 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 								break
 							}
 						}
+					} else if mLower == "@support" {
+						for _, a := range ags {
+							roleLower := strings.ToLower(a.Role)
+							nameLower := strings.ToLower(a.Name)
+							if strings.Contains(roleLower, "support") || strings.Contains(nameLower, "support") {
+								result.TargetAgentID = a.ID
+								result.TargetAgentName = a.Name
+								result.TargetHarness = a.Harness
+								result.IsAgent = true
+								break
+							}
+						}
 					}
 				}
 			}
@@ -1099,6 +1115,11 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 			} else if mLower == "@dev" {
 				result.TargetAgentID = "agent_dev"
 				result.TargetAgentName = "Dev Worker"
+				result.TargetHarness = "agy"
+				result.IsAgent = true
+			} else if mLower == "@support" {
+				result.TargetAgentID = "agent_support"
+				result.TargetAgentName = "Support Agent"
 				result.TargetHarness = "agy"
 				result.IsAgent = true
 			}

@@ -54,7 +54,26 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		if modelID != "" && !strings.HasPrefix(modelID, "conn_") && modelID != "commandcode-default" && modelID != "default" {
 			execCtx = context.WithValue(execCtx, inboxModelKey{}, modelID)
 		}
-		return s.executeInboxCLI(execCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
+		out, fail := s.executeInboxCLI(execCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
+		if out != "" {
+			return out, ""
+		}
+		fallbackID := strings.TrimSpace(registered.FallbackModelID)
+		if idx := strings.Index(fallbackID, "#"); idx != -1 {
+			fallbackID = fallbackID[idx+1:]
+		}
+		if fallbackID != "" && fallbackID != modelID {
+			if step != nil {
+				step("model_fallback", fmt.Sprintf("Primary model %s encountered limit or error. Routing to fallback model %s.", modelID, fallbackID))
+			}
+			fbCtx := context.WithValue(execCtx, inboxModelKey{}, fallbackID)
+			fbOut, fbFail := s.executeInboxCLI(fbCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
+			if fbOut != "" {
+				return fbOut, ""
+			}
+			fail = fbFail
+		}
+		return out, fail
 	}
 	routes := s.providerRoutes(ctx, owner, registered, home, limited)
 	attempts := 0
@@ -94,7 +113,9 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 				step("model_auto", "Using Auto: the AI provider chooses its default model.")
 			}
 			if route.model != "" {
-				if route.remaining == -1 {
+				if registered.FallbackModelID != "" && route.model == registered.FallbackModelID && route.model != registered.ModelID {
+					step("model_fallback", fmt.Sprintf("Using fallback model %s based on agent configuration.", route.model))
+				} else if route.remaining == -1 {
 					step("model_selected", fmt.Sprintf("Using supported model %s; remaining usage has not been verified.", route.model))
 				} else {
 					step("model_selected", fmt.Sprintf("Using model %s based on the allowed model policy and available usage evidence.", route.model))
@@ -319,19 +340,39 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 				return
 			}
 		}
+		primaryAdded := false
 		for _, item := range usage.Models {
 			if model != "" && item.Model == model {
 				if item.Remaining > 0 {
 					addModel(model, item.Remaining)
+					primaryAdded = true
 				}
-				return
+				break
 			}
 		}
-		score := -2.0
-		if isPrimary {
-			score = -1
+		if !primaryAdded {
+			score := -2.0
+			if isPrimary {
+				score = -1
+			}
+			addModel(model, score)
 		}
-		addModel(model, score)
+		fallbackModel := registered.FallbackModelID
+		if fallbackModel != "" && agent.IsTextModel(fallbackModel) && fallbackModel != model {
+			fbScore := -2.5
+			if isPrimary {
+				fbScore = -1.5
+			}
+			for _, item := range usage.Models {
+				if item.Model == fallbackModel {
+					if item.Remaining > 0 {
+						fbScore = item.Remaining - 0.05
+					}
+					break
+				}
+			}
+			addModel(fallbackModel, fbScore)
+		}
 	}
 	for i, candidate := range candidates {
 		add(candidate.profile, candidate.home, candidate.primary, usages[i])
@@ -358,7 +399,7 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 	}
 	profile, err := agent.GetProviderAccount(owner, route.accountID)
 	allowed := err == nil && profile.CredentialsPresent && ((route.primary && profile.AgentID == registered.ID && profile.ConnectionID == registered.ConnectionID) || (!route.primary && profile.AllowFailover))
-	if allowed && route.model != "" && route.model != registered.ModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
+	if allowed && route.model != "" && route.model != registered.ModelID && route.model != registered.FallbackModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
 		allowed = false
 	}
 	if allowed && time.Now().Before(profile.ModelCooldowns[route.model]) {

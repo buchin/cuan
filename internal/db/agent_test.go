@@ -451,6 +451,109 @@ func TestRepositories_AgentIntegration(t *testing.T) {
 	}
 }
 
+func TestAgent_ModelConfigAndBuiltins(t *testing.T) {
+	ctx := context.Background()
+	repo := NewMemoryAgentRepository()
+
+	// 1. Test EnsureBuiltinAgents seeds @sm, @dev, @support with model configs
+	if err := EnsureBuiltinAgents(ctx, repo); err != nil {
+		t.Fatalf("EnsureBuiltinAgents failed: %v", err)
+	}
+
+	sm, err := repo.GetAgentByID(ctx, "agent_sm")
+	if err != nil {
+		t.Fatalf("failed to get agent_sm: %v", err)
+	}
+	if sm.Name != "@sm" || sm.ModelID != "gemini-1.5-pro" || sm.FallbackModelID != "gemini-1.5-flash" {
+		t.Errorf("unexpected agent_sm config: %+v", sm)
+	}
+	if sm.Temperature == nil || *sm.Temperature != 0.7 || sm.TokenBudget == nil || *sm.TokenBudget != 8192 {
+		t.Errorf("unexpected agent_sm temp/budget: %+v", sm)
+	}
+
+	dev, err := repo.GetAgentByID(ctx, "agent_dev")
+	if err != nil {
+		t.Fatalf("failed to get agent_dev: %v", err)
+	}
+	if dev.Name != "@dev" || dev.FallbackModelID != "gemini-1.5-flash" {
+		t.Errorf("unexpected agent_dev config: %+v", dev)
+	}
+
+	support, err := repo.GetAgentByID(ctx, "agent_support")
+	if err != nil {
+		t.Fatalf("failed to get agent_support: %v", err)
+	}
+	if support.Name != "@support" || support.Role != "Customer Support" || support.FallbackModelID != "gemini-1.5-pro" {
+		t.Errorf("unexpected agent_support config: %+v", support)
+	}
+
+	// 2. Test Custom Agent with Model Config
+	temp := 0.4
+	budget := 4096
+	customInput := CreateAgentInput{
+		Name:            "Custom Coder",
+		ModelID:         "claude-sonnet-5-5",
+		FallbackModelID: "claude-opus-5-5",
+		Temperature:     &temp,
+		TokenBudget:     &budget,
+	}
+	customAgent, err := customInput.ToEntity()
+	if err != nil {
+		t.Fatalf("ToEntity failed: %v", err)
+	}
+	if err := repo.CreateAgent(ctx, customAgent); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+
+	retrieved, err := repo.GetAgentByID(ctx, customAgent.ID)
+	if err != nil {
+		t.Fatalf("GetAgentByID failed: %v", err)
+	}
+	if retrieved.ModelID != "claude-sonnet-5-5" || retrieved.FallbackModelID != "claude-opus-5-5" {
+		t.Errorf("model mismatch on custom agent: %+v", retrieved)
+	}
+	if retrieved.Temperature == nil || *retrieved.Temperature != 0.4 || retrieved.TokenBudget == nil || *retrieved.TokenBudget != 4096 {
+		t.Errorf("temperature or token budget mismatch on custom agent: %+v", retrieved)
+	}
+
+	// 3. Test Updating Model Config
+	newTemp := 1.2
+	newBudget := 16384
+	updateInput := UpdateAgentInput{
+		ModelID:         strPtr("gemini-2.0-flash"),
+		FallbackModelID: strPtr("gemini-1.5-flash"),
+		Temperature:     &newTemp,
+		TokenBudget:     &newBudget,
+	}
+	if err := updateInput.ApplyTo(retrieved); err != nil {
+		t.Fatalf("ApplyTo failed: %v", err)
+	}
+	if err := repo.UpdateAgent(ctx, retrieved); err != nil {
+		t.Fatalf("UpdateAgent failed: %v", err)
+	}
+
+	updated, err := repo.GetAgentByID(ctx, customAgent.ID)
+	if err != nil {
+		t.Fatalf("GetAgentByID after update failed: %v", err)
+	}
+	if updated.ModelID != "gemini-2.0-flash" || updated.FallbackModelID != "gemini-1.5-flash" || *updated.Temperature != 1.2 || *updated.TokenBudget != 16384 {
+		t.Errorf("update verification failed: %+v", updated)
+	}
+
+	// 4. Test Validation Constraints: Temperature out of range and negative budget
+	invalidTemp := 2.5
+	badInput := UpdateAgentInput{Temperature: &invalidTemp}
+	if err := badInput.Validate(); err == nil {
+		t.Errorf("expected error for temperature > 2.0, got nil")
+	}
+
+	negativeBudget := -100
+	badBudgetInput := UpdateAgentInput{TokenBudget: &negativeBudget}
+	if err := badBudgetInput.Validate(); err == nil {
+		t.Errorf("expected error for negative token budget, got nil")
+	}
+}
+
 func strPtr(s string) *string {
 	return &s
 }

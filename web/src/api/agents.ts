@@ -10,6 +10,9 @@ export interface Agent {
   role?: string
   system_prompt?: string
   model_id?: string
+  fallback_model_id?: string
+  temperature?: number
+  token_budget?: number
   provider?: string
   auth_type?: 'subscription' | 'byok' | 'oauth' | 'cli_login' | string
   status?: string
@@ -32,6 +35,30 @@ export interface AgentConnection {
   has_credentials: boolean
   created_at: string
   updated_at: string
+}
+
+export interface AgentModelConfig {
+  status?: string
+  agent_id: string
+  name: string
+  role?: string
+  harness?: string
+  provider?: string
+  model_id?: string
+  fallback_model_id?: string
+  temperature?: number
+  token_budget?: number
+  system_prompt?: string
+  supported_models?: ModelInfo[]
+}
+
+export interface UpdateAgentModelConfigRequest {
+  model_id?: string
+  fallback_model_id?: string
+  temperature?: number
+  token_budget?: number
+  system_prompt?: string
+  role?: string
 }
 
 export interface ConnectCLIAgentRequest {
@@ -148,5 +175,22 @@ export const agentsApi = {
       '/api/v1/agents/connections'
     )
     return res.connections || []
+  },
+
+  getModelConfig: async (id: string): Promise<AgentModelConfig> => {
+    return apiFetch<AgentModelConfig>(`/api/v1/agents/${encodeURIComponent(id)}/model-config`)
+  },
+
+  updateModelConfig: async (
+    id: string,
+    data: UpdateAgentModelConfigRequest,
+  ): Promise<{ status: string; message: string; agent: Agent; config: AgentModelConfig }> => {
+    return apiFetch<{ status: string; message: string; agent: Agent; config: AgentModelConfig }>(
+      `/api/v1/agents/${encodeURIComponent(id)}/model-config`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      },
+    )
   },
 }

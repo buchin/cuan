@@ -755,3 +755,115 @@ func TestS25ExistingAccountProviderFailureDoesNotStartOAuth(t *testing.T) {
 		t.Fatal("credential removed")
 	}
 }
+
+func TestAgentModelConfig_Endpoints(t *testing.T) {
+	srv, repo, _ := setupTestServer(t)
+
+	// Ensure built-in agents
+	if err := db.EnsureBuiltinAgents(context.Background(), repo); err != nil {
+		t.Fatalf("failed to seed builtin agents: %v", err)
+	}
+
+	// 1. GET /api/v1/agents/agent_sm/model-config
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/v1/agents/agent_sm/model-config", nil)
+	recGet := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recGet, reqGet)
+
+	if recGet.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for GET model-config, got %d: %s", recGet.Code, recGet.Body.String())
+	}
+
+	var getRes map[string]interface{}
+	if err := json.Unmarshal(recGet.Body.Bytes(), &getRes); err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+	if getRes["agent_id"] != "agent_sm" {
+		t.Fatalf("expected agent_id agent_sm, got %v", getRes["agent_id"])
+	}
+	if getRes["model_id"] != "gemini-1.5-pro" {
+		t.Fatalf("expected model_id gemini-1.5-pro, got %v", getRes["model_id"])
+	}
+	if getRes["fallback_model_id"] != "gemini-1.5-flash" {
+		t.Fatalf("expected fallback_model_id gemini-1.5-flash, got %v", getRes["fallback_model_id"])
+	}
+
+	// 2. PATCH /api/v1/agents/agent_sm/model-config with valid changes
+	patchBody := map[string]interface{}{
+		"model_id":          "gemini-2.0-flash",
+		"fallback_model_id": "gemini-1.5-pro",
+		"temperature":       0.35,
+		"token_budget":      4096,
+		"system_prompt":     "Updated Scrum Master prompt",
+	}
+	patchJSON, _ := json.Marshal(patchBody)
+	reqPatch := httptest.NewRequest(http.MethodPatch, "/api/v1/agents/agent_sm/model-config", bytes.NewReader(patchJSON))
+	reqPatch.Header.Set("Content-Type", "application/json")
+	recPatch := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recPatch, reqPatch)
+
+	if recPatch.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for PATCH model-config, got %d: %s", recPatch.Code, recPatch.Body.String())
+	}
+
+	// Verify persistence in repository
+	updatedAgent, err := repo.GetAgentByID(context.Background(), "agent_sm")
+	if err != nil {
+		t.Fatalf("failed to retrieve updated agent: %v", err)
+	}
+	if updatedAgent.ModelID != "gemini-2.0-flash" {
+		t.Fatalf("expected model_id gemini-2.0-flash, got %s", updatedAgent.ModelID)
+	}
+	if updatedAgent.FallbackModelID != "gemini-1.5-pro" {
+		t.Fatalf("expected fallback_model_id gemini-1.5-pro, got %s", updatedAgent.FallbackModelID)
+	}
+	if updatedAgent.Temperature == nil || *updatedAgent.Temperature != 0.35 {
+		t.Fatalf("expected temperature 0.35, got %v", updatedAgent.Temperature)
+	}
+	if updatedAgent.TokenBudget == nil || *updatedAgent.TokenBudget != 4096 {
+		t.Fatalf("expected token_budget 4096, got %v", updatedAgent.TokenBudget)
+	}
+	if updatedAgent.SystemPrompt != "Updated Scrum Master prompt" {
+		t.Fatalf("expected updated system prompt, got %s", updatedAgent.SystemPrompt)
+	}
+
+	// 3. Validation: Temperature out of range
+	invalidTempBody := map[string]interface{}{"temperature": 2.5}
+	invalidTempJSON, _ := json.Marshal(invalidTempBody)
+	reqInvalidTemp := httptest.NewRequest(http.MethodPatch, "/api/v1/agents/agent_sm/model-config", bytes.NewReader(invalidTempJSON))
+	reqInvalidTemp.Header.Set("Content-Type", "application/json")
+	recInvalidTemp := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInvalidTemp, reqInvalidTemp)
+	if recInvalidTemp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for temperature > 2.0, got %d", recInvalidTemp.Code)
+	}
+
+	// 4. Validation: Negative token budget
+	negBudgetBody := map[string]interface{}{"token_budget": -100}
+	negBudgetJSON, _ := json.Marshal(negBudgetBody)
+	reqNegBudget := httptest.NewRequest(http.MethodPatch, "/api/v1/agents/agent_sm/model-config", bytes.NewReader(negBudgetJSON))
+	reqNegBudget.Header.Set("Content-Type", "application/json")
+	recNegBudget := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recNegBudget, reqNegBudget)
+	if recNegBudget.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for negative token budget, got %d", recNegBudget.Code)
+	}
+
+	// 5. Validation: Empty model ID
+	emptyModelBody := map[string]interface{}{"model_id": "   "}
+	emptyModelJSON, _ := json.Marshal(emptyModelBody)
+	reqEmptyModel := httptest.NewRequest(http.MethodPatch, "/api/v1/agents/agent_sm/model-config", bytes.NewReader(emptyModelJSON))
+	reqEmptyModel.Header.Set("Content-Type", "application/json")
+	recEmptyModel := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recEmptyModel, reqEmptyModel)
+	if recEmptyModel.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for empty model_id, got %d", recEmptyModel.Code)
+	}
+
+	// 6. Non-existent agent ID
+	reqNotFound := httptest.NewRequest(http.MethodGet, "/api/v1/agents/non_existent_agent/model-config", nil)
+	recNotFound := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recNotFound, reqNotFound)
+	if recNotFound.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 Not Found for non-existent agent, got %d", recNotFound.Code)
+	}
+}

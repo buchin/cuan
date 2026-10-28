@@ -392,6 +392,163 @@ func (s *Server) handlePatchAgent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetAgentModelConfig retrieves the AI model configuration of an agent.
+// Route: GET /api/v1/agents/{id}/model-config, GET /api/agents/{id}/model-config
+func (s *Server) handleGetAgentModelConfig(w http.ResponseWriter, r *http.Request) {
+	if s.agentRepo == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
+		return
+	}
+
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "agent id is required")
+		return
+	}
+
+	entity, err := s.agentRepo.GetAgentByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, db.ErrAgentNotFound) {
+			respondJSONError(w, http.StatusNotFound, "agent not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to get agent: "+err.Error())
+		return
+	}
+
+	provider := entity.Provider
+	if provider == "" {
+		provider = entity.Harness
+	}
+	if provider == "" {
+		provider = "google"
+	}
+
+	var supportedModels []agent.ModelInfo
+	reg := s.ProviderRegistry()
+	if reg == nil {
+		reg = agent.DefaultRegistry()
+	}
+	if prov, err := reg.Get(provider); err == nil && prov != nil {
+		if list, err := prov.ListModels(r.Context(), ""); err == nil && len(list) > 0 {
+			supportedModels = list
+		}
+	}
+	if len(supportedModels) == 0 {
+		supportedModels = agent.DefaultGeminiModels()
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":            "success",
+		"agent_id":          entity.ID,
+		"name":              entity.Name,
+		"role":              entity.Role,
+		"harness":           entity.Harness,
+		"provider":          entity.Provider,
+		"model_id":          entity.ModelID,
+		"fallback_model_id": entity.FallbackModelID,
+		"temperature":       entity.Temperature,
+		"token_budget":      entity.TokenBudget,
+		"system_prompt":     entity.SystemPrompt,
+		"supported_models":  supportedModels,
+	})
+}
+
+// handleUpdateAgentModelConfig safely updates an agent's AI model configuration without disrupting chat runtime.
+// Route: PUT/PATCH /api/v1/agents/{id}/model-config, PUT/PATCH /api/agents/{id}/model-config
+func (s *Server) handleUpdateAgentModelConfig(w http.ResponseWriter, r *http.Request) {
+	if s.agentRepo == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
+		return
+	}
+
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "agent id is required")
+		return
+	}
+
+	entity, err := s.agentRepo.GetAgentByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, db.ErrAgentNotFound) {
+			respondJSONError(w, http.StatusNotFound, "agent not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to get agent: "+err.Error())
+		return
+	}
+
+	var input struct {
+		ModelID         *string  `json:"model_id,omitempty"`
+		FallbackModelID *string  `json:"fallback_model_id,omitempty"`
+		Temperature     *float64 `json:"temperature,omitempty"`
+		TokenBudget     *int     `json:"token_budget,omitempty"`
+		SystemPrompt    *string  `json:"system_prompt,omitempty"`
+		Role            *string  `json:"role,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request json: "+err.Error())
+		return
+	}
+
+	if input.Temperature != nil && (*input.Temperature < 0.0 || *input.Temperature > 2.0) {
+		respondJSONError(w, http.StatusBadRequest, "temperature must be between 0.0 and 2.0")
+		return
+	}
+	if input.TokenBudget != nil && *input.TokenBudget < 0 {
+		respondJSONError(w, http.StatusBadRequest, "token budget cannot be negative")
+		return
+	}
+	if input.ModelID != nil {
+		trimmedModel := strings.TrimSpace(*input.ModelID)
+		if trimmedModel == "" {
+			respondJSONError(w, http.StatusBadRequest, "model_id cannot be empty")
+			return
+		}
+		entity.ModelID = trimmedModel
+	}
+	if input.FallbackModelID != nil {
+		entity.FallbackModelID = strings.TrimSpace(*input.FallbackModelID)
+	}
+	if input.Temperature != nil {
+		tVal := *input.Temperature
+		entity.Temperature = &tVal
+	}
+	if input.TokenBudget != nil {
+		bVal := *input.TokenBudget
+		entity.TokenBudget = &bVal
+	}
+	if input.SystemPrompt != nil {
+		entity.SystemPrompt = strings.TrimSpace(*input.SystemPrompt)
+	}
+	if input.Role != nil && strings.TrimSpace(*input.Role) != "" {
+		entity.Role = strings.TrimSpace(*input.Role)
+	}
+
+	entity.UpdatedAt = time.Now().UTC()
+
+	if err := s.agentRepo.UpdateAgent(r.Context(), entity); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "failed to update agent model config: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":  "success",
+		"message": "Konfigurasi model agent berhasil diperbarui",
+		"agent":   entity.ToDTO(),
+		"config": map[string]interface{}{
+			"agent_id":          entity.ID,
+			"name":              entity.Name,
+			"model_id":          entity.ModelID,
+			"fallback_model_id": entity.FallbackModelID,
+			"temperature":       entity.Temperature,
+			"token_budget":      entity.TokenBudget,
+			"system_prompt":     entity.SystemPrompt,
+		},
+	})
+}
+
 // handleDeleteAgent deletes an agent persona by ID.
 // Route: DELETE /api/agents/{id}
 // Aliases: DELETE /api/v1/agents/{id}

@@ -11,6 +11,7 @@ import {
   Search,
   AlertCircle,
   Key,
+  Pencil,
 } from 'lucide-react'
 import { connectionStatus } from '../agents/connection'
 import {
@@ -19,6 +20,7 @@ import {
   type ProviderAccount,
 } from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth, type ModelInfo, isModelVisionCapable } from '../../api/agents'
+import { EditAgentModal } from './EditAgentModal'
 
 function formatVerificationTime(isoString?: string): string {
   if (!isoString) return ''
@@ -39,10 +41,12 @@ function formatVerificationTime(isoString?: string): string {
 
 function AgentActions({
   name,
+  onEdit,
   onRemove,
   disabled,
 }: {
   name: string
+  onEdit?: () => void
   onRemove: () => void
   disabled: boolean
 }) {
@@ -78,7 +82,7 @@ function AgentActions({
     >
       <button
         ref={trigger}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+        className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
         aria-label={`Actions ${name}`}
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
@@ -88,6 +92,19 @@ function AgentActions({
       </button>
       {expanded && (
         <div className="absolute right-0 top-full z-20 mt-1 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+          {onEdit && (
+            <button
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-sm text-foreground hover:bg-accent"
+              onClick={() => {
+                setExpanded(false)
+                trigger.current?.focus()
+                onEdit()
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit {name}
+            </button>
+          )}
           <button
             className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-sm text-destructive hover:bg-accent"
             onClick={() => {
@@ -140,6 +157,7 @@ export function TeamView({
   const [backupError, setBackupError] = useState('')
   const [search, setSearch] = useState('')
   const [agents, setAgents] = useState<Agent[]>([])
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
@@ -840,11 +858,21 @@ export function TeamView({
                       )}
                     </div>
                   </div>
-                  {/* Dedicated top-right corner actions menu only: NEVER collides with name/badge */}
-                  <div className="shrink-0">
+                  {/* Dedicated top-right corner actions menu: NEVER collides with name/badge */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={`Edit ${a.name}`}
+                      title={`Edit ${a.name}`}
+                      onClick={() => setEditingAgent(a)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
                     <AgentActions
                       name={a.name}
                       disabled={!!checking || !!removing || !!lifecycleBusy}
+                      onEdit={() => setEditingAgent(a)}
                       onRemove={() => void remove(a.id)}
                     />
                   </div>
@@ -874,6 +902,12 @@ export function TeamView({
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
                       <span className="text-muted-foreground">Model:</span>
                       <span className="font-semibold text-foreground">{a.model_id}</span>
+                    </span>
+                  )}
+                  {a.fallback_model_id && (
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                      <span className="text-muted-foreground">Fallback:</span>
+                      <span className="font-semibold text-foreground">{a.fallback_model_id}</span>
                     </span>
                   )}
                   {(a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at) && (
@@ -922,6 +956,15 @@ export function TeamView({
 
                 {/* 3. Primary Actions Row: Dedicated full-width container with comfortable touch targets */}
                 <div className="mt-3.5 flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors"
+                    onClick={() => setEditingAgent(a)}
+                    aria-label={`Edit ${a.name}`}
+                  >
+                    <Pencil className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{t('Edit Config')}</span>
+                  </button>
                   {state.state !== 'verified' && (
                     <button
                       type="button"
@@ -1600,6 +1643,19 @@ export function TeamView({
             </form>
           </section>
         </div>
+      )}
+      {editingAgent && (
+        <EditAgentModal
+          agent={editingAgent}
+          open={!!editingAgent}
+          onClose={() => setEditingAgent(null)}
+          onSaved={(updatedAgent) => {
+            setAgents((prev) =>
+              prev.map((item) => (item.id === updatedAgent.id ? { ...item, ...updatedAgent } : item))
+            )
+            setEditingAgent(null)
+          }}
+        />
       )}
     </div>
   )

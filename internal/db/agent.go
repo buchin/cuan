@@ -67,20 +67,23 @@ func NormalizeConnectionStatus(status string) (string, error) {
 
 // Agent represents an autonomous or interactive AI assistant persona in the system (standardized to Universal Agent format).
 type Agent struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Harness      string    `json:"harness"`
-	ConnectionID string    `json:"connection_id"`
-	Enabled      bool      `json:"enabled"`
-	Avatar       string    `json:"avatar,omitempty"`
-	Role         string    `json:"role,omitempty"`
-	SystemPrompt string    `json:"system_prompt,omitempty"`
-	ModelID      string    `json:"model_id,omitempty"`
-	Provider     string    `json:"provider,omitempty"`
-	AuthType     string    `json:"auth_type,omitempty"`
-	Status       string    `json:"status,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Harness         string    `json:"harness"`
+	ConnectionID    string    `json:"connection_id"`
+	Enabled         bool      `json:"enabled"`
+	Avatar          string    `json:"avatar,omitempty"`
+	Role            string    `json:"role,omitempty"`
+	SystemPrompt    string    `json:"system_prompt,omitempty"`
+	ModelID         string    `json:"model_id,omitempty"`
+	FallbackModelID string    `json:"fallback_model_id,omitempty"`
+	Temperature     *float64  `json:"temperature,omitempty"`
+	TokenBudget     *int      `json:"token_budget,omitempty"`
+	Provider        string    `json:"provider,omitempty"`
+	AuthType        string    `json:"auth_type,omitempty"`
+	Status          string    `json:"status,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // Clone returns a deep copy of the Agent.
@@ -102,40 +105,56 @@ func (a *Agent) Clone() *Agent {
 			}
 		}
 	}
+	var temp *float64
+	if a.Temperature != nil {
+		tVal := *a.Temperature
+		temp = &tVal
+	}
+	var budget *int
+	if a.TokenBudget != nil {
+		bVal := *a.TokenBudget
+		budget = &bVal
+	}
 	return &Agent{
-		ID:           a.ID,
-		Name:         a.Name,
-		Harness:      a.Harness,
-		ConnectionID: connID,
-		Enabled:      a.Enabled,
-		Avatar:       a.Avatar,
-		Role:         a.Role,
-		SystemPrompt: a.SystemPrompt,
-		ModelID:      modelID,
-		Provider:     a.Provider,
-		AuthType:     a.AuthType,
-		Status:       a.Status,
-		CreatedAt:    a.CreatedAt,
-		UpdatedAt:    a.UpdatedAt,
+		ID:              a.ID,
+		Name:            a.Name,
+		Harness:         a.Harness,
+		ConnectionID:    connID,
+		Enabled:         a.Enabled,
+		Avatar:          a.Avatar,
+		Role:            a.Role,
+		SystemPrompt:    a.SystemPrompt,
+		ModelID:         modelID,
+		FallbackModelID: a.FallbackModelID,
+		Temperature:     temp,
+		TokenBudget:     budget,
+		Provider:        a.Provider,
+		AuthType:        a.AuthType,
+		Status:          a.Status,
+		CreatedAt:       a.CreatedAt,
+		UpdatedAt:       a.UpdatedAt,
 	}
 }
 
 // AgentDTO represents the public Data Transfer Object for an Agent in Universal Agent format.
 type AgentDTO struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Harness      string    `json:"harness"`
-	ConnectionID string    `json:"connection_id"`
-	Enabled      bool      `json:"enabled"`
-	Avatar       string    `json:"avatar,omitempty"`
-	Role         string    `json:"role,omitempty"`
-	SystemPrompt string    `json:"system_prompt,omitempty"`
-	ModelID      string    `json:"model_id,omitempty"`
-	Provider     string    `json:"provider,omitempty"`
-	AuthType     string    `json:"auth_type,omitempty"`
-	Status       string    `json:"status,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Harness         string    `json:"harness"`
+	ConnectionID    string    `json:"connection_id"`
+	Enabled         bool      `json:"enabled"`
+	Avatar          string    `json:"avatar,omitempty"`
+	Role            string    `json:"role,omitempty"`
+	SystemPrompt    string    `json:"system_prompt,omitempty"`
+	ModelID         string    `json:"model_id,omitempty"`
+	FallbackModelID string    `json:"fallback_model_id,omitempty"`
+	Temperature     *float64  `json:"temperature,omitempty"`
+	TokenBudget     *int      `json:"token_budget,omitempty"`
+	Provider        string    `json:"provider,omitempty"`
+	AuthType        string    `json:"auth_type,omitempty"`
+	Status          string    `json:"status,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // ToDTO converts an Agent entity to its public AgentDTO representation.
@@ -172,40 +191,57 @@ func (a *Agent) ToDTO() AgentDTO {
 		}
 	}
 
+	var temp *float64
+	if a.Temperature != nil {
+		tVal := *a.Temperature
+		temp = &tVal
+	}
+	var budget *int
+	if a.TokenBudget != nil {
+		bVal := *a.TokenBudget
+		budget = &bVal
+	}
+
 	return AgentDTO{
-		ID:           a.ID,
-		Name:         a.Name,
-		Harness:      harness,
-		ConnectionID: connID,
-		Enabled:      enabled,
-		Avatar:       a.Avatar,
-		Role:         a.Role,
-		SystemPrompt: a.SystemPrompt,
-		ModelID:      modelID,
-		Provider:     a.Provider,
-		AuthType:     a.AuthType,
-		Status:       status,
-		CreatedAt:    a.CreatedAt,
-		UpdatedAt:    a.UpdatedAt,
+		ID:              a.ID,
+		Name:            a.Name,
+		Harness:         harness,
+		ConnectionID:    connID,
+		Enabled:         enabled,
+		Avatar:          a.Avatar,
+		Role:            a.Role,
+		SystemPrompt:    a.SystemPrompt,
+		ModelID:         modelID,
+		FallbackModelID: a.FallbackModelID,
+		Temperature:     temp,
+		TokenBudget:     budget,
+		Provider:        a.Provider,
+		AuthType:        a.AuthType,
+		Status:          status,
+		CreatedAt:       a.CreatedAt,
+		UpdatedAt:       a.UpdatedAt,
 	}
 }
 
 // CreateAgentInput holds parameters for registering a new agent.
 type CreateAgentInput struct {
-	ID           string `json:"id,omitempty"`
-	Name         string `json:"name"`
-	Harness      string `json:"harness,omitempty"`
-	ConnectionID string `json:"connection_id,omitempty"`
-	Enabled      *bool  `json:"enabled,omitempty"`
-	Avatar       string `json:"avatar,omitempty"`
-	Role         string `json:"role,omitempty"`
-	SystemPrompt string `json:"system_prompt,omitempty"`
-	ModelID      string `json:"model_id,omitempty"`
-	Provider     string `json:"provider,omitempty"`
-	Status       string `json:"status,omitempty"`
-	ApiKey       string `json:"api_key,omitempty"`
-	Endpoint     string `json:"endpoint,omitempty"`
-	HostSession  bool   `json:"host_session,omitempty"`
+	ID              string   `json:"id,omitempty"`
+	Name            string   `json:"name"`
+	Harness         string   `json:"harness,omitempty"`
+	ConnectionID    string   `json:"connection_id,omitempty"`
+	Enabled         *bool    `json:"enabled,omitempty"`
+	Avatar          string   `json:"avatar,omitempty"`
+	Role            string   `json:"role,omitempty"`
+	SystemPrompt    string   `json:"system_prompt,omitempty"`
+	ModelID         string   `json:"model_id,omitempty"`
+	FallbackModelID string   `json:"fallback_model_id,omitempty"`
+	Temperature     *float64 `json:"temperature,omitempty"`
+	TokenBudget     *int     `json:"token_budget,omitempty"`
+	Provider        string   `json:"provider,omitempty"`
+	Status          string   `json:"status,omitempty"`
+	ApiKey          string   `json:"api_key,omitempty"`
+	Endpoint        string   `json:"endpoint,omitempty"`
+	HostSession     bool     `json:"host_session,omitempty"`
 }
 
 // Validate checks constraints on CreateAgentInput.
@@ -217,6 +253,12 @@ func (in *CreateAgentInput) Validate() error {
 		if _, err := NormalizeAgentStatus(in.Status); err != nil {
 			return err
 		}
+	}
+	if in.Temperature != nil && (*in.Temperature < 0.0 || *in.Temperature > 2.0) {
+		return errors.New("temperature must be between 0.0 and 2.0")
+	}
+	if in.TokenBudget != nil && *in.TokenBudget < 0 {
+		return errors.New("token budget cannot be negative")
 	}
 	return nil
 }
@@ -275,33 +317,50 @@ func (in *CreateAgentInput) ToEntity() (*Agent, error) {
 		id = GenerateUUID()
 	}
 
+	var temp *float64
+	if in.Temperature != nil {
+		tVal := *in.Temperature
+		temp = &tVal
+	}
+	var budget *int
+	if in.TokenBudget != nil {
+		bVal := *in.TokenBudget
+		budget = &bVal
+	}
+
 	return &Agent{
-		ID:           id,
-		Name:         strings.TrimSpace(in.Name),
-		Harness:      harness,
-		ConnectionID: connectionID,
-		Enabled:      enabled,
-		Avatar:       strings.TrimSpace(in.Avatar),
-		Role:         strings.TrimSpace(in.Role),
-		SystemPrompt: strings.TrimSpace(in.SystemPrompt),
-		ModelID:      modelID,
-		Provider:     provider,
-		Status:       status,
+		ID:              id,
+		Name:            strings.TrimSpace(in.Name),
+		Harness:         harness,
+		ConnectionID:    connectionID,
+		Enabled:         enabled,
+		Avatar:          strings.TrimSpace(in.Avatar),
+		Role:            strings.TrimSpace(in.Role),
+		SystemPrompt:    strings.TrimSpace(in.SystemPrompt),
+		ModelID:         modelID,
+		FallbackModelID: strings.TrimSpace(in.FallbackModelID),
+		Temperature:     temp,
+		TokenBudget:     budget,
+		Provider:        provider,
+		Status:          status,
 	}, nil
 }
 
 // UpdateAgentInput specifies mutable fields on an existing Agent.
 type UpdateAgentInput struct {
-	Name         *string `json:"name,omitempty"`
-	Harness      *string `json:"harness,omitempty"`
-	ConnectionID *string `json:"connection_id,omitempty"`
-	Enabled      *bool   `json:"enabled,omitempty"`
-	Avatar       *string `json:"avatar,omitempty"`
-	Role         *string `json:"role,omitempty"`
-	SystemPrompt *string `json:"system_prompt,omitempty"`
-	ModelID      *string `json:"model_id,omitempty"`
-	Provider     *string `json:"provider,omitempty"`
-	Status       *string `json:"status,omitempty"`
+	Name            *string  `json:"name,omitempty"`
+	Harness         *string  `json:"harness,omitempty"`
+	ConnectionID    *string  `json:"connection_id,omitempty"`
+	Enabled         *bool    `json:"enabled,omitempty"`
+	Avatar          *string  `json:"avatar,omitempty"`
+	Role            *string  `json:"role,omitempty"`
+	SystemPrompt    *string  `json:"system_prompt,omitempty"`
+	ModelID         *string  `json:"model_id,omitempty"`
+	FallbackModelID *string  `json:"fallback_model_id,omitempty"`
+	Temperature     *float64 `json:"temperature,omitempty"`
+	TokenBudget     *int     `json:"token_budget,omitempty"`
+	Provider        *string  `json:"provider,omitempty"`
+	Status          *string  `json:"status,omitempty"`
 }
 
 // PatchAgentInput is an alias for UpdateAgentInput.
@@ -316,6 +375,12 @@ func (in *UpdateAgentInput) Validate() error {
 		if _, err := NormalizeAgentStatus(*in.Status); err != nil {
 			return err
 		}
+	}
+	if in.Temperature != nil && (*in.Temperature < 0.0 || *in.Temperature > 2.0) {
+		return errors.New("temperature must be between 0.0 and 2.0")
+	}
+	if in.TokenBudget != nil && *in.TokenBudget < 0 {
+		return errors.New("token budget cannot be negative")
 	}
 	return nil
 }
@@ -357,6 +422,17 @@ func (in *UpdateAgentInput) ApplyTo(agent *Agent) error {
 	}
 	if in.ModelID != nil && strings.TrimSpace(*in.ModelID) != "" {
 		agent.ModelID = strings.TrimSpace(*in.ModelID)
+	}
+	if in.FallbackModelID != nil {
+		agent.FallbackModelID = strings.TrimSpace(*in.FallbackModelID)
+	}
+	if in.Temperature != nil {
+		tVal := *in.Temperature
+		agent.Temperature = &tVal
+	}
+	if in.TokenBudget != nil {
+		bVal := *in.TokenBudget
+		agent.TokenBudget = &bVal
 	}
 	if in.Provider != nil && strings.TrimSpace(*in.Provider) != "" {
 		agent.Provider = strings.TrimSpace(*in.Provider)
@@ -635,8 +711,8 @@ func (r *SQLAgentRepository) CreateAgent(ctx context.Context, agent *Agent) erro
 
 	query := `
 		INSERT INTO agents (
-			id, name, avatar, role, system_prompt, model_id, provider, status, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			id, name, avatar, role, system_prompt, model_id, fallback_model_id, temperature, token_budget, provider, status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 	_, err = r.db.ExecContext(
 		ctx,
@@ -647,6 +723,9 @@ func (r *SQLAgentRepository) CreateAgent(ctx context.Context, agent *Agent) erro
 		agent.Role,
 		agent.SystemPrompt,
 		agent.ModelID,
+		agent.FallbackModelID,
+		agent.Temperature,
+		agent.TokenBudget,
 		agent.Provider,
 		agent.Status,
 		agent.CreatedAt,
@@ -663,11 +742,14 @@ func (r *SQLAgentRepository) CreateAgent(ctx context.Context, agent *Agent) erro
 
 func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agent, error) {
 	query := `
-		SELECT id, name, avatar, role, system_prompt, model_id, provider, status, created_at, updated_at
+		SELECT id, name, avatar, role, system_prompt, model_id, fallback_model_id, temperature, token_budget, provider, status, created_at, updated_at
 		FROM agents
 		WHERE id = $1
 	`
 	var a Agent
+	var fallbackModel sql.NullString
+	var temperature sql.NullFloat64
+	var tokenBudget sql.NullInt64
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&a.ID,
 		&a.Name,
@@ -675,6 +757,9 @@ func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agen
 		&a.Role,
 		&a.SystemPrompt,
 		&a.ModelID,
+		&fallbackModel,
+		&temperature,
+		&tokenBudget,
 		&a.Provider,
 		&a.Status,
 		&a.CreatedAt,
@@ -685,6 +770,17 @@ func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agen
 			return nil, ErrAgentNotFound
 		}
 		return nil, fmt.Errorf("get agent by id: %w", err)
+	}
+	if fallbackModel.Valid {
+		a.FallbackModelID = fallbackModel.String
+	}
+	if temperature.Valid {
+		temp := temperature.Float64
+		a.Temperature = &temp
+	}
+	if tokenBudget.Valid {
+		budget := int(tokenBudget.Int64)
+		a.TokenBudget = &budget
 	}
 	if a.Harness == "" {
 		a.Harness = a.Provider
@@ -738,7 +834,7 @@ func (r *SQLAgentRepository) ListAgents(ctx context.Context, filter AgentFilter)
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, name, avatar, role, system_prompt, model_id, provider, status, created_at, updated_at
+		SELECT id, name, avatar, role, system_prompt, model_id, fallback_model_id, temperature, token_budget, provider, status, created_at, updated_at
 		FROM agents
 		%s
 		ORDER BY created_at DESC
@@ -764,6 +860,9 @@ func (r *SQLAgentRepository) ListAgents(ctx context.Context, filter AgentFilter)
 	var agents []Agent
 	for rows.Next() {
 		var a Agent
+		var fallbackModel sql.NullString
+		var temperature sql.NullFloat64
+		var tokenBudget sql.NullInt64
 		if err := rows.Scan(
 			&a.ID,
 			&a.Name,
@@ -771,12 +870,26 @@ func (r *SQLAgentRepository) ListAgents(ctx context.Context, filter AgentFilter)
 			&a.Role,
 			&a.SystemPrompt,
 			&a.ModelID,
+			&fallbackModel,
+			&temperature,
+			&tokenBudget,
 			&a.Provider,
 			&a.Status,
 			&a.CreatedAt,
 			&a.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan agent: %w", err)
+		}
+		if fallbackModel.Valid {
+			a.FallbackModelID = fallbackModel.String
+		}
+		if temperature.Valid {
+			temp := temperature.Float64
+			a.Temperature = &temp
+		}
+		if tokenBudget.Valid {
+			budget := int(tokenBudget.Int64)
+			a.TokenBudget = &budget
 		}
 		if a.Harness == "" {
 			a.Harness = a.Provider
@@ -836,8 +949,8 @@ func (r *SQLAgentRepository) UpdateAgent(ctx context.Context, agent *Agent) erro
 
 	query := `
 		UPDATE agents
-		SET name = $1, avatar = $2, role = $3, system_prompt = $4, model_id = $5, provider = $6, status = $7, updated_at = $8
-		WHERE id = $9
+		SET name = $1, avatar = $2, role = $3, system_prompt = $4, model_id = $5, fallback_model_id = $6, temperature = $7, token_budget = $8, provider = $9, status = $10, updated_at = $11
+		WHERE id = $12
 	`
 	res, err := r.db.ExecContext(
 		ctx,
@@ -847,6 +960,9 @@ func (r *SQLAgentRepository) UpdateAgent(ctx context.Context, agent *Agent) erro
 		agent.Role,
 		agent.SystemPrompt,
 		agent.ModelID,
+		agent.FallbackModelID,
+		agent.Temperature,
+		agent.TokenBudget,
 		agent.Provider,
 		agent.Status,
 		agent.UpdatedAt,
@@ -1380,6 +1496,19 @@ func (m *MemoryAgentRepository) UpdateAgent(_ context.Context, agent *Agent) err
 	if strings.TrimSpace(agent.ModelID) != "" {
 		existing.ModelID = agent.ModelID
 	}
+	existing.FallbackModelID = agent.FallbackModelID
+	if agent.Temperature != nil {
+		tVal := *agent.Temperature
+		existing.Temperature = &tVal
+	} else {
+		existing.Temperature = nil
+	}
+	if agent.TokenBudget != nil {
+		bVal := *agent.TokenBudget
+		existing.TokenBudget = &bVal
+	} else {
+		existing.TokenBudget = nil
+	}
 	if strings.TrimSpace(agent.Provider) != "" {
 		existing.Provider = agent.Provider
 	}
@@ -1594,4 +1723,90 @@ func (m *MemoryAgentRepository) CountConnections(_ context.Context, filter Agent
 		count++
 	}
 	return count, nil
+}
+
+// EnsureBuiltinAgents checks and seeds the default builtin agents (@sm, @dev, @support)
+// with sensible model configurations if they do not yet exist in the repository.
+func EnsureBuiltinAgents(ctx context.Context, repo AgentRepository) error {
+	if repo == nil {
+		return nil
+	}
+	defaultSMTemp := 0.7
+	defaultSMBudget := 8192
+	defaultDevTemp := 0.2
+	defaultDevBudget := 8192
+	defaultSupportTemp := 0.5
+	defaultSupportBudget := 4096
+
+	builtins := []*Agent{
+		{
+			ID:              "agent_sm",
+			Name:            "@sm",
+			Role:            "Scrum Master (Orchestrator)",
+			SystemPrompt:    "You coordinate Cuan conversations as Scrum Master. All agents in Inbox act as Scrum Master / Technical Orchestrator with Full MCP access across all projects and platform modules.",
+			ModelID:         "gemini-1.5-pro",
+			FallbackModelID: "gemini-1.5-flash",
+			Temperature:     &defaultSMTemp,
+			TokenBudget:     &defaultSMBudget,
+			Harness:         "agy",
+			Provider:        "google",
+			Status:          AgentStatusActive,
+			Enabled:         true,
+		},
+		{
+			ID:              "agent_dev",
+			Name:            "@dev",
+			Role:            "Development Team (Worker)",
+			SystemPrompt:    "Autonomous development agent specialized in code implementation, test verification, bug fixing, and task execution.",
+			ModelID:         "gemini-1.5-pro",
+			FallbackModelID: "gemini-1.5-flash",
+			Temperature:     &defaultDevTemp,
+			TokenBudget:     &defaultDevBudget,
+			Harness:         "agy",
+			Provider:        "google",
+			Status:          AgentStatusActive,
+			Enabled:         true,
+		},
+		{
+			ID:              "agent_support",
+			Name:            "@support",
+			Role:            "Customer Support",
+			SystemPrompt:    "Customer support specialist dedicated to answering customer questions, triaging issues, and maintaining helpful and friendly communication.",
+			ModelID:         "gemini-1.5-flash",
+			FallbackModelID: "gemini-1.5-pro",
+			Temperature:     &defaultSupportTemp,
+			TokenBudget:     &defaultSupportBudget,
+			Harness:         "agy",
+			Provider:        "google",
+			Status:          AgentStatusActive,
+			Enabled:         true,
+		},
+	}
+
+	for _, b := range builtins {
+		existing, err := repo.GetAgentByID(ctx, b.ID)
+		if err != nil {
+			if errors.Is(err, ErrAgentNotFound) {
+				_ = repo.CreateAgent(ctx, b)
+			}
+			continue
+		}
+		updated := false
+		if existing.FallbackModelID == "" && b.FallbackModelID != "" {
+			existing.FallbackModelID = b.FallbackModelID
+			updated = true
+		}
+		if existing.Temperature == nil && b.Temperature != nil {
+			existing.Temperature = b.Temperature
+			updated = true
+		}
+		if existing.TokenBudget == nil && b.TokenBudget != nil {
+			existing.TokenBudget = b.TokenBudget
+			updated = true
+		}
+		if updated {
+			_ = repo.UpdateAgent(ctx, existing)
+		}
+	}
+	return nil
 }
