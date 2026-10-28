@@ -56,7 +56,7 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 			j.LeaseUntil = nil
 			continue
 		}
-		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
+		if t := m.tasks[j.TaskID]; t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked) {
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
 				j.State = "stopped"
 				j.SafeError = "Task is in terminal status."
@@ -210,7 +210,7 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 	defer m.mu.Unlock()
 	for _, j := range m.launches {
 		t := m.tasks[j.TaskID]
-		if t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked || t.Status == TaskStatusReview) {
+		if t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed" || t.Status == TaskStatusBlocked) {
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
 				j.State = "stopped"
 				j.SafeError = "Task is in terminal status."
@@ -218,6 +218,14 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 				j.LeaseToken = ""
 				j.LeaseUntil = nil
 			}
+		}
+		// Self-heal orphan ghost-queued tasks: if task is queued but unexpired launch was stopped due to terminal status, revive it
+		if t != nil && t.Status == TaskStatusQueued && j.State == "stopped" && j.SafeError == "Task is in terminal status." && j.ExpiresAt.After(now) {
+			j.State = "queued"
+			j.SafeError = ""
+			j.UpdatedAt = now
+			j.LeaseToken = ""
+			j.LeaseUntil = nil
 		}
 		// Auto-cancel abandoned interactive terminal tasks queued > 5 min
 		if t != nil && t.Status == TaskStatusQueued && strings.HasPrefix(t.Title, "Terminal · ") && t.CreatedAt.Before(now.Add(-5*time.Minute)) {

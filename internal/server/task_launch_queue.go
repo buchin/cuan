@@ -13,6 +13,10 @@ import (
 
 func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string) string {
 	now := time.Now().UTC()
+	// Ensure task status is queued prior to creating/claiming launch to prevent race condition with terminal state checks
+	status := task.TaskStatusQueued
+	_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
+
 	job, e := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: t.ID, ProjectID: t.ProjectID, RequestID: launchID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: sourceRequestID, AgentID: q.AgentID, Revision: revision, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
 	link := "\n\n[View work](/tasks/" + t.ID + ")"
 	if e != nil {

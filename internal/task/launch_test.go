@@ -575,3 +575,68 @@ func TestIsProjectActiveQueuedTaskDoesNotBlock(t *testing.T) {
 		t.Fatal("expected IsProjectActive to be false for queued task, but got true")
 	}
 }
+
+func TestReconcileGhostQueuedTaskResurrection(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+
+	created, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Investigasi Task",
+		ProjectIDs:   []string{"p_ghost_test"},
+		Instructions: "Fix issues",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Task status is queued
+	qStatus := TaskStatusQueued
+	_, err = svc.UpdateTask(ctx, created.ID, "user", UpdateTaskRequest{Status: &qStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// But its launch was erroneously marked stopped with 'Task is in terminal status.'
+	l, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           created.ID,
+		ProjectID:        "p_ghost_test",
+		RequestID:        "req_ghost_1",
+		OwnerID:          "owner",
+		RoomID:           "room",
+		SourceRequestID: "req_source_1",
+		AgentID:          "agent_sm",
+		InstructionsHash: LaunchInstructionsHash("Fix issues"),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store.mu.Lock()
+	if savedLaunch, ok := store.launches[l.ID]; ok {
+		savedLaunch.State = "stopped"
+		savedLaunch.SafeError = "Task is in terminal status."
+	}
+	store.mu.Unlock()
+
+	// Run self-healing
+	if err := svc.ReconcileOrphanLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileOrphanLaunches failed: %v", err)
+	}
+
+	// Launch should be resurrected back to queued with clear safe_error
+	resurrected, err := svc.GetLaunch(ctx, l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resurrected.State != "queued" {
+		t.Fatalf("expected launch state 'queued', got '%s'", resurrected.State)
+	}
+	if resurrected.SafeError != "" {
+		t.Fatalf("expected empty safe error after resurrection, got '%s'", resurrected.SafeError)
+	}
+}
