@@ -580,6 +580,7 @@ func (s *Server) reconcileStartupState(ctx context.Context) {
 	now := time.Now().UTC()
 	if s.taskSvc != nil {
 		_ = s.taskSvc.ReconcileStartupLaunches(ctx, now)
+		_ = s.taskSvc.RecoverStartupLocalAttempts(ctx)
 		_ = s.taskSvc.ReconcileOrphanLaunches(ctx, now)
 	}
 	if s.runnerSvc != nil {

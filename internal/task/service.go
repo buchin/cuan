@@ -977,6 +977,34 @@ func (s *Service) RenewLocalAttemptLease(ctx context.Context, attemptID string) 
 	return s.store.UpdateAttempt(ctx, a)
 }
 
+// RecoverStartupLocalAttempts recovers any in-flight local_terminal attempts
+// left behind by a server restart or crash without waiting for lease expiration,
+// since local terminal PTY processes cannot survive across server restarts.
+func (s *Service) RecoverStartupLocalAttempts(ctx context.Context) error {
+	tasks, err := s.store.ListTasks(ctx, TaskFilter{})
+	if err != nil {
+		return err
+	}
+	for _, t := range tasks {
+		a, err := s.store.GetLatestAttempt(ctx, t.ID)
+		if err != nil || a == nil || a.RunnerID != "local_terminal" {
+			continue
+		}
+		if a.Status == AttemptStatusRunning || a.Status == AttemptStatusQueued {
+			if _, err = s.UpdateAttemptStatus(ctx, a.ID, "recovery", UpdateAttemptRequest{
+				Status:       AttemptStatusInterrupted,
+				ErrorMessage: "Execution was interrupted during server restart.",
+			}); err != nil {
+				return err
+			}
+			if err = s.ReconcileLocalTask(ctx, t.ID, a.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // RecoverLocalAttempts exposes an unknown result after the local runner lease
 // expires. It never launches the previous attempt again.
 func (s *Service) RecoverLocalAttempts(ctx context.Context) error {

@@ -135,3 +135,65 @@ func TestLocalLeaseHeartbeatAndRecovery(t *testing.T) {
 		t.Fatal("dead attempt revived")
 	}
 }
+
+func TestRecoverStartupLocalAttempts(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+
+	created, err := svc.CreateTask(ctx, "author", CreateTaskRequest{
+		ProjectID:    "fixture-project",
+		Title:        "Task 1",
+		Instructions: "Do work",
+		DoDChecklist: []DoDItem{{Text: "Item 1"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := TaskStatusDoing
+	if _, err = svc.UpdateTask(ctx, created.ID, "author", UpdateTaskRequest{Status: &doing}); err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = svc.UpdateAttemptStatus(ctx, a.ID, "runner", UpdateAttemptRequest{Status: AttemptStatusRunning}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Lease is still far in the future
+	future := time.Now().Add(10 * time.Minute)
+	a, _ = store.GetAttempt(ctx, a.ID)
+	a.LeaseExpiresAt = &future
+	if err = store.UpdateAttempt(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+
+	// Normal recovery would skip because lease is in the future
+	if err = svc.RecoverLocalAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	stillRunning, _ := store.GetAttempt(ctx, a.ID)
+	if stillRunning.Status != AttemptStatusRunning {
+		t.Fatal("normal recovery should not interrupt valid lease")
+	}
+
+	// Startup recovery immediately interrupts orphan local attempt
+	if err = svc.RecoverStartupLocalAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	interrupted, _ := store.GetAttempt(ctx, a.ID)
+	if interrupted.Status != AttemptStatusInterrupted {
+		t.Fatalf("expected interrupted status, got %s", interrupted.Status)
+	}
+	if interrupted.ErrorMessage != "Execution was interrupted during server restart." {
+		t.Fatalf("unexpected error message: %s", interrupted.ErrorMessage)
+	}
+
+	// Verify task is reconciled from doing
+	updatedTask, _ := svc.GetTaskDetail(ctx, created.ID)
+	if updatedTask.Status == TaskStatusDoing {
+		t.Fatalf("task should not remain doing after startup recovery, got %s", updatedTask.Status)
+	}
+}
