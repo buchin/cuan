@@ -397,3 +397,246 @@ func TestApplyInboxReviewEvaluation_RevisionIncludesExplanation(t *testing.T) {
 		t.Fatalf("expected revision DoD item to be merged into task.DoDChecklist, got: %+v", updatedTask.DoDChecklist)
 	}
 }
+
+func TestApplyInboxReviewEvaluation_PassUpdatesTaskToDoneAndAppendsLink(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+
+	userMsgID := db.GenerateUUID()
+	now := time.Now().UTC()
+	userMsg := &db.ProjectMessage{
+		ID:         userMsgID,
+		RoomID:     room.RoomID,
+		AuthorType: "user",
+		AuthorID:   "owner",
+		Content:    "Build contact form",
+		CreatedAt:  now.Add(-time.Minute),
+		UpdatedAt:  now.Add(-time.Minute),
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, userMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		_, _, _ = store.AcceptInboxRequest(ctx, db.InboxRequest{
+			OwnerID:   "owner",
+			AgentID:   "agent_lifecycle",
+			RoomID:    room.RoomID,
+			RequestID: "req_" + userMsgID,
+			MessageID: userMsgID,
+			State:     "completed",
+			CreatedAt: now.Add(-time.Minute),
+			Deadline:  now.Add(time.Hour),
+		}, userMsg)
+	}
+
+	task1, err := s.taskSvc.CreateTaskFromMessage(ctx, "owner", userMsgID, task.CreateTaskRequest{
+		SourceRoomID:  room.RoomID,
+		ProjectID:     "default",
+		Title:         "Build contact form",
+		Instructions:  "Cuan managed delegation v1.\nBuild form.\n\nApproval message: " + userMsgID,
+		AssignedAgent: "agent_lifecycle",
+		DoDChecklist: []task.DoDItem{
+			{Text: "Input validation", Completed: false},
+			{Text: "Submit button", Completed: false},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	att, err := s.taskSvc.CreateAttempt(ctx, task1.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "agent_lifecycle",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusSucceeded,
+	})
+
+	reviewStatus := task.TaskStatusReview
+	summary := "Contact form completed."
+	completeNote := "Tested inputs and validation."
+	_, err = s.taskSvc.UpdateTask(ctx, task1.ID, "agent_lifecycle", task.UpdateTaskRequest{
+		Status:       &reviewStatus,
+		Summary:      &summary,
+		CompleteNote: &completeNote,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	key := "task-review:" + att.ID
+	reqID := delegationMessageID(key)
+	inputMsgID := delegationMessageID(key + ":input")
+	replyMsgID := delegationMessageID(key + ":reply")
+
+	reviewMsg := &db.ProjectMessage{
+		ID:         inputMsgID,
+		RoomID:     room.RoomID,
+		AuthorType: "system",
+		AuthorID:   "cuan_work_review",
+		Content:    "Review result for [/tasks/" + task1.ID + "]",
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, reviewMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	q := db.InboxRequest{
+		OwnerID:   "owner",
+		AgentID:   "agent_lifecycle",
+		RoomID:    room.RoomID,
+		RequestID: reqID,
+		MessageID: inputMsgID,
+		ReplyID:   replyMsgID,
+		CreatedAt: now,
+		Deadline:  now.Add(10 * time.Minute),
+	}
+
+	evalJSON := `{"decision":"pass","explanation":"### Evaluasi Kriteria Selesai (DoD)\n**Status:** LULUS\n\n- [x] Input validation diverifikasi.\n- [x] Submit button diverifikasi.","revision":""}`
+	result := s.applyInboxReviewEvaluation(ctx, q, evalJSON)
+
+	if !strings.Contains(result, "Evaluasi Kriteria Selesai (DoD)") {
+		t.Fatalf("expected result to include DoD explanation, got: %s", result)
+	}
+	if !strings.Contains(result, "/tasks/"+task1.ID) {
+		t.Fatalf("expected result to include task link /tasks/%s, got: %s", task1.ID, result)
+	}
+
+	// Verify task is now marked DONE and DoD items are checked
+	updatedTask, err := s.taskSvc.GetTaskDetail(ctx, task1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedTask.Status != task.TaskStatusDone {
+		t.Fatalf("expected task status to be %s, got: %s", task.TaskStatusDone, updatedTask.Status)
+	}
+	for _, item := range updatedTask.DoDChecklist {
+		if !item.Completed {
+			t.Fatalf("expected all DoD items to be completed, got item uncompleted: %+v", item)
+		}
+	}
+}
+
+func TestApplyInboxReviewEvaluation_FallbackTextReview(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+
+	userMsgID := db.GenerateUUID()
+	now := time.Now().UTC()
+	userMsg := &db.ProjectMessage{
+		ID:         userMsgID,
+		RoomID:     room.RoomID,
+		AuthorType: "user",
+		AuthorID:   "owner",
+		Content:    "Build footer layout",
+		CreatedAt:  now.Add(-time.Minute),
+		UpdatedAt:  now.Add(-time.Minute),
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, userMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		_, _, _ = store.AcceptInboxRequest(ctx, db.InboxRequest{
+			OwnerID:   "owner",
+			AgentID:   "agent_lifecycle",
+			RoomID:    room.RoomID,
+			RequestID: "req_" + userMsgID,
+			MessageID: userMsgID,
+			State:     "completed",
+			CreatedAt: now.Add(-time.Minute),
+			Deadline:  now.Add(time.Hour),
+		}, userMsg)
+	}
+
+	task1, err := s.taskSvc.CreateTaskFromMessage(ctx, "owner", userMsgID, task.CreateTaskRequest{
+		SourceRoomID:  room.RoomID,
+		ProjectID:     "default",
+		Title:         "Build footer layout",
+		Instructions:  "Cuan managed delegation v1.\nBuild footer.\n\nApproval message: " + userMsgID,
+		AssignedAgent: "agent_lifecycle",
+		DoDChecklist: []task.DoDItem{
+			{Text: "Footer links", Completed: false},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	att, err := s.taskSvc.CreateAttempt(ctx, task1.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "agent_lifecycle",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusSucceeded,
+	})
+
+	reviewStatus := task.TaskStatusReview
+	summary := "Footer done."
+	completeNote := "Checked footer links."
+	_, err = s.taskSvc.UpdateTask(ctx, task1.ID, "agent_lifecycle", task.UpdateTaskRequest{
+		Status:       &reviewStatus,
+		Summary:      &summary,
+		CompleteNote: &completeNote,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	key := "task-review:" + att.ID
+	reqID := delegationMessageID(key)
+	inputMsgID := delegationMessageID(key + ":input")
+	replyMsgID := delegationMessageID(key + ":reply")
+
+	reviewMsg := &db.ProjectMessage{
+		ID:         inputMsgID,
+		RoomID:     room.RoomID,
+		AuthorType: "system",
+		AuthorID:   "cuan_work_review",
+		Content:    "Review result for [/tasks/" + task1.ID + "]",
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, reviewMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	q := db.InboxRequest{
+		OwnerID:   "owner",
+		AgentID:   "agent_lifecycle",
+		RoomID:    room.RoomID,
+		RequestID: reqID,
+		MessageID: inputMsgID,
+		ReplyID:   replyMsgID,
+		CreatedAt: now,
+		Deadline:  now.Add(10 * time.Minute),
+	}
+
+	// Plain text without JSON (fallback text review)
+	plainText := "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** LULUS\n\n**Bukti yang Terverifikasi:**\n- [x] Footer links telah diuji.\n\n**Tindakan:** Menyatakan selesai."
+	result := s.applyInboxReviewEvaluation(ctx, q, plainText)
+
+	if !strings.Contains(result, "Evaluasi Kriteria Selesai") {
+		t.Fatalf("expected result to include DoD explanation, got: %s", result)
+	}
+	if !strings.Contains(result, "/tasks/"+task1.ID) {
+		t.Fatalf("expected result to include task link, got: %s", result)
+	}
+
+	// Verify task was marked DONE
+	updatedTask, err := s.taskSvc.GetTaskDetail(ctx, task1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedTask.Status != task.TaskStatusDone {
+		t.Fatalf("expected task status to be %s, got: %s", task.TaskStatusDone, updatedTask.Status)
+	}
+}

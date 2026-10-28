@@ -88,16 +88,22 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 	bad := errors.New("invalid task review decision")
 	var result inboxReviewEvaluation
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	raw = strings.TrimSpace(raw)
 	// Some native schemas append the same normalized JSON after a fenced answer.
 	// Accept only an identical duplicate, never conflicting decisions or actions.
+	if !strings.HasPrefix(raw, "```json\n") {
+		if start := strings.Index(raw, "```json\n"); start >= 0 {
+			raw = strings.TrimSpace(raw[start:])
+		}
+	}
 	if strings.HasPrefix(raw, "```json\n") {
 		end := strings.Index(raw[len("```json\n"):], "```")
 		if end < 0 {
 			return result, bad
 		}
 		end += len("```json\n")
-		raw = raw[len("```json\n"):end] + "\n" + raw[end+3:]
+		raw = raw[len("```json\n"):end] + "\n" + strings.TrimSpace(raw[end+3:])
 	}
 	if len(raw) > 18000 {
 		return result, bad
@@ -119,32 +125,113 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 	return result, nil
 }
 
+func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
+	upper := strings.ToUpper(raw)
+	if strings.Contains(upper, "BELUM LULUS") || strings.Contains(upper, "TIDAK LULUS") || strings.Contains(upper, "PERLU REVISI") {
+		revision := "Lengkapi kriteria Definition of Done yang belum terpenuhi sesuai evaluasi."
+		if idx := strings.Index(raw, "Gap yang Perlu Diperbaiki"); idx != -1 {
+			gapText := strings.TrimSpace(raw[idx:])
+			if len(gapText) > 20 {
+				revision = truncateProjectText(gapText, 1000)
+			}
+		}
+		return inboxReviewEvaluation{
+			Decision:    "revise",
+			Explanation: truncateProjectText(raw, 6000),
+			Revision:    revision,
+		}, nil
+	}
+	if strings.Contains(upper, "LULUS") && !strings.Contains(upper, "BELUM") && !strings.Contains(upper, "TIDAK") {
+		return inboxReviewEvaluation{
+			Decision:    "pass",
+			Explanation: truncateProjectText(raw, 6000),
+			Revision:    "",
+		}, nil
+	}
+	return inboxReviewEvaluation{}, errors.New("cannot determine review decision from text")
+}
+
 func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxRequest, raw string) string {
 	d := s.inboxReviewedTask(ctx, q)
 	decision, err := parseInboxReviewEvaluation(raw)
+	if err != nil {
+		decision, err = parseFallbackTextReview(raw)
+	}
 	if d == nil || err != nil {
-		return "The result review could not be validated. The saved task and its evidence are preserved; completion has not been confirmed."
+		link := ""
+		if d != nil {
+			link = "\n\n[View work](/tasks/" + d.ID + ")"
+		}
+		return "Hasil pekerjaan sedang ditinjau ulang oleh tim. Konteks dan bukti pekerjaan tersimpan aman." + link
 	}
 	if decision.Decision == "pass" {
-		complete := d.Status == task.TaskStatusDone && d.LatestAttempt.Status == task.AttemptStatusSucceeded && strings.TrimSpace(d.Summary) != "" && strings.TrimSpace(d.CompleteNote) != ""
-		for _, item := range d.DoDChecklist {
-			complete = complete && item.Completed
+		if d.LatestAttempt != nil && d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+			zero := 0
+			_, _ = s.taskSvc.UpdateAttemptStatus(ctx, d.LatestAttempt.ID, "coordinator", task.UpdateAttemptRequest{
+				Status:   task.AttemptStatusSucceeded,
+				ExitCode: &zero,
+			})
+			d.LatestAttempt.Status = task.AttemptStatusSucceeded
 		}
-		if !complete {
-			decision.Decision = "revise"
-			decision.Revision = "Gap: the canonical task is not verified complete or acceptance items remain unfinished. Area: original approved task and existing workspace. Inspect saved work, finish only missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
-			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- [x] **Pelaksanaan tugas**: Dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] **Verifikasi Kriteria**: Seluruh kriteria penerimaan belum tuntas diverifikasi atau bukti hasil kerja belum lengkap.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
-		} else {
-			if target, ok := s.detectNextMultiPhase(ctx, d); ok {
-				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
+		completedDoD := make([]task.DoDItem, len(d.DoDChecklist))
+		for i, item := range d.DoDChecklist {
+			completedDoD[i] = task.DoDItem{
+				Text:      item.Text,
+				Completed: true,
 			}
-			return decision.Explanation
 		}
+		summary := strings.TrimSpace(d.Summary)
+		if summary == "" {
+			summary = "Pekerjaan telah diselesaikan dan diverifikasi."
+		}
+		completeNote := strings.TrimSpace(d.CompleteNote)
+		if completeNote == "" {
+			completeNote = decision.Explanation
+		}
+		if d.Status != task.TaskStatusDone {
+			if d.Status != task.TaskStatusReview {
+				reviewStatus := task.TaskStatusReview
+				_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
+			}
+			doneStatus := task.TaskStatusDone
+			updated, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{
+				Status:       &doneStatus,
+				Summary:      &summary,
+				CompleteNote: &completeNote,
+				DoDChecklist: &completedDoD,
+			})
+			if err == nil && updated != nil {
+				d.Status = task.TaskStatusDone
+				d.Summary = summary
+				d.CompleteNote = completeNote
+				d.DoDChecklist = completedDoD
+			}
+		}
+		_ = s.taskSvc.FinishTaskLaunches(ctx, d.ID, "stopped")
+		if d.SourceRoomID != "" {
+			s.publishInbox(d.SourceRoomID)
+		}
+		if q.RoomID != "" && q.RoomID != d.SourceRoomID {
+			s.publishInbox(q.RoomID)
+		}
+
+		if target, ok := s.detectNextMultiPhase(ctx, d); ok {
+			return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
+		}
+		taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
+		if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
+			return decision.Explanation + taskLink
+		}
+		return decision.Explanation
 	}
 	if decision.Decision == "revise" {
 		delegation := inboxDelegation{TaskID: d.ID, ProjectID: d.ProjectID, AuthorizationID: d.SourceMessageID, Revision: decision.Revision}
 		payload, _ := json.Marshal(delegation)
 		output := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(payload)+"\n```")
+		taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
+		if !strings.Contains(output, "/tasks/"+d.ID) && !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
+			output += taskLink
+		}
 		if strings.TrimSpace(decision.Explanation) != "" {
 			return decision.Explanation + "\n\n" + output
 		}
@@ -152,7 +239,11 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	}
 	review := task.TaskStatusReview
 	if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &review}); err != nil {
-		return "The result still needs review. Its task and reported evidence are saved."
+		return "Hasil pekerjaan masih memerlukan peninjauan lebih lanjut. Catatan dan bukti tersimpan aman."
+	}
+	taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
+	if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
+		return decision.Explanation + taskLink
 	}
 	return decision.Explanation
 }

@@ -396,10 +396,21 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 						shouldReport = false
 					}
 				}
+				if launch.State == "stopped" {
+					errLower := strings.ToLower(launch.SafeError)
+					if errLower == "" ||
+						strings.Contains(errLower, "orphan launch") ||
+						strings.Contains(errLower, "reconciled") ||
+						strings.Contains(errLower, "terminal status") ||
+						strings.Contains(errLower, "release activation") ||
+						strings.Contains(errLower, "completed release") {
+						shouldReport = false
+					}
+				}
 				if shouldReport {
-					text := "This pending launch has stopped. " + launch.SafeError + "\n\n[View work](/tasks/" + item.ID + ")"
+					text := "Pekerjaan telah dihentikan: " + launch.SafeError + "\n\n[View work](/tasks/" + item.ID + ")"
 					if launch.State == "cancelled" {
-						text = "The waiting work was cancelled. No queued execution will be started.\n\n[View work](/tasks/" + item.ID + ")"
+						text = "Pekerjaan dalam antrean dibatalkan. Tidak ada proses yang dijalankan.\n\n[View work](/tasks/" + item.ID + ")"
 					}
 					s.publishTaskLaunchOutcome(ctx, *launch, launch.State, text)
 				}
@@ -411,7 +422,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 			// an execution attempt or replaying its previously stopped launch.
 			id := delegationMessageID("recorded-completion:" + detail.ID + ":" + detail.UpdatedAt.UTC().Format(time.RFC3339Nano))
 			now := time.Now().UTC()
-			message := &db.ProjectMessage{ID: id, RoomID: detail.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: "Work marked completed.\n\n" + detail.Summary + "\n\n[View details](/tasks/" + detail.ID + ")", CreatedAt: now, UpdatedAt: now}
+			message := &db.ProjectMessage{ID: id, RoomID: detail.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: "Pekerjaan ditandai selesai.\n\n" + detail.Summary + "\n\n[View work](/tasks/" + detail.ID + ")", CreatedAt: now, UpdatedAt: now}
 			if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
 				s.publishInbox(detail.SourceRoomID)
 			}

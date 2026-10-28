@@ -1037,6 +1037,18 @@ export function InboxView({
               >
                 <CheckSquare className="h-4 w-4" />
                 <span>{t('Tasks')}</span>
+                {linkedTasks.some((t) => t.status === 'doing' || t.status === 'queued' || t.status === 'review') && (
+                  <span className="relative flex h-2 w-2 ml-0.5" title="Active tasks in progress">
+                    <span className={cn(
+                      "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                      linkedTasks.some((t) => t.status === 'review') ? "bg-amber-400" : "bg-emerald-400"
+                    )} />
+                    <span className={cn(
+                      "relative inline-flex rounded-full h-2 w-2",
+                      linkedTasks.some((t) => t.status === 'review') ? "bg-amber-500" : "bg-emerald-500"
+                    )} />
+                  </span>
+                )}
                 {linkedTasks.length > 0 && (
                   <span className={cn(
                     "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold",
@@ -1228,7 +1240,7 @@ export function InboxView({
 
                 // Suppress obsolete stopped launch notifications if the task already succeeded/review/done
                 // or if there is a DoD evaluation or completion in the room
-                if (msgContent.includes('This pending launch has stopped')) {
+                if (msgContent.includes('This pending launch has stopped') || msgContent.includes('Pekerjaan telah dihentikan')) {
                   const taskIdMatch = msgContent.match(/\/tasks\/([A-Za-z0-9_-]+)/)
                   if (taskIdMatch) {
                     const matchedTask = linkedTasks.find((t) => t.id === taskIdMatch[1])
@@ -1247,7 +1259,8 @@ export function InboxView({
                         new Date(msg.created_at).getTime() &&
                       (m.content?.includes('Definition of Done') ||
                         m.content?.includes('Evaluasi') ||
-                        m.content?.includes('Work marked completed')),
+                        m.content?.includes('Work marked completed') ||
+                        m.content?.includes('Pekerjaan ditandai selesai')),
                   )
                   if (hasSubsequentReport) {
                     return null
@@ -1262,10 +1275,13 @@ export function InboxView({
                   !msg.approval_plan &&
                   !msg.task_draft &&
                   (msg.author_name === 'Cuan' || msg.author_type === 'agent') &&
-                  msgContent.includes('[View work](/tasks/') &&
+                  (msgContent.includes('[View work](/tasks/') || msgContent.includes('[Lihat tugas](/tasks/')) &&
                   !msgContent.includes('Work marked completed') &&
+                  !msgContent.includes('Pekerjaan ditandai selesai') &&
                   !msgContent.includes('stopped') &&
-                  !msgContent.includes('cancelled')
+                  !msgContent.includes('dihentikan') &&
+                  !msgContent.includes('cancelled') &&
+                  !msgContent.includes('dibatalkan')
                 ) {
                   return null
                 }

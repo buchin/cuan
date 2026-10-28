@@ -49,14 +49,14 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	}
 	key := "task-interruption-recovery:" + d.LatestAttempt.ID
 	gap := "the previous execution was interrupted (exit 137)"
-	notice := "The previous run was interrupted. Your approved work and context are saved."
+	notice := "Pekerjaan sebelumnya sempat terhenti. Konteks dan pekerjaan yang disetujui tersimpan aman."
 	if d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusInterrupted {
 		gap = "the previous execution was interrupted during server restart or system update; working tree and files are preserved"
-		notice = "The previous run was interrupted during a server update. Resuming automatically from saved worktree..."
+		notice = "Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis..."
 	} else if providerLimitedInboxTaskCanResume(d) {
 		key = "task-provider-recovery:" + d.LatestAttempt.ID
 		gap = "the provider stopped the previous execution because of an access limit; its failed route is cooling down"
-		notice = "The previous AI route could not continue. I’m checking another permitted route and preserving your approved work."
+		notice = "Koneksi AI sebelumnya mengalami antrean atau batas kuota. Sistem otomatis melanjutkan lewat jalur cadangan..."
 	}
 	revision := "Gap: " + gap + "; completion and verification are not established. Area: this task's existing project workspace and original approved deliverables. Inspect and preserve existing files before making changes; do not rebuild in provider HOME or another workspace. Reconcile uncertain external effects before repeating them. Continue only unfinished approved work. Verify every original acceptance criterion with targeted checks and report actual evidence and user-accessible results. Finish only when the original scope and verification are complete." + taskRecoveryContext(d)
 	output := s.startAuthorizedLaunch(ctx, origin, d, delegationMessageID(key), origin.RequestID, revision)
