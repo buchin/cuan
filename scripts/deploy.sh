@@ -109,7 +109,15 @@ fi
 
 if [[ "$frontend_only" == 1 ]]; then
   echo "==> Building frontend assets for $release_sha..."
-  npm run build --prefix web
+  if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
+    npm run build --prefix web
+  elif [ -d "web/dist" ]; then
+    echo "==> Using retained web/dist (frontend build toolchain not installed on host)"
+  elif [ -d "/opt/cuan/current/web/dist" ]; then
+    echo "==> Using retained /opt/cuan/current/web/dist (frontend build toolchain not installed on host)"
+    mkdir -p web
+    cp -a /opt/cuan/current/web/dist web/
+  fi
   if [[ "$is_local" == 1 ]]; then
     echo "==> Syncing static assets locally to /opt/cuan/current/web/dist/..."
     mkdir -p "$HOME/.local/share/cuan-releases/$release_sha/web"
@@ -131,7 +139,16 @@ fi
 release_dir="$HOME/.local/share/cuan-releases/$release_sha"
 mkdir -p "$release_dir/bin" "$release_dir/web"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-server" ./cmd/server
-npm run build --prefix web
+ln -sf cuan-server "$release_dir/bin/cuan"
+if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
+  npm run build --prefix web
+elif [ -d "web/dist" ]; then
+  echo "==> Using retained web/dist (frontend build toolchain not installed on host)"
+elif [ -d "/opt/cuan/current/web/dist" ]; then
+  echo "==> Using retained /opt/cuan/current/web/dist (frontend build toolchain not installed on host)"
+  mkdir -p web
+  cp -a /opt/cuan/current/web/dist web/
+fi
 cp -a web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
 cp README.md "$release_dir/"

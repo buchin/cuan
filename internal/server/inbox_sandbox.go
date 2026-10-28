@@ -50,6 +50,22 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]s
 		}
 		args = append(args, "--bind", profile, profile)
 	}
+	// Mount .gemini/config so Antigravity can discover global mcp_config.json
+	geminiConfig := filepath.Join(home, ".gemini", "config")
+	if info, err := os.Stat(geminiConfig); err == nil && info.IsDir() {
+		if resolved, e := absolute(geminiConfig); e == nil && resolved == geminiConfig {
+			args = append(args, "--ro-bind", geminiConfig, geminiConfig)
+		}
+	}
+	// Mount local PostgreSQL socket if available
+	for _, sockDir := range []string{"/run/postgresql", "/var/run/postgresql"} {
+		if info, err := os.Stat(sockDir); err == nil && info.IsDir() {
+			if resolved, e := absolute(sockDir); e == nil {
+				args = append(args, "--ro-bind", resolved, sockDir)
+				break
+			}
+		}
+	}
 	cwd := home
 	if workspace != "" {
 		workspace, err = absolute(workspace)

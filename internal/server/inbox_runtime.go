@@ -47,7 +47,13 @@ func (s *inboxRuntimeStream) emit(kind, text string) {
 	s.step(kind, text)
 }
 func isSafeInboxTool(tool string) bool {
-	switch tool {
+	clean := tool
+	if idx := strings.Index(clean, "/"); idx != -1 {
+		clean = clean[idx+1:]
+	} else if idx := strings.Index(clean, ":"); idx != -1 {
+		clean = clean[idx+1:]
+	}
+	switch clean {
 	case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish",
 		"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches", "inspect_system_health", "inspect_typecheck",
 		"search_web",
@@ -250,7 +256,16 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				"inspect_app_logs":         "Inspect app logs",
 				"call_mcp_tool":            "Call MCP tool",
 			}
-			name := names[u.Tool]
+			cleanName := u.Tool
+			if idx := strings.Index(cleanName, "/"); idx != -1 {
+				cleanName = cleanName[idx+1:]
+			} else if idx := strings.Index(cleanName, ":"); idx != -1 {
+				cleanName = cleanName[idx+1:]
+			}
+			name := names[cleanName]
+			if name == "" {
+				name = names[u.Tool]
+			}
 			if name == "" {
 				name = "Tool"
 			}

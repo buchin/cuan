@@ -484,7 +484,7 @@ func GetInboxMessages(ctx context.Context, roomID string, limit int) (any, error
 	}
 
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, room_id, author_type, author_name, content, created_at FROM project_messages WHERE room_id::text = $1 ORDER BY created_at ASC LIMIT $2",
+		"SELECT id, room_id, author_type, author_name, content, created_at FROM (SELECT id, room_id, author_type, author_name, content, created_at FROM project_messages WHERE room_id::text = $1 ORDER BY created_at DESC LIMIT $2) AS sub ORDER BY created_at ASC",
 		roomID, limit,
 	)
 	if err != nil {
