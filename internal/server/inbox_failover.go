@@ -340,17 +340,17 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 				return
 			}
 		}
-		primaryAdded := false
+		foundModel := false
 		for _, item := range usage.Models {
 			if model != "" && item.Model == model {
+				foundModel = true
 				if item.Remaining > 0 {
 					addModel(model, item.Remaining)
-					primaryAdded = true
 				}
 				break
 			}
 		}
-		if !primaryAdded {
+		if !foundModel {
 			score := -2.0
 			if isPrimary {
 				score = -1
@@ -359,19 +359,23 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		}
 		fallbackModel := registered.FallbackModelID
 		if fallbackModel != "" && agent.IsTextModel(fallbackModel) && fallbackModel != model {
+			fbFound := false
 			fbScore := -2.5
 			if isPrimary {
 				fbScore = -1.5
 			}
 			for _, item := range usage.Models {
 				if item.Model == fallbackModel {
+					fbFound = true
 					if item.Remaining > 0 {
-						fbScore = item.Remaining - 0.05
+						addModel(fallbackModel, item.Remaining-0.05)
 					}
 					break
 				}
 			}
-			addModel(fallbackModel, fbScore)
+			if !fbFound {
+				addModel(fallbackModel, fbScore)
+			}
 		}
 	}
 	for i, candidate := range candidates {
