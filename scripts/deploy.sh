@@ -4,6 +4,7 @@ set -euo pipefail
 
 approved_branch=dev
 frontend_only=0
+force_local=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -15,8 +16,12 @@ while [[ $# -gt 0 ]]; do
       frontend_only=1
       shift
       ;;
+    --local)
+      force_local=1
+      shift
+      ;;
     --help)
-      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env, Go, npm, sshpass. Schema25 must be explicitly prepared after private backup; activation never migrates.'
+      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
       exit 0
       ;;
     *)
@@ -45,19 +50,40 @@ npm test --prefix web
 
 release_sha="$local_sha"
 
-export SSHPASS="$DOJO_TERMAPI_VPS_PASSWORD"
-release_host="$DOJO_TERMAPI_VPS_USERNAME@$DOJO_TERMAPI_VPS_PUBLIC_IP"
+is_local=0
+if [[ "$force_local" == 1 ]]; then
+  is_local=1
+elif [[ -d "/opt/cuan/releases" && -z "${DOJO_TERMAPI_VPS_PASSWORD:-}" ]]; then
+  is_local=1
+fi
+
+if [[ "$is_local" == 0 ]]; then
+  export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
+  release_host="${DOJO_TERMAPI_VPS_USERNAME:-}@${DOJO_TERMAPI_VPS_PUBLIC_IP:-}"
+  if [[ -z "${DOJO_TERMAPI_VPS_PASSWORD:-}" || -z "${DOJO_TERMAPI_VPS_USERNAME:-}" || -z "${DOJO_TERMAPI_VPS_PUBLIC_IP:-}" ]]; then
+    echo "ERROR: Remote release requires DOJO_TERMAPI_VPS_* environment variables." >&2
+    echo "If running directly on the production host, pass --local." >&2
+    exit 1
+  fi
+fi
 
 if [[ "$frontend_only" == 1 ]]; then
   echo "==> Building frontend assets for $release_sha..."
   npm run build --prefix web
-  echo "==> Syncing static assets to production ($release_host)..."
-  sshpass -e ssh "$release_host" "mkdir -p .local/share/cuan-releases/$release_sha/web"
-  sshpass -e scp -q -r web/dist "$release_host:.local/share/cuan-releases/$release_sha/web/"
-  sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/web/dist/ /opt/cuan/current/web/dist/"
-  unset SSHPASS
+  if [[ "$is_local" == 1 ]]; then
+    echo "==> Syncing static assets locally to /opt/cuan/current/web/dist/..."
+    mkdir -p "$HOME/.local/share/cuan-releases/$release_sha/web"
+    cp -a web/dist "$HOME/.local/share/cuan-releases/$release_sha/web/"
+    sudo -n rsync -a --delete web/dist/ /opt/cuan/current/web/dist/
+  else
+    echo "==> Syncing static assets to production ($release_host)..."
+    sshpass -e ssh "$release_host" "mkdir -p .local/share/cuan-releases/$release_sha/web"
+    sshpass -e scp -q -r web/dist "$release_host:.local/share/cuan-releases/$release_sha/web/"
+    sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/web/dist/ /opt/cuan/current/web/dist/"
+    unset SSHPASS
+  fi
   echo "==> Verifying production health..."
-  curl -sSf https://cuan.dojo.cc/healthz >/dev/null
+  curl -sSf http://127.0.0.1:8080/healthz >/dev/null 2>&1 || curl -sSf https://cuan.dojo.cc/healthz >/dev/null
   echo "Frontend assets updated to $release_sha. Zero downtime; active runner sessions uninterrupted."
   exit 0
 fi
@@ -76,19 +102,28 @@ checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for 
 (root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks,'features':{'project_workspace_revisions':1,'task_execution_worktrees':1}})+'\n')
 PY
 
-sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha"
-# Use native remote rsync; sandbox rsync wrappers may alter SSH authentication.
-sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
-sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
-sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
-sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
-sshpass -e ssh "$release_host" "sudo -n python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
-unset SSHPASS
+if [[ "$is_local" == 1 ]]; then
+  echo "==> Deploying release payload locally to /opt/cuan/releases/$release_sha..."
+  sudo -n mkdir -p "/opt/cuan/releases/$release_sha"
+  mkdir -p "$HOME/.local/share/cuan-releases"
+  cp -a "$release_dir" "$HOME/.local/share/cuan-releases/"
+  sudo -n rsync -a --delete "$release_dir/" "/opt/cuan/releases/$release_sha/"
+  sudo -n python3 scripts/activate-release.py --release "$release_sha"
+else
+  sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha"
+  # Use native remote rsync; sandbox rsync wrappers may alter SSH authentication.
+  sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
+  sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
+  sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
+  sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
+  sshpass -e ssh "$release_host" "sudo -n python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
+  unset SSHPASS
+fi
 
 echo "==> Verifying production health & commit SHA ($release_sha)..."
 verified_sha=""
 for attempt in {1..20}; do
-  health_json="$(curl -sSf https://cuan.dojo.cc/healthz 2>/dev/null || true)"
+  health_json="$(curl -sSf http://127.0.0.1:8080/healthz 2>/dev/null || curl -sSf https://cuan.dojo.cc/healthz 2>/dev/null || true)"
   if [[ -n "$health_json" ]]; then
     live_sha="$(python3 -c "import sys, json; print(json.loads('''$health_json''').get('commit_sha', ''))" 2>/dev/null || true)"
     live_status="$(python3 -c "import sys, json; print(json.loads('''$health_json''').get('status', ''))" 2>/dev/null || true)"
