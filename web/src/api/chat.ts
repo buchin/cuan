@@ -24,6 +24,8 @@ export interface ChatContact {
   page_title?: string
   task_count?: number
   active_tasks?: number
+  done_tasks?: number
+  failed_tasks?: number
 }
 
 export interface AgentActionCard {
@@ -215,6 +217,8 @@ export const chatApi = {
       ...c,
       task_count: typeof c.task_count === 'number' ? c.task_count : Number(c.task_count) || 0,
       active_tasks: typeof c.active_tasks === 'number' ? c.active_tasks : Number(c.active_tasks) || 0,
+      done_tasks: typeof c.done_tasks === 'number' ? c.done_tasks : Number(c.done_tasks) || 0,
+      failed_tasks: typeof c.failed_tasks === 'number' ? c.failed_tasks : Number(c.failed_tasks) || 0,
     }))
   },
 

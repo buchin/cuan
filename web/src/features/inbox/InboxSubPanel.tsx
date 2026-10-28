@@ -8,7 +8,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive, CheckCheck, CheckSquare } from 'lucide-react'
+import { Search, Bot, User, Archive, CheckCheck, CheckSquare, Zap, XCircle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-whatsapp.css'
 
@@ -398,7 +398,22 @@ export function InboxSubPanel({
             const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
             const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
             const totalTasks = typeof contact.task_count === 'number' ? contact.task_count : Number(contact.task_count) || 0
-            const taskBadgeCount = activeTasks > 0 ? activeTasks : totalTasks
+            const failedTasks = typeof contact.failed_tasks === 'number' ? contact.failed_tasks : Number(contact.failed_tasks) || 0
+            const doneTasks = typeof contact.done_tasks === 'number'
+              ? contact.done_tasks
+              : Math.max(0, totalTasks - activeTasks - failedTasks)
+            const hasTasks = totalTasks > 0 || activeTasks > 0 || doneTasks > 0 || failedTasks > 0
+
+            const rawAgent = contact.agent_name || ''
+            const formattedAgent = rawAgent
+              ? (rawAgent.startsWith('@')
+                  ? rawAgent
+                  : (rawAgent.startsWith('agent_')
+                      ? '@' + rawAgent.slice(6)
+                      : '@' + rawAgent))
+              : ''
+            const showAgentName = Boolean(formattedAgent && contact.name !== formattedAgent && contact.name !== rawAgent)
+
             const openContact = () => {
               onSelectContact(contact)
               void archive.markRead(id, true, contact.last_message_at).catch(() => {})
@@ -442,27 +457,9 @@ export function InboxSubPanel({
                 {/* Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-normal")}>
-                        {contact.name}
-                      </span>
-                      {taskBadgeCount > 0 && (
-                        <span
-                          data-testid="task-count-badge"
-                          aria-label={`${taskBadgeCount} active tasks`}
-                          title={`${taskBadgeCount} ${taskBadgeCount === 1 ? t('task') : t('tasks')}`}
-                          className={cn(
-                            "inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors",
-                            activeTasks > 0
-                              ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25"
-                              : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
-                          )}
-                        >
-                          <CheckSquare className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{taskBadgeCount}</span>
-                        </span>
-                      )}
-                    </div>
+                    <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-normal")}>
+                      {contact.name}
+                    </span>
                     <span className={cn("text-xs shrink-0 tabular-nums", unread ? "text-primary font-medium" : "text-muted-foreground")}>
                       {formatTime(
                         contact.last_message_at || contact.updated_at,
@@ -470,12 +467,49 @@ export function InboxSubPanel({
                     </span>
                   </div>
 
-                  {contact.agent_name &&
-                    contact.name !== contact.agent_name && (
-                      <p className="truncate text-xs text-muted-foreground">
-                        {contact.agent_name}
-                      </p>
-                    )}
+                  {/* Second Line: Agent Handle & Smart Task Badges */}
+                  {(showAgentName || hasTasks) && (
+                    <div data-testid="task-count-badge" className="flex items-center gap-1.5 mb-0.5 min-w-0 flex-wrap">
+                      {showAgentName && (
+                        <span className="text-xs text-muted-foreground font-medium truncate shrink-0">
+                          {formattedAgent}
+                        </span>
+                      )}
+                      {activeTasks > 0 && (
+                        <span
+                          data-testid="task-badge-active"
+                          aria-label={`${activeTasks} active tasks`}
+                          title={`${activeTasks} active ${activeTasks === 1 ? t('task') : t('tasks')}`}
+                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25"
+                        >
+                          <Zap className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                          <span>{activeTasks}</span>
+                        </span>
+                      )}
+                      {failedTasks > 0 && (
+                        <span
+                          data-testid="task-badge-failed"
+                          aria-label={`${failedTasks} failed or blocked tasks`}
+                          title={`${failedTasks} blocked or failed ${failedTasks === 1 ? t('task') : t('tasks')}`}
+                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
+                        >
+                          <XCircle className="h-2.5 w-2.5" aria-hidden="true" />
+                          <span>{failedTasks}</span>
+                        </span>
+                      )}
+                      {doneTasks > 0 && (
+                        <span
+                          data-testid="task-badge-done"
+                          aria-label={`${doneTasks} completed tasks`}
+                          title={`${doneTasks} completed ${doneTasks === 1 ? t('task') : t('tasks')}`}
+                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
+                        >
+                          <CheckSquare className="h-2.5 w-2.5" aria-hidden="true" />
+                          <span>{doneTasks}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground truncate leading-5">
                       {conversationPreview(contact.last_message)}

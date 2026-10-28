@@ -47,6 +47,8 @@ type ChatContact struct {
 	PageTitle      string    `json:"page_title,omitempty"`
 	TaskCount      int       `json:"task_count"`
 	ActiveTasks    int       `json:"active_tasks"`
+	DoneTasks      int       `json:"done_tasks"`
+	FailedTasks    int       `json:"failed_tasks"`
 }
 
 // AgentActionCard represents an interactive 1-click execution card in an agent bubble.
@@ -617,13 +619,20 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	// Count active tasks and total tasks per conversation room
 	taskCountByRoom := make(map[string]int)
 	activeTasksByRoom := make(map[string]int)
+	doneTasksByRoom := make(map[string]int)
+	failedTasksByRoom := make(map[string]int)
 
 	if s.taskSvc != nil {
 		if allTasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{}); err == nil {
 			for _, t := range allTasks {
 				if t.SourceRoomID != "" {
 					taskCountByRoom[t.SourceRoomID]++
-					if !strings.EqualFold(strings.TrimSpace(t.Status), "done") {
+					st := strings.ToLower(strings.TrimSpace(t.Status))
+					if st == "done" {
+						doneTasksByRoom[t.SourceRoomID]++
+					} else if st == "blocked" || st == "failed" {
+						failedTasksByRoom[t.SourceRoomID]++
+					} else {
 						activeTasksByRoom[t.SourceRoomID]++
 					}
 				}
@@ -638,28 +647,37 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					if len(pTasks) > taskCountByRoom[rm.ID] {
 						taskCountByRoom[rm.ID] = len(pTasks)
 						active := 0
+						done := 0
+						failed := 0
 						for _, pt := range pTasks {
-							if !strings.EqualFold(strings.TrimSpace(pt.Status), "done") {
+							st := strings.ToLower(strings.TrimSpace(pt.Status))
+							if st == "done" {
+								done++
+							} else if st == "blocked" || st == "failed" {
+								failed++
+							} else {
 								active++
 							}
 						}
 						activeTasksByRoom[rm.ID] = active
+						doneTasksByRoom[rm.ID] = done
+						failedTasksByRoom[rm.ID] = failed
 					}
 				}
 			}
 		}
 	}
 
-	getRoomTaskCounts := func(ids ...string) (int, int) {
+	getRoomTaskCounts := func(ids ...string) (int, int, int, int) {
 		for _, id := range ids {
 			if id == "" {
 				continue
 			}
 			if tc := taskCountByRoom[id]; tc > 0 {
-				return tc, activeTasksByRoom[id]
+				return tc, activeTasksByRoom[id], doneTasksByRoom[id], failedTasksByRoom[id]
 			}
 		}
-		return 0, 0
+		return 0, 0, 0, 0
 	}
 
 	if typeFilter != "customers" {
@@ -704,7 +722,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							})
 						}
 					}
-					tc, at := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
+					tc, at, dt, ft := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
 					c := ChatContact{
 						ID:      "contact_" + a.ID,
 						AgentID: a.ID, AgentName: a.Name,
@@ -722,6 +740,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						IsOnline:       true,
 						TaskCount:      tc,
 						ActiveTasks:    at,
+						DoneTasks:      dt,
+						FailedTasks:    ft,
 					}
 					contacts = append(contacts, c)
 				}
@@ -747,8 +767,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					at = messages[len(messages)-1].CreatedAt
 					unread = countUnread(room.ID, messages, true)
 				}
-				tc, activeCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt})
+				tc, activeCnt, doneCnt, failedCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, DoneTasks: doneCnt, FailedTasks: failedCnt})
 			}
 		}
 	}
@@ -845,7 +865,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
-			tc, at := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			tc, at, dt, ft := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
 			custContact := ChatContact{
 				ID:             "cust_" + sess.UUID,
 				Type:           "customer",
@@ -866,6 +886,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				PageTitle:      pageTitle,
 				TaskCount:      tc,
 				ActiveTasks:    at,
+				DoneTasks:      dt,
+				FailedTasks:    ft,
 			}
 			contacts = append(contacts, custContact)
 		}
@@ -1241,18 +1263,29 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		return
 	}
 	activeTasks := 0
+	doneTasks := 0
+	failedTasks := 0
 	for _, t := range linked {
-		if t.Status != task.TaskStatusDone {
+		st := strings.ToLower(strings.TrimSpace(t.Status))
+		if st == task.TaskStatusDone {
+			doneTasks++
+		} else if st == task.TaskStatusBlocked || st == "failed" {
+			failedTasks++
+		} else {
 			activeTasks++
 		}
 	}
 	contact.TaskCount = len(linked)
 	contact.ActiveTasks = activeTasks
+	contact.DoneTasks = doneTasks
+	contact.FailedTasks = failedTasks
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":           linked,
 		"task_count":      len(linked),
 		"active_tasks":    activeTasks,
+		"done_tasks":      doneTasks,
+		"failed_tasks":    failedTasks,
 		"requests":        inboxRecoveryRequests(requests),
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,

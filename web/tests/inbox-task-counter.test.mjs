@@ -17,7 +17,7 @@ const chatApiSource = fs.readFileSync(chatApiPath, 'utf8')
 const inboxApiSource = fs.readFileSync(inboxApiPath, 'utf8')
 const inboxViewSource = fs.readFileSync(inboxViewPath, 'utf8')
 
-test('1. ChatContact & InboxThreadItem interfaces define task_count and active_tasks', () => {
+test('1. ChatContact & InboxThreadItem interfaces define task counters including done and failed', () => {
   assert.ok(
     chatApiSource.includes('task_count?: number'),
     'ChatContact must define optional task_count'
@@ -27,6 +27,14 @@ test('1. ChatContact & InboxThreadItem interfaces define task_count and active_t
     'ChatContact must define optional active_tasks'
   )
   assert.ok(
+    chatApiSource.includes('done_tasks?: number'),
+    'ChatContact must define optional done_tasks'
+  )
+  assert.ok(
+    chatApiSource.includes('failed_tasks?: number'),
+    'ChatContact must define optional failed_tasks'
+  )
+  assert.ok(
     inboxApiSource.includes('task_count: number'),
     'InboxThreadItem must define task_count'
   )
@@ -34,31 +42,55 @@ test('1. ChatContact & InboxThreadItem interfaces define task_count and active_t
     inboxApiSource.includes('active_tasks?: number'),
     'InboxThreadItem must define optional active_tasks'
   )
+  assert.ok(
+    inboxApiSource.includes('done_tasks?: number'),
+    'InboxThreadItem must define optional done_tasks'
+  )
+  assert.ok(
+    inboxApiSource.includes('failed_tasks?: number'),
+    'InboxThreadItem must define optional failed_tasks'
+  )
 })
 
-test('2. InboxSubPanel: CheckSquare icon imported and task counter badge rendered', () => {
+test('2. InboxSubPanel: Lucide icons imported for smart badges (Zap, XCircle, CheckSquare)', () => {
   assert.ok(
     subPanelSource.includes('CheckSquare'),
     'InboxSubPanel must import CheckSquare icon from lucide-react'
   )
   assert.ok(
+    subPanelSource.includes('Zap'),
+    'InboxSubPanel must import Zap icon from lucide-react'
+  )
+  assert.ok(
+    subPanelSource.includes('XCircle'),
+    'InboxSubPanel must import XCircle icon from lucide-react'
+  )
+  assert.ok(
     subPanelSource.includes('data-testid="task-count-badge"'),
-    'InboxSubPanel must render task count badge with testid task-count-badge'
+    'InboxSubPanel must maintain task-count-badge testid for backward compatibility'
   )
   assert.ok(
-    subPanelSource.includes('taskBadgeCount'),
-    'InboxSubPanel must compute taskBadgeCount based on active_tasks or task_count'
+    subPanelSource.includes('data-testid="task-badge-active"'),
+    'InboxSubPanel must render active task badge with testid task-badge-active'
   )
   assert.ok(
-    subPanelSource.includes('CheckSquare className="h-2.5 w-2.5"'),
-    'InboxSubPanel must render CheckSquare icon inside badge'
+    subPanelSource.includes('data-testid="task-badge-done"'),
+    'InboxSubPanel must render done task badge with testid task-badge-done'
+  )
+  assert.ok(
+    subPanelSource.includes('data-testid="task-badge-failed"'),
+    'InboxSubPanel must render failed/blocked task badge with testid task-badge-failed'
   )
 })
 
-test('3. InboxSubPanel: Accessible attributes and badge hierarchy', () => {
+test('3. InboxSubPanel: Smart dynamic badges placed beside agent handle with accessible attributes', () => {
   assert.ok(
-    subPanelSource.includes('aria-label={`${taskBadgeCount} active tasks`}'),
-    'Task badge must include accessible aria-label with count'
+    subPanelSource.includes('aria-label={`${activeTasks} active tasks`}'),
+    'Active task badge must include accessible aria-label with active task count'
+  )
+  assert.ok(
+    subPanelSource.includes('aria-label={`${doneTasks} completed tasks`}'),
+    'Done task badge must include accessible aria-label with completed count'
   )
   assert.ok(
     subPanelSource.includes('tabular-nums'),
@@ -66,7 +98,19 @@ test('3. InboxSubPanel: Accessible attributes and badge hierarchy', () => {
   )
   assert.ok(
     subPanelSource.includes('bg-blue-500/15'),
-    'Task badge must use consistent active task accent color theme'
+    'Active badge must use blue accent color theme'
+  )
+  assert.ok(
+    subPanelSource.includes('bg-emerald-500/15'),
+    'Done badge must use emerald/green accent color theme'
+  )
+  assert.ok(
+    subPanelSource.includes('bg-rose-500/15'),
+    'Failed/blocked badge must use rose/red accent color theme'
+  )
+  assert.ok(
+    subPanelSource.includes('showAgentName'),
+    'Smart badges must render on the second line alongside agent name (@sm)'
   )
 })
 
@@ -76,7 +120,15 @@ test('4. InboxView synchronizes activeContact task counts and triggers refresh o
     'InboxView must sync task_count onto activeContact when loading conversation'
   )
   assert.ok(
+    inboxViewSource.includes('activeContact.done_tasks = dt'),
+    'InboxView must sync done_tasks onto activeContact'
+  )
+  assert.ok(
+    inboxViewSource.includes('activeContact.failed_tasks = ft'),
+    'InboxView must sync failed_tasks onto activeContact'
+  )
+  assert.ok(
     inboxViewSource.includes('onContactUpdated?.()'),
-    'InboxView must trigger onContactUpdated when a new task is created'
+    'InboxView must trigger onContactUpdated when tasks change'
   )
 })

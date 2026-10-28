@@ -187,6 +187,9 @@ func TestInboxTaskCounter_ContactsAndConversationsPayload(t *testing.T) {
 			if c.ActiveTasks != 0 {
 				t.Errorf("expected active_tasks to become 0 after completion, got %d", c.ActiveTasks)
 			}
+			if c.DoneTasks != 1 {
+				t.Errorf("expected done_tasks to become 1 after completion, got %d", c.DoneTasks)
+			}
 			break
 		}
 	}
