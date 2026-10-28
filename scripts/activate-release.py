@@ -121,9 +121,15 @@ def assert_idle_work(no_restart=False):
             column='state' if table!='task_attempts' else 'status'
             query = 'SELECT count(*) FROM '+table+' WHERE '+column+' IN ('+states+')'
             if table == 'task_attempts' and exclude_attempt:
-                query += " AND id != '" + exclude_attempt.replace("'", "''") + "'"
+                excluded_attempts = [a.strip() for a in exclude_attempt.split(',') if a.strip()]
+                if excluded_attempts:
+                    quoted = ", ".join("'" + a.replace("'", "''") + "'" for a in excluded_attempts)
+                    query += " AND id NOT IN (" + quoted + ")"
             if table == 'task_launches' and exclude_task:
-                query += " AND task_id != '" + exclude_task.replace("'", "''") + "'"
+                excluded_tasks = [t.strip() for t in exclude_task.split(',') if t.strip()]
+                if excluded_tasks:
+                    quoted = ", ".join("'" + t.replace("'", "''") + "'" for t in excluded_tasks)
+                    query += " AND task_id NOT IN (" + quoted + ")"
             if int(database_scalar(query,env)):
                 raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
 
