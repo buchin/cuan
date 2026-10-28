@@ -139,7 +139,6 @@ fi
 release_dir="$HOME/.local/share/cuan-releases/$release_sha"
 mkdir -p "$release_dir/bin" "$release_dir/web"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-server" ./cmd/server
-ln -sf cuan-server "$release_dir/bin/cuan"
 if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
   npm run build --prefix web
 elif [ -d "web/dist" ]; then
@@ -155,7 +154,7 @@ cp README.md "$release_dir/"
 python3 - "$release_dir" "$release_sha" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1])
-checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file() and p.name!='release.json'}
+checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file() and not p.is_symlink() and p.name!='release.json'}
 (root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks,'features':{'project_workspace_revisions':1,'task_execution_worktrees':1}})+'\n')
 PY
 
