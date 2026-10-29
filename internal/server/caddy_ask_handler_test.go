@@ -266,3 +266,33 @@ func TestCaddyAskHandler_NilRepositorySafeguard(t *testing.T) {
 		t.Fatalf("expected HTTP 403 Forbidden when repository is nil, got %d", w.Code)
 	}
 }
+
+func TestCaddyAskHandler_BaseDomainsAuthorized(t *testing.T) {
+	s, _ := setupTestServerWithDomainRepo(t)
+
+	baseDomains := []string{
+		"cuan.work",
+		"CUAN.WORK",
+		"cuan.dojo.cc",
+		"cuan.chat",
+		"CUAN.CHAT",
+	}
+
+	for _, d := range baseDomains {
+		req := httptest.NewRequest(http.MethodGet, "/api/caddy/ask?domain="+url.QueryEscape(d), nil)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected HTTP 200 OK for base domain %q, got %d. Body: %s", d, w.Code, w.Body.String())
+		}
+
+		var resp CaddyAskResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("failed to decode response json for %q: %v", d, err)
+		}
+		if resp.Status != "authorized" {
+			t.Errorf("expected status 'authorized' for %q, got %q", d, resp.Status)
+		}
+	}
+}

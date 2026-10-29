@@ -50,8 +50,12 @@ func (s *Server) handleCaddyAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify base domain authorization (e.g. cuan.dojo.cc)
-	if s.cfg != nil && s.cfg.BaseDomain != "" && strings.EqualFold(domain, cuanDB.NormalizeDomain(s.cfg.BaseDomain)) {
+	// Verify base domain authorization (e.g. cuan.work, cuan.dojo.cc, cuan.chat, or configured BaseDomain)
+	normalizedDomain := cuanDB.NormalizeDomain(domain)
+	if (s.cfg != nil && s.cfg.BaseDomain != "" && strings.EqualFold(normalizedDomain, cuanDB.NormalizeDomain(s.cfg.BaseDomain))) ||
+		strings.EqualFold(normalizedDomain, "cuan.work") ||
+		strings.EqualFold(normalizedDomain, "cuan.dojo.cc") ||
+		strings.EqualFold(normalizedDomain, "cuan.chat") {
 		respondJSON(w, http.StatusOK, CaddyAskResponse{
 			Status:  "authorized",
 			Domain:  domain,

@@ -3,7 +3,21 @@
 	email {$ACME_EMAIL:admin@example.com}
 }
 
-{$CUAN_DOMAIN:localhost} {
+# 1. Permanent Redirect: cuan.chat -> cuan.work (301 Moved Permanently)
+# Preserves the entire URI path and query parameters for zero friction.
+cuan.chat {
+	redir https://cuan.work{uri} permanent
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# 2. Main Cuan Application Reverse Proxy
+# Serves canonical primary domain cuan.work, legacy co-primary cuan.dojo.cc,
+# and environment override {$CUAN_DOMAIN:localhost} for local/staging deployments.
+cuan.work, cuan.dojo.cc, {$CUAN_DOMAIN:localhost} {
 	# High performance compression
 	encode zstd gzip
 
