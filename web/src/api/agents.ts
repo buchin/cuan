@@ -95,22 +95,39 @@ export interface HarnessAuth {
   expires_at?: string
 }
 
+export interface ModelCapabilities {
+  vision?: boolean
+  supports_vision?: boolean
+}
+
 export interface ModelInfo {
   id: string
   name: string
   display_name?: string
   description?: string
+  provider?: string
+  input_token_limit?: number
+  output_token_limit?: number
   is_default?: boolean
   supports_vision?: boolean
-  multimodal?: boolean
+  capabilities?: ModelCapabilities
+  preserved?: boolean
 }
 
-export function isModelVisionCapable(modelId?: string, provider?: string): boolean {
+export function isModelVisionCapable(modelId?: string, provider?: string, modelInfo?: ModelInfo | null): boolean {
+  if (modelInfo) {
+    if (modelInfo.capabilities?.vision !== undefined) return modelInfo.capabilities.vision
+    if (modelInfo.capabilities?.supports_vision !== undefined) return modelInfo.capabilities.supports_vision
+    if (modelInfo.supports_vision !== undefined) return modelInfo.supports_vision
+  }
   const p = (provider || '').toLowerCase()
+  const m = (modelId || '').toLowerCase()
   if (p === 'agy' || p === 'antigravity' || p === 'google' || p === 'gemini') {
+    if (m.includes('gpt-oss') || m.includes('text') || m.includes('embedding')) {
+      return false
+    }
     return true
   }
-  const m = (modelId || '').toLowerCase()
   if (!m || m === 'commandcode-default' || m === 'default') {
     return false
   }
@@ -124,9 +141,13 @@ export function isModelVisionCapable(modelId?: string, provider?: string): boole
 }
 
 export const agentsApi = {
-  listModels: async (provider = 'commandcode'): Promise<ModelInfo[]> => {
-    const res = await apiFetch<{ status: string; provider: string; models: ModelInfo[] }>(
-      `/api/v1/agents/models?provider=${encodeURIComponent(provider)}`
+  listModels: async (provider = 'commandcode', refresh = false): Promise<ModelInfo[]> => {
+    const params = new URLSearchParams()
+    if (provider) params.set('provider', provider)
+    if (refresh) params.set('refresh', 'true')
+    const query = params.toString() ? `?${params.toString()}` : ''
+    const res = await apiFetch<{ status: string; provider: string; models: ModelInfo[]; refreshed?: boolean }>(
+      `/api/v1/agents/models${query}`
     )
     return res.models || []
   },
@@ -177,8 +198,10 @@ export const agentsApi = {
     return res.connections || []
   },
 
-  getModelConfig: async (id: string): Promise<AgentModelConfig> => {
-    return apiFetch<AgentModelConfig>(`/api/v1/agents/${encodeURIComponent(id)}/model-config`)
+  // Preserved endpoint signature: getModelConfig: async (id: string)
+  getModelConfig: async (id: string, refresh = false): Promise<AgentModelConfig> => {
+    const query = refresh ? '?refresh=true' : ''
+    return apiFetch<AgentModelConfig>(`/api/v1/agents/${encodeURIComponent(id)}/model-config${query}`)
   },
 
   updateModelConfig: async (

@@ -198,3 +198,241 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 
 	return result, nil
 }
+
+// AGYProvider implements the Provider interface for the AGY / Antigravity CLI harness.
+type AGYProvider struct {
+	binaryPath string
+}
+
+// NewAGYProvider creates a new AGYProvider.
+func NewAGYProvider() *AGYProvider {
+	bin, _ := ResolveAGYBinaryPath()
+	return &AGYProvider{binaryPath: bin}
+}
+
+func (p *AGYProvider) Name() string { return "Antigravity" }
+func (p *AGYProvider) Type() string { return "agy" }
+
+// VerifyConnection checks if the agy executable exists on the host.
+func (p *AGYProvider) VerifyConnection(ctx context.Context, credentials string) (*ConnectionProbeResult, error) {
+	bin := p.binaryPath
+	if bin == "" {
+		var err error
+		bin, err = ResolveAGYBinaryPath()
+		if err != nil {
+			return &ConnectionProbeResult{
+				Valid:        false,
+				Provider:     "agy",
+				ErrorMessage: "AGY binary not installed on this server",
+				TestedAt:     time.Now().UTC(),
+			}, nil
+		}
+	}
+	return &ConnectionProbeResult{
+		Valid:           true,
+		Provider:        "agy",
+		PlanHint:        "Antigravity CLI Harness",
+		LatencyMs:       0,
+		AvailableModels: DefaultAGYModels(),
+		TestedAt:        time.Now().UTC(),
+	}, nil
+}
+
+// ListModels probes available models from the native agy CLI or returns DefaultAGYModels.
+func (p *AGYProvider) ListModels(ctx context.Context, credentials string) ([]ModelInfo, error) {
+	bin := p.binaryPath
+	if bin == "" {
+		var err error
+		bin, err = ResolveAGYBinaryPath()
+		if err != nil {
+			return DefaultAGYModels(), nil
+		}
+	}
+
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(probeCtx, bin, "models")
+	out, err := cmd.Output()
+	if err != nil || len(out) == 0 {
+		return DefaultAGYModels(), nil
+	}
+
+	models := ParseAGYModelsOutput(string(out))
+	if len(models) == 0 {
+		return DefaultAGYModels(), nil
+	}
+	return models, nil
+}
+
+// ParseAGYModelsOutput parses the stdout lines from `agy models`.
+func ParseAGYModelsOutput(output string) []ModelInfo {
+	var models []ModelInfo
+	normalized := strings.ReplaceAll(output, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+
+	for _, line := range strings.Split(normalized, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.Contains(trimmed, "Fetching available") || strings.Contains(trimmed, "Available models") {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) == 0 {
+			continue
+		}
+		id := fields[0]
+		// Skip spinner glyphs or invalid tokens
+		if strings.HasPrefix(id, "⠋") || strings.HasPrefix(id, "⠙") || strings.HasPrefix(id, "⠹") || strings.HasPrefix(id, "•") {
+			continue
+		}
+
+		displayName := id
+		if len(fields) > 1 {
+			displayName = strings.TrimSpace(trimmed[len(id):])
+		}
+
+		supportsVision := IsModelVisionCapable("agy", id)
+		isDefault := id == "gemini-3.8-flash-high" || id == "gemini-1.5-pro"
+
+		models = append(models, ModelInfo{
+			ID:             id,
+			Name:           id,
+			DisplayName:    displayName,
+			Description:    fmt.Sprintf("%s model via Antigravity harness", displayName),
+			Provider:       "agy",
+			IsDefault:      isDefault,
+			SupportsVision: supportsVision,
+			Capabilities: ModelCapabilities{
+				Vision:         supportsVision,
+				SupportsVision: supportsVision,
+			},
+		})
+	}
+	return models
+}
+
+// DefaultAGYModels returns standard models verified for the AGY harness.
+func DefaultAGYModels() []ModelInfo {
+	return []ModelInfo{
+		{
+			ID:             "gemini-3.8-flash-high",
+			Name:           "gemini-3.8-flash-high",
+			DisplayName:    "Gemini 3.8 Flash (High)",
+			Description:    "Gemini 3.8 Flash with high thinking capacity",
+			Provider:       "agy",
+			IsDefault:      true,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:             "gemini-3.8-flash-medium",
+			Name:           "gemini-3.8-flash-medium",
+			DisplayName:    "Gemini 3.8 Flash (Medium)",
+			Description:    "Gemini 3.8 Flash with medium thinking capacity",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:             "gemini-3.8-flash-low",
+			Name:           "gemini-3.8-flash-low",
+			DisplayName:    "Gemini 3.8 Flash (Low)",
+			Description:    "Gemini 3.8 Flash with low thinking capacity",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:             "claude-sonnet-4-6",
+			Name:           "claude-sonnet-4-6",
+			DisplayName:    "Claude Sonnet 4.6 (Thinking)",
+			Description:    "Frontier coding and vision reasoning with thinking",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:             "claude-opus-4-6-thinking",
+			Name:           "claude-opus-4-6-thinking",
+			DisplayName:    "Claude Opus 4.6 (Thinking)",
+			Description:    "Deepest reasoning with vision and extended thinking",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:             "gpt-oss-120b-medium",
+			Name:           "gpt-oss-120b-medium",
+			DisplayName:    "GPT-OSS 120B (Medium)",
+			Description:    "High-parameter open-weights coding model (Text-only)",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
+		},
+		{
+			ID:             "gemini-2.0-flash",
+			Name:           "gemini-2.0-flash",
+			DisplayName:    "Gemini 2.0 Flash",
+			Description:    "Next-generation ultra-fast multimodal model",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:             "gemini-1.5-pro",
+			Name:           "gemini-1.5-pro",
+			DisplayName:    "Gemini 1.5 Pro",
+			Description:    "Multimodal reasoning with 2M token context",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:             "gemini-1.5-flash",
+			Name:           "gemini-1.5-flash",
+			DisplayName:    "Gemini 1.5 Flash",
+			Description:    "Fast and versatile multimodal model",
+			Provider:       "agy",
+			IsDefault:      false,
+			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+	}
+}
+
+var _ Provider = (*AGYProvider)(nil)
+

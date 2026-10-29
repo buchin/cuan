@@ -293,6 +293,17 @@ func (s *Server) SetProviderRegistry(r *agent.ProviderRegistry) {
 	s.providerRegistry = r
 }
 
+func (s *Server) CatalogCache() *agent.ModelCatalogCache {
+	if s.catalogCache == nil {
+		s.catalogCache = agent.DefaultCatalogCache()
+	}
+	return s.catalogCache
+}
+
+func (s *Server) SetCatalogCache(c *agent.ModelCatalogCache) {
+	s.catalogCache = c
+}
+
 func (s *Server) CampaignDecompiler() *campaign.DecompilerEngine {
 	return s.campaignDecompiler
 }

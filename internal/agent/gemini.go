@@ -96,30 +96,48 @@ func DefaultGeminiModels() []ModelInfo {
 			Name:                       "models/gemini-1.5-pro",
 			DisplayName:                "Gemini 1.5 Pro",
 			Description:                "Mid-size multimodal model optimized for complex reasoning and large context windows",
+			Provider:                   "google",
 			InputTokenLimit:            2097152,
 			OutputTokenLimit:           8192,
 			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
 			IsDefault:                  true,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:                         "gemini-1.5-flash",
 			Name:                       "models/gemini-1.5-flash",
 			DisplayName:                "Gemini 1.5 Flash",
 			Description:                "Fast and versatile multimodal model designed for low-latency tasks",
+			Provider:                   "google",
 			InputTokenLimit:            1048576,
 			OutputTokenLimit:           8192,
 			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
 			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:                         "gemini-2.0-flash",
 			Name:                       "models/gemini-2.0-flash",
 			DisplayName:                "Gemini 2.0 Flash",
 			Description:                "Next-generation ultra-fast multimodal model with advanced code intelligence",
+			Provider:                   "google",
 			InputTokenLimit:            1048576,
 			OutputTokenLimit:           8192,
 			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
 			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 	}
 }
@@ -290,10 +308,16 @@ func (p *GeminiProvider) VerifyConnection(ctx context.Context, apiKey string) (*
 			Name:                       m.Name,
 			DisplayName:                m.DisplayName,
 			Description:                m.Description,
+			Provider:                   "google",
 			InputTokenLimit:            m.InputTokenLimit,
 			OutputTokenLimit:           m.OutputTokenLimit,
 			SupportedGenerationMethods: m.SupportedGenerationMethods,
 			IsDefault:                  isDefault,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		})
 	}
 

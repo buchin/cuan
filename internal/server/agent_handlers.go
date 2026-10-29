@@ -424,19 +424,29 @@ func (s *Server) handleGetAgentModelConfig(w http.ResponseWriter, r *http.Reques
 		provider = "google"
 	}
 
-	var supportedModels []agent.ModelInfo
+	refresh := r.URL.Query().Get("refresh") == "true" || r.URL.Query().Get("refresh") == "1"
+
 	reg := s.ProviderRegistry()
 	if reg == nil {
 		reg = agent.DefaultRegistry()
 	}
-	if prov, err := reg.Get(provider); err == nil && prov != nil {
-		if list, err := prov.ListModels(r.Context(), ""); err == nil && len(list) > 0 {
-			supportedModels = list
-		}
+
+	cache := s.CatalogCache()
+	if cache == nil {
+		cache = agent.DefaultCatalogCache()
 	}
-	if len(supportedModels) == 0 {
+
+	var supportedModels []agent.ModelInfo
+	if models, err := cache.DiscoverModels(r.Context(), reg, provider, refresh); err == nil && len(models) > 0 {
+		supportedModels = models
+	} else if models, err := cache.DiscoverModels(r.Context(), reg, "google", false); err == nil && len(models) > 0 {
+		supportedModels = models
+	} else {
 		supportedModels = agent.DefaultGeminiModels()
 	}
+
+	// 100% Backward Compatibility: Ensure saved ModelID and FallbackModelID are preserved
+	supportedModels = agent.PreserveAgentModels(supportedModels, provider, entity.ModelID, entity.FallbackModelID)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":            "success",
@@ -1431,24 +1441,46 @@ func (s *Server) handleListProviderModels(w http.ResponseWriter, r *http.Request
 	if provider == "" {
 		provider = "commandcode"
 	}
+	refresh := r.URL.Query().Get("refresh") == "true" || r.URL.Query().Get("refresh") == "1"
+
 	reg := s.ProviderRegistry()
 	if reg == nil {
 		reg = agent.DefaultRegistry()
 	}
-	prov, err := reg.Get(provider)
+
+	cache := s.CatalogCache()
+	if cache == nil {
+		cache = agent.DefaultCatalogCache()
+	}
+
+	if provider == "all" {
+		var allModels []agent.ModelInfo
+		providers := []string{"agy", "google", "commandcode"}
+		for _, p := range providers {
+			if list, err := cache.DiscoverModels(r.Context(), reg, p, refresh); err == nil {
+				allModels = append(allModels, list...)
+			}
+		}
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":    "success",
+			"provider":  "all",
+			"refreshed": refresh,
+			"models":    allModels,
+		})
+		return
+	}
+
+	models, err := cache.DiscoverModels(r.Context(), reg, provider, refresh)
 	if err != nil {
 		respondJSONError(w, http.StatusBadRequest, "unsupported provider: "+provider)
 		return
 	}
-	models, err := prov.ListModels(r.Context(), "")
-	if err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "failed to list models: "+err.Error())
-		return
-	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":   "success",
-		"provider": provider,
-		"models":   models,
+		"status":    "success",
+		"provider":  provider,
+		"refreshed": refresh,
+		"models":    models,
 	})
 }
 

@@ -96,113 +96,313 @@ func (p *CommandCodeProvider) VerifyConnection(ctx context.Context, credentials 
 	}, nil
 }
 
-func (p *CommandCodeProvider) ListModels(ctx context.Context, credentials string) ([]ModelInfo, error) {
+// DefaultCommandCodeModels returns standard models verified for the CommandCode provider.
+func DefaultCommandCodeModels() []ModelInfo {
 	return []ModelInfo{
 		{
 			ID:             "commandcode-default",
 			Name:           "commandcode-default",
 			DisplayName:    "CommandCode Default",
 			Description:    "CommandCode default model (Text-only)",
+			Provider:       "commandcode",
 			IsDefault:      true,
 			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
 		},
 		{
 			ID:             "claude-sonnet-5-5",
 			Name:           "claude-sonnet-5-5",
 			DisplayName:    "Claude Sonnet 5.5",
 			Description:    "Frontier coding & intelligence with vision",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:             "claude-opus-5-5",
 			Name:           "claude-opus-5-5",
 			DisplayName:    "Claude Opus 5.5",
 			Description:    "Most intelligent Opus for agents with vision",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:             "claude-fable-5-1",
 			Name:           "claude-fable-5-1",
 			DisplayName:    "Claude Fable 5.1",
 			Description:    "Demanding reasoning & long-horizon agents (Text-only)",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
 		},
 		{
 			ID:             "google/gemini-3.8-flash",
 			Name:           "google/gemini-3.8-flash",
 			DisplayName:    "Gemini 3.8 Flash",
 			Description:    "Newest Gemini Flash, core reasoning with vision",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:             "deepseek/deepseek-v4-flash-vision-exp",
 			Name:           "deepseek/deepseek-v4-flash-vision-exp",
 			DisplayName:    "DeepSeek V4 Flash Vision",
 			Description:    "Fast hybrid-attention reasoning with vision",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:             "deepseek/deepseek-v4-pro",
 			Name:           "deepseek/deepseek-v4-pro",
 			DisplayName:    "DeepSeek V4 Pro",
 			Description:    "Hybrid-attention long-context reasoning (Text-only)",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
 		},
 		{
 			ID:             "moonshotai/kimi-k2.7-code",
 			Name:           "moonshotai/kimi-k2.7-code",
 			DisplayName:    "Kimi K2.7 Code",
 			Description:    "Improved long-horizon coding with vision",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:             "moonshotai/kimi-k3.1-pro",
 			Name:           "moonshotai/kimi-k3.1-pro",
 			DisplayName:    "Kimi K3.1 Pro",
 			Description:    "Frontier reasoning & coding with 1M context (Text-only)",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
 		},
 		{
 			ID:             "qwen/qwen3.8-omni-flash",
 			Name:           "qwen/qwen3.8-omni-flash",
 			DisplayName:    "Qwen 3.8 Omni Flash",
 			Description:    "Omni-modal understanding & multimedia with vision",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
 		},
 		{
 			ID:             "qwen/qwen3.8-max",
 			Name:           "qwen/qwen3.8-max",
 			DisplayName:    "Qwen 3.8 Max",
 			Description:    "Autonomous long-horizon coding (Text-only)",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
 		},
 		{
 			ID:             "xai/grok-4.5",
 			Name:           "xai/grok-4.5",
 			DisplayName:    "xAI Grok 4.5",
 			Description:    "Smartest model for coding & STEM (Text-only)",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
 		},
 		{
 			ID:             "reflection/beam:free",
 			Name:           "reflection/beam:free",
 			DisplayName:    "Reflection Beam (Free)",
 			Description:    "FREE reasoning model for coding (Text-only)",
+			Provider:       "commandcode",
 			IsDefault:      false,
 			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
 		},
-	}, nil
+	}
+}
+
+// ParseCommandCodeModelsOutput parses stdout from `commandcode --list-models`.
+func ParseCommandCodeModelsOutput(output string) []ModelInfo {
+	knownDisplayNames := map[string]string{
+		"commandcode-default":                  "CommandCode Default",
+		"claude-sonnet-5-5":                    "Claude Sonnet 5.5",
+		"claude-opus-5-5":                      "Claude Opus 5.5",
+		"claude-fable-5-1":                     "Claude Fable 5.1",
+		"google/gemini-3.8-flash":              "Gemini 3.8 Flash",
+		"deepseek/deepseek-v4-flash-vision-exp": "DeepSeek V4 Flash Vision",
+		"deepseek/deepseek-v4-pro":             "DeepSeek V4 Pro",
+		"moonshotai/kimi-k2.7-code":            "Kimi K2.7 Code",
+		"moonshotai/kimi-k3.1-pro":             "Kimi K3.1 Pro",
+		"qwen/qwen3.8-omni-flash":              "Qwen 3.8 Omni Flash",
+		"qwen/qwen3.8-max":                     "Qwen 3.8 Max",
+		"xai/grok-4.5":                         "xAI Grok 4.5",
+		"reflection/beam:free":                 "Reflection Beam (Free)",
+	}
+
+	var models []ModelInfo
+	normalized := strings.ReplaceAll(output, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+
+	for _, line := range strings.Split(normalized, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "Available models") ||
+			strings.HasPrefix(trimmed, "Pass the full id") ||
+			strings.HasPrefix(trimmed, "cmd ") ||
+			strings.HasPrefix(trimmed, "Docs:") ||
+			strings.HasPrefix(trimmed, "Decision models") ||
+			strings.HasPrefix(trimmed, "typesafe/") {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 {
+			continue
+		}
+
+		id := fields[0]
+		if !strings.Contains(id, "/") && !strings.Contains(id, "-") {
+			if !strings.HasPrefix(id, "gpt-") && !strings.HasPrefix(id, "claude-") {
+				continue
+			}
+		}
+
+		desc := strings.TrimSpace(trimmed[len(id):])
+		displayName := id
+		if dn, ok := knownDisplayNames[id]; ok {
+			displayName = dn
+		} else if parts := strings.Split(id, "/"); len(parts) == 2 {
+			displayName = parts[1]
+		}
+
+		supportsVision := IsCommandCodeModelVision(id)
+		isDefault := id == "commandcode-default" || id == "deepseek/deepseek-v4-flash"
+
+		models = append(models, ModelInfo{
+			ID:             id,
+			Name:           id,
+			DisplayName:    displayName,
+			Description:    desc,
+			Provider:       "commandcode",
+			IsDefault:      isDefault,
+			SupportsVision: supportsVision,
+			Capabilities: ModelCapabilities{
+				Vision:         supportsVision,
+				SupportsVision: supportsVision,
+			},
+		})
+	}
+
+	// Ensure commandcode-default is present
+	hasDefault := false
+	for _, m := range models {
+		if m.ID == "commandcode-default" {
+			hasDefault = true
+			break
+		}
+	}
+	if !hasDefault {
+		def := ModelInfo{
+			ID:             "commandcode-default",
+			Name:           "commandcode-default",
+			DisplayName:    "CommandCode Default",
+			Description:    "CommandCode default model (Text-only)",
+			Provider:       "commandcode",
+			IsDefault:      true,
+			SupportsVision: false,
+			Capabilities: ModelCapabilities{
+				Vision:         false,
+				SupportsVision: false,
+			},
+		}
+		models = append([]ModelInfo{def}, models...)
+	}
+
+	return models
+}
+
+func (p *CommandCodeProvider) ListModels(ctx context.Context, credentials string) ([]ModelInfo, error) {
+	bin, err := exec.LookPath("commandcode")
+	if err != nil {
+		for _, candidate := range []string{
+			"/home/dev/.local/bin/commandcode",
+			"/home/ubuntu/.local/bin/commandcode",
+			"/usr/local/bin/commandcode",
+		} {
+			if _, statErr := exec.LookPath(candidate); statErr == nil {
+				bin = candidate
+				err = nil
+				break
+			}
+		}
+	}
+
+	if err == nil && bin != "" {
+		probeCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(probeCtx, bin, "--list-models")
+		out, runErr := cmd.Output()
+		if runErr == nil && len(out) > 0 {
+			models := ParseCommandCodeModelsOutput(string(out))
+			if len(models) > 0 {
+				return models, nil
+			}
+		}
+	}
+
+	return DefaultCommandCodeModels(), nil
 }
 
 var _ Provider = (*CommandCodeProvider)(nil)
