@@ -14,9 +14,11 @@ import {
   Info,
   X,
   ArrowLeft,
+  ArrowRight,
   ShieldCheck,
   Layers,
   FileText,
+  Clock,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import {
@@ -24,6 +26,7 @@ import {
   type TasteItem,
   type TasteProfile,
   type TasteCategory,
+  type TasteCandidate,
 } from '../../api/taste'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Badge } from '../../components/ui/badge'
@@ -48,6 +51,12 @@ export function AgentMemoryView({
       ? '/chat'
       : query.get('returnTo') || '')
 
+  // View switch: 'active' vs 'suggested'
+  const [activeView, setActiveView] = useState<'active' | 'suggested'>(() => {
+    const tParam = query.get('tab') || query.get('view')
+    return tParam === 'suggested' || tParam === 'pending' ? 'suggested' : 'active'
+  })
+
   // Data state
   const [profile, setProfile] = useState<TasteProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -57,13 +66,20 @@ export function AgentMemoryView({
     message: string
   } | null>(null)
 
+  // Candidates / Suggested Taste state (Sprint 44 S44-T3)
+  const [candidates, setCandidates] = useState<TasteCandidate[]>([])
+  const [candidatesLoading, setCandidatesLoading] = useState(false)
+  const [reflecting, setReflecting] = useState(false)
+  const [editingCandidate, setEditingCandidate] = useState<TasteCandidate | null>(null)
+  const [candidateActionBusyId, setCandidateActionBusyId] = useState<string | null>(null)
+
   // Filter & Search
   const [selectedCategory, setSelectedCategory] = useState<
     'all' | 'brand' | 'technical'
   >('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Dialog states
+  // Dialog states for active items
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<TasteItem | null>(null)
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<TasteItem | null>(
@@ -96,9 +112,23 @@ export function AgentMemoryView({
     }
   }, [t])
 
+  // Load Candidates
+  const loadCandidates = useCallback(async () => {
+    try {
+      setCandidatesLoading(true)
+      const data = await tasteApi.getCandidates({ status: 'pending' })
+      setCandidates(data.candidates || data.items || [])
+    } catch (err: any) {
+      console.error('Failed to load taste candidates:', err)
+    } finally {
+      setCandidatesLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadProfile()
-  }, [loadProfile])
+    void loadCandidates()
+  }, [loadProfile, loadCandidates])
 
   // Clear feedback timer
   useEffect(() => {
@@ -118,7 +148,7 @@ export function AgentMemoryView({
     setAddModalOpen(true)
   }
 
-  // Open Edit Modal
+  // Open Edit Modal for active items
   const handleOpenEdit = (item: TasteItem) => {
     setEditingItem(item)
     setFormCategory(item.category)
@@ -165,7 +195,7 @@ export function AgentMemoryView({
     }
   }
 
-  // Submit Edit
+  // Submit Edit for active item
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingItem) return
@@ -247,7 +277,124 @@ export function AgentMemoryView({
     }
   }
 
-  // Items filtering
+  // Candidate Actions (Accept / Dismiss / Reflect)
+  const handleAcceptCandidate = async (
+    candidate: TasteCandidate,
+    edits?: { category?: TasteCategory; topic?: string; content?: string; text?: string },
+  ) => {
+    try {
+      setCandidateActionBusyId(candidate.id)
+      await tasteApi.acceptCandidate(candidate.id, {
+        category: edits?.category,
+        topic: edits?.topic,
+        content: edits?.content || edits?.text,
+        text: edits?.text || edits?.content,
+      })
+      setCandidates((prev) => prev.filter((c) => c.id !== candidate.id))
+      setEditingCandidate(null)
+      setFeedback({
+        type: 'success',
+        message: t('Candidate preference approved and promoted to active memory.'),
+      })
+      await loadProfile()
+      await loadCandidates()
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || t('Failed to approve candidate'),
+      })
+    } finally {
+      setCandidateActionBusyId(null)
+    }
+  }
+
+  const handleDismissCandidate = async (candidate: TasteCandidate) => {
+    try {
+      setCandidateActionBusyId(candidate.id)
+      await tasteApi.dismissCandidate(candidate.id)
+      setCandidates((prev) => prev.filter((c) => c.id !== candidate.id))
+      setFeedback({
+        type: 'success',
+        message: t('Candidate preference dismissed.'),
+      })
+      await loadCandidates()
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || t('Failed to dismiss candidate'),
+      })
+    } finally {
+      setCandidateActionBusyId(null)
+    }
+  }
+
+  const handleTriggerReflection = async () => {
+    try {
+      setReflecting(true)
+      const res = await tasteApi.reflectTaste()
+      await loadCandidates()
+      if (res.count > 0 || (res.candidates && res.candidates.length > 0)) {
+        setFeedback({
+          type: 'success',
+          message: `${t('Reflection completed successfully.')} ${res.count || res.candidates.length} ${t('pending suggestion(s)')}`,
+        })
+      } else {
+        setFeedback({
+          type: 'success',
+          message: t('No new preferences detected in recent conversations.'),
+        })
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || t('Failed to run reflection'),
+      })
+    } finally {
+      setReflecting(false)
+    }
+  }
+
+  const handleOpenEditCandidate = (candidate: TasteCandidate) => {
+    setEditingCandidate(candidate)
+    setFormCategory(candidate.category)
+    setFormTopic(candidate.topic || '')
+    setFormContent(candidate.text || candidate.content || '')
+    setFormError(null)
+  }
+
+  const handleSaveEditCandidate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingCandidate) return
+    const content = formContent.trim()
+    if (!content) {
+      setFormError(t('Preference content is required'))
+      return
+    }
+    if (content.length > 2000) {
+      setFormError(t('Preference content cannot exceed 2000 characters'))
+      return
+    }
+    if (formTopic.trim().length > 100) {
+      setFormError(t('Topic cannot exceed 100 characters'))
+      return
+    }
+
+    try {
+      setFormSaving(true)
+      setFormError(null)
+      await handleAcceptCandidate(editingCandidate, {
+        category: formCategory,
+        topic: formTopic.trim() || undefined,
+        content,
+      })
+    } catch (err: any) {
+      setFormError(err?.message || t('Failed to approve candidate'))
+    } finally {
+      setFormSaving(false)
+    }
+  }
+
+  // Items filtering (Active Memory)
   const filteredItems = useMemo(() => {
     if (!profile) return []
     let list = profile.items || []
@@ -269,9 +416,32 @@ export function AgentMemoryView({
     )
   }, [profile, selectedCategory, searchQuery])
 
+  // Candidates filtering (Suggested Taste)
+  const filteredCandidates = useMemo(() => {
+    let list = candidates || []
+    if (selectedCategory === 'brand') {
+      list = list.filter((c) => c.category === 'brand')
+    } else if (selectedCategory === 'technical') {
+      list = list.filter((c) => c.category === 'technical')
+    }
+
+    if (!searchQuery.trim()) return list
+    const q = searchQuery.toLowerCase()
+    return list.filter(
+      (c) =>
+        (c.topic && c.topic.toLowerCase().includes(q)) ||
+        (c.text && c.text.toLowerCase().includes(q)) ||
+        (c.content && c.content.toLowerCase().includes(q)) ||
+        (c.reason && c.reason.toLowerCase().includes(q)) ||
+        (c.rationale && c.rationale.toLowerCase().includes(q)) ||
+        c.category.toLowerCase().includes(q),
+    )
+  }, [candidates, selectedCategory, searchQuery])
+
   const brandCount = profile?.brand_items?.length ?? 0
   const technicalCount = profile?.technical_items?.length ?? 0
   const totalCount = profile?.total ?? (profile?.items?.length ?? 0)
+  const pendingCount = candidates.length
 
   return (
     <div className={embedded ? "space-y-4" : "space-y-6"}>
@@ -339,7 +509,7 @@ export function AgentMemoryView({
         </div>
 
         {/* Layer Metrics & Context Safety Limit */}
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3 border-t border-border/60 pt-4 text-xs">
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-4 border-t border-border/60 pt-4 text-xs">
           <div className="flex items-center gap-2.5 rounded-lg bg-muted/40 p-2.5">
             <Sparkles className="h-4 w-4 text-purple-500 shrink-0" />
             <div>
@@ -375,6 +545,26 @@ export function AgentMemoryView({
               </p>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveView('suggested')}
+            className={`flex items-center gap-2.5 rounded-lg p-2.5 text-left transition-colors ${
+              activeView === 'suggested'
+                ? 'bg-amber-500/15 border border-amber-500/30'
+                : 'bg-muted/40 hover:bg-muted/70'
+            }`}
+          >
+            <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+            <div>
+              <span className="font-semibold text-foreground">
+                {t('Suggested Taste')}
+              </span>
+              <p className="text-muted-foreground">
+                {pendingCount} {t('pending suggestion(s)')}
+              </p>
+            </div>
+          </button>
         </div>
       </section>
 
@@ -408,6 +598,124 @@ export function AgentMemoryView({
         </div>
       )}
 
+      {/* Primary Sub-Navigation Tabs: Active Memory vs Suggested Taste */}
+      <div
+        role="tablist"
+        aria-label={t('Memory view mode')}
+        className="flex items-center gap-2 border-b border-border/80 pb-px"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'active'}
+          onClick={() => setActiveView('active')}
+          className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors ${
+            activeView === 'active'
+              ? 'border-primary text-primary font-semibold'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Brain className="h-4 w-4" />
+          <span>{t('Active Memory')}</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-mono font-semibold text-foreground">
+            {totalCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'suggested'}
+          onClick={() => setActiveView('suggested')}
+          className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors ${
+            activeView === 'suggested'
+              ? 'border-amber-600 text-amber-600 dark:text-amber-400 font-semibold'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span>{t('Suggested Taste / Pending Reflection')}</span>
+          {pendingCount > 0 ? (
+            <span
+              data-testid="suggested-tab-counter"
+              className="rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-2 py-0.5 text-xs font-mono font-semibold"
+            >
+              {pendingCount}
+            </span>
+          ) : (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground">
+              0
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Suggested Taste Prompt Banner when in Active view */}
+      {activeView === 'active' && pendingCount > 0 && (
+        <aside
+          aria-label={t('Suggested Preferences')}
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-100"
+        >
+          <div className="flex items-start sm:items-center gap-2.5">
+            <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <p className="font-semibold text-foreground">
+                {t('There are suggested preferences awaiting your review.')} ({pendingCount})
+              </p>
+              <p className="text-muted-foreground mt-0.5">
+                {t('Review suggested preferences extracted from conversations before promoting them to active memory.')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveView('suggested')}
+            className="action-primary min-h-11 shrink-0 px-4 text-xs inline-flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <span>{t('Review Suggestions')}</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </aside>
+      )}
+
+      {/* Suggested Taste Header Explanatory Box when in Suggested view */}
+      {activeView === 'suggested' && (
+        <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-foreground text-sm">
+                  {t('Suggested Preferences')} ({t('Autonomous Reflection')})
+                </p>
+                <p className="text-muted-foreground mt-1 leading-relaxed">
+                  {t('Agent automatically extracts new preferences from your chat conversations. You can also trigger reflection on demand.')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleTriggerReflection}
+              disabled={reflecting}
+              className="action-secondary min-h-11 inline-flex items-center gap-1.5 px-3.5 text-xs font-semibold shrink-0"
+              title={t('Trigger autonomous reflection loop')}
+            >
+              {reflecting ? (
+                <>
+                  <RotateCcw className="h-3.5 w-3.5 animate-spin text-amber-600" />
+                  <span>{t('Reflecting…')}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                  <span>{t('Reflect Now')}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* Filter Chips & Search Bar */}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Category Tabs */}
@@ -430,7 +738,7 @@ export function AgentMemoryView({
             <Layers className="h-3.5 w-3.5" />
             <span>{t('All Memory')}</span>
             <span className="ml-1 rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px] font-mono">
-              {totalCount}
+              {activeView === 'active' ? totalCount : candidates.length}
             </span>
           </button>
 
@@ -448,7 +756,9 @@ export function AgentMemoryView({
             <Sparkles className="h-3.5 w-3.5" />
             <span>{t('Brand Voice & Persona')}</span>
             <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-mono">
-              {brandCount}
+              {activeView === 'active'
+                ? brandCount
+                : candidates.filter((c) => c.category === 'brand').length}
             </span>
           </button>
 
@@ -466,7 +776,9 @@ export function AgentMemoryView({
             <Terminal className="h-3.5 w-3.5" />
             <span>{t('Technical & Workflows')}</span>
             <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-mono">
-              {technicalCount}
+              {activeView === 'active'
+                ? technicalCount
+                : candidates.filter((c) => c.category === 'technical').length}
             </span>
           </button>
         </div>
@@ -494,162 +806,354 @@ export function AgentMemoryView({
         </div>
       </section>
 
-      {/* Loading State */}
-      {loading && (
-        <div
-          role="status"
-          className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground"
-        >
-          <Brain className="h-8 w-8 animate-pulse text-primary mb-3" />
-          <p className="text-sm">{t('Loading agent memory preferences…')}</p>
-        </div>
-      )}
-
-      {/* Error State */}
-      {!loading && error && (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center text-destructive"
-        >
-          <AlertTriangle className="mx-auto h-7 w-7 mb-2" />
-          <p className="text-sm font-semibold">{error}</p>
-          <button
-            type="button"
-            onClick={() => void loadProfile()}
-            className="action-secondary mt-3 min-h-11 text-xs"
-          >
-            {t('Try again')}
-          </button>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && !error && filteredItems.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
-          <FileText className="mx-auto h-9 w-9 text-muted-foreground/60 mb-2" />
-          <h3 className="text-base font-semibold text-foreground">
-            {searchQuery
-              ? t('No matching preferences found')
-              : t('No memory preferences recorded yet')}
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
-            {searchQuery
-              ? t('Try adjusting your search query or switch categories.')
-              : t(
-                  'Add brand guidelines or technical rules to teach your agent how to work according to your taste.',
-                )}
-          </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleOpenAdd()}
-              className="action-primary min-h-11 inline-flex items-center gap-1.5 px-3.5 text-xs font-medium"
+      {/* ======================= ACTIVE MEMORY VIEW ======================= */}
+      {activeView === 'active' && (
+        <>
+          {/* Loading State */}
+          {loading && (
+            <div
+              role="status"
+              className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground"
             >
-              <Plus className="h-4 w-4" />
-              <span>{t('Add First Preference')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setResetModalOpen(true)}
-              className="action-secondary min-h-11 inline-flex items-center gap-1.5 px-3 text-xs"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>{t('Load Standard Defaults')}</span>
-            </button>
-          </div>
-        </div>
-      )}
+              <Brain className="h-8 w-8 animate-pulse text-primary mb-3" />
+              <p className="text-sm">{t('Loading agent memory preferences…')}</p>
+            </div>
+          )}
 
-      {/* Preference Cards Grid */}
-      {!loading && !error && filteredItems.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {filteredItems.map((item) => {
-            const isBrand = item.category === 'brand'
-            return (
-              <article
-                key={item.id}
-                className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-border/80 hover:shadow-sm"
+          {/* Error State */}
+          {!loading && error && (
+            <div
+              role="alert"
+              className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center text-destructive"
+            >
+              <AlertTriangle className="mx-auto h-7 w-7 mb-2" />
+              <p className="text-sm font-semibold">{error}</p>
+              <button
+                type="button"
+                onClick={() => void loadProfile()}
+                className="action-secondary mt-3 min-h-11 text-xs"
               >
-                <div>
-                  {/* Category Header & Topic */}
-                  <div className="flex items-start justify-between gap-2 mb-2.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                          isBrand
-                            ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
-                            : 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30'
-                        }`}
-                      >
-                        {isBrand ? (
-                          <Sparkles className="h-3 w-3 shrink-0" />
-                        ) : (
-                          <Terminal className="h-3 w-3 shrink-0" />
-                        )}
-                        <span>
-                          {isBrand
-                            ? t('Brand & Voice')
-                            : t('Technical & Workflow')}
-                        </span>
+                {t('Try again')}
+              </button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!loading && !error && filteredItems.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
+              <FileText className="mx-auto h-9 w-9 text-muted-foreground/60 mb-2" />
+              <h3 className="text-base font-semibold text-foreground">
+                {searchQuery
+                  ? t('No matching preferences found')
+                  : t('No memory preferences recorded yet')}
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                {searchQuery
+                  ? t('Try adjusting your search query or switch categories.')
+                  : t(
+                      'Add brand guidelines or technical rules to teach your agent how to work according to your taste.',
+                    )}
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAdd()}
+                  className="action-primary min-h-11 inline-flex items-center gap-1.5 px-3.5 text-xs font-medium"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>{t('Add First Preference')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResetModalOpen(true)}
+                  className="action-secondary min-h-11 inline-flex items-center gap-1.5 px-3 text-xs"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>{t('Load Standard Defaults')}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Active Preference Cards Grid */}
+          {!loading && !error && filteredItems.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {filteredItems.map((item) => {
+                const isBrand = item.category === 'brand'
+                return (
+                  <article
+                    key={item.id}
+                    className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-border/80 hover:shadow-sm"
+                  >
+                    <div>
+                      {/* Category Header & Topic */}
+                      <div className="flex items-start justify-between gap-2 mb-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                              isBrand
+                                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+                                : 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30'
+                            }`}
+                          >
+                            {isBrand ? (
+                              <Sparkles className="h-3 w-3 shrink-0" />
+                            ) : (
+                              <Terminal className="h-3 w-3 shrink-0" />
+                            )}
+                            <span>
+                              {isBrand
+                                ? t('Brand & Voice')
+                                : t('Technical & Workflow')}
+                            </span>
+                          </span>
+
+                          {item.topic && (
+                            <span className="font-semibold text-xs text-foreground bg-muted/60 px-2 py-0.5 rounded-md line-clamp-1">
+                              {item.topic}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Preference Content Body */}
+                      <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed break-words">
+                        {item.content}
+                      </p>
+                    </div>
+
+                    {/* Footer Actions & Timestamp */}
+                    <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                      <span className="text-[11px]">
+                        {item.updated_at
+                          ? new Date(item.updated_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : t('Default template')}
                       </span>
 
-                      {item.topic && (
-                        <span className="font-semibold text-xs text-foreground bg-muted/60 px-2 py-0.5 rounded-md line-clamp-1">
-                          {item.topic}
-                        </span>
-                      )}
+                      {/* Granular Edit & Forget Controls */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(item)}
+                          aria-label={t('Edit preference')}
+                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          title={t('Edit preference')}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmItem(item)}
+                          aria-label={t('Lupakan poin ini')}
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors text-xs font-medium"
+                          title={t('Lupakan poin ini')}
+                        >
+                          <Trash2 className="h-4 w-4 shrink-0" />
+                          <span>{t('Lupakan poin ini')}</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Preference Content Body */}
-                  <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed break-words">
-                    {item.content}
-                  </p>
-                </div>
-
-                {/* Footer Actions & Timestamp */}
-                <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
-                  <span className="text-[11px]">
-                    {item.updated_at
-                      ? new Date(item.updated_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
-                      : t('Default template')}
-                  </span>
-
-                  {/* Granular Edit & Forget Controls (Touch standard min 44x44px) */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(item)}
-                      aria-label={t('Edit preference')}
-                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                      title={t('Edit preference')}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirmItem(item)}
-                      aria-label={t('Lupakan poin ini')}
-                      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors text-xs font-medium"
-                      title={t('Lupakan poin ini')}
-                    >
-                      <Trash2 className="h-4 w-4 shrink-0" />
-                      <span>{t('Lupakan poin ini')}</span>
-                    </button>
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
-      {/* ADD PREFERENCE DIALOG */}
+      {/* ===================== SUGGESTED TASTE VIEW ===================== */}
+      {activeView === 'suggested' && (
+        <section aria-label={t('Suggested Taste / Pending Reflection')}>
+          {/* Loading Candidates */}
+          {candidatesLoading && (
+            <div
+              role="status"
+              className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground"
+            >
+              <Sparkles className="h-8 w-8 animate-pulse text-amber-500 mb-3" />
+              <p className="text-sm">{t('Loading suggested preferences…')}</p>
+            </div>
+          )}
+
+          {/* Empty Candidates State */}
+          {!candidatesLoading && filteredCandidates.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
+              <Sparkles className="mx-auto h-9 w-9 text-amber-500/70 mb-2" />
+              <h3 className="text-base font-semibold text-foreground">
+                {searchQuery
+                  ? t('No matching preferences found')
+                  : t('No suggested preferences pending')}
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                {searchQuery
+                  ? t('Try adjusting your search query or switch categories.')
+                  : t('Agent automatically extracts new preferences from your chat conversations. You can also trigger reflection on demand.')}
+              </p>
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={handleTriggerReflection}
+                  disabled={reflecting}
+                  className="action-primary min-h-11 inline-flex items-center gap-1.5 px-4 text-xs font-medium"
+                >
+                  {reflecting ? (
+                    <>
+                      <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                      <span>{t('Reflecting…')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>{t('Reflect Now')}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Suggested Candidate Cards Grid */}
+          {!candidatesLoading && filteredCandidates.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {filteredCandidates.map((candidate) => {
+                const isBrand = candidate.category === 'brand'
+                const isBusy = candidateActionBusyId === candidate.id
+                const rationale = candidate.reason || candidate.rationale || candidate.source_snippet
+                return (
+                  <article
+                    key={candidate.id}
+                    data-testid={`candidate-card-${candidate.id}`}
+                    className="group relative flex flex-col justify-between rounded-xl border border-amber-500/30 bg-card p-4 shadow-sm transition-all hover:border-amber-500/60 hover:shadow-md"
+                  >
+                    <div>
+                      {/* Header Badges & Topic */}
+                      <div className="flex items-start justify-between gap-2 mb-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                              isBrand
+                                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+                                : 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30'
+                            }`}
+                          >
+                            {isBrand ? (
+                              <Sparkles className="h-3 w-3 shrink-0" />
+                            ) : (
+                              <Terminal className="h-3 w-3 shrink-0" />
+                            )}
+                            <span>
+                              {isBrand
+                                ? t('Brand & Voice')
+                                : t('Technical & Workflow')}
+                            </span>
+                          </span>
+
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold">
+                            <Clock className="h-2.5 w-2.5" />
+                            {t('Pending Review')}
+                          </span>
+
+                          {candidate.topic && (
+                            <span className="font-semibold text-xs text-foreground bg-muted/60 px-2 py-0.5 rounded-md line-clamp-1">
+                              {candidate.topic}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Candidate Preference Text */}
+                      <p className="text-sm font-medium text-foreground whitespace-pre-wrap leading-relaxed break-words">
+                        {candidate.text || candidate.content}
+                      </p>
+
+                      {/* Rationale / Source Context */}
+                      {rationale && (
+                        <div className="mt-3 rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground border border-border/40 space-y-1">
+                          <div className="flex items-center gap-1.5 font-semibold text-foreground/80 text-[11px]">
+                            <Info className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span>{t('Rationale')}</span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed italic">
+                            "{rationale}"
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Human-in-the-Loop Review Controls */}
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs">
+                      <span className="text-[11px] text-muted-foreground">
+                        {candidate.created_at
+                          ? new Date(candidate.created_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : t('Suggested recently')}
+                      </span>
+
+                      {/* Action buttons: Accept (Terima), Edit & Accept (Edit & Simpan), Dismiss (Abaikan) */}
+                      <div className="flex items-center gap-1.5">
+                        {/* Abaikan (Dismiss) */}
+                        <button
+                          type="button"
+                          onClick={() => void handleDismissCandidate(candidate)}
+                          disabled={isBusy}
+                          aria-label={t('Abaikan')}
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors text-xs font-medium"
+                          title={t('Abaikan')}
+                        >
+                          <X className="h-4 w-4 shrink-0" />
+                          <span>{t('Abaikan')}</span>
+                        </button>
+
+                        {/* Edit & Simpan (Edit & Accept) */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditCandidate(candidate)}
+                          disabled={isBusy}
+                          aria-label={t('Edit & Simpan')}
+                          className="action-secondary inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-medium"
+                          title={t('Edit & Simpan')}
+                        >
+                          <Pencil className="h-3.5 w-3.5 shrink-0" />
+                          <span>{t('Edit & Simpan')}</span>
+                        </button>
+
+                        {/* Terima (Accept) */}
+                        <button
+                          type="button"
+                          onClick={() => void handleAcceptCandidate(candidate)}
+                          disabled={isBusy}
+                          aria-label={t('Terima')}
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 text-xs font-semibold shadow-sm transition-colors"
+                          title={t('Terima')}
+                        >
+                          {isBusy ? (
+                            <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 shrink-0" />
+                          )}
+                          <span>{t('Terima')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ======================= DIALOGS ======================= */}
+
+      {/* ADD PREFERENCE DIALOG (Active) */}
       <ActionDialog
         open={addModalOpen}
         title={t('Add Memory Preference')}
@@ -792,7 +1296,7 @@ export function AgentMemoryView({
         </form>
       </ActionDialog>
 
-      {/* EDIT PREFERENCE DIALOG */}
+      {/* EDIT PREFERENCE DIALOG (Active Item) */}
       <ActionDialog
         open={!!editingItem}
         title={t('Edit Preference')}
@@ -916,6 +1420,150 @@ export function AgentMemoryView({
                 <>
                   <Check className="h-4 w-4" />
                   <span>{t('Update Preference')}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </ActionDialog>
+
+      {/* EDIT CANDIDATE DIALOG (Review & Edit before Accept) */}
+      <ActionDialog
+        open={!!editingCandidate}
+        title={t('Review and Edit Suggestion')}
+        onClose={() => {
+          if (!formSaving) setEditingCandidate(null)
+        }}
+        busy={formSaving}
+      >
+        <form onSubmit={handleSaveEditCandidate} className="space-y-4 text-sm">
+          {formError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2"
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {/* Original Context / Rationale Info */}
+          {editingCandidate && (editingCandidate.reason || editingCandidate.rationale || editingCandidate.source_snippet) && (
+            <div className="rounded-lg bg-muted/60 p-3 text-xs space-y-1 border border-border/40">
+              <div className="flex items-center gap-1.5 font-semibold text-foreground/80">
+                <Info className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>{t('Rationale')}</span>
+              </div>
+              <p className="text-muted-foreground italic">
+                "{editingCandidate.reason || editingCandidate.rationale || editingCandidate.source_snippet}"
+              </p>
+            </div>
+          )}
+
+          {/* Category Selector */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+              {t('Category')}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setFormCategory('brand')}
+                className={`flex flex-col items-start p-3 rounded-lg border text-left transition-all ${
+                  formCategory === 'brand'
+                    ? 'border-purple-500 bg-purple-500/10 text-foreground ring-1 ring-purple-500'
+                    : 'border-border bg-card text-muted-foreground hover:border-border/80'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                  <span>{t('Brand & Voice')}</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormCategory('technical')}
+                className={`flex flex-col items-start p-3 rounded-lg border text-left transition-all ${
+                  formCategory === 'technical'
+                    ? 'border-sky-500 bg-sky-500/10 text-foreground ring-1 ring-sky-500'
+                    : 'border-border bg-card text-muted-foreground hover:border-border/80'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
+                  <Terminal className="h-3.5 w-3.5 text-sky-500" />
+                  <span>{t('Technical & Workflows')}</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Topic Field */}
+          <div>
+            <label
+              htmlFor="edit-cand-topic"
+              className="block text-xs font-semibold text-foreground mb-1"
+            >
+              {t('Topic / Headline (Optional)')}
+            </label>
+            <input
+              id="edit-cand-topic"
+              type="text"
+              value={formTopic}
+              onChange={(e) => setFormTopic(e.target.value)}
+              placeholder={t('e.g. Tone of Voice')}
+              maxLength={100}
+              className="field-control min-h-11 w-full text-sm"
+              disabled={formSaving}
+            />
+          </div>
+
+          {/* Content Field */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label
+                htmlFor="edit-cand-content"
+                className="block text-xs font-semibold text-foreground"
+              >
+                {t('Guideline & Learned Rule')} *
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                {formContent.length} / 2000
+              </span>
+            </div>
+            <textarea
+              id="edit-cand-content"
+              rows={4}
+              value={formContent}
+              onChange={(e) => setFormContent(e.target.value)}
+              maxLength={2000}
+              required
+              className="field-control w-full p-2.5 text-sm resize-y"
+              disabled={formSaving}
+            />
+          </div>
+
+          {/* Dialog Actions */}
+          <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+            <button
+              type="button"
+              onClick={() => setEditingCandidate(null)}
+              disabled={formSaving}
+              className="action-secondary min-h-11 px-4 text-sm"
+            >
+              {t('Cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={formSaving || !formContent.trim()}
+              className="action-primary min-h-11 px-4 text-sm inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {formSaving ? (
+                <span>{t('Saving…')}</span>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  <span>{t('Save & Accept')}</span>
                 </>
               )}
             </button>

@@ -2,12 +2,13 @@ import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, AttachmentPreviews, useAttachments } from './Attachments'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, LoaderCircle, Brain } from 'lucide-react'
+import { ArrowRight, LoaderCircle, Brain, Sparkles, X } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
 import { projectsApi } from '../../api/projects'
 import { type Project } from '../../api/types'
+import { tasteApi } from '../../api/taste'
 import { StudioExecutionSelector } from './StudioExecutionSelector'
 
 export function StudioView({
@@ -137,6 +138,25 @@ export function StudioView({
     return () => { active = false }
   }, [hasProject])
 
+  const [pendingTasteCount, setPendingTasteCount] = useState(0)
+  const [tasteBannerDismissed, setTasteBannerDismissed] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    tasteApi
+      .getCandidates({ status: 'pending' })
+      .then((res) => {
+        if (active) {
+          const count = res.total ?? res.candidates?.length ?? 0
+          setPendingTasteCount(count)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
+
   async function submit() {
     if (busy || uploads.busy || installation !== 'available') return
     if (agentSetup === 'needed') {
@@ -243,6 +263,37 @@ export function StudioView({
         ) : agentSetup === 'needed' && installation === 'available' ? (
           <p className="mt-4 text-sm text-muted-foreground">{t('Write your goal, then connect your AI to get started. Your draft will stay here.')}</p>
         ) : null}
+        {pendingTasteCount > 0 && !tasteBannerDismissed && (
+          <aside
+            aria-label={t('Suggested Preferences')}
+            data-testid="suggested-taste-banner"
+            className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-900 dark:text-amber-100"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Sparkles className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span className="truncate">
+                {t('Agent suggested new preferences from your interactions.')}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/settings/memory?tab=suggested&returnTo=/chat"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+              >
+                <span>{t('Review Suggestions')}</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setTasteBannerDismissed(true)}
+                className="icon-action text-amber-800 dark:text-amber-200 hover:text-foreground"
+                aria-label={t('Dismiss')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </aside>
+        )}
         <form
           className="mt-4 space-y-3 md:mt-6"
           onPaste={(e) => {
@@ -353,6 +404,15 @@ export function StudioView({
             >
               <Brain className="h-3.5 w-3.5 text-primary" />
               <span>{t('Agent Memory / Taste')}</span>
+              {pendingTasteCount > 0 && (
+                <span
+                  data-testid="suggested-taste-badge"
+                  className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-200 font-mono"
+                >
+                  <Sparkles className="h-2.5 w-2.5" />
+                  {pendingTasteCount} {t('suggested')}
+                </span>
+              )}
             </Link>
           </div>
           {error && (
