@@ -59,7 +59,7 @@ func (s *Server) setupStaticRoutes() {
 		fileServer := http.FileServer(http.Dir(staticDir))
 		s.router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 			path := filepath.Clean(r.URL.Path)
-			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || strings.HasPrefix(path, "/chat") || path == "/install.sh" {
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/healthz") || strings.HasPrefix(path, "/readyz") || strings.HasPrefix(path, "/uploads") || path == "/chat/widget.js" || path == "/install.sh" {
 				http.NotFound(w, r)
 				return
 			}

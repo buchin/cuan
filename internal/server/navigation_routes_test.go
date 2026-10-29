@@ -29,6 +29,7 @@ func TestNavigationRoutes_ActiveServing(t *testing.T) {
 		expectCode int
 	}{
 		{name: "Root route", path: "/", expectCode: http.StatusOK},
+		{name: "Chat route", path: "/chat", expectCode: http.StatusOK},
 		{name: "Studio route", path: "/studio", expectCode: http.StatusOK},
 		{name: "Inbox route", path: "/inbox", expectCode: http.StatusOK},
 		{name: "Tasks route", path: "/tasks", expectCode: http.StatusOK},

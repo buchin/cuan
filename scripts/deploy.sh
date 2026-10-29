@@ -136,7 +136,13 @@ if [[ "$frontend_only" == 1 ]]; then
     unset SSHPASS
   fi
   echo "==> Verifying production health..."
-  curl -sSf http://127.0.0.1:8080/healthz >/dev/null 2>&1 || curl -sSf https://cuan.dojo.cc/healthz >/dev/null
+  if [[ "$is_local" == 0 ]]; then
+    export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
+    sshpass -e ssh -o StrictHostKeyChecking=no "$release_host" "curl -s http://127.0.0.1:8080/healthz" >/dev/null
+    unset SSHPASS
+  else
+    curl -sSf http://127.0.0.1:8080/healthz >/dev/null 2>&1 || curl -sSf https://cuan.dojo.cc/healthz >/dev/null
+  fi
   echo "Frontend assets updated to $release_sha. Zero downtime; active runner sessions uninterrupted."
   exit 0
 fi
@@ -186,7 +192,13 @@ fi
 echo "==> Verifying production health & commit SHA ($release_sha)..."
 verified_sha=""
 for attempt in {1..20}; do
-  health_json="$(curl -sSf http://127.0.0.1:8080/healthz 2>/dev/null || curl -sSf https://cuan.dojo.cc/healthz 2>/dev/null || true)"
+  if [[ "$is_local" == 0 ]]; then
+    export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
+    health_json="$(sshpass -e ssh -o StrictHostKeyChecking=no "$release_host" "curl -s http://127.0.0.1:8080/healthz" 2>/dev/null || true)"
+    unset SSHPASS
+  else
+    health_json="$(curl -sSf http://127.0.0.1:8080/healthz 2>/dev/null || curl -sSf https://cuan.dojo.cc/healthz 2>/dev/null || true)"
+  fi
   if [[ -n "$health_json" ]]; then
     live_sha="$(python3 -c "import sys, json; print(json.loads('''$health_json''').get('commit_sha', ''))" 2>/dev/null || true)"
     live_status="$(python3 -c "import sys, json; print(json.loads('''$health_json''').get('status', ''))" 2>/dev/null || true)"
