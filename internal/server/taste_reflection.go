@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -19,15 +20,17 @@ type ReflectTasteRequest struct {
 	RawMessages []string         `json:"raw_messages,omitempty"`
 	RoomID      string           `json:"room_id,omitempty"`
 	Category    string           `json:"category,omitempty"`
+	AutoApprove *bool            `json:"auto_approve,omitempty"`
 }
 
 // ReflectTasteResponse defines the JSON response from POST /api/v1/taste/reflect.
 type ReflectTasteResponse struct {
-	Message    string           `json:"message"`
-	Candidates []TasteCandidate `json:"candidates"`
-	Extracted  []TasteCandidate `json:"extracted"`
-	Count      int              `json:"count"`
-	Total      int              `json:"total"`
+	Message      string           `json:"message"`
+	Candidates   []TasteCandidate `json:"candidates"`
+	Extracted    []TasteCandidate `json:"extracted"`
+	AutoApproved []TasteCandidate `json:"auto_approved,omitempty"`
+	Count        int              `json:"count"`
+	Total        int              `json:"total"`
 }
 
 var (
@@ -174,7 +177,7 @@ func cleanExtractedText(raw string) string {
 }
 
 // isDuplicateCandidate checks if candidate text is identical or substantially covered by active items or existing candidates.
-func isDuplicateCandidate(norm string, seen map[string]bool, activeItems []TasteItem, existingCandidates []TasteCandidate) bool {
+func isDuplicateCandidate(norm string, seen map[string]bool, activeItems []TasteItem, existingCandidates []TasteCandidate, currentBatch ...TasteCandidate) bool {
 	if norm == "" || seen[norm] {
 		return true
 	}
@@ -204,14 +207,75 @@ func isDuplicateCandidate(norm string, seen map[string]bool, activeItems []Taste
 		if norm == normCand {
 			return true
 		}
-		if strings.Contains(normCand, norm) && float64(len(norm))/float64(len(normCand)) >= 0.5 {
+		if strings.Contains(normCand, norm) && float64(len(norm))/float64(len(normCand)) >= 0.4 {
 			return true
 		}
-		if strings.Contains(norm, normCand) && float64(len(normCand))/float64(len(norm)) >= 0.5 {
+		if strings.Contains(norm, normCand) && float64(len(normCand))/float64(len(norm)) >= 0.4 {
+			return true
+		}
+	}
+	for _, c := range currentBatch {
+		normCand := normalizeForDeduplication(c.Text)
+		if normCand == "" {
+			normCand = normalizeForDeduplication(c.Content)
+		}
+		if normCand == "" {
+			continue
+		}
+		if norm == normCand {
+			return true
+		}
+		if strings.Contains(normCand, norm) && float64(len(norm))/float64(len(normCand)) >= 0.4 {
+			return true
+		}
+		if strings.Contains(norm, normCand) && float64(len(normCand))/float64(len(norm)) >= 0.4 {
 			return true
 		}
 	}
 	return false
+}
+
+// CalculateConfidence determines a realistic confidence score (0.0 - 1.0) based on phrasing patterns.
+func CalculateConfidence(text, snippet string, isExplicitPrefix bool) float64 {
+	lowerSnippet := strings.ToLower(snippet)
+	lowerText := strings.ToLower(text)
+	combined := lowerSnippet + " " + lowerText
+
+	score := 0.75
+
+	// 1. Explicit prefixes: "koreksi:", "perbaikan:", "aturan baru:", "preferensi:", "catatan gaya:", "correction:", "new rule:", "preference:"
+	if isExplicitPrefix ||
+		strings.Contains(lowerSnippet, "koreksi:") || strings.Contains(lowerSnippet, "perbaikan:") ||
+		strings.Contains(lowerSnippet, "aturan baru:") || strings.Contains(lowerSnippet, "aturan:") ||
+		strings.Contains(lowerSnippet, "preferensi:") || strings.Contains(lowerSnippet, "catatan gaya:") ||
+		strings.Contains(lowerSnippet, "correction:") || strings.Contains(lowerSnippet, "new rule:") ||
+		strings.Contains(lowerSnippet, "preference:") {
+		score = 0.95
+		if strings.Contains(combined, "wajib") || strings.Contains(combined, "harus") || strings.Contains(combined, "selalu") || strings.Contains(combined, "always") || strings.Contains(combined, "never") {
+			score = 0.98
+		}
+	} else if strings.Contains(combined, "sebaiknya") || strings.Contains(combined, "mungkin") ||
+		strings.Contains(combined, "usahakan") || strings.Contains(combined, "bisa") {
+		// 2. Suggestive or softer directives: "sebaiknya", "mungkin", "bisa", "usahakan"
+		score = 0.65
+	} else if strings.Contains(combined, "wajib") || strings.Contains(combined, "harus") ||
+		strings.Contains(combined, "selalu") || strings.Contains(combined, "jangan pernah") ||
+		strings.Contains(combined, "dilarang") || strings.Contains(combined, "always") ||
+		strings.Contains(combined, "never") {
+		// 3. Strong mandatory directives: "wajib", "harus", "selalu", "jangan pernah", "dilarang", "always", "never"
+		score = 0.90
+	} else if strings.Contains(combined, "gunakan") || strings.Contains(combined, "pakai") ||
+		strings.Contains(combined, "terapkan") || strings.Contains(combined, "hindari") ||
+		strings.Contains(combined, "stop") || strings.Contains(combined, "gaya bahasa") ||
+		strings.Contains(combined, "tone of voice") || strings.Contains(combined, "format") {
+		// 4. Clear action directives: "gunakan", "pakai", "terapkan", "hindari", "stop", "gaya bahasa", "tone of voice", "format"
+		score = 0.85
+	} else if strings.Contains(combined, "lebih suka") || strings.Contains(combined, "prefer") {
+		// 5. Stated preference: "lebih suka", "prefer"
+		score = 0.80
+	}
+
+	return math.Round(score*100) / 100
 }
 
 // ExtractTasteCandidates scans text for preferences or corrections and extracts candidate items.
@@ -249,7 +313,7 @@ func ExtractTasteCandidates(text string, activeItems []TasteItem, existingCandid
 	now := time.Now().UTC()
 
 	// 1. Try regex matching on preference patterns
-	for _, pattern := range preferencePatterns {
+	for idx, pattern := range preferencePatterns {
 		matches := pattern.FindAllStringSubmatch(text, -1)
 		for _, m := range matches {
 			if len(m) < 2 {
@@ -262,7 +326,7 @@ func ExtractTasteCandidates(text string, activeItems []TasteItem, existingCandid
 			}
 
 			norm := normalizeForDeduplication(extractedText)
-			if isDuplicateCandidate(norm, seen, activeItems, existingCandidates) {
+			if isDuplicateCandidate(norm, seen, activeItems, existingCandidates, candidates...) {
 				continue // Skip duplicates
 			}
 			seen[norm] = true
@@ -270,6 +334,9 @@ func ExtractTasteCandidates(text string, activeItems []TasteItem, existingCandid
 			category := classifyCategory(extractedText, fallbackCategory...)
 			topic := inferTopic(category, extractedText)
 			reason := fmt.Sprintf("Terdeteksi dari preferensi/koreksi percakapan: \"%s\"", truncateString(matchedSnippet, 120))
+
+			isExplicit := (idx == 0 || idx == len(preferencePatterns)-1)
+			conf := CalculateConfidence(extractedText, matchedSnippet, isExplicit)
 
 			cand := TasteCandidate{
 				ID:            db.GenerateUUID(),
@@ -281,6 +348,7 @@ func ExtractTasteCandidates(text string, activeItems []TasteItem, existingCandid
 				Reason:        reason,
 				Rationale:     reason,
 				Status:        string(TasteCandidateStatusSuggested),
+				Confidence:    conf,
 				CreatedAt:     now,
 				UpdatedAt:     now,
 			}
@@ -324,6 +392,11 @@ func ExtractTasteCandidates(text string, activeItems []TasteItem, existingCandid
 			topic := inferTopic(category, extractedText)
 			reason := fmt.Sprintf("Terdeteksi dari instruksi pengguna: \"%s\"", truncateString(trimmedLine, 120))
 
+			conf := CalculateConfidence(extractedText, trimmedLine, false)
+			if conf > 0.82 {
+				conf = 0.82
+			}
+
 			cand := TasteCandidate{
 				ID:            db.GenerateUUID(),
 				Category:      category,
@@ -334,6 +407,7 @@ func ExtractTasteCandidates(text string, activeItems []TasteItem, existingCandid
 				Reason:        reason,
 				Rationale:     reason,
 				Status:        string(TasteCandidateStatusSuggested),
+				Confidence:    conf,
 				CreatedAt:     now,
 				UpdatedAt:     now,
 			}
@@ -418,12 +492,67 @@ func (s *Server) reflectTaste(ctx context.Context, owner string, req ReflectTast
 		return []TasteCandidate{}, nil
 	}
 
-	// 4. Save newly extracted candidates to store
+	// 4. Auto-Approval Evaluation & Candidate Saving
+	cfg := s.getTasteConfig(ownerKey)
+	autoApproveActive := cfg.AutoApproveEnabled
+	if req.AutoApprove != nil {
+		autoApproveActive = *req.AutoApprove
+	}
+	threshold := cfg.AutoApproveThreshold
+	if threshold <= 0 {
+		threshold = 0.80
+	}
+
+	brandCount := len(profile.BrandItems)
+	techCount := len(profile.TechnicalItems)
+
 	var saved []TasteCandidate
+	now := time.Now().UTC()
+
 	for _, cand := range extracted {
-		res, err := s.saveTasteCandidate(ownerKey, cand)
-		if err == nil {
-			saved = append(saved, res)
+		cat := cand.Category
+		currentCatCount := brandCount
+		if cat == string(TasteCategoryTechnical) {
+			currentCatCount = techCount
+		}
+
+		if autoApproveActive && cand.Confidence >= threshold && currentCatCount < MaxTasteItemsPerCategory {
+			// Auto-approve: promote candidate to active taste item
+			item := TasteItem{
+				ID:             db.GenerateUUID(),
+				Category:       cat,
+				Topic:          cand.Topic,
+				Content:        cand.Text,
+				AutoApproved:   true,
+				AutoApprovedAt: &now,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}
+
+			s.taste.Lock()
+			s.taste.profiles[ownerKey] = append(s.taste.profiles[ownerKey], item)
+			_ = writeTastePreferences(ownerKey, s.taste.profiles[ownerKey])
+			s.taste.Unlock()
+
+			if cat == string(TasteCategoryTechnical) {
+				techCount++
+			} else {
+				brandCount++
+			}
+
+			cand.Status = string(TasteCandidateStatusAccepted)
+			cand.UpdatedAt = now
+			res, err := s.saveTasteCandidate(ownerKey, cand)
+			if err == nil {
+				saved = append(saved, res)
+			}
+		} else {
+			// Save as suggested / pending candidate for manual review
+			cand.Status = string(TasteCandidateStatusSuggested)
+			res, err := s.saveTasteCandidate(ownerKey, cand)
+			if err == nil {
+				saved = append(saved, res)
+			}
 		}
 	}
 

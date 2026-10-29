@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,18 +66,24 @@ type TasteCandidate struct {
 	Reason        string    `json:"reason,omitempty"`
 	Rationale     string    `json:"rationale,omitempty"`
 	Status        string    `json:"status"` // "suggested", "accepted", "dismissed"
+	Confidence    float64   `json:"confidence"` // 0.0 - 1.0
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+// CandidateTaste is an alias for TasteCandidate
+type CandidateTaste = TasteCandidate
+
 // TasteItem represents a discrete taste preference memory point.
 type TasteItem struct {
-	ID        string    `json:"id"`
-	Category  string    `json:"category"`
-	Topic     string    `json:"topic,omitempty"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             string     `json:"id"`
+	Category       string     `json:"category"`
+	Topic          string     `json:"topic,omitempty"`
+	Content        string     `json:"content"`
+	AutoApproved   bool       `json:"auto_approved"`
+	AutoApprovedAt *time.Time `json:"auto_approved_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 // TasteProfile aggregates active taste preferences across Brand and Technical layers.
@@ -88,16 +95,51 @@ type TasteProfile struct {
 	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
+// TasteConfig stores configurable auto-approval settings per owner.
+type TasteConfig struct {
+	AutoApproveEnabled   bool    `json:"auto_approve_enabled"`
+	AutoApproveThreshold float64 `json:"auto_approve_threshold"`
+}
+
+// defaultTasteConfig returns default auto-approval configuration.
+func defaultTasteConfig() TasteConfig {
+	return TasteConfig{
+		AutoApproveEnabled:   true,
+		AutoApproveThreshold: 0.80,
+	}
+}
+
+// TasteQuotaCategory provides capacity metrics for a specific taste category.
+type TasteQuotaCategory struct {
+	Used           int     `json:"used"`
+	Max            int     `json:"max"`
+	Percentage     float64 `json:"percentage"`
+	CanAutoApprove bool    `json:"can_auto_approve"`
+}
+
+// TasteQuotaResponse aggregates quota metrics and auto-approval state across all categories.
+type TasteQuotaResponse struct {
+	Brand                TasteQuotaCategory            `json:"brand"`
+	Technical            TasteQuotaCategory            `json:"technical"`
+	Categories           map[string]TasteQuotaCategory `json:"categories"`
+	TotalUsed            int                           `json:"total_used"`
+	TotalMax             int                           `json:"total_max"`
+	AutoApproveEnabled   bool                          `json:"auto_approve_enabled"`
+	AutoApproveThreshold float64                       `json:"auto_approve_threshold"`
+}
+
 type tasteStore struct {
 	sync.RWMutex
 	profiles   map[string][]TasteItem
 	candidates map[string][]TasteCandidate
+	configs    map[string]TasteConfig
 }
 
 func newTasteStore() *tasteStore {
 	return &tasteStore{
 		profiles:   make(map[string][]TasteItem),
 		candidates: make(map[string][]TasteCandidate),
+		configs:    make(map[string]TasteConfig),
 	}
 }
 
@@ -295,6 +337,68 @@ func writeTasteCandidates(owner string, items []TasteCandidate) error {
 		return err
 	}
 	f, err := os.CreateTemp(filepath.Dir(path), ".taste-candidates-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if err = f.Chmod(0600); err == nil {
+		_, err = f.Write(raw)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if e := f.Close(); err == nil {
+		err = e
+	}
+	if err == nil {
+		err = os.Rename(f.Name(), path)
+	}
+	return err
+}
+
+func tasteConfigPath(owner string) (string, error) {
+	p, err := ownerPreferencesPath(owner)
+	if err != nil {
+		return filepath.Join("data", "preferences", "taste-config-"+owner+".json"), nil
+	}
+	return strings.TrimSuffix(p, ".json") + ".taste-config.json", nil
+}
+
+func readTasteConfig(owner string) (TasteConfig, error) {
+	p, err := tasteConfigPath(owner)
+	if err != nil {
+		return defaultTasteConfig(), err
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return defaultTasteConfig(), nil
+		}
+		return defaultTasteConfig(), err
+	}
+	cfg := defaultTasteConfig()
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return defaultTasteConfig(), err
+	}
+	if cfg.AutoApproveThreshold <= 0 || cfg.AutoApproveThreshold > 1.0 {
+		cfg.AutoApproveThreshold = 0.80
+	}
+	return cfg, nil
+}
+
+func writeTasteConfig(owner string, cfg TasteConfig) error {
+	path, err := tasteConfigPath(owner)
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), ".taste-config-*")
 	if err != nil {
 		return err
 	}
@@ -898,4 +1002,182 @@ func (s *Server) deleteTasteCandidate(owner, id string) error {
 	_ = writeTasteCandidates(ownerKey, updated)
 
 	return nil
+}
+
+// getTasteConfig retrieves auto-approval configuration for an owner.
+func (s *Server) getTasteConfig(owner string) TasteConfig {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	s.taste.RLock()
+	cached, ok := s.taste.configs[ownerKey]
+	s.taste.RUnlock()
+	if ok {
+		return cached
+	}
+
+	s.taste.Lock()
+	defer s.taste.Unlock()
+
+	if cached, ok := s.taste.configs[ownerKey]; ok {
+		return cached
+	}
+
+	cfg, err := readTasteConfig(ownerKey)
+	if err != nil {
+		cfg = defaultTasteConfig()
+	}
+	s.taste.configs[ownerKey] = cfg
+	return cfg
+}
+
+// updateTasteConfig updates auto-approval settings for an owner.
+func (s *Server) updateTasteConfig(owner string, enabled *bool, threshold *float64) (TasteConfig, error) {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	if threshold != nil {
+		if *threshold < 0.0 || *threshold > 1.0 {
+			return TasteConfig{}, fmt.Errorf("Threshold harus berada dalam rentang 0.0 hingga 1.0")
+		}
+	}
+
+	s.taste.Lock()
+	defer s.taste.Unlock()
+
+	cfg, ok := s.taste.configs[ownerKey]
+	if !ok {
+		var err error
+		cfg, err = readTasteConfig(ownerKey)
+		if err != nil {
+			cfg = defaultTasteConfig()
+		}
+	}
+
+	if enabled != nil {
+		cfg.AutoApproveEnabled = *enabled
+	}
+	if threshold != nil {
+		cfg.AutoApproveThreshold = math.Round(*threshold*100) / 100
+	}
+
+	s.taste.configs[ownerKey] = cfg
+	_ = writeTasteConfig(ownerKey, cfg)
+
+	return cfg, nil
+}
+
+// getTasteQuota computes real-time quota usage and auto-approval eligibility per category.
+func (s *Server) getTasteQuota(owner string) (TasteQuotaResponse, error) {
+	profile, err := s.getTasteProfile(owner)
+	if err != nil {
+		return TasteQuotaResponse{}, err
+	}
+	cfg := s.getTasteConfig(owner)
+
+	brandUsed := len(profile.BrandItems)
+	techUsed := len(profile.TechnicalItems)
+	maxPerCat := MaxTasteItemsPerCategory // 15
+
+	brandPct := math.Round((float64(brandUsed)/float64(maxPerCat)*100.0)*10) / 10
+	techPct := math.Round((float64(techUsed)/float64(maxPerCat)*100.0)*10) / 10
+
+	brandCanAuto := cfg.AutoApproveEnabled && brandUsed < maxPerCat
+	techCanAuto := cfg.AutoApproveEnabled && techUsed < maxPerCat
+
+	brandQuota := TasteQuotaCategory{
+		Used:           brandUsed,
+		Max:            maxPerCat,
+		Percentage:     brandPct,
+		CanAutoApprove: brandCanAuto,
+	}
+	techQuota := TasteQuotaCategory{
+		Used:           techUsed,
+		Max:            maxPerCat,
+		Percentage:     techPct,
+		CanAutoApprove: techCanAuto,
+	}
+
+	return TasteQuotaResponse{
+		Brand:     brandQuota,
+		Technical: techQuota,
+		Categories: map[string]TasteQuotaCategory{
+			string(TasteCategoryBrand):     brandQuota,
+			string(TasteCategoryTechnical): techQuota,
+		},
+		TotalUsed:            brandUsed + techUsed,
+		TotalMax:             maxPerCat * 2,
+		AutoApproveEnabled:   cfg.AutoApproveEnabled,
+		AutoApproveThreshold: cfg.AutoApproveThreshold,
+	}, nil
+}
+
+// undoTasteCandidate reverts an auto-approved candidate back to pending review and removes the active TasteItem.
+func (s *Server) undoTasteCandidate(owner, id string) (TasteCandidate, error) {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	_, _ = s.getTasteProfile(ownerKey)
+	_, _ = s.getAllTasteCandidates(ownerKey)
+
+	s.taste.Lock()
+	defer s.taste.Unlock()
+
+	currentCandidates := s.taste.candidates[ownerKey]
+	foundIdx := -1
+	for i, c := range currentCandidates {
+		if c.ID == id {
+			foundIdx = i
+			break
+		}
+	}
+	if foundIdx == -1 {
+		return TasteCandidate{}, ErrTasteCandidateNotFound
+	}
+
+	cand := currentCandidates[foundIdx]
+	normText := normalizeForDeduplication(cand.Text)
+	if normText == "" {
+		normText = normalizeForDeduplication(cand.Content)
+	}
+
+	// Remove matching active TasteItem if auto-approved
+	currentProfile := s.taste.profiles[ownerKey]
+	itemIdx := -1
+	for i, it := range currentProfile {
+		if it.AutoApproved && normalizeForDeduplication(it.Content) == normText {
+			itemIdx = i
+			break
+		}
+	}
+	if itemIdx != -1 {
+		currentProfile = append(currentProfile[:itemIdx], currentProfile[itemIdx+1:]...)
+		s.taste.profiles[ownerKey] = currentProfile
+		_ = writeTastePreferences(ownerKey, currentProfile)
+	}
+
+	// Revert candidate status back to suggested
+	now := time.Now().UTC()
+	cand.Status = string(TasteCandidateStatusSuggested)
+	cand.UpdatedAt = now
+	currentCandidates[foundIdx] = cand
+	s.taste.candidates[ownerKey] = currentCandidates
+	_ = writeTasteCandidates(ownerKey, currentCandidates)
+
+	return cand, nil
 }

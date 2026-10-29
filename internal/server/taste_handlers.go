@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -19,6 +20,15 @@ func (s *Server) registerTasteRoutes(r chi.Router) {
 	r.Delete("/taste/items/{id}", s.handleDeleteTasteItem)
 	r.Post("/taste/reset", s.handleResetTasteProfile)
 
+	// Quota Metrics & Configuration endpoints (Sprint 45 S45-T2)
+	r.Get("/taste/quota", s.handleGetTasteQuota)
+	r.Get("/taste/quota/", s.handleGetTasteQuota)
+	r.Put("/taste/quota", s.handleUpdateTasteConfig)
+	r.Get("/taste/config", s.handleGetTasteConfig)
+	r.Get("/taste/config/", s.handleGetTasteConfig)
+	r.Put("/taste/config", s.handleUpdateTasteConfig)
+	r.Post("/taste/config", s.handleUpdateTasteConfig)
+
 	// Candidate Taste & Reflection Loop endpoints (Sprint 44 S44-T2)
 	r.Post("/taste/reflect", s.handleReflectTaste)
 	r.Get("/taste/candidates", s.handleGetTasteCandidates)
@@ -26,6 +36,7 @@ func (s *Server) registerTasteRoutes(r chi.Router) {
 	r.Post("/taste/candidates/{id}/accept", s.handleAcceptTasteCandidate)
 	r.Post("/taste/candidates/{id}/dismiss", s.handleDismissTasteCandidate)
 	r.Delete("/taste/candidates/{id}", s.handleDismissTasteCandidate)
+	r.Post("/taste/candidates/{id}/undo", s.handleUndoTasteCandidate)
 }
 
 // GET /api/v1/taste
@@ -205,6 +216,59 @@ func (s *Server) handleResetTasteProfile(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, profile)
 }
 
+// GET /api/v1/taste/quota
+func (s *Server) handleGetTasteQuota(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	quota, err := s.getTasteQuota(owner)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Gagal memuat metriks kuota taste: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, quota)
+}
+
+// GET /api/v1/taste/config
+func (s *Server) handleGetTasteConfig(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	cfg := s.getTasteConfig(owner)
+	respondJSON(w, http.StatusOK, cfg)
+}
+
+// PUT or POST /api/v1/taste/config and PUT /api/v1/taste/quota
+func (s *Server) handleUpdateTasteConfig(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	var req struct {
+		AutoApproveEnabled   *bool    `json:"auto_approve_enabled"`
+		AutoApproveThreshold *float64 `json:"auto_approve_threshold"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10240))
+	if err := decoder.Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "Payload JSON tidak valid")
+		return
+	}
+
+	cfg, err := s.updateTasteConfig(owner, req.AutoApproveEnabled, req.AutoApproveThreshold)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, cfg)
+}
+
 // POST /api/v1/taste/reflect
 func (s *Server) handleReflectTaste(w http.ResponseWriter, r *http.Request) {
 	owner := s.accountOwner(w, r)
@@ -226,17 +290,30 @@ func (s *Server) handleReflectTaste(w http.ResponseWriter, r *http.Request) {
 
 	pending, _ := s.getTasteCandidates(owner, "pending")
 
+	var autoApproved []TasteCandidate
+	for _, c := range extracted {
+		if c.Status == string(TasteCandidateStatusAccepted) {
+			autoApproved = append(autoApproved, c)
+		}
+	}
+	if autoApproved == nil {
+		autoApproved = []TasteCandidate{}
+	}
+
 	msg := "Refleksi preferensi berhasil dieksekusi"
 	if len(extracted) == 0 {
 		msg = "Tidak ada preferensi atau koreksi baru yang terdeteksi"
+	} else if len(autoApproved) > 0 {
+		msg = fmt.Sprintf("Refleksi preferensi berhasil: %d preferensi otomatis disetujui", len(autoApproved))
 	}
 
 	respondJSON(w, http.StatusOK, ReflectTasteResponse{
-		Message:    msg,
-		Candidates: extracted,
-		Extracted:  extracted,
-		Count:      len(extracted),
-		Total:      len(pending),
+		Message:      msg,
+		Candidates:   extracted,
+		Extracted:    extracted,
+		AutoApproved: autoApproved,
+		Count:        len(extracted),
+		Total:        len(pending),
 	})
 }
 
@@ -346,6 +423,36 @@ func (s *Server) handleDismissTasteCandidate(w http.ResponseWriter, r *http.Requ
 	respondJSON(w, http.StatusOK, map[string]any{
 		"message":   "Kandidat preferensi berhasil diabaikan",
 		"candidate": candidate,
+		"id":        id,
+	})
+}
+
+// POST /api/v1/taste/candidates/{id}/undo
+func (s *Server) handleUndoTasteCandidate(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if strings.TrimSpace(id) == "" {
+		respondJSONError(w, http.StatusBadRequest, "ID kandidat preferensi wajib diisi")
+		return
+	}
+
+	cand, err := s.undoTasteCandidate(owner, id)
+	if err != nil {
+		if errors.Is(err, ErrTasteCandidateNotFound) {
+			respondJSONError(w, http.StatusNotFound, "Kandidat preferensi tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"message":   "Promosi otomatis berhasil dibatalkan, preferensi dikembalikan ke daftar tinjauan",
+		"candidate": cand,
 		"id":        id,
 	})
 }

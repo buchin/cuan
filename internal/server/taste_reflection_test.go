@@ -81,8 +81,8 @@ func TestTaste_Reflection_Extract_BrandAndTechnical(t *testing.T) {
 		if c.ID == "" {
 			t.Errorf("candidate ID should not be empty")
 		}
-		if c.Status != string(TasteCandidateStatusSuggested) {
-			t.Errorf("expected candidate status 'suggested', got '%s'", c.Status)
+		if c.Status != string(TasteCandidateStatusSuggested) && c.Status != string(TasteCandidateStatusAccepted) {
+			t.Errorf("expected candidate status 'suggested' or 'accepted', got '%s'", c.Status)
 		}
 		if c.SourceSnippet == "" {
 			t.Errorf("expected source_snippet to be non-empty")
@@ -126,7 +126,8 @@ func TestTaste_Reflection_DuplicatePrevention(t *testing.T) {
 	srv, token := setupTestChatServer(t)
 
 	reflectPayload := `{
-		"text": "Tolong mulai sekarang gunakan nada bicara yang santai dan bersahabat untuk audiens muda."
+		"text": "Tolong mulai sekarang gunakan nada bicara yang santai dan bersahabat untuk audiens muda.",
+		"auto_approve": false
 	}`
 
 	// 1. First reflection run: candidate is created
@@ -201,7 +202,8 @@ func TestTaste_Candidates_ListAndFilter(t *testing.T) {
 
 	// Extract both brand and tech candidates
 	payload := `{
-		"text": "Tolong mulai sekarang gunakan bahasa yang santai dan bersahabat untuk audiens muda.\nKoreksi: Untuk backend selalu gunakan Go dan sertakan targeted unit test."
+		"text": "Tolong mulai sekarang gunakan bahasa yang santai dan bersahabat untuk audiens muda.\nKoreksi: Untuk backend selalu gunakan Go dan sertakan targeted unit test.",
+		"auto_approve": false
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/taste/reflect", strings.NewReader(payload))
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -539,9 +541,10 @@ func TestTaste_ContextLayering_CandidateIsolation(t *testing.T) {
 	}
 	ctx := auth.ContextWithOwner(context.Background(), owner)
 
-	// 1. Extract Brand and Technical candidates
+	// 1. Extract Brand and Technical candidates (with auto_approve: false to test unaccepted candidate isolation)
 	payload := `{
-		"text": "Tolong mulai sekarang gunakan kata sandi rahasia 'KreatorSuper2026' di setiap respons brand.\nKoreksi: Untuk backend wajib menggunakan konfigurasi port khusus 'Port8888Secure'."
+		"text": "Tolong mulai sekarang gunakan kata sandi rahasia 'KreatorSuper2026' di setiap respons brand.\nKoreksi: Untuk backend wajib menggunakan konfigurasi port khusus 'Port8888Secure'.",
+		"auto_approve": false
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/taste/reflect", strings.NewReader(payload))
 	req.Header.Set("Authorization", "Bearer "+token)
