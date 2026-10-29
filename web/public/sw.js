@@ -4,7 +4,7 @@ self.addEventListener('activate', event => event.waitUntil(self.clients.claim())
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
   if (url.origin !== self.location.origin || event.request.mode !== 'navigate' || url.pathname.startsWith('/api/')) return
-  event.respondWith(fetch(event.request, {cache: 'no-store'}).catch(() => new Response('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Cuan — Offline</title><body style="font:16px system-ui;background:#191919;color:white;padding:32px;max-width:40em;margin:auto"><h1>You’re offline</h1><p>Connect to the internet to open Cuan. Your saved conversations stay on the server.</p><p><a style="color:#5ba0ff" href="/studio">Try again</a></p></body></html>', { status:503, headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'} })))
+  event.respondWith(fetch(event.request, {cache: 'no-store'}).catch(() => new Response('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Cuan — Offline</title><body style="font:16px system-ui;background:#191919;color:white;padding:32px;max-width:40em;margin:auto"><h1>You’re offline</h1><p>Connect to the internet to open Cuan. Your saved conversations stay on the server.</p><p><a style="color:#5ba0ff" href="/chat">Try again</a></p></body></html>', { status:503, headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'} })))
 })
 self.addEventListener('push', event => {
   let data = {}

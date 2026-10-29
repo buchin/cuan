@@ -63,7 +63,7 @@ export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNoti
               const Icon = item.resolved || item.kind === 'completed' ? CircleCheck : item.kind === 'approval' ? ClipboardCheck : item.kind === 'customer' ? MessageCircle : CircleAlert
               const status = item.status || ({approval:'Needs approval',blocker:'Needs attention',completed:'Completed',customer:'Customer message'}[item.kind])
               const action = item.action_label || (item.href.startsWith('/inbox/') ? 'Open conversation' : 'View work')
-              const href = /^\/(inbox|projects|tasks)(\/|$)/.test(item.href) ? item.href : '/studio'
+              const href = /^\/(inbox|projects|tasks)(\/|$)/.test(item.href) ? item.href : '/chat'
               const readAction = { label: 'Mark as read', previewLabel: 'Read', disabled: !unread, run: () => markRead([item.id]) }
               return <li key={item.id}>
                 <ItemActions label={t(item.title)} swipeAction={readAction} actions={[

@@ -102,10 +102,11 @@ test('5. CreateProjectModal: Dynamic submit action button with loader', () => {
   )
 })
 
-test('6. Post-Creation Flow: Direct kickstart to Studio with preselected project', () => {
+test('6. Post-Creation Flow: Direct kickstart to Chat with preselected project', () => {
   assert.ok(
+    appSource.includes("navigate(`/chat?project=${encodeURIComponent(created.id)}`)") ||
     appSource.includes("navigate(`/studio?project=${encodeURIComponent(created.id)}`)"),
-    'App.tsx must redirect newly created projects directly to Studio with query param'
+    'App.tsx must redirect newly created projects directly to Chat with query param'
   )
   assert.ok(
     studioSource.includes("searchParams.get('project')"),

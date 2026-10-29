@@ -882,7 +882,7 @@ export function InboxView({
               Your conversations
             </h3>
             <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-              Choose a conversation to continue, or start something new in Studio.
+              Choose a conversation to continue, or start something new in Chat.
             </p>
           </div>
         ) : (

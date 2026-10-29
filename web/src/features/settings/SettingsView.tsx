@@ -50,8 +50,8 @@ export function SettingsView({
   const query = new URLSearchParams(location.search)
   const returnTo = query.get('returnTo') || ''
   const safeReturn =
-    returnTo === '/studio' || /^\/(inbox)(\/[^?#]*)?$/.test(returnTo)
-      ? returnTo : ''
+    returnTo === '/chat' || returnTo === '/studio' || /^\/(inbox)(\/[^?#]*)?$/.test(returnTo)
+      ? (returnTo === '/studio' ? '/chat' : returnTo) : ''
   if (activeProject) return <ProjectSettings key={activeProject.id} project={activeProject} embedded={embeddedProject} onUpdated={onProjectUpdated} onArchive={onDeleteProject} />
   return (
     <section className="page-content space-y-5">
@@ -99,7 +99,7 @@ export function SettingsView({
         <>
           {safeReturn && (
             <Link to={safeReturn} className="action-secondary">
-              {t(safeReturn === '/studio' ? '← Back to Studio' : '← Back to conversation')}
+              {t(safeReturn === '/chat' || safeReturn === '/studio' ? '← Back to Chat' : '← Back to conversation')}
             </Link>
           )}
           <TeamView
@@ -110,7 +110,7 @@ export function SettingsView({
             focusAgentId={query.get('agent') || undefined}
             onAgentAdded={onAgentAdded}
             onAgentConnected={() => {
-              if (safeReturn === '/studio') navigate('/studio')
+              if (safeReturn === '/chat' || safeReturn === '/studio') navigate('/chat')
             }}
           />
         </>

@@ -211,7 +211,7 @@ export function StudioView({
     }
   }
   return (
-    <section aria-label={t('Studio')} className="mx-auto w-full max-w-2xl">
+    <section aria-label={t('Chat')} className="mx-auto w-full max-w-2xl">
       <div
         data-studio-goal-panel
         className="flex min-h-[calc(var(--visible-height,100dvh)-136px-env(safe-area-inset-bottom))] flex-col justify-center py-4 md:min-h-[calc(100dvh-112px)]"

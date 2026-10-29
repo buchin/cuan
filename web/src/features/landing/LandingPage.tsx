@@ -186,7 +186,7 @@ export function LandingPage() {
               {[
                 {
                   title: 'Tell Cuan the goal.',
-                  text: 'Describe the outcome in Studio. Add screenshots, documents or references to make it clear.',
+                  text: 'Describe the outcome in Chat. Add screenshots, documents or references to make it clear.',
                 },
                 {
                   title: 'Agree on the plan.',

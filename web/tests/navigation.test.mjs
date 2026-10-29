@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const webDir = path.resolve(__dirname, '..')
 
-test('Navigation menu order: Studio, Inbox, Tasks, Project, Account', async (t) => {
+test('Navigation menu order: Chat, Inbox, Tasks, Project, Account', async (t) => {
   const appShellContent = fs.readFileSync(
     path.join(webDir, 'src/components/layout/AppShell.tsx'),
     'utf-8',
   )
 
-  // Verify NAV_ITEMS contains Studio, Inbox, Tasks, Projects
+  // Verify NAV_ITEMS contains Chat, Inbox, Tasks, Projects
   const navItemsMatch = appShellContent.match(/const NAV_ITEMS = \[([\s\S]*?)\] as const/)
   assert.ok(navItemsMatch, 'NAV_ITEMS must be defined in AppShell.tsx')
 
@@ -22,14 +22,14 @@ test('Navigation menu order: Studio, Inbox, Tasks, Project, Account', async (t) 
     (m) => ({ id: m[1], label: m[2] }),
   )
 
-  // 1. Studio
+  // 1. Chat
   // 2. Inbox
   // 3. Tasks
   // 4. Projects (Project)
   assert.deepEqual(
     items.map((i) => i.id),
-    ['studio', 'inbox', 'tasks', 'projects'],
-    'Main rail items must be studio, inbox, tasks, projects in exact order',
+    ['chat', 'inbox', 'tasks', 'projects'],
+    'Main rail items must be chat, inbox, tasks, projects in exact order',
   )
 
   // Contacts must NOT be in NAV_ITEMS top rail
@@ -133,7 +133,7 @@ test('App.tsx routing for /account, /account/contacts, and backward compatibilit
 
 test('All navigation routes have valid targets and no broken links', async (t) => {
   const appContent = fs.readFileSync(path.join(webDir, 'src/App.tsx'), 'utf-8')
-  const validTabs = ['studio', 'inbox', 'tasks', 'projects', 'account', 'contacts', 'settings']
+  const validTabs = ['chat', 'studio', 'inbox', 'tasks', 'projects', 'account', 'contacts', 'settings']
 
   for (const tab of validTabs) {
     assert.ok(

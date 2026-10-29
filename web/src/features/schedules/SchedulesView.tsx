@@ -217,7 +217,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
           </div>
           <h3 className="text-base font-semibold text-foreground">{t('No scheduled routines yet')}</h3>
           <p className="mt-1.5 text-sm text-muted-foreground max-w-md mx-auto">
-            {t('Create your first routine or ask Cuan in Studio: "Tolong tiap Senin jam 9 pagi buatkan rekap penjualan."')}
+            {t('Create your first routine or ask Cuan in Chat: "Tolong tiap Senin jam 9 pagi buatkan rekap penjualan."')}
           </p>
           <button
             type="button"

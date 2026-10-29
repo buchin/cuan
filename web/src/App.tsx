@@ -150,9 +150,12 @@ export function App() {
         return 'account'
       case 'inbox':
         return 'inbox'
+      case 'chat':
+        return 'chat'
       case 'studio':
+        return 'chat'
       default:
-        return 'studio'
+        return 'chat'
     }
   }, [rootSegment])
 
@@ -172,7 +175,9 @@ export function App() {
   useEffect(() => {
     if (rootSegment === 'team')
       navigate('/settings/agents' + location.search, { replace: true })
-  }, [rootSegment, location.search, navigate])
+    if (rootSegment === 'studio')
+      navigate('/chat' + location.search + location.hash, { replace: true })
+  }, [rootSegment, location.search, location.hash, navigate])
 
   // Active selections
   const [activeProject, setActiveProject] = useState<Project | undefined>(
@@ -196,7 +201,7 @@ export function App() {
     kind: 'message' | 'contact' | 'task' | 'project' | 'agent' | 'menu',
   ) => {
     setNewFlow(null)
-    if (kind === 'message') navigate('/studio')
+    if (kind === 'message') navigate('/chat')
     else if (kind === 'task') setIsCreateTaskOpen(true)
     else if (kind === 'project') setIsCreateProjectOpen(true)
     else if (kind === 'agent') {
@@ -211,7 +216,7 @@ export function App() {
   const [selectedTaskStatus, setSelectedTaskStatus] = useState('all')
   const [isMobileChatActive, setIsMobileChatActive] = useState(false)
 
-  // Studio is the default entry point.
+  // Chat is the default entry point.
   useEffect(() => {
     if (
       isAuthenticated &&
@@ -219,7 +224,7 @@ export function App() {
         location.pathname === '' ||
         location.pathname === '/login')
     ) {
-      navigate('/studio', { replace: true })
+      navigate('/chat', { replace: true })
     }
   }, [location.pathname, navigate, isAuthenticated])
 
@@ -442,6 +447,8 @@ export function App() {
       navigate(activeProject ? `/projects/${activeProject.id}` : '/projects')
     } else if (tab === 'account') {
       navigate('/account')
+    } else if (tab === 'chat' || (tab as string) === 'studio') {
+      navigate('/chat')
     } else {
       navigate(`/${tab}`)
     }
@@ -535,7 +542,7 @@ export function App() {
     const created = await projectsApi.create(data)
     await refreshProjects()
     setActiveProject(created)
-    navigate(`/studio?project=${encodeURIComponent(created.id)}`)
+    navigate(`/chat?project=${encodeURIComponent(created.id)}`)
   }
 
   const handleArchiveProject = async (id: string, isArchived: boolean) => {
@@ -724,7 +731,7 @@ export function App() {
         )}
         onSelectTab={handleSelectTab}
         newAction={
-          currentTab === 'studio' ||
+          currentTab === 'chat' ||
           currentTab === 'notifications' ||
           projectDetail ||
           (currentTab === 'inbox' && (!!subParam || isMobileChatActive)) ||
@@ -786,7 +793,7 @@ export function App() {
       >
         <Suspense fallback={<ViewFallback />}>
           {currentTab === 'notifications' && <NotificationsView />}
-          {currentTab === 'studio' && (
+          {currentTab === 'chat' && (
             <StudioView
               onAccepted={() => void refreshContacts()}
               checkRuntime={!directoryAgents.some((a) =>

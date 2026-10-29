@@ -190,7 +190,7 @@ export function CreateProjectModal({
                 </div>
                 <p className="text-[11px] leading-relaxed">
                   {t(
-                    'Cuan will set up an independent workspace on the server. You can immediately start building features via Studio chat.',
+                    'Cuan will set up an independent workspace on the server. You can immediately start building features via Chat.',
                   )}
                 </p>
               </div>

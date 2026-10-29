@@ -13,6 +13,7 @@ import { cn } from '../../lib/utils'
 
 export type AppTab =
   | 'notifications'
+  | 'chat'
   | 'studio'
   | 'inbox'
   | 'tasks'
@@ -41,7 +42,7 @@ interface AppShellProps {
   hideSearch?: boolean
 }
 const NAV_ITEMS = [
-  { id: 'studio', label: 'Studio', icon: CuanMark },
+  { id: 'chat', label: 'Chat', icon: CuanMark },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
@@ -128,7 +129,15 @@ export function AppShell({
             ? t('Account')
             : currentTab === 'contacts'
               ? t('Contacts')
-              : NAV_ITEMS.find((n) => n.id === currentTab)?.label
+              : (currentTab as string) === 'studio'
+                ? t('Chat')
+                : NAV_ITEMS.find((n) => n.id === currentTab)?.label
+
+  useEffect(() => {
+    const rawTitle = pageTitleIsContent ? pageTitle : t(pageTitle || label || '')
+    document.title = rawTitle ? `${rawTitle} — Cuan` : 'Cuan — Your always-on project manager'
+  }, [pageTitleIsContent, pageTitle, label, t])
+
   const navigate = (id: AppTab) => {
     onSelectTab(id)
   }
@@ -150,7 +159,7 @@ export function AppShell({
       )}
     >
       <span className="relative">
-        {id === 'studio' ? (
+        {id === 'chat' || (id as string) === 'studio' ? (
           <CuanMark decorative className="h-5 w-5 text-inherit" />
         ) : (
           <Icon className="h-5 w-5 shrink-0" />
@@ -184,8 +193,8 @@ export function AppShell({
       >
         <div className="sidebar-brand flex h-16 shrink-0 items-center gap-2 border-b border-border px-2.5">
           <Link
-            to="/studio"
-            aria-label={t('Go to Studio')}
+            to="/chat"
+            aria-label={t('Go to Chat')}
             className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             <CuanMark decorative className="h-9 w-9" />
@@ -268,15 +277,15 @@ export function AppShell({
                   ) {
                     if (window.history.state?.idx > 0) routerNavigate(-1)
                     else routerNavigate(from, { replace: true })
-                  } else routerNavigate('/studio', { replace: true })
+                  } else routerNavigate('/chat', { replace: true })
                 }}
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
             ) : (
               <Link
-                to="/studio"
-                aria-label={t('Go to Studio')}
+                to="/chat"
+                aria-label={t('Go to Chat')}
                 className="icon-action md:hidden"
               >
                 <CuanMark decorative className="h-6 w-6" />
@@ -367,7 +376,7 @@ export function AppShell({
               )}
             >
               <span className="relative">
-                {id === 'studio' ? (
+                {id === 'chat' || (id as string) === 'studio' ? (
                   <CuanMark decorative className="h-5 w-5 text-inherit" />
                 ) : (
                   <Icon className="h-5 w-5" />

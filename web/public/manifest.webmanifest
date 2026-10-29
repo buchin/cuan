@@ -3,7 +3,7 @@
   "name": "Cuan",
   "short_name": "Cuan",
   "description": "Delegate work and keep up with your projects.",
-  "start_url": "/studio",
+  "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
   "background_color": "#191919",
