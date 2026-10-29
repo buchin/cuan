@@ -1101,5 +1101,18 @@
   "Preferences with confidence >= threshold are automatically approved when quota allows (< 15 items).": "Preferensi dengan tingkat keyakinan >= ambang batas akan otomatis disetujui selama kuota kategori belum penuh (< 15 butir).",
   "Quota full (15/15) - auto-approvals paused and held for manual review.": "Kuota penuh (15/15) - persetujuan otomatis ditahan untuk peninjauan manual.",
   "Approaching quota limit (>= 12 items).": "Mendekati batas kuota (>= 12 butir).",
-  "Preferensi ini otomatis disetujui oleh Smart Auto-Approval": "Preferensi ini otomatis disetujui oleh Smart Auto-Approval"
+  "Preferensi ini otomatis disetujui oleh Smart Auto-Approval": "Preferensi ini otomatis disetujui oleh Smart Auto-Approval",
+  "Memori": "Memori",
+  "Preferensi": "Preferensi",
+  "lainnya": "lainnya",
+  "preferensi memori lainnya": "preferensi memori lainnya",
+  "Detail Preferensi Aktif": "Detail Preferensi Aktif",
+  "Landasan Memori (Taste Grounding)": "Landasan Memori (Taste Grounding)",
+  "Preferensi aktif yang memandu respon asisten AI": "Preferensi aktif yang memandu respon asisten AI",
+  "Brand Taste": "Brand Taste",
+  "Sesuaikan memori agen?": "Sesuaikan memori agen?",
+  "Kelola Memori": "Kelola Memori",
+  "Pengaturan Memori": "Pengaturan Memori",
+  "Memori aktif": "Memori aktif",
+  "Tutup": "Tutup"
 }

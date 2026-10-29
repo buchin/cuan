@@ -62,6 +62,7 @@ import { TaskItemCard } from '../tasks/TaskItemCard'
 import { getQueuedTasksPositions } from '../tasks/task-ui'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
+import { TasteGroundingChips } from './TasteGroundingChips'
 
 const CannedResponsesDialog = lazy(() =>
   import('./CannedResponsesDialog').then((m) => ({
@@ -1395,6 +1396,15 @@ export function InboxView({
                           <span>{msg.content || msg.message}</span>
                           {metadata}
                         </div>
+                      )}
+
+                      {/* Real-Time Taste Grounding Chips */}
+                      {msg.grounding_tastes && msg.grounding_tastes.length > 0 && (
+                        <TasteGroundingChips
+                          tastes={msg.grounding_tastes}
+                          className="mt-2"
+                          returnTo={`/inbox/${encodeURIComponent(activeContact.conversation_id || activeContact.id)}`}
+                        />
                       )}
 
                       {/* Ready-to-Use Customer Draft Reply Card */}

@@ -8,8 +8,9 @@ import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
 import { projectsApi } from '../../api/projects'
 import { type Project } from '../../api/types'
-import { tasteApi } from '../../api/taste'
+import { tasteApi, type GroundingTaste } from '../../api/taste'
 import { StudioExecutionSelector } from './StudioExecutionSelector'
+import { TasteGroundingChips } from './TasteGroundingChips'
 
 export function StudioView({
   onAccepted, agentSetup, firstGoal, hasProject,
@@ -142,6 +143,7 @@ export function StudioView({
   const [tasteBannerDismissed, setTasteBannerDismissed] = useState(false)
   const [autoApprovedTaste, setAutoApprovedTaste] = useState<{ id: string; text: string; confidence?: number } | null>(null)
   const [undoingTasteId, setUndoingTasteId] = useState<string | null>(null)
+  const [activeGroundingTastes, setActiveGroundingTastes] = useState<GroundingTaste[]>([])
 
   useEffect(() => {
     let active = true
@@ -168,6 +170,15 @@ export function StudioView({
             })
           }
         }
+      })
+      .catch(() => {})
+
+    tasteApi
+      .getActiveGrounding()
+      .then((res) => {
+        if (!active) return
+        const list = res.all_tastes || res.grounding_tastes || []
+        if (list.length) setActiveGroundingTastes(list)
       })
       .catch(() => {})
 
@@ -471,7 +482,7 @@ export function StudioView({
               {!hasProject && <> <button type="button" className="min-h-11 underline underline-offset-2" onClick={onCreateProject}>{t('Create or connect a project (optional)')}</button></>}
             </p>
           )}
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <Link
               to="/settings/memory?returnTo=/chat"
               className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
@@ -489,6 +500,11 @@ export function StudioView({
                 </span>
               )}
             </Link>
+            {activeGroundingTastes.length > 0 && (
+              <div data-testid="studio-active-grounding" className="flex items-center gap-1.5">
+                <TasteGroundingChips tastes={activeGroundingTastes} returnTo="/chat" />
+              </div>
+            )}
           </div>
           {error && (
             <div

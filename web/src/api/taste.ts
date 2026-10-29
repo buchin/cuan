@@ -2,6 +2,25 @@ import { apiFetch } from './client'
 
 export type TasteCategory = 'brand' | 'technical'
 
+export interface GroundingTaste {
+  id: string
+  category: TasteCategory | string
+  topic: string
+  summary: string
+  preview?: string
+  content?: string
+}
+
+export interface SessionGroundingTastesResponse {
+  session_id: string
+  room_id?: string
+  brand_tastes?: GroundingTaste[]
+  technical_tastes?: GroundingTaste[]
+  all_tastes?: GroundingTaste[]
+  grounding_tastes?: GroundingTaste[]
+  total: number
+}
+
 export interface TasteItem {
   id: string
   category: TasteCategory
@@ -193,5 +212,22 @@ export const tasteApi = {
     return apiFetch<UndoCandidateResponse>(`/api/v1/taste/candidates/${encodeURIComponent(id)}/undo`, {
       method: 'POST',
     })
+  },
+  getActiveGrounding: async (params?: {
+    session_id?: string
+    room_id?: string
+    category?: string
+  }): Promise<SessionGroundingTastesResponse> => {
+    const search = new URLSearchParams()
+    if (params?.session_id) search.set('session_id', params.session_id)
+    if (params?.room_id) search.set('room_id', params.room_id)
+    if (params?.category) search.set('category', params.category)
+    const qs = search.toString()
+    return apiFetch<SessionGroundingTastesResponse>(`/api/v1/taste/grounding${qs ? `?${qs}` : ''}`)
+  },
+  getConversationGrounding: async (conversationId: string): Promise<SessionGroundingTastesResponse> => {
+    return apiFetch<SessionGroundingTastesResponse>(
+      `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/grounding`
+    )
   },
 }
