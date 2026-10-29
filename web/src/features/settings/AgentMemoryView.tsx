@@ -19,6 +19,7 @@ import {
   Layers,
   FileText,
   Clock,
+  Sliders,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import {
@@ -27,6 +28,8 @@ import {
   type TasteProfile,
   type TasteCategory,
   type TasteCandidate,
+  type TasteQuotaResponse,
+  type TasteConfig,
 } from '../../api/taste'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Badge } from '../../components/ui/badge'
@@ -66,7 +69,19 @@ export function AgentMemoryView({
     message: string
   } | null>(null)
 
-  // Candidates / Suggested Taste state (Sprint 44 S44-T3)
+  // Hermes Quota & Auto-Approve state (Sprint 45 S45-T3)
+  const [quota, setQuota] = useState<TasteQuotaResponse | null>(null)
+  const [config, setConfig] = useState<TasteConfig | null>(null)
+  const [configSaving, setConfigSaving] = useState(false)
+  const [autoApproveToast, setAutoApproveToast] = useState<{
+    id: string
+    text: string
+    confidence?: number
+    category: string
+  } | null>(null)
+  const [undoingCandidateId, setUndoingCandidateId] = useState<string | null>(null)
+
+  // Candidates / Suggested Taste state (Sprint 44 & 45)
   const [candidates, setCandidates] = useState<TasteCandidate[]>([])
   const [candidatesLoading, setCandidatesLoading] = useState(false)
   const [reflecting, setReflecting] = useState(false)
@@ -82,9 +97,7 @@ export function AgentMemoryView({
   // Dialog states for active items
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<TasteItem | null>(null)
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<TasteItem | null>(
-    null,
-  )
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<TasteItem | null>(null)
   const [resetModalOpen, setResetModalOpen] = useState(false)
 
   // Form states
@@ -125,10 +138,32 @@ export function AgentMemoryView({
     }
   }, [])
 
+  // Load Quota
+  const loadQuota = useCallback(async () => {
+    try {
+      const q = await tasteApi.getQuota()
+      setQuota(q)
+    } catch (err: any) {
+      console.error('Failed to load taste quota:', err)
+    }
+  }, [])
+
+  // Load Config
+  const loadConfig = useCallback(async () => {
+    try {
+      const cfg = await tasteApi.getConfig()
+      setConfig(cfg)
+    } catch (err: any) {
+      console.error('Failed to load taste config:', err)
+    }
+  }, [])
+
   useEffect(() => {
     void loadProfile()
     void loadCandidates()
-  }, [loadProfile, loadCandidates])
+    void loadQuota()
+    void loadConfig()
+  }, [loadProfile, loadCandidates, loadQuota, loadConfig])
 
   // Clear feedback timer
   useEffect(() => {
@@ -138,6 +173,78 @@ export function AgentMemoryView({
     }, 4000)
     return () => clearTimeout(timer)
   }, [feedback])
+
+  // Auto-Approve Toggle Handler
+  const handleToggleAutoApprove = async () => {
+    const nextVal = !(config ? config.auto_approve_enabled : (quota ? quota.auto_approve_enabled : true))
+    try {
+      setConfigSaving(true)
+      const updated = await tasteApi.updateConfig({
+        auto_approve_enabled: nextVal,
+      })
+      setConfig(updated)
+      await loadQuota()
+      setFeedback({
+        type: 'success',
+        message: updated.auto_approve_enabled
+          ? t('Smart Auto-Approval activated.')
+          : t('Smart Auto-Approval deactivated.'),
+      })
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || t('Failed to update auto-approve settings'),
+      })
+    } finally {
+      setConfigSaving(false)
+    }
+  }
+
+  // Threshold Update Handler
+  const handleUpdateThreshold = async (newThreshold: number) => {
+    try {
+      setConfigSaving(true)
+      const updated = await tasteApi.updateConfig({
+        auto_approve_threshold: newThreshold,
+      })
+      setConfig(updated)
+      await loadQuota()
+      setFeedback({
+        type: 'success',
+        message: `${t('Confidence Threshold updated to')} ${Math.round(newThreshold * 100)}%.`,
+      })
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || t('Failed to update threshold'),
+      })
+    } finally {
+      setConfigSaving(false)
+    }
+  }
+
+  // Undo Auto-Approve Handler
+  const handleUndoCandidate = async (candidateId: string) => {
+    try {
+      setUndoingCandidateId(candidateId)
+      await tasteApi.undoCandidate(candidateId)
+      setAutoApproveToast(null)
+      setFeedback({
+        type: 'success',
+        message: t('Auto-approval undone, preference returned to suggested list.'),
+      })
+      await loadProfile()
+      await loadCandidates()
+      await loadQuota()
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || t('Failed to undo auto-approval'),
+      })
+    } finally {
+      setUndoingCandidateId(null)
+    }
+  }
 
   // Open Add Modal
   const handleOpenAdd = (category?: TasteCategory) => {
@@ -188,6 +295,7 @@ export function AgentMemoryView({
         message: t('New memory preference saved successfully.'),
       })
       await loadProfile()
+      await loadQuota()
     } catch (err: any) {
       setFormError(err?.message || t('Failed to save preference'))
     } finally {
@@ -227,6 +335,7 @@ export function AgentMemoryView({
         message: t('Preference updated successfully.'),
       })
       await loadProfile()
+      await loadQuota()
     } catch (err: any) {
       setFormError(err?.message || t('Failed to update preference'))
     } finally {
@@ -246,6 +355,7 @@ export function AgentMemoryView({
         message: t('Preference forgotten successfully.'),
       })
       await loadProfile()
+      await loadQuota()
     } catch (err: any) {
       setFeedback({
         type: 'error',
@@ -267,6 +377,7 @@ export function AgentMemoryView({
         type: 'success',
         message: t('All agent memory reset to default templates.'),
       })
+      await loadQuota()
     } catch (err: any) {
       setFeedback({
         type: 'error',
@@ -298,6 +409,7 @@ export function AgentMemoryView({
       })
       await loadProfile()
       await loadCandidates()
+      await loadQuota()
     } catch (err: any) {
       setFeedback({
         type: 'error',
@@ -318,6 +430,7 @@ export function AgentMemoryView({
         message: t('Candidate preference dismissed.'),
       })
       await loadCandidates()
+      await loadQuota()
     } catch (err: any) {
       setFeedback({
         type: 'error',
@@ -333,7 +446,21 @@ export function AgentMemoryView({
       setReflecting(true)
       const res = await tasteApi.reflectTaste()
       await loadCandidates()
-      if (res.count > 0 || (res.candidates && res.candidates.length > 0)) {
+      await loadProfile()
+      await loadQuota()
+      if (res.auto_approved && res.auto_approved.length > 0) {
+        const first = res.auto_approved[0]
+        setAutoApproveToast({
+          id: first.id,
+          text: first.text || first.content || '',
+          confidence: first.confidence,
+          category: first.category,
+        })
+        setFeedback({
+          type: 'success',
+          message: `${t('Reflection completed successfully.')} ${res.auto_approved.length} ${t('preference(s) auto-approved')}`,
+        })
+      } else if (res.count > 0 || (res.candidates && res.candidates.length > 0)) {
         setFeedback({
           type: 'success',
           message: `${t('Reflection completed successfully.')} ${res.count || res.candidates.length} ${t('pending suggestion(s)')}`,
@@ -438,13 +565,34 @@ export function AgentMemoryView({
     )
   }, [candidates, selectedCategory, searchQuery])
 
+  // Quota and Counts calculations
   const brandCount = profile?.brand_items?.length ?? 0
   const technicalCount = profile?.technical_items?.length ?? 0
   const totalCount = profile?.total ?? (profile?.items?.length ?? 0)
   const pendingCount = candidates.length
 
+  const brandUsed = quota?.brand.used ?? brandCount
+  const brandMax = quota?.brand.max ?? 15
+  const brandPct = quota?.brand.percentage ?? (brandMax > 0 ? Math.round((brandUsed / brandMax) * 100) : 0)
+  const brandWarning = brandUsed >= 12
+  const brandFull = brandUsed >= brandMax
+
+  const techUsed = quota?.technical.used ?? technicalCount
+  const techMax = quota?.technical.max ?? 15
+  const techPct = quota?.technical.percentage ?? (techMax > 0 ? Math.round((techUsed / techMax) * 100) : 0)
+  const techWarning = techUsed >= 12
+  const techFull = techUsed >= techMax
+
+  const totalUsed = quota?.total_used ?? (brandUsed + techUsed)
+  const totalMax = quota?.total_max ?? 30
+  const totalPct = totalMax > 0 ? Math.round((totalUsed / totalMax) * 100) : 0
+
+  const autoApproveEnabled = config?.auto_approve_enabled ?? quota?.auto_approve_enabled ?? true
+  const autoApproveThreshold = config?.auto_approve_threshold ?? quota?.auto_approve_threshold ?? 0.8
+  const thresholdPct = Math.round(autoApproveThreshold * 100)
+
   return (
-    <div className={embedded ? "space-y-4" : "space-y-6"}>
+    <div className={embedded ? 'space-y-4' : 'space-y-6'}>
       {/* Return Navigation if coming from Chat */}
       {resolvedReturnTo && (
         <div>
@@ -460,6 +608,64 @@ export function AgentMemoryView({
             )}
           </Link>
         </div>
+      )}
+
+      {/* Auto-Approve Toast Notification with 1-Click Undo (Sprint 45 S45-T3) */}
+      {autoApproveToast && (
+        <aside
+          role="status"
+          aria-live="polite"
+          data-testid="auto-approve-toast"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-emerald-950 dark:text-emerald-100 shadow-sm"
+        >
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-foreground text-sm">
+                  {t('Preferensi baru otomatis disetujui')}
+                </span>
+                {autoApproveToast.confidence !== undefined && (
+                  <span
+                    data-testid="toast-confidence-badge"
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-mono font-semibold"
+                  >
+                    {Math.round(autoApproveToast.confidence * 100)}% {t('Keyakinan')}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-foreground/85 mt-0.5 truncate max-w-xl">
+                "{autoApproveToast.text}"
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              data-testid="undo-auto-approve-btn"
+              onClick={() => void handleUndoCandidate(autoApproveToast.id)}
+              disabled={undoingCandidateId === autoApproveToast.id}
+              className="action-secondary min-h-11 inline-flex items-center gap-1.5 px-3.5 text-xs font-semibold text-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
+            >
+              <RotateCcw
+                className={`h-3.5 w-3.5 ${
+                  undoingCandidateId === autoApproveToast.id ? 'animate-spin' : ''
+                }`}
+              />
+              <span>{t('Batalkan')} (Undo)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutoApproveToast(null)}
+              className="icon-action text-muted-foreground hover:text-foreground"
+              aria-label={t('Dismiss')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </aside>
       )}
 
       {/* Header and Hero Overview */}
@@ -508,7 +714,7 @@ export function AgentMemoryView({
           </div>
         </div>
 
-        {/* Layer Metrics & Context Safety Limit */}
+        {/* Quick Summary Pill Bar */}
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-4 border-t border-border/60 pt-4 text-xs">
           <div className="flex items-center gap-2.5 rounded-lg bg-muted/40 p-2.5">
             <Sparkles className="h-4 w-4 text-purple-500 shrink-0" />
@@ -566,6 +772,345 @@ export function AgentMemoryView({
             </div>
           </button>
         </div>
+      </section>
+
+      {/* Hermes-Style Memory Quota Meter (Sprint 45 S45-T3) */}
+      <section
+        data-testid="hermes-quota-meter"
+        aria-label={t('Hermes Memory Quota Meter')}
+        className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">
+                  {t('Hermes Memory Quota Meter')}
+                </h3>
+                <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-mono font-semibold">
+                  15 {t('items / category')}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('Hermes Memory Quota prevents token bloat by limiting memory to 15 items per category.')}
+              </p>
+            </div>
+          </div>
+          <div className="text-xs font-mono font-semibold text-muted-foreground self-start sm:self-auto">
+            {t('Total Memori')}: <span className="text-foreground">{totalUsed} / {totalMax}</span> ({totalPct}%)
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Brand & Voice Quota Meter */}
+          <div
+            data-testid="quota-meter-brand"
+            className={`rounded-xl border p-4 space-y-3 transition-colors ${
+              brandFull
+                ? 'border-rose-500/40 bg-rose-500/5'
+                : brandWarning
+                ? 'border-amber-500/40 bg-amber-500/5'
+                : 'border-border bg-muted/20'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-purple-500 shrink-0" />
+                <span className="text-xs font-bold text-foreground">
+                  {t('Brand & Voice')}
+                </span>
+              </div>
+              {brandFull ? (
+                <span
+                  data-testid="quota-badge-brand"
+                  className="rounded-full bg-rose-500/20 text-rose-800 dark:text-rose-200 border border-rose-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                >
+                  {t('Quota Full')} (15/15)
+                </span>
+              ) : brandWarning ? (
+                <span
+                  data-testid="quota-badge-brand"
+                  className="rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                >
+                  {t('Approaching Limit')}
+                </span>
+              ) : (
+                <span
+                  data-testid="quota-badge-brand"
+                  className="rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-2 py-0.5 text-[10px] font-semibold"
+                >
+                  {t('Optimal Capacity')}
+                </span>
+              )}
+            </div>
+
+            {/* Quota Counter Indicator e.g. '8/15 Butir Terpakai (53%)' */}
+            <div className="flex items-baseline justify-between text-xs">
+              <span
+                data-testid="quota-count-brand"
+                className="font-mono font-semibold text-foreground text-sm"
+              >
+                {brandUsed}/{brandMax} {t('Butir Terpakai')} ({brandPct}%)
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {brandMax - brandUsed} {t('tersisa')}
+              </span>
+            </div>
+
+            {/* Progress Bar Track */}
+            <div
+              className="h-2.5 w-full rounded-full bg-muted overflow-hidden"
+              role="progressbar"
+              aria-valuenow={brandUsed}
+              aria-valuemin={0}
+              aria-valuemax={brandMax}
+            >
+              <div
+                data-testid="quota-bar-brand"
+                style={{ width: `${Math.min(100, Math.max(0, brandPct))}%` }}
+                className={`h-full rounded-full transition-all duration-500 ${
+                  brandFull
+                    ? 'bg-rose-500'
+                    : brandWarning
+                    ? 'bg-amber-500'
+                    : 'bg-purple-600'
+                }`}
+              />
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {brandFull
+                ? t('Quota full (15/15) - auto-approvals paused and held for manual review.')
+                : brandWarning
+                ? t('Approaching quota limit (>= 12 items).')
+                : t('Tersisa kapasitas memori untuk preferensi gaya komunikasi & brand voice.')}
+            </p>
+          </div>
+
+          {/* Technical & Workflows Quota Meter */}
+          <div
+            data-testid="quota-meter-technical"
+            className={`rounded-xl border p-4 space-y-3 transition-colors ${
+              techFull
+                ? 'border-rose-500/40 bg-rose-500/5'
+                : techWarning
+                ? 'border-amber-500/40 bg-amber-500/5'
+                : 'border-border bg-muted/20'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Terminal className="h-4 w-4 text-sky-500 shrink-0" />
+                <span className="text-xs font-bold text-foreground">
+                  {t('Technical & Workflows')}
+                </span>
+              </div>
+              {techFull ? (
+                <span
+                  data-testid="quota-badge-technical"
+                  className="rounded-full bg-rose-500/20 text-rose-800 dark:text-rose-200 border border-rose-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                >
+                  {t('Quota Full')} (15/15)
+                </span>
+              ) : techWarning ? (
+                <span
+                  data-testid="quota-badge-technical"
+                  className="rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                >
+                  {t('Approaching Limit')}
+                </span>
+              ) : (
+                <span
+                  data-testid="quota-badge-technical"
+                  className="rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 px-2 py-0.5 text-[10px] font-semibold"
+                >
+                  {t('Optimal Capacity')}
+                </span>
+              )}
+            </div>
+
+            {/* Quota Counter Indicator e.g. '8/15 Butir Terpakai (53%)' */}
+            <div className="flex items-baseline justify-between text-xs">
+              <span
+                data-testid="quota-count-technical"
+                className="font-mono font-semibold text-foreground text-sm"
+              >
+                {techUsed}/{techMax} {t('Butir Terpakai')} ({techPct}%)
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {techMax - techUsed} {t('tersisa')}
+              </span>
+            </div>
+
+            {/* Progress Bar Track */}
+            <div
+              className="h-2.5 w-full rounded-full bg-muted overflow-hidden"
+              role="progressbar"
+              aria-valuenow={techUsed}
+              aria-valuemin={0}
+              aria-valuemax={techMax}
+            >
+              <div
+                data-testid="quota-bar-technical"
+                style={{ width: `${Math.min(100, Math.max(0, techPct))}%` }}
+                className={`h-full rounded-full transition-all duration-500 ${
+                  techFull
+                    ? 'bg-rose-500'
+                    : techWarning
+                    ? 'bg-amber-500'
+                    : 'bg-sky-600'
+                }`}
+              />
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {techFull
+                ? t('Quota full (15/15) - auto-approvals paused and held for manual review.')
+                : techWarning
+                ? t('Approaching quota limit (>= 12 items).')
+                : t('Tersisa kapasitas memori untuk preferensi alur kerja & aturan teknis.')}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Smart Auto-Approval Controls Card (Sprint 45 S45-T3) */}
+      <section
+        data-testid="auto-approve-controls"
+        aria-label={t('Auto-Approval Controls')}
+        className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">
+                  {t('Smart Auto-Approval')}
+                </h3>
+                <span
+                  data-testid="auto-approve-status-pill"
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    autoApproveEnabled
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                      : 'bg-muted text-muted-foreground border-border'
+                  }`}
+                >
+                  {autoApproveEnabled ? t('Auto-Approve Enabled') : t('Auto-Approve Disabled')}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {t('Preferences with confidence >= threshold are automatically approved when quota allows (< 15 items).')}
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle Switch */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoApproveEnabled}
+            data-testid="auto-approve-toggle"
+            onClick={handleToggleAutoApprove}
+            disabled={configSaving}
+            className={`min-h-11 inline-flex items-center gap-2.5 rounded-lg px-4 text-xs font-semibold transition-all shrink-0 self-start sm:self-auto ${
+              autoApproveEnabled
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
+            }`}
+          >
+            {autoApproveEnabled ? (
+              <>
+                <Check className="h-4 w-4" />
+                <span>{t('Auto-Approve Aktif')}</span>
+              </>
+            ) : (
+              <>
+                <X className="h-4 w-4 text-muted-foreground" />
+                <span>{t('Auto-Approve Nonaktif')}</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Threshold Slider and Settings (when enabled) */}
+        {autoApproveEnabled && (
+          <div
+            data-testid="auto-approve-threshold-container"
+            className="rounded-lg border border-border/80 bg-muted/30 p-4 space-y-3"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+              <label
+                htmlFor="threshold-slider"
+                className="text-xs font-bold text-foreground flex items-center gap-2"
+              >
+                <Sliders className="h-3.5 w-3.5 text-primary" />
+                <span>{t('Ambang Batas Keyakinan')} ({t('Confidence Threshold')}):</span>
+                <span
+                  data-testid="threshold-value-display"
+                  className="font-mono text-primary text-sm font-bold bg-primary/10 px-2 py-0.5 rounded"
+                >
+                  {thresholdPct}%
+                </span>
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                {t('Keyakinan')} &gt;= {thresholdPct}% {t('langsung dipromosikan otomatis')}
+              </span>
+            </div>
+
+            {/* Slider Input */}
+            <div className="space-y-1.5">
+              <input
+                id="threshold-slider"
+                type="range"
+                min="50"
+                max="95"
+                step="5"
+                value={thresholdPct}
+                data-testid="auto-approve-threshold-slider"
+                disabled={configSaving}
+                onChange={(e) => void handleUpdateThreshold(Number(e.target.value) / 100)}
+                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground font-mono px-0.5">
+                <span>50%</span>
+                <span>65%</span>
+                <span>80% ({t('Standar')})</span>
+                <span>90%</span>
+                <span>95%</span>
+              </div>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40 text-xs">
+              <span className="text-[11px] text-muted-foreground">{t('Pilihan Cepat')}:</span>
+              {[0.75, 0.8, 0.85, 0.9].map((p) => {
+                const pct = Math.round(p * 100)
+                const isSelected = thresholdPct === pct
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => void handleUpdateThreshold(p)}
+                    disabled={configSaving}
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground font-bold'
+                        : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                  >
+                    {pct}% {pct === 80 ? `(${t('Standar')})` : ''}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Global Toast / Feedback Alert */}
@@ -883,6 +1428,7 @@ export function AgentMemoryView({
                 return (
                   <article
                     key={item.id}
+                    data-testid={`active-taste-card-${item.id}`}
                     className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-border/80 hover:shadow-sm"
                   >
                     <div>
@@ -907,6 +1453,18 @@ export function AgentMemoryView({
                                 : t('Technical & Workflow')}
                             </span>
                           </span>
+
+                          {/* Auto-Approved Badge */}
+                          {item.auto_approved && (
+                            <span
+                              data-testid={`auto-approved-badge-${item.id}`}
+                              className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold"
+                              title={t('Preferensi ini otomatis disetujui oleh Smart Auto-Approval')}
+                            >
+                              <Sparkles className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span>{t('Otomatis Disetujui')}</span>
+                            </span>
+                          )}
 
                           {item.topic && (
                             <span className="font-semibold text-xs text-foreground bg-muted/60 px-2 py-0.5 rounded-md line-clamp-1">
@@ -1024,6 +1582,10 @@ export function AgentMemoryView({
                 const isBrand = candidate.category === 'brand'
                 const isBusy = candidateActionBusyId === candidate.id
                 const rationale = candidate.reason || candidate.rationale || candidate.source_snippet
+                const confValue = candidate.confidence !== undefined ? candidate.confidence : 0.85
+                const confPercent = Math.round(confValue * 100)
+                const isHighConfidence = confPercent >= 80
+
                 return (
                   <article
                     key={candidate.id}
@@ -1056,6 +1618,20 @@ export function AgentMemoryView({
                           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold">
                             <Clock className="h-2.5 w-2.5" />
                             {t('Pending Review')}
+                          </span>
+
+                          {/* Confidence Badge (Sprint 45 S45-T3) */}
+                          <span
+                            data-testid={`confidence-badge-${candidate.id}`}
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                              isHighConfidence
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                            }`}
+                            title={isHighConfidence ? t('Keyakinan Tinggi (>= 80%)') : t('Keyakinan Sedang (< 80%)')}
+                          >
+                            <ShieldCheck className="h-2.5 w-2.5 shrink-0" />
+                            <span>{t('Keyakinan')} {confPercent}%</span>
                           </span>
 
                           {candidate.topic && (

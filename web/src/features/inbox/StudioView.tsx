@@ -2,7 +2,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, AttachmentPreviews, useAttachments } from './Attachments'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, LoaderCircle, Brain, Sparkles, X } from 'lucide-react'
+import { ArrowRight, LoaderCircle, Brain, Sparkles, X, RotateCcw } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
@@ -140,6 +140,8 @@ export function StudioView({
 
   const [pendingTasteCount, setPendingTasteCount] = useState(0)
   const [tasteBannerDismissed, setTasteBannerDismissed] = useState(false)
+  const [autoApprovedTaste, setAutoApprovedTaste] = useState<{ id: string; text: string; confidence?: number } | null>(null)
+  const [undoingTasteId, setUndoingTasteId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -152,6 +154,23 @@ export function StudioView({
         }
       })
       .catch(() => {})
+
+    tasteApi
+      .getCandidates({ status: 'accepted' })
+      .then((res) => {
+        if (active && res.candidates?.length) {
+          const autoApp = res.candidates.find((c) => (c.confidence ?? 0) >= 0.8)
+          if (autoApp) {
+            setAutoApprovedTaste({
+              id: autoApp.id,
+              text: autoApp.text || autoApp.content || '',
+              confidence: autoApp.confidence,
+            })
+          }
+        }
+      })
+      .catch(() => {})
+
     return () => {
       active = false
     }
@@ -263,6 +282,62 @@ export function StudioView({
         ) : agentSetup === 'needed' && installation === 'available' ? (
           <p className="mt-4 text-sm text-muted-foreground">{t('Write your goal, then connect your AI to get started. Your draft will stay here.')}</p>
         ) : null}
+        {autoApprovedTaste && (
+          <aside
+            aria-label={t('Preferensi baru otomatis disetujui')}
+            data-testid="auto-approve-banner"
+            className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-900 dark:text-emerald-100"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold text-foreground">
+                  {t('Preferensi baru otomatis disetujui')}:
+                </span>
+                <span className="truncate">
+                  "{autoApprovedTaste.text}"
+                </span>
+                {autoApprovedTaste.confidence !== undefined && (
+                  <span className="rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-mono shrink-0">
+                    {Math.round(autoApprovedTaste.confidence * 100)}% {t('Keyakinan')}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                data-testid="undo-auto-approve-studio-btn"
+                onClick={async () => {
+                  if (!autoApprovedTaste) return
+                  try {
+                    setUndoingTasteId(autoApprovedTaste.id)
+                    await tasteApi.undoCandidate(autoApprovedTaste.id)
+                    setAutoApprovedTaste(null)
+                    setPendingTasteCount((prev) => prev + 1)
+                  } catch (err) {
+                    console.error('Failed to undo auto-approval:', err)
+                  } finally {
+                    setUndoingTasteId(null)
+                  }
+                }}
+                disabled={undoingTasteId === autoApprovedTaste.id}
+                className="action-secondary min-h-11 inline-flex items-center gap-1.5 px-3 text-xs font-semibold text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              >
+                <RotateCcw className={`h-3.5 w-3.5 ${undoingTasteId === autoApprovedTaste.id ? 'animate-spin' : ''}`} />
+                <span>{t('Batalkan')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAutoApprovedTaste(null)}
+                className="icon-action text-emerald-800 dark:text-emerald-200 hover:text-foreground"
+                aria-label={t('Dismiss')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </aside>
+        )}
         {pendingTasteCount > 0 && !tasteBannerDismissed && (
           <aside
             aria-label={t('Suggested Preferences')}

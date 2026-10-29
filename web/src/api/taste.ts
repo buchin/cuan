@@ -7,6 +7,8 @@ export interface TasteItem {
   category: TasteCategory
   topic?: string
   content: string
+  auto_approved?: boolean
+  auto_approved_at?: string
   created_at: string
   updated_at: string
 }
@@ -43,8 +45,13 @@ export interface TasteCandidate {
   reason?: string
   rationale?: string
   status: string
+  confidence?: number // 0.0 - 1.0
   created_at: string
+  updated_at?: string
 }
+
+// Alias for CandidateTaste as specified in DoD
+export type CandidateTaste = TasteCandidate
 
 export interface TasteCandidatesResponse {
   candidates: TasteCandidate[]
@@ -62,6 +69,7 @@ export interface ReflectTasteResponse {
   message: string
   candidates: TasteCandidate[]
   extracted: TasteCandidate[]
+  auto_approved?: TasteCandidate[]
   count: number
   total: number
 }
@@ -84,6 +92,39 @@ export interface DismissCandidateResponse {
   message: string
   candidate: TasteCandidate
   id: string
+}
+
+export interface UndoCandidateResponse {
+  message: string
+  candidate: TasteCandidate
+  id: string
+}
+
+export interface TasteQuotaCategory {
+  used: number
+  max: number
+  percentage: number
+  can_auto_approve: boolean
+}
+
+export interface TasteQuotaResponse {
+  brand: TasteQuotaCategory
+  technical: TasteQuotaCategory
+  categories: Record<string, TasteQuotaCategory>
+  total_used: number
+  total_max: number
+  auto_approve_enabled: boolean
+  auto_approve_threshold: number
+}
+
+export interface TasteConfig {
+  auto_approve_enabled: boolean
+  auto_approve_threshold: number
+}
+
+export interface UpdateTasteConfigRequest {
+  auto_approve_enabled?: boolean
+  auto_approve_threshold?: number
 }
 
 export const tasteApi = {
@@ -112,6 +153,18 @@ export const tasteApi = {
       method: 'POST',
     })
   },
+  getQuota: async (): Promise<TasteQuotaResponse> => {
+    return apiFetch<TasteQuotaResponse>('/api/v1/taste/quota')
+  },
+  getConfig: async (): Promise<TasteConfig> => {
+    return apiFetch<TasteConfig>('/api/v1/taste/config')
+  },
+  updateConfig: async (data: UpdateTasteConfigRequest): Promise<TasteConfig> => {
+    return apiFetch<TasteConfig>('/api/v1/taste/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
   getCandidates: async (params?: { status?: string; category?: string }): Promise<TasteCandidatesResponse> => {
     const search = new URLSearchParams()
     if (params?.status) search.set('status', params.status)
@@ -133,6 +186,11 @@ export const tasteApi = {
   },
   dismissCandidate: async (id: string): Promise<DismissCandidateResponse> => {
     return apiFetch<DismissCandidateResponse>(`/api/v1/taste/candidates/${encodeURIComponent(id)}/dismiss`, {
+      method: 'POST',
+    })
+  },
+  undoCandidate: async (id: string): Promise<UndoCandidateResponse> => {
+    return apiFetch<UndoCandidateResponse>(`/api/v1/taste/candidates/${encodeURIComponent(id)}/undo`, {
       method: 'POST',
     })
   },
