@@ -84,6 +84,7 @@ type Server struct {
 	taskAgentGrants        sync.Map
 	taskAgentURL           string
 	inboxCancels           sync.Map
+	messageGrounding       sync.Map
 	githubDeviceMu         sync.Mutex
 	githubDeviceJobs       map[string]*githubDeviceLogin
 	roomEventBroker        *RoomEventBroker

@@ -20,6 +20,10 @@ func (s *Server) registerTasteRoutes(r chi.Router) {
 	r.Delete("/taste/items/{id}", s.handleDeleteTasteItem)
 	r.Post("/taste/reset", s.handleResetTasteProfile)
 
+	// Grounding Metadata & Active Taste Context Injection (Sprint 46 S46-T2)
+	r.Get("/taste/grounding", s.handleGetActiveTasteGrounding)
+	r.Get("/taste/grounding/", s.handleGetActiveTasteGrounding)
+
 	// Quota Metrics & Configuration endpoints (Sprint 45 S45-T2)
 	r.Get("/taste/quota", s.handleGetTasteQuota)
 	r.Get("/taste/quota/", s.handleGetTasteQuota)

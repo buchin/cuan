@@ -624,7 +624,8 @@ func (s *Server) resetTasteProfile(owner string) (TasteProfile, error) {
 	return buildTasteProfile(items), nil
 }
 
-// formatBrandTastePrompt formats active Brand/Product Taste preferences for Chat prompt injection.
+// formatBrandTastePrompt formats active Brand/Product Taste preferences for Chat prompt injection
+// and captures active taste grounding metadata when a capture sink is present in the context.
 func (s *Server) formatBrandTastePrompt(ctx context.Context) string {
 	ownerID := ""
 	if owner := auth.GetOwnerFromContext(ctx); owner != nil {
@@ -634,6 +635,15 @@ func (s *Server) formatBrandTastePrompt(ctx context.Context) string {
 	if err != nil || len(profile.BrandItems) == 0 {
 		return ""
 	}
+
+	grounding := make([]GroundingTaste, 0, len(profile.BrandItems))
+	for _, item := range profile.BrandItems {
+		grounding = append(grounding, itemToGroundingTaste(item))
+	}
+	if sink, ok := ctx.Value(tasteGroundingCaptureKey{}).(*[]GroundingTaste); ok && sink != nil {
+		*sink = append(*sink, grounding...)
+	}
+
 	var b strings.Builder
 	b.WriteString("Brand & Product Taste (Preferences & Brand Guidelines):\n")
 	b.WriteString("The following user preferences and brand voice guidelines must guide your tone, messaging, and communication:\n")
@@ -652,7 +662,8 @@ func (s *Server) FormatBrandTastePrompt(ctx context.Context) string {
 	return s.formatBrandTastePrompt(ctx)
 }
 
-// formatTechnicalTastePrompt formats active Technical Taste preferences for Dev Terminal session.md runner injection.
+// formatTechnicalTastePrompt formats active Technical Taste preferences for Dev Terminal session.md runner injection
+// and captures active technical grounding metadata when a capture sink is present in the context.
 func (s *Server) formatTechnicalTastePrompt(ctx context.Context) string {
 	ownerID := ""
 	if owner := auth.GetOwnerFromContext(ctx); owner != nil {
@@ -662,6 +673,15 @@ func (s *Server) formatTechnicalTastePrompt(ctx context.Context) string {
 	if err != nil || len(profile.TechnicalItems) == 0 {
 		return ""
 	}
+
+	grounding := make([]GroundingTaste, 0, len(profile.TechnicalItems))
+	for _, item := range profile.TechnicalItems {
+		grounding = append(grounding, itemToGroundingTaste(item))
+	}
+	if sink, ok := ctx.Value(tasteGroundingCaptureKey{}).(*[]GroundingTaste); ok && sink != nil {
+		*sink = append(*sink, grounding...)
+	}
+
 	var b strings.Builder
 	b.WriteString("## Technical Taste & Conventions\n")
 	b.WriteString("Follow these technical standards, conventions, and operational rules during task execution:\n")

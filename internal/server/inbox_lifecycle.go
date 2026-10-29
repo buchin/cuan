@@ -346,6 +346,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							}
 							now := time.Now().UTC()
 							reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
+							s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
 						}
 					}
 				}

@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -1013,6 +1015,373 @@ func TestTaste_Candidate_Undo(t *testing.T) {
 	}
 	if !foundPending {
 		t.Errorf("undone candidate should appear in pending candidates list")
+	}
+}
+
+func TestTaste_GroundingMetadata_Capture(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, _ := setupTestChatServer(t)
+
+	// 1. FormatBrandTastePromptWithGrounding
+	ctx := context.Background()
+	prompt, grounding := srv.FormatBrandTastePromptWithGrounding(ctx)
+	if prompt == "" {
+		t.Fatalf("expected non-empty prompt")
+	}
+	if len(grounding) == 0 {
+		t.Fatalf("expected non-empty grounding tastes")
+	}
+
+	// Verify minimal model requirements: id, category, topic, summary/preview
+	for _, g := range grounding {
+		if g.ID == "" {
+			t.Errorf("grounding taste ID should not be empty")
+		}
+		if g.Category != string(TasteCategoryBrand) {
+			t.Errorf("expected brand category, got %s", g.Category)
+		}
+		if g.Topic == "" {
+			t.Errorf("grounding taste topic should not be empty")
+		}
+		if g.Summary == "" {
+			t.Errorf("grounding taste summary should not be empty")
+		}
+		if g.Preview == "" {
+			t.Errorf("grounding taste preview should not be empty")
+		}
+	}
+
+	// 2. formatBrandTastePrompt with context sink
+	var captured []GroundingTaste
+	sinkCtx := WithTasteGroundingCapture(ctx, &captured)
+	prompt2 := srv.formatBrandTastePrompt(sinkCtx)
+	if prompt2 != prompt {
+		t.Errorf("expected identical prompt output")
+	}
+	if len(captured) != len(grounding) {
+		t.Errorf("expected %d captured items, got %d", len(grounding), len(captured))
+	}
+}
+
+func TestTaste_GroundingMetadata_ContextLayering(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, _ := setupTestChatServer(t)
+
+	ctx := context.Background()
+
+	// 1. Brand grounding
+	brandTastes := srv.ActiveBrandGroundingTastes(ctx)
+	if len(brandTastes) == 0 {
+		t.Fatalf("expected active brand grounding tastes")
+	}
+	for _, b := range brandTastes {
+		if b.Category != "brand" {
+			t.Errorf("expected category brand, got %s", b.Category)
+		}
+	}
+
+	// 2. Technical grounding
+	techTastes := srv.ActiveTechnicalGroundingTastes(ctx)
+	if len(techTastes) == 0 {
+		t.Fatalf("expected active technical grounding tastes")
+	}
+	for _, te := range techTastes {
+		if te.Category != "technical" {
+			t.Errorf("expected category technical, got %s", te.Category)
+		}
+	}
+
+	// 3. Context layering: FormatTechnicalTastePromptWithGrounding only captures technical items
+	techPrompt, capturedTech := srv.FormatTechnicalTastePromptWithGrounding(ctx)
+	if techPrompt == "" {
+		t.Fatalf("expected non-empty tech prompt")
+	}
+	if len(capturedTech) != len(techTastes) {
+		t.Errorf("expected %d tech tastes, got %d", len(techTastes), len(capturedTech))
+	}
+	for _, ct := range capturedTech {
+		if ct.Category != "technical" {
+			t.Errorf("expected technical layer only, got %s", ct.Category)
+		}
+	}
+
+	// 4. Combined ActiveGroundingTastes preserves category separation
+	allTastes := srv.ActiveGroundingTastes(ctx)
+	if len(allTastes) != len(brandTastes)+len(techTastes) {
+		t.Errorf("expected total %d tastes, got %d", len(brandTastes)+len(techTastes), len(allTastes))
+	}
+}
+
+func TestTaste_GroundingDTO_Serialization_And_Omitempty(t *testing.T) {
+	// 1. Backward compatibility: when GroundingTastes is nil/empty, it is omitted from JSON
+	userMsg := ChatMessageDTO{
+		ID:         1,
+		UUID:       "user-msg-123",
+		AuthorType: "user",
+		AuthorName: "Owner",
+		Message:    "Halo",
+		Content:    "Halo",
+	}
+
+	rawUser, err := json.Marshal(userMsg)
+	if err != nil {
+		t.Fatalf("failed to marshal user message: %v", err)
+	}
+	if strings.Contains(string(rawUser), "grounding_tastes") {
+		t.Errorf("grounding_tastes must be omitted (omitempty) when empty, got: %s", string(rawUser))
+	}
+
+	// 2. When GroundingTastes is populated, it is serialized with full metadata
+	agentMsg := ChatMessageDTO{
+		ID:         2,
+		UUID:       "agent-msg-456",
+		AuthorType: "agent",
+		AuthorName: "Scrum Master",
+		Message:    "Siap membantu",
+		Content:    "Siap membantu",
+		GroundingTastes: []GroundingTaste{
+			{
+				ID:       "taste-1",
+				Category: "brand",
+				Topic:    "Tone of Voice",
+				Summary:  "Gunakan bahasa profesional dan ramah",
+				Preview:  "Gunakan bahasa profesional dan ramah",
+			},
+			{
+				ID:       "taste-2",
+				Category: "technical",
+				Topic:    "Tech Stack",
+				Summary:  "Default stack Go dan React",
+				Preview:  "Default stack Go dan React",
+			},
+		},
+	}
+
+	rawAgent, err := json.Marshal(agentMsg)
+	if err != nil {
+		t.Fatalf("failed to marshal agent message: %v", err)
+	}
+	if !strings.Contains(string(rawAgent), `"grounding_tastes"`) {
+		t.Fatalf("expected grounding_tastes field in JSON: %s", string(rawAgent))
+	}
+
+	// 3. Unmarshal and verify fields
+	var decoded ChatMessageDTO
+	if err := json.Unmarshal(rawAgent, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal agent message: %v", err)
+	}
+	if len(decoded.GroundingTastes) != 2 {
+		t.Fatalf("expected 2 grounding tastes, got %d", len(decoded.GroundingTastes))
+	}
+	if decoded.GroundingTastes[0].Category != "brand" || decoded.GroundingTastes[0].Topic != "Tone of Voice" {
+		t.Errorf("unexpected first grounding taste: %+v", decoded.GroundingTastes[0])
+	}
+	if decoded.GroundingTastes[1].Category != "technical" || decoded.GroundingTastes[1].Summary != "Default stack Go dan React" {
+		t.Errorf("unexpected second grounding taste: %+v", decoded.GroundingTastes[1])
+	}
+}
+
+func TestTaste_Grounding_SessionStudioInspection(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, _ := setupTestChatServer(t)
+
+	ctx := context.Background()
+	sessionID := "test-session-uuid-1234"
+
+	// 1. InspectActiveGroundingTastes helper
+	resp, err := srv.InspectActiveGroundingTastes(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("InspectActiveGroundingTastes failed: %v", err)
+	}
+	if resp.SessionID != sessionID {
+		t.Errorf("expected session ID %s, got %s", sessionID, resp.SessionID)
+	}
+	if len(resp.BrandTastes) == 0 {
+		t.Errorf("expected non-empty brand tastes")
+	}
+	if len(resp.TechnicalTastes) == 0 {
+		t.Errorf("expected non-empty technical tastes")
+	}
+	if resp.Total != len(resp.BrandTastes)+len(resp.TechnicalTastes) {
+		t.Errorf("expected total %d, got %d", len(resp.BrandTastes)+len(resp.TechnicalTastes), resp.Total)
+	}
+
+	// 2. GetActiveGroundingTastesForSession helper
+	allSessionTastes, err := srv.GetActiveGroundingTastesForSession(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetActiveGroundingTastesForSession failed: %v", err)
+	}
+	if len(allSessionTastes) != resp.Total {
+		t.Errorf("expected %d tastes, got %d", resp.Total, len(allSessionTastes))
+	}
+
+	// 3. RecordMessageGrounding and GetMessageGrounding
+	msgID := "msg-test-recording-999"
+	customGrounding := []GroundingTaste{
+		{
+			ID:       "custom-1",
+			Category: "brand",
+			Topic:    "Solutif",
+			Summary:  "Ringkas dan fokus hasil",
+			Preview:  "Ringkas dan fokus hasil",
+		},
+	}
+	srv.RecordMessageGrounding(msgID, customGrounding)
+
+	stored, found := srv.GetMessageGrounding(msgID)
+	if !found || len(stored) != 1 || stored[0].ID != "custom-1" {
+		t.Errorf("failed to retrieve recorded message grounding: found=%v, stored=%+v", found, stored)
+	}
+
+	// 4. getFormattedMessagesResult enrichment
+	roomID := db.GenerateUUID()
+	_ = srv.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Title:     "Inspection Room",
+		Topic:     "general",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	})
+
+	_ = srv.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomID,
+		AuthorType: "user",
+		AuthorName: "Owner",
+		Content:    "Permintaan bantuan",
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	})
+
+	_ = srv.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomID,
+		AuthorType: "agent",
+		AuthorName: "Scrum Master",
+		Content:    "Tentu, ini hasil analisisnya.",
+		CreatedAt:  time.Now().UTC().Add(time.Second),
+		UpdatedAt:  time.Now().UTC().Add(time.Second),
+	})
+
+	messages, err := srv.getFormattedMessagesResult(ctx, roomID, "")
+	if err != nil {
+		t.Fatalf("getFormattedMessagesResult failed: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(messages))
+	}
+
+	// User message: no grounding tastes
+	if len(messages[0].GroundingTastes) != 0 {
+		t.Errorf("user message should not have grounding tastes, got %d", len(messages[0].GroundingTastes))
+	}
+
+	// Agent message: automatically enriched with brand grounding tastes
+	if len(messages[1].GroundingTastes) == 0 {
+		t.Errorf("agent message should have active grounding tastes populated")
+	}
+}
+
+func TestTaste_Grounding_API_Endpoints(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, token := setupTestChatServer(t)
+
+	// 1. Unauthenticated -> 401 Unauthorized
+	reqUnauth := httptest.NewRequest(http.MethodGet, "/api/v1/taste/grounding", nil)
+	recUnauth := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recUnauth, reqUnauth)
+	if recUnauth.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for unauthenticated grounding request, got %d", recUnauth.Code)
+	}
+
+	// 2. Authenticated GET /api/v1/taste/grounding
+	reqAuth := httptest.NewRequest(http.MethodGet, "/api/v1/taste/grounding", nil)
+	reqAuth.Header.Set("Authorization", "Bearer "+token)
+	recAuth := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recAuth, reqAuth)
+	if recAuth.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", recAuth.Code, recAuth.Body.String())
+	}
+
+	var resp SessionGroundingTastesResponse
+	if err := json.Unmarshal(recAuth.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.BrandTastes) == 0 || len(resp.TechnicalTastes) == 0 {
+		t.Errorf("expected brand and technical grounding tastes: %+v", resp)
+	}
+
+	// 3. Filter category=brand
+	reqBrand := httptest.NewRequest(http.MethodGet, "/api/v1/taste/grounding?category=brand", nil)
+	reqBrand.Header.Set("Authorization", "Bearer "+token)
+	recBrand := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recBrand, reqBrand)
+	if recBrand.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for brand filter, got %d", recBrand.Code)
+	}
+	var brandResp struct {
+		GroundingTastes []GroundingTaste `json:"grounding_tastes"`
+		Total           int              `json:"total"`
+	}
+	_ = json.Unmarshal(recBrand.Body.Bytes(), &brandResp)
+	if len(brandResp.GroundingTastes) == 0 {
+		t.Errorf("expected brand tastes, got 0")
+	}
+	for _, bt := range brandResp.GroundingTastes {
+		if bt.Category != "brand" {
+			t.Errorf("expected category brand, got %s", bt.Category)
+		}
+	}
+
+	// 4. Filter category=technical
+	reqTech := httptest.NewRequest(http.MethodGet, "/api/v1/taste/grounding?category=technical", nil)
+	reqTech.Header.Set("Authorization", "Bearer "+token)
+	recTech := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recTech, reqTech)
+	if recTech.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for technical filter, got %d", recTech.Code)
+	}
+	var techResp struct {
+		GroundingTastes []GroundingTaste `json:"grounding_tastes"`
+		Total           int              `json:"total"`
+	}
+	_ = json.Unmarshal(recTech.Body.Bytes(), &techResp)
+	if len(techResp.GroundingTastes) == 0 {
+		t.Errorf("expected technical tastes, got 0")
+	}
+	for _, tt := range techResp.GroundingTastes {
+		if tt.Category != "technical" {
+			t.Errorf("expected category technical, got %s", tt.Category)
+		}
+	}
+
+	// 5. Query with session_id: GET /api/v1/taste/grounding?session_id=sess-123
+	reqSess := httptest.NewRequest(http.MethodGet, "/api/v1/taste/grounding?session_id=sess-123", nil)
+	reqSess.Header.Set("Authorization", "Bearer "+token)
+	recSess := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recSess, reqSess)
+	if recSess.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for session query, got %d", recSess.Code)
+	}
+	var sessResp SessionGroundingTastesResponse
+	_ = json.Unmarshal(recSess.Body.Bytes(), &sessResp)
+	if sessResp.SessionID != "sess-123" {
+		t.Errorf("expected session_id sess-123, got %s", sessResp.SessionID)
+	}
+
+	// 6. Direct conversation route: GET /api/v1/chat/conversations/{id}/grounding
+	reqConv := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/conv-abc-999/grounding", nil)
+	reqConv.Header.Set("Authorization", "Bearer "+token)
+	recConv := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recConv, reqConv)
+	if recConv.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for conversation grounding route, got %d: %s", recConv.Code, recConv.Body.String())
+	}
+	var convResp SessionGroundingTastesResponse
+	_ = json.Unmarshal(recConv.Body.Bytes(), &convResp)
+	if convResp.SessionID != "conv-abc-999" {
+		t.Errorf("expected session_id conv-abc-999, got %s", convResp.SessionID)
 	}
 }
 

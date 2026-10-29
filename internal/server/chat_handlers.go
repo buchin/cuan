@@ -93,6 +93,7 @@ type ChatMessageDTO struct {
 	MentionHandle      string                   `json:"mention_handle,omitempty"`
 	ReplyDraft         string                   `json:"reply_draft,omitempty"`
 	CreatedAt          time.Time                `json:"created_at"`
+	GroundingTastes    []GroundingTaste         `json:"grounding_tastes,omitempty"`
 }
 
 // LiveChatSession stores visitor session metadata for the Dojo live chat widget.
@@ -1803,6 +1804,15 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			hasAtt = true
 		}
 
+		var groundingTastes []GroundingTaste
+		if m.AuthorType == "agent" {
+			if recorded, ok := s.GetMessageGrounding(m.ID); ok && len(recorded) > 0 {
+				groundingTastes = recorded
+			} else {
+				groundingTastes = s.activeBrandGroundingTastesForRoom(ctx, roomID)
+			}
+		}
+
 		dtos = append(dtos, ChatMessageDTO{
 			ID:                int64(len(dtos) + 1), // Monotonic numeric ID for Dojo widget
 			UUID:              m.ID,
@@ -1838,6 +1848,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			ApprovalPlan:    approvalPlan,
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
+			GroundingTastes:  groundingTastes,
 		})
 	}
 
