@@ -140,7 +140,7 @@ export function SettingsView({
 
       {/* Detail Content (Kanan) - flex-1 min-w-0 max-w-4xl */}
       <main
-        className={`flex-1 min-w-0 overflow-y-auto p-4 md:p-6 lg:p-8 ${
+        className={`flex-1 min-w-0 overflow-y-auto p-4 md:p-6 ${
           !hasExplicitSection ? 'hidden md:block' : 'block'
         }`}
       >
@@ -148,11 +148,19 @@ export function SettingsView({
           {/* Mobile Back Button to return to categorized master menu */}
           <div className="md:hidden">
             <Link
-              to={isAccount ? '/account' : '/settings'}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              to={
+                location.search
+                  ? `${isAccount ? '/account' : '/settings'}${location.search}`
+                  : isAccount
+                    ? '/account'
+                    : '/settings'
+              }
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
             >
               <ChevronLeft className="h-4 w-4 shrink-0" />
-              <span>{t('← Back to Settings')}</span>
+              <span>
+                {isAccount ? t('← Back to Account') : t('← Back to Settings')}
+              </span>
             </Link>
           </div>
 

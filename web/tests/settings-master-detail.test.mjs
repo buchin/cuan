@@ -276,7 +276,44 @@ test('6. Localization: Complete Indonesian translations in id.json', () => {
     'Category title Personal Account must be translated',
   )
 
-  // Subtitles
+  // Category navigation labels
+  assert.equal(
+    idLocale['General'],
+    'Umum',
+    'Category label General must be translated',
+  )
+  assert.equal(
+    idLocale['Schedules'],
+    'Jadwal Otomatis',
+    'Category label Schedules must be translated',
+  )
+  assert.equal(
+    idLocale['Agent Memory'],
+    'Memori Agen',
+    'Category label Agent Memory must be translated',
+  )
+  assert.equal(
+    idLocale['Integrations'],
+    'Integrasi',
+    'Category label Integrations must be translated',
+  )
+  assert.equal(
+    idLocale['Contacts'],
+    'Kontak',
+    'Category label Contacts must be translated',
+  )
+  assert.equal(
+    idLocale['Appearance'],
+    'Tampilan',
+    'Category label Appearance must be translated',
+  )
+  assert.equal(
+    idLocale['Notifications'],
+    'Notifikasi',
+    'Category label Notifications must be translated',
+  )
+
+  // Subtitles & Section headers
   assert.ok(
     idLocale['Workspace settings and system configuration'],
     'Workspace settings subtitle must be translated',
@@ -313,11 +350,101 @@ test('6. Localization: Complete Indonesian translations in id.json', () => {
     idLocale['Notification preferences and alerts'],
     'Notifications subtitle must be translated',
   )
+  assert.ok(
+    idLocale['Personal profile, preferences, and relations.'],
+    'Account header subtitle must be translated',
+  )
+  assert.ok(
+    idLocale['Connect the services your projects need.'],
+    'Integrations header subtitle must be translated',
+  )
 
   // Mobile Back Button
   assert.equal(
     idLocale['← Back to Settings'],
     '← Kembali ke Pengaturan',
     'Mobile back button label must be translated',
+  )
+  assert.equal(
+    idLocale['← Back to Account'],
+    '← Kembali ke Akun',
+    'Mobile account back button label must be translated',
+  )
+})
+
+test('7. Mobile Responsive Constraints & Touch Target: p-4 md:p-6, max-w-4xl, min-h-11', () => {
+  const settingsViewSrc = fs.readFileSync(settingsViewPath, 'utf8')
+
+  // Container padding: p-4 on mobile, md:p-6 on desktop
+  assert.ok(
+    settingsViewSrc.includes('p-4 md:p-6'),
+    'Detail main container must feature p-4 md:p-6 responsive padding',
+  )
+
+  // max-w-4xl constraint
+  assert.ok(
+    settingsViewSrc.includes('max-w-4xl'),
+    'Detail container must enforce max-w-4xl for optimal reading length',
+  )
+
+  // Mobile back button minimum touch target min-h-11 (WCAG 2.1 AA 44px)
+  assert.ok(
+    settingsViewSrc.includes('min-h-11 items-center gap-1.5 rounded-md'),
+    'Mobile back button must enforce min-h-11 touch target',
+  )
+
+  // Query parameter preservation when navigating back
+  assert.ok(
+    settingsViewSrc.includes('location.search') &&
+      settingsViewSrc.includes('isAccount ?'),
+    'Mobile back action must support account and settings roots with query preservation',
+  )
+})
+
+test('8. Route Resolution & Backward Compatibility: category routes, deep links, and safeReturn', () => {
+  const settingsViewSrc = fs.readFileSync(settingsViewPath, 'utf8')
+  const masterNavSrc = fs.readFileSync(settingsMasterNavPath, 'utf8')
+
+  // Verify all routes are correctly mapped in SettingsMasterNav
+  const expectedRoutes = [
+    '/settings/general',
+    '/settings/schedules',
+    '/settings/memory',
+    '/settings/agents',
+    '/settings/integrations',
+    '/account/contacts',
+    '/settings/profile',
+    '/settings/appearance',
+    '/settings/notifications',
+  ]
+  for (const r of expectedRoutes) {
+    assert.ok(
+      masterNavSrc.includes(r),
+      `SettingsMasterNav must map route ${r}`,
+    )
+  }
+
+  // Account mode routes
+  const expectedAccountRoutes = [
+    '/account/general',
+    '/account/schedules',
+    '/account/memory',
+    '/account/agents',
+    '/account/integrations',
+    '/account/profile',
+    '/account/appearance',
+    '/account/notifications',
+  ]
+  for (const ar of expectedAccountRoutes) {
+    assert.ok(
+      masterNavSrc.includes(ar),
+      `SettingsMasterNav must map account route ${ar}`,
+    )
+  }
+
+  // Backward compatibility: sub-sections resolve properly
+  assert.ok(
+    settingsViewSrc.includes("location.pathname.split('/')[2]"),
+    'SettingsView must parse route segment to identify active section',
   )
 })

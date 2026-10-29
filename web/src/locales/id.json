@@ -1128,8 +1128,13 @@
   "Personal profile, password, and security": "Profil personal, kata sandi, dan keamanan",
   "Theme modes, interface language, and display": "Tema terang/gelap dan bahasa antarmuka",
   "Notification preferences and alerts": "Preferensi dan peringatan pemberitahuan",
+  "Schedules": "Jadwal Otomatis",
+  "Personal profile, preferences, and relations.": "Profil personal, preferensi, dan relasi kontak.",
+  "Connect the services your projects need.": "Sambungkan layanan luar yang dibutuhkan proyek Anda.",
   "← Back to Settings": "← Kembali ke Pengaturan",
   "Back to Settings": "Kembali ke Pengaturan",
+  "← Back to Account": "← Kembali ke Akun",
+  "Back to Account": "Kembali ke Akun",
   "Settings navigation": "Navigasi pengaturan",
   "Manage your workspace, AI intelligence, and personal account.": "Kelola ruang kerja, kecerdasan AI, dan akun personal Anda."
 }
