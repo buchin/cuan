@@ -9,10 +9,15 @@ import {
   Check,
   AlertCircle,
   RefreshCw,
+  Eye,
+  FileText,
+  Star,
+  Info,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import {
   agentsApi,
+  isModelVisionCapable,
   type Agent,
   type AgentModelConfig,
   type ModelInfo,
@@ -63,12 +68,15 @@ export function EditAgentModal({
   const modalRef = useRef<HTMLDivElement>(null)
 
   const [loadingConfig, setLoadingConfig] = useState(false)
+  const [refreshingCatalog, setRefreshingCatalog] = useState(false)
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Form State
   const [modelId, setModelId] = useState<string>(agent.model_id || 'gemini-1.5-pro')
   const [fallbackModelId, setFallbackModelId] = useState<string>(agent.fallback_model_id || '')
+  const [isCustomPrimary, setIsCustomPrimary] = useState(false)
+  const [isCustomFallback, setIsCustomFallback] = useState(false)
   const [temperature, setTemperature] = useState<number>(agent.temperature ?? 0.7)
   const [tokenBudget, setTokenBudget] = useState<string>(
     agent.token_budget !== undefined && agent.token_budget !== null ? String(agent.token_budget) : '8192'
@@ -84,9 +92,11 @@ export function EditAgentModal({
 
     setFeedback(null)
     setLoadingConfig(true)
+    setIsCustomPrimary(false)
+    setIsCustomFallback(false)
 
     agentsApi
-      .getModelConfig(agent.id)
+      .getModelConfig(agent.id, false)
       .then((cfg: AgentModelConfig) => {
         if (!active) return
         if (cfg.model_id) setModelId(cfg.model_id)
@@ -97,11 +107,25 @@ export function EditAgentModal({
         if (cfg.role) setRole(cfg.role)
         if (cfg.supported_models && cfg.supported_models.length > 0) {
           setSupportedModels(cfg.supported_models)
+        } else {
+          // If supported_models was empty, fetch provider catalog
+          agentsApi
+            .listModels(agent.provider || 'google', false)
+            .then((list) => {
+              if (active && list.length > 0) setSupportedModels(list)
+            })
+            .catch(() => {})
         }
       })
       .catch(() => {
-        // Fallback to agent initial props
+        // Fallback to provider catalog query if model-config endpoint fails
         if (!active) return
+        agentsApi
+          .listModels(agent.provider || 'google', false)
+          .then((list) => {
+            if (active && list.length > 0) setSupportedModels(list)
+          })
+          .catch(() => {})
       })
       .finally(() => {
         if (active) setLoadingConfig(false)
@@ -110,7 +134,7 @@ export function EditAgentModal({
     return () => {
       active = false
     }
-  }, [agent.id, open])
+  }, [agent.id, agent.provider, open])
 
   // Keyboard navigation & accessibility focus trap
   useEffect(() => {
@@ -152,6 +176,32 @@ export function EditAgentModal({
 
   const handleApplyTemperaturePreset = (value: number) => {
     setTemperature(value)
+  }
+
+  const handleRefreshCatalog = async () => {
+    if (refreshingCatalog || saving) return
+    setRefreshingCatalog(true)
+    setFeedback(null)
+    try {
+      const cfg = await agentsApi.getModelConfig(agent.id, true)
+      if (cfg.supported_models && cfg.supported_models.length > 0) {
+        setSupportedModels(cfg.supported_models)
+      } else {
+        const list = await agentsApi.listModels(agent.provider || 'google', true)
+        if (list && list.length > 0) {
+          setSupportedModels(list)
+        }
+      }
+      setFeedback({
+        type: 'success',
+        message: t('Model catalog refreshed successfully'),
+      })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t('Failed to refresh model catalog')
+      setFeedback({ type: 'error', message: msg })
+    } finally {
+      setRefreshingCatalog(false)
+    }
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -220,11 +270,52 @@ export function EditAgentModal({
     }
   }
 
-  const effectiveModels = supportedModels.length > 0 ? supportedModels : [
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', display_name: 'Gemini 1.5 Pro' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', display_name: 'Gemini 1.5 Flash' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', display_name: 'Gemini 2.0 Flash' },
-  ]
+  // Dynamic Catalog Models without static hardcoded options
+  const catalogModels = [...supportedModels]
+  // Preserve existing model if not in fetched catalog (100% backward compatibility)
+  if (modelId && !isCustomPrimary && !catalogModels.some((m) => m.id === modelId)) {
+    catalogModels.push({
+      id: modelId,
+      name: modelId,
+      display_name: `${modelId} (${t('Preserved')})`,
+      preserved: true,
+      supports_vision: isModelVisionCapable(modelId, agent.provider),
+    })
+  }
+  if (
+    fallbackModelId &&
+    !isCustomFallback &&
+    fallbackModelId !== modelId &&
+    !catalogModels.some((m) => m.id === fallbackModelId)
+  ) {
+    catalogModels.push({
+      id: fallbackModelId,
+      name: fallbackModelId,
+      display_name: `${fallbackModelId} (${t('Preserved')})`,
+      preserved: true,
+      supports_vision: isModelVisionCapable(fallbackModelId, agent.provider),
+    })
+  }
+
+  const activeModel =
+    catalogModels.find((m) => m.id === modelId) ||
+    (modelId
+      ? {
+          id: modelId,
+          name: modelId,
+          display_name: modelId,
+          supports_vision: isModelVisionCapable(modelId, agent.provider),
+        }
+      : null)
+
+  const activeFallbackModel = fallbackModelId
+    ? catalogModels.find((m) => m.id === fallbackModelId) || {
+        id: fallbackModelId,
+        name: fallbackModelId,
+        display_name: fallbackModelId,
+        supports_vision: isModelVisionCapable(fallbackModelId, agent.provider),
+      }
+    : null
 
   return (
     <div
@@ -297,32 +388,149 @@ export function EditAgentModal({
 
           {/* Section 1: AI Model & Fallback Routing */}
           <div className="space-y-4 rounded-lg border border-border/60 bg-muted/30 p-4">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <Cpu className="h-4 w-4 text-primary" />
-              <span>{t('Model & Failover Configuration')}</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Cpu className="h-4 w-4 text-primary" />
+                <span>{t('Model & Failover Configuration')}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleRefreshCatalog}
+                disabled={refreshingCatalog || saving}
+                className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 rounded-md border border-border/60 bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98] transition-colors disabled:opacity-50"
+                title={t('Refresh model catalog from provider')}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-primary ${refreshingCatalog ? 'animate-spin' : ''}`} />
+                <span>{refreshingCatalog ? t('Refreshing...') : t('Refresh Catalog')}</span>
+              </button>
             </div>
 
             {/* Primary Model */}
             <div className="space-y-1.5">
-              <label htmlFor="agent-primary-model" className="block text-xs font-medium text-foreground">
-                {t('Primary AI Model')} <span className="text-destructive">*</span>
-              </label>
-              <select
-                id="agent-primary-model"
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                disabled={saving}
-                className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
-              >
-                {effectiveModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.display_name || m.name || m.id} {m.is_default ? `(${t('Default')})` : ''}
-                  </option>
-                ))}
-                {!effectiveModels.some((m) => m.id === modelId) && (
-                  <option value={modelId}>{modelId} ({t('Custom')})</option>
+              <div className="flex items-center justify-between">
+                <label htmlFor="agent-primary-model" className="block text-xs font-medium text-foreground">
+                  {t('Primary AI Model')} <span className="text-destructive">*</span>
+                </label>
+                {isCustomPrimary && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomPrimary(false)
+                      if (catalogModels.length > 0) {
+                        setModelId(catalogModels[0].id)
+                      }
+                    }}
+                    className="text-[11px] text-primary hover:underline font-medium"
+                  >
+                    {t('Use catalog model')}
+                  </button>
                 )}
-              </select>
+              </div>
+
+              {!isCustomPrimary ? (
+                <select
+                  id="agent-primary-model"
+                  value={modelId}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom_entry__') {
+                      setIsCustomPrimary(true)
+                    } else {
+                      setModelId(e.target.value)
+                    }
+                  }}
+                  disabled={saving || loadingConfig}
+                  className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+                >
+                  {loadingConfig && catalogModels.length === 0 ? (
+                    <option value="" disabled>{t('Loading models catalog...')}</option>
+                  ) : catalogModels.length === 0 ? (
+                    <option value="" disabled>{t('No models found. Click Refresh Catalog to reload.')}</option>
+                  ) : (
+                    catalogModels.map((m) => {
+                      const isVision = isModelVisionCapable(m.id, agent.provider, m)
+                      const capLabel = isVision ? t('Vision') : t('Text-only')
+                      const defLabel = m.is_default ? ` [${t('Default')}]` : ''
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {m.display_name || m.name || m.id} [{capLabel}]{defLabel}
+                        </option>
+                      )
+                    })
+                  )}
+                  <option value="__custom_entry__">
+                    ✨ -- {t('Custom Model ID / Manual Entry')} --
+                  </option>
+                </select>
+              ) : (
+                <div className="space-y-1.5 animate-in fade-in duration-150">
+                  <input
+                    id="agent-custom-primary-model"
+                    type="text"
+                    value={modelId}
+                    onChange={(e) => setModelId(e.target.value)}
+                    placeholder={t('e.g. gpt-4o, claude-3-5-sonnet-20241022, mistral-large-latest')}
+                    disabled={saving}
+                    className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('Enter a custom AI model identifier supported by your provider.')}
+                  </p>
+                </div>
+              )}
+
+              {/* Active Model Capabilities Badge Card */}
+              {activeModel && (
+                <div className="mt-2 p-2.5 rounded-lg border border-border/50 bg-background/60 space-y-1.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-semibold text-foreground">{activeModel.display_name || activeModel.name || activeModel.id}</span>
+                    {isModelVisionCapable(activeModel.id, agent.provider, activeModel) ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <Eye className="h-3 w-3" />
+                        <span>{t('Vision')}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                        <FileText className="h-3 w-3" />
+                        <span>{t('Text-only')}</span>
+                      </span>
+                    )}
+                    {activeModel.is_default && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+                        <Star className="h-3 w-3" />
+                        <span>{t('Default')}</span>
+                      </span>
+                    )}
+                    {isCustomPrimary && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        <span>{t('Custom')}</span>
+                      </span>
+                    )}
+                  </div>
+                  {activeModel.description && (
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      {activeModel.description}
+                    </p>
+                  )}
+                  <p className={`text-[11px] font-medium flex items-center gap-1.5 ${
+                    isModelVisionCapable(activeModel.id, agent.provider, activeModel)
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-muted-foreground'
+                  }`}>
+                    {isModelVisionCapable(activeModel.id, agent.provider, activeModel) ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 shrink-0" />
+                        <span>{t('Supports image and document analysis (receipts, transfer proof, menus, etc.)')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Info className="h-3.5 w-3.5 shrink-0" />
+                        <span>{t('Text processing only (no image analysis)')}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+
               <p className="text-[11px] text-muted-foreground">
                 {t('Default primary model utilized by this agent for tasks and chat generation.')}
               </p>
@@ -334,32 +542,99 @@ export function EditAgentModal({
                 <label htmlFor="agent-fallback-model" className="block text-xs font-medium text-foreground">
                   {t('Fallback Model (Auto-Routing)')}
                 </label>
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                  {t('High Availability')}
-                </span>
-              </div>
-              <select
-                id="agent-fallback-model"
-                value={fallbackModelId}
-                onChange={(e) => setFallbackModelId(e.target.value)}
-                disabled={saving}
-                className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
-              >
-                <option value="">{t('No fallback model (disable auto-routing)')}</option>
-                {effectiveModels
-                  .filter((m) => m.id !== modelId)
-                  .map((m) => (
-                    <option key={`fallback-${m.id}`} value={m.id}>
-                      {m.display_name || m.name || m.id}
-                    </option>
-                  ))}
-                {fallbackModelId &&
-                  fallbackModelId !== modelId &&
-                  !effectiveModels.some((m) => m.id === fallbackModelId) && (
-                    <option value={fallbackModelId}>{fallbackModelId} ({t('Custom')})</option>
+                <div className="flex items-center gap-2">
+                  {isCustomFallback && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomFallback(false)
+                        setFallbackModelId('')
+                      }}
+                      className="text-[11px] text-primary hover:underline font-medium"
+                    >
+                      {t('Use catalog model')}
+                    </button>
                   )}
-              </select>
+                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                    {t('High Availability')}
+                  </span>
+                </div>
+              </div>
+
+              {!isCustomFallback ? (
+                <select
+                  id="agent-fallback-model"
+                  value={fallbackModelId}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom_fallback__') {
+                      setIsCustomFallback(true)
+                    } else {
+                      setFallbackModelId(e.target.value)
+                    }
+                  }}
+                  disabled={saving || loadingConfig}
+                  className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+                >
+                  <option value="">{t('No fallback model (disable auto-routing)')}</option>
+                  {catalogModels
+                    .filter((m) => m.id !== modelId)
+                    .map((m) => {
+                      const isVision = isModelVisionCapable(m.id, agent.provider, m)
+                      const capLabel = isVision ? t('Vision') : t('Text-only')
+                      const defLabel = m.is_default ? ` [${t('Default')}]` : ''
+                      return (
+                        <option key={`fallback-${m.id}`} value={m.id}>
+                          {m.display_name || m.name || m.id} [{capLabel}]{defLabel}
+                        </option>
+                      )
+                    })}
+                  <option value="__custom_fallback__">
+                    ✨ -- {t('Custom Fallback Model ID / Manual Entry')} --
+                  </option>
+                </select>
+              ) : (
+                <div className="space-y-1.5 animate-in fade-in duration-150">
+                  <input
+                    id="agent-custom-fallback-model"
+                    type="text"
+                    value={fallbackModelId}
+                    onChange={(e) => setFallbackModelId(e.target.value)}
+                    placeholder={t('e.g. gemini-1.5-flash, claude-3-haiku-20240307')}
+                    disabled={saving}
+                    className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+                  />
+                </div>
+              )}
+
+              {/* Active Fallback Model Details and Smart Guidance */}
+              {activeFallbackModel && (
+                <div className="mt-2 p-2.5 rounded-lg border border-border/50 bg-background/60 space-y-1.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-semibold text-foreground">{activeFallbackModel.display_name || activeFallbackModel.name || activeFallbackModel.id}</span>
+                    {isModelVisionCapable(activeFallbackModel.id, agent.provider, activeFallbackModel) ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <Eye className="h-3 w-3" />
+                        <span>{t('Vision')}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                        <FileText className="h-3 w-3" />
+                        <span>{t('Text-only')}</span>
+                      </span>
+                    )}
+                  </div>
+                  {/* Smart Fallback Advice */}
+                  {isModelVisionCapable(modelId, agent.provider, activeModel) &&
+                    !isModelVisionCapable(activeFallbackModel.id, agent.provider, activeFallbackModel) && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium leading-normal flex items-start gap-1 mt-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>{t('Recommendation: Choose a Vision-capable fallback model so your agent can continue processing receipts/images during failover.')}</span>
+                      </p>
+                    )}
+                </div>
+              )}
+
               <p className="text-[11px] text-muted-foreground">
                 {t('Automatically routes queries to this model if the primary model encounters rate limits or quota errors.')}
               </p>

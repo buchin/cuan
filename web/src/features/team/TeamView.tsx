@@ -12,6 +12,8 @@ import {
   AlertCircle,
   Key,
   Pencil,
+  Eye,
+  FileText,
 } from 'lucide-react'
 import { connectionStatus } from '../agents/connection'
 import {
@@ -183,8 +185,29 @@ export function TeamView({
   const [commandcodeMode, setCommandcodeMode] = useState<'subscription' | 'byok'>('byok')
   const [commandcodeModel, setCommandcodeModel] = useState('commandcode-default')
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
+  const [refreshingModels, setRefreshingModels] = useState(false)
+  const [isCustomCommandcodeModel, setIsCustomCommandcodeModel] = useState(false)
   const [byokKey, setByokKey] = useState('')
   const [subscriptionKey, setSubscriptionKey] = useState('')
+
+  const loadModels = useCallback(async (p: string, refresh = false) => {
+    setRefreshingModels(true)
+    try {
+      const list = await agentsApi.listModels(p, refresh)
+      setAvailableModels(list)
+      if (list.length > 0 && !isCustomCommandcodeModel) {
+        setCommandcodeModel((curr) => {
+          if (curr && curr !== 'commandcode-default' && list.some((m) => m.id === curr)) return curr
+          const def = list.find((m) => m.is_default) || list[0]
+          return def ? def.id : curr
+        })
+      }
+    } catch {
+      // retain existing
+    } finally {
+      setRefreshingModels(false)
+    }
+  }, [isCustomCommandcodeModel])
   // Expire visible success even when this roster stays open or resumes from sleep.
   useEffect(() => {
     const update = () => setNow(Date.now())
@@ -293,9 +316,10 @@ export function TeamView({
     setProvider('agy')
     setCommandcodeMode('byok')
     setCommandcodeModel('commandcode-default')
+    setIsCustomCommandcodeModel(false)
     setByokKey('')
     setSubscriptionKey('')
-    agentsApi.listModels('commandcode').then(setAvailableModels).catch(() => {})
+    void loadModels('commandcode', false)
     setStep(connectionOnly ? 'google' : 'name')
     setOpen(true)
     setAuth(null)
@@ -902,12 +926,32 @@ export function TeamView({
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
                       <span className="text-muted-foreground">Model:</span>
                       <span className="font-semibold text-foreground">{a.model_id}</span>
+                      {isModelVisionCapable(a.model_id, a.provider) ? (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          <Eye className="h-2.5 w-2.5" />
+                          <span>Vision</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                          <span>Text</span>
+                        </span>
+                      )}
                     </span>
                   )}
                   {a.fallback_model_id && (
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
                       <span className="text-muted-foreground">Fallback:</span>
                       <span className="font-semibold text-foreground">{a.fallback_model_id}</span>
+                      {isModelVisionCapable(a.fallback_model_id, a.provider) ? (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          <Eye className="h-2.5 w-2.5" />
+                          <span>Vision</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                          <span>Text</span>
+                        </span>
+                      )}
                     </span>
                   )}
                   {(a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at) && (
@@ -1418,43 +1462,104 @@ export function TeamView({
                         )}
                         {provider === 'commandcode' && (commandcodeMode === 'byok' || !!auth?.authenticated || !!auth?.verified) && (
                           <div className="mt-3">
-                            <label
-                              htmlFor="commandcode-model"
-                              className="text-sm font-medium"
-                            >
-                              Model
-                            </label>
-                            <select
-                              id="commandcode-model"
-                              value={commandcodeModel}
-                              onChange={(e) => setCommandcodeModel(e.target.value)}
-                              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-                            >
-                              {availableModels.length > 0 ? (
-                                availableModels.map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.display_name || m.name} ({m.supports_vision ? 'Vision' : 'Text-only'})
-                                  </option>
-                                ))
+                            <div className="flex items-center justify-between">
+                              <label
+                                htmlFor="commandcode-model"
+                                className="text-sm font-medium"
+                              >
+                                {t('Model')}
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => void loadModels(provider, true)}
+                                disabled={refreshingModels || busy}
+                                className="inline-flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
+                                title={t('Refresh model catalog from provider')}
+                              >
+                                <RefreshCw className={`h-3 w-3 ${refreshingModels ? 'animate-spin' : ''}`} />
+                                <span>{refreshingModels ? t('Refreshing...') : t('Refresh Catalog')}</span>
+                              </button>
+                            </div>
+
+                            {!isCustomCommandcodeModel ? (
+                              <select
+                                id="commandcode-model"
+                                value={commandcodeModel}
+                                onChange={(e) => {
+                                  if (e.target.value === '__custom_entry__') {
+                                    setIsCustomCommandcodeModel(true)
+                                  } else {
+                                    setCommandcodeModel(e.target.value)
+                                  }
+                                }}
+                                disabled={busy || refreshingModels}
+                                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                              >
+                                {refreshingModels && availableModels.length === 0 ? (
+                                  <option value="" disabled>{t('Loading models catalog...')}</option>
+                                ) : availableModels.length === 0 ? (
+                                  <option value="" disabled>{t('No models found. Click Refresh Catalog to reload.')}</option>
+                                ) : (
+                                  availableModels.map((m) => {
+                                    const isVision = isModelVisionCapable(m.id, provider, m)
+                                    const capBadge = isVision ? t('Vision') : t('Text-only')
+                                    const defBadge = m.is_default ? ` [${t('Default')}]` : ''
+                                    return (
+                                      <option key={m.id} value={m.id}>
+                                        {m.display_name || m.name || m.id} ({capBadge}){defBadge}
+                                      </option>
+                                    )
+                                  })
+                                )}
+                                <option value="__custom_entry__">✨ -- {t('Custom Model ID / Manual Entry')} --</option>
+                              </select>
+                            ) : (
+                              <div className="mt-2 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-muted-foreground">{t('Custom Model ID')}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsCustomCommandcodeModel(false)
+                                      if (availableModels.length > 0) {
+                                        setCommandcodeModel(availableModels[0].id)
+                                      }
+                                    }}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    {t('Use catalog model')}
+                                  </button>
+                                </div>
+                                <input
+                                  id="custom-commandcode-model"
+                                  type="text"
+                                  value={commandcodeModel}
+                                  onChange={(e) => setCommandcodeModel(e.target.value)}
+                                  placeholder="e.g. custom-model-id, claude-3-5-sonnet-20241022"
+                                  disabled={busy}
+                                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                                />
+                              </div>
+                            )}
+
+                            {/* Capability Badge and Guidance */}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {isModelVisionCapable(commandcodeModel, provider, availableModels.find((m) => m.id === commandcodeModel)) ? (
+                                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  <Eye className="h-3 w-3" />
+                                  <span>Vision ({t('Supports image and document analysis')})</span>
+                                </span>
                               ) : (
-                                <>
-                                  <option value="commandcode-default">CommandCode Default (Text-only)</option>
-                                  <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (Vision)</option>
-                                  <option value="google/gemini-3.8-flash">Gemini 3.8 Flash (Vision)</option>
-                                  <option value="deepseek/deepseek-v4-pro">DeepSeek V4 Pro (Text-only)</option>
-                                  <option value="deepseek/deepseek-v4-flash-vision-exp">DeepSeek V4 Flash Vision (Vision)</option>
-                                  <option value="moonshotai/kimi-k2.7-code">Kimi K2.7 Code (Vision)</option>
-                                  <option value="moonshotai/kimi-k3.1-pro">Kimi K3.1 Pro (Text-only)</option>
-                                  <option value="qwen/qwen3.8-omni-flash">Qwen 3.8 Omni Flash (Vision)</option>
-                                  <option value="xai/grok-4.5">xAI Grok 4.5 (Text-only)</option>
-                                  <option value="reflection/beam:free">Reflection Beam (Free, Text-only)</option>
-                                </>
+                                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground border border-border/40">
+                                  <FileText className="h-3 w-3" />
+                                  <span>Text-only ({t('Text processing only (no image analysis)')})</span>
+                                </span>
                               )}
-                            </select>
+                            </div>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {isModelVisionCapable(commandcodeModel, 'commandcode')
-                                ? '✓ Model ini mendukung input multimodal (gambar & dokumen).'
-                                : 'ℹ Model teks saja (tidak mendukung input gambar / vision).'}
+                              {isModelVisionCapable(commandcodeModel, provider, availableModels.find((m) => m.id === commandcodeModel))
+                                ? t('✓ Model ini mendukung input multimodal (gambar & dokumen).')
+                                : t('ℹ Model teks saja (tidak mendukung input gambar / vision).')}
                             </p>
                           </div>
                         )}
