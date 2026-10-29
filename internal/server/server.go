@@ -44,6 +44,7 @@ type Server struct {
 	extensions             *extensionSDK.Registry
 	crm                    *crmStore
 	canned                 *cannedStore
+	taste                  *tasteStore
 	cfg                    *config.Config
 	db                     *sql.DB
 	authSvc                *auth.Service
@@ -498,6 +499,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
 		canned:                 newCannedStore(),
+		taste:                  newTasteStore(),
 		cfg:                    cfg,
 		db:                     db,
 		authSvc:                svc,
@@ -700,6 +702,9 @@ func (s *Server) routes() {
 
 			// Conversational Inbox & Direct Messenger Hub (Sprint 17 & 18)
 			s.registerInboxRoutes(pr)
+
+			// Taste & Agent Memory Management (Sprint 43 S43-T2)
+			s.registerTasteRoutes(pr)
 		})
 	})
 }

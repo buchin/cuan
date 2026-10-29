@@ -153,6 +153,9 @@ capability file. Need structured metadata? task --help documents --report-file.
 		instructions = dodBuilder.String() + instructions
 	}
 	instructions = workflow.Developer + "\n\n" + instructions
+	if techTaste := s.formatTechnicalTastePrompt(ctx); techTaste != "" {
+		instructions += "\n\n" + techTaste + "\n"
+	}
 	for _, part := range contextParts {
 		if strings.TrimSpace(part) != "" {
 			instructions += "\n" + part + "\n"
