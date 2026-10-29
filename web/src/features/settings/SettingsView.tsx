@@ -15,6 +15,8 @@ import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
 import { IntegrationsView } from './IntegrationsView'
 import { TeamView } from '../team/TeamView'
+import { AgentMemoryView } from './AgentMemoryView'
+import { Brain } from 'lucide-react'
 
 interface SettingsViewProps {
   createAgentRequested?: boolean
@@ -66,6 +68,7 @@ export function SettingsView({
       >
         {[
           ['general', t('General')],
+          ['memory', t('Agent Memory')],
           ['schedules', t('Schedules')],
           ['profile', t('Profile & password')],
           ['contacts', t('Contacts')],
@@ -91,6 +94,8 @@ export function SettingsView({
       </nav>
       {section === 'profile' ? (
         <ProfileSettings />
+      ) : section === 'memory' ? (
+        <AgentMemoryView />
       ) : section === 'schedules' ? (
         <SchedulesView embedded />
       ) : section === 'notifications' ? (
@@ -167,6 +172,23 @@ export function SettingsView({
         </section>
       ) : (
         <div className="space-y-4">
+          <section className="rounded-lg border border-border bg-card p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">{t('Agent Memory / Taste')}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('Review learned brand guidelines, copywriting style, and workflow preferences.')}
+                </p>
+              </div>
+              <Link
+                to="/settings/memory"
+                className="action-secondary shrink-0 inline-flex items-center gap-1.5"
+              >
+                <Brain className="h-4 w-4 text-primary" />
+                <span>{t('Manage memory')}</span>
+              </Link>
+            </div>
+          </section>
           <AppUpdateCard />
           <ScheduledJobsCard />
           <InstallAppCard />

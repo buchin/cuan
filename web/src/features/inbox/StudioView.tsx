@@ -2,7 +2,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, AttachmentPreviews, useAttachments } from './Attachments'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, LoaderCircle } from 'lucide-react'
+import { ArrowRight, LoaderCircle, Brain } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
@@ -345,6 +345,16 @@ export function StudioView({
               {!hasProject && <> <button type="button" className="min-h-11 underline underline-offset-2" onClick={onCreateProject}>{t('Create or connect a project (optional)')}</button></>}
             </p>
           )}
+          <div className="flex items-center justify-between pt-1">
+            <Link
+              to="/settings/memory?returnTo=/chat"
+              className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+              title={t('Agent Memory / Taste')}
+            >
+              <Brain className="h-3.5 w-3.5 text-primary" />
+              <span>{t('Agent Memory / Taste')}</span>
+            </Link>
+          </div>
           {error && (
             <div
               role="alert"
