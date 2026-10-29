@@ -15,25 +15,39 @@ var (
 	ErrConnectionVerification = errors.New("agent/provider: connection verification failed")
 )
 
+// ModelCapabilities specifies functional multimodal capabilities of an AI model.
+type ModelCapabilities struct {
+	Vision         bool `json:"vision"`
+	SupportsVision bool `json:"supports_vision"`
+}
+
 // ModelInfo describes an AI model available through a provider.
 type ModelInfo struct {
-	ID                         string   `json:"id"`
-	Name                       string   `json:"name"`
-	DisplayName                string   `json:"display_name,omitempty"`
-	Description                string   `json:"description,omitempty"`
-	InputTokenLimit            int      `json:"input_token_limit,omitempty"`
-	OutputTokenLimit           int      `json:"output_token_limit,omitempty"`
-	SupportedGenerationMethods []string `json:"supported_generation_methods,omitempty"`
-	IsDefault                  bool     `json:"is_default,omitempty"`
-	SupportsVision             bool     `json:"supports_vision,omitempty"`
+	ID                         string            `json:"id"`
+	Name                       string            `json:"name"`
+	DisplayName                string            `json:"display_name,omitempty"`
+	Description                string            `json:"description,omitempty"`
+	Provider                   string            `json:"provider,omitempty"`
+	InputTokenLimit            int               `json:"input_token_limit,omitempty"`
+	OutputTokenLimit           int               `json:"output_token_limit,omitempty"`
+	SupportedGenerationMethods []string          `json:"supported_generation_methods,omitempty"`
+	IsDefault                  bool              `json:"is_default,omitempty"`
+	SupportsVision             bool              `json:"supports_vision"`
+	Capabilities               ModelCapabilities `json:"capabilities"`
+	Preserved                  bool              `json:"preserved,omitempty"`
 }
 
 // IsModelVisionCapable determines whether a provider model supports vision (image input).
 func IsModelVisionCapable(provider, modelID string) bool {
 	p := strings.ToLower(strings.TrimSpace(provider))
 	m := strings.ToLower(strings.TrimSpace(modelID))
-	if p == "agy" || p == "antigravity" || p == "gemini" {
-		// Gemini models natively support multimodal vision input
+	if p == "google" || p == "gemini" {
+		return true
+	}
+	if p == "agy" || p == "antigravity" {
+		if strings.Contains(m, "gpt-oss") || strings.Contains(m, "text") || strings.Contains(m, "embedding") {
+			return false
+		}
 		return true
 	}
 	if p == "commandcode" {
@@ -118,7 +132,10 @@ func DefaultRegistry() *ProviderRegistry {
 	defaultRegistryOnce.Do(func() {
 		defaultRegistryInstance = NewProviderRegistry()
 		defaultRegistryInstance.Register("google", NewGeminiProvider())
-	defaultRegistryInstance.Register("commandcode", NewCommandCodeProvider())
+		defaultRegistryInstance.Register("gemini", NewGeminiProvider())
+		defaultRegistryInstance.Register("commandcode", NewCommandCodeProvider())
+		defaultRegistryInstance.Register("agy", NewAGYProvider())
+		defaultRegistryInstance.Register("antigravity", NewAGYProvider())
 		defaultRegistryInstance.Register("mock", NewMockProvider())
 	})
 	return defaultRegistryInstance
@@ -148,27 +165,45 @@ func NewMockProvider() *MockProvider {
 				Name:             "models/gemini-1.5-pro",
 				DisplayName:      "Gemini 1.5 Pro (Mock)",
 				Description:      "Flagship multimodal reasoning model",
+				Provider:         "mock",
 				InputTokenLimit:  2097152,
 				OutputTokenLimit: 8192,
 				IsDefault:        true,
+				SupportsVision:   true,
+				Capabilities: ModelCapabilities{
+					Vision:         true,
+					SupportsVision: true,
+				},
 			},
 			{
 				ID:               "gemini-1.5-flash",
 				Name:             "models/gemini-1.5-flash",
 				DisplayName:      "Gemini 1.5 Flash (Mock)",
 				Description:      "Fast and versatile performance across a diverse variety of tasks",
+				Provider:         "mock",
 				InputTokenLimit:  1048576,
 				OutputTokenLimit: 8192,
 				IsDefault:        false,
+				SupportsVision:   true,
+				Capabilities: ModelCapabilities{
+					Vision:         true,
+					SupportsVision: true,
+				},
 			},
 			{
 				ID:               "gemini-2.0-flash",
 				Name:             "models/gemini-2.0-flash",
 				DisplayName:      "Gemini 2.0 Flash (Mock)",
 				Description:      "Next-generation ultra-fast multimodal model",
+				Provider:         "mock",
 				InputTokenLimit:  1048576,
 				OutputTokenLimit: 8192,
 				IsDefault:        false,
+				SupportsVision:   true,
+				Capabilities: ModelCapabilities{
+					Vision:         true,
+					SupportsVision: true,
+				},
 			},
 		},
 	}

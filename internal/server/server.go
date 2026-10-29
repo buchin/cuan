@@ -72,6 +72,7 @@ type Server struct {
 	taskExecutionEngine    *creator.TaskExecutionEngine
 	inspectorEngine        *inspector.Engine
 	providerRegistry       *agent.ProviderRegistry
+	catalogCache           *agent.ModelCatalogCache
 	distillerEngine        *studio.DistillerEngine
 	agentExecutionHook     studio.AgentExecutionHook
 	campaignDecompiler     *campaign.DecompilerEngine
