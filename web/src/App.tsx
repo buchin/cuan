@@ -654,6 +654,7 @@ export function App() {
     notifications: 'Notifications',
     contacts: 'Contacts',
     general: 'General',
+    schedules: 'Schedules',
   }
   const isAccountOrSettings = currentTab === 'settings' || currentTab === 'account'
   const settingsDetail = isAccountOrSettings && !!settingTitles[subParam]
