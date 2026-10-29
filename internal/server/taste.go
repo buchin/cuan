@@ -26,10 +26,48 @@ const (
 
 	// MaxTasteItemsPerCategory limits context memory size per layer to prevent prompt bloat and token overflow.
 	MaxTasteItemsPerCategory = 15
+
+	// MaxTasteCandidates sets the safe storage quota limit for suggested/pending candidates.
+	MaxTasteCandidates = 30
+)
+
+// TasteCandidateStatus represents the review lifecycle state of a suggested taste candidate.
+type TasteCandidateStatus string
+
+const (
+	// TasteCandidateStatusSuggested indicates a newly extracted preference awaiting user review.
+	TasteCandidateStatusSuggested TasteCandidateStatus = "suggested"
+	// TasteCandidateStatusPending is an alias for suggested.
+	TasteCandidateStatusPending TasteCandidateStatus = "pending"
+	// TasteCandidateStatusAccepted indicates user approved candidate and promoted it to active TasteItem.
+	TasteCandidateStatusAccepted TasteCandidateStatus = "accepted"
+	// TasteCandidateStatusDismissed indicates user rejected/ignored candidate.
+	TasteCandidateStatusDismissed TasteCandidateStatus = "dismissed"
 )
 
 // ErrTasteItemNotFound is returned when an item cannot be found in the taste store.
 var ErrTasteItemNotFound = errors.New("taste item not found")
+
+// ErrTasteCandidateNotFound is returned when a candidate cannot be found in the taste store.
+var ErrTasteCandidateNotFound = errors.New("taste candidate not found")
+
+// ErrTasteCandidateAlreadyExists is returned when an identical candidate already exists.
+var ErrTasteCandidateAlreadyExists = errors.New("taste candidate already exists")
+
+// TasteCandidate represents an unconfirmed preference candidate extracted from user interactions.
+type TasteCandidate struct {
+	ID            string    `json:"id"`
+	Category      string    `json:"category"` // "brand" or "technical"
+	Topic         string    `json:"topic,omitempty"`
+	Text          string    `json:"text"`
+	Content       string    `json:"content,omitempty"`
+	SourceSnippet string    `json:"source_snippet,omitempty"`
+	Reason        string    `json:"reason,omitempty"`
+	Rationale     string    `json:"rationale,omitempty"`
+	Status        string    `json:"status"` // "suggested", "accepted", "dismissed"
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
 
 // TasteItem represents a discrete taste preference memory point.
 type TasteItem struct {
@@ -52,12 +90,14 @@ type TasteProfile struct {
 
 type tasteStore struct {
 	sync.RWMutex
-	profiles map[string][]TasteItem
+	profiles   map[string][]TasteItem
+	candidates map[string][]TasteCandidate
 }
 
 func newTasteStore() *tasteStore {
 	return &tasteStore{
-		profiles: make(map[string][]TasteItem),
+		profiles:   make(map[string][]TasteItem),
+		candidates: make(map[string][]TasteCandidate),
 	}
 }
 
@@ -216,6 +256,75 @@ func writeTastePreferences(owner string, items []TasteItem) error {
 		err = os.Rename(f.Name(), path)
 	}
 	return err
+}
+
+func tasteCandidatesPath(owner string) (string, error) {
+	p, err := ownerPreferencesPath(owner)
+	if err != nil {
+		return filepath.Join("data", "preferences", "taste-candidates-"+owner+".json"), nil
+	}
+	return strings.TrimSuffix(p, ".json") + ".taste-candidates.json", nil
+}
+
+func readTasteCandidates(owner string) ([]TasteCandidate, error) {
+	p, err := tasteCandidatesPath(owner)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return nil, err
+	}
+	var items []TasteCandidate
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func writeTasteCandidates(owner string, items []TasteCandidate) error {
+	path, err := tasteCandidatesPath(owner)
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), ".taste-candidates-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if err = f.Chmod(0600); err == nil {
+		_, err = f.Write(raw)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if e := f.Close(); err == nil {
+		err = e
+	}
+	if err == nil {
+		err = os.Rename(f.Name(), path)
+	}
+	return err
+}
+
+func normalizeForDeduplication(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r >= 0x80 {
+			b.WriteRune(r)
+		} else if r == ' ' || r == '\t' || r == '\n' {
+			b.WriteRune(' ')
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
 func (s *Server) getTasteProfile(owner string) (TasteProfile, error) {
@@ -465,4 +574,328 @@ func (s *Server) formatTechnicalTastePrompt(ctx context.Context) string {
 // FormatTechnicalTastePrompt exports technical taste formatting for public callers and testing.
 func (s *Server) FormatTechnicalTastePrompt(ctx context.Context) string {
 	return s.formatTechnicalTastePrompt(ctx)
+}
+
+// getTasteCandidates retrieves suggested/pending candidates for an owner.
+func (s *Server) getTasteCandidates(owner string, filterStatus ...string) ([]TasteCandidate, error) {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	s.taste.RLock()
+	cached, ok := s.taste.candidates[ownerKey]
+	s.taste.RUnlock()
+
+	var all []TasteCandidate
+	if ok {
+		all = cached
+	} else {
+		s.taste.Lock()
+		if cached, ok := s.taste.candidates[ownerKey]; ok {
+			all = cached
+		} else {
+			items, err := readTasteCandidates(ownerKey)
+			if err == nil && len(items) > 0 {
+				s.taste.candidates[ownerKey] = items
+				all = items
+			} else {
+				all = []TasteCandidate{}
+				s.taste.candidates[ownerKey] = all
+			}
+		}
+		s.taste.Unlock()
+	}
+
+	// Filter by status if requested.
+	// If no filter given or empty, default to pending review (suggested or pending).
+	if len(filterStatus) == 0 || filterStatus[0] == "" || filterStatus[0] == "pending" || filterStatus[0] == "suggested" {
+		var filtered []TasteCandidate
+		for _, c := range all {
+			if c.Status == string(TasteCandidateStatusSuggested) || c.Status == string(TasteCandidateStatusPending) {
+				filtered = append(filtered, c)
+			}
+		}
+		if filtered == nil {
+			filtered = []TasteCandidate{}
+		}
+		return filtered, nil
+	}
+
+	target := strings.ToLower(filterStatus[0])
+	if target == "all" {
+		return all, nil
+	}
+
+	var filtered []TasteCandidate
+	for _, c := range all {
+		if strings.ToLower(c.Status) == target {
+			filtered = append(filtered, c)
+		}
+	}
+	if filtered == nil {
+		filtered = []TasteCandidate{}
+	}
+	return filtered, nil
+}
+
+// getAllTasteCandidates returns all candidates regardless of status.
+func (s *Server) getAllTasteCandidates(owner string) ([]TasteCandidate, error) {
+	return s.getTasteCandidates(owner, "all")
+}
+
+// getTasteCandidateByID finds a candidate by ID across all statuses.
+func (s *Server) getTasteCandidateByID(owner, id string) (TasteCandidate, error) {
+	candidates, err := s.getAllTasteCandidates(owner)
+	if err != nil {
+		return TasteCandidate{}, err
+	}
+	for _, c := range candidates {
+		if c.ID == id {
+			return c, nil
+		}
+	}
+	return TasteCandidate{}, ErrTasteCandidateNotFound
+}
+
+// saveTasteCandidate stores a candidate with quota validation and deduplication.
+func (s *Server) saveTasteCandidate(owner string, candidate TasteCandidate) (TasteCandidate, error) {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	// Ensure candidates are loaded
+	_, _ = s.getAllTasteCandidates(ownerKey)
+
+	s.taste.Lock()
+	defer s.taste.Unlock()
+
+	current := s.taste.candidates[ownerKey]
+
+	// Check safe quota limit for pending candidates
+	pendingCount := 0
+	for _, c := range current {
+		if c.Status == string(TasteCandidateStatusSuggested) || c.Status == string(TasteCandidateStatusPending) {
+			pendingCount++
+		}
+	}
+
+	if pendingCount >= MaxTasteCandidates {
+		return TasteCandidate{}, fmt.Errorf("Kapasitas maksimum %d kandidat saran telah tercapai", MaxTasteCandidates)
+	}
+
+	now := time.Now().UTC()
+	if candidate.ID == "" {
+		candidate.ID = db.GenerateUUID()
+	}
+	if candidate.Status == "" {
+		candidate.Status = string(TasteCandidateStatusSuggested)
+	}
+	if candidate.Text == "" && candidate.Content != "" {
+		candidate.Text = candidate.Content
+	}
+	if candidate.Content == "" && candidate.Text != "" {
+		candidate.Content = candidate.Text
+	}
+	if candidate.Reason == "" && candidate.Rationale != "" {
+		candidate.Reason = candidate.Rationale
+	}
+	if candidate.Rationale == "" && candidate.Reason != "" {
+		candidate.Rationale = candidate.Reason
+	}
+	candidate.CreatedAt = now
+	candidate.UpdatedAt = now
+
+	// Deduplication check: check against existing candidates in store
+	normNew := normalizeForDeduplication(candidate.Text)
+	for _, c := range current {
+		if normalizeForDeduplication(c.Text) == normNew || normalizeForDeduplication(c.Content) == normNew {
+			return c, ErrTasteCandidateAlreadyExists
+		}
+	}
+
+	updated := append(current, candidate)
+	// If total candidates exceed MaxTasteCandidates * 2, prune oldest dismissed candidates
+	if len(updated) > MaxTasteCandidates*2 {
+		pruned := make([]TasteCandidate, 0, len(updated))
+		for _, c := range updated {
+			if c.Status != string(TasteCandidateStatusDismissed) {
+				pruned = append(pruned, c)
+			}
+		}
+		if len(pruned) < len(updated) {
+			updated = pruned
+		}
+	}
+
+	s.taste.candidates[ownerKey] = updated
+	_ = writeTasteCandidates(ownerKey, updated)
+
+	return candidate, nil
+}
+
+// acceptTasteCandidate accepts a suggested candidate, promoting it to an active TasteItem in profile.
+func (s *Server) acceptTasteCandidate(owner, id string, overrideText, overrideTopic, overrideCategory *string) (TasteCandidate, TasteItem, error) {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	_, _ = s.getTasteProfile(ownerKey)
+	_, _ = s.getAllTasteCandidates(ownerKey)
+
+	s.taste.Lock()
+	defer s.taste.Unlock()
+
+	current := s.taste.candidates[ownerKey]
+	foundIdx := -1
+	for i, c := range current {
+		if c.ID == id {
+			foundIdx = i
+			break
+		}
+	}
+	if foundIdx == -1 {
+		return TasteCandidate{}, TasteItem{}, ErrTasteCandidateNotFound
+	}
+
+	candidate := current[foundIdx]
+
+	cat := candidate.Category
+	if overrideCategory != nil && strings.TrimSpace(*overrideCategory) != "" {
+		normCat, err := normalizeCategory(*overrideCategory)
+		if err != nil {
+			return TasteCandidate{}, TasteItem{}, err
+		}
+		cat = normCat
+	}
+	topic := candidate.Topic
+	if overrideTopic != nil {
+		topic = strings.TrimSpace(*overrideTopic)
+	}
+	content := candidate.Text
+	if overrideText != nil && strings.TrimSpace(*overrideText) != "" {
+		content = strings.TrimSpace(*overrideText)
+	}
+
+	// Validate capacity in active taste profile
+	profileCurrent := s.taste.profiles[ownerKey]
+	catCount := 0
+	for _, it := range profileCurrent {
+		if it.Category == cat {
+			catCount++
+		}
+	}
+	if catCount >= MaxTasteItemsPerCategory {
+		return TasteCandidate{}, TasteItem{}, fmt.Errorf("Kapasitas maksimum %d butir untuk kategori '%s' telah tercapai", MaxTasteItemsPerCategory, cat)
+	}
+
+	now := time.Now().UTC()
+	item := TasteItem{
+		ID:        db.GenerateUUID(),
+		Category:  cat,
+		Topic:     topic,
+		Content:   content,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	// Add item to active profile
+	updatedProfile := append(profileCurrent, item)
+	s.taste.profiles[ownerKey] = updatedProfile
+	_ = writeTastePreferences(ownerKey, updatedProfile)
+
+	// Mark candidate as accepted
+	candidate.Category = cat
+	candidate.Topic = topic
+	candidate.Text = content
+	candidate.Content = content
+	candidate.Status = string(TasteCandidateStatusAccepted)
+	candidate.UpdatedAt = now
+	current[foundIdx] = candidate
+	s.taste.candidates[ownerKey] = current
+	_ = writeTasteCandidates(ownerKey, current)
+
+	return candidate, item, nil
+}
+
+// dismissTasteCandidate ignores/dismisses a suggested preference candidate.
+func (s *Server) dismissTasteCandidate(owner, id string) (TasteCandidate, error) {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	_, _ = s.getAllTasteCandidates(ownerKey)
+
+	s.taste.Lock()
+	defer s.taste.Unlock()
+
+	current := s.taste.candidates[ownerKey]
+	foundIdx := -1
+	for i, c := range current {
+		if c.ID == id {
+			foundIdx = i
+			break
+		}
+	}
+	if foundIdx == -1 {
+		return TasteCandidate{}, ErrTasteCandidateNotFound
+	}
+
+	candidate := current[foundIdx]
+	candidate.Status = string(TasteCandidateStatusDismissed)
+	candidate.UpdatedAt = time.Now().UTC()
+	current[foundIdx] = candidate
+	s.taste.candidates[ownerKey] = current
+	_ = writeTasteCandidates(ownerKey, current)
+
+	return candidate, nil
+}
+
+// deleteTasteCandidate permanently removes a candidate.
+func (s *Server) deleteTasteCandidate(owner, id string) error {
+	if s.taste == nil {
+		s.taste = newTasteStore()
+	}
+	ownerKey := strings.TrimSpace(owner)
+	if ownerKey == "" {
+		ownerKey = "default"
+	}
+
+	_, _ = s.getAllTasteCandidates(ownerKey)
+
+	s.taste.Lock()
+	defer s.taste.Unlock()
+
+	current := s.taste.candidates[ownerKey]
+	foundIdx := -1
+	for i, c := range current {
+		if c.ID == id {
+			foundIdx = i
+			break
+		}
+	}
+	if foundIdx == -1 {
+		return ErrTasteCandidateNotFound
+	}
+
+	updated := append(current[:foundIdx], current[foundIdx+1:]...)
+	s.taste.candidates[ownerKey] = updated
+	_ = writeTasteCandidates(ownerKey, updated)
+
+	return nil
 }

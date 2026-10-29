@@ -18,6 +18,14 @@ func (s *Server) registerTasteRoutes(r chi.Router) {
 	r.Put("/taste/items/{id}", s.handleUpdateTasteItem)
 	r.Delete("/taste/items/{id}", s.handleDeleteTasteItem)
 	r.Post("/taste/reset", s.handleResetTasteProfile)
+
+	// Candidate Taste & Reflection Loop endpoints (Sprint 44 S44-T2)
+	r.Post("/taste/reflect", s.handleReflectTaste)
+	r.Get("/taste/candidates", s.handleGetTasteCandidates)
+	r.Get("/taste/candidates/", s.handleGetTasteCandidates)
+	r.Post("/taste/candidates/{id}/accept", s.handleAcceptTasteCandidate)
+	r.Post("/taste/candidates/{id}/dismiss", s.handleDismissTasteCandidate)
+	r.Delete("/taste/candidates/{id}", s.handleDismissTasteCandidate)
 }
 
 // GET /api/v1/taste
@@ -195,4 +203,149 @@ func (s *Server) handleResetTasteProfile(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondJSON(w, http.StatusOK, profile)
+}
+
+// POST /api/v1/taste/reflect
+func (s *Server) handleReflectTaste(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	var req ReflectTasteRequest
+	if r.Body != nil {
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536))
+		_ = decoder.Decode(&req)
+	}
+
+	extracted, err := s.reflectTaste(r.Context(), owner, req)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Gagal memproses refleksi: "+err.Error())
+		return
+	}
+
+	pending, _ := s.getTasteCandidates(owner, "pending")
+
+	msg := "Refleksi preferensi berhasil dieksekusi"
+	if len(extracted) == 0 {
+		msg = "Tidak ada preferensi atau koreksi baru yang terdeteksi"
+	}
+
+	respondJSON(w, http.StatusOK, ReflectTasteResponse{
+		Message:    msg,
+		Candidates: extracted,
+		Extracted:  extracted,
+		Count:      len(extracted),
+		Total:      len(pending),
+	})
+}
+
+// GET /api/v1/taste/candidates
+func (s *Server) handleGetTasteCandidates(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	status := strings.TrimSpace(r.URL.Query().Get("status"))
+	candidates, err := s.getTasteCandidates(owner, status)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Gagal memuat kandidat preferensi: "+err.Error())
+		return
+	}
+
+	// Optional category filter
+	if cat := strings.TrimSpace(r.URL.Query().Get("category")); cat != "" {
+		var filtered []TasteCandidate
+		for _, c := range candidates {
+			if strings.EqualFold(c.Category, cat) {
+				filtered = append(filtered, c)
+			}
+		}
+		if filtered == nil {
+			filtered = []TasteCandidate{}
+		}
+		candidates = filtered
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"candidates": candidates,
+		"items":      candidates,
+		"total":      len(candidates),
+	})
+}
+
+// POST /api/v1/taste/candidates/{id}/accept
+func (s *Server) handleAcceptTasteCandidate(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if strings.TrimSpace(id) == "" {
+		respondJSONError(w, http.StatusBadRequest, "ID kandidat preferensi wajib diisi")
+		return
+	}
+
+	var req struct {
+		Text     *string `json:"text"`
+		Content  *string `json:"content"`
+		Topic    *string `json:"topic"`
+		Category *string `json:"category"`
+	}
+	if r.Body != nil {
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10240))
+		_ = decoder.Decode(&req)
+	}
+	if req.Content != nil && req.Text == nil {
+		req.Text = req.Content
+	}
+
+	candidate, item, err := s.acceptTasteCandidate(owner, id, req.Text, req.Topic, req.Category)
+	if err != nil {
+		if errors.Is(err, ErrTasteCandidateNotFound) {
+			respondJSONError(w, http.StatusNotFound, "Kandidat preferensi tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"message":   "Kandidat preferensi berhasil disetujui",
+		"candidate": candidate,
+		"item":      item,
+		"id":        item.ID,
+	})
+}
+
+// POST /api/v1/taste/candidates/{id}/dismiss and DELETE /api/v1/taste/candidates/{id}
+func (s *Server) handleDismissTasteCandidate(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if strings.TrimSpace(id) == "" {
+		respondJSONError(w, http.StatusBadRequest, "ID kandidat preferensi wajib diisi")
+		return
+	}
+
+	candidate, err := s.dismissTasteCandidate(owner, id)
+	if err != nil {
+		if errors.Is(err, ErrTasteCandidateNotFound) {
+			respondJSONError(w, http.StatusNotFound, "Kandidat preferensi tidak ditemukan")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "Gagal mengabaikan kandidat preferensi: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"message":   "Kandidat preferensi berhasil diabaikan",
+		"candidate": candidate,
+		"id":        id,
+	})
 }

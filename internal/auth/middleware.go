@@ -110,6 +110,11 @@ func ExtractToken(r *http.Request) string {
 	return ""
 }
 
+// ContextWithOwner returns a new context with the given Owner attached.
+func ContextWithOwner(ctx context.Context, owner *Owner) context.Context {
+	return context.WithValue(ctx, ownerContextKey, owner)
+}
+
 func GetOwnerFromContext(ctx context.Context) *Owner {
 	val := ctx.Value(ownerContextKey)
 	if val == nil {
