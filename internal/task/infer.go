@@ -54,11 +54,23 @@ func InferExecutionCategory(title, instructions string) string {
 		return ExecutionCategoryCode
 	}
 
+	// Code creation/modification signals take precedence over incidental words like 'view'
+	codeSignals := []string{
+		"integrasi", "implementasi", "tambahkan", "buat", "perbaiki", "ubah",
+		"integrate", "implementation", "feature", "component", "komponen", "renderer",
+		"refactor", "bugfix", "fix ", "frontend", "backend", "deploy",
+	}
+	for _, s := range codeSignals {
+		if strings.Contains(combined, s) {
+			return ExecutionCategoryCode
+		}
+	}
+
 	// Read-only signals: analysis, audit, inspection, monitoring, queries
 	readonlySignals := []string{
 		"audit", "analisis", "analysis", "inspect", "check status", "review code",
-		"show ", "list ", "view ", "status check", "read-only", "readonly",
-		"query ", "telemetry", "metrics", "log check", "monitor",
+		"show ", "list ", "status check", "read-only", "readonly",
+		"query ", "telemetry", "metrics", "log check", "monitor", "view only", "view logs",
 	}
 	for _, s := range readonlySignals {
 		if strings.Contains(combined, s) {

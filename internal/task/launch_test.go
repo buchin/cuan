@@ -640,3 +640,78 @@ func TestReconcileGhostQueuedTaskResurrection(t *testing.T) {
 		t.Fatalf("expected empty safe error after resurrection, got '%s'", resurrected.SafeError)
 	}
 }
+
+func TestReconcileGhostQueuedTaskResurrectionAfterServerRestart(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+
+	created, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Mermaid Integration Task",
+		ProjectIDs:   []string{"p_mermaid_test"},
+		Instructions: "Render diagrams",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	qStatus := TaskStatusQueued
+	_, err = svc.UpdateTask(ctx, created.ID, "user", UpdateTaskRequest{Status: &qStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           created.ID,
+		ProjectID:        "p_mermaid_test",
+		RequestID:        "req_mermaid_1",
+		OwnerID:          "owner",
+		RoomID:           "room",
+		SourceRequestID: "req_source_1",
+		AgentID:          "agent_sm",
+		InstructionsHash: LaunchInstructionsHash("Render diagrams"),
+		CreatedAt:        now.Add(-2 * time.Hour),
+		AvailableAt:      now.Add(-2 * time.Hour),
+		ExpiresAt:        now.Add(-1 * time.Hour), // Expired!
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store.mu.Lock()
+	if savedLaunch, ok := store.launches[l.ID]; ok {
+		savedLaunch.State = "stopped"
+		savedLaunch.SafeError = "Execution stopped during server restart."
+	}
+	store.mu.Unlock()
+
+	// Run self-healing
+	if err := svc.ReconcileOrphanLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileOrphanLaunches failed: %v", err)
+	}
+
+	// Launch should be resurrected back to queued with clear safe_error and renewed expiration
+	resurrected, err := svc.GetLaunch(ctx, l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resurrected.State != "queued" {
+		t.Fatalf("expected launch state 'queued', got '%s'", resurrected.State)
+	}
+	if resurrected.SafeError != "" {
+		t.Fatalf("expected empty safe error after resurrection, got '%s'", resurrected.SafeError)
+	}
+	if !resurrected.ExpiresAt.After(now) {
+		t.Fatalf("expected launch ExpiresAt to be after now, got '%s'", resurrected.ExpiresAt)
+	}
+
+	// It should now be claimable by ClaimLaunch!
+	claimed, err := svc.ClaimLaunch(ctx, now, "worker-token")
+	if err != nil {
+		t.Fatalf("ClaimLaunch failed: %v", err)
+	}
+	if claimed == nil || claimed.ID != l.ID {
+		t.Fatalf("expected ClaimLaunch to claim resurrected launch %s, got %+v", l.ID, claimed)
+	}
+}

@@ -413,6 +413,7 @@ func TestRunner_MetadataInference(t *testing.T) {
 		{"Audit user access logs", "Inspect and audit authentication telemetry logs", task.ExecutionCategoryReadOnly},
 		{"Query system performance", "Review database query status and telemetry", task.ExecutionCategoryReadOnly},
 		{"Database migration for payments", "Run migration to alter table orders add column status", task.ExecutionCategoryCode},
+		{"Integrasi Renderer Diagram Mermaid Visual di Chat Cuan", "Integrasi pustaka mermaid.js pada MarkdownRenderer dengan fitur view interaktif", task.ExecutionCategoryCode},
 	}
 
 	for _, tc := range tests {

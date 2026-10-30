@@ -54,6 +54,10 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 	if len(wanted) > 0 {
 		id = wanted[0]
 	}
+	// For still-queued tasks, keep their launch window active so waiting work is not dropped prematurely.
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET expires_at = $1 + INTERVAL '24 hours', updated_at = $1 WHERE state = 'queued' AND expires_at <= $1 AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); e != nil {
+		return nil, e
+	}
 	// Expiry is terminal even after a lost worker; a later save cannot resurrect it.
 	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='The launch window expired before execution could start.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed') AND expires_at<=$1`, now); e != nil {
 		return nil, e
@@ -98,8 +102,8 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed'))`, now); err != nil {
 		return err
 	}
-	// 1b. Self-heal orphan ghost-queued tasks: if a task is queued but its unexpired launch was stopped due to terminal status false alarm, revive it
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,updated_at=$1 WHERE state='stopped' AND safe_error='Task is in terminal status.' AND expires_at > $1 AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); err != nil {
+	// 1b. Self-heal orphan ghost-queued tasks: if a task is queued but its launch was stopped (e.g. during restart, terminal status false alarm, or expired window), revive it back to queued with refreshed window
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1 + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND safe_error != 'Task was cancelled.' AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); err != nil {
 		return err
 	}
 	// 2. Reconcile zombie started launches without any active running attempt
