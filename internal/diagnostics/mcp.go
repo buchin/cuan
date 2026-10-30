@@ -347,6 +347,35 @@ var nativeMCPTools = []mcpToolDefinition{
 			},
 		},
 	},
+	{
+		Name:        "list_apps",
+		Description: "List all connected and available external third-party Apps in Cuan ecosystem.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
+	{
+		Name:        "list_skills",
+		Description: "List all modular intelligence skills in Cuan with their enabled status and bound agents.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
+	{
+		Name:        "toggle_agent_skill",
+		Description: "Enable or disable a specific modular skill for a designated agent persona.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"agent_id": map[string]any{"type": "string", "description": "Agent ID (e.g. agent_sm, agent_dev, agent_support)"},
+				"skill_id": map[string]any{"type": "string", "description": "Skill ID (e.g. vision_receipt_extractor, google_sheets_sync)"},
+				"enabled":  map[string]any{"type": "boolean", "description": "True to activate, false to deactivate"},
+			},
+			"required": []string{"agent_id", "skill_id", "enabled"},
+		},
+	},
 }
 
 // RunMCP implements a Stdio MCP (Model Context Protocol) JSON-RPC 2.0 server.
@@ -527,6 +556,15 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			}
 			filter, _ := callParams.Arguments["filter"].(string)
 			toolResult, toolErr = InspectAppLogs(ctx, lines, filter)
+		case "list_apps":
+			toolResult, toolErr = ListApps(ctx)
+		case "list_skills":
+			toolResult, toolErr = ListSkills(ctx)
+		case "toggle_agent_skill":
+			agentID, _ := callParams.Arguments["agent_id"].(string)
+			skillID, _ := callParams.Arguments["skill_id"].(string)
+			enabled, _ := callParams.Arguments["enabled"].(bool)
+			toolResult, toolErr = ToggleAgentSkill(ctx, agentID, skillID, enabled)
 		default:
 			resp.Error = &jsonRPCError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 			sendResponse(out, resp)

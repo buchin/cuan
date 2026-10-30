@@ -5,6 +5,8 @@ import { ChatMarkdown } from './ChatMarkdown'
 import { StatusReportCard, parseTaskReportMessage } from '../../components/ui/StatusReportCard'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
+import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
+import type { ReceiptExtraction } from '../../api/appsSkills'
 
 // Promote a trailing paragraph of known navigation links. Never interpret model
 // text as an executable action or turn arbitrary destinations into primary CTAs.
@@ -28,9 +30,11 @@ export function messageNavigation(content: string) {
 export function MessageContent({
   content,
   hideTaskActions = false,
+  receiptExtraction,
 }: {
   content: string
   hideTaskActions?: boolean
+  receiptExtraction?: ReceiptExtraction
 }) {
   const { language, t } = useLanguage()
   const { body, actions } = messageNavigation(content)
@@ -42,6 +46,10 @@ export function MessageContent({
     : actions
 
   const report = body ? parseTaskReportMessage(body, language) : null
+  const extractedReceipt = receiptExtraction || (body ? parseReceiptExtraction(body) : null)
+  const displayBody = extractedReceipt
+    ? body.replace(/```(?:cuan-receipt|receipt)\s*[\s\S]*?```/, '').trim()
+    : body
 
   return (
     <>
@@ -55,7 +63,10 @@ export function MessageContent({
           )}
         </div>
       ) : (
-        body && <ChatMarkdown content={body} />
+        displayBody && <ChatMarkdown content={displayBody} />
+      )}
+      {extractedReceipt && (
+        <ReceiptPreviewCard extraction={extractedReceipt} />
       )}
       {visibleActions.length > 0 && (
         <div

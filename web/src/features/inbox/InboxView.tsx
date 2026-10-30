@@ -57,6 +57,7 @@ import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
+import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import { ConversationWorkMonitor } from './ConversationWorkMonitor'
 import { TaskItemCard } from '../tasks/TaskItemCard'
 import { getQueuedTasksPositions } from '../tasks/task-ui'
@@ -1390,6 +1391,7 @@ export function InboxView({
                         <MessageContent
                           content={msg.content || msg.message}
                           hideTaskActions={!!linkedTaskForMsg}
+                          receiptExtraction={msg.receipt_extraction}
                         />
                       ) : (
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
@@ -1449,6 +1451,16 @@ export function InboxView({
                             textareaRef.current?.focus()
                           }}
                           onDefer={() => handleSendMessage(msg.uuid, msg.plan_defer_request_id, 'defer')}
+                        />
+                      )}
+
+                      {/* Receipt Extraction Preview Card */}
+                      {(msg.receipt_extraction || parseReceiptExtraction(msg.content || msg.message || '')) && (
+                        <ReceiptPreviewCard
+                          extraction={msg.receipt_extraction || parseReceiptExtraction(msg.content || msg.message || '')!}
+                          onConfirm={(ext) => {
+                            msg.receipt_extraction = { ...ext, confirmed: true }
+                          }}
                         />
                       )}
 

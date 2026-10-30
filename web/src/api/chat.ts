@@ -1,8 +1,10 @@
 import { apiFetch, getAuthToken, ApiError } from './client'
 import { DoDItem, Task } from './types'
 import type { GroundingTaste } from './taste'
+import type { ReceiptExtraction } from './appsSkills'
 
 export type { GroundingTaste }
+export type { ReceiptExtraction }
 
 export interface ChatContact {
   agent_id?: string
@@ -85,6 +87,7 @@ export interface ChatMessage {
   reply_draft?: string
   created_at: string
   grounding_tastes?: GroundingTaste[]
+  receipt_extraction?: ReceiptExtraction
 }
 
 export type Message = ChatMessage

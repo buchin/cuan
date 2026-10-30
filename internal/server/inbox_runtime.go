@@ -60,6 +60,7 @@ func isSafeInboxTool(tool string) bool {
 		"list_projects", "get_project", "list_tasks", "get_task", "create_task_draft",
 		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
 		"list_scheduled_jobs", "get_system_settings",
+		"list_apps", "list_skills", "toggle_agent_skill",
 		"inspect_database_query", "inspect_database_schema", "inspect_app_logs",
 		"call_mcp_tool":
 		return true
@@ -250,6 +251,9 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				"list_contacts":            "List contacts",
 				"get_contact":              "Get contact",
 				"list_scheduled_jobs":      "List scheduled jobs",
+				"list_apps":                "List Apps",
+				"list_skills":              "List Skills",
+				"toggle_agent_skill":       "Toggle Agent Skill",
 				"get_system_settings":      "Get system settings",
 				"inspect_database_query":   "Inspect database query",
 				"inspect_database_schema":  "Inspect database schema",

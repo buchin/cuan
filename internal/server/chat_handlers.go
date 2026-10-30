@@ -172,7 +172,7 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 		}
 	}
 
-	if s.agentRepo != nil {
+	if s.db != nil && s.agentRepo != nil {
 		_ = db.EnsureBuiltinAgents(ctx, s.agentRepo)
 	}
 

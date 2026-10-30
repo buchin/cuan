@@ -13,7 +13,7 @@ import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
-import { IntegrationsView } from './IntegrationsView'
+import { AppsSkillsView } from './AppsSkillsView'
 import { TeamView } from '../team/TeamView'
 import { AgentMemoryView } from './AgentMemoryView'
 import { SettingsMasterNav } from './SettingsMasterNav'
@@ -90,6 +90,7 @@ export function SettingsView({
           ['profile', t('Profile & password')],
           ['contacts', t('Contacts')],
           ['agents', t('Agents')],
+          ['apps-skills', t('Apps & Skills')],
           ['integrations', t('Integrations')],
           ['appearance', t('Appearance')],
         ].map(([id, label]) => {
@@ -178,9 +179,11 @@ export function SettingsView({
                           ? 'Profile & password'
                           : section === 'agents'
                             ? 'Agents'
-                            : section === 'integrations'
-                              ? 'Integrations'
-                              : section === 'appearance'
+                            : section === 'apps-skills'
+                              ? 'Apps & Skills'
+                              : section === 'integrations'
+                                ? 'Integrations'
+                                : section === 'appearance'
                                 ? 'Appearance'
                                 : section === 'notifications'
                                   ? 'Notifications'
@@ -189,9 +192,11 @@ export function SettingsView({
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t(
-                  section === 'integrations'
-                    ? 'Connect the services your projects need.'
-                    : section === 'memory'
+                  section === 'apps-skills'
+                    ? 'Connect 1-click external business apps and discover modular AI intelligence capabilities.'
+                    : section === 'integrations'
+                      ? 'Connect the services your projects need.'
+                      : section === 'memory'
                       ? 'Review learned brand guidelines, copywriting style, and workflow preferences.'
                       : section === 'schedules'
                         ? 'Automated recurring background routines.'
@@ -236,8 +241,8 @@ export function SettingsView({
                 }}
               />
             </div>
-          ) : section === 'integrations' ? (
-            <IntegrationsView />
+          ) : section === 'apps-skills' || section === 'integrations' ? (
+            <AppsSkillsView />
           ) : section === 'appearance' ? (
             <section className="rounded-lg border border-border bg-card p-5">
               <label

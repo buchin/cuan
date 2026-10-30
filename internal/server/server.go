@@ -27,6 +27,7 @@ import (
 	"github.com/buchin/cuan/internal/domain"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/inspector"
+	"github.com/buchin/cuan/internal/mcp"
 	"github.com/buchin/cuan/internal/observability"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publisher"
@@ -104,6 +105,7 @@ type Server struct {
 	projectRepo            cuanDB.ProjectRepository
 	taskProjectRepo        cuanDB.TaskProjectRepository
 	agentSessionStore      agent.SessionStore
+	mcpRegistry            *mcp.Registry
 	scheduler              *scheduler.Scheduler
 	taskManager            *scheduler.TaskManager
 	updater                *updater.Service
@@ -551,6 +553,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		projectRepo:            projRepo,
 		taskProjectRepo:        tpRepo,
 		agentSessionStore:      agent.NewMemorySessionStore(),
+		mcpRegistry:            mcp.NewRegistry(),
 		scheduler:              sched,
 		taskManager:            taskMgr,
 		updater:                updateSvc,

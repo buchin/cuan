@@ -288,9 +288,6 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 // PrepareAntigravitySettings configures settings.json defaults and trusts the given workspaces.
 func PrepareAntigravitySettings(home string, trustedWorkspaces ...string) error {
 	_ = EnsureAntigravityMCPConfig(home)
-	for _, ws := range trustedWorkspaces {
-		_ = EnsureWorkspaceMCPConfig(ws)
-	}
 	return prepareAntigravitySettings(home, trustedWorkspaces...)
 }
 

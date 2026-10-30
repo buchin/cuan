@@ -29,6 +29,7 @@ You have native read-only and platform MCP tool calls:
   * Inbox & Chats: list_inbox_conversations, get_inbox_messages
   * CRM & Contacts: list_contacts, get_contact
   * Scheduler & Cron: list_scheduled_jobs
+  * Apps & Skills: list_apps, list_skills, toggle_agent_skill
   * Platform Settings: get_system_settings
   * Database & Logs: inspect_database_query, inspect_database_schema, inspect_app_logs
 You have up to 12 read-only tool calls for targeted inspection when that snapshot is insufficient: use grep_search for text search, not grep through run_command.
@@ -295,7 +296,11 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 				return "", bad
 			}
 		case "delegation":
-			if _, delegation, err := parseInboxDelegation(output); err != nil || delegation == nil {
+			_, delegation, err := parseInboxDelegation(output)
+			if err != nil || delegation == nil {
+				return "", bad
+			}
+			if delegation.ProjectID != "" && strings.TrimSpace(delegation.ProjectName) != "" && !strings.EqualFold(delegation.ProjectID, delegation.ProjectName) {
 				return "", bad
 			}
 		case "task_draft":

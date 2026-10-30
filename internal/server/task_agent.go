@@ -51,7 +51,6 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 	}
 	_ = agent.EnsureAntigravityMCPConfig("")
 	if workspace, ok := ctx.Value(taskAgentWorkspaceKey{}).(string); ok && workspace != "" {
-		_ = agent.EnsureWorkspaceMCPConfig(workspace)
 		artifactRoot, e = os.OpenRoot(workspace)
 		if e != nil {
 			cleanup()

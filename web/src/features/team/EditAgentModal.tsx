@@ -13,6 +13,9 @@ import {
   FileText,
   Star,
   Info,
+  Boxes,
+  Receipt,
+  Table,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import {
@@ -22,6 +25,7 @@ import {
   type AgentModelConfig,
   type ModelInfo,
 } from '../../api/agents'
+import { appsSkillsApi, type AgentSkillView } from '../../api/appsSkills'
 
 export interface EditAgentModalProps {
   agent: Agent
@@ -85,6 +89,11 @@ export function EditAgentModal({
   const [role, setRole] = useState<string>(agent.role || '')
   const [supportedModels, setSupportedModels] = useState<ModelInfo[]>([])
 
+  // Skills State
+  const [skills, setSkills] = useState<AgentSkillView[]>([])
+  const [loadingSkills, setLoadingSkills] = useState(false)
+  const [togglingSkillId, setTogglingSkillId] = useState<string | null>(null)
+
   // Load config on mount or open
   useEffect(() => {
     if (!open) return
@@ -92,8 +101,21 @@ export function EditAgentModal({
 
     setFeedback(null)
     setLoadingConfig(true)
+    setLoadingSkills(true)
     setIsCustomPrimary(false)
     setIsCustomFallback(false)
+
+    // Load agent skills configuration
+    appsSkillsApi.getAgentSkills(agent.id)
+      .then((res) => {
+        if (active && res.skills) {
+          setSkills(res.skills)
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoadingSkills(false)
+      })
 
     agentsApi
       .getModelConfig(agent.id, false)
@@ -201,6 +223,40 @@ export function EditAgentModal({
       setFeedback({ type: 'error', message: msg })
     } finally {
       setRefreshingCatalog(false)
+    }
+  }
+
+  const handleToggleSkill = async (skillId: string, currentEnabled: boolean) => {
+    if (togglingSkillId) return
+    const newEnabled = !currentEnabled
+    setTogglingSkillId(skillId)
+    // Optimistic update
+    setSkills((prev) =>
+      prev.map((s) => (s.skill_id === skillId ? { ...s, enabled: newEnabled } : s))
+    )
+
+    try {
+      const res = await appsSkillsApi.updateAgentSkills(agent.id, [
+        { skill_id: skillId, enabled: newEnabled },
+      ])
+      if (res && res.skills) {
+        setSkills(res.skills)
+      }
+      setFeedback({
+        type: 'success',
+        message: newEnabled
+          ? t('Skill enabled for this agent')
+          : t('Skill disabled for this agent'),
+      })
+    } catch (err: unknown) {
+      // Revert optimistic update
+      setSkills((prev) =>
+        prev.map((s) => (s.skill_id === skillId ? { ...s, enabled: currentEnabled } : s))
+      )
+      const msg = err instanceof Error ? err.message : t('Failed to update skill')
+      setFeedback({ type: 'error', message: msg })
+    } finally {
+      setTogglingSkillId(null)
     }
   }
 
@@ -770,6 +826,111 @@ export function EditAgentModal({
                 className="w-full min-h-[110px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50 resize-y"
               />
             </div>
+          </div>
+
+          {/* Section 4: Modular Skills & Capabilities Binding */}
+          <div className="space-y-4 rounded-lg border border-border/60 bg-muted/30 p-4" data-testid="agent-skills-section">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Boxes className="h-4 w-4 text-primary" />
+                <span>{t('Modular Skills & Capabilities')}</span>
+              </div>
+              <span className="text-[10px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                {t('Real-Time Toggle')}
+              </span>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {t('Assign intelligent modular capabilities and external tool integrations to this agent in real-time.')}
+            </p>
+
+            {loadingSkills && skills.length === 0 ? (
+              <div className="py-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                <span>{t('Loading agent skills...')}</span>
+              </div>
+            ) : skills.length === 0 ? (
+              <div className="py-4 text-center text-xs text-muted-foreground bg-background/50 rounded-lg border border-border/40">
+                <span>{t('No modular skills available.')}</span>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {skills.map((skill) => {
+                  const isVision = skill.category === 'vision' || skill.skill_id.includes('vision') || skill.skill_id.includes('receipt')
+                  const isSheet = skill.category === 'productivity' || skill.skill_id.includes('sheet')
+                  const isToggling = togglingSkillId === skill.skill_id
+
+                  return (
+                    <div
+                      key={skill.skill_id}
+                      className="p-3 rounded-lg border border-border/60 bg-background flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs hover:border-border transition-colors"
+                      data-testid={`skill-binding-${skill.skill_id}`}
+                    >
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+                          {isVision ? (
+                            <Receipt className="h-4 w-4" />
+                          ) : isSheet ? (
+                            <Table className="h-4 w-4" />
+                          ) : (
+                            <Boxes className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-foreground">
+                              {skill.name}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-secondary text-secondary-foreground uppercase">
+                              {skill.category}
+                            </span>
+                            {skill.enabled && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                <Check className="h-3 w-3" />
+                                <span>{t('Active')}</span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground leading-normal line-clamp-2">
+                            {skill.description}
+                          </p>
+                          {skill.tools && skill.tools.length > 0 && (
+                            <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
+                              <span className="font-semibold text-foreground/70">Tools:</span>
+                              <span className="truncate">{skill.tools.join(', ')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Real-time Toggle Switch */}
+                      <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
+                        <span className={`text-[11px] font-medium ${skill.enabled ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {skill.enabled ? t('Enabled') : t('Disabled')}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={skill.enabled}
+                          aria-label={`${t('Toggle')} ${skill.name}`}
+                          disabled={saving || isToggling}
+                          onClick={() => handleToggleSkill(skill.skill_id, skill.enabled)}
+                          className={`relative inline-flex min-h-11 min-w-[44px] h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 ${
+                            skill.enabled ? 'bg-primary' : 'bg-muted-foreground/30'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              skill.enabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
