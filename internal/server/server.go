@@ -74,6 +74,8 @@ type Server struct {
 	inspectorEngine        *inspector.Engine
 	providerRegistry       *agent.ProviderRegistry
 	catalogCache           *agent.ModelCatalogCache
+	aiProviderStore        *agent.AIProviderStore
+	binaryManager          *agent.BinaryManager
 	distillerEngine        *studio.DistillerEngine
 	agentExecutionHook     studio.AgentExecutionHook
 	campaignDecompiler     *campaign.DecompilerEngine

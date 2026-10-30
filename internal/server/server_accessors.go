@@ -304,6 +304,28 @@ func (s *Server) SetCatalogCache(c *agent.ModelCatalogCache) {
 	s.catalogCache = c
 }
 
+func (s *Server) AIProviderStore() *agent.AIProviderStore {
+	if s.aiProviderStore == nil {
+		s.aiProviderStore = agent.DefaultAIProviderStore()
+	}
+	return s.aiProviderStore
+}
+
+func (s *Server) SetAIProviderStore(store *agent.AIProviderStore) {
+	s.aiProviderStore = store
+}
+
+func (s *Server) BinaryManager() *agent.BinaryManager {
+	if s.binaryManager == nil {
+		s.binaryManager = agent.DefaultBinaryManager()
+	}
+	return s.binaryManager
+}
+
+func (s *Server) SetBinaryManager(bm *agent.BinaryManager) {
+	s.binaryManager = bm
+}
+
 func (s *Server) CampaignDecompiler() *campaign.DecompilerEngine {
 	return s.campaignDecompiler
 }

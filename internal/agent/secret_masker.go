@@ -10,6 +10,7 @@ var (
 	bearerRegex    = regexp.MustCompile(`(?i)(Bearer\s+)[a-zA-Z0-9_\-\.]{12,}`)
 	dbURIRegex     = regexp.MustCompile(`(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)`)
 	passwordRegex  = regexp.MustCompile(`(?i)(password|secret|token|api_key)\s*[:=]\s*["']?([^\s"']{6,})["']?`)
+	apiKeyRegex    = regexp.MustCompile(`(sk-[a-zA-Z0-9_\-]{15,}|AIzaSy[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9_\-]{20,}|gsk_[a-zA-Z0-9_\-]{20,})`)
 )
 
 // MaskSecrets replaces occurrences of secret values and known credential patterns with [REDACTED].
@@ -32,6 +33,7 @@ func MaskSecrets(input string, secrets []string) string {
 
 	// 2. Mask known credential patterns
 	result = githubPATRegex.ReplaceAllString(result, "[REDACTED]")
+	result = apiKeyRegex.ReplaceAllString(result, "[REDACTED]")
 	result = bearerRegex.ReplaceAllString(result, "${1}[REDACTED]")
 	result = dbURIRegex.ReplaceAllString(result, "${1}[REDACTED]${3}")
 	result = passwordRegex.ReplaceAllString(result, "${1}=[REDACTED]")

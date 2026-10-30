@@ -647,6 +647,7 @@ export function App() {
   const projectSettings = projectDetail && pathSegments[2] !== 'tasks'
   const settingTitles: Record<string, string> = {
     agents: 'Agents',
+    'ai-providers': 'AI Providers',
     memory: 'Agent Memory',
     integrations: 'Integrations',
     appearance: 'Appearance',

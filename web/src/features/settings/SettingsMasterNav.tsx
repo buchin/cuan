@@ -5,6 +5,7 @@ import {
   CalendarClock,
   Brain,
   Bot,
+  Cpu,
   Plug,
   Boxes,
   Contact,
@@ -66,6 +67,15 @@ export function getSettingsNavCategories(isAccount = false): SettingsNavCategory
       titleKey: 'AI Intelligence & Memory',
       titleFallback: 'Kecerdasan AI & Memori',
       items: [
+        {
+          id: 'ai-providers',
+          labelKey: 'AI Providers',
+          labelFallback: 'Penyedia AI & Mesin',
+          subtitleKey: 'AI engines, subscriptions, and BYOK credentials',
+          subtitleFallback: 'Mesin AI, langganan resmi, dan API key hemat',
+          to: isAccount ? '/account/ai-providers' : '/settings/ai-providers',
+          icon: Cpu,
+        },
         {
           id: 'memory',
           labelKey: 'Agent Memory',
