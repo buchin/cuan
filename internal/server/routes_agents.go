@@ -55,6 +55,14 @@ func (s *Server) registerAgentRoutes(r chi.Router) {
 	r.Get("/api/skills", s.handleListSkills)
 	r.Get("/api/agents/{id}/skills", s.handleGetAgentSkills)
 	r.Put("/api/agents/{id}/skills", s.handleUpdateAgentSkills)
+
+	// AI Providers & Engines Endpoints (Sprint 50)
+	r.Get("/api/ai/providers", s.handleListAIProviders)
+	r.Post("/api/ai/providers", s.handleSaveAIProvider)
+	r.Post("/api/ai/providers/test", s.handleTestAIProvider)
+	r.Post("/api/ai/providers/install-binary", s.handleInstallHarnessBinary)
+	r.Get("/api/agents/{id}/provider", s.handleGetAgentProvider)
+	r.Put("/api/agents/{id}/provider", s.handleUpdateAgentProvider)
 }
 
 // registerAgentV1Routes mounts agent routes inside /api/v1 router.
@@ -84,6 +92,8 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 		ar.Get("/{id}/model-config", s.handleGetAgentModelConfig)
 		ar.Put("/{id}/model-config", s.handleUpdateAgentModelConfig)
 		ar.Patch("/{id}/model-config", s.handleUpdateAgentModelConfig)
+		ar.Get("/{id}/provider", s.handleGetAgentProvider)
+		ar.Put("/{id}/provider", s.handleUpdateAgentProvider)
 		ar.Get("/{id}/skills", s.handleGetAgentSkills)
 		ar.Put("/{id}/skills", s.handleUpdateAgentSkills)
 		ar.Put("/{id}", s.handleUpdateAgent)
@@ -121,5 +131,13 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 
 	r.Route("/skills", func(sr chi.Router) {
 		sr.Get("/", s.handleListSkills)
+	})
+
+	// AI Providers & Engines in /api/v1 (Sprint 50)
+	r.Route("/ai/providers", func(pr chi.Router) {
+		pr.Get("/", s.handleListAIProviders)
+		pr.Post("/", s.handleSaveAIProvider)
+		pr.Post("/test", s.handleTestAIProvider)
+		pr.Post("/install-binary", s.handleInstallHarnessBinary)
 	})
 }

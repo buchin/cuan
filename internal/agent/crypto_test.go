@@ -43,7 +43,10 @@ func TestMaskAPIKey(t *testing.T) {
 		{"", ""},
 		{"short", "******"},
 		{"AIzaSyBKX1234567890XYZ", "AIzaSy...0XYZ"},
-		{"sk-proj-123456789abcdef", "***cdef"},
+		{"sk-proj-123456789abcdef", "sk-...cdef"},
+		{"xai-1234567890abcdef", "xai-...cdef"},
+		{"gsk_1234567890abcdef", "gsk_...cdef"},
+		{"custom_secret_key_1234", "***1234"},
 	}
 
 	for _, tt := range tests {

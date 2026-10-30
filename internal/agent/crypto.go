@@ -50,7 +50,7 @@ func DecryptCredential(ciphertext string, masterSecret ...string) (string, error
 }
 
 // MaskAPIKey returns a safe, redacted representation of an API key for safe UI / log display.
-// e.g. "AIzaSy...ABCD" for Google keys, or "***ABCD" for other keys.
+// e.g. "AIzaSy...ABCD" for Google keys, "sk-...xxxx" for OpenAI/Anthropic/DeepSeek keys, or "***ABCD" for other keys.
 func MaskAPIKey(key string) string {
 	t := strings.TrimSpace(key)
 	if t == "" {
@@ -61,6 +61,15 @@ func MaskAPIKey(key string) string {
 	}
 	if strings.HasPrefix(t, "AIzaSy") && len(t) >= 12 {
 		return t[:6] + "..." + t[len(t)-4:]
+	}
+	if strings.HasPrefix(t, "sk-") && len(t) >= 8 {
+		return "sk-..." + t[len(t)-4:]
+	}
+	if strings.HasPrefix(t, "xai-") && len(t) >= 8 {
+		return "xai-..." + t[len(t)-4:]
+	}
+	if strings.HasPrefix(t, "gsk_") && len(t) >= 8 {
+		return "gsk_..." + t[len(t)-4:]
 	}
 	return "***" + t[len(t)-4:]
 }

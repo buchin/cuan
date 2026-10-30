@@ -53,9 +53,33 @@ func IsModelVisionCapable(provider, modelID string) bool {
 	if p == "commandcode" {
 		return IsCommandCodeModelVision(m)
 	}
-	if p == "claude" {
+	if p == "claude" || p == "anthropic" {
 		// Claude 3+ Sonnet and Opus support vision
-		if strings.Contains(m, "sonnet") || strings.Contains(m, "opus") || strings.Contains(m, "claude-3") {
+		if strings.Contains(m, "sonnet") || strings.Contains(m, "opus") || strings.Contains(m, "haiku") || strings.Contains(m, "claude-3") {
+			return true
+		}
+		return false
+	}
+	if p == "openai" {
+		if strings.Contains(m, "gpt-4o") || strings.Contains(m, "vision") || strings.Contains(m, "o1") {
+			return true
+		}
+		return false
+	}
+	if p == "grok" || p == "xai" {
+		if strings.Contains(m, "vision") || strings.Contains(m, "grok-2") {
+			return true
+		}
+		return false
+	}
+	if p == "openrouter" {
+		if strings.Contains(m, "gpt-4o") || strings.Contains(m, "sonnet") || strings.Contains(m, "vision") {
+			return true
+		}
+		return false
+	}
+	if p == "ollama" {
+		if strings.Contains(m, "llava") || strings.Contains(m, "vision") {
 			return true
 		}
 		return false
@@ -137,6 +161,7 @@ func DefaultRegistry() *ProviderRegistry {
 		defaultRegistryInstance.Register("agy", NewAGYProvider())
 		defaultRegistryInstance.Register("antigravity", NewAGYProvider())
 		defaultRegistryInstance.Register("mock", NewMockProvider())
+		RegisterBYOKProviders(defaultRegistryInstance)
 	})
 	return defaultRegistryInstance
 }
