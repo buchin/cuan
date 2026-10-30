@@ -1,246 +1,322 @@
 # Cuan
 
-> Agentic Project Management for Creators: connect repositories and blueprints, assign tasks to AI agents on your server, and turn ideas into finished content with verification evidence.
+> **Agentic Workspace & Operating System for Creators, Solopreneurs, and MSMEs (UMKM)**: Connect repositories and creator blueprints, assign tasks to autonomous AI agents on your own server, collaborate with staff under robust RBAC, manage customer interactions across WhatsApp and Live Chat, and ship verified outcomes with zero SaaS dependencies or double-cost token markups.
 
-## Status
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?logo=typescript)](https://www.typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-shadcn%2Fui-38B2AC?logo=tailwindcss)](https://ui.shadcn.com)
+[![Database](https://img.shields.io/badge/Database-SQLite%20%7C%20PostgreSQL-4169E1?logo=postgresql)](migrations/)
 
-Cuan provides a self-hosted, single-owner workspace for projects, tasks, agent
-conversations, and live chat contacts. The interface and new system messages use
-English by default; UI language can be changed in Settings. User content retains its language.
+---
 
-Start with the [English workspace guide](docs/guides/navigation.md) and
-[Contacts & live chat](docs/guides/contacts-crm.md). Historical sprint plans and
-release evidence remain under `docs/sprints/` and `docs/evidence/` and may use
-Indonesian. They describe earlier releases rather than current product behavior.
+## Table of Contents
 
-### AGY chat sandbox prerequisite
+- [Overview](#overview)
+- [Key Capabilities](#key-capabilities)
+  - [1. Multi-User Collaboration & Staff Management (RBAC)](#1-multi-user-collaboration--staff-management-rbac)
+  - [2. Universal AI Providers & Dual-Mode BYOK Engine](#2-universal-ai-providers--dual-mode-byok-engine)
+  - [3. Multi-Channel Inbox & Contacts CRM](#3-multi-channel-inbox--contacts-crm)
+  - [4. Extensibility & MCP Client Engine](#4-extensibility--mcp-client-engine)
+  - [5. Project & Task Workspace Management](#5-project--task-workspace-management)
+- [Architecture Overview](#architecture-overview)
+  - [System Architecture Diagram](#system-architecture-diagram)
+  - [Core Components](#core-components)
+- [Quick Start & Installation](#quick-start--installation)
+  - [Prerequisites](#prerequisites)
+  - [Native Linux Quick Start](#native-linux-quick-start)
+  - [Docker Compose Deployment](#docker-compose-deployment)
+  - [Local Development](#local-development)
+- [Health Probes & Disaster Recovery](#health-probes--disaster-recovery)
+- [Documentation & Guides](#documentation--guides)
+- [Sprint History & Release Verification](#sprint-history--release-verification)
+- [License & Community](#license--community)
 
-Native Linux AGY chat analysis now requires an external Bubblewrap sandbox.
-Run `sudo python3 scripts/setup-agent-runtime.py --user cuan` with the actual
-non-root Linux service user before enabling chat. This installs the official
-verified CLI and sandbox, then checks CLI startup inside isolation without using
-an AI account. Use `--check` to verify an existing installation. See [setup, checks, container limitations,
-and rollback](docs/guides/chat-sandbox.md). Docker AGY readiness is not yet verified;
-application health alone does not prove chat readiness.
+---
 
-## Documentation & Guides
+## Overview
 
-- [Notifications](docs/guides/notifications.md) — Context, read state, handled updates, and notification settings.
+**Cuan** is a self-hosted Agentic Workspace and Operating System designed specifically for creators, online business owners, solopreneurs, and small-to-medium enterprises (UMKM). It bridges the gap between high-level business goals and autonomous technical execution:
 
-- [Navigation & Responsive UI](docs/guides/navigation.md) — Inbox, Settings → Agents, project settings, keyboard controls, and device layouts.
-- [Messages & Tasks Guide](docs/guides/message_task_lifecycle.md) — Durable chat, follow-up queue, live activity, message-to-task capture, execution attempts, and recovery.
-- [Onboarding & Self-Hosting Guide](docs/guides/onboarding.md) — deployment prerequisites, persistent storage, and agent readiness.
-- [User & Operational Guide](docs/guides/user_guide.md) — Studio, Inbox, agent-managed work, and recovery.
-- [Troubleshooting & Recovery Playbook](docs/guides/troubleshooting.md) — Container issues, runner recovery, database locks, and disaster mitigation.
-- [Deployment & Recovery Guide](docs/guides/deployment_recovery_guide.md) — Production staging, automated backup, and rollback drill procedures.
-- [GitHub PAT Setup Guide](docs/guides/github_token_guide.md) — Generating, configuring, and revoking GitHub Personal Access Tokens.
-- [Dogfooding Walkthrough](docs/sprints/evidence/S1/dogfooding_walkthrough.md) — Illustrated end-to-end walkthrough of developing Cuan using Cuan.
+- **Zero-Friction for Non-Developers**: All core operations—from staff onboarding and task assignment to AI provider configuration—are managed directly through an intuitive web UI. Technical defaults, headless subprocesses, and sandbox isolation are handled automatically under the hood.
+- **Zero Double-Cost AI Economics**: Use official subscription CLIs (`claude`, `codex`, `agy`) without paying double API token fees, or bring your own API keys (OpenAI, DeepSeek V3/R1, Anthropic, Groq, Ollama) directly at cost.
+- **Zero External SaaS Lock-in**: Autonomous self-contained Go backend. Authentication, role-based access control, database storage, and integrations run completely on your own hardware or VPS without dependency on third-party SaaS auth or token proxy services.
+- **Verifiable Business Outcomes**: Work is executed by autonomous agents and logged with inspectable verification evidence, automated git commits, and optional deployment pipelines.
+
+The interface defaults to English, with full Indonesian localization available via Settings.
+
+---
+
+## Key Capabilities
+
+### 1. Multi-User Collaboration & Staff Management (RBAC)
+
+Cuan incorporates the battle-tested **Fural Permission Model (Owner vs Member)** to enable seamless, secure teamwork between business owners and operational staff:
+
+- **Role Owner**:
+  - Full system administration: billing, git repository connections, server settings, and system observability.
+  - Exclusive access to AI provider configurations, API keys, and user-space binary installations.
+  - Creation, editing, and deletion of business AI assistants.
+  - Staff management: issuing invitations and revoking member access.
+- **Role Member**:
+  - High-productivity operational access: creating and managing tasks, delegating work to pre-configured AI assistants, launching AgentSessions, participating in project discussions, and managing customer inquiries in the Multi-Channel Inbox.
+  - **Role Presentation Guards**: Members are strictly prevented from viewing secret AI Provider credentials, installing server binaries, or modifying AI assistants. Unauthorized requests are rejected with `403 Forbidden` by backend RBAC middleware (`internal/auth/rbac.go`).
+- **Team Management in TeamView**:
+  - Clean two-tab interface organizing **AI Assistants** (`Asisten AI`) and human **Team Members** (`Anggota Tim`).
+  - Human staff directory displaying role badges (`Owner` / `Member`), invitation and active statuses, join dates, and administrative controls.
+- **Zero-Friction 1-Click WhatsApp & Link Invitations**:
+  - Owners can invite staff without configuring SMTP servers, DKIM/SPF DNS records, or paid transactional email services.
+  - Generates secure, cryptographic 7-day invitation token links (`/invite/accept?token=...`) with 1-click WhatsApp/Telegram sharing and clipboard copying.
+- **Public Staff Activation Page**:
+  - Streamlined `/invite/accept?token=...` onboarding page where invited members set their name and password, receive instant auto-login, and are immediately redirected to the workspace.
+
+### 2. Universal AI Providers & Dual-Mode BYOK Engine
+
+Cuan features a flexible **Dual-Mode AI Engine** (`internal/agent/`) supporting both official CLI harnesses and direct API integrations:
+
+- **Official Subscription Harnesses (Zero Double-Cost)**:
+  - Run existing paid AI subscriptions (Claude Pro/Team via official `claude` CLI, ChatGPT Plus/Team via `codex`, Gemini/Antigravity via `agy` CLI, CommandCode) headlessly on your server without incurring secondary API token costs.
+- **Universal BYOK (Bring Your Own Key)**:
+  - Connect directly to global and open-weights model providers: OpenAI (GPT-4o), DeepSeek (V3/R1), Anthropic (Claude Messages API), xAI (Grok), OpenRouter, Groq, Ollama, and Custom OpenAI-compatible LLMs.
+  - Built with pure Go standard library (`net/http`) without external runtime dependencies.
+- **Automated User-Space Binary Manager**:
+  - Install, verify, and update official AI harness CLIs (`claude`, `codex`, `agy`) with one click directly into user-space `~/.local/bin` without requiring `sudo` or `root` permissions.
+- **Enterprise-Grade Credential Security**:
+  - API keys and tokens are encrypted at rest using **AES-256-GCM**.
+  - All credentials are masked in API responses (`sk-...xxxx`) and strictly redacted from server logs (`[REDACTED]`).
+- **Visual Latency & Connectivity Testing**:
+  - Test connection latency in real time with millisecond ping metrics and colored status badges in `/settings/ai-providers`.
+- **Per-Agent AI Provider & Model Binding**:
+  - Customize each AI agent with the optimal provider and model for its role (e.g. DeepSeek V3 for cost-effective customer triage, Claude 3.5 Sonnet for deep engineering tasks).
+
+### 3. Multi-Channel Inbox & Contacts CRM
+
+Transform customer interactions into structured business workflows:
+
+- **Unified Multi-Channel Inbox**:
+  - Centralized messaging hub supporting website **Live Chat** widgets and direct **WhatsApp** integration (via Baileys / webhook).
+- **Autonomous AI Agent Triage & Auto-Response**:
+  - AI agents triage incoming customer inquiries, answer questions using persistent business memory and canned responses, classify intent, and escalate complex issues to human team members.
+- **Contacts CRM & Deal Funnel**:
+  - Comprehensive customer contact profiles, persistent contact memory, interaction history timelines, deal stage tracking, and customer journey management.
+
+### 4. Extensibility & MCP Client Engine
+
+- **Model Context Protocol (MCP) Client Engine**:
+  - Native MCP client implementation in Go (`internal/mcp/`) enabling Cuan AI agents to dynamically discover, inspect, and execute tools provided by external MCP servers.
+- **Apps & Skills Registry**:
+  - Extensible catalog of modular skills and app connectors for repository inspection (`cuan-inspect`), content publishing, database querying, and custom automations.
+
+### 5. Project & Task Workspace Management
+
+- **Git & Repository Integration**:
+  - Pre-flight repository verification, branch management, clone/fetch workspace isolation, and secret masking on git outputs.
+- **Task Runner Daemon (`cmd/runner`)**:
+  - Go execution daemon managing task execution leases, agent subprocess lifecycles, real-time log streaming, and process cancellation.
+- **Creator Blueprints & Studio**:
+  - Standardized project templates, execution blueprints, and modular workspaces for rapid business asset generation.
 
 ---
 
 ## Architecture Overview
 
-Cuan is organized as a Go and React TypeScript monorepo:
+### System Architecture Diagram
 
-- **Backend API (`cmd/server`, `internal/server`)**:
-  Go `net/http` + `chi` router providing `/healthz`, `/readyz`, `/api/v1/info`, authentication, projects, and task management APIs. Serves the production React SPA frontend directly at root `/`.
-- **GitHub & Git Engine (`internal/git`)**:
-  Pre-flight validation of repository existence, remote branch inspection, clone/fetch workspace management, and automatic secret masking on git process outputs.
-- **Projects Management (`internal/project`)**:
-  Project connection lifecycle, remote metadata synchronization, branch listing, and non-destructive project deletion (removes Cuan records while keeping remote GitHub repositories intact).
-- **Credential Security & Encryption (`internal/crypto`)**:
-  Industry-standard **AES-256-GCM** at-rest encryption for GitHub Personal Access Tokens (PATs). Zero plain text exposure in API responses and zero credentials in logs.
-- **Single-Owner Authentication (`internal/auth`)**:
-  Secure single-owner system with bcrypt password hashing, cryptographic session tokens, HttpOnly cookies, and strict takeover protection (subsequent setup attempts return `403 Forbidden`).
-- **Database & Persistent Storage (`internal/db`, `migrations/`, Docker Volume)**:
-  PostgreSQL 16 with versioned embedded migrations. Controlled production upgrades require release-specific migration and rollback checks. Docker persists PostgreSQL, application data, and account HOME in separate named volumes.
-- **Network Isolation & Security**:
-  PostgreSQL port 5432 is **strictly internal** to the Docker container network (`cuan-network`) and is never published to public host ports.
-- **Task Runner Daemon (`cmd/runner`, `internal/runner`)**:
-  Go worker daemon handling execution leases, agent subprocess lifecycle, log streaming, and process cancellation.
-- **Coding Agent Adapter (`internal/agent`)**:
-  Official adapter for headless coding agents (selected: `agy` v1.4.0) with process group cancellation and automatic secret redaction.
-- **Frontend UI (`web/`)**:
-  React 18 + Vite + TypeScript + Tailwind CSS with shadcn/ui components (`web/src/components/ui/`), featuring First-Time Setup Wizard, Login Screen, Projects & Project Detail Management, and Tasks Board.
-- **HTTPS Reverse Proxy (`Caddyfile`, `docker-compose.yml`)**:
-  Zero-config automatic HTTPS via Caddy (Let's Encrypt) or flexible integration with existing host reverse proxies (Nginx / Traefik).
+```d2
+workspace: "Cuan Workspace & OS" {
+  frontend: "Web Frontend (React 18 + Vite + TypeScript + shadcn/ui)" {
+    team_view: "TeamView (AI & Human Members)"
+    ai_settings: "AI Providers & BYOK (/settings/ai-providers)"
+    inbox_ui: "Multi-Channel Inbox & Contacts CRM"
+    public_invite: "Public Invite (/invite/accept)"
+  }
 
+  backend: "Go Backend Server (net/http + chi)" {
+    auth_rbac: "Auth & RBAC Middleware (Owner / Member)"
+    ai_engine: "Dual-Mode AI Engine & Binary Manager"
+    inbox_core: "Inbox & Triage Router"
+    mcp_engine: "MCP Client Engine & Skills Registry"
+    db_layer: "Database Layer (30 Auto-Migrations)"
+  }
+
+  storage: "Storage & Persistence" {
+    sqlite_db: "SQLite (Zero-Config Embedded)"
+    pg_db: "PostgreSQL 16"
+  }
+
+  ai_layer: "AI Execution Harnesses" {
+    subscriptions: "Official CLI Harnesses (~/.local/bin)\n(Claude, ChatGPT/Codex, AGY)"
+    byok_providers: "Universal BYOK (Direct HTTP)\n(OpenAI, DeepSeek V3/R1, Anthropic)"
+  }
+
+  external_channels: "External Channels" {
+    whatsapp: "WhatsApp (Baileys / Webhook)"
+    livechat: "Website Live Chat Widget"
+    mcp_servers: "External MCP Servers & Tools"
+  }
+}
+
+workspace.frontend -> workspace.backend: "REST API & WebSocket"
+workspace.backend.auth_rbac -> workspace.backend.db_layer
+workspace.backend.ai_engine -> workspace.ai_layer.subscriptions: "Headless Subprocess"
+workspace.backend.ai_engine -> workspace.ai_layer.byok_providers: "Go net/http AES-256-GCM"
+workspace.backend.mcp_engine -> workspace.external_channels.mcp_servers: "JSON-RPC (MCP)"
+workspace.external_channels.whatsapp -> workspace.backend.inbox_core
+workspace.external_channels.livechat -> workspace.backend.inbox_core
+workspace.backend.db_layer -> workspace.storage.sqlite_db
+workspace.backend.db_layer -> workspace.storage.pg_db
+```
+
+### Core Components
+
+- **Backend API Server (`cmd/server`, `internal/server`)**:
+  - Go `net/http` + `chi` lightweight router delivering REST endpoints for `/healthz`, `/readyz`, `/api/v1/info`, authentication, RBAC, projects, tasks, inbox, and AI providers.
+  - Serves the production single-page application (SPA) directly at root `/`.
+- **Database & Persistence (`internal/db`, `migrations/`)**:
+  - **Dual Database Engine**: Supports **SQLite** (embedded, zero-config via `modernc.org/sqlite`) for lightweight self-contained setups and **PostgreSQL 16** for larger deployments.
+  - **30 Embedded Auto-Migrations**: Migrations (`000001_baseline` to `000030_multi_user_and_invites`) execute automatically upon application startup with strict backward compatibility.
+  - **In-Memory Mock Repositories**: Thread-safe memory stores for instant local testing without database infrastructure.
+- **Authentication & RBAC (`internal/auth`)**:
+  - Secure bcrypt password hashing, cryptographic session tokens, HttpOnly cookies, and strict RBAC authorization middleware (`internal/auth/rbac.go`).
+- **Security & Cryptography (`internal/crypto`)**:
+  - Industry-standard **AES-256-GCM** encryption for GitHub Personal Access Tokens and AI Provider API keys at rest.
+- **Frontend SPA (`web/`)**:
+  - Built with React 18, Vite, TypeScript, Tailwind CSS, and shadcn/ui components (`web/src/components/ui/`).
+  - Master-detail responsive layouts, dark/light themes, keyboard navigation, and full i18n support.
 
 ---
 
-## Installation
+## Quick Start & Installation
 
-Follow the [onboarding guide](docs/guides/onboarding.md) for native Linux or Docker
-application setup, owner creation, and agent readiness checks. Native Linux is the
-verified AGY execution path; the stock Docker image does not provide a turnkey
-AI runtime.
+### Prerequisites
 
-```sh
+- **Native Linux**:
+  - Linux (Ubuntu 22.04+ or Debian 12+ recommended)
+  - Python 3 & Bubblewrap (`bwrap`) for sandboxed agent execution
+  - Node.js 20+ and npm (for frontend compilation if building from source)
+  - Go 1.22+ (if building backend binaries from source)
+- **Docker**:
+  - Docker Engine 24+ and Docker Compose v2+
+
+### Native Linux Quick Start
+
+```bash
+# 1. Clone the repository
 git clone https://github.com/buchin/cuan.git
 cd cuan
+
+# 2. Set up agent execution runtime sandbox (Bubblewrap)
+sudo python3 scripts/setup-agent-runtime.py --user $(whoami)
+
+# 3. Build backend binaries and web bundle
+./scripts/build.sh
+
+# 4. Start Cuan Server (uses embedded SQLite by default)
+./bin/cuan-server
+```
+
+Open `http://localhost:8080` in your browser to complete the initial Owner setup wizard.
+
+### Docker Compose Deployment
+
+```bash
+# 1. Clone repository
+git clone https://github.com/buchin/cuan.git
+cd cuan
+
+# 2. Run the automated installer
 ./scripts/install.sh --dry-run
 ./scripts/install.sh --existing-proxy
 ```
 
-The Docker installer requires a reachable Docker Engine and Compose, creates
-private configuration with random secrets, preserves existing configuration,
-and checks application/database readiness. Persist the database, application-data,
-and account-HOME volumes. Export existing container data before adding mounts to
-an older installation. Do not use `down -v` to upgrade.
+The installer verifies environment readiness, creates isolated named Docker volumes (`cuan_postgres_data`, `cuan_app_data`), configures random secrets, and validates health checks.
 
-For production changes, use the [deployment and recovery guide](docs/guides/deployment_recovery_guide.md).
+### Local Development
 
-## Health & Readiness Probes
+To run backend and frontend concurrently with live reloading:
 
-Cuan provides standard health endpoints for container orchestrators and monitoring:
+```bash
+# Start Go backend (:8080) and Vite dev server (:3000)
+./scripts/dev.sh
+```
+
+- **API Server**: `http://localhost:8080` (health: `http://localhost:8080/healthz`)
+- **Web UI**: `http://localhost:3000`
+
+#### Running Tests
+
+```bash
+# Run fast unit tests (Go backend + Vitest frontend):
+./scripts/test.sh --fast
+
+# Run Go backend tests only:
+./scripts/test.sh --backend-only
+
+# Run frontend build and typecheck only:
+./scripts/test.sh --frontend-only
+```
+
+---
+
+## Health Probes & Disaster Recovery
+
+### Health & Readiness Endpoints
+
+Cuan provides standard health endpoints for container orchestrators and monitoring systems:
 
 | Endpoint | Type | Description |
 | :--- | :--- | :--- |
 | `GET /healthz` | Liveness | Verifies the HTTP process is responsive. Returns `200 OK`. |
-| `GET /readyz` | Readiness | Verifies PostgreSQL connectivity, pool health, and schema migration status. Returns `200 OK` when ready, or `503 Service Unavailable` if database is down. |
+| `GET /readyz` | Readiness | Verifies database connectivity, connection pool health, and migration state. Returns `200 OK` or `503 Service Unavailable`. |
 | `GET /api/v1/info` | Metadata | Returns application version, license, repository URL, docs link, and release stage. |
-| `cuan-server --info` | CLI Banner | Displays formatted server metadata banner, license, and repository links. |
-| `cuan-server --healthcheck` | CLI Probe | Native container healthcheck probe used inside minimal Alpine containers. |
-| `cuan-server --readycheck` | CLI Probe | Native readiness check probe testing `/readyz` for zero-downtime health validations. |
+| `cuan-server --healthcheck` | CLI Probe | Container healthcheck probe for Alpine/minimal environments. |
+| `cuan-server --readycheck` | CLI Probe | Container readiness check probe testing `/readyz` for zero-downtime rollouts. |
+
+### Backup, Restore & Disaster Recovery
+
+- **Automated Backup**:
+  ```bash
+  ./scripts/backup.sh
+  ./scripts/backup.sh --tag pre-update
+  ```
+- **Verified Restore**:
+  ```bash
+  ./scripts/restore.sh --latest --force
+  ```
+- **Atomic Rollback**:
+  ```bash
+  ./scripts/rollback.sh --version 0.1.0 --latest-pre-update --force
+  ```
+
+For detailed operational procedures, see the [Deployment and Recovery Guide](docs/guides/deployment_recovery_guide.md).
 
 ---
 
-## Staging, Updates, Backup & Disaster Recovery
+## Documentation & Guides
 
-### 1. Isolated Staging Environment
-Run a staging preview instance with dedicated port `8081`, independent database volume (`cuan_staging_postgres_data`), and isolated network (`cuan-staging-network`) without touching Stable:
-```bash
-./scripts/install.sh --staging --domain staging.cuan.example.com
-```
-
-### 2. Safe Version Update Flow
-Perform atomic version upgrades with pre-update health checks, automatic pre-update database backup, schema migration, and post-update data retention validation:
-```bash
-# Upgrade to version 0.2.0:
-./scripts/update.sh --version 0.2.0
-```
-
-### 3. Database Backup & Restore Drill
-Automated, verified PostgreSQL dumps with SHA256 integrity checksums, gzip stream verification, and retention policy:
-```bash
-# Create automated backup:
-./scripts/backup.sh
-
-# Tagged pre-update backup:
-./scripts/backup.sh --tag pre-update
-
-# Restore from latest verified backup:
-./scripts/restore.sh --latest --force
-```
-
-### 4. Rollback & Disaster Recovery Playbook
-> **Core Principle**: *Rolling back an application image does not roll back its database.*
-If an update encounters a failing migration or degraded state, `rollback.sh` reverts the application version AND restores the database from the pre-update backup snapshot:
-```bash
-# Execute safe rollback:
-./scripts/rollback.sh --version 0.1.0 --latest-pre-update --force
-```
-For complete CLI disaster recovery commands (including direct `psql` queries, container log diagnosis, and VPS re-spins), see [docs/guides/deployment_recovery_guide.md](docs/guides/deployment_recovery_guide.md).
+- [Onboarding & Self-Hosting Guide](docs/guides/onboarding.md) — Prerequisites, storage setup, and agent readiness.
+- [Navigation & Responsive UI](docs/guides/navigation.md) — Workspace layout, keyboard shortcuts, and device support.
+- [Multi-User & Unified Team Guide](docs/guides/unified_team_and_global_tasks_guide.md) — Team management, staff invites, and task delegation.
+- [Contacts CRM & Live Chat](docs/guides/contacts-crm.md) — Multi-channel inbox, WhatsApp integration, and contact funnel.
+- [Tasks Workspace & Lifecycle](docs/guides/tasks-workspace.md) — Task lifecycles, execution attempts, and sessions.
+- [GitHub Integration & PAT Setup](docs/guides/github_token_guide.md) — Connecting repositories and managing access tokens.
+- [Deployment & Recovery Playbook](docs/guides/deployment_recovery_guide.md) — Production staging, automated backup, and rollback drills.
+- [Troubleshooting Playbook](docs/guides/troubleshooting.md) — Common operational issues, logs diagnosis, and service recovery.
 
 ---
 
-## Local Development (Without Docker)
+## Sprint History & Release Verification
 
-### Prerequisites
+Cuan is engineered under strict **Agentic Scrum** standards where every sprint produces a documented Single Source of Truth (`docs/sprints/S{number}.md`) and Definition of Done (DoD) verification evidence:
 
-- **Go**: 1.22+ (tested on Go 1.27)
-- **Node.js**: 20+ (tested on Node 24) and **npm**
-- **Coding Agent CLI**: `agy` (v1.4.0) installed and authenticated
-- *(Optional)* **PostgreSQL**: 15+ (in-memory mock store activates automatically if DB is unset)
-
-### Quick Start (Dev Mode)
-
-To start the Go backend and frontend dev server concurrently:
-
-```bash
-./scripts/dev.sh
-```
-
-- API Server: `http://localhost:8080` (healthcheck: `http://localhost:8080/healthz`)
-- Web UI: `http://localhost:3000`
-
-### Building the Project
-
-```bash
-./scripts/build.sh
-```
-
-Outputs:
-- `bin/cuan-server` — API server binary
-- `bin/cuan-runner` — Task execution daemon
-- `bin/cuan-migrate` — Database migration CLI
-- `web/dist/` — Production frontend bundle
-
-### Running Database Migrations
-
-```bash
-# Preview migration SQL plan without requiring a database
-./scripts/migrate.sh --dry-run
-
-# Apply migrations against a PostgreSQL instance:
-export DATABASE_URL="postgres://cuan:cuan@localhost:5432/cuan?sslmode=disable"
-./scripts/migrate.sh
-```
-
-### Running Tests
-
-```bash
-# Run fast unit, auth, migration, and server smoke tests:
-./scripts/test.sh --fast
-
-# Run full test suite including agent subprocess spike tests:
-./scripts/test.sh
-```
+- **Sprint 51 (Current)**: [Multi-User Collaboration & Staff Management with RBAC](docs/sprints/S51.md) — Fural permission model (Owner vs Member), TeamView staff management, 1-click WhatsApp invitations, `/invite/accept` activation page, and migration `000030`.
+- **Sprint 50**: [Dual-Mode AI Engine & Universal BYOK](docs/sprints/S50.md) — Official subscription harnesses (Claude, Codex, AGY), Universal BYOK (OpenAI, DeepSeek V3/R1, Anthropic), user-space binary manager in `~/.local/bin`, and AES-256-GCM encryption.
+- **Sprint 1–49**: Historical sprint specifications and DoD verification records are preserved under [`docs/sprints/`](docs/sprints/) and [`docs/sprints/evidence/`](docs/sprints/evidence/).
 
 ---
 
-## Verification Evidence
+## License & Community
 
-All DoD verification records for Sprint 1 are stored in `docs/sprints/evidence/S1/`:
-- [github_connection_verified.txt](docs/sprints/evidence/S1/github_connection_verified.txt): Real GitHub repository connection verification (`buchin/cuan`), default branch detection, and remote branches retrieval.
-- [access_denied_handled.txt](docs/sprints/evidence/S1/access_denied_handled.txt): Informative error handling for 404 (Repo Not Found), 401/403 (Access Denied / Bad PAT), and 400 (Invalid URL).
-- [credential_security_audit.txt](docs/sprints/evidence/S1/credential_security_audit.txt): AES-256-GCM encryption audit, zero-leak API response audit, git secret masking, and remote protection verification.
-- [projects_ui_walkthrough.md](docs/sprints/evidence/S1/projects_ui_walkthrough.md): Comprehensive walkthrough of the Projects list, Connect Repository modal, and Project Detail UI.
-- [github_token_guide.md](docs/guides/github_token_guide.md): Owner guide for generating, configuring, and revoking GitHub Personal Access Tokens.
-- [smoke_install_login_restart.txt](docs/sprints/evidence/S1/smoke_install_login_restart.txt): End-to-end smoke verification log of clean install, takeover lockout, login, restart persistence, and logout.
-- [health_readiness_response.txt](docs/sprints/evidence/S1/health_readiness_response.txt): HTTP responses for `/healthz`, `/readyz`, and container healthcheck CLI.
-- [configuration_clean.txt](docs/sprints/evidence/S1/configuration_clean.txt): Audit report verifying zero credential leakage.
-- [staging_isolation_verified.txt](docs/sprints/evidence/S1/staging_isolation_verified.txt): Proof of decoupled staging environment (isolated port 8081, volume, database, and network) with zero impact on Stable.
-- [update_data_retention_verified.txt](docs/sprints/evidence/S1/update_data_retention_verified.txt): Proof of 100% data retention (tasks, attempts, audit activities, owner session) across version upgrade.
-- [backup_restore_drill.txt](docs/sprints/evidence/S1/backup_restore_drill.txt): End-to-end backup snapshot creation, data wipe disaster simulation, and 100% data fidelity restoration.
-- [failed_update_rollback_drill.txt](docs/sprints/evidence/S1/failed_update_rollback_drill.txt): Test of simulated failed update (bad migration / broken schema), automatic database rollback, and successful operational recovery.
-- [installer_preflight_verified.txt](docs/sprints/evidence/S1/installer_preflight_verified.txt): Preflight hardware/port checks and non-destructive installer dry-run verification.
-- [deployment_recovery_guide.md](docs/guides/deployment_recovery_guide.md): Operational guide and emergency CLI disaster recovery playbook.
-- [dogfooding_e2e_demo.txt](docs/sprints/evidence/S1/dogfooding_e2e_demo.txt): Complete execution record of end-to-end dogfooding demo (Develop Cuan using Cuan).
-- [dogfooding_walkthrough.md](docs/sprints/evidence/S1/dogfooding_walkthrough.md): Illustrated architectural and visual walkthrough of the dogfooding cycle.
-- [oss_license_audit.txt](docs/sprints/evidence/S1/oss_license_audit.txt): Comprehensive license audit of Apache-2.0, NOTICE, Go dependencies, and npm libraries.
-- [oss_security_and_secrets_audit.txt](docs/sprints/evidence/S1/oss_security_and_secrets_audit.txt): Static analysis and automated secret scanner audit verifying zero leaked credentials.
-- [sprint_1_review_pack.md](docs/sprints/evidence/S1/sprint_1_review_pack.md): Master Sprint Review pack for Product Owner evaluation.
-
-
----
-
-## Backers & Sponsors
-
-<!-- SPONSORS:START -->
-
-### v1.0 Founding Backers
-
-_No sponsors are registered for this batch yet. Become the first founding backer at [cuan.dev/sponsor](https://cuan.dropsugar.com/sponsor)!_
-
-<!-- SPONSORS:END -->
-
----
-
-## License
-
-Licensed under the [Apache License, Version 2.0](LICENSE).
-Copyright 2026 Buchin and Cuan contributors. See [NOTICE](NOTICE) for details.
-
-- [Contacts CRM dan integrasi live chat](docs/guides/contacts-crm.md)
-- [Tasks workspace, sessions, terminal, and release procedure](docs/guides/tasks-workspace.md)
+Cuan is open-source software licensed under the [Apache License, Version 2.0](LICENSE).  
+Copyright © 2026 Buchin and Cuan contributors. See [NOTICE](NOTICE) for details.
