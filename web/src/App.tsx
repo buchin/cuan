@@ -351,7 +351,7 @@ export function App() {
   // responsive list mode cannot race against an effect restoring old selection.
   const wide = useMediaQuery('(min-width: 1200px)')
   const visibleContact =
-    subParam && rootSegment === 'inbox'
+    subParam && (rootSegment === 'inbox' || rootSegment === 'chat')
       ? contacts.find(
           (c) =>
             c.conversation_id === subParam ||
@@ -435,6 +435,16 @@ export function App() {
         { replace: true, state: location.state },
       )
   }, [rootSegment, subParam, location.pathname, navigate])
+
+  // Deep Link Synchronization: /chat/:roomId -> /inbox/:roomId
+  useEffect(() => {
+    if (rootSegment === 'chat' && subParam) {
+      navigate('/inbox/' + encodeURIComponent(subParam) + location.search, {
+        replace: true,
+        state: location.state,
+      })
+    }
+  }, [rootSegment, subParam, location.search, location.state, navigate])
 
   // Navigation handlers
   const handleSelectTab = (tab: AppTab) => {

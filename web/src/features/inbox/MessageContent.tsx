@@ -5,6 +5,11 @@ import { ChatMarkdown } from './ChatMarkdown'
 import { StatusReportCard, parseTaskReportMessage } from '../../components/ui/StatusReportCard'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
+import {
+  ChatPreviewCard,
+  extractConversationRoomId,
+  extractTaskId,
+} from './RoomCard'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import type { ReceiptExtraction } from '../../api/appsSkills'
 
@@ -13,14 +18,15 @@ import type { ReceiptExtraction } from '../../api/appsSkills'
 export function messageNavigation(content: string) {
   const boundary = content.lastIndexOf('\n\n')
   const tail = boundary >= 0 ? content.slice(boundary + 2) : content
-  const links = [...tail.matchAll(/\[([^\]\n]+)\]\((\/[^\s)]+)\)/g)]
-  if (!links.length || links.length > 3 || tail.replace(/\[([^\]\n]+)\]\((\/[^\s)]+)\)/g, '').replace(/[\s·•|]/g, '')) return { body: content, actions: [] }
+  const linkRegex = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]+)\)/g
+  const links = [...tail.matchAll(linkRegex)]
+  if (!links.length || links.length > 3 || tail.replace(linkRegex, '').replace(/[\s·•|]/g, '')) return { body: content, actions: [] }
   const actions = links.map(([, label, href]) => {
     const path = href.split(/[?#]/)[0]
     if (path === '/settings/integrations/github') return { label: 'Connect GitHub', href, primary: true }
     if (path === '/settings/integrations/live-chat') return { label: 'Connect Live Chat', href, primary: true }
-    if (/^\/tasks\/[A-Za-z0-9_-]+$/.test(path)) return { label, href, primary: false }
-    if (/^\/inbox\/[A-Za-z0-9_-]+$/.test(path)) return { label, href, primary: false }
+    if (/^\/tasks\/[A-Za-z0-9_-]+$/.test(path) || extractTaskId(href)) return { label, href, primary: false }
+    if (/^\/inbox\/[A-Za-z0-9_-]+$/.test(path) || /^\/chat\/[A-Za-z0-9_-]+$/.test(path) || extractConversationRoomId(href)) return { label, href, primary: false }
     return null
   })
   if (actions.some((action) => !action)) return { body: content, actions: [] }
@@ -41,6 +47,7 @@ export function MessageContent({
   const visibleActions = hideTaskActions
     ? actions.filter(
         (action) =>
+          !extractTaskId(action.href) &&
           !/^\/tasks\/[A-Za-z0-9_-]+$/.test(action.href.split(/[?#]/)[0]),
       )
     : actions
@@ -75,12 +82,15 @@ export function MessageContent({
         >
           {visibleActions.map((action) => {
             const taskMatch = action.href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
-            if (taskMatch) {
-              return <TaskCard key={action.href} taskId={taskMatch[1]} />
+            const taskId = taskMatch ? taskMatch[1] : extractTaskId(action.href)
+            if (taskId) {
+              return <TaskCard key={action.href} taskId={taskId} />
             }
             const inboxMatch = action.href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
-            if (inboxMatch) {
-              return <RoomCard key={action.href} roomId={inboxMatch[1]} />
+            const chatMatch = action.href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)
+            const roomId = inboxMatch ? inboxMatch[1] : chatMatch ? chatMatch[1] : extractConversationRoomId(action.href)
+            if (roomId) {
+              return <RoomCard key={action.href} roomId={roomId} />
             }
             return (
               <div key={action.href} className="flex flex-wrap items-center gap-2">

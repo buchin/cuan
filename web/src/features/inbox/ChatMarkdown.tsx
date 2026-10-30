@@ -18,6 +18,11 @@ import { Check, Copy, ChevronDown, Workflow } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
+import {
+  ChatPreviewCard,
+  extractConversationRoomId,
+  extractTaskId,
+} from './RoomCard'
 import './chat-markdown.css'
 
 // Messages can contain untrusted URLs. File paths remain readable text until
@@ -190,10 +195,26 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   )
 }
 
+function autolinkConversationPaths(raw: string): string {
+  if (!raw) return ''
+  // Split around code blocks and existing markdown links to avoid altering them
+  const parts = raw.split(/(```[\s\S]*?```|`[^`\n]+`|\[[^\]]+\]\([^)]+\))/g)
+  return parts
+    .map((part, index) => {
+      if (index % 2 === 1) return part
+      return part.replace(
+        /(^|[\s(])(\/(?:inbox|chat)\/[A-Za-z0-9_-]+)(?=[)\s.,;!?]|$)/g,
+        (match, prefix, path) => `${prefix}[${path}](${path})`
+      )
+    })
+    .join('')
+}
+
 function prepareChatMarkdown(raw: string): string {
   if (!raw) return ''
   // Separate a block of > quotes from an immediately following reply text that lacks a blank line
-  return raw.replace(/(^>.*)(\r?\n)([^>\r\n])/gm, '$1$2\n$3')
+  const unquoted = raw.replace(/(^>.*)(\r?\n)([^>\r\n])/gm, '$1$2\n$3')
+  return autolinkConversationPaths(unquoted)
 }
 
 export const ChatMarkdown = memo(function ChatMarkdown({
@@ -237,12 +258,15 @@ export const ChatMarkdown = memo(function ChatMarkdown({
             a: ({ href, children }) => {
               if (!href) return <span>{children}</span>
               const taskMatch = href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
-              if (taskMatch) {
-                return <TaskCard taskId={taskMatch[1]} className="my-2" />
+              const taskId = taskMatch ? taskMatch[1] : extractTaskId(href)
+              if (taskId) {
+                return <TaskCard taskId={taskId} className="my-2" />
               }
               const inboxMatch = href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
-              if (inboxMatch) {
-                return <RoomCard roomId={inboxMatch[1]} className="my-2" />
+              const chatMatch = href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)
+              const roomId = inboxMatch ? inboxMatch[1] : chatMatch ? chatMatch[1] : extractConversationRoomId(href)
+              if (roomId) {
+                return <RoomCard roomId={roomId} className="my-2" />
               }
               return (
                 <a

@@ -12,6 +12,21 @@ import { chatApi } from '../../api/chat'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import { relativeTime, agentDisplayName } from '../tasks/task-ui'
+import {
+  extractConversationRoomId,
+  extractTaskId,
+  isCuanHost,
+  isConversationRoute,
+  isTaskRoute,
+} from './room-link'
+
+export {
+  extractConversationRoomId,
+  extractTaskId,
+  isCuanHost,
+  isConversationRoute,
+  isTaskRoute,
+}
 
 export interface RoomCardProps {
   roomId: string
@@ -92,6 +107,7 @@ export function RoomCard({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       if (onClick && contact) {
@@ -163,6 +179,7 @@ export function RoomCard({
           <button
             type="button"
             onClick={handleCopyLink}
+            onKeyDown={(e) => e.stopPropagation()}
             aria-label={t('Copy link')}
             className="action-secondary min-h-[44px] min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
           >
@@ -269,6 +286,7 @@ export function RoomCard({
         <button
           type="button"
           onClick={handleCopyLink}
+          onKeyDown={(e) => e.stopPropagation()}
           aria-label={t('Copy link')}
           className="action-secondary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
@@ -283,6 +301,7 @@ export function RoomCard({
         <button
           type="button"
           onClick={handleOpenRoom}
+          onKeyDown={(e) => e.stopPropagation()}
           aria-label={`${t('Open room')}: ${displayName}`}
           className="action-primary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
         >
@@ -293,3 +312,6 @@ export function RoomCard({
     </div>
   )
 }
+
+export const ChatPreviewCard = RoomCard
+export type ChatPreviewCardProps = RoomCardProps
