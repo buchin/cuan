@@ -112,7 +112,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if !coordinator {
 			return reply, ""
 		}
-		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || toolBudgetRecovery)
+		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
 		if err != nil {
 			if harness == "commandcode" && strings.TrimSpace(reply) != "" {
 				cleanRaw := strings.TrimSpace(reply)
@@ -405,9 +405,6 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			}
 			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
 			repairCtx = context.WithValue(repairCtx, inboxCoordinatorDirectKey{}, true)
-			if reason == "tool_budget_exceeded" {
-				repairCtx = context.WithValue(repairCtx, inboxToolBudgetRecoveryKey{}, true)
-			}
 			recoverySafe := false
 			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, &recoverySafe, attachmentPaths...)
 			if err == "" && output != "" {

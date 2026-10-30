@@ -296,7 +296,11 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 				return "", bad
 			}
 		case "delegation":
-			if _, delegation, err := parseInboxDelegation(output); err != nil || delegation == nil {
+			_, delegation, err := parseInboxDelegation(output)
+			if err != nil || delegation == nil {
+				return "", bad
+			}
+			if delegation.ProjectID != "" && strings.TrimSpace(delegation.ProjectName) != "" && !strings.EqualFold(delegation.ProjectID, delegation.ProjectName) {
 				return "", bad
 			}
 		case "task_draft":

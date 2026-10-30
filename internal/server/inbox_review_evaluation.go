@@ -165,64 +165,62 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		return "Hasil pekerjaan sedang ditinjau ulang oleh tim. Konteks dan bukti pekerjaan tersimpan aman." + link
 	}
 	if decision.Decision == "pass" {
-		if d.LatestAttempt != nil && d.LatestAttempt.Status != task.AttemptStatusSucceeded {
-			zero := 0
-			_, _ = s.taskSvc.UpdateAttemptStatus(ctx, d.LatestAttempt.ID, "coordinator", task.UpdateAttemptRequest{
-				Status:   task.AttemptStatusSucceeded,
-				ExitCode: &zero,
-			})
-			d.LatestAttempt.Status = task.AttemptStatusSucceeded
-		}
-		completedDoD := make([]task.DoDItem, len(d.DoDChecklist))
-		for i, item := range d.DoDChecklist {
-			completedDoD[i] = task.DoDItem{
-				Text:      item.Text,
-				Completed: true,
+		if d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+			decision.Decision = "revise"
+			decision.Revision = "Gap: the previous execution attempt did not succeed. Area: original approved task and existing workspace. Inspect saved work, finish missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
+			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- [x] **Pelaksanaan tugas**: Dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] **Verifikasi Kriteria**: Eksekusi sebelumnya belum berhasil diselesaikan.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
+		} else {
+			completedDoD := make([]task.DoDItem, len(d.DoDChecklist))
+			for i, item := range d.DoDChecklist {
+				completedDoD[i] = task.DoDItem{
+					Text:      item.Text,
+					Completed: true,
+				}
 			}
-		}
-		summary := strings.TrimSpace(d.Summary)
-		if summary == "" {
-			summary = "Pekerjaan telah diselesaikan dan diverifikasi."
-		}
-		completeNote := strings.TrimSpace(d.CompleteNote)
-		if completeNote == "" {
-			completeNote = decision.Explanation
-		}
-		if d.Status != task.TaskStatusDone {
-			if d.Status != task.TaskStatusReview {
-				reviewStatus := task.TaskStatusReview
-				_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
+			summary := strings.TrimSpace(d.Summary)
+			if summary == "" {
+				summary = "Pekerjaan telah diselesaikan dan diverifikasi."
 			}
-			doneStatus := task.TaskStatusDone
-			updated, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{
-				Status:       &doneStatus,
-				Summary:      &summary,
-				CompleteNote: &completeNote,
-				DoDChecklist: &completedDoD,
-			})
-			if err == nil && updated != nil {
-				d.Status = task.TaskStatusDone
-				d.Summary = summary
-				d.CompleteNote = completeNote
-				d.DoDChecklist = completedDoD
+			completeNote := strings.TrimSpace(d.CompleteNote)
+			if completeNote == "" {
+				completeNote = decision.Explanation
 			}
-		}
-		_ = s.taskSvc.FinishTaskLaunches(ctx, d.ID, "stopped")
-		if d.SourceRoomID != "" {
-			s.publishInbox(d.SourceRoomID)
-		}
-		if q.RoomID != "" && q.RoomID != d.SourceRoomID {
-			s.publishInbox(q.RoomID)
-		}
+			if d.Status != task.TaskStatusDone {
+				if d.Status != task.TaskStatusReview {
+					reviewStatus := task.TaskStatusReview
+					_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
+				}
+				doneStatus := task.TaskStatusDone
+				updated, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{
+					Status:       &doneStatus,
+					Summary:      &summary,
+					CompleteNote: &completeNote,
+					DoDChecklist: &completedDoD,
+				})
+				if err == nil && updated != nil {
+					d.Status = task.TaskStatusDone
+					d.Summary = summary
+					d.CompleteNote = completeNote
+					d.DoDChecklist = completedDoD
+				}
+			}
+			_ = s.taskSvc.FinishTaskLaunches(ctx, d.ID, "stopped")
+			if d.SourceRoomID != "" {
+				s.publishInbox(d.SourceRoomID)
+			}
+			if q.RoomID != "" && q.RoomID != d.SourceRoomID {
+				s.publishInbox(q.RoomID)
+			}
 
-		if target, ok := s.detectNextMultiPhase(ctx, d); ok {
-			return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
+			if target, ok := s.detectNextMultiPhase(ctx, d); ok {
+				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
+			}
+			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
+			if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
+				return decision.Explanation + taskLink
+			}
+			return decision.Explanation
 		}
-		taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
-		if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
-			return decision.Explanation + taskLink
-		}
-		return decision.Explanation
 	}
 	if decision.Decision == "revise" {
 		delegation := inboxDelegation{TaskID: d.ID, ProjectID: d.ProjectID, AuthorizationID: d.SourceMessageID, Revision: decision.Revision}
