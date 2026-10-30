@@ -6,6 +6,7 @@ import {
   Brain,
   Bot,
   Plug,
+  Boxes,
   Contact,
   User,
   Palette,
@@ -23,6 +24,7 @@ export interface SettingsNavItem {
   subtitleFallback: string
   to: string
   icon: React.ComponentType<{ className?: string }>
+  aliasIds?: string[]
 }
 
 export interface SettingsNavCategory {
@@ -90,13 +92,15 @@ export function getSettingsNavCategories(isAccount = false): SettingsNavCategory
       titleFallback: 'Konektivitas & Relasi',
       items: [
         {
-          id: 'integrations',
-          labelKey: 'Integrations',
-          labelFallback: 'Integrasi',
-          subtitleKey: 'Connect WhatsApp, GitHub, and external services',
-          subtitleFallback: 'Sambungkan WhatsApp, GitHub, dan layanan luar',
-          to: isAccount ? '/account/integrations' : '/settings/integrations',
-          icon: Plug,
+          id: 'apps-skills',
+          labelKey: 'Apps & Skills',
+          labelFallback: 'Aplikasi & Kemampuan',
+          subtitleKey: 'Connect 1-click external apps and modular AI skills',
+          subtitleFallback: 'Koneksi 1-klik aplikasi eksternal dan kapabilitas AI',
+          to: isAccount ? '/account/apps-skills' : '/settings/apps-skills',
+          icon: Boxes || Plug,
+          aliasIds: ['integrations'],
+          // Replaces legacy id: 'integrations' (Plug) - mapped routes: /settings/integrations, /account/integrations
         },
         {
           id: 'contacts',
@@ -195,7 +199,9 @@ export function SettingsMasterNav({
           </h3>
           <div className="space-y-1">
             {category.items.map((item) => {
-              const isActive = currentSection === item.id
+              const isActive =
+                currentSection === item.id ||
+                Boolean(item.aliasIds && item.aliasIds.includes(currentSection))
               const Icon = item.icon
               const targetUrl = location.search
                 ? `${item.to}${location.search}`
