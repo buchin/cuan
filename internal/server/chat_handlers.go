@@ -277,8 +277,9 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 
 			// If initial message provided in session payload
 			if msgText != "" {
+				initMsgID := db.GenerateUUID()
 				if err := s.projectStudioRepo.CreateMessage(r.Context(), &db.ProjectMessage{
-					ID:         db.GenerateUUID(),
+					ID:         initMsgID,
 					RoomID:     sessionUUID,
 					AuthorType: "user",
 					AuthorID:   guestUUID,
@@ -290,6 +291,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 					respondJSONError(w, 503, "Message could not be saved")
 					return
 				}
+				s.DispatchCustomerMessagePush(r.Context(), sessionUUID, initMsgID, name, msgText)
 			}
 		}
 	} else {
@@ -484,6 +486,8 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 			respondJSONError(w, 503, "Message could not be saved")
 			return
 		}
+
+		s.DispatchCustomerMessagePush(r.Context(), sessionUUID, msgUUID, authorName, text)
 	}
 
 	// Determine new message index

@@ -366,8 +366,18 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	defer c()
 	if err := store.FinishInboxRequest(save, q, reply); err != nil {
 		log.Printf("inbox terminal persistence failed room=%s request=%s", q.RoomID, q.RequestID)
-	} else if reply != nil && q.SafeError == "" && q.State == "completed" {
-		s.updateAgentTopicTitle(save, q, topicTitle)
+	} else {
+		if reply != nil && q.SafeError == "" && q.State == "completed" {
+			s.updateAgentTopicTitle(save, q, topicTitle)
+		}
+		if reply != nil && q.SafeError == "" {
+			_, approvalTitle := splitInboxApproval(reply.AuthorType, reply.Content)
+			if approvalTitle != "" {
+				s.DispatchAgentUpdatePush(save, q.RoomID, reply.ID, reply.AuthorName, reply.Content, true)
+			} else if q.State == "completed" {
+				s.DispatchAgentUpdatePush(save, q.RoomID, reply.ID, reply.AuthorName, reply.Content, false)
+			}
+		}
 	}
 	s.publishInbox(q.RoomID)
 }

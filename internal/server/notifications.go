@@ -104,8 +104,38 @@ func replyNotification(q db.InboxRequest, context, nextState string) ownerNotifi
 	}
 	return n
 }
+func cleanNotificationSnippet(content string) string {
+	if strings.HasPrefix(content, attachmentEnvelope) {
+		text, _ := decodeAttachmentMessage(content)
+		content = text
+	}
+	var b strings.Builder
+	inTag := false
+	for _, r := range content {
+		if r == '<' {
+			inTag = true
+			continue
+		}
+		if r == '>' {
+			inTag = false
+			continue
+		}
+		if !inTag {
+			b.WriteRune(r)
+		}
+	}
+	cleaned := strings.Join(strings.Fields(b.String()), " ")
+	cleaned = agent.MaskSecrets(cleaned, nil)
+	runes := []rune(cleaned)
+	if len(runes) > 100 {
+		return string(runes[:97]) + "..."
+	}
+	return cleaned
+}
+
 func proposalNotification(room, id, title, context, decision string, at time.Time) ownerNotification {
-	n := ownerNotification{ID: "approval:" + room + ":" + id, Kind: "approval", Title: notificationText(title, 160), Context: context, Status: "Needs approval", ActionLabel: "Review proposal", Href: "/inbox/" + url.PathEscape(room), At: at}
+	cleanTitle := notificationText(title, 160)
+	n := ownerNotification{ID: "approval:" + room + ":" + id, Kind: "approval", Title: cleanTitle, Context: context, Summary: cleanTitle, Status: "Needs approval", ActionLabel: "Review proposal", Href: "/inbox/" + url.PathEscape(room), At: at}
 	if decision != "" {
 		n.Resolved = true
 		n.ActionLabel = "View conversation"
@@ -211,11 +241,21 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 			if err != nil {
 				return nil, err
 			}
+			activeStaff := map[string]bool{owner: true}
+			if s.authSvc != nil {
+				if members, _, err := s.authSvc.ListTeamMembers(ctx); err == nil {
+					for _, m := range members {
+						if m.IsActive {
+							activeStaff[m.ID] = true
+						}
+					}
+				}
+			}
 			allowed := map[string]bool{}
 			ownedMessages := map[string]bool{}
 			latest := map[string]db.InboxRequest{}
 			for _, q := range requests {
-				if q.OwnerID == owner {
+				if activeStaff[q.OwnerID] {
 					allowed[q.ReplyID] = true
 					ownedMessages[q.MessageID] = true
 					old, ok := latest[q.MessageID]
@@ -225,7 +265,7 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 				}
 			}
 			for _, q := range requests {
-				if q.OwnerID == owner && (q.State == "failed" || q.State == "interrupted") {
+				if activeStaff[q.OwnerID] && (q.State == "failed" || q.State == "interrupted") {
 					next := ""
 					if current := latest[q.MessageID]; current.RequestID != q.RequestID {
 						next = current.State
@@ -271,9 +311,18 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 			}
 			return nil, err
 		}
+		visitorName := strings.TrimSpace(c.Name)
+		if visitorName == "" {
+			visitorName = "Pengunjung"
+		}
 		for _, m := range messages {
 			if m.AuthorType == "user" && m.AuthorID != "operator_user" {
-				items = append(items, ownerNotification{ID: "customer:" + c.SessionUUID + ":" + m.ID, Kind: "customer", Title: "New customer message", Context: notificationContext(c.Name, c.Product), Status: "Customer message", ActionLabel: "View message", Href: "/inbox/" + url.PathEscape(c.SessionUUID), At: m.CreatedAt})
+				title := "Pesan Baru dari " + visitorName
+				summary := cleanNotificationSnippet(m.Content)
+				if summary == "" {
+					summary = "Pesan baru dari pelanggan di Live Chat."
+				}
+				items = append(items, ownerNotification{ID: "customer:" + c.SessionUUID + ":" + m.ID, Kind: "customer", Title: title, Context: notificationContext(c.Name, c.Product), Summary: summary, Status: "Customer message", ActionLabel: "View message", Href: "/inbox/" + url.PathEscape(c.SessionUUID), At: m.CreatedAt})
 			}
 		}
 	}
@@ -524,10 +573,76 @@ func enabledNotification(p notificationPreferences, kind string) bool {
 
 var notificationHTTPClient = &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 
+func buildPushPayload(item ownerNotification) map[string]string {
+	tag := item.ID
+	if strings.HasPrefix(item.ID, "approval:") {
+		tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
+	} else if strings.HasPrefix(item.ID, "request:") {
+		tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
+	}
+
+	title := item.Title
+	if item.Kind == "customer" {
+		if title == "" || title == "New customer message" {
+			if item.Context != "" {
+				title = "Pesan Baru dari " + item.Context
+			} else {
+				title = "Pesan Baru dari Pengunjung"
+			}
+		}
+	} else if item.Kind == "approval" || item.Kind == "completed" || strings.HasPrefix(tag, "agent:") {
+		title = "Asisten AI"
+	}
+	if title == "" {
+		title = "Cuan"
+	}
+
+	body := item.Summary
+	if body == "" {
+		if item.Title != "" && item.Title != title {
+			body = item.Title
+		} else if item.Kind == "customer" {
+			body = "Pesan baru dari pelanggan di Live Chat."
+		} else if item.Kind == "approval" {
+			body = "Asisten AI membutuhkan persetujuan Anda."
+		} else {
+			body = "Ada pembaruan yang memerlukan perhatian Anda."
+		}
+	}
+	body = cleanNotificationSnippet(body)
+
+	href := item.Href
+	if href == "" || !strings.HasPrefix(href, "/inbox") {
+		parts := strings.Split(tag, ":")
+		if len(parts) >= 2 && parts[1] != "" {
+			href = "/inbox/" + url.PathEscape(parts[1])
+		} else if href == "" {
+			href = "/inbox"
+		}
+	}
+
+	return map[string]string{
+		"title": title,
+		"body":  body,
+		"href":  href,
+		"tag":   tag,
+	}
+}
+
 func sendOwnerPush(ctx context.Context, p ownerPreferences, sub webpush.Subscription, item ownerNotification) (int, error) {
-	// Avoid exposing project titles or message contents on a locked device.
-	raw, _ := json.Marshal(map[string]string{"title": "Cuan", "body": "There is an update that needs your attention.", "href": item.Href, "tag": item.ID})
-	response, err := webpush.SendNotificationWithContext(ctx, raw, &sub, &webpush.Options{HTTPClient: notificationHTTPClient, Subscriber: p.PushSubject, VAPIDPublicKey: p.PublicKey, VAPIDPrivateKey: p.PrivateKey, TTL: 600})
+	subject := p.PushSubject
+	if subject == "" {
+		subject = "mailto:cuan-push@cuan.local"
+	}
+	payload := buildPushPayload(item)
+	raw, _ := json.Marshal(payload)
+	response, err := webpush.SendNotificationWithContext(ctx, raw, &sub, &webpush.Options{
+		HTTPClient:      notificationHTTPClient,
+		Subscriber:      subject,
+		VAPIDPublicKey:  p.PublicKey,
+		VAPIDPrivateKey: p.PrivateKey,
+		TTL:             600,
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -535,6 +650,189 @@ func sendOwnerPush(ctx context.Context, p ownerPreferences, sub webpush.Subscrip
 	io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 	return response.StatusCode, nil
 }
+
+func (s *Server) activeStaffIDs(ctx context.Context) []string {
+	if s.authSvc != nil {
+		members, _, err := s.authSvc.ListTeamMembers(ctx)
+		if err == nil && len(members) > 0 {
+			var ids []string
+			for _, m := range members {
+				if m.IsActive {
+					ids = append(ids, m.ID)
+				}
+			}
+			if len(ids) > 0 {
+				return ids
+			}
+		}
+		if owner, err := s.authSvc.OwnerID(ctx); err == nil && owner != "" {
+			return []string{owner}
+		}
+	}
+	return nil
+}
+
+func (s *Server) dispatchItemToStaff(ctx context.Context, staffID string, item ownerNotification) {
+	ownerPreferencesMu.Lock()
+	p, err := readOwnerPreferences(staffID)
+	if err != nil {
+		ownerPreferencesMu.Unlock()
+		return
+	}
+	mergeNotifications(&p, []ownerNotification{item})
+	_ = writeOwnerPreferences(staffID, p)
+
+	if len(p.Subscriptions) == 0 || !enabledNotification(p.Notifications, item.Kind) || quietAt(p.Notifications, time.Now()) {
+		ownerPreferencesMu.Unlock()
+		return
+	}
+	ownerPreferencesMu.Unlock()
+
+	tag := item.ID
+	if strings.HasPrefix(item.ID, "approval:") {
+		tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
+	} else if strings.HasPrefix(item.ID, "request:") {
+		tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
+	}
+
+	for _, sub := range p.Subscriptions {
+		if (sub.Sent != nil && sub.Sent[item.ID]) || (tag != "" && sub.Sent != nil && sub.Sent[tag]) {
+			continue
+		}
+		if !sub.Since.IsZero() && item.At.Before(sub.Since.Add(-1*time.Minute)) {
+			continue
+		}
+		code, err := sendOwnerPush(ctx, p, sub.Subscription, item)
+		if err != nil {
+			continue
+		}
+		ownerPreferencesMu.Lock()
+		current, err := readOwnerPreferences(staffID)
+		if err == nil {
+			for j := range current.Subscriptions {
+				device := &current.Subscriptions[j]
+				if device.Subscription.Endpoint != sub.Subscription.Endpoint {
+					continue
+				}
+				if code == 404 || code == 410 {
+					current.Subscriptions = append(current.Subscriptions[:j], current.Subscriptions[j+1:]...)
+				} else if code >= 200 && code < 300 {
+					if device.Sent == nil {
+						device.Sent = map[string]bool{}
+					}
+					device.Sent[item.ID] = true
+					if tag != "" {
+						device.Sent[tag] = true
+					}
+					valid := map[string]bool{}
+					for _, n := range current.Items {
+						if device.Sent[n.ID] {
+							valid[n.ID] = true
+						}
+					}
+					if tag != "" {
+						valid[tag] = true
+					}
+					device.Sent = valid
+				}
+				break
+			}
+			_ = writeOwnerPreferences(staffID, current)
+		}
+		ownerPreferencesMu.Unlock()
+	}
+}
+
+func (s *Server) broadcastPushNotification(ctx context.Context, item ownerNotification) {
+	staffIDs := s.activeStaffIDs(ctx)
+	if len(staffIDs) == 0 {
+		return
+	}
+	for _, staffID := range staffIDs {
+		s.dispatchItemToStaff(ctx, staffID, item)
+	}
+}
+
+// DispatchCustomerMessagePush sends an instant push notification for visitor live chat messages.
+func (s *Server) DispatchCustomerMessagePush(ctx context.Context, roomID, messageID, authorName, content string) {
+	visitorName := strings.TrimSpace(authorName)
+	if visitorName == "" {
+		visitorName = "Customer"
+	}
+	title := "Pesan Baru dari " + visitorName
+	summary := cleanNotificationSnippet(content)
+	if summary == "" {
+		summary = "Pesan baru dari pelanggan di Live Chat."
+	}
+	item := ownerNotification{
+		ID:          "customer:" + roomID + ":" + messageID,
+		Kind:        "customer",
+		Title:       title,
+		Context:     visitorName,
+		Summary:     summary,
+		Status:      "Customer message",
+		ActionLabel: "View message",
+		Href:        "/inbox/" + url.PathEscape(roomID),
+		At:          time.Now().UTC(),
+	}
+	pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	s.broadcastPushNotification(pushCtx, item)
+}
+
+// DispatchAgentUpdatePush sends an instant push notification for agent completions or approvals needed.
+func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID, authorName, content string, isApproval bool) {
+	agentName := strings.TrimSpace(authorName)
+	if agentName == "" {
+		agentName = "Asisten AI"
+	}
+	kind := "completed"
+	status := "Completed"
+	actionLabel := "View conversation"
+	summary := cleanNotificationSnippet(content)
+	title := agentName
+	if isApproval {
+		kind = "approval"
+		status = "Needs approval"
+		actionLabel = "Review proposal"
+		_, approvalTitle := splitInboxApproval("agent", content)
+		if approvalTitle != "" {
+			summary = cleanNotificationSnippet(approvalTitle)
+		}
+	}
+	if summary == "" {
+		if isApproval {
+			summary = "Asisten AI membutuhkan persetujuan Anda."
+		} else {
+			summary = "Asisten AI telah menyelesaikan respons."
+		}
+	}
+	item := ownerNotification{
+		ID:          "agent:" + roomID + ":" + messageID,
+		Kind:        kind,
+		Title:       title,
+		Context:     agentName,
+		Summary:     summary,
+		Status:      status,
+		ActionLabel: actionLabel,
+		Href:        "/inbox/" + url.PathEscape(roomID),
+		At:          time.Now().UTC(),
+	}
+	if isApproval {
+		item.ID = "approval:" + roomID + ":" + messageID
+	}
+	pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	s.broadcastPushNotification(pushCtx, item)
+}
+
+func (s *Server) dispatchAllStaff(ctx context.Context) {
+	staffIDs := s.activeStaffIDs(ctx)
+	for _, staffID := range staffIDs {
+		s.dispatchOwnerNotifications(ctx, staffID)
+	}
+}
+
 func (s *Server) dispatchOwnerNotifications(ctx context.Context, owner string) {
 	ownerPreferencesMu.Lock()
 	p, err := readOwnerPreferences(owner)
@@ -566,7 +864,13 @@ func (s *Server) dispatchOwnerNotifications(ctx context.Context, owner string) {
 			if sent >= 5 {
 				break
 			}
-			if item.Read || item.Resolved || sub.Sent[item.ID] || !item.At.After(sub.Since) || time.Since(item.At) > 24*time.Hour || !enabledNotification(p.Notifications, item.Kind) {
+			tag := item.ID
+			if strings.HasPrefix(item.ID, "approval:") {
+				tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
+			} else if strings.HasPrefix(item.ID, "request:") {
+				tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
+			}
+			if item.Read || item.Resolved || sub.Sent[item.ID] || (tag != "" && sub.Sent[tag]) || !item.At.After(sub.Since) || time.Since(item.At) > 24*time.Hour || !enabledNotification(p.Notifications, item.Kind) {
 				continue
 			}
 			code, e := sendOwnerPush(ctx, p, sub.Subscription, item)
@@ -588,11 +892,17 @@ func (s *Server) dispatchOwnerNotifications(ctx context.Context, owner string) {
 							device.Sent = map[string]bool{}
 						}
 						device.Sent[item.ID] = true
+						if tag != "" {
+							device.Sent[tag] = true
+						}
 						valid := map[string]bool{}
 						for _, n := range current.Items {
 							if device.Sent[n.ID] {
 								valid[n.ID] = true
 							}
+						}
+						if tag != "" {
+							valid[tag] = true
 						}
 						device.Sent = valid
 					}
@@ -608,6 +918,7 @@ func (s *Server) dispatchOwnerNotifications(ctx context.Context, owner string) {
 		}
 	}
 }
+
 func (s *Server) StartNotificationDispatcher(ctx context.Context) {
 	go func() {
 		tick := time.NewTicker(30 * time.Second)
@@ -617,12 +928,7 @@ func (s *Server) StartNotificationDispatcher(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-tick.C:
-				if s.authSvc != nil {
-					owner, err := s.authSvc.OwnerID(ctx)
-					if err == nil {
-						s.dispatchOwnerNotifications(ctx, owner)
-					}
-				}
+				s.dispatchAllStaff(ctx)
 			}
 		}
 	}()
@@ -633,12 +939,12 @@ func (s *Server) notificationChatCandidatesSQL(ctx context.Context, owner string
  SELECT c.kind,c.id,c.room_id,c.created_at,c.content,c.state,c.safe_error,c.next_state,COALESCE(NULLIF(c.context,''),NULLIF(r.title,''),p.name,'')
  FROM (
  SELECT 'request' AS kind,q.request_id::text AS id,q.room_id,q.created_at,'' AS content,q.state,q.safe_error,
- COALESCE((SELECT child.state FROM inbox_requests child WHERE child.owner_id=q.owner_id AND child.room_id=q.room_id AND child.message_id=q.message_id AND (child.created_at,child.request_id)>(q.created_at,q.request_id) ORDER BY child.created_at DESC,child.request_id DESC LIMIT 1),'') AS next_state,'' AS context
- FROM inbox_requests q WHERE q.owner_id=$1 AND q.state IN ('failed','interrupted')
+ COALESCE((SELECT child.state FROM inbox_requests child WHERE (child.owner_id=$1 OR child.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND child.room_id=q.room_id AND child.message_id=q.message_id AND (child.created_at,child.request_id)>(q.created_at,q.request_id) ORDER BY child.created_at DESC,child.request_id DESC LIMIT 1),'') AS next_state,'' AS context
+ FROM inbox_requests q WHERE (q.owner_id=$1 OR q.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND q.state IN ('failed','interrupted')
  UNION ALL
- SELECT 'approval',m.id::text,m.room_id,m.created_at,m.content,'','','','' FROM project_messages m JOIN inbox_requests q ON q.reply_id=m.id WHERE q.owner_id=$1 AND m.author_type='agent' AND m.content LIKE '%cuan-approval%'
+ SELECT 'approval',m.id::text,m.room_id,m.created_at,m.content,'','','','' FROM project_messages m JOIN inbox_requests q ON q.reply_id=m.id WHERE (q.owner_id=$1 OR q.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND m.author_type='agent' AND m.content LIKE '%cuan-approval%'
  UNION ALL
- SELECT 'customer',m.id::text,m.room_id,m.created_at,'','','','',c.name FROM project_messages m JOIN crm_contacts c ON c.session_uuid=m.room_id WHERE m.author_type='user' AND COALESCE(m.author_id,'')<>'operator_user'
+ SELECT 'customer',m.id::text,m.room_id,m.created_at,m.content,'','','',c.name FROM project_messages m JOIN crm_contacts c ON c.session_uuid=m.room_id WHERE m.author_type='user' AND COALESCE(m.author_id,'')<>'operator_user'
  ) c LEFT JOIN project_rooms r ON r.id=c.room_id LEFT JOIN projects p ON p.id=r.project_id ORDER BY COALESCE((c.kind||':'||c.room_id::text||':'||c.id)=ANY($2::text[]),false) DESC,c.created_at DESC LIMIT 200`, owner, retainedIDs)
 	if err != nil {
 		return nil, err
@@ -664,7 +970,16 @@ func (s *Server) notificationChatCandidatesSQL(ctx context.Context, owner string
 				approvalRooms[room] = true
 			}
 		case "customer":
-			items = append(items, ownerNotification{ID: "customer:" + room + ":" + id, Kind: "customer", Title: "New customer message", Context: context, Status: "Customer message", ActionLabel: "View message", Href: "/inbox/" + url.PathEscape(room), At: at})
+			visitorName := strings.TrimSpace(context)
+			if visitorName == "" {
+				visitorName = "Pengunjung"
+			}
+			title := "Pesan Baru dari " + visitorName
+			summary := cleanNotificationSnippet(content)
+			if summary == "" {
+				summary = "Pesan baru dari pelanggan di Live Chat."
+			}
+			items = append(items, ownerNotification{ID: "customer:" + room + ":" + id, Kind: "customer", Title: title, Context: visitorName, Summary: summary, Status: "Customer message", ActionLabel: "View message", Href: "/inbox/" + url.PathEscape(room), At: at})
 		}
 	}
 	err = rows.Err()
@@ -677,7 +992,7 @@ func (s *Server) notificationChatCandidatesSQL(ctx context.Context, owner string
 		for room := range approvalRooms {
 			rooms = append(rooms, room)
 		}
-		decisions, err := s.db.QueryContext(ctx, `SELECT m.room_id::text,m.content FROM project_messages m JOIN inbox_requests q ON q.message_id=m.id WHERE q.owner_id=$1 AND m.author_type='user' AND m.room_id::text=ANY($2) AND m.content LIKE $3 AND m.content LIKE '%"approval":%' ORDER BY m.created_at`, owner, rooms, attachmentEnvelope+"%")
+		decisions, err := s.db.QueryContext(ctx, `SELECT m.room_id::text,m.content FROM project_messages m JOIN inbox_requests q ON q.message_id=m.id WHERE (q.owner_id=$1 OR q.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND m.author_type='user' AND m.room_id::text=ANY($2) AND m.content LIKE $3 AND m.content LIKE '%"approval":%' ORDER BY m.created_at`, owner, rooms, attachmentEnvelope+"%")
 		if err != nil {
 			return nil, err
 		}
