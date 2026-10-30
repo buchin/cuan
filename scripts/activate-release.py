@@ -15,7 +15,7 @@ import urllib.parse
 BASE = Path('/opt/cuan')
 SERVICE = 'cuan'
 PORT = 8080
-SCHEMA_COUNT = 29
+SCHEMA_COUNT = 30
 
 
 def switch(link, target):
@@ -213,7 +213,45 @@ def backup_database(release):
         subprocess.run(['pg_dump','--format=custom','--no-owner','--no-privileges'],env=env,stdout=output,check=True)
     subprocess.run(['pg_restore', '--list', str(staged)], stdout=subprocess.DEVNULL, check=True)
     os.replace(staged,target)
-    print('Private pre-release database backup created; no migrations will run.')
+    print('Private pre-release database backup created.')
+
+
+def apply_pending_migrations(target_dir, env):
+    cuan_migrate = target_dir / 'bin' / 'cuan-migrate'
+    if cuan_migrate.exists():
+        try:
+            pid = subprocess.check_output(['systemctl', 'show', SERVICE, '-p', 'MainPID', '--value'], text=True).strip()
+            config = dict(entry.decode().split('=', 1) for entry in Path('/proc/' + pid + '/environ').read_bytes().split(b'\0') if b'=' in entry)
+            db_url = config.get('DATABASE_URL', '')
+            if db_url:
+                print('==> Executing cuan-migrate against database...')
+                res = subprocess.run([str(cuan_migrate), '--db-url', db_url, '--direction', 'up'], capture_output=True, text=True, timeout=30)
+                if res.returncode == 0:
+                    print(res.stdout.strip())
+                    return
+                print(f"Notice: cuan-migrate failed: {res.stderr}; falling back to SQL migration files.")
+        except Exception as e:
+            print(f"Notice: cuan-migrate execution skipped ({e}); falling back to SQL migration files.")
+
+    mig_dir = target_dir / 'migrations'
+    if not mig_dir.exists():
+        return
+    for up_file in sorted(mig_dir.glob('*.up.sql')):
+        version = up_file.name.split('_')[0]
+        try:
+            applied = database_scalar(f"SELECT count(*) FROM cuan_schema_migrations WHERE version = '{version}'", env)
+            if int(applied) == 0:
+                print(f"==> Applying migration {up_file.name} to database...")
+                result = subprocess.run(['psql', '-XAt', '-v', 'ON_ERROR_STOP=1', '-f', str(up_file)], env=env, capture_output=True, text=True)
+                if result.returncode != 0:
+                    raise RuntimeError(f"Migration {up_file.name} failed: {result.stderr}")
+                mig_name = up_file.name[len(version)+1:-len('.up.sql')]
+                database_scalar(f"INSERT INTO cuan_schema_migrations (version, name, applied_at) VALUES ('{version}', '{mig_name}', NOW())", env)
+                print(f"✓ Migration {up_file.name} applied successfully.")
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"Could not apply migration {up_file.name}: {e}")
 
 
 def mark_task_deploy_complete(env, release_sha):
@@ -281,7 +319,7 @@ def main():
     parser.add_argument('--base', type=Path, default=BASE, help='Native installation directory (isolated drill uses its own base)')
     parser.add_argument('--service', default=SERVICE, help='Existing systemd service')
     parser.add_argument('--port', type=int, default=PORT, help='Loopback health port')
-    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
+    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
     parser.add_argument('--allow-divergent', action='store_true', help='Allow activating a release that does not contain active release commits')
     parser.add_argument('--no-restart', action='store_true', help='Skip service restart for zero-downtime static asset releases')
     args = parser.parse_args()
@@ -343,6 +381,7 @@ def main():
             assert_no_accidental_downgrade(old, target, BASE, args.allow_divergent)
         if args.release:
             backup_database(args.release)
+            apply_pending_migrations(target, database_environment())
         for release in (old, target):
             for name in ('data', 'sponsors'):
                 if not (release / name).exists():
