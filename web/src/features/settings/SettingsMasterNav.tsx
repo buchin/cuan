@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import {
   Sliders,
   CalendarClock,
@@ -35,8 +36,9 @@ export interface SettingsNavCategory {
   items: SettingsNavItem[]
 }
 
-export function getSettingsNavCategories(isAccount = false): SettingsNavCategory[] {
-  return [
+export function getSettingsNavCategories(isAccount = false, userRole?: string): SettingsNavCategory[] {
+  const isMember = userRole === 'member'
+  const categories: SettingsNavCategory[] = [
     {
       id: 'workspace-system',
       titleKey: 'Workspace & System',
@@ -158,6 +160,15 @@ export function getSettingsNavCategories(isAccount = false): SettingsNavCategory
       ],
     },
   ]
+
+  if (isMember) {
+    return categories.map((cat) => ({
+      ...cat,
+      items: cat.items.filter((item) => item.id !== 'ai-providers'),
+    }))
+  }
+
+  return categories
 }
 
 export interface SettingsMasterNavProps {
@@ -176,8 +187,9 @@ export function SettingsMasterNav({
   onSelectSection,
 }: SettingsMasterNavProps) {
   const { t } = useLanguage()
+  const { role } = useAuth()
   const location = useLocation()
-  const categories = getSettingsNavCategories(isAccount)
+  const categories = getSettingsNavCategories(isAccount, role)
 
   return (
     <nav

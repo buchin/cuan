@@ -13,6 +13,7 @@ import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
+import { useAuth } from '../../context/AuthContext'
 import { AppsSkillsView } from './AppsSkillsView'
 import { AIProvidersView } from './AIProvidersView'
 import { TeamView } from '../team/TeamView'
@@ -42,6 +43,7 @@ export function SettingsView({
   onProjectUpdated,
 }: SettingsViewProps) {
   const { t, preference, setPreference } = useLanguage()
+  const { isOwner } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
@@ -95,7 +97,9 @@ export function SettingsView({
           ['apps-skills', t('Apps & Skills')],
           ['integrations', t('Integrations')],
           ['appearance', t('Appearance')],
-        ].map(([id, label]) => {
+        ]
+          .filter(([id]) => (id === 'ai-providers' ? isOwner : true))
+          .map(([id, label]) => {
           const isAccount = location.pathname.startsWith('/account')
           const to = isAccount
             ? `/account/${id}`
@@ -217,7 +221,21 @@ export function SettingsView({
           {section === 'profile' ? (
             <ProfileSettings />
           ) : section === 'ai-providers' ? (
-            <AIProvidersView />
+            !isOwner ? (
+              <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center space-y-3">
+                <h3 className="font-semibold text-destructive">{t('Akses Dibatasi')}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {t('Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) toko.')}
+                </p>
+                <div>
+                  <Link to={isAccount ? '/account' : '/settings'} className="action-secondary text-xs inline-flex items-center">
+                    {t('Kembali ke Pengaturan')}
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <AIProvidersView />
+            )
           ) : section === 'memory' ? (
             <AgentMemoryView />
           ) : section === 'schedules' ? (

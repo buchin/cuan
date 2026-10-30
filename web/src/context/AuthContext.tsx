@@ -11,6 +11,9 @@ export interface OwnerInfo {
   display_name?: string
   username?: string
   email: string
+  name?: string
+  role?: string
+  is_active?: boolean
 }
 
 interface AuthContextType {
@@ -20,8 +23,12 @@ interface AuthContextType {
   isLoading: boolean
   setupRequired: boolean | null
   setupError: string
+  isOwner: boolean
+  role: string
   login: (identifier: string, password: string) => Promise<void>
   setup: (email: string, password: string) => Promise<void>
+  acceptInvite: (token: string, name: string, password: string) => Promise<void>
+  setSession: (token: string, user: OwnerInfo) => void
   logout: () => Promise<void>
   changePassword: (
     currentPassword: string,
@@ -212,6 +219,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const role = user?.role || 'owner'
+  const isOwner = role !== 'member'
+
+  const setSession = (newToken: string, newUser: OwnerInfo) => {
+    localStorage.setItem(TOKEN_KEY, newToken)
+    setToken(newToken)
+    setUser(newUser)
+    setSetupRequired(false)
+  }
+
+  const acceptInvite = async (inviteToken: string, name: string, password: string) => {
+    const res = await fetch('/api/v1/auth/invites/accept', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: inviteToken.trim(),
+        name: name.trim(),
+        password: password.trim(),
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.error || 'Could not accept invitation.')
+    }
+    const receivedUser = data.user || data.owner
+    if (!data.token || !receivedUser?.id) {
+      throw new Error('Could not confirm your account. Try signing in.')
+    }
+    setSession(data.token, receivedUser)
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -221,8 +259,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         setupRequired,
         setupError,
+        isOwner,
+        role,
         login,
         setup,
+        acceptInvite,
+        setSession,
         logout,
         changePassword,
         refreshUser,

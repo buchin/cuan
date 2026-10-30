@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
 import { ChangePasswordModal } from '../../components/auth/ChangePasswordModal'
 export function ProfileSettings() {
-  const { user, refreshUser } = useAuth(),
+  const { user, refreshUser, isOwner } = useAuth(),
     { t } = useLanguage()
   const [name, setName] = useState(user?.display_name || ''),
     [username, setUsername] = useState(user?.username || ''),
@@ -74,6 +74,35 @@ export function ProfileSettings() {
   }
   return (
     <div className="max-w-2xl space-y-5">
+      {/* Role Banner / Status Indicator */}
+      <div
+        data-testid="profile-role-card"
+        className="flex items-center justify-between rounded-lg border border-border bg-card p-4 shadow-sm"
+      >
+        <div className="space-y-0.5">
+          <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
+            {t('Peran Akun')}
+          </div>
+          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+            {!isOwner ? t('Member (Staf Tim)') : t('Owner (Pemilik Workspace)')}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {!isOwner
+              ? t('Akses operasional: mengelola task, berkolaborasi dengan asisten AI, dan menangani pesan Inbox.')
+              : t('Akses penuh: mengelola tim staf, setelan model AI, koneksi aplikasi, dan operasional bisnis.')}
+          </p>
+        </div>
+        <span
+          className={`px-2.5 py-1 text-xs font-semibold rounded-full uppercase tracking-wider border shrink-0 ${
+            !isOwner
+              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+              : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
+          }`}
+        >
+          {!isOwner ? t('Member') : t('Owner')}
+        </span>
+      </div>
+
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}

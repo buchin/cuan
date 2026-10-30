@@ -14,7 +14,16 @@ import {
   Pencil,
   Eye,
   FileText,
+  Users,
+  UserPlus,
+  Shield,
+  User,
+  Clock,
+  UserX,
 } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { teamApi, type TeamMember, type UserInvitation } from '../../api/team'
+import { InviteMemberModal } from './InviteMemberModal'
 import { connectionStatus } from '../agents/connection'
 import {
   accountsApi,
@@ -23,6 +32,17 @@ import {
 } from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth, type ModelInfo, isModelVisionCapable } from '../../api/agents'
 import { EditAgentModal } from './EditAgentModal'
+
+function formatJoinedDate(isoString?: string): string {
+  if (!isoString) return '-'
+  const date = new Date(isoString)
+  if (isNaN(date.getTime())) return isoString
+  return date.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
 
 function formatVerificationTime(isoString?: string): string {
   if (!isoString) return ''
@@ -152,6 +172,89 @@ export function TeamView({
   onAgentConnected?: () => void
 }) {
   const { t } = useLanguage()
+  const { user, isOwner } = useAuth()
+  const canManageAgents = isOwner
+  const [activeTab, setActiveTab] = useState<'agents' | 'members'>('agents')
+  const [members, setMembers] = useState<TeamMember[]>([])
+  const [invitations, setInvitations] = useState<UserInvitation[]>([])
+  const [teamLoading, setTeamLoading] = useState(false)
+  const [teamError, setTeamError] = useState('')
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [memberActionBusy, setMemberActionBusy] = useState('')
+  const [memberSearch, setMemberSearch] = useState('')
+
+  const loadTeamMembers = useCallback(async () => {
+    setTeamLoading(true)
+    setTeamError('')
+    try {
+      const data = await teamApi.listMembers()
+      setMembers(data.members || [])
+      setInvitations(data.invitations || [])
+    } catch (err) {
+      setTeamError(
+        err instanceof Error ? err.message : t('Gagal memuat daftar anggota tim.')
+      )
+    } finally {
+      setTeamLoading(false)
+    }
+  }, [t])
+
+  useEffect(() => {
+    if (!dialogOnly && !connectionOnly) {
+      loadTeamMembers()
+    }
+  }, [loadTeamMembers, dialogOnly, connectionOnly])
+
+  const handleRemoveMember = async (memberId: string, memberName: string) => {
+    if (!isOwner) return
+    if (
+      !window.confirm(
+        t(
+          `Hapus akses untuk ${memberName}? Akun staf ini tidak akan dapat masuk lagi.`
+        )
+      )
+    )
+      return
+    setMemberActionBusy(memberId)
+    try {
+      await teamApi.deleteMember(memberId)
+      setNotice(t(`Akses untuk ${memberName} berhasil dihapus.`))
+      await loadTeamMembers()
+    } catch (err) {
+      setTeamError(
+        err instanceof Error
+          ? err.message
+          : t('Gagal menghapus anggota tim.')
+      )
+    } finally {
+      setMemberActionBusy('')
+    }
+  }
+
+  const handleRevokeInvite = async (inviteId: string, inviteEmail: string) => {
+    if (!isOwner) return
+    if (
+      !window.confirm(
+        t(
+          `Cabut undangan untuk ${inviteEmail}? Tautan undangan ini akan kedaluwarsa seketika.`
+        )
+      )
+    )
+      return
+    setMemberActionBusy(inviteId)
+    try {
+      await teamApi.deleteInvite(inviteId)
+      setNotice(t(`Undangan untuk ${inviteEmail} berhasil dicabut.`))
+      await loadTeamMembers()
+    } catch (err) {
+      setTeamError(
+        err instanceof Error ? err.message : t('Gagal mencabut undangan.')
+      )
+    } finally {
+      setMemberActionBusy('')
+    }
+  }
+
   const [usage, setUsage] = useState<Record<string, AccountUsage>>({})
   const [usageBusy, setUsageBusy] = useState('')
   const [accounts, setAccounts] = useState<ProviderAccount[]>([])
@@ -308,6 +411,7 @@ export function TeamView({
     )
   }
   const begin = () => {
+    if (!canManageAgents) return
     createTrigger.current = document.activeElement as HTMLElement | null
     epoch.current++
     dialogActive.current = true
@@ -342,11 +446,11 @@ export function TeamView({
     if (connectionOnly) void connect(next)
   }
   useEffect(() => {
-    if (createRequested) {
+    if (createRequested && canManageAgents) {
       begin()
       onCreateHandled?.()
     }
-  }, [createRequested])
+  }, [createRequested, canManageAgents])
   const connect = async (name = handle) => {
     if (busy || name.length < 2) return
     if (provider === 'commandcode') return connectCommandCode(name)
@@ -692,6 +796,21 @@ export function TeamView({
       .toLowerCase()
       .includes(search.trim().toLowerCase()),
   )
+  const filteredMembers = members.filter((m) => {
+    if (!memberSearch.trim()) return true
+    const q = memberSearch.toLowerCase().trim()
+    return (
+      (m.name || '').toLowerCase().includes(q) ||
+      (m.username || '').toLowerCase().includes(q) ||
+      m.email.toLowerCase().includes(q) ||
+      m.role.toLowerCase().includes(q)
+    )
+  })
+  const filteredInvitations = invitations.filter((inv) => {
+    if (!memberSearch.trim()) return true
+    const q = memberSearch.toLowerCase().trim()
+    return inv.email.toLowerCase().includes(q) || inv.role.toLowerCase().includes(q)
+  })
   const secondary =
     'inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm hover:bg-muted disabled:opacity-50'
   const primary =
@@ -700,26 +819,66 @@ export function TeamView({
   return (
     <div className={connectionOnly || dialogOnly ? 'contents' : 'mx-auto max-w-4xl space-y-5 pb-8'}>
       <div hidden={connectionOnly || dialogOnly}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
-          <p className="mt-1 text-sm text-muted-foreground hidden sm:block">
-            {t(
-              'Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.',
-            )}
-          </p>
-        </div>
-        {showCreateAction && (
+        {/* Team View Tabs: Asisten AI vs Anggota Tim */}
+        <div className="flex border-b border-border mb-5" role="tablist" aria-label={t('Manajemen Tim')}>
           <button
-            ref={addButton}
-            onClick={() => begin()}
-            className={`${primary} shrink-0`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'agents'}
+            onClick={() => setActiveTab('agents')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'agents'
+                ? 'border-primary text-primary font-semibold'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
           >
-            <Plus className="h-4 w-4" />
-            {t('Add agent')}
+            <Bot className="h-4 w-4" />
+            <span>{t('Asisten AI')}</span>
+            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground font-mono">
+              {agents.length}
+            </span>
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'members'}
+            onClick={() => setActiveTab('members')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'members'
+                ? 'border-primary text-primary font-semibold'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            <span>{t('Anggota Tim')}</span>
+            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground font-mono">
+              {members.length + invitations.length}
+            </span>
+          </button>
+        </div>
+
+        {activeTab === 'agents' ? (
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
+                <p className="mt-1 text-sm text-muted-foreground hidden sm:block">
+                  {t(
+                    'Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.',
+                  )}
+                </p>
+              </div>
+              {showCreateAction && canManageAgents && (
+                <button
+                  ref={addButton}
+                  onClick={() => begin()}
+                  className={`${primary} shrink-0`}
+                >
+                  <Plus className="h-4 w-4" />
+                  {t('Add agent')}
+                </button>
+              )}
+            </div>
       {visibleAgents.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1">
@@ -786,7 +945,7 @@ export function TeamView({
           <p className="mt-1 text-sm text-muted-foreground">
             Add your first agent, then connect a Google account.
           </p>
-          {showCreateAction && (
+          {showCreateAction && canManageAgents && (
             <button onClick={() => begin()} className={`${primary} mt-4`}>
               Add your first agent
             </button>
@@ -883,23 +1042,25 @@ export function TeamView({
                     </div>
                   </div>
                   {/* Dedicated top-right corner actions menu: NEVER collides with name/badge */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={`Edit ${a.name}`}
-                      title={`Edit ${a.name}`}
-                      onClick={() => setEditingAgent(a)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <AgentActions
-                      name={a.name}
-                      disabled={!!checking || !!removing || !!lifecycleBusy}
-                      onEdit={() => setEditingAgent(a)}
-                      onRemove={() => void remove(a.id)}
-                    />
-                  </div>
+                  {canManageAgents && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={`Edit ${a.name}`}
+                        title={`Edit ${a.name}`}
+                        onClick={() => setEditingAgent(a)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <AgentActions
+                        name={a.name}
+                        disabled={!!checking || !!removing || !!lifecycleBusy}
+                        onEdit={() => setEditingAgent(a)}
+                        onRemove={() => void remove(a.id)}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* 2. Metadata Chips: Clean, structured badges eliminating hanging dots */}
@@ -1000,15 +1161,17 @@ export function TeamView({
 
                 {/* 3. Primary Actions Row: Dedicated full-width container with comfortable touch targets */}
                 <div className="mt-3.5 flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
-                  <button
-                    type="button"
-                    className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors"
-                    onClick={() => setEditingAgent(a)}
-                    aria-label={`Edit ${a.name}`}
-                  >
-                    <Pencil className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                    <span>{t('Edit Config')}</span>
-                  </button>
+                  {canManageAgents && (
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors"
+                      onClick={() => setEditingAgent(a)}
+                      aria-label={`Edit ${a.name}`}
+                    >
+                      <Pencil className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                      <span>{t('Edit Config')}</span>
+                    </button>
+                  )}
                   {state.state !== 'verified' && (
                     <button
                       type="button"
@@ -1313,6 +1476,261 @@ export function TeamView({
               </div>
             )
           })}
+        </div>
+      )}
+      </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Subheader: Title, description, and Invite button */}
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">{t('Anggota Tim')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground hidden sm:block">
+                {t('Daftar staf manusia dan undangan anggota tim kolaborator.')}
+              </p>
+            </div>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => setIsInviteModalOpen(true)}
+                className={`${primary} shrink-0`}
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>{t('Undang Anggota')}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Search bar */}
+          {(members.length > 0 || invitations.length > 0) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  className="field-control pl-9 w-full text-sm"
+                  aria-label={t('Cari nama atau email staf…')}
+                  placeholder={t('Cari nama atau email staf…')}
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                />
+              </div>
+              {memberSearch.trim() && (
+                <button
+                  type="button"
+                  className="action-secondary text-xs px-2.5 py-1.5"
+                  onClick={() => setMemberSearch('')}
+                >
+                  {t('Clear')}
+                </button>
+              )}
+            </div>
+          )}
+
+          {notice && (
+            <p role="status" className="text-sm">
+              {notice}
+            </p>
+          )}
+
+          {teamError && (
+            <div role="alert" className="text-sm text-destructive">
+              {teamError}{' '}
+              <button type="button" onClick={loadTeamMembers} className="underline">
+                {t('Try again')}
+              </button>
+            </div>
+          )}
+
+          {teamLoading ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              {t('Memuat daftar anggota tim…')}
+            </p>
+          ) : members.length === 0 && invitations.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center bg-card">
+              <Users className="mx-auto h-8 w-8 text-muted-foreground" />
+              <h3 className="mt-3 font-medium text-foreground">{t('Belum Ada Anggota Tim')}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('Undang staf atau karyawan Anda untuk mulai berkolaborasi di Cuan.')}
+              </p>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setIsInviteModalOpen(true)}
+                  className={`${primary} mt-4`}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  <span>{t('Undang Anggota Pertama')}</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Active Members Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5" />
+                    <span>{t('Staf Aktif')} ({filteredMembers.length})</span>
+                  </h3>
+                </div>
+
+                <div
+                  role="list"
+                  aria-label={t('Daftar Anggota Tim')}
+                  className="divide-y divide-border rounded-lg border border-border bg-card shadow-sm"
+                >
+                  {filteredMembers.map((member) => {
+                    const displayName = member.name || member.username || member.email
+                    const initials = displayName.slice(0, 2).toUpperCase()
+                    const isSelf = member.id === user?.id
+                    const isMemberOwner = member.role === 'owner'
+
+                    return (
+                      <div
+                        role="listitem"
+                        key={member.id}
+                        className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3.5 min-w-0">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold text-xs ${
+                            isMemberOwner
+                              ? 'bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30'
+                              : 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30'
+                          }`}>
+                            {initials}
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-sm text-foreground truncate">
+                                {displayName}
+                              </span>
+                              {isSelf && (
+                                <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                                  {t('Anda')}
+                                </span>
+                              )}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border ${
+                                  isMemberOwner
+                                    ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
+                                    : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                                }`}
+                              >
+                                {isMemberOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                                <span className="capitalize">{isMemberOwner ? t('Owner') : t('Member')}</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-500/10 rounded">
+                                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                <span>{t('Aktif')}</span>
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span>{member.email}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{t('Bergabung')} {formatJoinedDate(member.created_at)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isOwner && !isSelf && (
+                          <div className="shrink-0 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveMember(member.id, displayName)}
+                              disabled={memberActionBusy === member.id}
+                              className="inline-flex min-h-11 items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors border border-destructive/20 disabled:opacity-50"
+                              title={t('Hapus Akses')}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>{t('Hapus Akses')}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Pending Invitations Section */}
+              {filteredInvitations.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-amber-500" />
+                      <span>{t('Undangan Tertunda')} ({filteredInvitations.length})</span>
+                    </h3>
+                  </div>
+
+                  <div
+                    role="list"
+                    aria-label={t('Daftar Undangan Tertunda')}
+                    className="divide-y divide-border rounded-lg border border-border bg-card shadow-sm"
+                  >
+                    {filteredInvitations.map((invite) => {
+                      const isInviteOwner = invite.role === 'owner'
+                      return (
+                        <div
+                          role="listitem"
+                          key={invite.id}
+                          className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="flex items-start gap-3.5 min-w-0">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                              <Clock className="h-4 w-4" />
+                            </div>
+
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-semibold text-sm text-foreground truncate">
+                                  {invite.email}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border ${
+                                    isInviteOwner
+                                      ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
+                                      : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                                  }`}
+                                >
+                                  {isInviteOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                                  <span className="capitalize">{isInviteOwner ? t('Owner') : t('Member')}</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-full border border-amber-500/20">
+                                  <Clock className="h-2.5 w-2.5" />
+                                  <span>{t('Menunggu Aktivasi')}</span>
+                                </span>
+                              </div>
+
+                              <div className="text-xs text-muted-foreground">
+                                <span>{t('Berlaku hingga')} {formatJoinedDate(invite.expires_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isOwner && (
+                            <div className="shrink-0 flex items-center justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeInvite(invite.id, invite.email)}
+                                disabled={memberActionBusy === invite.id}
+                                className="inline-flex min-h-11 items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors border border-destructive/20 disabled:opacity-50"
+                                title={t('Cabut Undangan')}
+                              >
+                                <UserX className="h-3.5 w-3.5" />
+                                <span>{t('Cabut Undangan')}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       </div>
@@ -1762,6 +2180,11 @@ export function TeamView({
           }}
         />
       )}
+      <InviteMemberModal
+        open={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        onInviteCreated={loadTeamMembers}
+      />
     </div>
   )
 }

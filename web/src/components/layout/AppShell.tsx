@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
@@ -68,6 +69,7 @@ export function AppShell({
   hideSearch,
 }: AppShellProps) {
   const { t } = useLanguage()
+  const { isOwner } = useAuth()
   const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
 
   const routerNavigate = useNavigate()
@@ -315,6 +317,23 @@ export function AppShell({
             <h1 className="page-title min-w-0 truncate text-xl font-semibold tracking-tight">
               {pageTitleIsContent ? pageTitle : t(pageTitle || label || '')}
             </h1>
+            <span
+              data-testid="user-role-badge"
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0',
+                !isOwner
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                  : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
+              )}
+            >
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  !isOwner ? 'bg-blue-500' : 'bg-green-500'
+                )}
+              />
+              <span className="capitalize">{!isOwner ? t('Member') : t('Owner')}</span>
+            </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <UniversalSearch hideTrigger={shouldHideSearch} />

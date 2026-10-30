@@ -28,6 +28,11 @@ const LoginScreen = lazy(() =>
     default: m.LoginScreen,
   })),
 )
+const AcceptInvitePage = lazy(() =>
+  import('./components/auth/AcceptInvitePage').then((m) => ({
+    default: m.AcceptInvitePage,
+  })),
+)
 const StudioView = lazy(() =>
   import('./features/inbox/StudioView').then((m) => ({
     default: m.StudioView,
@@ -614,6 +619,14 @@ export function App() {
 
   const handleRunAgent = async (_taskId: string) => {
     await refreshTasks()
+  }
+
+  if (rootSegment === 'invite' && subParam === 'accept') {
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <AcceptInvitePage />
+      </Suspense>
+    )
   }
 
   if (

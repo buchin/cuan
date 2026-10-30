@@ -38,7 +38,7 @@ export function NavUser({
 
   const navigate = useNavigate()
   const compact = isCollapsed || (sidebar && collapsed)
-  const { user, logout } = useAuth()
+  const { user, logout, isOwner } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -177,8 +177,16 @@ export function NavUser({
               <div className="grid flex-1 text-left leading-tight truncate">
                 <span className="truncate font-bold text-xs text-foreground flex items-center gap-1.5">
                   {username}
-                  <span className="inline-flex items-center px-1 py-0.5 text-[9px] font-mono bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/30 rounded">
-                    OWNER
+                  <span
+                    data-testid="navuser-role-badge"
+                    className={cn(
+                      'inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono font-semibold uppercase rounded border',
+                      !isOwner
+                        ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                        : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
+                    )}
+                  >
+                    {!isOwner ? 'MEMBER' : 'OWNER'}
                   </span>
                 </span>
                 <span className="truncate text-[10px] text-muted-foreground">
