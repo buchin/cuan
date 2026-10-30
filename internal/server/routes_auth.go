@@ -18,6 +18,8 @@ func (s *Server) registerAuthV1Routes(r chi.Router) {
 	r.Post("/auth/setup", s.handleAuthSetup)
 	r.Post("/auth/login", s.handleAuthLogin)
 	r.Post("/auth/logout", s.handleAuthLogout)
+	r.Post("/auth/invites/accept", s.handleAcceptInvite)
+	r.Get("/auth/invites/verify", s.handleVerifyInvite)
 }
 
 func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
@@ -110,8 +112,19 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	ownerPreferencesMu.Lock()
 	preferences, _ := readOwnerPreferences(owner.ID)
 	ownerPreferencesMu.Unlock()
+	displayName := preferences.DisplayName
+	if displayName == "" && owner.Name != "" {
+		displayName = owner.Name
+	}
+	role := owner.Role
+	if role == "" {
+		role = auth.RoleOwner
+	}
 	userData := map[string]interface{}{
-		"display_name": preferences.DisplayName,
+		"display_name": displayName,
+		"name":         owner.Name,
+		"role":         role,
+		"is_active":    owner.IsActive,
 		"id":           owner.ID,
 		"username":     owner.Username,
 		"email":        owner.Email,

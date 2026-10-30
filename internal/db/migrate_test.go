@@ -432,6 +432,29 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(authMig19.DownSQL, "ALTER TABLE projects DROP COLUMN IF EXISTS is_archived") {
 		t.Errorf("expected 000019 DownSQL to drop is_archived column")
 	}
+
+	if len(migs) < 30 {
+		t.Fatalf("expected at least 30 migrations, got %d", len(migs))
+	}
+	multiUserMig30 := migs[29]
+	if multiUserMig30.Version != "000030" {
+		t.Errorf("expected version 000030, got %s", multiUserMig30.Version)
+	}
+	if multiUserMig30.Name != "multi_user_and_invites" {
+		t.Errorf("expected name multi_user_and_invites, got %s", multiUserMig30.Name)
+	}
+	if !strings.Contains(multiUserMig30.UpSQL, "ALTER TABLE owners ADD COLUMN IF NOT EXISTS role") {
+		t.Errorf("expected 000030 UpSQL to add role to owners")
+	}
+	if !strings.Contains(multiUserMig30.UpSQL, "CREATE TABLE IF NOT EXISTS user_invitations") {
+		t.Errorf("expected 000030 UpSQL to create user_invitations table")
+	}
+	if !strings.Contains(multiUserMig30.DownSQL, "DROP TABLE IF EXISTS user_invitations") {
+		t.Errorf("expected 000030 DownSQL to drop user_invitations table")
+	}
+	if !strings.Contains(multiUserMig30.DownSQL, "ALTER TABLE owners DROP COLUMN IF EXISTS role") {
+		t.Errorf("expected 000030 DownSQL to drop role column")
+	}
 }
 
 func TestDryRun(t *testing.T) {

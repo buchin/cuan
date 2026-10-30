@@ -633,6 +633,7 @@ func (s *Server) routes() {
 	s.registerSponsorshipRoutes(s.router)
 	s.registerAgentRoutes(s.router)
 	s.registerVisitorChatRoutes(s.router)
+	s.registerTeamRoutes(s.router)
 
 	s.router.Get("/api/v1/item-preferences", s.handleItemPreferences)
 	s.router.Patch("/api/v1/item-preferences", s.handleItemPreferences)
@@ -649,6 +650,7 @@ func (s *Server) routes() {
 		s.registerCampaignV1Routes(r)
 		s.registerSponsorshipV1Routes(r)
 		s.registerAgentV1Routes(r)
+		s.registerTeamV1Routes(r)
 
 		// Public aliases
 		r.Get("/task-agent/{id}", s.handleTaskAgent)

@@ -30,6 +30,9 @@ func (s *Server) handleListAIProviders(w http.ResponseWriter, r *http.Request) {
 // handleSaveAIProvider saves a provider configuration and encrypts any submitted API key.
 // Routes: POST /api/v1/ai/providers, POST /api/ai/providers
 func (s *Server) handleSaveAIProvider(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOwnerRole(w, r) {
+		return
+	}
 	var input struct {
 		Provider     string `json:"provider"`
 		ID           string `json:"id"`
@@ -212,6 +215,9 @@ func (s *Server) handleTestAIProvider(w http.ResponseWriter, r *http.Request) {
 // handleInstallHarnessBinary triggers 1-click user-space installation or update of a CLI harness binary.
 // Routes: POST /api/v1/ai/providers/install-binary, POST /api/ai/providers/install-binary
 func (s *Server) handleInstallHarnessBinary(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOwnerRole(w, r) {
+		return
+	}
 	var input struct {
 		Binary  string `json:"binary"`
 		Name    string `json:"name"`

@@ -21,6 +21,11 @@ var DefaultPublicBypassPaths = []string{
 	"/api/v1/auth/login",
 	"/api/v1/auth/status",
 	"/api/v1/auth/setup",
+	"/api/v1/auth/invites/accept",
+	"/api/v1/auth/invites/verify",
+	"/api/auth/invites/accept",
+	"/api/auth/invites/verify",
+	"/invite/accept",
 	"/api/v1/info",
 	"/api/v1/system/mode",
 }

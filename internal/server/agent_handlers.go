@@ -134,6 +134,9 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 // Route: POST /api/agents
 // Aliases: POST /api/v1/agents
 func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOwnerRole(w, r) {
+		return
+	}
 	if s.agentRepo == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
 		return
@@ -286,6 +289,9 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 // Route: PUT /api/agents/{id}
 // Aliases: PUT /api/v1/agents/{id}
 func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOwnerRole(w, r) {
+		return
+	}
 	if s.agentRepo == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
 		return
@@ -563,6 +569,9 @@ func (s *Server) handleUpdateAgentModelConfig(w http.ResponseWriter, r *http.Req
 // Route: DELETE /api/agents/{id}
 // Aliases: DELETE /api/v1/agents/{id}
 func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOwnerRole(w, r) {
+		return
+	}
 	if s.agentRepo == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "agent repository is unavailable")
 		return
