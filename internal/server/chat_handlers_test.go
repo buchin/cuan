@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/config"
@@ -794,5 +795,186 @@ Fix checkout 500 error
 	}
 	if !visitorReceivedReply {
 		t.Fatalf("expected visitor to receive public reply drafted by Scrum Master")
+	}
+}
+
+func TestVisitorChatSession_FiltersInternalMessages(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// 1. Visitor initializes live chat session
+	guestUUID := "guest-whisper-test-1"
+	visitorInitPayload := map[string]interface{}{
+		"guest_uuid": guestUUID,
+		"product":    "shuriken",
+		"name":       "Test Visitor",
+		"email":      "visitor@example.com",
+		"message":    "Halo, mau tanya harga",
+	}
+	initBody, _ := json.Marshal(visitorInitPayload)
+	reqInit := httptest.NewRequest(http.MethodPost, "/api/chat/session", bytes.NewReader(initBody))
+	reqInit.Header.Set("Content-Type", "application/json")
+	recInit := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInit, reqInit)
+
+	if recInit.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recInit.Code, recInit.Body.String())
+	}
+
+	var initResp struct {
+		OK      bool `json:"ok"`
+		Session struct {
+			UUID string `json:"uuid"`
+		} `json:"session"`
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recInit.Body.Bytes(), &initResp); err != nil || !initResp.OK {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	sessionUUID := initResp.Session.UUID
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	// 2. Staff writes internal messages to the room:
+	// a. Whisper message with @team mention
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     sessionUUID,
+		AuthorType: "user",
+		AuthorID:   "operator_user",
+		AuthorName: "Owner",
+		Content:    "@team Mohon jangan berikan diskon lebih dari 10%",
+		CreatedAt:  now.Add(1 * time.Second),
+		UpdatedAt:  now.Add(1 * time.Second),
+	}); err != nil {
+		t.Fatalf("failed to create whisper message: %v", err)
+	}
+
+	// b. Internal bot / agent response
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     sessionUUID,
+		AuthorType: "agent",
+		AuthorID:   "agent_sm",
+		AuthorName: "Scrum Master",
+		Content:    "Rahasia dapur sistem: planning sprint aktif",
+		CreatedAt:  now.Add(2 * time.Second),
+		UpdatedAt:  now.Add(2 * time.Second),
+	}); err != nil {
+		t.Fatalf("failed to create agent message: %v", err)
+	}
+
+	// c. Internal system note
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     sessionUUID,
+		AuthorType: "system",
+		AuthorID:   "system_notifier",
+		AuthorName: "System",
+		Content:    "Internal note: Session assigned to Level 2 support",
+		CreatedAt:  now.Add(3 * time.Second),
+		UpdatedAt:  now.Add(3 * time.Second),
+	}); err != nil {
+		t.Fatalf("failed to create system message: %v", err)
+	}
+
+	// 3. Staff writes a public reply to the visitor
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     sessionUUID,
+		AuthorType: "user",
+		AuthorID:   "operator_user",
+		AuthorName: "Support Agent",
+		Content:    "Halo! Harga lisensi kami Rp 500.000",
+		CreatedAt:  now.Add(4 * time.Second),
+		UpdatedAt:  now.Add(4 * time.Second),
+	}); err != nil {
+		t.Fatalf("failed to create public message: %v", err)
+	}
+
+	// 4. Verify internal conversation endpoint DOES show the internal messages
+	reqInternal := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+sessionUUID+"/messages", nil)
+	reqInternal.Header.Set("Authorization", "Bearer "+token)
+	recInternal := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInternal, reqInternal)
+	if recInternal.Code != http.StatusOK {
+		t.Fatalf("failed to get internal messages: %d", recInternal.Code)
+	}
+	var internalResp struct {
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	_ = json.Unmarshal(recInternal.Body.Bytes(), &internalResp)
+	var hasWhisperInternal, hasAgentInternal, hasSystemInternal bool
+	for _, m := range internalResp.Messages {
+		if strings.Contains(m.Content, "Mohon jangan berikan diskon") && m.IsInternal {
+			hasWhisperInternal = true
+		}
+		if strings.Contains(m.Content, "Rahasia dapur sistem") && m.IsInternal {
+			hasAgentInternal = true
+		}
+		if strings.Contains(m.Content, "Level 2 support") && m.IsInternal {
+			hasSystemInternal = true
+		}
+	}
+	if !hasWhisperInternal || !hasAgentInternal || !hasSystemInternal {
+		t.Fatalf("expected internal endpoint to contain all internal messages (whisper=%v agent=%v system=%v)",
+			hasWhisperInternal, hasAgentInternal, hasSystemInternal)
+	}
+
+	// 5. Visitor refreshes widget / re-initializes session: POST /api/chat/session
+	refreshPayload := map[string]interface{}{
+		"guest_uuid":   guestUUID,
+		"session_uuid": sessionUUID,
+		"product":      "shuriken",
+	}
+	bRefresh, _ := json.Marshal(refreshPayload)
+	reqRefresh := httptest.NewRequest(http.MethodPost, "/api/chat/session", bytes.NewReader(bRefresh))
+	reqRefresh.Header.Set("Content-Type", "application/json")
+	recRefresh := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recRefresh, reqRefresh)
+
+	if recRefresh.Code != http.StatusOK {
+		t.Fatalf("expected 200 on session refresh, got %d: %s", recRefresh.Code, recRefresh.Body.String())
+	}
+
+	var refreshResp struct {
+		OK       bool             `json:"ok"`
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recRefresh.Body.Bytes(), &refreshResp); err != nil {
+		t.Fatalf("failed to unmarshal refresh response: %v", err)
+	}
+
+	if len(refreshResp.Messages) == 0 {
+		t.Fatalf("expected visitor messages to be returned on refresh")
+	}
+
+	for _, m := range refreshResp.Messages {
+		if m.IsInternal {
+			t.Fatalf("LEAK DETECTED: visitor session received internal message: ID=%d Content=%q Author=%s IsInternal=%v",
+				m.ID, m.Content, m.AuthorName, m.IsInternal)
+		}
+		if strings.Contains(m.Content, "Mohon jangan berikan diskon") ||
+			strings.Contains(m.Content, "Rahasia dapur") ||
+			strings.Contains(m.Content, "Level 2 support") {
+			t.Fatalf("LEAK DETECTED: visitor session received internal message text: %q", m.Content)
+		}
+	}
+
+	// Verify the visitor receives both their own message and the public operator reply
+	var foundVisitorMsg, foundPublicReply bool
+	for _, m := range refreshResp.Messages {
+		if strings.Contains(m.Content, "mau tanya harga") {
+			foundVisitorMsg = true
+		}
+		if strings.Contains(m.Content, "Rp 500.000") {
+			foundPublicReply = true
+		}
+	}
+	if !foundVisitorMsg {
+		t.Fatalf("expected visitor message in refresh response")
+	}
+	if !foundPublicReply {
+		t.Fatalf("expected public reply in refresh response")
 	}
 }

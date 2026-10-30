@@ -329,8 +329,14 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 	globalChatManager.sessionByGuest[guestKey] = liveSession
 	globalChatManager.Unlock()
 
-	// Fetch existing messages for session
-	messages := s.getFormattedMessages(r.Context(), sessionUUID, liveSession.Product)
+	// Fetch existing messages for session (filtering out internal whisper/bot messages)
+	rawMessages := s.getFormattedMessages(r.Context(), sessionUUID, liveSession.Product)
+	messages := make([]ChatMessageDTO, 0, len(rawMessages))
+	for _, m := range rawMessages {
+		if !m.IsInternal {
+			messages = append(messages, m)
+		}
+	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":           true,
