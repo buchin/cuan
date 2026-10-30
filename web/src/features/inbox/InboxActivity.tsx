@@ -13,6 +13,59 @@ import {
 import { InboxRequest } from '../../api/chat'
 import { TeamView } from '../team/TeamView'
 
+export function evaluateInboxQuotaStatus(q: {
+  steps?: { seq: number; kind: string; text: string; at: string }[]
+  recovery_action?: string
+  safe_error?: string
+}) {
+  const recovery = q.recovery_action || 'check_status'
+
+  // Find the last step indicating provider cooldown or usage limit
+  const lastCooldownIdx = q.steps
+    ? q.steps.reduce(
+        (last, step, idx) =>
+          step.kind === 'provider_cooldown' || /usage limit|quota/i.test(step.text) ? idx : last,
+        -1,
+      )
+    : -1
+
+  // Historical cooldown is superseded if subsequent failover or provider attempts were executed
+  const hasSubsequentFailover =
+    lastCooldownIdx !== -1 &&
+    (q.steps?.slice(lastCooldownIdx + 1).some((step) =>
+      [
+        'account_failover',
+        'model_fallback',
+        'model_selected',
+        'model_auto',
+        'provider',
+        'runtime_provider_started',
+        'runtime_provider_finished',
+        'runtime_tool_started',
+        'output',
+        'result_validation',
+      ].includes(step.kind),
+    ) ?? false)
+
+  const hasActiveQuotaCooldown = lastCooldownIdx !== -1 && !hasSubsequentFailover
+  const hasQuotaCooldown = hasActiveQuotaCooldown
+  const isExplicitQuotaError = /usage limit|quota|no allowed account\/model route/i.test(q.safe_error || '')
+  const isTechnicalNonQuotaError = /timed out|timeout|connection|network|refused|syntax|parse|5\d{2}|4\d{2}/i.test(q.safe_error || '')
+  const accessBlocked =
+    isExplicitQuotaError ||
+    ((recovery === 'check_usage' || hasActiveQuotaCooldown) && !isTechnicalNonQuotaError && !hasSubsequentFailover)
+
+  return {
+    lastCooldownIdx,
+    hasSubsequentFailover,
+    hasActiveQuotaCooldown,
+    hasQuotaCooldown,
+    isExplicitQuotaError,
+    isTechnicalNonQuotaError,
+    accessBlocked,
+  }
+}
+
 export function InboxActivity({
   request: q,
   onCancel,
@@ -43,9 +96,9 @@ export function InboxActivity({
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
-  const hasQuotaCooldown = q.steps?.some((step) => step.kind === 'provider_cooldown' || /usage limit|quota/i.test(step.text))
   const isToolBudget = recovery === 'continue_analysis' || /tool budget/i.test(q.safe_error || '') || q.steps?.some((step) => step.kind === 'runtime_tool_budget_exceeded' || /tool budget|tool limit/i.test(step.text))
-  const accessBlocked = recovery === 'check_usage' || hasQuotaCooldown || /usage limit|quota|location restriction|No allowed account\/model route/i.test(q.safe_error || '')
+
+  const { accessBlocked } = evaluateInboxQuotaStatus(q)
   const recover = async (action: () => Promise<void>) => {
     if (recovering) return
     setRecovering(true)
@@ -437,15 +490,21 @@ export function InboxActivity({
       {failed && (
         <div className="px-2 pb-2">
           <p className="mb-1 max-w-prose text-muted-foreground">
-            {t(recovery === 'recovering' ? 'Your message is saved.' : accessBlocked
-              ? 'All connected AI accounts reached provider usage limits. Your message is saved.'
-              : isToolBudget
-                ? 'The tool budget was reached for this turn. Your message is saved.'
-                : recovery === 'try_again'
-                  ? 'Your message is saved. You can try again.'
-                  : recovery === 'check_agent'
-                    ? 'Check the agent connection before trying again.'
-                    : (q.safe_error || 'Your reply stopped. Your message is saved.'))}
+            {t(
+              recovery === 'recovering'
+                ? 'Your message is saved.'
+                : accessBlocked
+                  ? 'All connected AI accounts reached provider usage limits. Your message is saved.'
+                  : isToolBudget
+                    ? 'The tool budget was reached for this turn. Your message is saved.'
+                    : recovery === 'check_agent'
+                      ? 'Check the agent connection before trying again.'
+                      : q.safe_error
+                        ? q.safe_error
+                        : recovery === 'try_again'
+                          ? 'Your message is saved. You can try again.'
+                          : 'Your reply stopped. Your message is saved.'
+            )}
           </p>
           {accessBlocked && (
             accountJustConnected ? (
@@ -550,16 +609,18 @@ export function InboxActivity({
             <Link to="/settings/agents" className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4">
               {t('Check agent')}
             </Link>
-          ) : !accessBlocked && !autoPending && onCheckStatus ? (
+          ) : !accessBlocked && !autoPending && (onCheckStatus || onRetry) ? (
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                disabled={recovering}
-                className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4 disabled:opacity-50"
-                onClick={() => void recover(onCheckStatus)}
-              >
-                {t(recovering ? 'Checking…' : 'Check status')}
-              </button>
+              {onCheckStatus && (
+                <button
+                  type="button"
+                  disabled={recovering}
+                  className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4 disabled:opacity-50"
+                  onClick={() => void recover(onCheckStatus)}
+                >
+                  {t(recovering ? 'Checking…' : 'Check status')}
+                </button>
+              )}
               {onRetry && (q.state === 'interrupted' || q.state === 'failed') && (
                 <button
                   type="button"

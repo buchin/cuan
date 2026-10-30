@@ -1389,5 +1389,18 @@
   "Could not load preferences.": "Pilihan notifikasi tidak dapat dimuat.",
   "Could not save notification preferences.": "Pilihan notifikasi tidak dapat disimpan.",
   "Could not update push notifications. Try again.": "Notifikasi push tidak dapat diperbarui. Coba lagi.",
-  "Push notifications and sounds will be paused automatically during this timeframe according to your device timezone.": "Notifikasi push dan suara akan dihentikan sementara secara otomatis selama rentang waktu ini sesuai zona waktu perangkat Anda."
+  "Push notifications and sounds will be paused automatically during this timeframe according to your device timezone.": "Notifikasi push dan suara akan dihentikan sementara secara otomatis selama rentang waktu ini sesuai zona waktu perangkat Anda.",
+  "Provider timed out. Your message is saved, but the result is unknown. Refresh history. The request will not be rerun automatically.": "Provider kehabisan waktu (timeout). Pesan Anda tersimpan, namun hasilnya belum diketahui. Muat ulang riwayat. Permintaan tidak dijalankan ulang otomatis.",
+  "The provider could not reply. Your message is saved. Check the agent's status and refresh history. The request will not be rerun automatically.": "Provider belum dapat membalas. Pesan Anda tersimpan. Periksa status agen dan muat ulang riwayat. Permintaan tidak dijalankan ulang otomatis.",
+  "The provider CLI timed out before returning a final result.": "CLI provider kehabisan waktu sebelum mengembalikan hasil akhir.",
+  "Provider did not return a useful reply. Your message is saved.": "Provider tidak mengembalikan balasan yang sesuai. Pesan Anda tersimpan.",
+  "The process was interrupted or timed out. The provider's result is unknown. The request was not rerun.": "Proses terhenti atau kehabisan waktu. Hasil dari provider belum diketahui. Permintaan tidak dijalankan ulang.",
+  "The process was interrupted. The provider's result is unknown.": "Proses terhenti. Hasil dari provider belum diketahui.",
+  "The agent could not reply. Your message is still saved.": "Agen belum dapat membalas. Pesan Anda tetap tersimpan.",
+  "The agent was cancelled before a final result.": "Agen dibatalkan sebelum menghasilkan balasan akhir.",
+  "The runtime stopped without a final result.": "Runtime terhenti sebelum menghasilkan balasan akhir.",
+  "Could not start the provider process.": "Tidak dapat memulai proses provider.",
+  "Provider process exited with error.": "Proses provider berhenti dengan kesalahan.",
+  "A technical issue occurred while generating the reply. Your message is saved. You can try again.": "Terjadi kendala teknis saat menyiapkan balasan. Pesan Anda tersimpan. Anda bisa mencoba lagi.",
+  "An unexpected technical issue occurred while generating a reply. Your message is saved. You can try again.": "Terjadi kendala teknis tak terduga saat menyiapkan balasan. Pesan Anda tersimpan. Anda bisa mencoba lagi."
 }
