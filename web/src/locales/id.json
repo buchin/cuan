@@ -1377,5 +1377,17 @@
   "Member (Staf Tim)": "Member (Staf Tim)",
   "Owner (Pemilik Workspace)": "Owner (Pemilik Workspace)",
   "Akses operasional: mengelola task, berkolaborasi dengan asisten AI, dan menangani pesan Inbox.": "Akses operasional: mengelola task, berkolaborasi dengan asisten AI, dan menangani pesan Inbox.",
-  "Akses penuh: mengelola tim staf, setelan model AI, koneksi aplikasi, dan operasional bisnis.": "Akses penuh: mengelola tim staf, setelan model AI, koneksi aplikasi, dan operasional bisnis."
+  "Akses penuh: mengelola tim staf, setelan model AI, koneksi aplikasi, dan operasional bisnis.": "Akses penuh: mengelola tim staf, setelan model AI, koneksi aplikasi, dan operasional bisnis.",
+  "Instant browser alerts & 1-click deep linking": "Peringatan browser instan & deep linking 1-klik",
+  "Get real-time browser notifications when customers send messages or AI assistants complete tasks. Click any notification to open the conversation directly in Inbox.": "Dapatkan notifikasi langsung di browser saat pelanggan mengirim pesan atau asisten AI menyelesaikan tugas. Klik notifikasi untuk langsung membuka percakapan di Inbox.",
+  "Active on this device": "Aktif di perangkat ini",
+  "Inactive on this device": "Belum aktif di perangkat ini",
+  "Staff Member": "Staf Member",
+  "Notification permission is blocked": "Izin notifikasi diblokir",
+  "Notification permission is blocked in your browser. Open browser site settings to allow notifications to receive customer messages and agent updates.": "Izin notifikasi diblokir di browser Anda. Buka setelan situs browser untuk mengizinkan notifikasi agar dapat menerima pesan pelanggan dan update agen.",
+  "Updating push…": "Memperbarui push…",
+  "Could not load preferences.": "Pilihan notifikasi tidak dapat dimuat.",
+  "Could not save notification preferences.": "Pilihan notifikasi tidak dapat disimpan.",
+  "Could not update push notifications. Try again.": "Notifikasi push tidak dapat diperbarui. Coba lagi.",
+  "Push notifications and sounds will be paused automatically during this timeframe according to your device timezone.": "Notifikasi push dan suara akan dihentikan sementara secara otomatis selama rentang waktu ini sesuai zona waktu perangkat Anda."
 }

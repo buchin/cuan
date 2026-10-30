@@ -97,6 +97,7 @@ export function SettingsView({
           ['apps-skills', t('Apps & Skills')],
           ['integrations', t('Integrations')],
           ['appearance', t('Appearance')],
+          ['notifications', t('Notifications')],
         ]
           .filter(([id]) => (id === 'ai-providers' ? isOwner : true))
           .map(([id, label]) => {
@@ -212,7 +213,9 @@ export function SettingsView({
                         ? 'Automated recurring background routines.'
                         : section === 'appearance'
                           ? 'Theme modes, interface language, and display.'
-                          : 'Manage your workspace and agent connections.',
+                          : section === 'notifications'
+                            ? 'Notification preferences and alerts'
+                            : 'Manage your workspace and agent connections.',
                 )}
               </p>
             </header>
