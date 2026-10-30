@@ -60,6 +60,9 @@ func TestPlatformMCPToolsList(t *testing.T) {
 		"inspect_database_query",
 		"inspect_database_schema",
 		"inspect_app_logs",
+		"list_apps",
+		"list_skills",
+		"toggle_agent_skill",
 	}
 
 	foundMap := make(map[string]bool)
@@ -97,6 +100,9 @@ func TestPlatformMCPToolsExecution(t *testing.T) {
 		{"inspect_database_query", `{"query":"SELECT 1 AS num"}`},
 		{"inspect_database_schema", `{}`},
 		{"inspect_app_logs", `{"lines":10}`},
+		{"list_apps", `{}`},
+		{"list_skills", `{}`},
+		{"toggle_agent_skill", `{"agent_id":"agent_sm","skill_id":"vision_receipt_extractor","enabled":true}`},
 	}
 
 	var reqs strings.Builder

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buchin/cuan/internal/mcp"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -1042,5 +1043,46 @@ func InspectAppLogs(ctx context.Context, lines int, filter string) (any, error) 
 	return map[string]any{
 		"source":  "none",
 		"message": "No recent logs found via journalctl or agent_logs",
+	}, nil
+}
+
+// ListApps lists external third-party applications in Cuan.
+func ListApps(ctx context.Context) (any, error) {
+	reg := mcp.GetDefaultRegistry()
+	apps := reg.ListApps()
+	return map[string]any{
+		"status": "success",
+		"apps":   apps,
+		"total":  len(apps),
+	}, nil
+}
+
+// ListSkills lists modular intelligence skills in Cuan.
+func ListSkills(ctx context.Context) (any, error) {
+	reg := mcp.GetDefaultRegistry()
+	skills := reg.ListSkills()
+	return map[string]any{
+		"status": "success",
+		"skills": skills,
+		"total":  len(skills),
+	}, nil
+}
+
+// ToggleAgentSkill activates or deactivates a skill for an agent.
+func ToggleAgentSkill(ctx context.Context, agentID, skillID string, enabled bool) (any, error) {
+	reg := mcp.GetDefaultRegistry()
+	if err := reg.ToggleAgentSkill(agentID, skillID, enabled); err != nil {
+		return nil, err
+	}
+	statusStr := "enabled"
+	if !enabled {
+		statusStr = "disabled"
+	}
+	return map[string]any{
+		"status":   "success",
+		"agent_id": agentID,
+		"skill_id": skillID,
+		"enabled":  enabled,
+		"message":  fmt.Sprintf("Skill %s successfully %s for agent %s", skillID, statusStr, agentID),
 	}, nil
 }

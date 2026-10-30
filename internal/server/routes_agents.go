@@ -47,6 +47,14 @@ func (s *Server) registerAgentRoutes(r chi.Router) {
 	r.Get("/api/agents/connections/{id}", s.handleGetAgentConnection)
 	r.Delete("/api/agents/connections/{id}", s.handleDeleteAgentConnection)
 	r.Post("/api/agents/connections/{id}/verify", s.handleVerifyAgentConnection)
+
+	// Apps & Skills Endpoints (Sprint 49)
+	r.Get("/api/apps", s.handleListApps)
+	r.Post("/api/apps/{id}/connect", s.handleConnectApp)
+	r.Post("/api/apps/{id}/disconnect", s.handleDisconnectApp)
+	r.Get("/api/skills", s.handleListSkills)
+	r.Get("/api/agents/{id}/skills", s.handleGetAgentSkills)
+	r.Put("/api/agents/{id}/skills", s.handleUpdateAgentSkills)
 }
 
 // registerAgentV1Routes mounts agent routes inside /api/v1 router.
@@ -76,6 +84,8 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 		ar.Get("/{id}/model-config", s.handleGetAgentModelConfig)
 		ar.Put("/{id}/model-config", s.handleUpdateAgentModelConfig)
 		ar.Patch("/{id}/model-config", s.handleUpdateAgentModelConfig)
+		ar.Get("/{id}/skills", s.handleGetAgentSkills)
+		ar.Put("/{id}/skills", s.handleUpdateAgentSkills)
 		ar.Put("/{id}", s.handleUpdateAgent)
 		ar.Patch("/{id}", s.handlePatchAgent)
 		ar.Post("/{id}/connection/credentials", s.handleReplaceAgentCredentials)
@@ -100,5 +110,16 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 		cr.Get("/{id}", s.handleGetAgentConnection)
 		cr.Delete("/{id}", s.handleDeleteAgentConnection)
 		cr.Post("/{id}/verify", s.handleVerifyAgentConnection)
+	})
+
+	// Apps & Skills catalog in /api/v1 (Sprint 49)
+	r.Route("/apps", func(apr chi.Router) {
+		apr.Get("/", s.handleListApps)
+		apr.Post("/{id}/connect", s.handleConnectApp)
+		apr.Post("/{id}/disconnect", s.handleDisconnectApp)
+	})
+
+	r.Route("/skills", func(sr chi.Router) {
+		sr.Get("/", s.handleListSkills)
 	})
 }
