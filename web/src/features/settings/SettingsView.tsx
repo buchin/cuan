@@ -14,6 +14,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
 import { AppsSkillsView } from './AppsSkillsView'
+import { AIProvidersView } from './AIProvidersView'
 import { TeamView } from '../team/TeamView'
 import { AgentMemoryView } from './AgentMemoryView'
 import { SettingsMasterNav } from './SettingsMasterNav'
@@ -85,6 +86,7 @@ export function SettingsView({
       >
         {[
           ['general', t('General')],
+          ['ai-providers', t('AI Providers')],
           ['memory', t('Agent Memory')],
           ['schedules', t('Schedules')],
           ['profile', t('Profile & password')],
@@ -171,8 +173,10 @@ export function SettingsView({
                 {t(
                   section === 'general'
                     ? 'General'
-                    : section === 'memory'
-                      ? 'Agent Memory'
+                    : section === 'ai-providers'
+                      ? 'AI Providers'
+                      : section === 'memory'
+                        ? 'Agent Memory'
                       : section === 'schedules'
                         ? 'Schedules'
                         : section === 'profile'
@@ -192,7 +196,9 @@ export function SettingsView({
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t(
-                  section === 'apps-skills'
+                  section === 'ai-providers'
+                    ? 'Pilih dan atur penyedia AI toko Anda, langganan resmi, dan kunci API hemat.'
+                    : section === 'apps-skills'
                     ? 'Connect 1-click external business apps and discover modular AI intelligence capabilities.'
                     : section === 'integrations'
                       ? 'Connect the services your projects need.'
@@ -210,6 +216,8 @@ export function SettingsView({
 
           {section === 'profile' ? (
             <ProfileSettings />
+          ) : section === 'ai-providers' ? (
+            <AIProvidersView />
           ) : section === 'memory' ? (
             <AgentMemoryView />
           ) : section === 'schedules' ? (

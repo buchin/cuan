@@ -26,6 +26,11 @@ import {
   type ModelInfo,
 } from '../../api/agents'
 import { appsSkillsApi, type AgentSkillView } from '../../api/appsSkills'
+import {
+  aiProvidersApi,
+  getDefaultStoreProvider,
+  type AIProviderDTO,
+} from '../../api/aiProviders'
 
 export interface EditAgentModalProps {
   agent: Agent
@@ -76,7 +81,11 @@ export function EditAgentModal({
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Form State
+  // AI Provider & Form State
+  const [selectedProvider, setSelectedProvider] = useState<string>(
+    agent.provider && agent.provider !== 'google' ? agent.provider : 'default'
+  )
+  const [availableProviders, setAvailableProviders] = useState<AIProviderDTO[]>([])
   const [modelId, setModelId] = useState<string>(agent.model_id || 'gemini-1.5-pro')
   const [fallbackModelId, setFallbackModelId] = useState<string>(agent.fallback_model_id || '')
   const [isCustomPrimary, setIsCustomPrimary] = useState(false)
@@ -116,6 +125,28 @@ export function EditAgentModal({
       .finally(() => {
         if (active) setLoadingSkills(false)
       })
+
+    // Load AI Provider Binding from GET /api/v1/agents/{id}/provider
+    aiProvidersApi.getAgentProvider(agent.id)
+      .then((binding) => {
+        if (!active) return
+        if (binding.provider) {
+          if (binding.provider === 'default' || !binding.provider) {
+            setSelectedProvider('default')
+          } else {
+            setSelectedProvider(binding.provider)
+          }
+        }
+      })
+      .catch(() => {})
+
+    // Load AI Providers catalog
+    aiProvidersApi.list()
+      .then((catalog) => {
+        if (!active) return
+        setAvailableProviders(catalog)
+      })
+      .catch(() => {})
 
     agentsApi
       .getModelConfig(agent.id, false)
@@ -198,6 +229,32 @@ export function EditAgentModal({
 
   const handleApplyTemperaturePreset = (value: number) => {
     setTemperature(value)
+  }
+
+  const handleProviderChange = (newProvider: string) => {
+    setSelectedProvider(newProvider)
+    setIsCustomPrimary(false)
+    const targetProviderId = newProvider === 'default' ? getDefaultStoreProvider() : newProvider
+    const prov = availableProviders.find((p) => p.id === targetProviderId)
+
+    if (prov && prov.models && prov.models.length > 0) {
+      setSupportedModels(prov.models)
+      if (prov.default_model) {
+        setModelId(prov.default_model)
+      } else {
+        setModelId(prov.models[0].id)
+      }
+    } else {
+      agentsApi
+        .listModels(targetProviderId, false)
+        .then((list) => {
+          if (list.length > 0) {
+            setSupportedModels(list)
+            setModelId(list[0].id)
+          }
+        })
+        .catch(() => {})
+    }
   }
 
   const handleRefreshCatalog = async () => {
@@ -286,6 +343,24 @@ export function EditAgentModal({
 
     setSaving(true)
     try {
+      // 1. Update per-agent AI provider binding via PUT /api/v1/agents/{id}/provider
+      await aiProvidersApi.updateAgentProvider(agent.id, {
+        provider: selectedProvider,
+        harness:
+          selectedProvider === 'default'
+            ? undefined
+            : selectedProvider === 'anthropic'
+              ? 'claude'
+              : selectedProvider === 'openai'
+                ? 'codex'
+                : selectedProvider === 'google'
+                  ? 'agy'
+                  : undefined,
+        model_id: modelId.trim(),
+        fallback_model_id: fallbackModelId.trim(),
+      })
+
+      // 2. Update model configuration & hyperparameters
       const res = await agentsApi.updateModelConfig(agent.id, {
         model_id: modelId.trim(),
         fallback_model_id: fallbackModelId.trim(),
@@ -300,11 +375,18 @@ export function EditAgentModal({
         message: res.message || t('Agent model configuration saved successfully'),
       })
 
+      const effectiveSavedProvider = selectedProvider === 'default' ? '' : selectedProvider
       if (res.agent) {
-        onSaved(res.agent)
+        onSaved({
+          ...res.agent,
+          provider: effectiveSavedProvider,
+          model_id: modelId.trim(),
+          fallback_model_id: fallbackModelId.trim(),
+        })
       } else {
         onSaved({
           ...agent,
+          provider: effectiveSavedProvider,
           model_id: modelId.trim(),
           fallback_model_id: fallbackModelId.trim(),
           temperature,
@@ -326,6 +408,11 @@ export function EditAgentModal({
     }
   }
 
+  const storeDefaultId = getDefaultStoreProvider()
+  const defaultProviderObj = availableProviders.find((p) => p.id === storeDefaultId)
+  const defaultProviderName = defaultProviderObj ? defaultProviderObj.name : 'Google Gemini'
+  const effectiveProvider = selectedProvider === 'default' ? storeDefaultId : selectedProvider
+
   // Dynamic Catalog Models without static hardcoded options
   const catalogModels = [...supportedModels]
   // Preserve existing model if not in fetched catalog (100% backward compatibility)
@@ -335,7 +422,7 @@ export function EditAgentModal({
       name: modelId,
       display_name: `${modelId} (${t('Preserved')})`,
       preserved: true,
-      supports_vision: isModelVisionCapable(modelId, agent.provider),
+      supports_vision: isModelVisionCapable(modelId, effectiveProvider),
     })
   }
   if (
@@ -349,7 +436,7 @@ export function EditAgentModal({
       name: fallbackModelId,
       display_name: `${fallbackModelId} (${t('Preserved')})`,
       preserved: true,
-      supports_vision: isModelVisionCapable(fallbackModelId, agent.provider),
+      supports_vision: isModelVisionCapable(fallbackModelId, effectiveProvider),
     })
   }
 
@@ -360,7 +447,7 @@ export function EditAgentModal({
           id: modelId,
           name: modelId,
           display_name: modelId,
-          supports_vision: isModelVisionCapable(modelId, agent.provider),
+          supports_vision: isModelVisionCapable(modelId, effectiveProvider),
         }
       : null)
 
@@ -369,7 +456,7 @@ export function EditAgentModal({
         id: fallbackModelId,
         name: fallbackModelId,
         display_name: fallbackModelId,
-        supports_vision: isModelVisionCapable(fallbackModelId, agent.provider),
+        supports_vision: isModelVisionCapable(fallbackModelId, effectiveProvider),
       }
     : null
 
@@ -461,6 +548,47 @@ export function EditAgentModal({
               </button>
             </div>
 
+            {/* AI Provider & Engine Selection */}
+            <div className="space-y-1.5">
+              <label htmlFor="agent-ai-provider" className="block text-xs font-medium text-foreground">
+                {t('AI Provider & Engine')} <span className="text-destructive">*</span>
+              </label>
+              <select
+                id="agent-ai-provider"
+                value={selectedProvider}
+                onChange={(e) => handleProviderChange(e.target.value)}
+                disabled={saving || loadingConfig}
+                className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+              >
+                <option value="default">
+                  ⭐ {t('Ikuti Default Toko ({provider})').replace('{provider}', defaultProviderName)}
+                </option>
+                {availableProviders.length > 0
+                  ? availableProviders.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.id === 'deepseek' ? `(${t('Paling Hemat')})` : ''}
+                      </option>
+                    ))
+                  : [
+                      { id: 'google', name: 'Google (Antigravity)' },
+                      { id: 'anthropic', name: 'Anthropic (Claude)' },
+                      { id: 'openai', name: 'OpenAI' },
+                      { id: 'deepseek', name: 'DeepSeek' },
+                      { id: 'grok', name: 'xAI (Grok)' },
+                      { id: 'openrouter', name: 'OpenRouter' },
+                    ].map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.id === 'deepseek' ? `(${t('Paling Hemat')})` : ''}
+                      </option>
+                    ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                {selectedProvider === 'default'
+                  ? t('Agen akan otomatis mengikuti penyedia AI utama yang Anda jadikan Default Toko di Pengaturan.')
+                  : t('Penyedia AI khusus untuk agen ini (override dari default toko).')}
+              </p>
+            </div>
+
             {/* Primary Model */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -503,7 +631,7 @@ export function EditAgentModal({
                     <option value="" disabled>{t('No models found. Click Refresh Catalog to reload.')}</option>
                   ) : (
                     catalogModels.map((m) => {
-                      const isVision = isModelVisionCapable(m.id, agent.provider, m)
+                      const isVision = isModelVisionCapable(m.id, effectiveProvider, m)
                       const capLabel = isVision ? t('Vision') : t('Text-only')
                       const defLabel = m.is_default ? ` [${t('Default')}]` : ''
                       return (
@@ -539,7 +667,7 @@ export function EditAgentModal({
                 <div className="mt-2 p-2.5 rounded-lg border border-border/50 bg-background/60 space-y-1.5 text-xs">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-semibold text-foreground">{activeModel.display_name || activeModel.name || activeModel.id}</span>
-                    {isModelVisionCapable(activeModel.id, agent.provider, activeModel) ? (
+                    {isModelVisionCapable(activeModel.id, effectiveProvider, activeModel) ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                         <Eye className="h-3 w-3" />
                         <span>{t('Vision')}</span>
@@ -568,11 +696,11 @@ export function EditAgentModal({
                     </p>
                   )}
                   <p className={`text-[11px] font-medium flex items-center gap-1.5 ${
-                    isModelVisionCapable(activeModel.id, agent.provider, activeModel)
+                    isModelVisionCapable(activeModel.id, effectiveProvider, activeModel)
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-muted-foreground'
                   }`}>
-                    {isModelVisionCapable(activeModel.id, agent.provider, activeModel) ? (
+                    {isModelVisionCapable(activeModel.id, effectiveProvider, activeModel) ? (
                       <>
                         <Check className="h-3.5 w-3.5 shrink-0" />
                         <span>{t('Supports image and document analysis (receipts, transfer proof, menus, etc.)')}</span>
@@ -636,7 +764,7 @@ export function EditAgentModal({
                   {catalogModels
                     .filter((m) => m.id !== modelId)
                     .map((m) => {
-                      const isVision = isModelVisionCapable(m.id, agent.provider, m)
+                      const isVision = isModelVisionCapable(m.id, effectiveProvider, m)
                       const capLabel = isVision ? t('Vision') : t('Text-only')
                       const defLabel = m.is_default ? ` [${t('Default')}]` : ''
                       return (
@@ -668,7 +796,7 @@ export function EditAgentModal({
                 <div className="mt-2 p-2.5 rounded-lg border border-border/50 bg-background/60 space-y-1.5 text-xs">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-semibold text-foreground">{activeFallbackModel.display_name || activeFallbackModel.name || activeFallbackModel.id}</span>
-                    {isModelVisionCapable(activeFallbackModel.id, agent.provider, activeFallbackModel) ? (
+                    {isModelVisionCapable(activeFallbackModel.id, effectiveProvider, activeFallbackModel) ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                         <Eye className="h-3 w-3" />
                         <span>{t('Vision')}</span>
@@ -681,8 +809,8 @@ export function EditAgentModal({
                     )}
                   </div>
                   {/* Smart Fallback Advice */}
-                  {isModelVisionCapable(modelId, agent.provider, activeModel) &&
-                    !isModelVisionCapable(activeFallbackModel.id, agent.provider, activeFallbackModel) && (
+                  {isModelVisionCapable(modelId, effectiveProvider, activeModel) &&
+                    !isModelVisionCapable(activeFallbackModel.id, effectiveProvider, activeFallbackModel) && (
                       <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium leading-normal flex items-start gap-1 mt-1">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                         <span>{t('Recommendation: Choose a Vision-capable fallback model so your agent can continue processing receipts/images during failover.')}</span>
