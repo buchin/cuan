@@ -39,6 +39,13 @@ func setupFailoverFixture(t *testing.T) (*Server, string, *db.Agent, *agent.Prov
 		if err != nil {
 			t.Fatal(err)
 		}
+		file := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", a.ID, "account.json")
+		data, _ := os.ReadFile(file)
+		var meta map[string]any
+		_ = json.Unmarshal(data, &meta)
+		meta["state"] = "unknown"
+		data, _ = json.Marshal(meta)
+		_ = os.WriteFile(file, data, 0600)
 		a, _ = agent.GetProviderAccount(owner.ID, a.ID)
 		return a, all, home
 	}
@@ -48,6 +55,14 @@ func setupFailoverFixture(t *testing.T) (*Server, string, *db.Agent, *agent.Prov
 	script := `#!/bin/sh
 printf x >> "$HOME/calls"
 case "$2" in *"Your display name: @main"*) ;; *) exit 9;; esac
+if [ -f "$HOME/timeout" ]; then
+ printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"provider timeout: connection timed out"}}'
+ exit 3
+fi
+if [ -f "$HOME/generic-error" ]; then
+ printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"unexpected internal provider crash"}}'
+ exit 3
+fi
 if [ -f "$HOME/limited" ]; then
  if [ -f "$HOME/unsafe" ]; then printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"run_command"}}'; fi
  if [ -f "$HOME/read" ]; then printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"view_file"}}'; fi
@@ -83,7 +98,7 @@ func TestInboxQuotaFailover(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping slow failover test in short mode")
 	}
-	for _, scenario := range []string{"success", "read-only", "native-read-only", "unsafe", "unknown-tool", "not-opted-in", "backup-quota", "auth", "primary-known-quota", "disabled-backup", "cancelled"} {
+	for _, scenario := range []string{"success", "read-only", "native-read-only", "unsafe", "unknown-tool", "not-opted-in", "backup-quota", "backup-timeout", "backup-auth", "backup-generic", "auth", "primary-known-quota", "disabled-backup", "cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, _, registered, p, b, home, backupHome := setupFailoverFixture(t)
 			owner := p.OwnerID
@@ -121,6 +136,16 @@ func TestInboxQuotaFailover(t *testing.T) {
 			if scenario == "backup-quota" {
 				os.WriteFile(filepath.Join(backupHome, "limited"), nil, 0600)
 			}
+			if scenario == "backup-timeout" {
+				os.WriteFile(filepath.Join(backupHome, "timeout"), nil, 0600)
+			}
+			if scenario == "backup-auth" {
+				os.WriteFile(filepath.Join(backupHome, "limited"), nil, 0600)
+				os.WriteFile(filepath.Join(backupHome, "auth"), nil, 0600)
+			}
+			if scenario == "backup-generic" {
+				os.WriteFile(filepath.Join(backupHome, "generic-error"), nil, 0600)
+			}
 			if scenario == "disabled-backup" {
 				a, _ := s.agentRepo.GetAgentByID(context.Background(), b.AgentID)
 				a.Enabled = false
@@ -144,9 +169,33 @@ func TestInboxQuotaFailover(t *testing.T) {
 				t.Fatal(out, failure)
 			}
 			backupCalls, _ := os.ReadFile(filepath.Join(backupHome, "calls"))
-			wantBackup := success || scenario == "backup-quota"
+			wantBackup := success || scenario == "backup-quota" || scenario == "backup-timeout" || scenario == "backup-auth" || scenario == "backup-generic"
 			if wantBackup != (string(backupCalls) == "x") {
 				t.Fatal("incorrect backup executions", string(backupCalls))
+			}
+			if scenario == "backup-timeout" {
+				if !strings.Contains(failure, "timed out") {
+					t.Fatalf("expected timeout error, got %q", failure)
+				}
+				if failure == inboxQuotaNoBackup || strings.Contains(failure, "Provider quota is limited") {
+					t.Fatalf("error masked as quota: %q", failure)
+				}
+			}
+			if scenario == "backup-auth" {
+				if !strings.Contains(failure, "sign-in status") {
+					t.Fatalf("expected auth status error, got %q", failure)
+				}
+				if failure == inboxQuotaNoBackup || strings.Contains(failure, "Provider quota is limited") {
+					t.Fatalf("error masked as quota: %q", failure)
+				}
+			}
+			if scenario == "backup-generic" {
+				if !strings.Contains(failure, "The provider could not reply") {
+					t.Fatalf("expected provider reply error, got %q", failure)
+				}
+				if failure == inboxQuotaNoBackup || strings.Contains(failure, "Provider quota is limited") {
+					t.Fatalf("error masked as quota: %q", failure)
+				}
 			}
 			current, _ := agent.GetProviderAccount(owner, p.ID)
 			if current.AgentID != registered.ID || current.ConnectionID != registered.ConnectionID {
@@ -510,4 +559,144 @@ fi
 	if string(calls) != "xxx" {
 		t.Fatal("wrong route attempts", string(calls))
 	}
+}
+
+func TestResilientMultiAccountFailoverAndTrueFailureReporting(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s, token := setupTestChatServer(t)
+	owner, _ := s.authSvc.ValidateToken(context.Background(), token)
+
+	create := func(handle string) (*agent.ProviderAccount, *db.Agent, string) {
+		a, err := agent.CreateProviderAccount(owner.ID, handle)
+		if err != nil {
+			t.Fatal(err)
+		}
+		home, _ := agent.ProviderAccountHome(owner.ID, a.ID)
+		_ = os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700)
+		_ = os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte("fixture-credential"), 0600)
+		body := `{"name":"` + handle + `","handle":"` + handle + `","provider":"agy","account_id":"` + a.ID + `"}`
+		r := httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		if w.Code != 201 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		all, err := s.agentRepo.GetAgentByID(context.Background(), "agent_"+strings.TrimPrefix(handle, "@"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		file := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", a.ID, "account.json")
+		data, _ := os.ReadFile(file)
+		var meta map[string]any
+		_ = json.Unmarshal(data, &meta)
+		meta["state"] = "unknown"
+		data, _ = json.Marshal(meta)
+		_ = os.WriteFile(file, data, 0600)
+		a, _ = agent.GetProviderAccount(owner.ID, a.ID)
+		return a, all, home
+	}
+
+	_, registered, homePrimary := create("@main")
+	b1, _, homeB1 := create("@backup1")
+	b2, _, homeB2 := create("@backup2")
+
+	_, _ = agent.SetProviderAccountFailover(owner.ID, b1.ID, true)
+	_, _ = agent.SetProviderAccountFailover(owner.ID, b2.ID, true)
+
+	bin := t.TempDir()
+	script := `#!/bin/sh
+printf x >> "$HOME/calls"
+if [ -f "$HOME/timeout" ]; then
+  printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"provider timeout: connection timed out"}}'
+  exit 3
+fi
+if [ -f "$HOME/limited" ]; then
+  printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"RESOURCE_EXHAUSTED private-token"}}'
+  exit 3
+fi
+printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Reply from backup 2\",\"topic_title\":\"\",\"action\":null}"}}'
+`
+	_ = os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700)
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s.cfg.Environment = "staging"
+
+	t.Run("primary-quota-backup1-timeout-backup2-success", func(t *testing.T) {
+		_ = os.Remove(filepath.Join(homePrimary, "calls"))
+		_ = os.Remove(filepath.Join(homeB1, "calls"))
+		_ = os.Remove(filepath.Join(homeB2, "calls"))
+
+		routes := s.providerRoutes(context.Background(), owner.ID, registered, homePrimary, false)
+		if len(routes) < 3 {
+			t.Fatalf("expected at least 3 routes, got %d", len(routes))
+		}
+		firstBackupAccountID := routes[1].accountID
+		firstBackupHome := homeB1
+		secondBackupHome := homeB2
+		if firstBackupAccountID == b2.ID {
+			firstBackupHome = homeB2
+			secondBackupHome = homeB1
+		}
+
+		_ = os.WriteFile(filepath.Join(homePrimary, "limited"), nil, 0600)
+		_ = os.WriteFile(filepath.Join(firstBackupHome, "timeout"), nil, 0600)
+		_ = os.Remove(filepath.Join(secondBackupHome, "limited"))
+		_ = os.Remove(filepath.Join(secondBackupHome, "timeout"))
+
+		var trace []string
+		out, failure := s.executeInboxWithFailover(context.Background(), owner.ID, registered, "Hello", homePrimary, t.TempDir(), false, func(k, v string) {
+			trace = append(trace, k)
+		})
+		if out != "Reply from backup 2" || failure != "" {
+			t.Fatalf("expected failover to second backup success, got out=%q, failure=%q", out, failure)
+		}
+		callsP, _ := os.ReadFile(filepath.Join(homePrimary, "calls"))
+		callsFirst, _ := os.ReadFile(filepath.Join(firstBackupHome, "calls"))
+		callsSecond, _ := os.ReadFile(filepath.Join(secondBackupHome, "calls"))
+		if string(callsP) != "x" || string(callsFirst) != "x" || string(callsSecond) != "x" {
+			t.Fatalf("unexpected call counts: P=%s, First=%s, Second=%s", callsP, callsFirst, callsSecond)
+		}
+	})
+
+	t.Run("primary-quota-backup1-timeout-backup2-quota-true-failure-reported", func(t *testing.T) {
+		_ = os.Remove(filepath.Join(homePrimary, "calls"))
+		_ = os.Remove(filepath.Join(homeB1, "calls"))
+		_ = os.Remove(filepath.Join(homeB2, "calls"))
+
+		_ = os.WriteFile(filepath.Join(homePrimary, "limited"), nil, 0600)
+		_ = os.WriteFile(filepath.Join(homeB1, "timeout"), nil, 0600)
+		_ = os.WriteFile(filepath.Join(homeB2, "limited"), nil, 0600)
+
+		out, failure := s.executeInboxWithFailover(context.Background(), owner.ID, registered, "Hello", homePrimary, t.TempDir(), false, nil)
+		if out != "" {
+			t.Fatalf("expected no output, got %q", out)
+		}
+		if !strings.Contains(failure, "timed out") {
+			t.Fatalf("expected timeout failure reported, got %q", failure)
+		}
+		if failure == inboxQuotaNoBackup || strings.Contains(failure, "Provider quota is limited") {
+			t.Fatalf("error was improperly masked into quota exhaustion: %q", failure)
+		}
+	})
+
+	t.Run("pool-alignment-active-agent-runnable", func(t *testing.T) {
+		b3, boundAgent, _ := create("@backup3")
+		boundAgent.Status = db.AgentStatusActive
+		boundAgent.Harness = "antigravity"
+		_ = s.agentRepo.UpdateAgent(context.Background(), boundAgent)
+		_, _ = agent.SetProviderAccountFailover(owner.ID, b3.ID, true)
+
+		routes := s.providerRoutes(context.Background(), owner.ID, registered, homePrimary, false)
+		found := false
+		for _, r := range routes {
+			if r.accountID == b3.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected aligned runnable backup account %s in routes, got %+v", b3.ID, routes)
+		}
+	})
 }

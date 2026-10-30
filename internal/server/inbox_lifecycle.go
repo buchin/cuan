@@ -204,9 +204,11 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 				q.SafeError = "The agent is unavailable or disabled. Your message is still saved."
 			} else {
 				status := agent.LegacyConnectionVerification(q.OwnerID, registered.ID, registered.ConnectionID).State
-				if strings.HasPrefix(registered.ConnectionID, "conn_profile_") {
-					if conn, e := s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID); e == nil {
-						if profile, e := agent.ProviderAccountForConnection(q.OwnerID, registered.ID, conn.ID); e == nil {
+				if profile, e := agent.ProviderAccountForConnection(q.OwnerID, registered.ID, registered.ConnectionID); e == nil && profile != nil {
+					status = profile.State
+				} else if strings.HasPrefix(registered.ConnectionID, "conn_profile_") {
+					if conn, e := s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID); e == nil && conn != nil {
+						if profile, e := agent.ProviderAccountForConnection(q.OwnerID, registered.ID, conn.ID); e == nil && profile != nil {
 							status = profile.State
 						}
 					}
