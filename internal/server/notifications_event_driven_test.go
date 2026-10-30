@@ -432,7 +432,13 @@ func TestEventDrivenPush_InboxLifecycleEndToEnd(t *testing.T) {
 
 	waitInboxState(t, s, res.ConversationID, reqID, "completed")
 
-	// Both Owner and Member should receive push instantly
+	// Both Owner and Member should receive push instantly.
+	// Wait until push dispatcher finishes sending HTTP requests to all subscribed staff.
+	deadline := time.Now().Add(3 * time.Second)
+	for spy.CallCount() < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	if spy.CallCount() < 2 {
 		t.Fatalf("expected at least 2 push calls on inbox goal completion, got %d", spy.CallCount())
 	}
