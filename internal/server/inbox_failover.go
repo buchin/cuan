@@ -80,7 +80,8 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 	busyRoutes := 0
 	seen := map[string]bool{}
 	triedAccounts := map[string]bool{}
-	hadQuotaFailure := false
+	hadQuotaFailure := limited
+	var lastNonQuotaFailure string
 	var restriction string
 	for len(routes) > 0 {
 		if attempts >= 8 || ctx.Err() != nil {
@@ -156,13 +157,21 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			continue
 		}
 		if !isInboxQuotaFailure(failure) {
+			lastNonQuotaFailure = failure
 			if !hadQuotaFailure {
 				return "", failure
 			}
+			if !safe {
+				return "", failure
+			}
+			// When failover to a backup account fails with a non-quota error,
+			// drop remaining routes for this same account so we don't repeat
+			// the same technical issue on different models of the same profile.
+			routes = filterOutAccountRoutes(routes, route.accountID)
 			if len(routes) > 0 {
 				continue
 			}
-			return "", inboxQuotaNoBackup
+			return "", failure
 		}
 		hadQuotaFailure = true
 		if route.accountID != "" {
@@ -199,11 +208,17 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		}
 		return "", "All available AI session slots are in use. Your message is saved. Try again when a session finishes."
 	}
+	if lastNonQuotaFailure != "" {
+		return "", lastNonQuotaFailure
+	}
 	if restriction != "" {
 		return "", restriction
 	}
 	if len(routes) > 0 {
-		return "", "Provider quota is limited. Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
+		if hadQuotaFailure {
+			return "", "Provider quota is limited. Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
+		}
+		return "", "Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
 	}
 	return "", inboxQuotaNoBackup
 }
@@ -251,7 +266,15 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			continue
 		}
 		bound, err := s.agentRepo.GetAgentByID(ctx, candidate.AgentID)
-		if err != nil || bound == nil || !bound.Enabled || bound.ConnectionID != candidate.ConnectionID || (bound.Harness != "agy" && bound.Harness != "antigravity") {
+		if (err != nil || bound == nil) && s.agentRepo != nil {
+			cleanID := strings.TrimPrefix(candidate.AgentID, "@")
+			if ag, e := s.agentRepo.GetAgentByID(ctx, "agent_"+cleanID); e == nil && ag != nil {
+				bound = ag
+				err = nil
+			}
+		}
+		isRunnable := bound != nil && (bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "")
+		if err != nil || !isRunnable || (bound.ConnectionID != "" && candidate.ConnectionID != "" && bound.ConnectionID != candidate.ConnectionID) || (bound.Harness != "agy" && bound.Harness != "antigravity" && bound.Harness != "") {
 			continue
 		}
 		candidateHome, err := s.ownedAgentProfileHome(ctx, owner, bound)
@@ -259,9 +282,6 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			_ = agent.PrepareAntigravitySettings(candidateHome)
 			_ = agent.PrepareAntigravityReadOnlyPermissions(candidateHome)
 			_ = agent.EnsureAntigravityOnboarding(candidateHome)
-			if !agent.AntigravityOnboardingComplete(candidateHome) {
-				continue
-			}
 			candidates = append(candidates, candidateRoute{candidate, candidateHome, false})
 		}
 	}
@@ -409,12 +429,20 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 	if allowed && time.Now().Before(profile.ModelCooldowns[route.model]) {
 		allowed = false
 	}
-	if allowed && route.model == "" && profile.State == "quota_limited" {
+	if allowed && profile.State == "quota_limited" && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)) {
 		allowed = false
 	}
 	if allowed {
 		bound, e := s.agentRepo.GetAgentByID(ctx, profile.AgentID)
-		if e != nil || bound == nil || !bound.Enabled || bound.ConnectionID != profile.ConnectionID {
+		if (e != nil || bound == nil) && s.agentRepo != nil {
+			cleanID := strings.TrimPrefix(profile.AgentID, "@")
+			if ag, err := s.agentRepo.GetAgentByID(ctx, "agent_"+cleanID); err == nil && ag != nil {
+				bound = ag
+				e = nil
+			}
+		}
+		isRunnable := bound != nil && (bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "")
+		if e != nil || !isRunnable || (bound.ConnectionID != "" && profile.ConnectionID != "" && bound.ConnectionID != profile.ConnectionID) || (bound.Harness != "agy" && bound.Harness != "antigravity" && bound.Harness != "") {
 			allowed = false
 		} else {
 			home, e := s.ownedAgentProfileHome(ctx, owner, bound)
