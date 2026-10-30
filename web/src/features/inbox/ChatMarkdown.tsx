@@ -19,10 +19,10 @@ import { cn } from '../../lib/utils'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
 import {
-  ChatPreviewCard,
   extractConversationRoomId,
   extractTaskId,
 } from './RoomCard'
+export { ChatPreviewCard } from './RoomCard'
 import './chat-markdown.css'
 
 // Messages can contain untrusted URLs. File paths remain readable text until
@@ -204,7 +204,7 @@ function autolinkConversationPaths(raw: string): string {
       if (index % 2 === 1) return part
       return part.replace(
         /(^|[\s(])(\/(?:inbox|chat)\/[A-Za-z0-9_-]+)(?=[)\s.,;!?]|$)/g,
-        (match, prefix, path) => `${prefix}[${path}](${path})`
+        (_match, prefix, path) => `${prefix}[${path}](${path})`
       )
     })
     .join('')

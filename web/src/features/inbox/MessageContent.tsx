@@ -6,10 +6,10 @@ import { StatusReportCard, parseTaskReportMessage } from '../../components/ui/St
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
 import {
-  ChatPreviewCard,
   extractConversationRoomId,
   extractTaskId,
 } from './RoomCard'
+export { ChatPreviewCard } from './RoomCard'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import type { ReceiptExtraction } from '../../api/appsSkills'
 
