@@ -718,13 +718,18 @@ func (s *Server) routes() {
 			rr.Use(s.runnerAuthMiddleware)
 			rr.Post("/runner/heartbeat", s.handleRunnerHeartbeat)
 			rr.Post("/runner/claim", s.handleRunnerClaim)
+			rr.Get("/runner/attempts/{id}/logs", s.handleRunnerGetStreamLogs)
 			rr.Post("/runner/attempts/{id}/logs", s.handleRunnerStreamLogs)
+			rr.Post("/runner/attempts/{id}/steer", s.handleRunnerSteer)
 			rr.Post("/runner/attempts/{id}/complete", s.handleRunnerComplete)
 		})
 
 		// Protected endpoints (Single-Owner access only)
 		r.Group(func(pr chi.Router) {
 			pr.Use(auth.Middleware(s.authSvc))
+
+			pr.Get("/runner/attempts/{id}/logs", s.handleRunnerGetStreamLogs)
+			pr.Post("/runner/attempts/{id}/steer", s.handleRunnerSteer)
 
 			pr.Get("/auth/me", s.handleAuthMe)
 			pr.Patch("/auth/username", s.handleUsername)

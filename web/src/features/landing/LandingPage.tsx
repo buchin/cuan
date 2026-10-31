@@ -15,6 +15,7 @@ import {
   Sparkles,
   Volume2,
   Activity,
+  Radio,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -287,6 +288,11 @@ export function LandingPage() {
                 Icon: Activity,
                 title: 'Worker observability & queue health.',
                 text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
+              },
+              {
+                Icon: Radio,
+                title: 'Real-time log streaming & interactive steering.',
+                text: 'Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.',
               },
               {
                 Icon: Clock,

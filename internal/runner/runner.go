@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
@@ -22,9 +23,11 @@ import (
 )
 
 type activeAttempt struct {
-	attempt *task.TaskAttempt
-	lane    string
-	cancel  context.CancelFunc
+	attempt   *task.TaskAttempt
+	lane      string
+	cancel    context.CancelFunc
+	steerFunc func(prompt string) error
+	steerChan chan string
 }
 
 type Runner struct {
@@ -280,8 +283,44 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 				log.Printf("[Runner %s] Heartbeat received cancellation directive for active attempts", r.cfg.RunnerID)
 				r.cancelCurrentExecution()
 			}
+
+			// Process interactive steering directives from server
+			if len(hbResp.SteeringDirectives) > 0 {
+				for _, dir := range hbResp.SteeringDirectives {
+					log.Printf("[Runner %s] Heartbeat received steering directive for attempt %s: %s", r.cfg.RunnerID, dir.AttemptID, dir.Prompt)
+					if sErr := r.SteerAttempt(dir.AttemptID, dir.Prompt); sErr != nil {
+						r.streamLogLine(ctx, dir.AttemptID, "system", fmt.Sprintf("Steering fallback: %v. Arahan dicatat sebagai follow-up.", sErr))
+					} else {
+						r.streamLogLine(ctx, dir.AttemptID, "system", fmt.Sprintf("Interactive steering injected ke agent (dari %s): %s", dir.Author, dir.Prompt))
+					}
+				}
+			}
 		}
 	}
+}
+
+// SteerAttempt delivers an interactive steering prompt into the stdin of an active agent execution.
+func (r *Runner) SteerAttempt(attemptID, prompt string) error {
+	r.mu.Lock()
+	act, exists := r.activeAttempts[attemptID]
+	r.mu.Unlock()
+
+	if !exists || act == nil {
+		return fmt.Errorf("attempt %s is not active on runner %s", attemptID, r.cfg.RunnerID)
+	}
+
+	if act.steerFunc != nil {
+		return act.steerFunc(prompt)
+	}
+	if act.steerChan != nil {
+		select {
+		case act.steerChan <- prompt:
+			return nil
+		default:
+			return errors.New("steer channel is full or blocked")
+		}
+	}
+	return errors.New("agent adapter does not support interactive steering")
 }
 
 func (r *Runner) pollAndExecute(ctx context.Context) {
@@ -364,14 +403,16 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	execCtx, cancelFunc := context.WithCancel(ctx)
+	steerChan := make(chan string, 16)
 	r.mu.Lock()
 	if r.activeAttempts == nil {
 		r.activeAttempts = make(map[string]*activeAttempt)
 	}
 	r.activeAttempts[claimResp.Attempt.ID] = &activeAttempt{
-		attempt: claimResp.Attempt,
-		lane:    lane,
-		cancel:  cancelFunc,
+		attempt:   claimResp.Attempt,
+		lane:      lane,
+		cancel:    cancelFunc,
+		steerChan: steerChan,
 	}
 	r.currentAttempt = claimResp.Attempt
 	r.cancelAttempt = cancelFunc
@@ -504,6 +545,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	env["CUAN_TASK_TIMEOUT"] = timeoutDuration.String()
 	env["CUAN_TASK_GRACE_PERIOD"] = gracePeriod.String()
 
+	var liveStreamedCount int64
 	req := agent.ExecutionRequest{
 		TaskID:       t.ID,
 		Prompt:       prompt,
@@ -511,7 +553,24 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		Env:          env,
 		Timeout:      timeoutDuration,
 		OutputFormat: "json",
+		OnLog: func(stream, line string) {
+			atomic.AddInt64(&liveStreamedCount, 1)
+			r.streamLogLine(ctx, att.ID, stream, line)
+		},
+		RegisterSteer: func(steerFn func(prompt string) error) {
+			r.mu.Lock()
+			if act, ok := r.activeAttempts[att.ID]; ok {
+				act.steerFunc = steerFn
+			}
+			r.mu.Unlock()
+		},
 	}
+
+	r.mu.Lock()
+	if act, ok := r.activeAttempts[att.ID]; ok {
+		req.SteerChan = act.steerChan
+	}
+	r.mu.Unlock()
 
 	result, err := r.adapter.Execute(ctx, req)
 	duration := time.Since(startTime)
@@ -536,8 +595,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	} else if result != nil {
 		compReq.PeakRSSBytes = result.PeakRSSBytes
 
-		// Stream stdout & stderr logs (bounded & masked)
-		r.streamOutputLogs(ctx, att.ID, result.Stdout, result.Stderr)
+		// If no logs were live-streamed during execution (e.g. mock adapter), stream buffered output
+		if atomic.LoadInt64(&liveStreamedCount) == 0 {
+			r.streamOutputLogs(ctx, att.ID, result.Stdout, result.Stderr)
+		}
 
 		if result.Status == "CANCELED" {
 			compReq.Status = task.AttemptStatusCanceled

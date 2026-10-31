@@ -1,14 +1,16 @@
 package agent
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -101,13 +103,112 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 	// Setup process group for clean cancellation
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	// Set up pipes for live streaming and interactive steering
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open stdout pipe: %w", err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open stderr pipe: %w", err)
+	}
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open stdin pipe: %w", err)
+	}
+
+	stdoutRing := NewRingBuffer(512 * 1024)
+	stderrRing := NewRingBuffer(512 * 1024)
+
+	var streamWg sync.WaitGroup
+	streamWg.Add(2)
+
+	// Stream stdout line-by-line in real-time
+	go func() {
+		defer streamWg.Done()
+		reader := bufio.NewReaderSize(stdoutPipe, 32*1024)
+		for {
+			line, rErr := reader.ReadString('\n')
+			if len(line) > 0 {
+				_, _ = stdoutRing.Write([]byte(line))
+				clean := strings.TrimRight(line, "\r\n")
+				safe := MaskSecrets(clean, req.Secrets)
+				if req.OnLog != nil {
+					req.OnLog("stdout", safe)
+				}
+				if req.OnStdoutLine != nil {
+					req.OnStdoutLine(safe)
+				}
+			}
+			if rErr != nil {
+				break
+			}
+		}
+	}()
+
+	// Stream stderr line-by-line in real-time
+	go func() {
+		defer streamWg.Done()
+		reader := bufio.NewReaderSize(stderrPipe, 32*1024)
+		for {
+			line, rErr := reader.ReadString('\n')
+			if len(line) > 0 {
+				_, _ = stderrRing.Write([]byte(line))
+				clean := strings.TrimRight(line, "\r\n")
+				safe := MaskSecrets(clean, req.Secrets)
+				if req.OnLog != nil {
+					req.OnLog("stderr", safe)
+				}
+				if req.OnStderrLine != nil {
+					req.OnStderrLine(safe)
+				}
+			}
+			if rErr != nil {
+				break
+			}
+		}
+	}()
+
+	// Provide interactive steering handle to stdin
+	var stdinMu sync.Mutex
+	var stdinClosed bool
+	safeSteer := func(prompt string) error {
+		stdinMu.Lock()
+		defer stdinMu.Unlock()
+		if stdinClosed || stdinPipe == nil {
+			return errors.New("agent process stdin is not active or closed")
+		}
+		_, wErr := io.WriteString(stdinPipe, prompt+"\n")
+		return wErr
+	}
+
+	if req.RegisterSteer != nil {
+		req.RegisterSteer(safeSteer)
+	}
+
+	if req.SteerChan != nil {
+		go func() {
+			for {
+				select {
+				case <-cmdCtx.Done():
+					return
+				case prompt, ok := <-req.SteerChan:
+					if !ok {
+						return
+					}
+					_ = safeSteer(prompt)
+				}
+			}
+		}()
+	}
 
 	startTime := time.Now()
 
 	if err := cmd.Start(); err != nil {
+		stdinMu.Lock()
+		stdinClosed = true
+		_ = stdinPipe.Close()
+		stdinMu.Unlock()
 		return nil, fmt.Errorf("start agy process: %w", err)
 	}
 
@@ -117,7 +218,9 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 	// Channel to signal process completion
 	doneChan := make(chan error, 1)
 	go func() {
-		doneChan <- cmd.Wait()
+		waitErr := cmd.Wait()
+		streamWg.Wait() // ensure all streaming output has been read
+		doneChan <- waitErr
 	}()
 
 	var waitErr error
@@ -130,7 +233,14 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			timedOut = true
 		}
-		// Terminate the entire process tree (PGID and all child subprocesses)
+		// Close stdin and terminate the entire process tree (PGID and all child subprocesses)
+		stdinMu.Lock()
+		stdinClosed = true
+		if stdinPipe != nil {
+			_ = stdinPipe.Close()
+		}
+		stdinMu.Unlock()
+
 		if pid > 0 {
 			_ = KillProcessTree(pid)
 		}
@@ -138,14 +248,20 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 
 	case waitErr = <-doneChan:
 		// Process completed naturally
+		stdinMu.Lock()
+		stdinClosed = true
+		if stdinPipe != nil {
+			_ = stdinPipe.Close()
+		}
+		stdinMu.Unlock()
 	}
 
 	duration := time.Since(startTime)
 	peakRSS := monitor.Stop()
 
-	// Redact secrets
-	safeStdout := MaskSecrets(stdoutBuf.String(), req.Secrets)
-	safeStderr := MaskSecrets(stderrBuf.String(), req.Secrets)
+	// Redact secrets from bounded ring-buffers
+	safeStdout := MaskSecrets(stdoutRing.String(), req.Secrets)
+	safeStderr := MaskSecrets(stderrRing.String(), req.Secrets)
 
 	result := &ExecutionResult{
 		Duration:     duration,

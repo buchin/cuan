@@ -15,6 +15,21 @@ type ExecutionRequest struct {
 	Timeout      time.Duration
 	Model        string
 	OutputFormat string // "json" or "text"
+
+	// OnLog is called line-by-line as output arrives in real-time from the agent process.
+	OnLog func(stream, line string)
+
+	// OnStdoutLine is called for each stdout line emitted live.
+	OnStdoutLine func(line string)
+
+	// OnStderrLine is called for each stderr line emitted live.
+	OnStderrLine func(line string)
+
+	// SteerChan allows streaming interactive steering prompts to the agent process stdin.
+	SteerChan <-chan string
+
+	// RegisterSteer receives a handle to write steering prompts to stdin directly.
+	RegisterSteer func(steerFn func(prompt string) error)
 }
 
 // StructuredOutput represents parsed machine-readable output from the agent.

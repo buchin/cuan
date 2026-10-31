@@ -2,8 +2,10 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/project"
@@ -15,12 +17,15 @@ type ProjectFinder interface {
 }
 
 type RunnerService struct {
-	store         Store
-	taskStore     task.Store
-	projectFinder ProjectFinder
-	dodEvaluator  *DoDEvaluator
-	chatNotifier  BusinessChatNotifier
-	eventBus      *EventBus
+	store           Store
+	taskStore       task.Store
+	projectFinder   ProjectFinder
+	dodEvaluator    *DoDEvaluator
+	chatNotifier    BusinessChatNotifier
+	eventBus        *EventBus
+	steerMu         sync.Mutex
+	pendingSteering map[string][]SteeringDirective
+	steerHandlers   map[string]func(attemptID, prompt string) error
 }
 
 func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinder) *RunnerService {
@@ -29,11 +34,13 @@ func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinde
 		pf = projectFinder[0]
 	}
 	return &RunnerService{
-		store:         store,
-		taskStore:     taskStore,
-		projectFinder: pf,
-		dodEvaluator:  NewDoDEvaluator(),
-		eventBus:      GlobalEventBus,
+		store:           store,
+		taskStore:       taskStore,
+		projectFinder:   pf,
+		dodEvaluator:    NewDoDEvaluator(),
+		eventBus:        GlobalEventBus,
+		pendingSteering: make(map[string][]SteeringDirective),
+		steerHandlers:   make(map[string]func(attemptID, prompt string) error),
 	}
 }
 
@@ -98,11 +105,114 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 		}
 	}
 
+	s.steerMu.Lock()
+	var directives []SteeringDirective
+	for _, attID := range attemptIDsToCheck {
+		if pending, ok := s.pendingSteering[attID]; ok && len(pending) > 0 {
+			directives = append(directives, pending...)
+			delete(s.pendingSteering, attID)
+		}
+	}
+	s.steerMu.Unlock()
+
 	return &HeartbeatResponse{
 		Status:             "ok",
 		LeaseDurationSec:   int(leaseDuration.Seconds()),
 		ShouldCancel:       shouldCancel,
 		CanceledAttemptIDs: canceledIDs,
+		SteeringDirectives: directives,
+	}, nil
+}
+
+// RegisterSteerHandler connects an in-process or local runner's steering dispatcher.
+func (s *RunnerService) RegisterSteerHandler(runnerID string, handler func(attemptID, prompt string) error) {
+	s.steerMu.Lock()
+	defer s.steerMu.Unlock()
+	s.steerHandlers[runnerID] = handler
+}
+
+// Steer injects an interactive steering prompt into the active attempt's agent process stdin,
+// or queues it for runner heartbeat dispatch, or performs a graceful fallback to a follow-up comment.
+func (s *RunnerService) Steer(ctx context.Context, attemptID string, req SteerAttemptRequest) (*SteerAttemptResponse, error) {
+	if strings.TrimSpace(req.Prompt) == "" {
+		return nil, errors.New("prompt is required")
+	}
+
+	att, err := s.taskStore.GetAttempt(ctx, attemptID)
+	if err != nil {
+		return nil, fmt.Errorf("attempt %s: %w", attemptID, err)
+	}
+	if att == nil {
+		return nil, fmt.Errorf("attempt not found: %s", attemptID)
+	}
+
+	author := req.Author
+	if author == "" {
+		author = "user"
+	}
+
+	// If attempt is not running, gracefully fallback by recording a queued follow-up activity on the task
+	if att.Status != task.AttemptStatusRunning {
+		_ = s.taskStore.CreateActivity(ctx, &task.TaskActivity{
+			TaskID:       att.TaskID,
+			AttemptID:    &attemptID,
+			ActivityType: task.ActivityTypeComment,
+			Author:       author,
+			Message:      fmt.Sprintf("[Follow-up Prompt] %s", req.Prompt),
+			CreatedAt:    time.Now().UTC(),
+		})
+		return &SteerAttemptResponse{
+			Status:   "queued",
+			Fallback: true,
+			Message:  "Attempt is not running; prompt recorded as queued follow-up on task.",
+		}, nil
+	}
+
+	// Try immediate delivery if a direct steer handler is registered for this runner
+	s.steerMu.Lock()
+	handler, hasHandler := s.steerHandlers[att.RunnerID]
+	s.steerMu.Unlock()
+
+	if hasHandler && handler != nil {
+		if hErr := handler(attemptID, req.Prompt); hErr == nil {
+			_ = s.taskStore.CreateActivity(ctx, &task.TaskActivity{
+				TaskID:       att.TaskID,
+				AttemptID:    &attemptID,
+				ActivityType: task.ActivityTypeComment,
+				Author:       author,
+				Message:      fmt.Sprintf("[Interactive Steering] %s", req.Prompt),
+				CreatedAt:    time.Now().UTC(),
+			})
+			return &SteerAttemptResponse{
+				Status:   "delivered",
+				Fallback: false,
+				Message:  "Steering instruction injected to active agent process stdin.",
+			}, nil
+		}
+	}
+
+	// Queue for next heartbeat dispatch to runner
+	s.steerMu.Lock()
+	s.pendingSteering[attemptID] = append(s.pendingSteering[attemptID], SteeringDirective{
+		AttemptID: attemptID,
+		Prompt:    req.Prompt,
+		Author:    author,
+	})
+	s.steerMu.Unlock()
+
+	_ = s.taskStore.CreateActivity(ctx, &task.TaskActivity{
+		TaskID:       att.TaskID,
+		AttemptID:    &attemptID,
+		ActivityType: task.ActivityTypeComment,
+		Author:       author,
+		Message:      fmt.Sprintf("[Interactive Steering Queued] %s", req.Prompt),
+		CreatedAt:    time.Now().UTC(),
+	})
+
+	return &SteerAttemptResponse{
+		Status:   "delivered",
+		Fallback: false,
+		Message:  "Steering instruction queued for active runner.",
 	}, nil
 }
 

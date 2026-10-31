@@ -1,4 +1,6 @@
 {
+  "Real-time log streaming & interactive steering.": "Streaming log real-time & kemudi interaktif.",
+  "Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.": "Pipa streaming stdout/stderr seketika menghadirkan transparansi proses aktif, sementara kemudi obrolan interaktif memudahkan Anda mengarahkan agen tanpa mengulang dari awal.",
   "Background audio chime & tab notifications.": "Audio chime latar belakang & notifikasi tab.",
   "Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.": "Web Audio chime harmonis memutar nada lembut dan memperbarui lencana tab browser saat tugas selesai di latar belakang, dilengkapi fallback senyap tanpa hambatan.",
   "Worker observability & queue health.": "Observabilitas worker & kesehatan antrean.",

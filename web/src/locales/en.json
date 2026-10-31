@@ -1,4 +1,6 @@
 {
+  "Real-time log streaming & interactive steering.": "Real-time log streaming & interactive steering.",
+  "Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.": "Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.",
   "Background audio chime & tab notifications.": "Background audio chime & tab notifications.",
   "Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.": "Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.",
   "Worker observability & queue health.": "Worker observability & queue health.",
