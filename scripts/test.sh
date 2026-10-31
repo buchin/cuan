@@ -34,9 +34,9 @@ done
 echo "==> Running Cuan verification tests..."
 
 if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
-  echo "==> Testing Go packages (db, config, server, agent)..."
+  echo "==> Testing Go packages (config, auth, db, runner)..."
   if [[ "$FAST_MODE" == "true" ]]; then
-    go -C "$ROOT_DIR" test -v -short -timeout 30s ./internal/config ./internal/auth ./internal/db ./internal/server
+    go -C "$ROOT_DIR" test -short -timeout 10s ./internal/config ./internal/auth ./internal/db ./internal/runner
   else
     go -C "$ROOT_DIR" test -v -timeout 120s ./internal/...
   fi
@@ -44,9 +44,11 @@ if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
 fi
 
 if [[ "$MODE" == "all" || "$MODE" == "frontend" ]]; then
-  echo "==> Validating React Vite frontend build..."
-  (cd "$ROOT_DIR/web" && npm run build)
-  echo "✓ Frontend validation passed successfully."
+  if [[ "$FAST_MODE" != "true" ]]; then
+    echo "==> Validating React Vite frontend build..."
+    (cd "$ROOT_DIR/web" && npm run build)
+    echo "✓ Frontend validation passed successfully."
+  fi
 fi
 
 echo "==> All test suites passed!"

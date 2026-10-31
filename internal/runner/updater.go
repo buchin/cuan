@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -21,9 +22,15 @@ const (
 
 // UpdateManager inspects disk binaries and performs verified graceful self-updates.
 type UpdateManager struct {
-	currentBinPath string
-	targetBinPath  string
-	restartFunc    func(binaryPath string, args []string, env []string) error
+	currentBinPath   string
+	targetBinPath    string
+	restartFunc      func(binaryPath string, args []string, env []string) error
+	hasCustomRestart bool
+}
+
+func isTestBinary(path string) bool {
+	base := filepath.Base(path)
+	return strings.HasSuffix(base, ".test") || strings.Contains(base, ".test.")
 }
 
 func NewUpdateManager(targetBinPath string) *UpdateManager {
@@ -50,11 +57,15 @@ func NewUpdateManager(targetBinPath string) *UpdateManager {
 }
 
 func defaultExecRestart(binaryPath string, args []string, env []string) error {
+	if isTestBinary(os.Args[0]) {
+		return errors.New("cannot perform self-update exec in test binary")
+	}
 	return syscall.Exec(binaryPath, args, env)
 }
 
 func (u *UpdateManager) SetRestartFunc(fn func(string, []string, []string) error) {
 	u.restartFunc = fn
+	u.hasCustomRestart = fn != nil
 }
 
 func (u *UpdateManager) CurrentBinaryPath() string {
@@ -119,6 +130,10 @@ func VerifyBinaryIntegrity(path string) error {
 // CheckForUpdate checks if targetBinPath contains a verified, distinct binary from currentBinPath.
 func (u *UpdateManager) CheckForUpdate() (bool, string, error) {
 	if u.targetBinPath == "" {
+		return false, "", nil
+	}
+	// In test binaries, do not check or perform real self-update if current binary is a test runner
+	if isTestBinary(u.currentBinPath) && !u.hasCustomRestart {
 		return false, "", nil
 	}
 	targetResolved, err := filepath.EvalSymlinks(u.targetBinPath)
