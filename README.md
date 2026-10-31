@@ -20,6 +20,7 @@
   - [3. Multi-Channel Inbox & Contacts CRM](#3-multi-channel-inbox--contacts-crm)
   - [4. Extensibility & MCP Client Engine](#4-extensibility--mcp-client-engine)
   - [5. Project & Task Workspace Management](#5-project--task-workspace-management)
+  - [6. Calm Design System & Unified Chat Workspace](#6-calm-design-system--unified-chat-workspace)
 - [Architecture Overview](#architecture-overview)
   - [System Architecture Diagram](#system-architecture-diagram)
   - [Core Components](#core-components)
@@ -128,6 +129,24 @@ Transform customer interactions into structured business workflows:
   - **Auto-Mark Done & Zero-Jargon Chat**: Automatically marks verified tasks as `done` and proactively delivers warm, business-friendly reports and strategic next steps to store owners in Chat/Inbox.
 - **Creator Blueprints & Studio**:
   - Standardized project templates, execution blueprints, and modular workspaces for rapid business asset generation.
+
+### 6. Calm Design System & Unified Chat Workspace
+
+Cuan incorporates a **Calm & Layered UI System** inspired by world-class productivity tools **Things 3** and **Bear Notes**:
+
+- **Card Diet & Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`)**:
+  - Eliminates visual clutter and thick nested cards (`box inside box`). Replaced with flat serene surfaces, crisp hairline dividers (`divide-border/40`), micro-indicators (`StatusDot`), and Apple-style grouped rows (`GroupedSection`).
+- **Unified Chat Workspace (Studio + Inbox Fusion)**:
+  - Fuses ideation and execution into one continuous canvas. Compose raw ideas or tasks directly (`Cmd+K`) and transition smoothly to autonomous agent execution on the same view without jarring page redirects.
+  - Mobile Magic Plus (+) Floating Action Button triggers a slide-up studio sheet for rapid braindumping on iOS/Android.
+- **Information Layering & Progressive Disclosure**:
+  - Essential glanceable operational state stays on the surface; deep technical data (git branches, terminal sessions, raw stdout/stderr logs) is revealed smoothly on-demand via `SlideDrawer` side drawers.
+- **Status-by-Exception**:
+  - Calm neutral palette with high-contrast accent colors reserved strictly for exceptions requiring user intervention, preventing cognitive fatigue.
+- **Ergonomic Desktop Column Constraints & Geist Typography**:
+  - Strict 65–80ch reading widths (`max-w-[75ch]`) preventing eye strain on widescreen monitors, paired with the razor-sharp Geist typeface.
+- **3-Group Information Architecture**:
+  - Desktop sidebar organized into **WORKSPACE** (Chat, Tasks, Projects), **OPERATIONS** (Schedules, Contacts), and **SYSTEM** (Settings), paired with an essential 4-pillar mobile bottom navigation (Chat, Tasks, Projects, Menu).
 
 ---
 
@@ -323,7 +342,9 @@ For detailed operational procedures, see the [Deployment and Recovery Guide](doc
 
 Cuan is engineered under strict **Agentic Scrum** standards where every sprint produces a documented Single Source of Truth (`docs/sprints/S{number}.md`) and Definition of Done (DoD) verification evidence:
 
-- **Sprint 51 (Current)**: [Multi-User Collaboration & Staff Management with RBAC](docs/sprints/S51.md) — Fural permission model (Owner vs Member), TeamView staff management, 1-click WhatsApp invitations, `/invite/accept` activation page, and migration `000030`.
+- **Sprint 59 (Current)**: [Calm & Layered UI System (Things 3 & Bear Notes Inspired) and Unified Workspace](docs/sprints/S59.md) — Things 3 & Bear Notes design philosophy, Unified Chat Workspace (Studio + Inbox fusion), 3-group desktop navigation and 4-pillar mobile bottom nav, Card Diet refactor across core pages (Projects, Schedules, Contacts, Settings), and Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`).
+- **Sprint 58**: [Clean Chat UI, Live Streaming Logs & Interactive Agent Steering in cuan-runner](docs/sprints/S58.md) — Live stdout/stderr streaming pipe, harmonic Web Audio chime notification, tab title status badges, and interactive chat steering.
+- **Sprint 51**: [Multi-User Collaboration & Staff Management with RBAC](docs/sprints/S51.md) — Fural permission model (Owner vs Member), TeamView staff management, 1-click WhatsApp invitations, `/invite/accept` activation page, and migration `000030`.
 - **Sprint 50**: [Dual-Mode AI Engine & Universal BYOK](docs/sprints/S50.md) — Official subscription harnesses (Claude, Codex, AGY), Universal BYOK (OpenAI, DeepSeek V3/R1, Anthropic), user-space binary manager in `~/.local/bin`, and AES-256-GCM encryption.
 - **Sprint 1–49**: Historical sprint specifications and DoD verification records are preserved under [`docs/sprints/`](docs/sprints/) and [`docs/sprints/evidence/`](docs/sprints/evidence/).
 

@@ -54,7 +54,10 @@ test('2. Single Source of Truth: docs/sprints/S59.md sprint documentation valida
   const content = fs.readFileSync(sprint59Path, 'utf8')
 
   // Verify Sprint Status and Metadata
-  assert.ok(content.includes('**Status:** Running'), 'Sprint 59 must be marked as Running')
+  assert.ok(
+    content.includes('**Status:** Running') || content.includes('**Status:** Siap Sprint Review'),
+    'Sprint 59 must be marked as Running or Siap Sprint Review'
+  )
   assert.ok(content.includes('Sprint Number:** 59'), 'Sprint number must be 59')
   assert.ok(content.includes('feature/calm-design-system-and-unified-workspace'), 'Active branch must be documented')
   assert.ok(content.includes('Buchin <buchin@dropsugar.com>'), 'Author must be Buchin <buchin@dropsugar.com>')

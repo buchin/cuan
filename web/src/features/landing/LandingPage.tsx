@@ -16,6 +16,7 @@ import {
   Volume2,
   Activity,
   Radio,
+  Compass,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -79,7 +80,11 @@ export function LandingPage() {
           aria-labelledby="landing-title"
         >
           <div>
-            <p className="mb-5 text-sm font-medium text-muted-foreground">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>{t('Calm & Layered UI System · Things 3 Inspired')}</span>
+            </div>
+            <p className="mb-4 text-sm font-medium text-muted-foreground">
               {t('Your always-on project manager.')}
             </p>
             <h1
@@ -241,8 +246,18 @@ export function LandingPage() {
             {[
               {
                 Icon: MessageSquare,
-                title: 'One conversation, with context.',
-                text: 'Keep the goal, decisions and updates together. Open the underlying work whenever you need more detail.',
+                title: 'Unified Chat Workspace & Calm Stream.',
+                text: 'Studio and Inbox fused into one serene workspace. Plan ideas, draft tasks with Cmd+K, and steer agents seamlessly without jarring page reloads.',
+              },
+              {
+                Icon: Sparkles,
+                title: 'Calm Design System & Layered UI.',
+                text: 'Inspired by Things 3 and Bear Notes. Zero nested cards, hairline dividers, progressive disclosure via slide drawers, and crisp 65-80ch reading rhythm.',
+              },
+              {
+                Icon: Compass,
+                title: '3-Group Workspace Navigation.',
+                text: 'Restructured information architecture across Workspace, Operations, and System pillars with 4-pillar mobile bottom navigation.',
               },
               {
                 Icon: Bell,
