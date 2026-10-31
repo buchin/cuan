@@ -176,6 +176,7 @@ func (s *Server) handleItemPreferences(w http.ResponseWriter, r *http.Request) {
 				value.Unread = !*req.Read
 				if *req.Read {
 					value.ReadAt = nowStr
+					s.CancelChatIdleTimer(id)
 				}
 				all[key] = value
 			}
@@ -207,6 +208,7 @@ func (s *Server) handleItemPreferences(w http.ResponseWriter, r *http.Request) {
 						seen = previous
 					}
 					value.ReadAt = seen.Format(time.RFC3339Nano)
+					s.CancelChatIdleTimer(req.ID)
 				}
 			}
 			if value.ArchivedAt == "" && value.ReadAt == "" && !value.Unread {

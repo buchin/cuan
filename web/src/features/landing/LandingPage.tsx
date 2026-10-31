@@ -7,6 +7,7 @@ import {
   GitBranch,
   MessageSquare,
   Bell,
+  Mail,
   ShieldCheck,
   CheckCircle2,
   Zap,
@@ -242,6 +243,11 @@ export function LandingPage() {
                 Icon: Bell,
                 title: 'Know when you’re needed.',
                 text: 'See approvals, blockers, completed work and new customer messages. Enable push and choose quiet hours.',
+              },
+              {
+                Icon: Mail,
+                title: 'Resend email alerts & idle chat transcripts.',
+                text: 'Never lose a customer lead. Automatically receive responsive email digests via Resend when live chat inquiries are unread or idle (>5-10m).',
               },
               {
                 Icon: ShieldCheck,

@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { usePWA } from '../../context/PWAContext'
 import { useAuth } from '../../context/AuthContext'
 import { Bell, AlertCircle } from 'lucide-react'
+import { ResendSettingsCard } from './ResendSettingsCard'
 
 interface Preferences {
   approval: boolean
@@ -417,6 +418,11 @@ export function NotificationSettings() {
       ) : (
         !error && <p role="status" className="text-sm text-muted-foreground">{t('Loading…')}</p>
       )}
+
+      {/* Resend Email Integration & Chat Idle Notification */}
+      <div className="pt-2">
+        <ResendSettingsCard />
+      </div>
     </div>
   )
 }

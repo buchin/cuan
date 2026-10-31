@@ -493,6 +493,7 @@ func (s *Server) handleCreateInboxMessage(w http.ResponseWriter, r *http.Request
 	if s.roomEventBroker != nil {
 		s.roomEventBroker.Broadcast(roomID, "message.created", msg.ToDTO())
 	}
+	s.OnOperatorChatMessageSent(roomID)
 
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": msg.ToDTO(),

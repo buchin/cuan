@@ -31,6 +31,7 @@ import (
 	"github.com/buchin/cuan/internal/observability"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publisher"
+	"github.com/buchin/cuan/internal/resend"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/scheduler"
 	"github.com/buchin/cuan/internal/sponsorship"
@@ -111,6 +112,7 @@ type Server struct {
 	scheduler              *scheduler.Scheduler
 	taskManager            *scheduler.TaskManager
 	updater                *updater.Service
+	resendClient           resend.Client
 	router                 *chi.Mux
 }
 
@@ -575,6 +577,19 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		},
 	})
 
+	_ = sched.Register(&scheduler.Job{
+		ID:           "chat_idle_email_digest",
+		Name:         "Notifikasi Email Chat Idle",
+		Description:  "Memeriksa percakapan Live Chat yang belum terbaca dan mengirim transkrip via Resend",
+		ScheduleType: scheduler.ScheduleInterval,
+		Interval:     1 * time.Minute,
+		Enabled:      true,
+		Handler: func(ctx context.Context) error {
+			_, err := s.CheckAndNotifyIdleChats(ctx)
+			return err
+		},
+	})
+
 	termHandler.SetTaskResolver(s.resolveTaskID)
 	tSvc.SetProjectFinder(liveProjectFinder{server: s})
 	if s.runnerSvc != nil {
@@ -732,6 +747,14 @@ func (s *Server) routes() {
 			pr.Post("/notifications/push", s.handlePushSubscription)
 			pr.Delete("/notifications/push", s.handlePushSubscription)
 			pr.Post("/auth/password", s.handleAuthPassword)
+
+			// Resend Email Integration & Notification Settings (Chat Idle)
+			pr.Get("/settings/resend", s.handleGetResendSettings)
+			pr.Post("/settings/resend", s.handleSaveResendSettings)
+			pr.Patch("/settings/resend", s.handleSaveResendSettings)
+			pr.Post("/settings/resend/validate", s.handleValidateResendKey)
+			pr.Post("/settings/resend/test", s.handleTestResendEmail)
+			pr.Post("/chat/idle/check", s.handleTriggerChatIdleCheck)
 
 			// Tasks endpoints (T4 & T5)
 			s.registerTaskRoutes(pr)

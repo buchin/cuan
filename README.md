@@ -100,6 +100,12 @@ Transform customer interactions into structured business workflows:
   - AI agents triage incoming customer inquiries, answer questions using persistent business memory and canned responses, classify intent, and escalate complex issues to human team members.
 - **Contacts CRM & Deal Funnel**:
   - Comprehensive customer contact profiles, persistent contact memory, interaction history timelines, deal stage tracking, and customer journey management.
+- **Resend Email Alerts & Idle Chat Transcripts**:
+  - Securely connect Resend API keys encrypted with **AES-256-GCM** in the server vault with zero secret leakage and in-memory key masking (`re_...xxxx`).
+  - Automated idle chat detection engine combining per-room background debounce timers and a recurring 1-minute scheduler job (`chat_idle_email_digest`).
+  - Scans for unanswered customer inquiries (> 5-10 minutes idle) and dispatches responsive, branded HTML & plain-text email transcripts with direct 1-click links back to the Cuan Inbox.
+  - Automatic debounce & smart cancellation: timers instantly cancel when an operator replies or marks the conversation as read.
+  - Cooldown deduplication protects recipient inboxes from notification flooding.
 
 ### 4. Extensibility & MCP Client Engine
 
@@ -142,8 +148,9 @@ workspace: "Cuan Workspace & OS" {
     auth_rbac: "Auth & RBAC Middleware (Owner / Member)"
     ai_engine: "Dual-Mode AI Engine & Binary Manager"
     inbox_core: "Inbox & Triage Router"
+    resend_service: "Resend Email & Chat Idle Detector"
     mcp_engine: "MCP Client Engine & Skills Registry"
-    db_layer: "Database Layer (30 Auto-Migrations)"
+    db_layer: "Database Layer (31 Auto-Migrations)"
   }
 
   storage: "Storage & Persistence" {

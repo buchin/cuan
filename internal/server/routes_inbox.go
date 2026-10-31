@@ -22,6 +22,7 @@ func (s *Server) registerVisitorChatRoutes(r chi.Router) {
 		cr.Get("/attachments/{id}", s.handleVisitorDownloadAttachment)
 		cr.Post("/sessions/{uuid}/page", s.handleVisitorPageTelemetry)
 		cr.Post("/receipts", s.handleVisitorReceipts)
+		cr.Post("/idle/check", s.handleTriggerChatIdleCheck)
 		cr.Get("/contacts", s.handleInternalListContacts)
 		cr.Get("/conversations", s.handleInternalListContacts)
 		cr.Get("/canned-responses", s.handleListCannedResponses)

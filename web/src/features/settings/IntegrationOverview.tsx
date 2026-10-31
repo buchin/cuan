@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Github, MessageCircle, ArrowRight } from 'lucide-react'
+import { Github, MessageCircle, Mail, ArrowRight } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 type Connection = { connected: boolean; account?: { login: string } }
 export function IntegrationOverview() {
@@ -28,6 +28,12 @@ export function IntegrationOverview() {
    <p className="text-sm leading-6 text-muted-foreground">Chat with visitors on your website. Their conversations and contact details appear in Cuan.</p>
    <p className="min-h-10 text-xs text-muted-foreground">Website widget · Installation guide</p>
    <div className="mt-auto"><Link className="action-secondary" to="/settings/integrations/live-chat">Set up Live Chat<ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden /></Link></div>
+  </section>
+  <section className="flex min-w-0 flex-col gap-4 rounded-lg border bg-card p-4 sm:p-5" aria-label="Resend Email integration card">
+   <header className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted"><Mail className="h-5 w-5" aria-hidden /></span><h2 className="text-sm font-semibold">Resend Email</h2></header>
+   <p className="text-sm leading-6 text-muted-foreground">Kirim notifikasi & transkrip email otomatis saat Live Chat pelanggan idle belum terbaca.</p>
+   <p className="min-h-10 text-xs text-muted-foreground">Transkrip obrolan otomatis · Background timer</p>
+   <div className="mt-auto"><Link className="action-secondary" to="/settings/notifications">Atur Resend<ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden /></Link></div>
   </section>
  </div>
 }

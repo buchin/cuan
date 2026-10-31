@@ -495,6 +495,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 		}
 
 		s.DispatchCustomerMessagePush(r.Context(), sessionUUID, msgUUID, authorName, text)
+		s.OnCustomerChatMessageReceived(sessionUUID, msgUUID)
 	}
 
 	// Determine new message index
@@ -1493,6 +1494,9 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	if fresh {
+		if !resolved.IsAgent {
+			s.OnOperatorChatMessageSent(q.RoomID)
+		}
 		s.nameAgentTopic(r.Context(), q.RoomID, text)
 		s.publishInbox(q.RoomID)
 		if legacy {
