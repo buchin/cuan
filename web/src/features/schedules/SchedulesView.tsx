@@ -7,12 +7,15 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Pause,
   RotateCw,
-  Sparkles,
   X,
+  ChevronDown,
+  Repeat,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
+import { HairlineList } from '../../components/layout/HairlineList'
+import { StatusDot } from '../../components/ui/StatusDot'
+import { cn } from '../../lib/utils'
 
 export interface ScheduledTask {
   id: string
@@ -42,6 +45,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [triggeringId, setTriggeringId] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // Form states
   const [title, setTitle] = useState('')
@@ -127,6 +131,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         method: 'DELETE',
       })
       if (res.ok) {
+        if (expandedId === id) setExpandedId(null)
         fetchTasks()
       }
     } catch {
@@ -152,37 +157,43 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
     }
   }
 
-  const formatScheduleBadge = (task: ScheduledTask) => {
+  const formatScheduleTime = (task: ScheduledTask) => {
     if (task.schedule_type === 'daily') {
-      return `${t('Daily at')} ${task.time_of_day || '08:00'} WIB`
+      return `${task.time_of_day || '08:00'} WIB`
     }
     if (task.schedule_type === 'weekly') {
       const days = [
-        t('Sunday'),
-        t('Monday'),
-        t('Tuesday'),
-        t('Wednesday'),
-        t('Thursday'),
-        t('Friday'),
-        t('Saturday'),
+        t('Sun'),
+        t('Mon'),
+        t('Tue'),
+        t('Wed'),
+        t('Thu'),
+        t('Fri'),
+        t('Sat'),
       ]
-      return `${t('Every')} ${days[task.day_of_week ?? 1]} · ${task.time_of_day || '09:00'} WIB`
+      return `${days[task.day_of_week ?? 1]} · ${task.time_of_day || '09:00'} WIB`
     }
-    return `${t('Every')} ${task.interval_mins || 60} ${t('minutes')}`
+    return `${task.interval_mins || 60} ${t('min')}`
+  }
+
+  const formatScheduleTypeLabel = (task: ScheduledTask) => {
+    if (task.schedule_type === 'daily') return t('Daily')
+    if (task.schedule_type === 'weekly') return t('Weekly')
+    return t('Interval')
   }
 
   return (
-    <div className={`space-y-5 ${embedded ? '' : 'p-4 sm:p-6 max-w-5xl mx-auto'}`}>
+    <div className={`space-y-5 ${embedded ? '' : 'p-4 sm:p-6 max-w-4xl mx-auto'}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <CalendarClock className="h-6 w-6 text-primary" />
+            <CalendarClock className="h-5 w-5 text-primary" />
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               {t('Scheduled Routines')}
             </h1>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             {t('Automated recurring routines that agents execute without requiring manual prompts.')}
           </p>
         </div>
@@ -190,7 +201,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className="action-primary inline-flex items-center gap-2 shrink-0 self-start sm:self-center"
+          className="action-primary inline-flex items-center gap-2 shrink-0 self-start sm:self-center text-xs sm:text-sm min-h-[40px]"
         >
           <Plus className="h-4 w-4" />
           <span>{t('New Schedule')}</span>
@@ -198,127 +209,216 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
       </div>
 
       {actionFeedback && (
-        <div className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2 bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
+        <div className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>{actionFeedback}</span>
         </div>
       )}
 
-      {/* Content List */}
+      {/* Repeating Routines (Things 3 Inspired: Time on left, Routine in center, Toggle on right) */}
       {loading && tasks.length === 0 ? (
         <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
           <RotateCw className="h-5 w-5 animate-spin mr-2" />
           <span>{t('Loading schedules...')}</span>
         </div>
       ) : tasks.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-8 sm:p-12 text-center bg-card/40">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
-            <Sparkles className="h-6 w-6" />
+        <div className="rounded-xl border border-dashed border-border/60 p-8 sm:p-12 text-center bg-muted/10">
+          <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
+            <Repeat className="h-5 w-5" />
           </div>
-          <h3 className="text-base font-semibold text-foreground">{t('No scheduled routines yet')}</h3>
-          <p className="mt-1.5 text-sm text-muted-foreground max-w-md mx-auto">
+          <h3 className="text-sm font-semibold text-foreground">{t('No scheduled routines yet')}</h3>
+          <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
             {t('Create your first routine or ask Cuan in Chat: "Tolong tiap Senin jam 9 pagi buatkan rekap penjualan."')}
           </p>
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="action-primary mt-4 inline-flex items-center gap-1.5"
+            className="action-primary mt-4 inline-flex items-center gap-1.5 text-xs"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             <span>{t('Create Schedule')}</span>
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              className={`rounded-xl border bg-card p-5 space-y-3 transition-all ${
-                task.enabled ? 'border-border shadow-sm' : 'border-border/60 opacity-75 bg-muted/20'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-base text-foreground leading-snug">
-                      {task.title}
-                    </h3>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
-                        task.enabled
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                          : 'bg-muted text-muted-foreground border border-border'
-                      }`}
-                    >
-                      {task.enabled ? t('Active') : t('Paused')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
-                    <Clock className="h-3.5 w-3.5 shrink-0" />
-                    <span>{formatScheduleBadge(task)}</span>
-                  </div>
-                </div>
+        <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden transition-colors">
+          <HairlineList>
+            {tasks.map((task) => {
+              const isExpanded = expandedId === task.id
+              const isTriggering = triggeringId === task.id
 
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleToggle(task.id, task.enabled)}
-                    title={task.enabled ? t('Pause schedule') : t('Resume schedule')}
-                    className="action-secondary p-1.5 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+              return (
+                <div key={task.id} className="transition-colors">
+                  {/* Routine Surface Row (Things 3 repeating format) */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setExpandedId(isExpanded ? null : task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setExpandedId(isExpanded ? null : task.id)
+                      }
+                    }}
+                    className={cn(
+                      'group flex items-center justify-between gap-3 px-3.5 py-3.5 sm:px-4 min-h-[52px] cursor-pointer hover:bg-muted/30 transition-colors select-none outline-none focus-visible:bg-muted/40',
+                      !task.enabled && 'opacity-65',
+                      isExpanded && 'bg-muted/20',
+                    )}
                   >
-                    {task.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(task.id)}
-                    title={t('Delete schedule')}
-                    className="action-secondary p-1.5 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+                    {/* Left: Time & Cadence (Things 3 repeating routine style) */}
+                    <div className="w-28 sm:w-36 shrink-0 flex items-center gap-2 text-xs font-mono font-medium text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+                      <span className="truncate">{formatScheduleTime(task)}</span>
+                    </div>
 
-              {/* Prompt Instruction */}
-              <div className="bg-muted/40 rounded-lg p-3 text-xs text-muted-foreground font-mono leading-relaxed line-clamp-3">
-                {task.prompt}
-              </div>
+                    {/* Center: Routine Title & Status Indicator */}
+                    <div className="min-w-0 flex-1 flex items-center gap-2.5">
+                      <StatusDot
+                        status={
+                          isTriggering
+                            ? 'running'
+                            : task.enabled
+                              ? 'healthy'
+                              : 'neutral'
+                        }
+                        pulse={isTriggering}
+                        title={task.enabled ? t('Active') : t('Paused')}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-sm text-foreground truncate block group-hover:text-primary transition-colors">
+                          {task.title}
+                        </span>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                          <span>{formatScheduleTypeLabel(task)}</span>
+                          {task.next_run_at && task.enabled && (
+                            <>
+                              <span>·</span>
+                              <span className="truncate">
+                                {t('Next run:')}{' '}
+                                {new Date(task.next_run_at).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </>
+                          )}
+                          {!task.enabled && (
+                            <>
+                              <span>·</span>
+                              <span className="text-muted-foreground/70">
+                                {t('Paused')}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-              {/* Footer info & trigger */}
-              <div className="flex items-center justify-between pt-2 border-t border-border text-xs text-muted-foreground">
-                <div className="truncate">
-                  {task.next_run_at && task.enabled ? (
-                    <span>
-                      {t('Next run:')}{' '}
-                      {new Date(task.next_run_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  ) : (
-                    <span>{t('Schedule paused')}</span>
+                    {/* Right: Switch Toggle & Expand Chevron */}
+                    <div className="flex shrink-0 items-center gap-2 sm:gap-3 pl-2">
+                      {/* Apple/Things 3 style Switch Toggle */}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={task.enabled}
+                        title={task.enabled ? t('Pause schedule') : t('Resume schedule')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleToggle(task.id, task.enabled)
+                        }}
+                        className={cn(
+                          'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                          task.enabled
+                            ? 'bg-emerald-500/90 dark:bg-emerald-400'
+                            : 'bg-muted-foreground/30',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out',
+                            task.enabled ? 'translate-x-5' : 'translate-x-0',
+                          )}
+                        />
+                      </button>
+
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4 text-muted-foreground/70 transition-transform duration-200',
+                          isExpanded && 'rotate-180 text-foreground',
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Deep Layer: Progressive Disclosure Expandable Section */}
+                  {isExpanded && (
+                    <div className="border-t border-border/30 bg-muted/15 px-4 py-4 sm:px-6 space-y-3.5 animate-in fade-in-50 duration-150">
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          {t('Agent Instruction (Prompt)')}
+                        </span>
+                        <div className="rounded-lg border border-border/40 bg-card p-3 font-mono text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap break-words">
+                          {task.prompt}
+                        </div>
+                      </div>
+
+                      {task.last_error && (
+                        <div className="flex items-center gap-2 text-xs text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg p-2.5">
+                          <AlertCircle className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{task.last_error}</span>
+                        </div>
+                      )}
+
+                      {/* Detail actions & trigger bar */}
+                      <div className="flex items-center justify-between pt-1 text-xs">
+                        <div className="text-muted-foreground">
+                          {task.last_run_at ? (
+                            <span>
+                              {t('Last run:')}{' '}
+                              {new Date(task.last_run_at).toLocaleString([], {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })}
+                            </span>
+                          ) : (
+                            <span>{t('Never executed yet')}</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleDelete(task.id)
+                            }}
+                            title={t('Delete schedule')}
+                            className="action-secondary text-xs p-1.5 text-muted-foreground hover:text-destructive min-h-[32px] inline-flex items-center gap-1.5"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">{t('Delete')}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleTrigger(task.id)
+                            }}
+                            disabled={isTriggering || !task.enabled}
+                            className="action-secondary text-xs inline-flex items-center gap-1.5 py-1 px-3 min-h-[32px]"
+                          >
+                            <Play className="h-3 w-3" />
+                            <span>{isTriggering ? t('Running...') : t('Run now')}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleTrigger(task.id)}
-                  disabled={triggeringId === task.id || !task.enabled}
-                  className="action-secondary text-xs inline-flex items-center gap-1.5 py-1 px-2.5 h-7"
-                >
-                  <Play className="h-3 w-3" />
-                  <span>{triggeringId === task.id ? t('Running...') : t('Run now')}</span>
-                </button>
-              </div>
-
-              {task.last_error && (
-                <div className="flex items-center gap-1.5 text-xs text-rose-500 pt-1">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{task.last_error}</span>
-                </div>
-              )}
-            </div>
-          ))}
+              )
+            })}
+          </HairlineList>
         </div>
       )}
 
@@ -326,7 +426,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
               <h2 className="text-lg font-bold text-foreground">{t('New Scheduled Routine')}</h2>
               <button
                 type="button"
@@ -439,7 +539,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/50">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

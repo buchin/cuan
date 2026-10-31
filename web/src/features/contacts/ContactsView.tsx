@@ -13,6 +13,8 @@ import {
   RefreshCw,
   ChevronLeft,
   X,
+  FileText,
+  Tag,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
@@ -262,103 +264,120 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
       className="flex h-full min-h-0 min-w-0 overflow-hidden"
       aria-label={t('Contacts')}
     >
+      {/* Left List: Clean Scanning Canvas without Tag Badge Clutter */}
       <aside
         aria-label={t('Contact list')}
-        className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
+        className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r border-border/40 ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
-        <div className="shrink-0 border-b p-3">
+        <div className="shrink-0 border-b border-border/40 p-3">
           <ListCreateAction label="New contact" kind="contacts" onClick={onNewContact} />
-          <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-lg border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
-                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <input
-                    aria-label={t('Search contacts and notes')}
-                    className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-                    placeholder={t('Search contacts…')}
-                    maxLength={200}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+          <div className="space-y-2 mt-2">
+            <div className="flex items-center gap-2">
+              <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-lg border border-border/50 bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <input
+                  aria-label={t('Search contacts and notes')}
+                  className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
+                  placeholder={t('Search contacts…')}
+                  maxLength={200}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="icon-action relative shrink-0"
+                aria-label={t('Filters')}
+                aria-expanded={filtersOpen}
+                aria-controls="contact-filters"
+                onClick={() => setFiltersOpen(!filtersOpen)}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                {(tag || product) && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary"
                   />
-                </label>
-                <button
-                  type="button"
-                  className="icon-action relative shrink-0"
-                  aria-label={t('Filters')}
-                  aria-expanded={filtersOpen}
-                  aria-controls="contact-filters"
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                  {(tag || product) && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary"
-                    />
-                  )}
-                </button>
-                <button type="button" className={`icon-action shrink-0 ${showArchived ? 'bg-accent text-primary' : 'text-muted-foreground'}`}
-                  aria-label={t(showArchived ? 'Active contacts' : 'Archived contacts')} title={t(showArchived ? 'Active contacts' : 'Archived contacts')}
-                  aria-pressed={showArchived} onClick={() => setShowArchived(value => !value)}>
-                  <Archive className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-              {(tag || product) && !filtersOpen && (
-                <button
-                  type="button"
-                  className="min-h-11 text-xs text-primary underline"
-                  onClick={() => setFiltersOpen(true)}
-                >
-                  {t('Filters applied')}
-                </button>
-              )}
-              {filtersOpen && (
-                <div id="contact-filters" className="grid grid-cols-2 gap-2">
-                  <select
-                    aria-label={t('Filter by tag')}
-                    className="field-control min-w-0 text-sm"
-                    value={tag}
-                    onChange={(e) => setTag(e.target.value)}
-                  >
-                    <option value="">{t('All tags')}</option>
-                    {tags.map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label={t('Filter by source')}
-                    className="field-control min-w-0 text-sm"
-                    value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                  >
-                    <option value="">{t('All sources')}</option>
-                    {sources.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
-                  {filteredActive && (
-                    <button
-                      className="action-secondary col-span-2"
-                      onClick={clear}
-                    >
-                      {t('Clear filters')}
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </button>
+              <button
+                type="button"
+                className={`icon-action shrink-0 ${showArchived ? 'bg-accent text-primary' : 'text-muted-foreground'}`}
+                aria-label={t(showArchived ? 'Active contacts' : 'Archived contacts')}
+                title={t(showArchived ? 'Active contacts' : 'Archived contacts')}
+                aria-pressed={showArchived}
+                onClick={() => setShowArchived((value) => !value)}
+              >
+                <Archive className="h-4 w-4" aria-hidden="true" />
+              </button>
             </div>
+
+            {(tag || product) && !filtersOpen && (
+              <button
+                type="button"
+                className="min-h-11 text-xs text-primary underline"
+                onClick={() => setFiltersOpen(true)}
+              >
+                {t('Filters applied')}
+              </button>
+            )}
+
+            {filtersOpen && (
+              <div id="contact-filters" className="grid grid-cols-2 gap-2 pt-1">
+                <select
+                  aria-label={t('Filter by tag')}
+                  className="field-control min-w-0 text-sm"
+                  value={tag}
+                  onChange={(e) => setTag(e.target.value)}
+                >
+                  <option value="">{t('All tags')}</option>
+                  {tags.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label={t('Filter by source')}
+                  className="field-control min-w-0 text-sm"
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                >
+                  <option value="">{t('All sources')}</option>
+                  {sources.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+                {filteredActive && (
+                  <button
+                    className="action-secondary col-span-2 text-xs"
+                    onClick={clear}
+                  >
+                    {t('Clear filters')}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
-        <div className="min-h-0 flex-1 overflow-y-auto px-1 py-2">
+
+        {archive.error && (
+          <div role="alert" className="px-3 py-2 text-xs text-destructive">
+            {t(archive.error)}{' '}
+            <button className="min-h-11 underline" onClick={() => void archive.refresh()}>
+              {t('Try again')}
+            </button>
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
           {loading ? (
-            <p role="status" className="py-6 text-sm text-muted-foreground">
+            <p role="status" className="py-6 text-center text-sm text-muted-foreground">
               {t('Loading contacts\u2026')}
             </p>
           ) : error ? (
-            <div role="alert" className="rounded-lg border p-5">
-              <p>{t(error)}</p>
+            <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-center">
+              <p className="text-xs text-destructive">{t(error)}</p>
               <button
-                className="action-secondary mt-3"
+                className="action-secondary mt-2 text-xs"
                 onClick={() => {
                   void load()
                   setSearchOffset(0)
@@ -369,25 +388,20 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
               </button>
             </div>
           ) : contacts.length === 0 && !selectedId ? (
-            <div className="rounded-lg border border-dashed p-6 text-center">
-              <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-              <h2 className="text-lg font-semibold">{t('No contacts yet')}</h2>
-              <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                {t(
-                  'Live chat visitors appear here automatically. Set up your widget in Settings \u2192 Integrations.',
-                )}
+            <div className="rounded-xl border border-dashed border-border/60 p-6 text-center bg-muted/10">
+              <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
+              <h2 className="text-base font-semibold text-foreground">{t('No contacts yet')}</h2>
+              <p className="mx-auto mt-1.5 max-w-xs text-xs text-muted-foreground">
+                {t('Live chat visitors appear here automatically. Set up your widget in Settings \u2192 Integrations.')}
               </p>
-              <Link
-                to="/settings/integrations/live-chat"
-                className="action-primary mt-4"
-              >
+              <Link to="/settings/integrations/live-chat" className="action-primary mt-4 inline-flex text-xs">
                 {t('Connect live chat')}
               </Link>
             </div>
           ) : (
             <div className="min-w-0">
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground" role="status">
+              <div className="mb-1 px-2.5 py-1.5 flex items-center justify-between gap-2 border-b border-border/30">
+                <p className="text-[11px] font-mono text-muted-foreground" role="status">
                   {filteredActive
                     ? t('{shown} of {total} contacts')
                         .replace('{shown}', String(filtered.length))
@@ -400,7 +414,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                 </p>
                 <button
                   type="button"
-                  className="icon-action"
+                  className="icon-action h-7 w-7"
                   aria-label={t('Reload contacts')}
                   onClick={() => {
                     void load()
@@ -409,227 +423,359 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                   }}
                   disabled={loading || saving}
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className="h-3.5 w-3.5" />
                 </button>
               </div>
+
               {query.trim() && searching && (
-                <p role="status" className="py-2 text-xs text-muted-foreground">
+                <p role="status" className="py-2 text-center text-xs text-muted-foreground">
                   {t('Searching…')}
                 </p>
               )}
+
               {searchError && (
-                <div role="alert" className="space-y-2 py-2 text-sm">
+                <div role="alert" className="space-y-2 p-3 text-xs text-destructive">
                   <p>{t(searchError)}</p>
                   <button
-                    className="action-secondary"
+                    className="action-secondary text-xs"
                     onClick={() => setSearchRevision((value) => value + 1)}
                   >
                     {t('Try again')}
                   </button>
                 </div>
               )}
+
               {!searching && !searchError && filtered.length === 0 ? (
-                <div className="rounded-lg border p-5 text-center">
-                  <p className="font-medium">{t('No matching contacts.')}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                <div className="rounded-lg border border-border/40 p-4 text-center my-3 bg-muted/10">
+                  <p className="text-xs font-medium text-foreground">{t('No matching contacts.')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {t('Try another search or clear your filters.')}
                   </p>
-                  <button className="action-secondary mt-3" onClick={clear}>
+                  <button className="action-secondary mt-2.5 text-xs" onClick={clear}>
                     {t('Clear all filters')}
                   </button>
                 </div>
               ) : (
-                <div className="overflow-hidden divide-y divide-border/50">
+                <div className="divide-y divide-border/30">
                   {filtered.map((c) => (
-                    <ItemActions key={c.id} label={label(c)} actions={[
-                      { label: 'Open contact', run: () => select(c.id) },
-                      { label: 'Copy link', run: () => copyItemLink('/contacts?contact=' + encodeURIComponent(c.id)) },
-                      { label: showArchived ? 'Restore contact' : 'Archive contact', disabled: !archive.loaded, run: () => archive.archive(c.id, !showArchived) },
-                    ]}>
-                    <button
+                    <ItemActions
                       key={c.id}
-                      type="button"
-                      disabled={saving}
-                      onClick={(e) => {
-                        lastOpened.current = e.currentTarget
-                        select(c.id)
-                      }}
-                      aria-pressed={selectedId === c.id}
-                      className={`contact-list-row flex min-h-[4.5rem] w-full items-start gap-3 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 ${selectedId === c.id ? 'bg-accent' : ''}`}
+                      label={label(c)}
+                      actions={[
+                        { label: 'Open contact', run: () => select(c.id) },
+                        {
+                          label: 'Copy link',
+                          run: () => copyItemLink('/contacts?contact=' + encodeURIComponent(c.id)),
+                        },
+                        {
+                          label: showArchived ? 'Restore contact' : 'Archive contact',
+                          disabled: !archive.loaded,
+                          run: () => archive.archive(c.id, !showArchived),
+                        },
+                      ]}
                     >
-                      <span
-                        aria-hidden="true"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold"
+                      {/* Clean row without stacked tag badge clutter */}
+                      <button
+                        key={c.id}
+                        type="button"
+                        disabled={saving}
+                        onClick={(e) => {
+                          lastOpened.current = e.currentTarget
+                          select(c.id)
+                        }}
+                        aria-pressed={selectedId === c.id}
+                        className={`contact-list-row flex min-h-[48px] w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
+                          selectedId === c.id ? 'bg-muted/50 font-medium' : ''
+                        }`}
                       >
-                        {Array.from(label(c))
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {label(c)}
+                        <span
+                          aria-hidden="true"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground/80"
+                        >
+                          {Array.from(label(c))
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase()}
                         </span>
-                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {c.email || t('No email provided')}
-                        </span>
-                        <span className="mt-1 inline-flex max-w-full truncate rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                          {t(source(c))}
-                        </span>
-                        {c.search_note && query.trim() && (
-                          <span className="mt-2 block break-words text-xs text-muted-foreground">
-                            <span className="font-medium">{t('Note')}:</span>{' '}
-                            {c.search_note.snippet}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground leading-snug">
+                            {label(c)}
                           </span>
-                        )}
-                        {c.tags.length > 0 && (
-                          <span className="mt-1.5 flex min-w-0 flex-wrap gap-1">
-                            {c.tags.slice(0, 2).map((t) => (
-                              <span
-                                key={t}
-                                className="max-w-28 truncate rounded bg-secondary px-2 py-0.5 text-xs"
-                              >
-                                {t}
-                              </span>
-                            ))}
-                            {c.tags.length > 2 && (
-                              <span className="text-xs text-muted-foreground">
-                                +{c.tags.length - 2}
-                              </span>
+                          <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+                            {c.email ? (
+                              <span className="truncate">{c.email}</span>
+                            ) : (
+                              <span className="truncate text-muted-foreground/60">{t(source(c))}</span>
                             )}
                           </span>
-                        )}
-                      </span>
-                    </button>
+                          {c.search_note && query.trim() && (
+                            <span className="mt-1 block break-words text-[11px] text-muted-foreground bg-muted/40 rounded px-1.5 py-0.5">
+                              <span className="font-medium">{t('Note')}:</span> {c.search_note.snippet}
+                            </span>
+                          )}
+                        </span>
+                      </button>
                     </ItemActions>
                   ))}
-
                 </div>
               )}
-                            {query.trim() &&
-                              searchResults.key === searchKey &&
-                              searchResults.more && (
-                                <button
-                                  className="action-secondary my-3 w-full"
-                                  disabled={searching}
-                                  onClick={() =>
-                                    setSearchOffset((value) => value + 50)
-                                  }
-                                >
-                                  {t('Load more contacts')}
-                                </button>
-                              )}
+
+              {query.trim() && searchResults.key === searchKey && searchResults.more && (
+                <button
+                  className="action-secondary my-3 w-full text-xs"
+                  disabled={searching}
+                  onClick={() => setSearchOffset((value) => value + 50)}
+                >
+                  {t('Load more contacts')}
+                </button>
+              )}
             </div>
           )}
         </div>
         <ArchiveNotice state={archive} />
       </aside>
+
+      {/* Right Detail: Serene Bear Note Pad Canvas (65-80ch Typographic Constraint, Zero Nested Cards) */}
       <div
-        className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-6 ${selectedId ? '' : 'hidden min-[1200px]:block'}`}
+        className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-8 bg-background ${
+          selectedId ? '' : 'hidden min-[1200px]:block'
+        }`}
       >
         {selectedId ? (
           <aside
             ref={detailRef}
             tabIndex={-1}
             aria-label={t('Contact details')}
-            className="mx-auto min-w-0 w-full max-w-3xl outline-none"
+            className="mx-auto min-w-0 w-full max-w-[75ch] outline-none space-y-6"
           >
             <button
-              className="action-secondary mb-4 min-[1200px]:hidden"
+              className="action-secondary mb-4 min-[1200px]:hidden inline-flex items-center gap-1.5 text-xs"
               disabled={saving}
               onClick={() => select('')}
             >
               <ChevronLeft className="h-4 w-4" />
-              {t('Back to contacts')}
+              <span>{t('Back to contacts')}</span>
             </button>
+
             {selected ? (
-              <>
-                <header className="flex items-start gap-3">
-                  <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium">{Array.from(label(selected)).slice(0, 2).join('').toUpperCase()}</span>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="break-words text-base font-semibold">{label(selected)}</h2>
-                    {selected.email && <p className="mt-1 break-all text-sm text-muted-foreground">{selected.email}</p>}
-                    <span className="mt-2 inline-flex rounded-full bg-secondary px-2 py-1 text-xs text-muted-foreground" title={t('Source')}>{t(source(selected))}</span>
-                  </div>
-                  <ItemActions label={t('Contact details')} actions={[
-                    { label: 'Copy link', run: () => copyItemLink('/contacts?contact=' + encodeURIComponent(selected.id)) },
-                    { label: archive.isArchived(selected.id) ? 'Restore contact' : 'Archive contact', disabled: !archive.loaded, run: () => archive.archive(selected.id, !archive.isArchived(selected.id)) },
-                  ]}><span /></ItemActions>
-                </header>
-                <details className="mt-3 text-xs text-muted-foreground">
-                  <summary className="flex min-h-11 cursor-pointer items-center">{t('More details')}</summary>
-                  <div className="space-y-2 pb-3">
-                    <p>{t('Updated')} {dateLabel(selected.updated_at, language)}</p>
-                    {selected.email && <p>{t('Email is unverified.')}</p>}
-                    {selected.is_manual && <p>{t('No messaging channel connected.')}</p>}
-                  </div>
-                </details>
-                {!selected.is_manual && <Link className="action-secondary mt-2" to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}><MessageSquare className="h-4 w-4" />{t('Open conversation')}</Link>}
-                <ContactMemoryPanel
-                  key={selected.id + ':' + (params.get('note_query') || '')}
-                  contactName={label(selected)}
-                  contactId={selected.id}
-                  initialQuery={params.get('note_query') || ''}
-                  matchedNoteId={params.get('note') || ''}
-                  onChanged={() => {
-                    setSearchOffset(0)
-                    setSearchRevision((value) => value + 1)
-                  }}
-                  onDirtyChange={(dirty) => {
-                    noteDirty.current = dirty
-                  }}
-                />
-                <section aria-label={t('Contact tags')} className="mt-6 border-t pt-4">
-                  <h3 className="mb-2 text-sm font-medium">{t('Tags')}</h3>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {draft.map(tag => <button key={tag} type="button" disabled={saving}
-                      aria-label={t('Remove tag') + ' ' + tag}
-                      className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border px-3 text-xs hover:bg-accent"
-                      onClick={() => { const next = draft.filter(value => value !== tag); setDrafts(old => ({ ...old, [selected.id]: next })); void save(next) }}>
-                      <span className="break-all">{tag}</span><X className="h-3 w-3 shrink-0" aria-hidden="true" />
-                    </button>)}
-                  </div>
-                  <details className="mt-1">
-                    <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">{t('Add tag')}</summary>
-                    <form className="max-w-md space-y-2" onSubmit={event => { event.preventDefault(); add(tagInput) }}>
-                      <div className="flex gap-2">
-                        <input id="contact-add-tag" aria-label={t('Add tag')} className="field-control min-w-0 flex-1"
-                          placeholder={t('For example: New customer')} value={tagInput} disabled={saving}
-                          onChange={event => setTagInput(event.target.value)} />
-                        <button type="submit" className="action-secondary" disabled={saving || !tagInput.trim()}>{t('Add')}</button>
+              <article className="space-y-6">
+                {/* Bear Note Header: Serene Title & Understated Metadata */}
+                <header className="border-b border-border/40 pb-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <h2 className="break-words text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans">
+                        {label(selected)}
+                      </h2>
+                      {selected.email && (
+                        <p className="break-all text-sm text-muted-foreground font-mono">
+                          {selected.email}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span
+                          className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-0.5 text-xs text-muted-foreground border border-border/40"
+                          title={t('Source')}
+                        >
+                          {t(source(selected))}
+                        </span>
+                        <span className="text-xs text-muted-foreground/60">·</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t('Updated')} {dateLabel(selected.updated_at, language)}
+                        </span>
+                        {!selected.is_manual && (
+                          <>
+                            <span className="text-xs text-muted-foreground/60">·</span>
+                            <Link
+                              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                              to={`/inbox/${encodeURIComponent(selected.conversation_id)}`}
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                              <span>{t('Open conversation')}</span>
+                            </Link>
+                          </>
+                        )}
                       </div>
-                      {!!suggestions.length && <div className="flex flex-wrap gap-2">{suggestions.map(tag => <button type="button" key={tag} disabled={saving} className="action-secondary text-xs" onClick={() => add(tag)}>{tag}</button>)}</div>}
-                    </form>
+                    </div>
+
+                    <ItemActions
+                      label={t('Contact details')}
+                      actions={[
+                        {
+                          label: 'Copy link',
+                          run: () =>
+                            copyItemLink(
+                              '/contacts?contact=' + encodeURIComponent(selected.id),
+                            ),
+                        },
+                        {
+                          label: archive.isArchived(selected.id)
+                            ? 'Restore contact'
+                            : 'Archive contact',
+                          disabled: !archive.loaded,
+                          run: () =>
+                            archive.archive(
+                              selected.id,
+                              !archive.isArchived(selected.id),
+                            ),
+                        },
+                      ]}
+                    >
+                      <span />
+                    </ItemActions>
+                  </div>
+
+                  <details className="mt-3 text-xs text-muted-foreground">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground inline-flex items-center gap-1 py-1">
+                      {t('More details')}
+                    </summary>
+                    <div className="space-y-1 pt-2 pb-1 text-xs text-muted-foreground/80 pl-2 border-l border-border/40">
+                      {selected.email && <p>{t('Email is unverified.')}</p>}
+                      {selected.is_manual && <p>{t('No messaging channel connected.')}</p>}
+                    </div>
                   </details>
-                  {saving && <p role="status" className="text-xs text-muted-foreground">{t('Saving…')}</p>}
-                  {saved && !dirty && <p role="status" className="text-xs text-muted-foreground">{t('Tags saved.')}</p>}
-                  {saveError && <div role="alert" className="text-sm text-destructive">{t(saveError)} <button className="min-h-11 px-2 underline" disabled={saving} onClick={() => void save(draft)}>{t('Try again')}</button></div>}
-                </section>
-              </>
+                </header>
+
+                {/* Bear Note Content: Contact Memory & Freeform Notes */}
+                <div className="space-y-6">
+                  <ContactMemoryPanel
+                    key={selected.id + ':' + (params.get('note_query') || '')}
+                    contactName={label(selected)}
+                    contactId={selected.id}
+                    initialQuery={params.get('note_query') || ''}
+                    matchedNoteId={params.get('note') || ''}
+                    onChanged={() => {
+                      setSearchOffset(0)
+                      setSearchRevision((value) => value + 1)
+                    }}
+                    onDirtyChange={(dirty) => {
+                      noteDirty.current = dirty
+                    }}
+                  />
+
+                  {/* Tags Section: Bear-style Hashtags at Bottom */}
+                  <section
+                    aria-label={t('Contact tags')}
+                    className="border-t border-border/40 pt-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Tag className="h-3 w-3" />
+                        <span>{t('Tags')}</span>
+                      </h3>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {draft.map((tItem) => (
+                        <button
+                          key={tItem}
+                          type="button"
+                          disabled={saving}
+                          aria-label={t('Remove tag') + ' ' + tItem}
+                          className="inline-flex min-h-[32px] max-w-full items-center gap-1.5 rounded-full bg-muted/40 border border-border/40 px-2.5 py-1 text-xs text-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
+                          onClick={() => {
+                            const next = draft.filter((value) => value !== tItem)
+                            setDrafts((old) => ({ ...old, [selected.id]: next }))
+                            void save(next)
+                          }}
+                        >
+                          <span className="font-mono text-muted-foreground">#</span>
+                          <span className="break-all">{tItem}</span>
+                          <X className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 py-1">
+                        + {t('Add tag')}
+                      </summary>
+                      <form
+                        className="max-w-md space-y-2 mt-2"
+                        onSubmit={(event) => {
+                          event.preventDefault()
+                          add(tagInput)
+                        }}
+                      >
+                        <div className="flex gap-2">
+                          <input
+                            id="contact-add-tag"
+                            aria-label={t('Add tag')}
+                            className="field-control min-w-0 flex-1 text-xs"
+                            placeholder={t('For example: New customer')}
+                            value={tagInput}
+                            disabled={saving}
+                            onChange={(event) => setTagInput(event.target.value)}
+                          />
+                          <button
+                            type="submit"
+                            className="action-secondary text-xs"
+                            disabled={saving || !tagInput.trim()}
+                          >
+                            {t('Add')}
+                          </button>
+                        </div>
+                        {!!suggestions.length && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {suggestions.map((sugTag) => (
+                              <button
+                                type="button"
+                                key={sugTag}
+                                disabled={saving}
+                                className="action-secondary text-[11px] py-0.5 px-2 font-mono"
+                                onClick={() => add(sugTag)}
+                              >
+                                #{sugTag}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </form>
+                    </details>
+
+                    {saving && (
+                      <p role="status" className="text-xs text-muted-foreground">
+                        {t('Saving…')}
+                      </p>
+                    )}
+                    {saved && !dirty && (
+                      <p role="status" className="text-xs text-emerald-600 dark:text-emerald-400">
+                        {t('Tags saved.')}
+                      </p>
+                    )}
+                    {saveError && (
+                      <div role="alert" className="text-xs text-destructive">
+                        {t(saveError)}{' '}
+                        <button
+                          className="min-h-11 px-2 underline"
+                          disabled={saving}
+                          onClick={() => void save(draft)}
+                        >
+                          {t('Try again')}
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                </div>
+              </article>
             ) : (
-              <>
-                <h2 className="text-lg font-semibold">
-                  {t('Contact not found')}
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
+              <div className="py-12 text-center">
+                <h2 className="text-base font-semibold">{t('Contact not found')}</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
                   {t('This contact may no longer be available.')}
                 </p>
-                <button
-                  className="action-secondary mt-3"
-                  onClick={() => select('')}
-                >
+                <button className="action-secondary mt-3 text-xs" onClick={() => select('')}>
                   {t('View contacts')}
                 </button>
-              </>
+              </div>
             )}
           </aside>
         ) : (
-          <aside className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-muted-foreground">
-            <Users className="mx-auto mb-3 h-8 w-8" />
-            <p>
-              {t(
-                'Select a contact to view their details, tags, and conversation.',
-              )}
+          <aside className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-muted-foreground max-w-[75ch] mx-auto">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted/30 text-muted-foreground/60 mb-3">
+              <FileText className="h-6 w-6" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t('Select a contact to view their details, tags, and conversation.')}
             </p>
           </aside>
         )}

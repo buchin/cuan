@@ -20,7 +20,8 @@ import { AIProvidersView } from './AIProvidersView'
 import { TeamView } from '../team/TeamView'
 import { AgentMemoryView } from './AgentMemoryView'
 import { SettingsMasterNav } from './SettingsMasterNav'
-import { Brain, ChevronLeft } from 'lucide-react'
+import { GroupedSection, GroupedRow } from '../../components/layout/GroupedSection'
+import { Brain, ChevronLeft, Command, FolderGit2 } from 'lucide-react'
 
 interface SettingsViewProps {
   createAgentRequested?: boolean
@@ -121,7 +122,7 @@ export function SettingsView({
 
       {/* Master Sidebar (Kiri) - w-72 / w-80 di desktop */}
       <aside
-        className={`w-full md:w-72 lg:w-80 shrink-0 border-b md:border-b-0 md:border-r border-border bg-card/25 ${
+        className={`w-full md:w-72 lg:w-80 shrink-0 border-b md:border-b-0 md:border-r border-border/40 bg-card/25 ${
           hasExplicitSection ? 'hidden md:block' : 'block'
         }`}
       >
@@ -174,7 +175,7 @@ export function SettingsView({
           </div>
 
           {!(section === 'integrations' && location.pathname.split('/')[3]) && (
-            <header className="hidden sm:block pb-2 border-b border-border/50">
+            <header className="hidden sm:block pb-2 border-b border-border/40">
               <h2 className="text-lg font-semibold capitalize text-foreground">
                 {t(
                   section === 'general'
@@ -200,7 +201,7 @@ export function SettingsView({
                                   : section,
                 )}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
                 {t(
                   section === 'ai-providers'
                     ? 'Pilih dan atur penyedia AI toko Anda, langganan resmi, dan kunci API hemat.'
@@ -226,9 +227,9 @@ export function SettingsView({
             <ProfileSettings />
           ) : section === 'ai-providers' ? (
             !isOwner ? (
-              <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center space-y-3">
+              <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-center space-y-3">
                 <h3 className="font-semibold text-destructive">{t('Akses Dibatasi')}</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {t('Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) toko.')}
                 </p>
                 <div>
@@ -249,7 +250,7 @@ export function SettingsView({
           ) : section === 'agents' ? (
             <div className="space-y-4">
               {safeReturn && (
-                <Link to={safeReturn} className="action-secondary">
+                <Link to={safeReturn} className="action-secondary text-xs inline-flex items-center">
                   {t(
                     safeReturn === '/chat' || safeReturn === '/studio'
                       ? '← Back to Chat'
@@ -274,131 +275,154 @@ export function SettingsView({
           ) : section === 'apps-skills' || section === 'integrations' ? (
             <AppsSkillsView />
           ) : section === 'appearance' ? (
-            <section className="rounded-lg border border-border bg-card p-5">
-              <label
-                htmlFor="interface-language"
-                className="block text-sm font-medium"
+            /* Apple / Things 3 Inset Grouped Rows for Appearance */
+            <div className="space-y-6">
+              <GroupedSection
+                title={t('Interface & Language')}
+                description={t('Preferences for language and visual display modes.')}
+                footerNote={t('Changes apply immediately across all workspace views.')}
               >
-                {t('Language')}
-              </label>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t(
-                  'Choose your interface language. Conversation content stays unchanged.',
-                )}
-              </p>
-              <select
-                id="interface-language"
-                className="field-control mt-3 mb-6 max-w-sm"
-                value={preference}
-                onChange={(e) =>
-                  setPreference(e.target.value as LanguagePreference)
-                }
-              >
-                <option value="auto">{t('Auto (browser language)')}</option>
-                <option value="en">{t('English')}</option>
-                <option value="id">Bahasa Indonesia</option>
-              </select>
-              <h2 className="text-lg font-semibold">{t('Appearance')}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t(
-                  'Cuan follows your preference. Your choice is saved in this browser.',
-                )}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                {(['light', 'dark', 'system'] as const).map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={theme === id}
-                    onClick={() => setTheme(id)}
-                    className={`action-secondary ${
-                      theme === id ? 'bg-accent font-semibold ring-2 ring-ring' : ''
-                    }`}
-                  >
-                    {
-                      { light: t('Light'), dark: t('Dark'), system: t('System') }[
-                        id
-                      ]
-                    }
-                  </button>
-                ))}
-              </div>
-            </section>
+                <GroupedRow
+                  label={t('Language')}
+                  description={t(
+                    'Choose your interface language. Conversation content stays unchanged.',
+                  )}
+                  control={
+                    <select
+                      id="interface-language"
+                      aria-label={t('Language')}
+                      className="field-control text-xs w-44 sm:w-52"
+                      value={preference}
+                      onChange={(e) =>
+                        setPreference(e.target.value as LanguagePreference)
+                      }
+                    >
+                      <option value="auto">{t('Auto (browser language)')}</option>
+                      <option value="en">{t('English')}</option>
+                      <option value="id">Bahasa Indonesia</option>
+                    </select>
+                  }
+                />
+                <GroupedRow
+                  label={t('Appearance')}
+                  description={t(
+                    'Cuan follows your preference. Your choice is saved in this browser.',
+                  )}
+                  control={
+                    <div className="flex items-center gap-1.5">
+                      {(['light', 'dark', 'system'] as const).map((id) => (
+                        <button
+                          key={id}
+                          type="button"
+                          aria-pressed={theme === id}
+                          onClick={() => setTheme(id)}
+                          className={`action-secondary text-xs px-2.5 py-1 ${
+                            theme === id ? 'bg-accent font-semibold ring-2 ring-ring' : ''
+                          }`}
+                        >
+                          {
+                            { light: t('Light'), dark: t('Dark'), system: t('System') }[
+                              id
+                            ]
+                          }
+                        </button>
+                      ))}
+                    </div>
+                  }
+                />
+              </GroupedSection>
+            </div>
           ) : (
-            <div className="space-y-4">
-              <section className="rounded-lg border border-border bg-card p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      {t('Agent Memory / Taste')}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {t(
-                        'Review learned brand guidelines, copywriting style, and workflow preferences.',
-                      )}
-                    </p>
-                  </div>
-                  <Link
-                    to="/settings/memory"
-                    className="action-secondary shrink-0 inline-flex items-center gap-1.5"
-                  >
-                    <Brain className="h-4 w-4 text-primary" />
-                    <span>{t('Manage memory')}</span>
-                  </Link>
-                </div>
-              </section>
-              <WorkerHealthCard />
-              <AppUpdateCard />
-              <ScheduledJobsCard />
-              <InstallAppCard />
-              <section className="rounded-lg border border-border bg-card p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      {t('Keyboard shortcuts')}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {t(
-                        'Quick navigation and action hotkeys for desktop workflow.',
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      window.dispatchEvent(new Event('cuan:keyboard-shortcuts'))
-                    }
-                    className="action-secondary shrink-0"
-                  >
-                    {t('View shortcuts')}
-                  </button>
-                </div>
-              </section>
-              <section className="rounded-lg border border-border bg-card p-5">
-                <h2 className="text-lg font-semibold">{t('Project settings')}</h2>
-                <p className="my-3 text-sm text-muted-foreground">
-                  {t('Select a project to view its repository configuration.')}
-                </p>
-                <ul className="space-y-2">
-                  {projects
+            /* General Settings with Things / Apple Inset Grouped Rows */
+            <div className="space-y-6">
+              <GroupedSection
+                title={t('AI Intelligence')}
+                description={t('Review learned brand guidelines, copywriting style, and workflow preferences.')}
+              >
+                <GroupedRow
+                  label={t('Agent Memory / Taste')}
+                  description={t(
+                    'Review learned brand guidelines, copywriting style, and workflow preferences.',
+                  )}
+                  icon={<Brain className="h-4 w-4 text-primary" />}
+                  control={
+                    <Link
+                      to="/settings/memory"
+                      className="action-secondary text-xs inline-flex items-center gap-1.5"
+                    >
+                      <span>{t('Manage memory')}</span>
+                    </Link>
+                  }
+                />
+              </GroupedSection>
+
+              {/* System Observability & Automation Widgets */}
+              <div className="space-y-4">
+                <WorkerHealthCard />
+                <AppUpdateCard />
+                <ScheduledJobsCard />
+                <InstallAppCard />
+              </div>
+
+              <GroupedSection
+                title={t('Productivity & Shortcuts')}
+                description={t('Quick navigation and action hotkeys for desktop workflow.')}
+              >
+                <GroupedRow
+                  label={t('Keyboard shortcuts')}
+                  description={t(
+                    'Quick navigation and action hotkeys for desktop workflow.',
+                  )}
+                  icon={<Command className="h-4 w-4 text-muted-foreground" />}
+                  control={
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(new Event('cuan:keyboard-shortcuts'))
+                      }
+                      className="action-secondary text-xs"
+                    >
+                      {t('View shortcuts')}
+                    </button>
+                  }
+                />
+              </GroupedSection>
+
+              <GroupedSection
+                title={t('Project settings')}
+                description={t('Select a project to view its repository configuration.')}
+              >
+                {projects.filter((p) => !p.is_archived).length > 0 ? (
+                  projects
                     .filter((p) => !p.is_archived)
                     .map((p) => (
-                      <li key={p.id}>
-                        <Link
-                          to={`/projects/${encodeURIComponent(p.id)}/settings`}
-                          className="action-secondary"
-                        >
-                          {p.name}
-                        </Link>
-                      </li>
-                    ))}
-                </ul>
-                {!projects.some((p) => !p.is_archived) && (
-                  <Link to="/projects" className="action-secondary">
-                    {t('Open Projects')}
-                  </Link>
+                      <GroupedRow
+                        key={p.id}
+                        label={p.name}
+                        description={p.repo_url || t('Custom project')}
+                        icon={<FolderGit2 className="h-4 w-4 text-primary" />}
+                        control={
+                          <Link
+                            to={`/projects/${encodeURIComponent(p.id)}/settings`}
+                            className="action-secondary text-xs"
+                          >
+                            {t('Configure')}
+                          </Link>
+                        }
+                      />
+                    ))
+                ) : (
+                  <GroupedRow
+                    label={t('No active projects')}
+                    description={t('Open Projects to create or configure a project.')}
+                    control={
+                      <Link to="/projects" className="action-secondary text-xs">
+                        {t('Open Projects')}
+                      </Link>
+                    }
+                  />
                 )}
-              </section>
+              </GroupedSection>
             </div>
           )}
         </div>
