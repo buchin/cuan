@@ -30,7 +30,7 @@ type UpdateManager struct {
 
 func isTestBinary(path string) bool {
 	base := filepath.Base(path)
-	return strings.HasSuffix(base, ".test") || strings.Contains(base, ".test.")
+	return strings.Contains(base, ".test") || strings.Contains(path, "/go-build")
 }
 
 func NewUpdateManager(targetBinPath string) *UpdateManager {
