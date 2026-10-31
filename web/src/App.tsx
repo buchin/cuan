@@ -431,19 +431,42 @@ export function App() {
       )
   }, [rootSegment, subParam, location.pathname, navigate])
 
-  // Deep Link Synchronization: /chat/:roomId -> /inbox/:roomId
+  // Deep Link Synchronization & Backward Compatibility Aliases (S59-T3):
+  // /chat -> /inbox (and /chat/:roomId -> /inbox/:roomId)
+  // /account/contacts -> /contacts
+  // /settings/schedules -> /schedules
   useEffect(() => {
     if (rootSegment === 'chat' && subParam) {
-      navigate('/inbox/' + encodeURIComponent(subParam) + location.search, {
+      navigate('/inbox/' + encodeURIComponent(subParam) + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    } else if (rootSegment === 'chat') {
+      navigate('/inbox' + location.search + location.hash, {
         replace: true,
         state: location.state,
       })
     }
-  }, [rootSegment, subParam, location.search, location.state, navigate])
+    if (
+      (rootSegment === 'account' || rootSegment === 'settings') &&
+      subParam === 'contacts'
+    ) {
+      navigate('/contacts' + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+    if (rootSegment === 'settings' && subParam === 'schedules') {
+      navigate('/schedules' + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+  }, [rootSegment, subParam, location.search, location.hash, location.state, navigate])
 
   // Navigation handlers
   const handleSelectTab = (tab: AppTab) => {
-    if (tab === 'inbox') {
+    if (tab === 'inbox' || tab === 'chat' || (tab as string) === 'studio') {
       navigate(
         activeContact
           ? `/inbox/${activeContact.conversation_id || activeContact.id}`
@@ -455,14 +478,18 @@ export function App() {
       )
     } else if (tab === 'projects') {
       navigate(activeProject ? `/projects/${activeProject.id}` : '/projects')
+    } else if (tab === 'schedules') {
+      navigate('/schedules')
+    } else if (tab === 'contacts') {
+      navigate('/contacts')
+    } else if (tab === 'settings') {
+      navigate('/settings')
     } else if (tab === 'account') {
       navigate('/account')
-    } else if (tab === 'chat' || (tab as string) === 'studio') {
-      navigate('/chat')
     } else {
       navigate(`/${tab}`)
     }
-    if (tab !== 'inbox') {
+    if (tab !== 'inbox' && tab !== 'chat') {
       setIsMobileChatActive(false)
     }
   }
@@ -1031,13 +1058,15 @@ export function App() {
             ))}
 
           {/* 4. Schedules Hub */}
-          {currentTab === 'schedules' && (
+          {(currentTab === 'schedules' ||
+            (currentTab === 'settings' && subParam === 'schedules')) && (
             <SchedulesView />
           )}
 
           {/* 5. Settings / Account Configuration */}
         {(currentTab === 'settings' || currentTab === 'account') &&
-          subParam !== 'contacts' && (
+          subParam !== 'contacts' &&
+          subParam !== 'schedules' && (
             <div className="min-h-full">
                 <SettingsView
                   projects={projects}

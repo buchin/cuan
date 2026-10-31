@@ -1500,5 +1500,13 @@
   "Could not start the provider process.": "Tidak dapat memulai proses provider.",
   "Provider process exited with error.": "Proses provider berhenti dengan kesalahan.",
   "A technical issue occurred while generating the reply. Your message is saved. You can try again.": "Terjadi kendala teknis saat menyiapkan balasan. Pesan Anda tersimpan. Anda bisa mencoba lagi.",
-  "An unexpected technical issue occurred while generating a reply. Your message is saved. You can try again.": "Terjadi kendala teknis tak terduga saat menyiapkan balasan. Pesan Anda tersimpan. Anda bisa mencoba lagi."
+  "An unexpected technical issue occurred while generating a reply. Your message is saved. You can try again.": "Terjadi kendala teknis tak terduga saat menyiapkan balasan. Pesan Anda tersimpan. Anda bisa mencoba lagi.",
+  "Workspace": "Workspace",
+  "Operations": "Operasi",
+  "Menu": "Menu",
+  "Otomasi & cron rutin": "Otomasi & cron rutin",
+  "CRM & memori pelanggan": "CRM & memori pelanggan",
+  "Profil, AI providers, team": "Profil, AI providers, team",
+  "Operations & System": "Operasi & Sistem",
+  "Operations, System & Account": "Operasi, Sistem & Akun"
 }

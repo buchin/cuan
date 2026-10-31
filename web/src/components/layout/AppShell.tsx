@@ -9,7 +9,18 @@ import { useAuth } from '../../context/AuthContext'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
-import { Inbox, CheckSquare, FolderGit2, PanelLeft } from 'lucide-react'
+import { SlideDrawer } from './SlideDrawer'
+import {
+  Inbox,
+  CheckSquare,
+  FolderGit2,
+  PanelLeft,
+  CalendarClock,
+  Users,
+  Settings,
+  Menu,
+  MessageSquare,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export type AppTab =
@@ -49,6 +60,47 @@ const NAV_ITEMS = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
 ] as const
 
+export interface NavItemConfig {
+  id: AppTab
+  label: string
+  icon: ComponentType<{ className?: string }>
+  to: string
+  description?: string
+}
+
+export interface NavGroupConfig {
+  id: 'workspace' | 'operations' | 'system'
+  label: string
+  items: NavItemConfig[]
+}
+
+export const NAV_GROUPS: NavGroupConfig[] = [
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    items: [
+      { id: 'inbox', label: 'Chat', icon: MessageSquare, to: '/inbox', description: 'Unified Studio & Inbox' },
+      { id: 'tasks', label: 'Tasks', icon: CheckSquare, to: '/tasks', description: 'Papan tiket agen' },
+      { id: 'projects', label: 'Projects', icon: FolderGit2, to: '/projects', description: 'Workspaces & repo' },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    items: [
+      { id: 'schedules', label: 'Schedules', icon: CalendarClock, to: '/schedules', description: 'Otomasi & cron rutin' },
+      { id: 'contacts', label: 'Contacts', icon: Users, to: '/contacts', description: 'CRM & memori pelanggan' },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'System',
+    items: [
+      { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Profil, AI providers, team' },
+    ],
+  },
+]
+
 export function AppShell({
   currentTab,
   onSelectTab,
@@ -69,11 +121,16 @@ export function AppShell({
   hideSearch,
 }: AppShellProps) {
   const { t } = useLanguage()
-  const { isOwner } = useAuth()
+  const { isOwner, user } = useAuth()
   const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
 
   const routerNavigate = useNavigate()
   const location = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
 
   // Eliminate redundant top navigation search icon on views with internal search inputs/filters or settings/account
   const hasInternalSearch =
@@ -120,6 +177,17 @@ export function AppShell({
       viewport?.removeEventListener('scroll', update)
     }
   }, [])
+  const isTabActive = (id: AppTab) => {
+    if (id === 'inbox' || id === 'chat') {
+      return (
+        currentTab === 'inbox' ||
+        currentTab === 'chat' ||
+        (currentTab as string) === 'studio'
+      )
+    }
+    return currentTab === id
+  }
+
   const label =
     currentTab === 'notifications'
       ? 'Notifications'
@@ -131,9 +199,13 @@ export function AppShell({
             ? t('Account')
             : currentTab === 'contacts'
               ? t('Contacts')
-              : (currentTab as string) === 'studio'
-                ? t('Chat')
-                : NAV_ITEMS.find((n) => n.id === currentTab)?.label
+              : currentTab === 'schedules'
+                ? t('Schedules')
+                : currentTab === 'projects'
+                  ? t('Projects')
+                  : currentTab === 'inbox' || currentTab === 'chat' || (currentTab as string) === 'studio'
+                    ? t('Chat')
+                    : (NAV_ITEMS as readonly { id: string; label: string }[]).find((n) => n.id === (currentTab as string))?.label
 
   useEffect(() => {
     const rawTitle = pageTitleIsContent ? pageTitle : t(pageTitle || label || '')
@@ -147,38 +219,41 @@ export function AppShell({
     id: AppTab,
     text: string,
     Icon: ComponentType<{ className?: string }>,
-  ) => (
-    <button
-      key={id}
-      title={t(text)}
-      aria-label={t(text)}
-      aria-current={currentTab === id ? 'page' : undefined}
-      onClick={() => navigate(id)}
-      className={cn(
-        'nav-action',
-        currentTab === id &&
-          'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
-      )}
-    >
-      <span className="relative">
-        {id === 'chat' || (id as string) === 'studio' ? (
-          <CuanMark decorative className="h-5 w-5 text-inherit" />
-        ) : (
-          <Icon className="h-5 w-5 shrink-0" />
+  ) => {
+    const active = isTabActive(id)
+    return (
+      <button
+        key={id}
+        title={t(text)}
+        aria-label={t(text)}
+        aria-current={active ? 'page' : undefined}
+        onClick={() => navigate(id)}
+        className={cn(
+          'nav-action',
+          active &&
+            'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
         )}
-        {id === 'inbox' && effectiveInboxUnread > 0 && (
-          <span
-            data-testid="inbox-unread-badge-rail"
-            aria-label={`${effectiveInboxUnread} unread messages`}
-            className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
-          >
-            {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
-          </span>
-        )}
-      </span>
-      <span className="nav-label">{t(text)}</span>
-    </button>
-  )
+      >
+        <span className="relative">
+          {id === 'chat' || (id as string) === 'studio' ? (
+            <CuanMark decorative className="h-5 w-5 text-inherit" />
+          ) : (
+            <Icon className="h-5 w-5 shrink-0" />
+          )}
+          {id === 'inbox' && effectiveInboxUnread > 0 && (
+            <span
+              data-testid="inbox-unread-badge-rail"
+              aria-label={`${effectiveInboxUnread} unread messages`}
+              className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
+            >
+              {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
+            </span>
+          )}
+        </span>
+        <span className="nav-label">{t(text)}</span>
+      </button>
+    )
+  }
   return (
     <div
       ref={shell}
@@ -227,18 +302,29 @@ export function AppShell({
             <PanelLeft className="h-4 w-4" />
           </button>
         </div>
-        <div className="flex-1 space-y-1 p-2.5">
-          {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon))}
+        <div className="flex-1 space-y-4 overflow-y-auto p-2.5">
+          {NAV_GROUPS.map((group, index) => (
+            <div
+              key={group.id}
+              data-testid={`nav-group-${group.id}`}
+              className="space-y-1"
+            >
+              {!effectiveCollapsed ? (
+                <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t(group.label)}
+                </div>
+              ) : (
+                index > 0 && <div className="my-1.5 h-px bg-border/40" />
+              )}
+              {group.items.map((n) => navButton(n.id, n.label, n.icon))}
+            </div>
+          ))}
         </div>
         <div className="space-y-2 border-t border-border p-2.5">
           <NavUser
             sidebar
             collapsed={effectiveCollapsed}
-            active={
-              currentTab === 'settings' ||
-              currentTab === 'account' ||
-              currentTab === 'contacts'
-            }
+            active={currentTab === 'account'}
             onWork={() => navigate('tasks')}
             onSettings={() => navigate('settings')}
           />
@@ -378,29 +464,31 @@ export function AppShell({
         </div>
       </main>
       {!hideBottomNav && (
-        <nav
-          aria-label={t('Bottom navigation')}
-          className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
-        >
-          {NAV_ITEMS.map(({ id, label: text, icon: Icon }) => (
+        <>
+          <nav
+            aria-label={t('Bottom navigation')}
+            className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
+          >
+            {/* Pillar 1: Chat */}
             <button
-              key={id}
-              aria-current={currentTab === id ? 'page' : undefined}
-              onClick={() => navigate(id)}
+              key="chat"
+              data-testid="bottom-nav-chat"
+              aria-label={t('Chat')}
+              aria-current={isTabActive('inbox') ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('inbox')
+              }}
               className={cn(
                 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
-                currentTab === id
+                isTabActive('inbox')
                   ? 'font-semibold text-primary'
                   : 'text-muted-foreground',
               )}
             >
               <span className="relative">
-                {id === 'chat' || (id as string) === 'studio' ? (
-                  <CuanMark decorative className="h-5 w-5 text-inherit" />
-                ) : (
-                  <Icon className="h-5 w-5" />
-                )}
-                {id === 'inbox' && effectiveInboxUnread > 0 && (
+                <MessageSquare className="h-5 w-5" />
+                {effectiveInboxUnread > 0 && (
                   <span
                     data-testid="inbox-unread-badge-bottom"
                     aria-label={`${effectiveInboxUnread} unread messages`}
@@ -410,23 +498,223 @@ export function AppShell({
                   </span>
                 )}
               </span>
-              {t(text)}
+              <span>{t('Chat')}</span>
             </button>
-          ))}
-          <div className="min-w-0 flex-1">
-            <NavUser
-              bottomNavigation
-              active={
+
+            {/* Pillar 2: Tasks */}
+            <button
+              key="tasks"
+              data-testid="bottom-nav-tasks"
+              aria-label={t('Tasks')}
+              aria-current={currentTab === 'tasks' ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('tasks')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                currentTab === 'tasks'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <CheckSquare className="h-5 w-5" />
+              <span>{t('Tasks')}</span>
+            </button>
+
+            {/* Pillar 3: Projects */}
+            <button
+              key="projects"
+              data-testid="bottom-nav-projects"
+              aria-label={t('Projects')}
+              aria-current={currentTab === 'projects' ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('projects')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                currentTab === 'projects'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <FolderGit2 className="h-5 w-5" />
+              <span>{t('Projects')}</span>
+            </button>
+
+            {/* Pillar 4: Menu */}
+            <button
+              key="menu"
+              data-testid="bottom-nav-menu"
+              aria-label={t('Menu')}
+              aria-expanded={mobileMenuOpen}
+              aria-current={
+                currentTab === 'schedules' ||
+                currentTab === 'contacts' ||
                 currentTab === 'settings' ||
-                currentTab === 'account' ||
-                currentTab === 'contacts'
+                currentTab === 'account'
+                  ? 'page'
+                  : undefined
               }
-              onWork={() => navigate('tasks')}
-              dropdownPosition="top-right"
-              onSettings={() => navigate('settings')}
-            />
-          </div>
-        </nav>
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                mobileMenuOpen ||
+                  currentTab === 'schedules' ||
+                  currentTab === 'contacts' ||
+                  currentTab === 'settings' ||
+                  currentTab === 'account'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <Menu className="h-5 w-5" />
+              <span>{t('Menu')}</span>
+            </button>
+          </nav>
+
+          {/* Mobile Menu Drawer */}
+          <SlideDrawer
+            isOpen={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            title={t('Menu')}
+            description={t('Operations & System')}
+            size="sm"
+            className="md:hidden"
+            data-testid="mobile-menu-drawer"
+          >
+            <div className="space-y-6 py-2">
+              {/* Operations */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('Operations')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-schedules"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('schedules')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'schedules'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
+                      <CalendarClock className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">{t('Schedules')}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t('Otomasi & cron rutin')}
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-contacts"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('contacts')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'contacts'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">{t('Contacts')}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t('CRM & memori pelanggan')}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* System */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('System')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-settings"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('settings')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'settings'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
+                      <Settings className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">{t('Settings')}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t('Profil, AI providers, team')}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-px bg-border/40" />
+
+              {/* Account */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('Account')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-account"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('account')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'account'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-mono font-bold text-xs">
+                      {user?.display_name ? user.display_name.slice(0, 2).toUpperCase() : 'CU'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">
+                        {user?.display_name || user?.username || 'User'}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {user?.email || 'user@cuan.local'}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </SlideDrawer>
+        </>
       )}
     </div>
   )

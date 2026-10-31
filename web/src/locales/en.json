@@ -97,5 +97,14 @@
   "Uji Coba Pengiriman Email Resend": "Test Resend Email Delivery",
   "Kirimkan satu email uji coba langsung untuk memastikan kredensial Resend dan email pengirim/penerima berfungsi normal.": "Send a live test email to verify Resend credentials and sender/recipient delivery.",
   "Mengirim…": "Sending…",
-  "Kirim Uji Coba": "Send Test Email"
+  "Kirim Uji Coba": "Send Test Email",
+  "Workspace": "Workspace",
+  "Operations": "Operations",
+  "System": "System",
+  "Menu": "Menu",
+  "Otomasi & cron rutin": "Automations & recurring cron",
+  "CRM & memori pelanggan": "CRM & customer memory",
+  "Profil, AI providers, team": "Profile, AI providers, team",
+  "Operations & System": "Operations & System",
+  "Operations, System & Account": "Operations, System & Account"
 }

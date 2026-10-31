@@ -49,23 +49,27 @@ test('Navigation menu order: Chat, Inbox, Tasks, Project, Account', async (t) =>
   )
 })
 
-test('Contacts is moved under Account submenu and page', async (t) => {
+test('Contacts is promoted to Operations navigation group in AppShell (S59-T3)', async (t) => {
+  const appShellContent = fs.readFileSync(
+    path.join(webDir, 'src/components/layout/AppShell.tsx'),
+    'utf-8',
+  )
+
+  // Verify AppShell has Contacts entry routing to /contacts in Operations
+  assert.ok(
+    appShellContent.includes('/contacts'),
+    'AppShell must contain link/action navigating to /contacts',
+  )
+  assert.ok(
+    appShellContent.includes("Contacts"),
+    'AppShell must display Contacts label',
+  )
+
+  // Verify NavUser identity header routes to /account
   const navUserContent = fs.readFileSync(
     path.join(webDir, 'src/components/layout/NavUser.tsx'),
     'utf-8',
   )
-
-  // Verify NavUser has Contacts entry routing to /account/contacts
-  assert.ok(
-    navUserContent.includes('/account/contacts'),
-    'NavUser dropdown must contain link/action navigating to /account/contacts',
-  )
-  assert.ok(
-    navUserContent.includes("t('Contacts')"),
-    'NavUser must display Contacts translated label',
-  )
-
-  // Verify NavUser identity header routes to /account
   assert.ok(
     navUserContent.includes("navigate('/account')"),
     'NavUser identity header must navigate to /account',

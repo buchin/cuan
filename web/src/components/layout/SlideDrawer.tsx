@@ -18,6 +18,7 @@ export interface SlideDrawerProps {
   closeOnBackdropClick?: boolean
   closeOnEscape?: boolean
   "aria-label"?: string
+  "data-testid"?: string
 }
 
 export function SlideDrawer({
@@ -35,6 +36,7 @@ export function SlideDrawer({
   closeOnBackdropClick = true,
   closeOnEscape = true,
   "aria-label": ariaLabel,
+  "data-testid": dataTestId,
 }: SlideDrawerProps) {
   const dialogRef = React.useRef<HTMLDialogElement>(null)
 
@@ -72,6 +74,7 @@ export function SlideDrawer({
     <dialog
       ref={dialogRef}
       aria-modal="true"
+      data-testid={dataTestId}
       aria-label={ariaLabel || (typeof title === "string" ? title : "Slide Drawer")}
       onKeyDown={(e) => {
         trapDialogFocus(e)
