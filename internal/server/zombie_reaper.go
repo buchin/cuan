@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"log"
 	"os"
 	"syscall"
 	"time"
@@ -48,9 +49,17 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 
 	if s.taskSvc != nil {
 		if err := s.taskSvc.ReconcileZombieAttempts(ctx, timeout, s.isTaskActiveOnHost); err != nil {
-			return err
+			log.Printf("[ZombieReaper] ReconcileZombieAttempts error: %v", err)
 		}
-		_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
+		if err := s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()); err != nil {
+			log.Printf("[ZombieReaper] ReconcileOrphanLaunches error: %v", err)
+		}
+	}
+
+	if s.runnerSvc != nil {
+		if _, err := s.runnerSvc.ReconcileExpiredLeases(ctx); err != nil {
+			log.Printf("[ZombieReaper] ReconcileExpiredLeases error: %v", err)
+		}
 	}
 
 	s.kickTaskLaunches()

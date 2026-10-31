@@ -29,7 +29,7 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]s
 		return nil, err
 	}
 	args := []string{"--die-with-parent", "--new-session", "--unshare-pid", "--unshare-ipc", "--unshare-uts", "--cap-drop", "ALL", "--clearenv"}
-	for _, path := range []string{"/usr", "/bin", "/lib", "/lib64", "/opt/cuan", "/opt"} {
+	for _, path := range []string{"/usr", "/bin", "/lib", "/lib64", "/opt/cuan/bin", "/opt/cuan/current", "/opt/cuan/releases"} {
 		if _, err := os.Stat(path); err == nil {
 			args = append(args, "--ro-bind", path, path)
 		}

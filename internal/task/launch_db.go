@@ -55,7 +55,11 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		id = wanted[0]
 	}
 	// For still-queued tasks, keep their launch window active so waiting work is not dropped prematurely.
-	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET expires_at = $1 + INTERVAL '24 hours', updated_at = $1 WHERE state = 'queued' AND expires_at <= $1 AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); e != nil {
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET expires_at = $1::timestamptz + INTERVAL '24 hours', updated_at = $1 WHERE state = 'queued' AND expires_at <= $1 AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); e != nil {
+		return nil, e
+	}
+	// Self-heal orphan ghost-queued tasks: if a task is queued but its launch was stopped (e.g. during restart or expired window), revive it back to queued with refreshed window
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND safe_error != 'Task was cancelled.' AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); e != nil {
 		return nil, e
 	}
 	// Expiry is terminal even after a lost worker; a later save cannot resurrect it.
@@ -129,7 +133,7 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		  )
 		ORDER BY tl.available_at, tl.id
 		FOR UPDATE SKIP LOCKED LIMIT 1
-	) UPDATE task_launches SET state='claimed',lease_token=$2,lease_until=$1+INTERVAL '1 minute',checks=checks+1,updated_at=$1 WHERE id=(SELECT id FROM candidate) RETURNING `+launchColumns, now, token, id))
+	) UPDATE task_launches SET state='claimed',lease_token=$2,lease_until=$1::timestamptz+INTERVAL '1 minute',checks=checks+1,updated_at=$1 WHERE id=(SELECT id FROM candidate) RETURNING `+launchColumns, now, token, id))
 }
 func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) error {
 	// 1. Reconcile launches whose task is in terminal status
@@ -137,7 +141,7 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 		return err
 	}
 	// 1b. Self-heal orphan ghost-queued tasks: if a task is queued but its launch was stopped (e.g. during restart, terminal status false alarm, or expired window), revive it back to queued with refreshed window
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1 + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND safe_error != 'Task was cancelled.' AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); err != nil {
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND safe_error != 'Task was cancelled.' AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); err != nil {
 		return err
 	}
 	// 2. Reconcile zombie started launches without any active running attempt
@@ -161,7 +165,7 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 }
 func (s *DBStore) ReconcileStartupLaunches(ctx context.Context, now time.Time) error {
 	// For still-queued tasks whose launch was claimed, started, or stopped before/during restart, revive them back to queued with refreshed window.
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1 + INTERVAL '24 hours'),updated_at=$1 WHERE (state IN ('started','claimed') OR (state='stopped' AND safe_error != 'Task was cancelled.')) AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); err != nil {
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE (state IN ('started','claimed') OR (state='stopped' AND safe_error != 'Task was cancelled.')) AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); err != nil {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution stopped during server restart.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('started','claimed')`, now)

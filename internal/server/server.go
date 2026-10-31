@@ -588,14 +588,24 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 func (s *Server) reconcileStartupState(ctx context.Context) {
 	now := time.Now().UTC()
 	if s.taskSvc != nil {
-		_ = s.taskSvc.ReconcileStartupLaunches(ctx, now)
-		_ = s.taskSvc.RecoverStartupLocalAttempts(ctx)
-		_ = s.taskSvc.ReconcileOrphanLaunches(ctx, now)
+		if err := s.taskSvc.ReconcileStartupLaunches(ctx, now); err != nil {
+			log.Printf("[Startup] ReconcileStartupLaunches error: %v", err)
+		}
+		if err := s.taskSvc.RecoverStartupLocalAttempts(ctx); err != nil {
+			log.Printf("[Startup] RecoverStartupLocalAttempts error: %v", err)
+		}
+		if err := s.taskSvc.ReconcileOrphanLaunches(ctx, now); err != nil {
+			log.Printf("[Startup] ReconcileOrphanLaunches error: %v", err)
+		}
 	}
 	if s.runnerSvc != nil {
-		_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
+		if _, err := s.runnerSvc.ReconcileExpiredLeases(ctx); err != nil {
+			log.Printf("[Startup] ReconcileExpiredLeases error: %v", err)
+		}
 	}
-	_ = s.ReconcileZombies(ctx)
+	if err := s.ReconcileZombies(ctx); err != nil {
+		log.Printf("[Startup] ReconcileZombies error: %v", err)
+	}
 	s.deliverInboxTaskUpdates(ctx)
 	s.kickTaskLaunches()
 }

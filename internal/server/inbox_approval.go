@@ -20,10 +20,15 @@ func splitInboxApproval(author, content string) (string, string) {
 	const marker = "```cuan-approval\n"
 	text := strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
 	index := strings.LastIndex(text, marker)
-	if index < 0 || !strings.HasSuffix(text, "```") || strings.Count(text, marker) != 1 || strings.Contains(text, "```cuan-delegate") || strings.Contains(text, "```cuan-task") {
+	if index < 0 || strings.Count(text, marker) != 1 || strings.Contains(text, "```cuan-delegate") || strings.Contains(text, "```cuan-task") {
 		return content, ""
 	}
-	raw := []byte(strings.TrimSpace(text[index+len(marker) : len(text)-3]))
+	tail := text[index+len(marker):]
+	endFence := strings.Index(tail, "```")
+	if endFence < 0 {
+		return content, ""
+	}
+	raw := []byte(strings.TrimSpace(tail[:endFence]))
 	if len(raw) > 32000 {
 		return content, ""
 	}
@@ -46,7 +51,8 @@ func splitInboxApproval(author, content string) (string, string) {
 	if value.Title == "" || len([]rune(value.Title)) > 200 {
 		return content, ""
 	}
-	return strings.TrimSpace(text[:index]), value.Title
+	prose := strings.TrimSpace(text[:index] + "\n" + strings.TrimSpace(tail[endFence+3:]))
+	return prose, value.Title
 }
 
 // The exact structured description is rendered beside the approval action.
@@ -70,8 +76,17 @@ func parseInboxApprovalPlan(content string) *inboxApprovalPlan {
 	}
 	text := strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
 	start := strings.LastIndex(text, "```cuan-approval\n")
+	if start < 0 {
+		return nil
+	}
+	tail := text[start+len("```cuan-approval\n"):]
+	endFence := strings.Index(tail, "```")
+	if endFence < 0 {
+		return nil
+	}
+	raw := []byte(strings.TrimSpace(tail[:endFence]))
 	var p inboxApprovalPlan
-	if json.Unmarshal([]byte(strings.TrimSpace(text[start+len("```cuan-approval\n"):len(text)-3])), &p) != nil {
+	if json.Unmarshal(raw, &p) != nil {
 		return nil
 	}
 	if strings.TrimSpace(p.Description) == "" || len([]rune(p.Description)) > 6000 || (p.ProjectID == "") == (strings.TrimSpace(p.ProjectName) == "") || len([]rune(p.ProjectName)) > 100 {

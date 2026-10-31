@@ -399,9 +399,44 @@ func synthesizeApprovalReply(textReply string) string {
 	return textReply + "\n```cuan-approval\n" + string(payloadBytes) + "\n```"
 }
 
+func stripThinkingTags(s string) string {
+	for {
+		start := strings.Index(s, "<think>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start:], "</think>")
+		if end == -1 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+8:]
+	}
+	for {
+		start := strings.Index(s, "<thought>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start:], "</thought>")
+		if end == -1 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+10:]
+	}
+	return strings.TrimSpace(s)
+}
+
+func sanitizeReplyText(text string) string {
+	text = stripThinkingTags(text)
+	text = strings.ReplaceAll(text, "file:///", "/")
+	text = strings.ReplaceAll(text, "file://", "/")
+	return strings.TrimSpace(text)
+}
+
 func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string) {
-	clean := strings.TrimSpace(raw)
-	if clean == "" {
+	clean := sanitizeReplyText(raw)
+	if clean == "" || clean == "invalid transport" || clean == "invalid non-json transport" {
 		return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 	}
 
@@ -433,56 +468,121 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 		}
 	}
 
-	// 2. Lenient JSON decoding (tolerates extra fields like 'thought', 'reasoning', etc.)
+	// 2. Lenient JSON decoding (tolerates extra fields like 'thought', 'reasoning', alternative field names)
 	var lenient struct {
 		Reply      string          `json:"reply"`
+		Content    string          `json:"content"`
+		Message    string          `json:"message"`
+		Text       string          `json:"text"`
+		Response   string          `json:"response"`
 		TopicTitle string          `json:"topic_title"`
 		Action     *struct {
 			Kind    string          `json:"kind"`
 			Payload json.RawMessage `json:"payload"`
 		} `json:"action"`
 	}
-	if json.Unmarshal([]byte(jsonCandidate), &lenient) == nil && strings.TrimSpace(lenient.Reply) != "" {
+	if json.Unmarshal([]byte(jsonCandidate), &lenient) == nil {
 		textReply := strings.TrimSpace(lenient.Reply)
-		if analysisRecovery {
+		if textReply == "" {
+			textReply = strings.TrimSpace(lenient.Content)
+		}
+		if textReply == "" {
+			textReply = strings.TrimSpace(lenient.Message)
+		}
+		if textReply == "" {
+			textReply = strings.TrimSpace(lenient.Text)
+		}
+		if textReply == "" {
+			textReply = strings.TrimSpace(lenient.Response)
+		}
+		textReply = sanitizeReplyText(textReply)
+
+		if textReply != "" {
+			if analysisRecovery {
+				if (lenient.Action != nil && len(lenient.Action.Payload) > 0 && !bytes.Equal(bytes.TrimSpace(lenient.Action.Payload), []byte("null"))) || lenient.TopicTitle != "" {
+					return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+				}
+				return textReply, ""
+			}
+			if lenient.Action != nil && len(lenient.Action.Payload) > 0 && !bytes.Equal(bytes.TrimSpace(lenient.Action.Payload), []byte("null")) {
+				var marker string
+				kind := strings.ToLower(strings.TrimSpace(lenient.Action.Kind))
+				switch kind {
+				case "approval", "proposal", "plan", "task_proposal":
+					marker = "cuan-approval"
+				case "delegation", "delegate":
+					marker = "cuan-delegate"
+				case "memory":
+					marker = "cuan-memory"
+				case "memory_search", "search":
+					marker = "cuan-search"
+				case "task_draft", "task":
+					marker = "cuan-task"
+				case "task_cancel":
+					marker = "cuan-task-cancel"
+				case "task_reopen":
+					marker = "cuan-task-reopen"
+				}
+				if marker != "" {
+					out := textReply
+					if lenient.TopicTitle != "" && len([]rune(lenient.TopicTitle)) <= 72 {
+						encodedTitle, _ := json.Marshal(map[string]string{"title": lenient.TopicTitle})
+						out += "\n```cuan-title\n" + string(encodedTitle) + "\n```"
+					}
+					payloadBytes := lenient.Action.Payload
+					var strPayload string
+					if json.Unmarshal(payloadBytes, &strPayload) == nil && json.Valid([]byte(strPayload)) {
+						payloadBytes = []byte(strPayload)
+					}
+					out += "\n```" + marker + "\n" + string(payloadBytes) + "\n```"
+					return out, ""
+				}
+			}
+
+			if isConfirmationQuestion(textReply) {
+				return synthesizeApprovalReply(textReply), ""
+			}
+			if lenient.TopicTitle != "" && len([]rune(lenient.TopicTitle)) <= 72 {
+				encodedTitle, _ := json.Marshal(map[string]string{"title": lenient.TopicTitle})
+				return textReply + "\n```cuan-title\n" + string(encodedTitle) + "\n```", ""
+			}
 			return textReply, ""
 		}
-		if lenient.Action != nil && len(lenient.Action.Payload) > 0 && !bytes.Equal(bytes.TrimSpace(lenient.Action.Payload), []byte("null")) {
-			var marker string
-			switch lenient.Action.Kind {
-			case "approval":
-				marker = "cuan-approval"
-			case "delegation":
-				marker = "cuan-delegate"
-			case "memory":
-				marker = "cuan-memory"
-			case "memory_search":
-				marker = "cuan-search"
-			case "task_draft":
-				marker = "cuan-task"
-			case "task_cancel":
-				marker = "cuan-task-cancel"
-			case "task_reopen":
-				marker = "cuan-task-reopen"
-			}
-			if marker != "" {
-				out := textReply + "\n```" + marker + "\n" + string(lenient.Action.Payload) + "\n```"
-				if lenient.TopicTitle != "" && len([]rune(lenient.TopicTitle)) <= 72 {
-					encodedTitle, _ := json.Marshal(map[string]string{"title": lenient.TopicTitle})
-					out += "\n```cuan-title\n" + string(encodedTitle) + "\n```"
-				}
-				return out, ""
-			}
-		}
+		// If JSON decoded successfully but had no reply text, do not treat raw JSON as plain text
+		return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+	}
 
-		if isConfirmationQuestion(textReply) {
-			return synthesizeApprovalReply(textReply), ""
+	// 2b. Attempt to extract "reply": "..." if JSON was slightly broken
+	if strings.Contains(clean, `"reply"`) {
+		idx := strings.Index(clean, `"reply"`)
+		rest := clean[idx+7:]
+		if colon := strings.Index(rest, ":"); colon != -1 {
+			rest = strings.TrimSpace(rest[colon+1:])
+			if strings.HasPrefix(rest, `"`) {
+				rest = rest[1:]
+				for i := 0; i < len(rest); i++ {
+					if rest[i] == '"' && (i == 0 || rest[i-1] != '\\') {
+						extracted := sanitizeReplyText(rest[:i])
+						if extracted != "" {
+							if analysisRecovery {
+								return extracted, ""
+							}
+							if isConfirmationQuestion(extracted) {
+								return synthesizeApprovalReply(extracted), ""
+							}
+							return extracted, ""
+						}
+						break
+					}
+				}
+			}
 		}
-		if lenient.TopicTitle != "" && len([]rune(lenient.TopicTitle)) <= 72 {
-			encodedTitle, _ := json.Marshal(map[string]string{"title": lenient.TopicTitle})
-			return textReply + "\n```cuan-title\n" + string(encodedTitle) + "\n```", ""
-		}
-		return textReply, ""
+	}
+
+	// If the entire text was a JSON object that failed to decode, do not treat as plain text
+	trimmedClean := strings.TrimSpace(clean)
+	if strings.HasPrefix(trimmedClean, "{") && strings.HasSuffix(trimmedClean, "}") {
+		return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 	}
 
 	// 3. Fallback to extracting plain text (stripping markdown code fences if wrapped)
@@ -497,9 +597,13 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 		}
 		textReply = strings.TrimSpace(textReply)
 	}
+	textReply = sanitizeReplyText(textReply)
 
 	if textReply != "" {
 		if analysisRecovery {
+			if strings.Contains(clean, "cuan-approval") || strings.Contains(clean, "cuan-delegate") || strings.Contains(clean, "cuan-title") {
+				return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+			}
 			return textReply, ""
 		}
 		if isConfirmationQuestion(textReply) {

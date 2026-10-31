@@ -160,7 +160,7 @@ func (c *Client) ValidateRepository(ctx context.Context, repoInput, token string
 					Branches:      branches,
 				}, nil
 			}
-			if errors.Is(lsErr, ErrAccessDenied) {
+			if token != "" && errors.Is(lsErr, ErrAccessDenied) {
 				return nil, ErrAccessDenied
 			}
 			return nil, ErrRepoNotFound

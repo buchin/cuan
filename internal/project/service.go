@@ -247,10 +247,12 @@ func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 			candidates = append(candidates, filepath.Join(s.baseDir, rel))
 		}
 	}
-	persistentBase := "/opt/cuan/data/projects"
-	candidates = append(candidates, filepath.Join(persistentBase, p.ID))
-	if p.LocalPath != "" {
-		candidates = append(candidates, filepath.Join(persistentBase, filepath.Base(p.LocalPath)))
+	if s.baseDir == "data/projects" || strings.HasPrefix(s.baseDir, "/opt/cuan") {
+		persistentBase := "/opt/cuan/data/projects"
+		candidates = append(candidates, filepath.Join(persistentBase, p.ID))
+		if p.LocalPath != "" {
+			candidates = append(candidates, filepath.Join(persistentBase, filepath.Base(p.LocalPath)))
+		}
 	}
 
 	for _, candidate := range candidates {

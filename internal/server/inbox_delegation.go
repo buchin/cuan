@@ -50,10 +50,15 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 		return content, nil, nil
 	}
 	bad := errors.New("Invalid delegation. No work was started; please clarify the approved plan.")
-	if strings.Count(normalized, marker) != 1 || !strings.HasSuffix(normalized, "```") || strings.Contains(normalized, "```cuan-task") {
+	if strings.Count(normalized, marker) != 1 || strings.Contains(normalized, "```cuan-task") {
 		return "", nil, bad
 	}
-	raw := normalized[start+len(marker) : len(normalized)-3]
+	tail := normalized[start+len(marker):]
+	endFence := strings.Index(tail, "```")
+	if endFence < 0 {
+		return "", nil, bad
+	}
+	raw := strings.TrimSpace(tail[:endFence])
 	var d inboxDelegation
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -75,7 +80,8 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 	if d.TaskID == "" && (strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Description) == "") || d.TaskID != "" && strings.TrimSpace(d.Revision) == "" {
 		return "", nil, bad
 	}
-	return strings.TrimSpace(normalized[:start]), &d, nil
+	prose := strings.TrimSpace(normalized[:start] + "\n" + strings.TrimSpace(tail[endFence+3:]))
+	return prose, &d, nil
 }
 
 // Internal response buffer lets both chat and the owner UI use the same durable
@@ -98,7 +104,25 @@ func (w *delegationResponse) Write(p []byte) (int, error) {
 func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, content string) string {
 	cleanText, d, err := parseInboxDelegation(content)
 	if err != nil {
-		return err.Error()
+		clean := strings.TrimSpace(content)
+		if cleanText != "" {
+			clean = strings.TrimSpace(cleanText)
+		} else {
+			const marker = "```cuan-delegate"
+			if idx := strings.Index(clean, marker); idx != -1 {
+				before := strings.TrimSpace(clean[:idx])
+				after := ""
+				tail := clean[idx+len(marker):]
+				if endIdx := strings.Index(tail, "```"); endIdx != -1 {
+					after = strings.TrimSpace(tail[endIdx+3:])
+				}
+				clean = strings.TrimSpace(before + "\n" + after)
+			}
+		}
+		if clean == "" {
+			return err.Error()
+		}
+		return clean + "\n\n*(Catatan: Rencana delegasi otomatis tidak dapat divalidasi. Anda dapat memberikan instruksi klarifikasi untuk memulai pekerjaan.)*"
 	}
 	if d == nil {
 		return content

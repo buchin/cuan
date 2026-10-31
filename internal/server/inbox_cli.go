@@ -88,6 +88,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	toolBudgetRecovery, _ := ctx.Value(inboxToolBudgetRecoveryKey{}).(bool)
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
+	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
 	brandTaste := s.formatBrandTastePrompt(ctx)
 	if brandTaste != "" && !strings.Contains(prompt, brandTaste) {
 		prompt = brandTaste + "\n\n" + prompt
@@ -114,7 +115,10 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
 		if err != nil {
-			return recoverCoordinatorReply(reply, analysisRecovery)
+			if alreadyRepaired || harness == "commandcode" {
+				return recoverCoordinatorReply(reply, analysisRecovery)
+			}
+			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 		}
 		return output, ""
 	}

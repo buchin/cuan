@@ -464,4 +464,90 @@ func TestRecoverCoordinatorReply_FormattingResilience(t *testing.T) {
 			t.Errorf("expected error on completely empty input, got out=%q errText=%q", out, errText)
 		}
 	})
+
+	t.Run("thinking_tags_are_stripped", func(t *testing.T) {
+		raw := "<think>\nLet's analyze user request and form a plan.\nStep 1: Check db.\n</think>\n{\"reply\":\"Analisis antrean telah selesai dilakukan.\",\"action\":null}"
+		out, errText := recoverCoordinatorReply(raw, false)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if strings.Contains(out, "<think>") || strings.Contains(out, "Step 1") {
+			t.Errorf("expected thinking tags to be stripped, got: %s", out)
+		}
+		if !strings.Contains(out, "Analisis antrean telah selesai dilakukan.") {
+			t.Errorf("expected clean reply in output, got: %s", out)
+		}
+	})
+
+	t.Run("alternative_field_names_in_json", func(t *testing.T) {
+		// Field 'content' instead of 'reply'
+		rawContent := `{"content":"Berikut adalah laporan status antrean runner.","action":null}`
+		out, errText := recoverCoordinatorReply(rawContent, false)
+		if errText != "" || !strings.Contains(out, "laporan status antrean") {
+			t.Errorf("failed to extract reply from content field: out=%q err=%q", out, errText)
+		}
+
+		// Field 'message' instead of 'reply'
+		rawMessage := `{"message":"Semua task antrean telah berjalan kembali.","action":null}`
+		out, errText = recoverCoordinatorReply(rawMessage, false)
+		if errText != "" || !strings.Contains(out, "Semua task antrean") {
+			t.Errorf("failed to extract reply from message field: out=%q err=%q", out, errText)
+		}
+	})
+
+	t.Run("alternative_action_kind_synonyms", func(t *testing.T) {
+		rawProposal := `{"reply":"Rencana perbaikan deadlock runner siap dieksekusi.","action":{"kind":"proposal","payload":{"title":"Fix Deadlock","description":"Perbaiki locking lease"}},"topic_title":"Perbaikan Deadlock"}`
+		out, errText := recoverCoordinatorReply(rawProposal, false)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if !strings.Contains(out, "```cuan-approval") {
+			t.Errorf("expected cuan-approval marker for 'proposal' action kind, got: %s", out)
+		}
+		if !strings.Contains(out, "Fix Deadlock") {
+			t.Errorf("expected payload in approval card, got: %s", out)
+		}
+	})
+
+	t.Run("malformed_json_fallback_with_extracted_reply", func(t *testing.T) {
+		rawMalformed := `{"reply":"Investigasi selesai: antrean telah pulih otomatis.","unclosed_obj":{`
+		out, errText := recoverCoordinatorReply(rawMalformed, false)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if !strings.Contains(out, "Investigasi selesai: antrean telah pulih otomatis.") {
+			t.Errorf("expected extracted reply from unclosed/broken JSON, got: %s", out)
+		}
+	})
+}
+
+func TestChatDelegationAndApprovalFormattingResilience(t *testing.T) {
+	t.Run("approval_with_trailing_prose", func(t *testing.T) {
+		content := "Berikut ringkasan approval:\n```cuan-approval\n{\"project_id\":\"proj_1234567890abcdef1234567890abcdef\",\"title\":\"Perbaikan Queue\",\"description\":\"Deskripsi tugas\"}\n```\nSilakan konfirmasi jika disetujui."
+		prose, title := splitInboxApproval("agent", content)
+		if title != "Perbaikan Queue" {
+			t.Errorf("expected title 'Perbaikan Queue', got %q", title)
+		}
+		if !strings.Contains(prose, "Silakan konfirmasi jika disetujui.") {
+			t.Errorf("expected trailing prose to be retained, got: %q", prose)
+		}
+		plan := parseInboxApprovalPlan(content)
+		if plan == nil || plan.Title != "Perbaikan Queue" {
+			t.Fatalf("expected valid parsed plan, got %+v", plan)
+		}
+	})
+
+	t.Run("delegation_with_trailing_prose", func(t *testing.T) {
+		content := "Pekerjaan didelegasikan:\n```cuan-delegate\n{\"authorization_message_id\":\"msg_auth_123\",\"project_id\":\"proj_1234567890abcdef1234567890abcdef\",\"title\":\"Task Baru\",\"description\":\"Deskripsi task baru\"}\n```\nRunner akan memproses segera."
+		prose, d, err := parseInboxDelegation(content)
+		if err != nil || d == nil {
+			t.Fatalf("failed to parse delegation: %v", err)
+		}
+		if d.Title != "Task Baru" {
+			t.Errorf("expected title 'Task Baru', got %q", d.Title)
+		}
+		if !strings.Contains(prose, "Runner akan memproses segera.") {
+			t.Errorf("expected trailing prose in delegation, got: %q", prose)
+		}
+	})
 }
