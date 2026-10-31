@@ -153,25 +153,25 @@ test('3. S59-T2: 2-Column Desktop Architecture & Fusion of Studio + Inbox', () =
   )
 })
 
-test('4. S59-T2: Mobile (Things 3 Inspired) Studio Sheet & Magic Plus FAB', () => {
+test('4. S59-T6: Elimination of Magic Plus FAB & Narrow Studio Sheet on mobile in favor of Standalone Studio', () => {
   const inboxViewContent = fs.readFileSync(inboxViewPath, 'utf8')
 
-  // Magic Plus (+) FAB
+  // Total elimination of Magic Plus (+) FAB on mobile to avoid bottom nav clash
   assert.ok(
-    inboxViewContent.includes('data-testid="magic-plus-fab"'),
-    'InboxView must render Magic Plus FAB on mobile with data-testid="magic-plus-fab"'
+    !inboxViewContent.includes('data-testid="magic-plus-fab"'),
+    'InboxView must eliminate Magic Plus FAB on mobile to prevent clashing with bottom menu'
   )
 
-  // Slide-Up Studio Sheet
+  // Elimination of narrow Slide-Up Studio Sheet in favor of standalone Studio Canvas
   assert.ok(
-    inboxViewContent.includes('data-testid="studio-slide-up-sheet"'),
-    'InboxView must render Slide-Up Studio Sheet on mobile with data-testid="studio-slide-up-sheet"'
+    !inboxViewContent.includes('data-testid="studio-slide-up-sheet"'),
+    'InboxView must eliminate narrow Slide-Up Studio Sheet in favor of standalone Studio (/studio)'
   )
 
-  // FAB hidden on desktop viewports
+  // Standalone Studio navigation button
   assert.ok(
-    inboxViewContent.includes('min-[1200px]:hidden') && inboxViewContent.includes('magic-plus-fab'),
-    'Magic Plus FAB must be hidden on desktop (min-[1200px]:hidden) to keep desktop 2-column clean'
+    inboxViewContent.includes('handleOpenStudio'),
+    'InboxView must navigate directly to standalone Studio'
   )
 })
 

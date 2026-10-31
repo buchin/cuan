@@ -52,8 +52,8 @@ export function SettingsView({
 
   const rawSubSection = location.pathname.split('/')[2]
   const hasExplicitSection = Boolean(rawSubSection)
-  const section = rawSubSection || 'general'
   const isAccount = location.pathname.startsWith('/account')
+  const section = rawSubSection || (isAccount ? 'profile' : 'general') // fallback: rawSubSection || 'general'
 
   useEffect(() => {
     if (location.hash === '#install-cuan' && section === 'general') {

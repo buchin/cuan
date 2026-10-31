@@ -246,8 +246,8 @@ export function LandingPage() {
             {[
               {
                 Icon: MessageSquare,
-                title: 'Unified Chat Workspace & Calm Stream.',
-                text: 'Studio and Inbox fused into one serene workspace. Plan ideas, draft tasks with Cmd+K, and steer agents seamlessly without jarring page reloads.',
+                title: 'Standalone Studio Canvas & Calm Stream.',
+                text: 'Spacious Studio canvas (/studio) with 75ch desktop bounds and seamless redirect to chat threads upon submission. Clean thread list with StatusDot and zero mobile clashes.',
               },
               {
                 Icon: Sparkles,
@@ -256,8 +256,8 @@ export function LandingPage() {
               },
               {
                 Icon: Compass,
-                title: '3-Group Workspace Navigation.',
-                text: 'Restructured information architecture across Workspace, Operations, and System pillars with 4-pillar mobile bottom navigation.',
+                title: 'Clean Account vs Settings Separation.',
+                text: 'Personal profile, appearance, and notifications cleanly isolated in /account with Apple-style grouped rows; workspace AI models, memory, and team config in /settings.',
               },
               {
                 Icon: Bell,

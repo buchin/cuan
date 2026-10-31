@@ -10,14 +10,55 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive, CheckCheck, CheckSquare, Zap, XCircle, Clock } from 'lucide-react'
+import { Search, Bot, User, Archive, CheckCheck } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string) {
   if (!message?.trim()) return 'No messages yet.'
+  let text = message.trim()
+
+  // Clean raw JSON strings (e.g. {"decision": "revise", ...}) to friendly summary text
+  try {
+    const rawCandidate = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    if ((rawCandidate.startsWith('{') && rawCandidate.endsWith('}')) || (rawCandidate.startsWith('[') && rawCandidate.endsWith(']'))) {
+      const parsed = JSON.parse(rawCandidate)
+      if (parsed && typeof parsed === 'object') {
+        if ('decision' in parsed) {
+          const dec = String(parsed.decision).toLowerCase()
+          const reason = parsed.reason || parsed.feedback || parsed.notes || parsed.message || ''
+          if (dec === 'approve' || dec === 'approved') {
+            return reason ? `Disetujui: ${reason}` : 'Persetujuan diberikan'
+          }
+          if (dec === 'revise' || dec === 'revision') {
+            return reason ? `Revisi: ${reason}` : 'Permintaan revisi'
+          }
+          if (dec === 'reject' || dec === 'rejected') {
+            return reason ? `Ditolak: ${reason}` : 'Keputusan: Ditolak'
+          }
+          return `Keputusan: ${parsed.decision}${reason ? ` · ${reason}` : ''}`
+        }
+        if (parsed.summary) return String(parsed.summary)
+        if (parsed.plan) return String(parsed.plan)
+        if (parsed.title) return String(parsed.title)
+        if (parsed.message) return String(parsed.message)
+        if (parsed.text) return String(parsed.text)
+        if (parsed.description) return String(parsed.description)
+        if (parsed.action) return `Aksi: ${parsed.action}`
+      }
+    }
+  } catch {
+    // Regex clean-up if JSON is embedded in text
+    text = text.replace(/\{[^{}]*"decision"\s*:\s*"([^"]+)"[^{}]*\}/g, (_m, dec) => `Keputusan: ${dec}`)
+    text = text.replace(/\{[^{}]*"summary"\s*:\s*"([^"]+)"[^{}]*\}/g, '$1')
+  }
+
+  // Strip residual raw JSON string blocks like {"key": "value", ...}
+  text = text.replace(/\{[^{}]*"(?:decision|action|plan|status|reason|type)"\s*:[^{}]*\}/gi, ' ')
+  text = text.replace(/\{[^{}]*"[a-zA-Z0-9_]+"\s*:[^{}]*\}/g, ' ')
+
   return (
-    message
+    text
       .replace(/^\s*\[@[^\]\r\n]{1,100}\]\s*/, '')
       .replace(/```cuan-task[\s\S]*?(?:```|$)/g, ' Draft task ')
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -188,7 +229,7 @@ export function InboxSubPanel({
               </span>
               <span className="font-semibold">{t('Ide / Tugas Baru')}</span>
             </div>
-            <kbd className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-background/80 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground shadow-xs">
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-border/60 bg-background/80 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground shadow-xs">
               <span className="text-[11px]">⌘</span>K
             </kbd>
           </button>
@@ -434,13 +475,6 @@ export function InboxSubPanel({
             const id = contact.conversation_id || contact.id
             const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
             const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
-            const queuedTasks = typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0
-            const totalTasks = typeof contact.task_count === 'number' ? contact.task_count : Number(contact.task_count) || 0
-            const failedTasks = typeof contact.failed_tasks === 'number' ? contact.failed_tasks : Number(contact.failed_tasks) || 0
-            const doneTasks = typeof contact.done_tasks === 'number'
-              ? contact.done_tasks
-              : Math.max(0, totalTasks - activeTasks - queuedTasks - failedTasks)
-            const hasTasks = totalTasks > 0 || activeTasks > 0 || queuedTasks > 0 || doneTasks > 0 || failedTasks > 0
 
             const rawAgent = contact.agent_name || ''
             const formattedAgent = rawAgent
@@ -512,9 +546,9 @@ export function InboxSubPanel({
                     </span>
                   </div>
 
-                  {/* Second Line: Agent Handle & Smart Task Badges */}
-                  {(showAgentName || hasTasks) && (
-                    <div data-testid="task-count-badge" className="flex items-center gap-1.5 mb-0.5 min-w-0 flex-wrap">
+                  {/* Second Line: Agent Handle & StatusDot (Status-by-Exception) */}
+                  {(showAgentName || activeTasks > 0) && (
+                    <div data-testid="task-count-badge" className="flex items-center gap-1.5 mb-0.5 min-w-0">
                       {showAgentName && (
                         <span className="text-xs text-muted-foreground font-medium truncate shrink-0">
                           {formattedAgent}
@@ -523,45 +557,14 @@ export function InboxSubPanel({
                       {activeTasks > 0 && (
                         <span
                           data-testid="task-badge-active"
+                          className="inline-flex shrink-0 items-center gap-1.5"
+                          title={`${activeTasks} ${activeTasks === 1 ? t('task') : t('tasks')} ${t('aktif')}`}
                           aria-label={`${activeTasks} active tasks`}
-                          title={`${activeTasks} active ${activeTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25"
                         >
-                          <Zap className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
-                          <span>{activeTasks}</span>
-                        </span>
-                      )}
-                      {queuedTasks > 0 && (
-                        <span
-                          data-testid="task-badge-queued"
-                          aria-label={`${queuedTasks} queued tasks`}
-                          title={`${queuedTasks} queued ${queuedTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25"
-                        >
-                          <Clock className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{queuedTasks}</span>
-                        </span>
-                      )}
-                      {failedTasks > 0 && (
-                        <span
-                          data-testid="task-badge-failed"
-                          aria-label={`${failedTasks} failed or blocked tasks`}
-                          title={`${failedTasks} blocked or failed ${failedTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
-                        >
-                          <XCircle className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{failedTasks}</span>
-                        </span>
-                      )}
-                      {doneTasks > 0 && (
-                        <span
-                          data-testid="task-badge-done"
-                          aria-label={`${doneTasks} completed tasks`}
-                          title={`${doneTasks} completed ${doneTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
-                        >
-                          <CheckSquare className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{doneTasks}</span>
+                          <StatusDot status="working" size="xs" pulse aria-label={`${activeTasks} active tasks`} />
+                          <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                            {activeTasks} {t('bekerja')}
+                          </span>
                         </span>
                       )}
                     </div>

@@ -136,9 +136,14 @@ Cuan incorporates a **Calm & Layered UI System** inspired by world-class product
 
 - **Card Diet & Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`)**:
   - Eliminates visual clutter and thick nested cards (`box inside box`). Replaced with flat serene surfaces, crisp hairline dividers (`divide-border/40`), micro-indicators (`StatusDot`), and Apple-style grouped rows (`GroupedSection`).
-- **Unified Chat Workspace (Studio + Inbox Fusion)**:
-  - Fuses ideation and execution into one continuous canvas. Compose raw ideas or tasks directly (`Cmd+K`) and transition smoothly to autonomous agent execution on the same view without jarring page redirects.
-  - Mobile Magic Plus (+) Floating Action Button triggers a slide-up studio sheet for rapid braindumping on iOS/Android.
+- **Standalone Studio Canvas & Calm Chat Stream**:
+  - Standalone Studio Canvas (`/studio`): Spacious, focused ideation canvas (`max-w-[75ch]`) with back navigation (`←`) and smooth redirect to execution threads upon submission.
+  - Complete Elimination of Mobile Clashes: Removed conflicting FABs in mobile bottom nav and eliminated cramped slide-up sheets.
+  - Clean Thread List & Status-by-Exception: Replaced noisy 4-badge stacks on thread lists with a single subtle `StatusDot` micro-indicator active only when agents are working.
+  - Clean JSON Snippets: Stripped raw JSON payloads in thread previews into human-friendly text.
+- **Clean Account vs Settings Separation**:
+  - Dedicated `/account` workspace for personal preferences (Profile, Appearance, Notifications, Sign Out) using Apple-style Inset Grouped Sections.
+  - Dedicated `/settings` workspace for operational configuration (General Workspace, Schedules, AI Providers & Models, Agent Memory, Agents, Apps & Skills).
 - **Information Layering & Progressive Disclosure**:
   - Essential glanceable operational state stays on the surface; deep technical data (git branches, terminal sessions, raw stdout/stderr logs) is revealed smoothly on-demand via `SlideDrawer` side drawers.
 - **Status-by-Exception**:

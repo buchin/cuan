@@ -12,11 +12,12 @@ export type StatusDotVariant =
   | "danger"
   | "running"
   | "pulse"
+  | "working"
 
 export interface StatusDotProps extends React.HTMLAttributes<HTMLSpanElement> {
   status?: StatusDotVariant
   pulse?: boolean
-  size?: "sm" | "md" | "lg"
+  size?: "xs" | "sm" | "md" | "lg"
   label?: React.ReactNode
   showLabel?: boolean
 }
@@ -38,9 +39,10 @@ export const StatusDot = React.forwardRef<HTMLSpanElement, StatusDotProps>(
     // Resolve variant styling following the "Status-by-Exception" principle:
     // Restrict high-contrast/screaming colors ONLY for exceptions/errors.
     // Normal states are calm, understated, and non-distracting.
-    const isPulse = pulse || status === "running" || status === "pulse"
+    const isPulse = pulse || status === "running" || status === "pulse" || status === "working"
 
     const sizeClasses = {
+      xs: "h-1.5 w-1.5", // 6px
       sm: "h-1.5 w-1.5", // 6px
       md: "h-2 w-2",     // 8px
       lg: "h-2.5 w-2.5", // 10px
@@ -57,6 +59,7 @@ export const StatusDot = React.forwardRef<HTMLSpanElement, StatusDotProps>(
       danger: "bg-rose-500 dark:bg-rose-400",
       running: "bg-sky-500 dark:bg-sky-400",
       pulse: "bg-sky-500 dark:bg-sky-400",
+      working: "bg-blue-500/90 dark:bg-blue-400",
     }[status] || "bg-muted-foreground/40"
 
     const defaultTitle = typeof label === "string" ? label : status

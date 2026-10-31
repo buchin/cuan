@@ -38,6 +38,11 @@ const InboxView = lazy(() =>
     default: m.InboxView,
   })),
 )
+const StudioView = lazy(() =>
+  import('./features/inbox/StudioView').then((m) => ({
+    default: m.StudioView,
+  })),
+)
 const ContactsView = lazy(() =>
   import('./features/contacts/ContactsView').then((m) => ({
     default: m.ContactsView,
@@ -153,7 +158,7 @@ export function App() {
       case 'chat':
         return 'chat'
       case 'studio':
-        return 'chat'
+        return 'studio'
       default:
         return 'chat'
     }
@@ -175,9 +180,7 @@ export function App() {
   useEffect(() => {
     if (rootSegment === 'team')
       navigate('/settings/agents' + location.search, { replace: true })
-    if (rootSegment === 'studio')
-      navigate('/chat' + location.search + location.hash, { replace: true })
-  }, [rootSegment, location.search, location.hash, navigate])
+  }, [rootSegment, location.search, navigate])
 
   // Active selections
   const [activeProject, setActiveProject] = useState<Project | undefined>(
@@ -201,7 +204,7 @@ export function App() {
     kind: 'message' | 'contact' | 'task' | 'project' | 'agent' | 'menu',
   ) => {
     setNewFlow(null)
-    if (kind === 'message') navigate('/chat')
+    if (kind === 'message') navigate('/studio')
     else if (kind === 'task') setIsCreateTaskOpen(true)
     else if (kind === 'project') setIsCreateProjectOpen(true)
     else if (kind === 'agent') {
@@ -462,11 +465,25 @@ export function App() {
         state: location.state,
       })
     }
+    if (rootSegment === 'settings' && ['profile', 'appearance', 'notifications'].includes(subParam)) {
+      navigate('/account/' + encodeURIComponent(subParam) + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+    if (rootSegment === 'account' && ['general', 'ai-providers', 'memory', 'agents', 'apps-skills', 'integrations'].includes(subParam)) {
+      navigate('/settings/' + encodeURIComponent(subParam) + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
   }, [rootSegment, subParam, location.search, location.hash, location.state, navigate])
 
   // Navigation handlers
   const handleSelectTab = (tab: AppTab) => {
-    if (tab === 'inbox' || tab === 'chat' || (tab as string) === 'studio') {
+    if ((tab as string) === 'studio') {
+      navigate('/studio')
+    } else if (tab === 'chat' || (tab as string) === 'studio' || tab === 'inbox') {
       navigate(
         activeContact
           ? `/inbox/${activeContact.conversation_id || activeContact.id}`
@@ -714,7 +731,9 @@ export function App() {
         : pathSegments[2] === 'github' ? 'GitHub' : settingTitles[subParam]
       : currentTab === 'account'
         ? 'Account'
-        : undefined
+        : currentTab === 'studio'
+          ? 'Studio'
+          : undefined
   const headerBreadcrumbs = projectDetail
     ? [
         { label: 'Projects', to: '/projects' },
@@ -828,7 +847,7 @@ export function App() {
             onNewMessage={() => openNew('message')}
             onNewStudio={() => {
               setActiveContact(undefined)
-              navigate('/chat')
+              navigate('/studio')
             }}
             agents={directoryAgents}
             loading={contactsLoading}
@@ -845,6 +864,32 @@ export function App() {
       >
         <Suspense fallback={<ViewFallback />}>
           {currentTab === 'notifications' && <NotificationsView />}
+          {currentTab === 'studio' && (
+            <div className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+              <StudioView
+                onAccepted={() => void refreshContacts()}
+                onConversationCreated={(id) => navigate('/inbox/' + encodeURIComponent(id))}
+                agentSetup={
+                  !agentsLoaded ? 'loading' : agentsError ? 'error' :
+                  directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
+                    ? 'ready' : 'needed'
+                }
+                firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+                hasProject={
+                  projectsLoading || !!projectsError ||
+                  projects.some((p) => p.id !== 'default' || !!p.repo_url)
+                }
+                onAgentConnected={() => void refreshContacts()}
+                onCreateProject={() => setIsCreateProjectOpen(true)}
+                onRetrySetup={() => void refreshContacts()}
+                checkRuntime={!directoryAgents.some((a) =>
+                  a.enabled !== false && a.status !== 'inactive' &&
+                  ['codex', 'claude'].includes(a.harness || a.provider || '')
+                )}
+                autoFocus={true}
+              />
+            </div>
+          )}
           {currentTab === 'chat' && (
             <InboxView
               contacts={contacts}
@@ -857,7 +902,7 @@ export function App() {
               onNewMessage={() => openNew('message')}
               onNewStudio={() => {
                 setActiveContact(undefined)
-                navigate('/chat')
+                navigate('/studio')
               }}
               onContactUpdated={refreshContacts}
               contactTab={contactTab}
@@ -902,7 +947,7 @@ export function App() {
               onNewMessage={() => openNew('message')}
               onNewStudio={() => {
                 setActiveContact(undefined)
-                navigate('/chat')
+                navigate('/studio')
               }}
               onContactUpdated={refreshContacts}
               contactTab={contactTab}

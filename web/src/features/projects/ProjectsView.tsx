@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
@@ -13,8 +13,6 @@ import {
   GitBranch,
   ArrowRight,
   Archive,
-  LayoutGrid,
-  List,
   Sparkles,
   Terminal,
 } from 'lucide-react'
@@ -35,20 +33,6 @@ export function ProjectsView({
   onCreateProject,
 }: ProjectsViewProps) {
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
-    try {
-      return localStorage.getItem('cuan-project-view') === 'list'
-        ? 'list'
-        : 'grid'
-    } catch {
-      return 'grid'
-    }
-  })
-  useEffect(() => {
-    try {
-      localStorage.setItem('cuan-project-view', viewMode)
-    } catch {}
-  }, [viewMode])
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -232,16 +216,7 @@ export function ProjectsView({
         </p>
       )}
 
-      {/* Header Overview */}
-      <header className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">
-            {activeProjects.length} {t('active')} · {archivedProjects.length} {t('archived')}
-          </p>
-        </div>
-      </header>
-
-      {/* Search & View Switcher */}
+      {/* Search Bar */}
       <div className="flex items-center gap-2">
         <input
           type="search"
@@ -251,24 +226,6 @@ export function ProjectsView({
           onChange={(e) => setSearch(e.target.value)}
           className="field-control min-w-0 flex-1"
         />
-        <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
-          <button
-            onClick={() => setViewMode('grid')}
-            aria-label="Grid view"
-            aria-pressed={viewMode === 'grid'}
-            className={`icon-action ${viewMode === 'grid' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            aria-label="List view"
-            aria-pressed={viewMode === 'list'}
-            className={`icon-action ${viewMode === 'list' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
-          >
-            <List className="h-4 w-4" />
-          </button>
-        </div>
       </div>
 
       {search.trim() && displayedProjects.length > 0 && (

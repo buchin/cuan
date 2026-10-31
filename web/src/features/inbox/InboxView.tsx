@@ -52,7 +52,6 @@ import {
   Lock,
   Copy,
   Plus,
-  X,
 } from 'lucide-react'
 import { Task } from '../../api/types'
 import './chat-calm.css'
@@ -114,7 +113,7 @@ interface InboxViewProps {
 
 export function InboxView({
   onNewMessage: _onNewMessage,
-  onNewStudio,
+  onNewStudio: _onNewStudio,
   contacts = [],
   agents = [],
   now: suppliedNow,
@@ -148,7 +147,6 @@ export function InboxView({
     if (initialMode === 'studio' || isChatRoute || !activeContact) return 'studio'
     return 'chat'
   })
-  const [isStudioSheetOpen, setIsStudioSheetOpen] = useState(false)
 
   useEffect(() => {
     if (location.pathname.startsWith('/chat') && !location.pathname.startsWith('/chat/')) {
@@ -162,7 +160,6 @@ export function InboxView({
 
   const handleStudioConversationCreated = useCallback((conversationId: string) => {
     setCanvasMode('chat')
-    setIsStudioSheetOpen(false)
     setMobileView('chat')
     onMobileChatActiveChange?.(true)
     onContactUpdated?.()
@@ -187,17 +184,8 @@ export function InboxView({
   }, [contacts, onSelectContact, onMobileChatActiveChange, onContactUpdated, navigate])
 
   const handleOpenStudio = useCallback(() => {
-    if (onNewStudio) {
-      onNewStudio()
-      return
-    }
-    if (window.innerWidth < 1200) {
-      setIsStudioSheetOpen(true)
-    } else {
-      setCanvasMode('studio')
-      navigate('/chat' + location.search)
-    }
-  }, [onNewStudio, navigate, location.search])
+    navigate('/studio' + location.search)
+  }, [navigate, location.search])
   const requestedMessageId =
     new URLSearchParams(location.search).get('message') || ''
   const openedSearchMessage = useRef('')
@@ -1044,71 +1032,6 @@ export function InboxView({
           searchQuery={contactSearch}
           onSearchChange={onContactSearchChange}
         />
-
-        {/* ── Mobile Magic Plus (+) Floating Action Button (Things 3 Inspired) ── */}
-        <div className="fixed bottom-6 right-6 z-40 min-[1200px]:hidden">
-          <button
-            type="button"
-            data-testid="magic-plus-fab"
-            aria-label={t('Ide / Tugas Baru (Quick Dump)')}
-            title={t('Ide / Tugas Baru')}
-            onClick={() => setIsStudioSheetOpen(true)}
-            className="flex h-13 w-13 min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-foreground text-background shadow-lg hover:bg-foreground/90 active:scale-95 transition-transform select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Plus className="h-6 w-6 stroke-[2.5]" aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* ── Mobile Slide-Up Studio Sheet (Things 3 Inspired) ── */}
-        {isStudioSheetOpen && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('Ide / Tugas Baru')}
-            data-testid="studio-slide-up-sheet"
-            className="fixed inset-0 z-50 flex flex-col justify-end min-[1200px]:hidden"
-          >
-            <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
-              onClick={() => setIsStudioSheetOpen(false)}
-              aria-hidden="true"
-            />
-            <div className="relative z-10 w-full max-h-[88vh] overflow-y-auto rounded-t-2xl border-t border-border/50 bg-background p-4 sm:p-6 shadow-2xl animate-in slide-in-from-bottom duration-200">
-              <div className="flex items-center justify-between border-b border-border/40 pb-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-xs leading-none">
-                    +
-                  </span>
-                  <h3 className="text-base font-semibold text-foreground">
-                    {t('Ide / Tugas Baru')}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsStudioSheetOpen(false)}
-                  className="icon-action text-muted-foreground hover:text-foreground"
-                  aria-label={t('Close')}
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="w-full">
-                <StudioView
-                  onAccepted={() => onContactUpdated?.()}
-                  onConversationCreated={handleStudioConversationCreated}
-                  agentSetup={agentSetup}
-                  firstGoal={firstGoal}
-                  hasProject={hasProject}
-                  onAgentConnected={onAgentConnected ?? (() => {})}
-                  onCreateProject={onCreateProject ?? (() => {})}
-                  onRetrySetup={onRetrySetup ?? (() => {})}
-                  checkRuntime={checkRuntime}
-                  autoFocus={true}
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
@@ -1262,57 +1185,7 @@ export function InboxView({
               </div>
             </div>
 
-            {/* ── Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) ── */}
-            <div className="flex shrink-0 items-center border-b border-border bg-background px-3 sm:px-4 text-xs font-medium">
-              <button
-                type="button"
-                onClick={() => setConvTab('chat')}
-                className={cn(
-                  "flex items-center gap-1.5 py-2 px-3 border-b-2 transition-colors",
-                  convTab === 'chat'
-                    ? "border-primary text-primary font-semibold"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Bot className="h-4 w-4" />
-                <span>{t('Chat')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setConvTab('tasks')}
-                className={cn(
-                  "flex items-center gap-1.5 py-2 px-3 border-b-2 transition-colors",
-                  convTab === 'tasks'
-                    ? "border-primary text-primary font-semibold"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <CheckSquare className="h-4 w-4" />
-                <span>{t('Tasks')}</span>
-                {linkedTasks.some((t) => t.status === 'doing' || t.status === 'queued' || t.status === 'review') && (
-                  <span className="relative flex h-2 w-2 ml-0.5" title="Active tasks in progress">
-                    <span className={cn(
-                      "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-                      linkedTasks.some((t) => t.status === 'review') ? "bg-amber-400" : "bg-emerald-400"
-                    )} />
-                    <span className={cn(
-                      "relative inline-flex rounded-full h-2 w-2",
-                      linkedTasks.some((t) => t.status === 'review') ? "bg-amber-500" : "bg-emerald-500"
-                    )} />
-                  </span>
-                )}
-                {linkedTasks.length > 0 && (
-                  <span className={cn(
-                    "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold",
-                    convTab === 'tasks'
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-primary/10 text-primary"
-                  )}>
-                    {linkedTasks.length}
-                  </span>
-                )}
-              </button>
-            </div>
+            {/* Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) eliminated for serene canvas in S59-T6 */}
 
             {convTab === 'tasks' ? (
               <ConversationWorkMonitor
