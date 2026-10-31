@@ -215,6 +215,7 @@ type runTaskAgentPayload struct {
 	AgentID   string `json:"agent_id"`
 	Prompt    string `json:"prompt"`
 	Binary    string `json:"binary"`
+	RunnerID  string `json:"runner_id,omitempty"`
 	Cols      uint16 `json:"cols"`
 	Rows      uint16 `json:"rows"`
 }
@@ -601,7 +602,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			if revision != "" {
 				taskPrompt = revision
 			}
-			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash})
+			runnerID := strings.TrimSpace(payload.RunnerID)
+			if runnerID == "" {
+				runnerID = "cuan-runner"
+			}
+			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash})
 			if errors.Is(err, task.ErrTaskActive) {
 				respondJSONError(w, 409, "This task already has an active attempt. Check the session before retrying.")
 				return
@@ -621,12 +626,30 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					return
 				}
 			}
-			doing := task.TaskStatusDoing
 			emptyReport := ""
 			resetCriteria := append([]task.DoDItem{}, detail.DoDChecklist...)
 			for i := range resetCriteria {
 				resetCriteria[i].Completed = false
 			}
+
+			// If delegated to cuan-runner, attempt stays in AttemptStatusQueued and task is queued for worker daemon
+			if runnerID == "cuan-runner" {
+				queuedStatus := task.TaskStatusQueued
+				if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &queuedStatus, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: &emptyReport, CompleteNote: &emptyReport}); err != nil {
+					_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
+					respondJSONError(w, 503, "Task status could not be saved")
+					return
+				}
+				respondJSON(w, http.StatusOK, map[string]interface{}{
+					"status":     task.AttemptStatusQueued,
+					"attempt_id": attempt.ID,
+					"task_id":    taskID,
+					"runner_id":  "cuan-runner",
+				})
+				return
+			}
+
+			doing := task.TaskStatusDoing
 			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: &emptyReport, CompleteNote: &emptyReport}); err != nil {
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
 				respondJSONError(w, 503, "Task status could not be saved")

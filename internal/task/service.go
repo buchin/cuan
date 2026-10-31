@@ -497,8 +497,13 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 				if e != nil && !errors.Is(e, ErrAttemptNotFound) {
 					return nil, e
 				}
-				if latest != nil && (latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued) && st != TaskStatusDoing {
-					return nil, ErrTaskActive
+				if latest != nil {
+					if latest.Status == AttemptStatusRunning && st != TaskStatusDoing {
+						return nil, ErrTaskActive
+					}
+					if latest.Status == AttemptStatusQueued && st != TaskStatusDoing && st != TaskStatusQueued {
+						return nil, ErrTaskActive
+					}
 				}
 				if st == TaskStatusDone {
 					if oldStatus != TaskStatusReview {
@@ -652,7 +657,7 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 	}
 	runnerID := strings.TrimSpace(req.RunnerID)
 	if runnerID == "" {
-		runnerID = "runner_default"
+		runnerID = "cuan-runner"
 	}
 
 	agentName := strings.TrimSpace(req.AgentName)

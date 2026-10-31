@@ -56,3 +56,14 @@ If `systemctl restart cuan` fails or `/healthz` / `/readyz` fails health checks 
 - `activate-release.py` automatically restores symlinks to the previously known healthy release (`previous`).
 - Restarts and validates health of the restored release.
 - Exits with a descriptive status code indicating rollback success or manual intervention requirement.
+
+---
+
+## 6. Worker Daemon Graceful Drain & Auto-Undrain Hook
+
+Starting with Sprint 56, background task attempts are decoupled from HTTP server processes and executed by the standalone `cuan-runner` daemon:
+1. **Graceful Drain Initiation**: Before symlink atomic switch, `activate-release.py` touches `/tmp/cuan-drain` and sends `SIGUSR1` to active `cuan-runner` workers. Active in-flight tasks finish uninterrupted while new attempts remain safely queued.
+2. **Auto-Undrain & Service Restart Hook**: After the new release symlink switch and server health verification pass:
+   - `activate-release.py` automatically unlinks `/tmp/cuan-drain` and triggers `systemctl restart cuan-runner`.
+   - `scripts/deploy.sh` executes a post-deploy hook ensuring `/tmp/cuan-drain` removal and `cuan-runner.service` restart.
+3. **Rollback Resilience**: In the event of health check failure or rollback, `/tmp/cuan-drain` is immediately cleared and the worker daemon restarted so queue processing is never left stranded in drain mode.

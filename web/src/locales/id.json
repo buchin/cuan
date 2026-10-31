@@ -370,6 +370,8 @@
   "Self-host Cuan and connect your own supported AI accounts. Keep your projects and execution in your environment.": "Jalankan Cuan sendiri dan hubungkan akun AI yang didukung. Project serta pengerjaan tetap di lingkungan Anda.",
   "Autonomous quality loop.": "Siklus kualitas mandiri dan otomatis.",
   "Background quality evaluation validates changes automatically. If a gap is found, Cuan handles adaptive self-healing retries without disturbing you.": "Evaluasi kualitas di latar belakang memvalidasi perubahan secara otomatis. Bila ada kekurangan, Cuan memperbaikinya secara mandiri tanpa merepotkan Anda.",
+  "Isolated cuan-runner daemon & auto-undrain deployment.": "Daemon cuan-runner mandiri & deploy auto-undrain.",
+  "Tasks are dispatched to a standalone worker daemon isolated from the web server. Deploy hooks automatically clean drain flags and restart workers with zero interruption to ongoing tasks.": "Tugas dieksekusi oleh worker daemon mandiri yang terisolasi dari web server. Hook deploy membersihkan bendera drain secara otomatis dan me-restart worker tanpa mengganggu tugas pelanggan yang sedang berjalan.",
   "Zero-interruption worker & proactive chat.": "Worker kebal interupsi & chat proaktif ramah bisnis.",
   "Decoupled worker runs independently with progressive timeouts. Once completed, friendly zero-jargon updates and strategic next steps arrive in your chat.": "Worker mandiri bekerja terpisah dengan batas waktu adaptif. Begitu selesai, kabar ramah bisnis bebas jargon dan rekomendasi langkah berikutnya langsung hadir di chat Anda.",
   "What would you like to get done?": "Apa yang ingin Anda selesaikan?",

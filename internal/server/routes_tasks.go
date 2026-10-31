@@ -367,6 +367,9 @@ func (s *Server) handleCreateAttempt(w http.ResponseWriter, r *http.Request) {
 	if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
 		author = owner.Email
 	}
+	if req.RunnerID == "" {
+		req.RunnerID = "cuan-runner"
+	}
 
 	att, err := s.taskSvc.CreateAttempt(r.Context(), id, author, req)
 	if err != nil {
@@ -711,6 +714,9 @@ func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 		AgentName string `json:"agent_name"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.RunnerID == "" {
+		req.RunnerID = "cuan-runner"
+	}
 
 	att, err := s.taskSvc.RetryTask(r.Context(), taskID, author, req.RunnerID, req.AgentName)
 	if err != nil {

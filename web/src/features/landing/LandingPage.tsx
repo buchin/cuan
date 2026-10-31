@@ -266,8 +266,8 @@ export function LandingPage() {
               },
               {
                 Icon: Zap,
-                title: 'Zero-interruption worker & proactive chat.',
-                text: 'Decoupled worker runs independently with progressive timeouts. Once completed, friendly zero-jargon updates and strategic next steps arrive in your chat.',
+                title: 'Isolated cuan-runner daemon & auto-undrain deployment.',
+                text: 'Tasks are dispatched to a standalone worker daemon isolated from the web server. Deploy hooks automatically clean drain flags and restart workers with zero interruption to ongoing tasks.',
               },
             ].map(({ Icon, title, text }) => (
               <div key={title} className="border-t border-border pt-5">

@@ -158,4 +158,15 @@ class Gates(unittest.TestCase):
         finally:
             drain_file.unlink(missing_ok=True)
 
+    def test_worker_service_restart_and_auto_undrain(self):
+        drain_file = Path('/tmp/cuan-drain')
+        try:
+            drain_file.touch(exist_ok=True)
+            with patch.object(a.subprocess, 'run', return_value=subprocess.CompletedProcess(['systemctl'], 0, '')) as mock_run:
+                a.restart_worker_service()
+                self.assertFalse(drain_file.exists())
+                mock_run.assert_called_once_with(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
+        finally:
+            drain_file.unlink(missing_ok=True)
+
 if __name__ == '__main__': unittest.main()

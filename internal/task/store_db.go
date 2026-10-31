@@ -391,7 +391,7 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	var execer interface {
 		ExecContext(context.Context, string, ...any) (sql.Result, error)
 	} = s.db
-	if a.RunnerID == "local_terminal" {
+	if a.RunnerID == "local_terminal" || a.RunnerID == "cuan-runner" {
 		var err error
 		tx, err = s.db.BeginTx(ctx, nil)
 		if err != nil {

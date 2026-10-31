@@ -222,4 +222,15 @@ if [[ -z "$verified_sha" ]]; then
   exit 1
 fi
 
+echo "==> Auto-undrain deploy hook: Ensuring /tmp/cuan-drain cleanup & restarting cuan-runner.service..."
+if [[ "$is_local" == 0 ]]; then
+  export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
+  sshpass -e ssh "$release_host" "sudo -n rm -f /tmp/cuan-drain && sudo -n systemctl restart cuan-runner.service 2>/dev/null || true"
+  unset SSHPASS
+else
+  sudo -n rm -f /tmp/cuan-drain 2>/dev/null || true
+  sudo -n systemctl restart cuan-runner.service 2>/dev/null || true
+fi
+echo "✓ Auto-undrain & cuan-runner restart completed."
+
 echo "Released $release_sha. Verify the public UI, OAuth, Inbox reply and retained data before marking done."

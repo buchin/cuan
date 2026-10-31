@@ -235,7 +235,7 @@ func (m *MemoryStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	if a.AttemptNumber <= 0 {
 		a.AttemptNumber = 1
 	}
-	if a.RunnerID == "local_terminal" {
+	if a.RunnerID == "local_terminal" || a.RunnerID == "cuan-runner" {
 		maxAttempt := 0
 		for _, old := range m.attempts {
 			if old.TaskID == a.TaskID && old.AttemptNumber > maxAttempt {

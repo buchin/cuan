@@ -267,8 +267,23 @@ def signal_worker_drain():
 def cleanup_worker_drain():
     try:
         Path('/tmp/cuan-drain').unlink(missing_ok=True)
+        print('==> Cleaned up /tmp/cuan-drain flag.')
     except Exception:
         pass
+
+
+def restart_worker_service():
+    """Auto-restart cuan-runner service to ensure new release binary is active without leftover drain state."""
+    try:
+        cleanup_worker_drain()
+        res = subprocess.run(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
+        if res.returncode == 0:
+            print('==> Successfully restarted cuan-runner.service on new release.')
+        else:
+            err_msg = res.stderr.strip() if res.stderr else 'unit not found or inactive'
+            print(f'==> Notice: cuan-runner restart returned code {res.returncode}: {err_msg}')
+    except Exception as e:
+        print(f'==> Notice: Could not restart cuan-runner: {e}')
 
 
 def mark_task_deploy_complete(env, release_sha):
@@ -433,6 +448,7 @@ def main():
         check_healthy = (lambda: healthy(target_sha)) if args.no_restart else (lambda: restart_and_check(target_sha))
         if not check_healthy():
             cleanup_worker_drain()
+            restart_worker_service()
             old_manifest = json.loads((old / 'release.json').read_text())
             assert_project_workspace_support(old_manifest, retained_environment)
             assert_task_worktree_support(old_manifest, retained_environment)
@@ -442,6 +458,7 @@ def main():
             recovered = old_healthy()
             raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
         cleanup_worker_drain()
+        restart_worker_service()
         switch(previous, old)
         print(json.dumps({'release': target.name, 'previous': old.name, 'health': 'healthy', 'migrations': SCHEMA_COUNT}))
 
