@@ -50,6 +50,7 @@ import {
   ChevronDown,
   EyeOff,
   Lock,
+  Copy,
 } from 'lucide-react'
 import { Task } from '../../api/types'
 import './chat-whatsapp.css'
@@ -166,6 +167,46 @@ export function InboxView({
   useEffect(() => {
     setConvTab('chat')
   }, [activeContact?.id])
+
+  const [copiedEmail, setCopiedEmail] = useState(false)
+  const copyEmailTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    setCopiedEmail(false)
+    if (copyEmailTimeoutRef.current) {
+      clearTimeout(copyEmailTimeoutRef.current)
+      copyEmailTimeoutRef.current = null
+    }
+  }, [activeContact?.id])
+
+  useEffect(() => {
+    return () => {
+      if (copyEmailTimeoutRef.current) {
+        clearTimeout(copyEmailTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleCopyCustomerEmail = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!activeContact?.email) return
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(activeContact.email)
+      }
+    } catch {
+      // ignore
+    }
+    setCopiedEmail(true)
+    if (copyEmailTimeoutRef.current) {
+      clearTimeout(copyEmailTimeoutRef.current)
+    }
+    copyEmailTimeoutRef.current = setTimeout(() => {
+      setCopiedEmail(false)
+      copyEmailTimeoutRef.current = null
+    }, 2000)
+  }, [activeContact?.email])
   const [requests, setRequests] = useState<InboxRequest[]>([])
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
@@ -931,14 +972,43 @@ export function InboxView({
                       activeContact.type === 'agent' ? 'hidden md:block' : ''
                     }
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
                       <h2 className="truncate text-base font-semibold leading-tight">
                         {activeContact.name}
                       </h2>
                       {activeContact.type === 'customer' && activeContact.email && (
-                        <span className="truncate text-xs text-muted-foreground font-normal">
-                          · {activeContact.email}
-                        </span>
+                        <div className="flex items-center gap-1 min-w-0" data-testid="customer-email-header">
+                          <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">·</span>
+                          <span
+                            className="truncate text-xs text-muted-foreground font-normal max-w-[140px] sm:max-w-[200px]"
+                            title={activeContact.email}
+                            data-testid="customer-email-text"
+                          >
+                            {activeContact.email}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopyCustomerEmail}
+                            aria-label={copiedEmail ? t('Disalin!') : t('Copy email')}
+                            title={copiedEmail ? t('Disalin!') : `${t('Copy email')}: ${activeContact.email}`}
+                            data-testid="copy-customer-email-button"
+                            className={cn(
+                              "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-1.5 py-1 text-xs font-medium transition-colors cursor-pointer shrink-0",
+                              copiedEmail
+                                ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                            )}
+                          >
+                            {copiedEmail ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                <Check className="h-3.5 w-3.5 shrink-0" />
+                                <span>{t('Disalin!')}</span>
+                              </span>
+                            ) : (
+                              <Copy className="h-3.5 w-3.5 shrink-0" />
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
                     <ContactStatus

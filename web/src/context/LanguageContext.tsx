@@ -1,8 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import id from '../locales/id.json'
+import en from '../locales/en.json'
 
 export type LanguagePreference = 'auto' | 'en' | 'id'
-const dictionary: Record<string, string> = id
+const dictionaries: Record<'en' | 'id', Record<string, string>> = {
+  id,
+  en,
+}
 export function resolveLanguage(
   preference: LanguagePreference,
   languages: readonly string[],
@@ -52,11 +56,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         }
         setValue(next)
       },
-      t: (text: string) =>
-        language === 'id' &&
-        Object.prototype.hasOwnProperty.call(dictionary, text)
-          ? dictionary[text]
-          : text,
+      t: (text: string) => {
+        const dict = dictionaries[language]
+        if (dict && Object.prototype.hasOwnProperty.call(dict, text)) {
+          return dict[text]
+        }
+        return text
+      },
     }),
     [preference, language],
   )
