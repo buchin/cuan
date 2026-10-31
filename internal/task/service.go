@@ -1098,10 +1098,13 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 		}
 		exceededTimeout := now.Sub(startTime) > timeout
 
-		// Check 2: OS process is dead
+		// Check 2: OS process is dead (only for local_terminal attempts currently running;
+		// decoupled runner daemon attempts are tracked via lease heartbeats, not local terminalManager)
 		processDead := false
-		if isTaskActiveOnHost != nil && !isTaskActiveOnHost(t.ID) {
-			processDead = true
+		if a.Status == "running" && (a.RunnerID == "local_terminal" || a.RunnerID == "") {
+			if isTaskActiveOnHost != nil && !isTaskActiveOnHost(t.ID) {
+				processDead = true
+			}
 		}
 
 		if exceededTimeout || processDead {
