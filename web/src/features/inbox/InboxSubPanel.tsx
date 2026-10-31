@@ -1,16 +1,18 @@
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
+import { HairlineList } from '../../components/layout/HairlineList'
+import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
 import { Search, Bot, User, Archive, CheckCheck, CheckSquare, Zap, XCircle, Clock } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import './chat-whatsapp.css'
+import './chat-calm.css'
 
 export function conversationPreview(message?: string) {
   if (!message?.trim()) return 'No messages yet.'
@@ -37,6 +39,7 @@ export type ContactFilterTab = 'all' | 'agents' | 'customers'
 
 interface InboxSubPanelProps {
   onNewMessage?: () => void
+  onNewStudio?: () => void
   contacts: ChatContact[]
   agents?: Agent[]
   now?: number
@@ -54,6 +57,7 @@ interface InboxSubPanelProps {
 export function InboxSubPanel({
   contacts,
   onNewMessage,
+  onNewStudio,
   agents = [],
   now: suppliedNow,
   loading = false,
@@ -154,9 +158,41 @@ export function InboxSubPanel({
     return date.toLocaleDateString(language, { day: 'numeric', month: 'short' })
   }
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        if (onNewStudio) onNewStudio()
+        else if (onNewMessage) onNewMessage()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onNewStudio, onNewMessage])
+
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
-      <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1">
+      <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1.5">
+        {/* Quick entry bar: [+ Ide / Tugas Baru (Cmd+K)] */}
+        <div className="pb-0.5">
+          <button
+            type="button"
+            data-testid="new-goal-quick-bar"
+            aria-label={t('Ide / Tugas Baru (Cmd+K)')}
+            onClick={onNewStudio || onNewMessage}
+            className="group flex w-full min-h-11 items-center justify-between rounded-xl border border-border/50 bg-secondary/40 px-3.5 py-2 text-xs font-medium text-foreground transition-all hover:bg-secondary hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-xs leading-none">
+                +
+              </span>
+              <span className="font-semibold">{t('Ide / Tugas Baru')}</span>
+            </div>
+            <kbd className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-background/80 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground shadow-xs">
+              <span className="text-[11px]">⌘</span>K
+            </kbd>
+          </button>
+        </div>
         <ListCreateAction label="New message" kind="inbox" onClick={onNewMessage} />
         {/* Search Bar */}
         <ItemActions
@@ -377,7 +413,8 @@ export function InboxSubPanel({
             )}
           </div>
         ) : (
-          filteredContacts.map((contact, index) => {
+          <HairlineList className="divide-y divide-border/40">
+            {filteredContacts.map((contact, index) => {
             const isSelected =
               activeContactId === contact.id ||
               activeContactId === contact.conversation_id
@@ -436,7 +473,7 @@ export function InboxSubPanel({
                   isSelected && 'bg-accent text-accent-foreground font-medium',
                 )}
               >
-                {/* Avatar with Online Dot */}
+                {/* Avatar with StatusDot micro-indicator */}
                 <div className="relative shrink-0 mt-0.5">
                   <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold border border-border shadow-xs">
                     {contact.avatar ? (
@@ -447,12 +484,19 @@ export function InboxSubPanel({
                       <User className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
-                  {contact.is_online && (
-                    <span
-                      className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
-                      title={t('Online on website')}
-                    />
-                  )}
+                  {contact.type === 'agent' ? (
+                    <div className="absolute -bottom-0.5 -right-0.5">
+                      <StatusDot
+                        status={warning ? 'exception' : status.state === 'ready' || status.state === 'online' ? 'healthy' : 'neutral'}
+                        pulse={status.state === 'running'}
+                        size="sm"
+                      />
+                    </div>
+                  ) : contact.is_online ? (
+                    <div className="absolute -bottom-0.5 -right-0.5">
+                      <StatusDot status="healthy" size="sm" title={t('Online on website')} />
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Details */}
@@ -550,7 +594,8 @@ export function InboxSubPanel({
               )}
               </ItemActions>
             )
-          })
+          })}
+          </HairlineList>
         )}
       </div>
       <ArchiveNotice state={archive} />

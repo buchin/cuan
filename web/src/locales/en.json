@@ -1,4 +1,8 @@
 {
+  "Ide / Tugas Baru": "New Idea / Task",
+  "Ide Baru": "New Idea",
+  "Ide / Tugas Baru (Cmd+K)": "New Idea / Task (Cmd+K)",
+  "Ide / Tugas Baru (Quick Dump)": "New Idea / Task (Quick Dump)",
   "Real-time log streaming & interactive steering.": "Real-time log streaming & interactive steering.",
   "Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.": "Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.",
   "Background audio chime & tab notifications.": "Background audio chime & tab notifications.",

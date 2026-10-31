@@ -24,7 +24,7 @@ import { getAuthToken } from '../../../api/client'
 import { ActionDialog } from '../../../components/dialogs/ActionDialog'
 import { useLanguage } from '../../../context/LanguageContext'
 import { isImageFile } from '../../../components/dialogs/filePreviewUtils'
-import '../../inbox/chat-whatsapp.css'
+import '../../inbox/chat-calm.css'
 
 export type TerminalComposerProps = {
   taskId: string

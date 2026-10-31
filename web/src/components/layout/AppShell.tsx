@@ -244,7 +244,7 @@ export function AppShell({
           />
         </div>
       </nav>
-      {currentTab === 'inbox' && listOpen && (
+      {(currentTab === 'inbox' || currentTab === 'chat') && listOpen && (
         <section
           aria-label={t('Conversations')}
           className="conversation-sidebar hidden h-full w-[280px] shrink-0 flex-col border-r border-border min-[1200px]:flex"

@@ -283,11 +283,11 @@ Saya setuju dengan analisis ini.`
   assert(chatMarkdownCss.includes('border-left: 3.5px solid'), 'chat-markdown.css has vertical accent border')
   console.log('  ✓ chat-markdown.css enforces clamp, max-height, and vertical accent border')
 
-  const chatWhatsappCss = fs.readFileSync(path.join(__dirname, '../src/features/inbox/chat-whatsapp.css'), 'utf8')
-  assert(chatWhatsappCss.includes('.wa-chat .chat-markdown blockquote'), 'chat-whatsapp.css customizes blockquote')
-  assert(chatWhatsappCss.includes('.wa-outgoing .chat-markdown blockquote'), 'chat-whatsapp.css customizes outgoing bubble quote')
-  assert(chatWhatsappCss.includes('.dark .wa-outgoing .chat-markdown blockquote'), 'chat-whatsapp.css customizes dark outgoing bubble quote')
-  console.log('  ✓ chat-whatsapp.css handles dark/light theme and outgoing/incoming bubble accent colors')
+  const chatCalmCss = fs.readFileSync(path.join(__dirname, '../src/features/inbox/chat-calm.css'), 'utf8')
+  assert(chatCalmCss.includes('.wa-chat .chat-markdown blockquote'), 'chat-calm.css customizes blockquote')
+  assert(chatCalmCss.includes('.wa-outgoing .chat-markdown blockquote'), 'chat-calm.css customizes outgoing bubble quote')
+  assert(chatCalmCss.includes('.dark .wa-outgoing .chat-markdown blockquote'), 'chat-calm.css customizes dark outgoing bubble quote')
+  console.log('  ✓ chat-calm.css handles dark/light theme and outgoing/incoming bubble accent colors')
 
   // ---------------------------------------------------------------------------
   // Test 6: Source Integration Checks

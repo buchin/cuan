@@ -13,10 +13,19 @@ import { StudioExecutionSelector } from './StudioExecutionSelector'
 import { TasteGroundingChips } from './TasteGroundingChips'
 
 export function StudioView({
-  onAccepted, agentSetup, firstGoal, hasProject,
-  onAgentConnected, onCreateProject, onRetrySetup, checkRuntime = true,
+  onAccepted,
+  onConversationCreated,
+  agentSetup,
+  firstGoal,
+  hasProject,
+  onAgentConnected,
+  onCreateProject,
+  onRetrySetup,
+  checkRuntime = true,
+  autoFocus = false,
 }: {
   onAccepted: () => void
+  onConversationCreated?: (conversationId: string) => void
   agentSetup: 'loading' | 'needed' | 'ready' | 'error'
   firstGoal: boolean
   hasProject: boolean
@@ -24,6 +33,7 @@ export function StudioView({
   onCreateProject: () => void
   checkRuntime?: boolean
   onRetrySetup: () => void
+  autoFocus?: boolean
 }) {
   const { t } = useLanguage()
   const [connectRequested, setConnectRequested] = useState(false)
@@ -91,8 +101,12 @@ export function StudioView({
       setTimeout(() => {
         goalInput.current?.focus()
       }, 60)
+    } else if (autoFocus) {
+      setTimeout(() => {
+        goalInput.current?.focus()
+      }, 60)
     }
-  }, [searchParams])
+  }, [searchParams, autoFocus])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const supportsVision = selectedAgent
@@ -244,7 +258,11 @@ export function StudioView({
       setGoal('')
       uploads.clear()
       onAccepted()
-      navigate('/inbox/' + encodeURIComponent(result.conversation_id))
+      if (onConversationCreated) {
+        onConversationCreated(result.conversation_id)
+      } else {
+        navigate('/inbox/' + encodeURIComponent(result.conversation_id))
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('provider_quota_exhausted') || msg.includes('quota')) {

@@ -10,7 +10,7 @@ import {
   useAttachments,
 } from './Attachments'
 import { CannedResponsesPicker } from './CannedResponsesPicker'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { type Agent, isModelVisionCapable } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
@@ -51,9 +51,12 @@ import {
   EyeOff,
   Lock,
   Copy,
+  Plus,
+  X,
 } from 'lucide-react'
 import { Task } from '../../api/types'
-import './chat-whatsapp.css'
+import './chat-calm.css'
+import { StudioView } from './StudioView'
 import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
@@ -82,6 +85,7 @@ const EscalateTaskDialog = lazy(() =>
 
 interface InboxViewProps {
   onNewMessage?: () => void
+  onNewStudio?: () => void
   contacts?: ChatContact[]
   agents?: Agent[]
   now?: number
@@ -97,10 +101,20 @@ interface InboxViewProps {
   onContactSearchChange?: (q: string) => void
   onBackToContacts?: () => void
   onMobileChatActiveChange?: (active: boolean) => void
+  initialMode?: 'chat' | 'studio'
+  // Studio Canvas props
+  agentSetup?: 'loading' | 'needed' | 'ready' | 'error'
+  firstGoal?: boolean
+  hasProject?: boolean
+  onAgentConnected?: () => void
+  onCreateProject?: () => void
+  checkRuntime?: boolean
+  onRetrySetup?: () => void
 }
 
 export function InboxView({
   onNewMessage: _onNewMessage,
+  onNewStudio,
   contacts = [],
   agents = [],
   now: suppliedNow,
@@ -116,10 +130,74 @@ export function InboxView({
   onContactSearchChange,
   onBackToContacts,
   onMobileChatActiveChange,
+  initialMode,
+  agentSetup = 'ready',
+  firstGoal = false,
+  hasProject = true,
+  onAgentConnected,
+  onCreateProject,
+  checkRuntime = true,
+  onRetrySetup,
 }: InboxViewProps) {
+  const navigate = useNavigate()
   const clock = useConnectionClock(agents)
   const now = suppliedNow ?? clock
   const location = useLocation()
+  const isChatRoute = location.pathname.startsWith('/chat')
+  const [canvasMode, setCanvasMode] = useState<'chat' | 'studio'>(() => {
+    if (initialMode === 'studio' || isChatRoute || !activeContact) return 'studio'
+    return 'chat'
+  })
+  const [isStudioSheetOpen, setIsStudioSheetOpen] = useState(false)
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/chat') && !location.pathname.startsWith('/chat/')) {
+      setCanvasMode('studio')
+    } else if (activeContact) {
+      setCanvasMode('chat')
+    } else if (!activeContact) {
+      setCanvasMode('studio')
+    }
+  }, [location.pathname, activeContact])
+
+  const handleStudioConversationCreated = useCallback((conversationId: string) => {
+    setCanvasMode('chat')
+    setIsStudioSheetOpen(false)
+    setMobileView('chat')
+    onMobileChatActiveChange?.(true)
+    onContactUpdated?.()
+    const target = contacts.find(
+      (c) => (c.conversation_id || c.id) === conversationId,
+    )
+    if (target) {
+      onSelectContact?.(target)
+    } else {
+      onSelectContact?.({
+        id: conversationId,
+        conversation_id: conversationId,
+        name: 'Agent Task',
+        type: 'agent',
+        avatar: '',
+        unread_count: 0,
+        status: 'online',
+        updated_at: new Date().toISOString(),
+      })
+    }
+    navigate('/inbox/' + encodeURIComponent(conversationId), { replace: true })
+  }, [contacts, onSelectContact, onMobileChatActiveChange, onContactUpdated, navigate])
+
+  const handleOpenStudio = useCallback(() => {
+    if (onNewStudio) {
+      onNewStudio()
+      return
+    }
+    if (window.innerWidth < 1200) {
+      setIsStudioSheetOpen(true)
+    } else {
+      setCanvasMode('studio')
+      navigate('/chat' + location.search)
+    }
+  }, [onNewStudio, navigate, location.search])
   const requestedMessageId =
     new URLSearchParams(location.search).get('message') || ''
   const openedSearchMessage = useRef('')
@@ -946,7 +1024,7 @@ export function InboxView({
       {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
       <div
         className={cn(
-          'w-full h-full min-[1200px]:hidden flex-col',
+          'w-full h-full min-[1200px]:hidden flex-col relative',
           mobileView === 'contacts' ? 'flex' : 'hidden',
         )}
       >
@@ -959,11 +1037,78 @@ export function InboxView({
           onRetry={onRetry}
           activeContactId={activeContact?.id}
           onSelectContact={handleSelectContactInternal}
+          onNewStudio={handleOpenStudio}
+          onNewMessage={handleOpenStudio}
           selectedTab={contactTab}
           onTabChange={onContactTabChange}
           searchQuery={contactSearch}
           onSearchChange={onContactSearchChange}
         />
+
+        {/* ── Mobile Magic Plus (+) Floating Action Button (Things 3 Inspired) ── */}
+        <div className="fixed bottom-6 right-6 z-40 min-[1200px]:hidden">
+          <button
+            type="button"
+            data-testid="magic-plus-fab"
+            aria-label={t('Ide / Tugas Baru (Quick Dump)')}
+            title={t('Ide / Tugas Baru')}
+            onClick={() => setIsStudioSheetOpen(true)}
+            className="flex h-13 w-13 min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-foreground text-background shadow-lg hover:bg-foreground/90 active:scale-95 transition-transform select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="h-6 w-6 stroke-[2.5]" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* ── Mobile Slide-Up Studio Sheet (Things 3 Inspired) ── */}
+        {isStudioSheetOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('Ide / Tugas Baru')}
+            data-testid="studio-slide-up-sheet"
+            className="fixed inset-0 z-50 flex flex-col justify-end min-[1200px]:hidden"
+          >
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+              onClick={() => setIsStudioSheetOpen(false)}
+              aria-hidden="true"
+            />
+            <div className="relative z-10 w-full max-h-[88vh] overflow-y-auto rounded-t-2xl border-t border-border/50 bg-background p-4 sm:p-6 shadow-2xl animate-in slide-in-from-bottom duration-200">
+              <div className="flex items-center justify-between border-b border-border/40 pb-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-xs leading-none">
+                    +
+                  </span>
+                  <h3 className="text-base font-semibold text-foreground">
+                    {t('Ide / Tugas Baru')}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsStudioSheetOpen(false)}
+                  className="icon-action text-muted-foreground hover:text-foreground"
+                  aria-label={t('Close')}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="w-full">
+                <StudioView
+                  onAccepted={() => onContactUpdated?.()}
+                  onConversationCreated={handleStudioConversationCreated}
+                  agentSetup={agentSetup}
+                  firstGoal={firstGoal}
+                  hasProject={hasProject}
+                  onAgentConnected={onAgentConnected ?? (() => {})}
+                  onCreateProject={onCreateProject ?? (() => {})}
+                  onRetrySetup={onRetrySetup ?? (() => {})}
+                  checkRuntime={checkRuntime}
+                  autoFocus={true}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
@@ -973,17 +1118,22 @@ export function InboxView({
           mobileView === 'chat' ? 'flex' : 'hidden min-[1200px]:flex',
         )}
       >
-        {!activeContact ? (
-          <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-background select-none">
-            <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground mb-4 shadow-sm border border-border">
-              <Bot className="h-8 w-8 text-primary" />
+        {canvasMode === 'studio' || !activeContact ? (
+          <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+            <div className="calm-stream-constraint max-w-2xl mx-auto">
+              <StudioView
+                onAccepted={() => onContactUpdated?.()}
+                onConversationCreated={handleStudioConversationCreated}
+                agentSetup={agentSetup}
+                firstGoal={firstGoal}
+                hasProject={hasProject}
+                onAgentConnected={onAgentConnected ?? (() => {})}
+                onCreateProject={onCreateProject ?? (() => {})}
+                onRetrySetup={onRetrySetup ?? (() => {})}
+                checkRuntime={checkRuntime}
+                autoFocus={true}
+              />
             </div>
-            <h3 className="text-base font-bold text-foreground">
-              Your conversations
-            </h3>
-            <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-              Choose a conversation to continue, or start something new in Chat.
-            </p>
           </div>
         ) : (
           <>
@@ -1098,6 +1248,17 @@ export function InboxView({
                     <Settings className="h-5 w-5" />
                   </Link>
                 )}
+                <button
+                  type="button"
+                  data-testid="header-new-studio-btn"
+                  onClick={handleOpenStudio}
+                  title={t('Ide / Tugas Baru (Cmd+K)')}
+                  aria-label={t('Ide / Tugas Baru (Cmd+K)')}
+                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/60 bg-muted/30 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5 text-primary" />
+                  <span>{t('Ide Baru')}</span>
+                </button>
               </div>
             </div>
 
@@ -1186,8 +1347,9 @@ export function InboxView({
               <div
                 ref={messageListRef}
                 onScroll={handleScroll}
-                className="inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
+                className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
+                <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2">
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
                   {activeContact?.type === 'customer' ? (
@@ -1816,6 +1978,7 @@ export function InboxView({
                   </div>
                 </div>
               )}
+                </div>
             </div>
 
             {/* ── Floating 'Scroll to Bottom' Button ── */}
@@ -1887,7 +2050,7 @@ export function InboxView({
               }}
               onDragOver={uploads.onDragOver}
             >
-              <div className="mx-auto max-w-4xl space-y-2">
+              <div className="mx-auto max-w-[75ch] space-y-2">
                 {activeContact.type === 'customer' && (
                   <div className="flex flex-wrap items-center justify-between gap-1.5 px-1.5 text-xs">
                     <div className="flex items-center gap-1.5 flex-wrap">

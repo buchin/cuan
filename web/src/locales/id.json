@@ -1,4 +1,8 @@
 {
+  "Ide / Tugas Baru": "Ide / Tugas Baru",
+  "Ide Baru": "Ide Baru",
+  "Ide / Tugas Baru (Cmd+K)": "Ide / Tugas Baru (Cmd+K)",
+  "Ide / Tugas Baru (Quick Dump)": "Ide / Tugas Baru (Quick Dump)",
   "Real-time log streaming & interactive steering.": "Streaming log real-time & kemudi interaktif.",
   "Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.": "Pipa streaming stdout/stderr seketika menghadirkan transparansi proses aktif, sementara kemudi obrolan interaktif memudahkan Anda mengarahkan agen tanpa mengulang dari awal.",
   "Background audio chime & tab notifications.": "Audio chime latar belakang & notifikasi tab.",

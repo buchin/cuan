@@ -33,11 +33,6 @@ const AcceptInvitePage = lazy(() =>
     default: m.AcceptInvitePage,
   })),
 )
-const StudioView = lazy(() =>
-  import('./features/inbox/StudioView').then((m) => ({
-    default: m.StudioView,
-  })),
-)
 const InboxView = lazy(() =>
   import('./features/inbox/InboxView').then((m) => ({
     default: m.InboxView,
@@ -804,6 +799,10 @@ export function App() {
           <InboxSubPanel
             contacts={contacts}
             onNewMessage={() => openNew('message')}
+            onNewStudio={() => {
+              setActiveContact(undefined)
+              navigate('/chat')
+            }}
             agents={directoryAgents}
             loading={contactsLoading}
             error={contactsError}
@@ -820,8 +819,30 @@ export function App() {
         <Suspense fallback={<ViewFallback />}>
           {currentTab === 'notifications' && <NotificationsView />}
           {currentTab === 'chat' && (
-            <StudioView
-              onAccepted={() => void refreshContacts()}
+            <InboxView
+              contacts={contacts}
+              agents={directoryAgents}
+              loading={contactsLoading}
+              error={contactsError}
+              onRetry={refreshContacts}
+              activeContact={visibleContact}
+              onSelectContact={handleSelectContact}
+              onNewMessage={() => openNew('message')}
+              onNewStudio={() => {
+                setActiveContact(undefined)
+                navigate('/chat')
+              }}
+              onContactUpdated={refreshContacts}
+              contactTab={contactTab}
+              onContactTabChange={setContactTab}
+              contactSearch={contactSearch}
+              onContactSearchChange={setContactSearch}
+              onBackToContacts={() => {
+                setActiveContact(undefined)
+                navigate('/inbox')
+              }}
+              onMobileChatActiveChange={setIsMobileChatActive}
+              initialMode="studio"
               checkRuntime={!directoryAgents.some((a) =>
                 a.enabled !== false && a.status !== 'inactive' &&
                 ['codex', 'claude'].includes(a.harness || a.provider || '')
@@ -852,6 +873,10 @@ export function App() {
               activeContact={visibleContact}
               onSelectContact={handleSelectContact}
               onNewMessage={() => openNew('message')}
+              onNewStudio={() => {
+                setActiveContact(undefined)
+                navigate('/chat')
+              }}
               onContactUpdated={refreshContacts}
               contactTab={contactTab}
               onContactTabChange={setContactTab}
@@ -862,6 +887,24 @@ export function App() {
                 navigate('/inbox')
               }}
               onMobileChatActiveChange={setIsMobileChatActive}
+              initialMode={visibleContact ? 'chat' : 'studio'}
+              checkRuntime={!directoryAgents.some((a) =>
+                a.enabled !== false && a.status !== 'inactive' &&
+                ['codex', 'claude'].includes(a.harness || a.provider || '')
+              )}
+              agentSetup={
+                !agentsLoaded ? 'loading' : agentsError ? 'error' :
+                directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
+                  ? 'ready' : 'needed'
+              }
+              firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+              hasProject={
+                projectsLoading || !!projectsError ||
+                projects.some((p) => p.id !== 'default' || !!p.repo_url)
+              }
+              onAgentConnected={() => void refreshContacts()}
+              onCreateProject={() => setIsCreateProjectOpen(true)}
+              onRetrySetup={() => void refreshContacts()}
             />
           )}
 
