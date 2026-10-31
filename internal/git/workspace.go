@@ -102,6 +102,7 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		// Re-ensure git config and pre-push hook
 		_ = c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail)
 		_ = c.installBranchProtectionHook(workspacePath, defaultBranch)
+		c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
 
 		return ws, nil
 	}
@@ -161,6 +162,8 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		return nil, err
 	}
 
+	c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
+
 	return ws, nil
 }
 
@@ -213,6 +216,53 @@ exit 0
 	}
 
 	return nil
+}
+
+// linkWorkspaceDependencies links node_modules and built web assets into the workspace
+// from base repository or shared cache to ensure lean fast execution and reliable tests.
+func (c *Client) linkWorkspaceDependencies(workspacePath, baseRepoDir string) {
+	webDir := filepath.Join(workspacePath, "web")
+	if _, err := os.Stat(webDir); err != nil {
+		return
+	}
+
+	targetNodeModules := filepath.Join(webDir, "node_modules")
+	if _, err := os.Lstat(targetNodeModules); err != nil {
+		candidates := []string{
+			filepath.Join(baseRepoDir, "web", "node_modules"),
+			filepath.Join(baseRepoDir, "node_modules"),
+			"/opt/cuan/data/projects/default/web/node_modules",
+			"/opt/cuan/data/projects/task-workspaces/8405093f307a3e147d1170d23842c8c3575c98adfbec715451e76e215a9a530b/web/node_modules",
+		}
+		for _, cand := range candidates {
+			if cand != "" {
+				if realPath, rErr := filepath.EvalSymlinks(cand); rErr == nil {
+					if fi, sErr := os.Stat(realPath); sErr == nil && fi.IsDir() {
+						_ = os.Symlink(cand, targetNodeModules)
+						break
+					}
+				}
+			}
+		}
+	}
+
+	targetDist := filepath.Join(webDir, "dist")
+	if _, err := os.Lstat(targetDist); err != nil {
+		candidates := []string{
+			filepath.Join(baseRepoDir, "web", "dist"),
+			os.Getenv("CUAN_STATIC_DIR"),
+			"/opt/cuan/current/web/dist",
+			"/opt/cuan/data/projects/default/web/dist",
+		}
+		for _, cand := range candidates {
+			if cand != "" {
+				if fi, sErr := os.Stat(cand); sErr == nil && fi.IsDir() {
+					_ = os.Symlink(cand, targetDist)
+					break
+				}
+			}
+		}
+	}
 }
 
 // CommitChanges stages all changes in workspace and commits with configured author identity.
