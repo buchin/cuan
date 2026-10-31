@@ -4,6 +4,7 @@ import { NotificationSettings } from './NotificationSettings'
 import { InstallAppCard } from './InstallAppCard'
 import { AppUpdateCard } from './AppUpdateCard'
 import { ScheduledJobsCard } from './ScheduledJobsCard'
+import { WorkerHealthCard } from './WorkerHealthCard'
 import { SchedulesView } from '../schedules/SchedulesView'
 import {
   useLanguage,
@@ -346,6 +347,7 @@ export function SettingsView({
                   </Link>
                 </div>
               </section>
+              <WorkerHealthCard />
               <AppUpdateCard />
               <ScheduledJobsCard />
               <InstallAppCard />

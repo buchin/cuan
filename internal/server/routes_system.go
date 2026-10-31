@@ -11,7 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/scheduler"
+	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/updater"
 )
 
@@ -31,6 +33,7 @@ func (s *Server) registerSystemRoutes(r chi.Router) {
 	r.Delete("/api/system/scheduler/tasks/{id}", s.handleDeleteScheduledTask)
 	r.Patch("/api/system/scheduler/tasks/{id}/toggle", s.handleToggleScheduledTask)
 	r.Post("/api/system/scheduler/tasks/{id}/trigger", s.handleTriggerScheduledTask)
+	r.Get("/api/system/worker-health", s.handleGetWorkerHealth)
 	r.Get("/install.sh", s.handleInstallScript)
 }
 
@@ -47,6 +50,7 @@ func (s *Server) registerSystemV1Routes(r chi.Router) {
 	r.Delete("/system/scheduler/tasks/{id}", s.handleDeleteScheduledTask)
 	r.Patch("/system/scheduler/tasks/{id}/toggle", s.handleToggleScheduledTask)
 	r.Post("/system/scheduler/tasks/{id}/trigger", s.handleTriggerScheduledTask)
+	r.Get("/system/worker-health", s.handleGetWorkerHealth)
 }
 
 func (s *Server) setupStaticRoutes() {
@@ -419,4 +423,116 @@ func (s *Server) handleTriggerScheduledTask(w http.ResponseWriter, r *http.Reque
 		"status": "triggered",
 		"id":     id,
 	})
+}
+
+// WorkerHealthResponse represents health metrics and queue depth of cuan-runner daemon.
+type WorkerHealthResponse struct {
+	Status             string    `json:"status"`               // "ready" (green), "busy" (yellow), "attention" (red)
+	RunnerID           string    `json:"runner_id"`            // "cuan-runner" or matched runner ID
+	RunnerName         string    `json:"runner_name"`          // Human-readable runner name
+	Hostname           string    `json:"hostname,omitempty"`
+	IsAlive            bool      `json:"is_alive"`             // true if heartbeat received within threshold (45s)
+	LastHeartbeatAt    time.Time `json:"last_heartbeat_at"`
+	LastSeenSecondsAgo int64     `json:"last_seen_seconds_ago"`
+	QueuedCount        int       `json:"queued_count"`         // Tasks with status queued or pending
+	RunningCount       int       `json:"running_count"`        // Tasks currently doing / running
+	QueueDepth         int       `json:"queue_depth"`          // queued_count + running_count
+	Timestamp          time.Time `json:"timestamp"`
+}
+
+func (s *Server) handleGetWorkerHealth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	now := time.Now().UTC()
+
+	var queuedCount, runningCount int
+	if s.taskSvc != nil {
+		tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+		if err == nil {
+			for _, t := range tasks {
+				st := strings.ToLower(strings.TrimSpace(t.Status))
+				if st == task.TaskStatusQueued || st == task.TaskStatusPending {
+					queuedCount++
+				} else if st == task.TaskStatusDoing {
+					runningCount++
+				} else if t.LatestAttempt != nil {
+					attSt := strings.ToLower(strings.TrimSpace(t.LatestAttempt.Status))
+					if attSt == task.AttemptStatusRunning {
+						runningCount++
+					}
+				}
+			}
+		}
+	}
+
+	var matchedRunner *runner.RunnerInfo
+	if s.runnerSvc != nil {
+		runners, err := s.runnerSvc.ListRunners(ctx)
+		if err == nil && len(runners) > 0 {
+			// Prioritize runner matching "cuan-runner"
+			for _, rn := range runners {
+				if rn.ID == "cuan-runner" || rn.Name == "cuan-runner" {
+					matchedRunner = rn
+					break
+				}
+			}
+			// If not found, pick the runner with the latest heartbeat
+			if matchedRunner == nil {
+				matchedRunner = runners[0]
+				for _, rn := range runners[1:] {
+					if rn.LastHeartbeatAt.After(matchedRunner.LastHeartbeatAt) {
+						matchedRunner = rn
+					}
+				}
+			}
+		}
+		if matchedRunner == nil {
+			if rn, err := s.runnerSvc.GetRunner(ctx, "cuan-runner"); err == nil && rn != nil {
+				matchedRunner = rn
+			}
+		}
+	}
+
+	resp := WorkerHealthResponse{
+		Status:             "attention",
+		RunnerID:           "cuan-runner",
+		RunnerName:         "cuan-runner",
+		QueuedCount:        queuedCount,
+		RunningCount:       runningCount,
+		QueueDepth:         queuedCount + runningCount,
+		Timestamp:          now,
+		LastSeenSecondsAgo: -1,
+	}
+
+	const heartbeatThreshold = 45 * time.Second
+
+	if matchedRunner != nil {
+		resp.RunnerID = matchedRunner.ID
+		if matchedRunner.Name != "" {
+			resp.RunnerName = matchedRunner.Name
+		}
+		resp.Hostname = matchedRunner.Hostname
+		resp.LastHeartbeatAt = matchedRunner.LastHeartbeatAt
+
+		if !matchedRunner.LastHeartbeatAt.IsZero() {
+			diff := now.Sub(matchedRunner.LastHeartbeatAt)
+			if diff >= 0 {
+				resp.LastSeenSecondsAgo = int64(diff.Seconds())
+			}
+			if diff <= heartbeatThreshold {
+				resp.IsAlive = true
+			}
+		}
+	}
+
+	if resp.IsAlive {
+		if resp.RunningCount > 0 || (matchedRunner != nil && matchedRunner.Status == runner.StatusBusy) {
+			resp.Status = "busy"
+		} else {
+			resp.Status = "ready"
+		}
+	} else {
+		resp.Status = "attention"
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }

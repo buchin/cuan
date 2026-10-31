@@ -143,3 +143,13 @@ Mulai Sprint 57, antarmuka obrolan Conversational Inbox dilengkapi dengan umpan 
 - **Kriteria Selesai (DoD):** Menampilkan rekap pemenuhan kriteria Definition of Done dengan visual lencana hijau yang menenangkan (*zero guesswork & total peace of mind*).
 - **Tombol Aksi Cepat:** Menyediakan tombol pintas langsung menuju halaman detail tugas serta tombol "Lanjutkan Diskusi" yang memicu instruksi lanjutan tanpa perlu mengetik ulang referensi tugas.
 
+### 7.3 Background Audio Chime & Document Title Notification Badge
+- **Harmonic Web Audio Synthesizer:** Menggunakan Web Audio API peramban murni (tanpa binary audio eksternal `.mp3`/`.wav`) dengan dua gelombang sinus harmonis C6 (1046.5 Hz) dan E6 (1318.5 Hz) serta exponential decay 0.4s yang lembut dan ramah pendengaran.
+- **Zero-Friction Autoplay Fallback:** Menangani pembatasan izin autoplay browser secara senyap (*silent catch*) tanpa error ke konsol pengguna.
+- **Visual Title Notification Badge:** Saat browser tab tidak aktif atau berada di latar belakang (*document.hidden*), judul tab otomatis menampilkan lencana dinamis `(1) Tugas Selesai! - Cuan` dan segera mengembalikan judul asli saat jendela difokuskan kembali (`window.onfocus`).
+
+### 7.4 Worker Observability & Queue Health di Menu Pengaturan
+- **Visual Indicator Ramah Bisnis:** Menyajikan widget status kesehatan daemon `cuan-runner` di halaman Pengaturan (`WorkerHealthCard`), dilengkapi lampu indikator visual (Hijau = Aktif/Siap, Kuning = Sedang Memproses, Merah/Abu-abu = Perhatian/Tidak Aktif).
+- **Kedalaman Antrean:** Menampilkan metrik antrean tugas (*queued*, *running*, dan *queue depth*) serta detak jantung (*heartbeat*) terakhir dari worker secara seketika via endpoint `GET /api/system/worker-health`.
+
+

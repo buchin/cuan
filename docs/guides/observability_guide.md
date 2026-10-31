@@ -266,3 +266,34 @@ Saat menerima alert `[FIRING] Service Outage` di Telegram atau Discord, ikuti pa
   *A:* 100% aman. Token bot, secret HMAC, dan webhook URL dienkripsi menggunakan AES-GCM 256-bit at-rest. Ketika API menyajikan data ke browser, nilai sensitif telah disanitasi (`1234***ef`).
 - **Q: Mengapa status deployment menjadi Degraded dan bukan Unhealthy?**
   *A:* Status `degraded` diberikan jika respons melambat (> 2000ms) atau kegagalan baru terjadi 1–2 kali. Hal ini memberikan ruang toleransi terhadap fluktuasi jaringan sementara sebelum menyatakan status darurat *outage*.
+
+---
+
+## 7. Observabilitas Worker Daemon & Antrean Toko (`cuan-runner`)
+
+Mulai Sprint 57, Cuan menyediakan endpoint sistem dan widget antarmuka Pengaturan untuk memantau kesehatan worker mandiri (`cuan-runner`) tanpa memerlukan akses terminal server VPS:
+
+### 7.1 Endpoint Sistem: `GET /api/system/worker-health`
+- **Kecepatan & Ringkas (<10ms):** Mengembalikan metrik JSON terstruktur yang memuat status daemon, detak jantung (*heartbeat*), dan kedalaman antrean tugas.
+- **Kontrak Respons JSON:**
+  ```json
+  {
+    "status": "ready",
+    "runner_id": "cuan-runner",
+    "runner_name": "cuan-runner",
+    "is_alive": true,
+    "last_heartbeat_at": "2026-10-31T18:30:00Z",
+    "last_seen_seconds_ago": 4,
+    "queued_count": 0,
+    "running_count": 0,
+    "queue_depth": 0,
+    "timestamp": "2026-10-31T18:30:04Z"
+  }
+  ```
+
+### 7.2 Indikator Visual di Menu Pengaturan (`WorkerHealthCard`)
+- **Hijau (Aktif / Siap):** Heartbeat worker aktif dan tidak ada tugas yang memblokir, siap menerima tugas baru.
+- **Kuning (Sibuk / Memproses):** Worker sedang menjalankan tugas antrean pelanggan secara aktif.
+- **Merah / Abu-abu (Perhatian / Tidak Aktif):** Heartbeat tidak terdeteksi melebihi batas toleransi (45 detik), menandakan daemon worker offline atau membutuhkan pemeriksaan.
+- **Kedalaman Antrean:** Menampilkan jumlah tugas *queued*, *running*, dan total *queue depth* yang selalu diperbarui secara berkala.
+

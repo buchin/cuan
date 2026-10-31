@@ -13,6 +13,8 @@ import {
   Zap,
   Clock,
   Sparkles,
+  Volume2,
+  Activity,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -275,6 +277,16 @@ export function LandingPage() {
                 Icon: Sparkles,
                 title: 'Real-time task progress & actionable completion cards.',
                 text: 'Instant visual feedback with floating live progress chips and live duration timers during execution, followed by jargon-free completion cards embedded in chat.',
+              },
+              {
+                Icon: Volume2,
+                title: 'Background audio chime & tab notifications.',
+                text: 'Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.',
+              },
+              {
+                Icon: Activity,
+                title: 'Worker observability & queue health.',
+                text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
               },
               {
                 Icon: Clock,

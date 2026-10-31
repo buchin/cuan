@@ -64,6 +64,7 @@ import { TaskItemCard } from '../tasks/TaskItemCard'
 import { getQueuedTasksPositions } from '../tasks/task-ui'
 import { TaskProgressBanner, isTaskActive } from './TaskProgressBanner'
 import { TaskCompletionCard } from './TaskCompletionCard'
+import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 import { TasteGroundingChips } from './TasteGroundingChips'
@@ -165,6 +166,28 @@ export function InboxView({
   const activeConversationTasks = useMemo(() => {
     return linkedTasks.filter(isTaskActive)
   }, [linkedTasks])
+
+  // Track task completion transitions to trigger audio chime & background tab badge
+  const prevActiveTasksRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const currentActiveIds = new Set(activeConversationTasks.map((t) => t.id))
+    if (prevActiveTasksRef.current.size > 0) {
+      let newlyCompletedCount = 0
+      for (const id of prevActiveTasksRef.current) {
+        if (!currentActiveIds.has(id)) {
+          const taskObj = linkedTasks.find((t) => t.id === id)
+          const st = (taskObj?.status || '').toLowerCase().trim()
+          if (st === 'done' || st === 'review') {
+            newlyCompletedCount++
+          }
+        }
+      }
+      if (newlyCompletedCount > 0) {
+        notifyTaskCompleted({ count: newlyCompletedCount })
+      }
+    }
+    prevActiveTasksRef.current = currentActiveIds
+  }, [activeConversationTasks, linkedTasks])
   const [showTasksModal, setShowTasksModal] = useState(false)
   const [convTab, setConvTab] = useState<'chat' | 'tasks'>('chat')
   const [escalatingMessage, setEscalatingMessage] = useState<ChatMessage | null>(null)
