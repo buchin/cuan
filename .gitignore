@@ -8,9 +8,9 @@ cuan-migrate
 *.out
 
 # Node / Frontend
-node_modules/
-web/node_modules/
-web/dist/
+node_modules
+web/node_modules
+web/dist
 *.tsbuildinfo
 
 # Environment and secrets
