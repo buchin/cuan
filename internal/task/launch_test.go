@@ -715,3 +715,234 @@ func TestReconcileGhostQueuedTaskResurrectionAfterServerRestart(t *testing.T) {
 		t.Fatalf("expected ClaimLaunch to claim resurrected launch %s, got %+v", l.ID, claimed)
 	}
 }
+
+func TestReconcileStartupLaunches_RevivesQueuedTask(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+
+	created, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Task needing recovery on startup",
+		Instructions: "Do recovery",
+		ProjectIDs:   []string{"p_startup"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	qStatus := TaskStatusQueued
+	_, err = svc.UpdateTask(ctx, created.ID, "user", UpdateTaskRequest{Status: &qStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           created.ID,
+		ProjectID:        "p_startup",
+		RequestID:        "req_startup_1",
+		OwnerID:          "owner",
+		RoomID:           "room",
+		SourceRequestID: "req_source_startup_1",
+		AgentID:          "agent_sm",
+		InstructionsHash: LaunchInstructionsHash("Do recovery"),
+		CreatedAt:        now.Add(-1 * time.Hour),
+		AvailableAt:      now.Add(-1 * time.Hour),
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Case A: Launch was in 'started' state when server crashed
+	store.mu.Lock()
+	store.launches[l.ID].State = "started"
+	store.mu.Unlock()
+
+	if err := svc.ReconcileStartupLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileStartupLaunches failed: %v", err)
+	}
+
+	revived, err := svc.GetLaunch(ctx, l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revived.State != "queued" {
+		t.Fatalf("expected revived launch state 'queued', got '%s'", revived.State)
+	}
+
+	// Case B: Launch was previously marked 'stopped' during earlier crash
+	store.mu.Lock()
+	store.launches[l.ID].State = "stopped"
+	store.launches[l.ID].SafeError = "Execution stopped during server restart."
+	store.mu.Unlock()
+
+	if err := svc.ReconcileStartupLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileStartupLaunches failed: %v", err)
+	}
+
+	revivedAgain, err := svc.GetLaunch(ctx, l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revivedAgain.State != "queued" {
+		t.Fatalf("expected revivedAgain launch state 'queued', got '%s'", revivedAgain.State)
+	}
+	if revivedAgain.SafeError != "" {
+		t.Fatalf("expected empty safe_error, got '%s'", revivedAgain.SafeError)
+	}
+}
+
+func TestLaunchMultiLaneConcurrency(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+	projectID := "proj-multilane-test"
+
+	// 1. Create a code task and start it
+	codeTask, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:             "Feature implementation",
+		ProjectIDs:        []string{projectID},
+		Instructions:      "Write code",
+		ExecutionCategory: ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	codeDoing := TaskStatusDoing
+	if _, err := svc.UpdateTask(ctx, codeTask.ID, "runner", UpdateTaskRequest{Status: &codeDoing}); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Create a readonly task with queued launch in the same project
+	readTask, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:             "Inspect system status and telemetry",
+		ProjectIDs:        []string{projectID},
+		Instructions:      "Inspect status",
+		ExecutionCategory: ExecutionCategoryReadOnly,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	readQueued := TaskStatusQueued
+	if _, err := svc.UpdateTask(ctx, readTask.ID, "runner", UpdateTaskRequest{Status: &readQueued}); err != nil {
+		t.Fatal(err)
+	}
+	readLaunch, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           readTask.ID,
+		ProjectID:        projectID,
+		RequestID:        "req_read_1",
+		SourceRequestID: "req_read_source_1",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash("Inspect status"),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. ClaimLaunch: The readonly task launch MUST be claimable concurrently even while codeTask is doing!
+	claimedRead, err := svc.ClaimLaunch(ctx, now, "worker-read")
+	if err != nil {
+		t.Fatalf("ClaimLaunch for readonly task failed: %v", err)
+	}
+	if claimedRead == nil || claimedRead.ID != readLaunch.ID {
+		t.Fatalf("expected readonly launch %s to be claimed concurrently with active code task, got %+v", readLaunch.ID, claimedRead)
+	}
+
+	// 4. Create another code task: It MUST be blocked while codeTask is doing
+	codeTask2, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:             "Second feature implementation",
+		ProjectIDs:        []string{projectID},
+		Instructions:      "Write more code",
+		ExecutionCategory: ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	codeQueued := TaskStatusQueued
+	if _, err := svc.UpdateTask(ctx, codeTask2.ID, "runner", UpdateTaskRequest{Status: &codeQueued}); err != nil {
+		t.Fatal(err)
+	}
+	codeLaunch2, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           codeTask2.ID,
+		ProjectID:        projectID,
+		RequestID:        "req_code_2",
+		SourceRequestID: "req_code_source_2",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash("Write more code"),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	claimedCode2, err := svc.ClaimLaunch(ctx, now, "worker-code-2")
+	if err != nil {
+		t.Fatalf("ClaimLaunch unexpected error: %v", err)
+	}
+	if claimedCode2 != nil {
+		t.Fatalf("expected second code task launch %s to be blocked by active code task, but it was claimed: %+v", codeLaunch2.ID, claimedCode2)
+	}
+
+	// 5. Active database migration acts as exclusive barrier: blocks all tasks (including readonly)
+	migTask, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:             "Database migration for payments",
+		ProjectIDs:        []string{"proj-mig-test"},
+		Instructions:      "Run migration script",
+		ExecutionCategory: ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	migDoing := TaskStatusDoing
+	if _, err := svc.UpdateTask(ctx, migTask.ID, "runner", UpdateTaskRequest{Status: &migDoing}); err != nil {
+		t.Fatal(err)
+	}
+
+	readTaskMig, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:             "Inspect system status",
+		ProjectIDs:        []string{"proj-mig-test"},
+		Instructions:      "Inspect status",
+		ExecutionCategory: ExecutionCategoryReadOnly,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	readMigQueued := TaskStatusQueued
+	if _, err := svc.UpdateTask(ctx, readTaskMig.ID, "runner", UpdateTaskRequest{Status: &readMigQueued}); err != nil {
+		t.Fatal(err)
+	}
+	readMigLaunch, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           readTaskMig.ID,
+		ProjectID:        "proj-mig-test",
+		RequestID:        "req_read_mig_1",
+		SourceRequestID: "req_read_mig_source_1",
+		OwnerID:          "owner",
+		RoomID:           "room-1",
+		AgentID:          "agent-1",
+		InstructionsHash: LaunchInstructionsHash("Inspect status"),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	claimedMigRead, err := svc.ClaimLaunch(ctx, now, "worker-mig-read")
+	if err != nil {
+		t.Fatalf("ClaimLaunch error: %v", err)
+	}
+	if claimedMigRead != nil {
+		t.Fatalf("expected readonly task launch %s to be blocked by active migration, but got %+v", readMigLaunch.ID, claimedMigRead)
+	}
+}

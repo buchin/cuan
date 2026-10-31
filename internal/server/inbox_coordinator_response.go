@@ -376,3 +376,137 @@ func extractTitleFromReply(reply string) string {
 	}
 	return "Usulan Tugas Baru"
 }
+
+func synthesizeApprovalReply(textReply string) string {
+	if strings.Contains(textReply, "```cuan-approval") || strings.Contains(textReply, "```cuan-delegate") {
+		return textReply
+	}
+	title := extractTitleFromReply(textReply)
+	projectName := "Default"
+	lower := strings.ToLower(textReply)
+	if strings.Contains(lower, "cuan") || strings.Contains(lower, "studio") || strings.Contains(lower, "form") {
+		projectName = "Cuan"
+	}
+	desc := textReply
+	if len([]rune(desc)) > 6000 {
+		desc = string([]rune(desc)[:6000])
+	}
+	payloadBytes, _ := json.Marshal(inboxApprovalPlan{
+		Title:       title,
+		Description: desc,
+		ProjectName: projectName,
+	})
+	return textReply + "\n```cuan-approval\n" + string(payloadBytes) + "\n```"
+}
+
+func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string) {
+	clean := strings.TrimSpace(raw)
+	if clean == "" {
+		return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+	}
+
+	// 1. Try to extract JSON candidate from markdown code fence or braces
+	jsonCandidate := clean
+	if startIdx := strings.Index(clean, "```json"); startIdx != -1 {
+		rest := clean[startIdx+7:]
+		if endIdx := strings.Index(rest, "```"); endIdx != -1 {
+			jsonCandidate = strings.TrimSpace(rest[:endIdx])
+		}
+	} else if startIdx := strings.Index(clean, "```"); startIdx != -1 {
+		rest := clean[startIdx+3:]
+		if nl := strings.IndexByte(rest, '\n'); nl != -1 {
+			rest = rest[nl+1:]
+		}
+		if endIdx := strings.Index(rest, "```"); endIdx != -1 {
+			jsonCandidate = strings.TrimSpace(rest[:endIdx])
+		}
+	} else if openBrace := strings.Index(clean, "{"); openBrace != -1 {
+		if closeBrace := strings.LastIndex(clean, "}"); closeBrace > openBrace {
+			jsonCandidate = strings.TrimSpace(clean[openBrace : closeBrace+1])
+		}
+	}
+
+	// Try standard decoding on extracted JSON candidate if it differs from clean
+	if jsonCandidate != clean {
+		if out, err := decodeInboxCoordinatorResponseForMode(jsonCandidate, analysisRecovery); err == nil && out != "" {
+			return out, ""
+		}
+	}
+
+	// 2. Lenient JSON decoding (tolerates extra fields like 'thought', 'reasoning', etc.)
+	var lenient struct {
+		Reply      string          `json:"reply"`
+		TopicTitle string          `json:"topic_title"`
+		Action     *struct {
+			Kind    string          `json:"kind"`
+			Payload json.RawMessage `json:"payload"`
+		} `json:"action"`
+	}
+	if json.Unmarshal([]byte(jsonCandidate), &lenient) == nil && strings.TrimSpace(lenient.Reply) != "" {
+		textReply := strings.TrimSpace(lenient.Reply)
+		if analysisRecovery {
+			return textReply, ""
+		}
+		if lenient.Action != nil && len(lenient.Action.Payload) > 0 && !bytes.Equal(bytes.TrimSpace(lenient.Action.Payload), []byte("null")) {
+			var marker string
+			switch lenient.Action.Kind {
+			case "approval":
+				marker = "cuan-approval"
+			case "delegation":
+				marker = "cuan-delegate"
+			case "memory":
+				marker = "cuan-memory"
+			case "memory_search":
+				marker = "cuan-search"
+			case "task_draft":
+				marker = "cuan-task"
+			case "task_cancel":
+				marker = "cuan-task-cancel"
+			case "task_reopen":
+				marker = "cuan-task-reopen"
+			}
+			if marker != "" {
+				out := textReply + "\n```" + marker + "\n" + string(lenient.Action.Payload) + "\n```"
+				if lenient.TopicTitle != "" && len([]rune(lenient.TopicTitle)) <= 72 {
+					encodedTitle, _ := json.Marshal(map[string]string{"title": lenient.TopicTitle})
+					out += "\n```cuan-title\n" + string(encodedTitle) + "\n```"
+				}
+				return out, ""
+			}
+		}
+
+		if isConfirmationQuestion(textReply) {
+			return synthesizeApprovalReply(textReply), ""
+		}
+		if lenient.TopicTitle != "" && len([]rune(lenient.TopicTitle)) <= 72 {
+			encodedTitle, _ := json.Marshal(map[string]string{"title": lenient.TopicTitle})
+			return textReply + "\n```cuan-title\n" + string(encodedTitle) + "\n```", ""
+		}
+		return textReply, ""
+	}
+
+	// 3. Fallback to extracting plain text (stripping markdown code fences if wrapped)
+	textReply := clean
+	if strings.HasPrefix(textReply, "```") {
+		textReply = strings.TrimPrefix(textReply, "```json")
+		textReply = strings.TrimPrefix(textReply, "```")
+		textReply = strings.TrimPrefix(textReply, "\n")
+		textReply = strings.TrimPrefix(textReply, "\r\n")
+		if idx := strings.LastIndex(textReply, "```"); idx != -1 {
+			textReply = textReply[:idx]
+		}
+		textReply = strings.TrimSpace(textReply)
+	}
+
+	if textReply != "" {
+		if analysisRecovery {
+			return textReply, ""
+		}
+		if isConfirmationQuestion(textReply) {
+			return synthesizeApprovalReply(textReply), ""
+		}
+		return textReply, ""
+	}
+
+	return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+}

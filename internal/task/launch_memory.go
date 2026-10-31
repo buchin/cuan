@@ -80,33 +80,51 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 				}
 			}
 			if projID != "" {
+				candLane := ExecutionCategoryCode
+				if t := m.tasks[j.TaskID]; t != nil && t.ExecutionCategory != "" {
+					candLane = NormalizeExecutionCategory(t.ExecutionCategory)
+				}
 				projectBusy := false
-				for _, other := range m.launches {
-					if other.ID == id {
+				for _, other := range m.tasks {
+					if other.ID == j.TaskID {
 						continue
 					}
-					otherProj := other.ProjectID
-					if otherProj == "" {
-						if ot := m.tasks[other.TaskID]; ot != nil {
-							otherProj = ot.ProjectID
-						}
-					}
-					if otherProj == projID {
-						ot := m.tasks[other.TaskID]
-						if ot == nil || (ot.Status != TaskStatusDone && ot.Status != "cancelled" && ot.Status != "failed" && ot.Status != TaskStatusBlocked && ot.Status != TaskStatusReview) {
-							if other.State == "started" || (other.State == "claimed" && other.LeaseUntil != nil && other.LeaseUntil.After(now)) {
-								projectBusy = true
-								break
-							}
-						}
-					}
-				}
-				if !projectBusy {
-					for _, ot := range m.tasks {
-						if ot.ID == j.TaskID {
+					if other.ProjectID == projID || containsString(other.ProjectIDs, projID) {
+						if other.Status == TaskStatusDone || other.Status == TaskStatusBlocked || other.Status == TaskStatusReview || other.Status == "failed" || other.Status == "cancelled" || other.Status == TaskStatusQueued {
 							continue
 						}
-						if (ot.ProjectID == projID || containsString(ot.ProjectIDs, projID)) && (ot.Status == TaskStatusDoing || ot.Status == "working") {
+						taskActive := (other.Status == TaskStatusDoing || other.Status == "working")
+						if !taskActive {
+							for _, a := range m.attempts {
+								if a.TaskID == other.ID && a.Status == AttemptStatusRunning {
+									taskActive = true
+									break
+								}
+							}
+						}
+						if !taskActive {
+							for _, l := range m.launches {
+								if l.TaskID == other.ID && l.State == "started" {
+									taskActive = true
+									break
+								}
+							}
+						}
+						if !taskActive {
+							continue
+						}
+						if IsTaskSchemaMigration(other) {
+							projectBusy = true
+							break
+						}
+						if candLane == ExecutionCategoryReadOnly {
+							continue
+						}
+						otherLane := other.ExecutionCategory
+						if otherLane == "" {
+							otherLane = ExecutionCategoryCode
+						}
+						if NormalizeExecutionCategory(otherLane) == candLane {
 							projectBusy = true
 							break
 						}
@@ -257,6 +275,21 @@ func (m *MemoryStore) ReconcileStartupLaunches(_ context.Context, now time.Time)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, j := range m.launches {
+		t := m.tasks[j.TaskID]
+		if t != nil && t.Status == TaskStatusQueued {
+			if j.State == "started" || j.State == "claimed" || (j.State == "stopped" && j.SafeError != "Task was cancelled.") {
+				j.State = "queued"
+				j.SafeError = ""
+				j.LeaseToken = ""
+				j.LeaseUntil = nil
+				j.AvailableAt = now
+				if j.ExpiresAt.Before(now.Add(24 * time.Hour)) {
+					j.ExpiresAt = now.Add(24 * time.Hour)
+				}
+				j.UpdatedAt = now
+				continue
+			}
+		}
 		if j.State == "started" || j.State == "claimed" {
 			j.State = "stopped"
 			j.SafeError = "Execution stopped during server restart."

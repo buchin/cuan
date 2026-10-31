@@ -114,46 +114,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
 		if err != nil {
-			if harness == "commandcode" && strings.TrimSpace(reply) != "" {
-				cleanRaw := strings.TrimSpace(reply)
-				if strings.HasPrefix(cleanRaw, "```json") {
-					cleanRaw = strings.TrimPrefix(cleanRaw, "```json")
-					cleanRaw = strings.TrimPrefix(cleanRaw, "\n")
-					cleanRaw = strings.TrimPrefix(cleanRaw, "\r\n")
-					if idx := strings.LastIndex(cleanRaw, "```"); idx != -1 {
-						cleanRaw = cleanRaw[:idx]
-					}
-					cleanRaw = strings.TrimSpace(cleanRaw)
-				}
-				var partial struct {
-					Reply string `json:"reply"`
-				}
-				textReply := strings.TrimSpace(reply)
-				if json.Unmarshal([]byte(cleanRaw), &partial) == nil && strings.TrimSpace(partial.Reply) != "" {
-					textReply = strings.TrimSpace(partial.Reply)
-				}
-				if isConfirmationQuestion(textReply) {
-					title := extractTitleFromReply(textReply)
-					projectName := "Default"
-					lower := strings.ToLower(textReply)
-					if strings.Contains(lower, "cuan") || strings.Contains(lower, "studio") || strings.Contains(lower, "form") {
-						projectName = "Cuan"
-					}
-					desc := textReply
-					if len([]rune(desc)) > 6000 {
-						desc = string([]rune(desc)[:6000])
-					}
-					payload := inboxApprovalPlan{
-						Title:       title,
-						Description: desc,
-						ProjectName: projectName,
-					}
-					encoded, _ := json.Marshal(payload)
-					return textReply + "\n```cuan-approval\n" + string(encoded) + "\n```", ""
-				}
-				return textReply, ""
-			}
-			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+			return recoverCoordinatorReply(reply, analysisRecovery)
 		}
 		return output, ""
 	}
