@@ -387,3 +387,81 @@ func TestCoordinatorInstructionFullPlatformMCP(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoverCoordinatorReply_FormattingResilience(t *testing.T) {
+	t.Run("embedded_json_in_markdown_with_preceding_prose", func(t *testing.T) {
+		raw := `Tentu! Berikut analisis sistemnya:
+` + "```json\n" + `{"reply":"Pemeriksaan selesai, semua komponen normal.","topic_title":"Status Sistem","action":null}` + "\n```\nSemoga membantu!"
+		out, errText := recoverCoordinatorReply(raw, false)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if !strings.Contains(out, "Pemeriksaan selesai, semua komponen normal.") {
+			t.Errorf("expected clean reply in output, got: %s", out)
+		}
+		if !strings.Contains(out, "Status Sistem") {
+			t.Errorf("expected topic title in output, got: %s", out)
+		}
+	})
+
+	t.Run("lenient_with_extra_llm_fields", func(t *testing.T) {
+		raw := `{"reply":"Task telah selesai dikerjakan.","thought":"Analyzing the project structure","action":null,"topic_title":""}`
+		out, errText := recoverCoordinatorReply(raw, false)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if out != "Task telah selesai dikerjakan." {
+			t.Errorf("expected clean reply, got %q", out)
+		}
+	})
+
+	t.Run("plain_text_with_confirmation_question_synthesizes_approval", func(t *testing.T) {
+		raw := "Ada beberapa komponen yang perlu diperbaiki: 1. **Antrean Task Runner**. Apakah Anda setuju?"
+		out, errText := recoverCoordinatorReply(raw, false)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if !strings.Contains(out, "cuan-approval") {
+			t.Fatalf("expected synthesized cuan-approval card, got: %s", out)
+		}
+		plan := parseInboxApprovalPlan(out)
+		if plan == nil {
+			t.Fatal("failed to parse synthesized approval plan")
+		}
+		if !strings.Contains(plan.Title, "Antrean Task Runner") {
+			t.Errorf("unexpected synthesized title: %s", plan.Title)
+		}
+	})
+
+	t.Run("plain_text_conversational_answer", func(t *testing.T) {
+		raw := "Halo! Saya adalah Scrum Master Cuan. Ada yang bisa saya bantu terkait proyek ini?"
+		out, errText := recoverCoordinatorReply(raw, false)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if out != raw {
+			t.Errorf("expected exact clean text reply, got %q", out)
+		}
+		if strings.Contains(out, "```cuan-") {
+			t.Errorf("plain text should not contain action markers, got %s", out)
+		}
+	})
+
+	t.Run("analysis_recovery_suppresses_actions", func(t *testing.T) {
+		raw := "Berikut hasil investigasi: ada bottleneck lock. Apakah Anda setuju?"
+		out, errText := recoverCoordinatorReply(raw, true)
+		if errText != "" {
+			t.Fatalf("unexpected error: %s", errText)
+		}
+		if strings.Contains(out, "```cuan-") {
+			t.Errorf("analysis recovery mode MUST NOT synthesize actions, got: %s", out)
+		}
+	})
+
+	t.Run("empty_reply_returns_error", func(t *testing.T) {
+		out, errText := recoverCoordinatorReply("   ", false)
+		if out != "" || errText == "" {
+			t.Errorf("expected error on completely empty input, got out=%q errText=%q", out, errText)
+		}
+	})
+}

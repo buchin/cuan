@@ -72,26 +72,60 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		return nil, e
 	}
 	return scanLaunch(s.db.QueryRowContext(ctx, `WITH candidate AS (
-		SELECT id FROM task_launches tl
+		SELECT tl.id FROM task_launches tl
+		JOIN tasks cand_task ON cand_task.id = tl.task_id
 		WHERE ($3='' OR tl.id=$3)
 		  AND tl.expires_at>$1
 		  AND ((tl.state='queued' AND tl.available_at<=$1) OR (tl.state='claimed' AND tl.lease_until<=$1))
+		  AND cand_task.status NOT IN ('done', 'cancelled', 'failed', 'blocked')
+		  -- 1. Migration barrier: Active migration blocks all candidate tasks
 		  AND NOT EXISTS (
-			  SELECT 1 FROM task_launches active_tl
-			  LEFT JOIN tasks active_task ON active_task.id = active_tl.task_id
-			  WHERE active_tl.project_id = tl.project_id
-			    AND active_tl.id != tl.id
-			    AND (active_task.id IS NULL OR active_task.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued'))
+			  SELECT 1 FROM tasks mig_t
+			  WHERE (mig_t.project_id = tl.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = mig_t.id AND tp.project_id = tl.project_id))
+			    AND mig_t.id != tl.task_id
+			    AND mig_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 			    AND (
-				    active_tl.state = 'started'
-				    OR (active_tl.state = 'claimed' AND active_tl.lease_until > $1)
+				    mig_t.status IN ('doing', 'working')
+				    OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = mig_t.id AND a.status = 'running')
+				    OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = mig_t.id AND l.state = 'started')
+			    )
+			    AND COALESCE(mig_t.execution_category, 'code') = 'code'
+			    AND (
+				    mig_t.instructions ILIKE '%migration%' OR mig_t.instructions ILIKE '%migrate%' OR
+				    mig_t.title ILIKE '%migration%' OR mig_t.title ILIKE '%migrate%'
 			    )
 		  )
-		  AND NOT EXISTS (
-			  SELECT 1 FROM tasks active_t
-			  WHERE (active_t.project_id = tl.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = tl.project_id))
-			    AND active_t.id != tl.task_id
-			    AND active_t.status IN ('doing', 'working')
+		  -- 2. Concurrency isolation per execution lane:
+		  -- Readonly lane tasks are non-blocking and can run concurrently with other tasks (unless migration active)
+		  -- Ops and Code lanes only block tasks in their own respective lane
+		  AND (
+			  COALESCE(cand_task.execution_category, 'code') = 'readonly'
+			  OR NOT EXISTS (
+				  SELECT 1 FROM task_launches active_tl
+				  JOIN tasks active_task ON active_task.id = active_tl.task_id
+				  WHERE active_tl.project_id = tl.project_id
+				    AND active_tl.id != tl.id
+				    AND active_task.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
+				    AND (
+					    active_tl.state = 'started'
+					    OR (active_tl.state = 'claimed' AND active_tl.lease_until > $1)
+				    )
+				    AND COALESCE(active_task.execution_category, 'code') = COALESCE(cand_task.execution_category, 'code')
+			  )
+		  )
+		  AND (
+			  COALESCE(cand_task.execution_category, 'code') = 'readonly'
+			  OR NOT EXISTS (
+				  SELECT 1 FROM tasks active_t
+				  WHERE (active_t.project_id = tl.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = tl.project_id))
+				    AND active_t.id != tl.task_id
+				    AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
+				    AND (
+					    active_t.status IN ('doing', 'working')
+					    OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = active_t.id AND a.status = 'running')
+				    )
+				    AND COALESCE(active_t.execution_category, 'code') = COALESCE(cand_task.execution_category, 'code')
+			  )
 		  )
 		ORDER BY tl.available_at, tl.id
 		FOR UPDATE SKIP LOCKED LIMIT 1
@@ -126,6 +160,10 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 	return err
 }
 func (s *DBStore) ReconcileStartupLaunches(ctx context.Context, now time.Time) error {
+	// For still-queued tasks whose launch was claimed, started, or stopped before/during restart, revive them back to queued with refreshed window.
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1 + INTERVAL '24 hours'),updated_at=$1 WHERE (state IN ('started','claimed') OR (state='stopped' AND safe_error != 'Task was cancelled.')) AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); err != nil {
+		return err
+	}
 	_, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution stopped during server restart.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('started','claimed')`, now)
 	return err
 }
