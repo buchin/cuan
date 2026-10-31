@@ -46,6 +46,9 @@ type Runner struct {
 
 	drainCoord *DrainCoordinator
 	updater    *UpdateManager
+
+	dodEvaluator *DoDEvaluator
+	eventBus     *EventBus
 }
 
 func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*http.Client) *Runner {
@@ -65,7 +68,29 @@ func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*h
 		activeAttempts: make(map[string]*activeAttempt),
 		drainCoord:     NewDrainCoordinator(""),
 		updater:        NewUpdateManager(""),
+		dodEvaluator:   NewDoDEvaluator(),
+		eventBus:       GlobalEventBus,
 	}
+}
+
+func (r *Runner) SetDoDEvaluator(eval *DoDEvaluator) {
+	if eval != nil {
+		r.dodEvaluator = eval
+	}
+}
+
+func (r *Runner) DoDEvaluator() *DoDEvaluator {
+	return r.dodEvaluator
+}
+
+func (r *Runner) SetEventBus(bus *EventBus) {
+	if bus != nil {
+		r.eventBus = bus
+	}
+}
+
+func (r *Runner) EventBus() *EventBus {
+	return r.eventBus
 }
 
 func (r *Runner) SetGitClient(client *git.Client) {
@@ -563,6 +588,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	// Post-execution Git & GitHub PR Flow (Code lane only)
 	r.postExecutionGitFlow(ctx, ws, t, att, claim, &compReq, lane)
+
+	// Emisi event task:attempt_succeeded & evaluasi DoD otonom pada worker
+	if compReq.Status == task.AttemptStatusSucceeded {
+		r.processCompletionEventAndDoD(ctx, ws, t, att, claim, &compReq, lane, workingDir)
+	}
 
 	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Attempt %s selesai: %s (exit: %d, durasi: %v, peak RSS: %d bytes).",
 		att.ID, compReq.Status, compReq.ExitCode, duration.Round(time.Millisecond), compReq.PeakRSSBytes))

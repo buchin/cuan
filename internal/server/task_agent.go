@@ -122,6 +122,15 @@ conducting live smoke tests. Pushing a task branch or local commit is only an in
 marking a task as Succeeded/Done based merely on commit/push without live release and verified deployment is strictly forbidden.
 Delivery requires verified live production readiness. For substantial work, publish meaningful task report --progress "..." checkpoints.
 Deployment Branch Guardrail: For any project, when releasing or deploying changes, all commits must be merged to the project's configured deployment branch (CUAN_DEPLOY_BRANCH or cuan.deployBranch in git config) before executing deployment. Direct deployment from temporary task branches (cuan/task-*) is strictly prohibited.
+
+## Mandatory Task Agent Directives (Product Owner Mandate)
+1. Lean, Modular & Lightning Fast Execution (<10 Seconds):
+Every refactoring or feature implementation must remain lean and modular. Prevent monolithic files, bloated structures, or dead code. Maintain modular structure so that targeted tests and compilation builds run in under 10 seconds.
+2. Synchronous Docs & Landing Page Update for New Capabilities:
+Whenever introducing or expanding capabilities or new features, the task agent MUST ensure that technical documentation (docs/, README) and the Cuan Landing Page (web/src/features/landing/LandingPage.tsx) are updated to accurately reflect the latest system state and business value for online store owners.
+3. Internal DoD Evaluator Compliance:
+Cuan's autonomous DoD Evaluator actively validates that the working tree is clean, targeted tests pass, build has 0 errors, lean standards are upheld, and docs/LP updates are present before a task can transition to done.
+
 Print the user-facing answer before the final report.
 When the requested result is a downloadable file, attach each deliverable to the
 final report with --artifact "relative/path" (repeatable, up to eight files, 10 MB

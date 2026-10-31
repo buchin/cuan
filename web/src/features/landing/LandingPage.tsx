@@ -8,6 +8,8 @@ import {
   MessageSquare,
   Bell,
   ShieldCheck,
+  CheckCircle2,
+  Zap,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -250,6 +252,16 @@ export function LandingPage() {
                 Icon: GitBranch,
                 title: 'Your workspace. Your AI.',
                 text: 'Self-host Cuan and connect your own supported AI accounts. Keep your projects and execution in your environment.',
+              },
+              {
+                Icon: CheckCircle2,
+                title: 'Autonomous quality loop.',
+                text: 'Background quality evaluation validates changes automatically. If a gap is found, Cuan handles adaptive self-healing retries without disturbing you.',
+              },
+              {
+                Icon: Zap,
+                title: 'Zero-interruption worker & proactive chat.',
+                text: 'Decoupled worker runs independently with progressive timeouts. Once completed, friendly zero-jargon updates and strategic next steps arrive in your chat.',
               },
             ].map(({ Icon, title, text }) => (
               <div key={title} className="border-t border-border pt-5">

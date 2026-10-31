@@ -300,3 +300,73 @@ func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace
 		}
 	}
 }
+
+func (r *Runner) processCompletionEventAndDoD(ctx context.Context, ws *git.TaskWorkspace, t *task.Task, att *task.TaskAttempt, claim ClaimTaskResponse, compReq *CompleteAttemptRequest, lane, workingDir string) {
+	// 1. Emisi internal event task:attempt_succeeded beserta metadata attempt & status
+	evt := AttemptSucceededEvent{
+		EventID:       fmt.Sprintf("evt_%d", time.Now().UnixNano()),
+		EventType:     EventTaskAttemptSucceeded,
+		TaskID:        t.ID,
+		AttemptID:     att.ID,
+		AttemptNumber: att.AttemptNumber,
+		WorkingDir:    workingDir,
+		BranchName:    compReq.BranchName,
+		CommitSHA:     compReq.CommitSHA,
+		ExecutionLane: lane,
+		Status:        compReq.Status,
+		Summary:       t.Summary,
+		CompleteNote:  t.CompleteNote,
+		EmittedAt:     time.Now().UTC(),
+		Metadata: map[string]any{
+			"runner_id":      r.cfg.RunnerID,
+			"exit_code":      compReq.ExitCode,
+			"peak_rss_bytes": compReq.PeakRSSBytes,
+			"diff_summary":   compReq.DiffSummary,
+			"test_summary":   compReq.TestSummary,
+		},
+	}
+
+	if r.eventBus != nil {
+		r.eventBus.Publish(ctx, evt)
+	} else {
+		EmitAttemptSucceeded(ctx, evt)
+	}
+
+	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Event '%s' dipancarkan untuk attempt %s (Task: '%s').",
+		EventTaskAttemptSucceeded, att.ID, t.Title))
+
+	// 2. Background Autonomous DoD Evaluator validation
+	if r.dodEvaluator != nil {
+		evalReq := DoDValidationRequest{
+			TaskID:        t.ID,
+			AttemptID:     att.ID,
+			AttemptNumber: att.AttemptNumber,
+			WorkingDir:    workingDir,
+			TaskTitle:     t.Title,
+			Instructions:  t.Instructions,
+			Summary:       t.Summary,
+			CompleteNote:  t.CompleteNote,
+			ExecutionLane: lane,
+			Metadata:      evt.Metadata,
+		}
+
+		evalRes, err := r.dodEvaluator.EvaluateDoD(ctx, evalReq)
+		if err == nil && evalRes != nil {
+			compReq.DoDValidation = evalRes
+			if evalRes.Passed {
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Autonomous DoD Evaluator: LULUS 100%% (%v). Clean tree: %t, Tests: %t, Build: %t, Lean: %t, Docs/LP: %t.",
+					evalRes.Duration.Round(time.Millisecond), evalRes.CleanWorkingTree, evalRes.TargetedTestsPass, evalRes.BuildZeroError, evalRes.LeanStandardPass, evalRes.DocsAndLPPass))
+			} else {
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Autonomous DoD Evaluator: Ditemukan %d gap. Tindakan: %s.",
+					len(evalRes.Gaps), evalRes.Action))
+				if evalRes.Action == "auto_requeue" {
+					compReq.RequeueFeedback = evalRes.RequeueInstructions
+					r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Auto-Requeue: Task dijadwalkan ulang ke attempt #%d dengan timeout adaptif %v.",
+						evalRes.NextAttemptNumber, evalRes.NextTimeout))
+				}
+			}
+		} else if err != nil {
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan evaluasi DoD otonom: %v", err))
+		}
+	}
+}

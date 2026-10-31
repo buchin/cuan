@@ -577,6 +577,28 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 
 	termHandler.SetTaskResolver(s.resolveTaskID)
 	tSvc.SetProjectFinder(liveProjectFinder{server: s})
+	if s.runnerSvc != nil {
+		s.runnerSvc.SetChatNotifier(runner.NewDefaultBusinessChatNotifier(func(ctx context.Context, roomID, messageContent string) error {
+			if s.projectStudioRepo == nil || roomID == "" {
+				return nil
+			}
+			msg := &cuanDB.ProjectMessage{
+				ID:         cuanDB.GenerateUUID(),
+				RoomID:     roomID,
+				AuthorType: "agent",
+				AuthorID:   "cuan_assistant",
+				AuthorName: "Cuan",
+				Content:    messageContent,
+				CreatedAt:  time.Now().UTC(),
+				UpdatedAt:  time.Now().UTC(),
+			}
+			err := s.projectStudioRepo.CreateMessage(ctx, msg)
+			if err == nil {
+				s.publishInbox(roomID)
+			}
+			return err
+		}))
+	}
 	s.configureSharedGitHubAccess()
 	s.routes()
 	s.setupStaticRoutes()

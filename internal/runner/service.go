@@ -18,6 +18,9 @@ type RunnerService struct {
 	store         Store
 	taskStore     task.Store
 	projectFinder ProjectFinder
+	dodEvaluator  *DoDEvaluator
+	chatNotifier  BusinessChatNotifier
+	eventBus      *EventBus
 }
 
 func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinder) *RunnerService {
@@ -29,11 +32,25 @@ func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinde
 		store:         store,
 		taskStore:     taskStore,
 		projectFinder: pf,
+		dodEvaluator:  NewDoDEvaluator(),
+		eventBus:      GlobalEventBus,
 	}
 }
 
 func (s *RunnerService) SetProjectFinder(f ProjectFinder) {
 	s.projectFinder = f
+}
+
+func (s *RunnerService) SetDoDEvaluator(eval *DoDEvaluator) {
+	s.dodEvaluator = eval
+}
+
+func (s *RunnerService) SetChatNotifier(notifier BusinessChatNotifier) {
+	s.chatNotifier = notifier
+}
+
+func (s *RunnerService) SetEventBus(bus *EventBus) {
+	s.eventBus = bus
 }
 
 // Heartbeat processes heartbeat and lease renewal from a runner daemon.
@@ -176,14 +193,117 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	}
 
 	// Update task status:
-	// CRITICAL DoD Rule: If attempt succeeded -> task to review (owner reviews).
-	// If failed -> task to blocked.
-	// If canceled -> task to blocked.
 	t, err := s.taskStore.GetTask(ctx, att.TaskID)
 	if err == nil && t != nil {
 		oldStatus := t.Status
+
+		// 1. Emisi internal event task:attempt_succeeded saat worker sukses
 		if status == task.AttemptStatusSucceeded {
-			t.Status = task.TaskStatusReview
+			evt := AttemptSucceededEvent{
+				EventID:       fmt.Sprintf("evt_%d", time.Now().UnixNano()),
+				EventType:     EventTaskAttemptSucceeded,
+				TaskID:        t.ID,
+				AttemptID:     att.ID,
+				AttemptNumber: att.AttemptNumber,
+				BranchName:    req.BranchName,
+				CommitSHA:     req.CommitSHA,
+				ExecutionLane: t.ExecutionCategory,
+				Status:        status,
+				Summary:       t.Summary,
+				CompleteNote:  t.CompleteNote,
+				EmittedAt:     now,
+				Metadata: map[string]any{
+					"runner_id":    req.RunnerID,
+					"exit_code":    req.ExitCode,
+					"test_summary": req.TestSummary,
+				},
+			}
+			if s.eventBus != nil {
+				s.eventBus.Publish(ctx, evt)
+			} else {
+				EmitAttemptSucceeded(ctx, evt)
+			}
+		}
+
+		// 2. Evaluasi DoD Otonom & Logika Auto-Mark Done / Auto-Requeue
+		dodVal := req.DoDValidation
+		if dodVal == nil && status == task.AttemptStatusSucceeded && s.dodEvaluator != nil {
+			workingDir := ""
+			if s.projectFinder != nil && t.ProjectID != "" {
+				if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+					workingDir = p.LocalPath
+				}
+			}
+			valReq := DoDValidationRequest{
+				TaskID:        t.ID,
+				AttemptID:     att.ID,
+				AttemptNumber: att.AttemptNumber,
+				WorkingDir:    workingDir,
+				TaskTitle:     t.Title,
+				Instructions:  t.Instructions,
+				Summary:       t.Summary,
+				CompleteNote:  t.CompleteNote,
+				ExecutionLane: t.ExecutionCategory,
+			}
+			dodVal, _ = s.dodEvaluator.EvaluateDoD(ctx, valReq)
+		}
+
+		autoRequeued := false
+		if status == task.AttemptStatusSucceeded {
+			if dodVal != nil && dodVal.Passed {
+				// Lolos 100%: Otomatis ubah status task menjadi 'done' dan catat verifikasi
+				t.Status = task.TaskStatusDone
+				if dodVal.Details != "" {
+					t.CompleteNote = dodVal.Details
+				}
+				for i := range t.DoDChecklist {
+					t.DoDChecklist[i].Completed = true
+				}
+				// Proactive messenger di Chat/Inbox: lapor tugas tuntas dalam bahasa bisnis ramah
+				if s.chatNotifier != nil && t.SourceRoomID != "" {
+					_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, t.SourceRoomID, t.ID, t.Title, t.Summary)
+				}
+			} else if dodVal != nil && dodVal.Action == "auto_requeue" && att.AttemptNumber < MaxAttempts {
+				// Ada gap fixable & attempt < 3: Requeue otomatis dengan alokasi waktu adaptif
+				t.Status = task.TaskStatusQueued
+				autoRequeued = true
+				nextAttNum := dodVal.NextAttemptNumber
+				if nextAttNum <= 0 {
+					nextAttNum = att.AttemptNumber + 1
+				}
+				nextTimeout := dodVal.NextTimeout
+				if nextTimeout <= 0 {
+					nextTimeout = CalculateAdaptiveTimeout(nextAttNum)
+				}
+
+				newAttempt := &task.TaskAttempt{
+					ID:            fmt.Sprintf("att_%d", time.Now().UnixNano()),
+					TaskID:        t.ID,
+					AttemptNumber: nextAttNum,
+					RunnerID:      req.RunnerID,
+					AgentName:     att.AgentName,
+					Status:        task.AttemptStatusQueued,
+					CreatedAt:     now,
+				}
+				_ = s.taskStore.CreateAttempt(ctx, newAttempt)
+
+				requeueMsg := fmt.Sprintf("Auto-Requeue: Celah DoD terdeteksi pada attempt #%d. Task otomatis dikembalikan ke antrean untuk perbaikan pada attempt #%d (alokasi timeout adaptif: %v).\n\nInstruksi Revisi:\n%s",
+					att.AttemptNumber, nextAttNum, nextTimeout, dodVal.RequeueInstructions)
+				requeueAct := &task.TaskActivity{
+					ID:           fmt.Sprintf("act_%d", time.Now().UnixNano()),
+					TaskID:       t.ID,
+					AttemptID:    &newAttempt.ID,
+					ActivityType: task.ActivityTypeAttempt,
+					Author:       "cuan_dod_evaluator",
+					OldStatus:    oldStatus,
+					NewStatus:    task.TaskStatusQueued,
+					Message:      requeueMsg,
+					CreatedAt:    now,
+				}
+				_ = s.taskStore.CreateActivity(ctx, requeueAct)
+			} else {
+				t.Status = task.TaskStatusReview
+			}
 		} else if status == task.AttemptStatusFailed || status == task.AttemptStatusCanceled {
 			t.Status = task.TaskStatusBlocked
 		}
@@ -212,7 +332,9 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 
 		// Record activity
 		msg := fmt.Sprintf("Attempt %s selesai dengan status '%s' (exit code: %d, peak RSS: %d bytes).", att.ID, status, req.ExitCode, req.PeakRSSBytes)
-		if t.PRURL != "" {
+		if autoRequeued {
+			msg = fmt.Sprintf("Attempt %s selesai: %s (auto-requeued untuk perbaikan celah DoD).", att.ID, status)
+		} else if t.PRURL != "" {
 			msg = fmt.Sprintf("Attempt %s selesai: %s. Branch: %s, PR: %s (commit: %s).", att.ID, status, t.BranchName, t.PRURL, t.CommitSHA)
 		}
 

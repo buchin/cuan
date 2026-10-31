@@ -112,8 +112,14 @@ Transform customer interactions into structured business workflows:
 
 - **Git & Repository Integration**:
   - Pre-flight repository verification, branch management, clone/fetch workspace isolation, and secret masking on git outputs.
-- **Task Runner Daemon (`cmd/runner`)**:
-  - Go execution daemon managing task execution leases, agent subprocess lifecycles, real-time log streaming, and process cancellation.
+- **Decoupled Task Worker Daemon (`cmd/runner` / `cuan-runner`)**:
+  - Independent Go worker daemon decoupled from the HTTP web server, guaranteeing zero interrupted work during server restarts or deployments.
+  - **Graceful Drain & Zero-Interruption Self-Update**: Automatically finishes in-flight jobs during deployment before swapping to new release binaries.
+  - **Progressive Adaptive Timeout**: Adaptively scales execution limits (Attempt 1: 15m -> Attempt 2: 20m -> Attempt 3: 25m max cap) with 20s graceful termination tolerance.
+- **Autonomous DoD Quality Loop & Proactive Business Chat**:
+  - Background listener captures worker completion events (`task:attempt_succeeded`) and objectively evaluates Definition of Done criteria (clean git working tree, 100% targeted test pass in <10s, zero build errors, lean modularity, and docs/Landing Page updates).
+  - **Self-Healing Auto-Requeue**: Automatically returns tasks to the queue with actionable revision instructions and progressive timeouts for fixable gaps (capped at 3 attempts).
+  - **Auto-Mark Done & Zero-Jargon Chat**: Automatically marks verified tasks as `done` and proactively delivers warm, business-friendly reports and strategic next steps to store owners in Chat/Inbox.
 - **Creator Blueprints & Studio**:
   - Standardized project templates, execution blueprints, and modular workspaces for rapid business asset generation.
 

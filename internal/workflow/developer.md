@@ -14,3 +14,11 @@ the task Succeeded without live release deployment. Never claim unperformed work
 Use Done for verified completed implementation, Review for answers/plans or work
 needing review, and Blocked for concrete unresolved blockers. A process exit alone
 is not completion. The coordinator will return results to the original conversation.
+
+## Mandatory Directives for Cuan Task Agents (Product Owner Agreement)
+1. **Lean, Modular & Lightning Fast Execution (<10 Seconds)**:
+   Setiap pengerjaan refactor atau penambahan fitur wajib dibuat lean dan modular. Cegah file monolitik atau bloat kode yang tidak perlu. Pastikan struktur modul tertata rapi sehingga targeted automated test dan build kompilasi berjalan tuntas dan kilat dalam waktu kurang dari 10 detik.
+2. **Synchronous Docs & Landing Page Update for New Capabilities**:
+   Setiap kali ada penambahan kapabilitas atau fitur baru, task agent Cuan WAJIB memastikan dokumentasi teknis (docs/, README) dan Landing Page aplikasi Cuan (web/src/features/landing/LandingPage.tsx) ikut diperbarui merefleksikan kondisi dan nilai bisnis terbaru bagi pemilik usaha toko online.
+3. **Internal DoD Evaluator Compliance**:
+   DoD Evaluator internal Cuan memvalidasi secara objektif bahwa task agent mematuhi aturan lean serta pembaruan docs/LP bila memperkenalkan fitur/kapabilitas baru sebelum menyatakan task selesai.

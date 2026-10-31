@@ -99,18 +99,20 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
-	RunnerID             string `json:"runner_id"`
-	Status               string `json:"status"` // succeeded, failed, canceled
-	ExitCode             int    `json:"exit_code"`
-	PeakRSSBytes         int64  `json:"peak_rss_bytes"`
-	ErrorMessage         string `json:"error_message,omitempty"`
-	BranchName           string `json:"branch_name,omitempty"`
-	PRURL                string `json:"pr_url,omitempty"`
-	PRNumber             int    `json:"pr_number,omitempty"`
-	CommitSHA            string `json:"commit_sha,omitempty"`
-	DiffSummary          string `json:"diff_summary,omitempty"`
-	TestSummary          string `json:"test_summary,omitempty"`
-	AgentReportConfirmed    bool   `json:"agent_report_confirmed"`
-	AgentReportRequired     bool   `json:"agent_report_required"`
-	LiveDeploymentConfirmed bool   `json:"live_deployment_confirmed,omitempty"`
+	RunnerID                string               `json:"runner_id"`
+	Status                  string               `json:"status"` // succeeded, failed, canceled
+	ExitCode                int                  `json:"exit_code"`
+	PeakRSSBytes            int64                `json:"peak_rss_bytes"`
+	ErrorMessage            string               `json:"error_message,omitempty"`
+	BranchName              string               `json:"branch_name,omitempty"`
+	PRURL                   string               `json:"pr_url,omitempty"`
+	PRNumber                int                  `json:"pr_number,omitempty"`
+	CommitSHA               string               `json:"commit_sha,omitempty"`
+	DiffSummary             string               `json:"diff_summary,omitempty"`
+	TestSummary             string               `json:"test_summary,omitempty"`
+	AgentReportConfirmed    bool                 `json:"agent_report_confirmed"`
+	AgentReportRequired     bool                 `json:"agent_report_required"`
+	LiveDeploymentConfirmed bool                 `json:"live_deployment_confirmed,omitempty"`
+	DoDValidation           *DoDValidationResult `json:"dod_validation,omitempty"`
+	RequeueFeedback         string               `json:"requeue_feedback,omitempty"`
 }
