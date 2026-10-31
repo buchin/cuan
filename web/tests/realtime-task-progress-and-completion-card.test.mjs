@@ -8,19 +8,20 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const inboxViewPath = path.resolve(__dirname, '..', 'src', 'features', 'inbox', 'InboxView.tsx')
-const bannerPath = path.resolve(__dirname, '..', 'src', 'features', 'inbox', 'TaskProgressBanner.tsx')
+const taskCardPath = path.resolve(__dirname, '..', 'src', 'features', 'inbox', 'TaskCard.tsx')
+const taskProgressPath = path.resolve(__dirname, '..', 'src', 'features', 'inbox', 'task-progress.ts')
 const completionCardPath = path.resolve(__dirname, '..', 'src', 'features', 'inbox', 'TaskCompletionCard.tsx')
 const inboxTaskActionPath = path.resolve(__dirname, '..', 'src', 'features', 'inbox', 'InboxTaskAction.tsx')
 const idLocalePath = path.resolve(__dirname, '..', 'src', 'locales', 'id.json')
 const enLocalePath = path.resolve(__dirname, '..', 'src', 'locales', 'en.json')
 
 test('1. activeConversationTasks & isTaskActive selector logic', async () => {
-  const bannerSource = fs.readFileSync(bannerPath, 'utf8')
+  const taskProgressSource = fs.readFileSync(taskProgressPath, 'utf8')
 
-  // Verify isTaskActive function exists and exports
+  // Verify isTaskActive function exists and exports directly from task-progress
   assert.ok(
-    bannerSource.includes('isTaskActive') && bannerSource.includes('export { isTaskActive'),
-    'isTaskActive must be exported by TaskProgressBanner'
+    taskProgressSource.includes('export function isTaskActive'),
+    'isTaskActive must be exported by task-progress.ts'
   )
 
   // Import formatDuration and test formatting directly
@@ -46,27 +47,26 @@ test('1. activeConversationTasks & isTaskActive selector logic', async () => {
   assert.equal(formatDuration(3665), '1:01:05')
 })
 
-test('2. Floating Live Progress Banner: UI components & accessibility standards', () => {
-  const bannerSource = fs.readFileSync(bannerPath, 'utf8')
+test('2. Self-Contained TaskCard: handles queued, running pulse & duration timer, and completion card transition', () => {
+  const taskCardSource = fs.readFileSync(taskCardPath, 'utf8')
 
-  // Verify floating container testid and accessibility attributes
-  assert.ok(bannerSource.includes('data-testid="floating-task-progress-banner"'), 'Banner must have data-testid')
-  assert.ok(bannerSource.includes('role="status"'), 'Banner status card must have role="status"')
-  assert.ok(bannerSource.includes('aria-live="polite"'), 'Banner status card must have aria-live="polite"')
+  // Verify TaskCard identifier and mobile-safe touch targets
+  assert.ok(taskCardSource.includes('data-card="task-card"'), 'TaskCard must have data-card="task-card"')
 
-  // Verify non-intrusive floating classes: pointer-events-none outer, pointer-events-auto inner
-  assert.ok(bannerSource.includes('pointer-events-none absolute inset-x-0 top-3 z-30'), 'Outer banner must be non-intrusive pointer-events-none at top-3')
-  assert.ok(bannerSource.includes('pointer-events-auto'), 'Inner banner pill must be interactive pointer-events-auto')
+  // Verify running pulse (animate-ping) and queued pulse (animate-pulse)
+  assert.ok(taskCardSource.includes('animate-ping'), 'TaskCard must render animate-ping indicator when working')
+  assert.ok(taskCardSource.includes('animate-pulse'), 'TaskCard must render animate-pulse indicator when queued')
 
-  // Verify status badge, timer, agent, and action button testids
-  assert.ok(bannerSource.includes('data-testid="live-progress-status-badge"'), 'Must have status badge testid')
-  assert.ok(bannerSource.includes('data-testid="live-progress-title"'), 'Must have title testid')
-  assert.ok(bannerSource.includes('data-testid="live-progress-agent"'), 'Must have agent testid')
-  assert.ok(bannerSource.includes('data-testid="live-progress-timer"'), 'Must have live timer testid')
-  assert.ok(bannerSource.includes('data-testid="view-task-details-btn"'), 'Must have view task details button testid')
+  // Verify live duration timer with Clock icon and testid
+  assert.ok(taskCardSource.includes('data-testid="task-card-live-timer"'), 'TaskCard must render live timer with data-testid')
+  assert.ok(taskCardSource.includes('formatDuration'), 'TaskCard must format duration using formatDuration')
 
-  // Verify subtle pulse animation
-  assert.ok(bannerSource.includes('animate-ping'), 'Must render pulse ping indicator')
+  // Verify seamless transition to TaskCompletionCard
+  assert.ok(taskCardSource.includes('<TaskCompletionCard'), 'TaskCard must render TaskCompletionCard when finished/review')
+  assert.ok(taskCardSource.includes("import { TaskCompletionCard } from './TaskCompletionCard'"), 'TaskCard must import TaskCompletionCard')
+
+  // Verify autonomous polling when active
+  assert.ok(taskCardSource.includes('isTaskActive(currentTask)'), 'TaskCard must autonomously check active state')
 })
 
 test('3. Actionable Completion Card: business-friendly summary, DoD, and quick actions', () => {
@@ -89,13 +89,25 @@ test('3. Actionable Completion Card: business-friendly summary, DoD, and quick a
   assert.ok(cardSource.includes("t('Kriteria Selesai (DoD)')"), 'Must display localized DoD section title')
 })
 
-test('4. InboxView Integration: reactive activeConversationTasks, adaptive poller & stream placement', () => {
+test('4. InboxView Integration: clean chat layout (no redundant TaskProgressBanner, no pt-14 shift), adaptive poller & stream placement', () => {
   const inboxViewSource = fs.readFileSync(inboxViewPath, 'utf8')
 
-  // Verify TaskProgressBanner import
+  // Verify TaskProgressBanner is NOT imported and NOT rendered
   assert.ok(
-    inboxViewSource.includes("import { TaskProgressBanner, isTaskActive } from './TaskProgressBanner'"),
-    'InboxView must import TaskProgressBanner and isTaskActive'
+    !inboxViewSource.includes('TaskProgressBanner'),
+    'InboxView must NOT import or render TaskProgressBanner'
+  )
+
+  // Verify artificial pt-14 padding compensation is eliminated
+  assert.ok(
+    !inboxViewSource.includes('pt-14'),
+    'InboxView must NOT contain artificial pt-14 padding compensation'
+  )
+
+  // Verify isTaskActive import directly from task-progress
+  assert.ok(
+    inboxViewSource.includes("import { isTaskActive } from './task-progress'"),
+    'InboxView must import isTaskActive from task-progress'
   )
 
   // Verify TaskCompletionCard import
@@ -114,16 +126,6 @@ test('4. InboxView Integration: reactive activeConversationTasks, adaptive polle
   assert.ok(
     inboxViewSource.includes('const intervalMs = hasActiveTasks ? 4000 : 20000'),
     'Adaptive poller must use 4000ms for in-flight tasks and 20000ms for idle backoff'
-  )
-
-  // Verify TaskProgressBanner rendering
-  assert.ok(
-    inboxViewSource.includes('<TaskProgressBanner'),
-    'InboxView must render TaskProgressBanner'
-  )
-  assert.ok(
-    inboxViewSource.includes('tasks={activeConversationTasks}'),
-    'TaskProgressBanner must receive activeConversationTasks'
   )
 
   // Verify standalone completed tasks in stream

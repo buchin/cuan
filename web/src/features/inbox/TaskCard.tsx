@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import {
   Folder,
   Terminal,
-  CheckCircle2,
   Copy,
   Check,
   RefreshCw,
   FileText,
   AlertCircle,
+  Clock,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
@@ -26,6 +26,8 @@ import {
   relativeTime,
   agentDisplayName,
 } from '../tasks/task-ui'
+import { isTaskActive, formatDuration } from './task-progress'
+import { TaskCompletionCard } from './TaskCompletionCard'
 
 export interface TaskCardProps {
   taskId: string
@@ -34,6 +36,8 @@ export interface TaskCardProps {
   onClick?: (task: Task) => void
   className?: string
   returnTo?: string
+  onContinueChat?: (suggestedText: string) => void
+  disableCompletionCard?: boolean
 }
 
 export function TaskCard({
@@ -43,6 +47,8 @@ export function TaskCard({
   onClick,
   className,
   returnTo,
+  onContinueChat,
+  disableCompletionCard = false,
 }: TaskCardProps) {
   const { t } = useLanguage()
   const navigate = useNavigate()
@@ -52,6 +58,7 @@ export function TaskCard({
   const [error, setError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
 
   useEffect(() => {
     if (initialTask) {
@@ -78,6 +85,85 @@ export function TaskCard({
       active = false
     }
   }, [taskId, initialTask])
+
+  // Autonomous polling for active tasks in stream (every 3.5s)
+  useEffect(() => {
+    if (!currentTask || !isTaskActive(currentTask)) return
+    let active = true
+    const interval = setInterval(async () => {
+      try {
+        const updated = await tasksApi.get(taskId)
+        if (active && updated) {
+          setCurrentTask(updated)
+        }
+      } catch {
+        // ignore polling error
+      }
+    }, 3500)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [
+    taskId,
+    currentTask?.id,
+    currentTask?.status,
+    currentTask?.latest_attempt?.status,
+    currentTask?.launch?.state,
+  ])
+
+  // Live timer interval for queued/running tasks
+  useEffect(() => {
+    if (!currentTask) {
+      setElapsedSeconds(0)
+      return
+    }
+
+    const taskStatus = (currentTask.status || '').toLowerCase().trim()
+    const attemptStatus = (currentTask.latest_attempt?.status || '').toLowerCase().trim()
+    const launchState = (currentTask.launch?.state || '').toLowerCase().trim()
+    const isRunningOrQueued =
+      taskStatus === 'doing' ||
+      taskStatus === 'queued' ||
+      attemptStatus === 'running' ||
+      attemptStatus === 'queued' ||
+      launchState === 'started' ||
+      launchState === 'claimed' ||
+      launchState === 'queued' ||
+      isTaskActive(currentTask)
+
+    if (!isRunningOrQueued) {
+      setElapsedSeconds(0)
+      return
+    }
+
+    const startTimestamp =
+      currentTask.latest_attempt?.started_at ||
+      currentTask.latest_attempt?.created_at ||
+      currentTask.updated_at ||
+      currentTask.created_at
+
+    const parseTime = Date.parse(startTimestamp || '')
+    const startTime = Number.isFinite(parseTime) ? parseTime : Date.now()
+
+    const updateTimer = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - startTime) / 1000))
+      setElapsedSeconds(diff)
+    }
+
+    updateTimer()
+    const timer = setInterval(updateTimer, 1000)
+
+    return () => clearInterval(timer)
+  }, [
+    currentTask?.id,
+    currentTask?.status,
+    currentTask?.latest_attempt?.status,
+    currentTask?.latest_attempt?.started_at,
+    currentTask?.latest_attempt?.created_at,
+    currentTask?.updated_at,
+    currentTask?.created_at,
+  ])
 
   const handleCardClick = (_e: React.MouseEvent) => {
     if (onClick && currentTask) {
@@ -115,9 +201,11 @@ export function TaskCard({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleActionClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleActionClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
     if (!currentTask) {
       navigate(`/tasks/${encodeURIComponent(taskId)}`)
       onNavigate?.()
@@ -131,6 +219,16 @@ export function TaskCard({
       url = taskTerminalUrl(currentTask)
     }
     navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    onNavigate?.()
+  }
+
+  const handleViewDetails = (task: Task) => {
+    if (onClick) {
+      onClick(task)
+    } else {
+      const url = taskDetailUrl(task)
+      navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    }
     onNavigate?.()
   }
 
@@ -210,14 +308,50 @@ export function TaskCard({
     )
   }
 
+  const rawStatus = (currentTask.status || '').toLowerCase().trim()
   const status = workStatus(currentTask)
+  const isDone = rawStatus === 'done' || status === 'Completed'
+  const isReview = rawStatus === 'review' || status === 'Ready for review' || status === 'Answered'
+
+  // Seamless transition to TaskCompletionCard for completed or review tasks
+  if ((isDone || isReview) && !disableCompletionCard) {
+    const convId = returnTo?.includes('/inbox/')
+      ? returnTo.split('/inbox/')[1]?.split(/[?#]/)[0]
+      : undefined
+
+    return (
+      <div
+        data-card="task-card"
+        className={cn(
+          'w-full max-w-full transition-all duration-300 ease-out animate-in fade-in',
+          className
+        )}
+      >
+        <TaskCompletionCard
+          task={currentTask}
+          conversationId={convId}
+          onContinueChat={onContinueChat}
+          onViewDetails={handleViewDetails}
+        />
+      </div>
+    )
+  }
+
   const isWorking = status === 'Working'
-  const isQueued = status === 'Queued' || (status as string) === 'Waiting to start' || (currentTask.status as string) === 'queued'
+  const isQueued =
+    status === 'Queued' ||
+    (status as string) === 'Waiting to start' ||
+    rawStatus === 'queued'
   const isNeedsAttention = status === 'Needs attention'
   const statusBadge = workStatusBadgeClass(status)
-  const agent = currentTask.latest_attempt?.agent_name || currentTask.assignee_id || currentTask.assignee
+  const agent =
+    currentTask.latest_attempt?.agent_name ||
+    currentTask.assignee_id ||
+    currentTask.assignee
   const summary = taskSummaryText(currentTask)
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
+  const queuedActivity =
+    currentTask.latest_progress || t('Menunggu antrean worker…')
 
   return (
     <div
@@ -231,7 +365,7 @@ export function TaskCard({
         className
       )}
     >
-      {/* Header: Status, Project, TaskRef, and Timestamp */}
+      {/* Header: Status, Live Timer, Project, TaskRef, and Timestamp */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span
@@ -250,17 +384,25 @@ export function TaskCard({
                 <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
               </span>
-            ) : status === 'Ready for review' ? (
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
-            ) : status === 'Completed' || status === 'Answered' ? (
-              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            ) : status === 'Needs attention' ? (
+            ) : isNeedsAttention ? (
               <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />
             ) : (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}
             <span>{t(status)}</span>
           </span>
+
+          {/* Running/Queued Live Timer with duration */}
+          {(isWorking || isQueued) && (
+            <span
+              data-testid="task-card-live-timer"
+              className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md"
+              title={t('Durasi pengerjaan')}
+            >
+              <Clock className="h-3 w-3 shrink-0 text-primary animate-pulse" />
+              <span>{formatDuration(elapsedSeconds)}</span>
+            </span>
+          )}
 
           {currentTask.project_name && (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium truncate max-w-[150px]">
@@ -292,6 +434,10 @@ export function TaskCard({
           <p className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-1 break-words">
             {liveActivity}
           </p>
+        ) : isQueued ? (
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium line-clamp-1 break-words">
+            {queuedActivity}
+          </p>
         ) : summary ? (
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
             {summary}
@@ -307,7 +453,7 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Footer: Quick Action Buttons (Tombol Aksi Cepat) */}
+      {/* Footer: Quick Action Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50">
         <button
           type="button"
@@ -348,10 +494,10 @@ export function TaskCard({
                 <Terminal className="h-3.5 w-3.5 shrink-0" />
                 <span>{t('Live Terminal')}</span>
               </>
-            ) : status === 'Ready for review' || status === 'Completed' || status === 'Answered' ? (
+            ) : isQueued ? (
               <>
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                <span>{t('View result')}</span>
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span>{t('Open task')}</span>
               </>
             ) : (
               <>

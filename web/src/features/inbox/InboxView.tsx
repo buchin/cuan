@@ -62,7 +62,7 @@ import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard
 import { ConversationWorkMonitor } from './ConversationWorkMonitor'
 import { TaskItemCard } from '../tasks/TaskItemCard'
 import { getQueuedTasksPositions } from '../tasks/task-ui'
-import { TaskProgressBanner, isTaskActive } from './TaskProgressBanner'
+import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
 import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
@@ -1183,20 +1183,10 @@ export function InboxView({
 
             {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
             <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
-              {/* Floating Live Progress Chip for Queued/Running Tasks */}
-              <TaskProgressBanner
-                tasks={activeConversationTasks}
-                onViewTasks={() => setConvTab('tasks')}
-                onOpenTask={() => setConvTab('tasks')}
-              />
-
               <div
                 ref={messageListRef}
                 onScroll={handleScroll}
-                className={cn(
-                  "inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2",
-                  activeConversationTasks.length > 0 && "pt-14 sm:pt-14"
-                )}
+                className="inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">

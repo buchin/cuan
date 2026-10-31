@@ -27,6 +27,8 @@
   "Koneksi ke endpoint worker terputus": "Koneksi ke endpoint worker terputus",
   "Real-time task progress & actionable completion cards.": "Progress tugas real-time & kartu penyelesaian instan.",
   "Instant visual feedback with floating live progress chips and live duration timers during execution, followed by jargon-free completion cards embedded in chat.": "Umpan balik visual instan dengan live progress chip dan timer durasi berjalan saat eksekusi, disusul kartu penyelesaian bebas jargon yang tersemat langsung di chat.",
+  "De-cluttered chat & self-contained task cards.": "Chat bebas distraksi & kartu tugas mandiri.",
+  "Clean, distraction-free chat with self-contained task cards handling queued states, live pulse & duration timers, and seamless transitions to actionable completion cards.": "Obrolan bersih tanpa distraksi dengan kartu tugas mandiri yang mengelola antrean, indikator denyut, timer durasi, dan transisi mulus ke kartu penyelesaian.",
   "Floating Live Progress": "Progress Live Mengambang",
   "Dalam Antrean": "Dalam Antrean",
   "Sedang Dikerjakan": "Sedang Dikerjakan",

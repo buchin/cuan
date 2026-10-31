@@ -275,8 +275,8 @@ export function LandingPage() {
               },
               {
                 Icon: Sparkles,
-                title: 'Real-time task progress & actionable completion cards.',
-                text: 'Instant visual feedback with floating live progress chips and live duration timers during execution, followed by jargon-free completion cards embedded in chat.',
+                title: 'De-cluttered chat & self-contained task cards.',
+                text: 'Clean, distraction-free chat with self-contained task cards handling queued states, live pulse & duration timers, and seamless transitions to actionable completion cards.',
               },
               {
                 Icon: Volume2,
