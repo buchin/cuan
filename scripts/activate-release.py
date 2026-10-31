@@ -254,6 +254,23 @@ def apply_pending_migrations(target_dir, env):
             raise RuntimeError(f"Could not apply migration {up_file.name}: {e}")
 
 
+def signal_worker_drain():
+    try:
+        drain_file = Path('/tmp/cuan-drain')
+        drain_file.touch(mode=0o666, exist_ok=True)
+        subprocess.run(['pkill', '-USR1', '-f', 'cuan-runner'], check=False)
+        print('==> Signaled graceful drain to active cuan-runner workers (/tmp/cuan-drain & SIGUSR1).')
+    except Exception as e:
+        print(f'==> Notice: Could not signal worker drain: {e}')
+
+
+def cleanup_worker_drain():
+    try:
+        Path('/tmp/cuan-drain').unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def mark_task_deploy_complete(env, release_sha):
     cap_file = os.environ.get('CUAN_TASK_CAPABILITY_FILE')
     task_id = os.environ.get('CUAN_DEPLOY_EXCLUDE_TASK', '').strip()
@@ -408,12 +425,14 @@ def main():
                 cuan_bin.symlink_to('cuan-server')
             except Exception:
                 pass
+        signal_worker_drain()
         switch(current, target)
         target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
         if target_sha and not args.no_restart:
             mark_task_deploy_complete(retained_environment, target_sha)
         check_healthy = (lambda: healthy(target_sha)) if args.no_restart else (lambda: restart_and_check(target_sha))
         if not check_healthy():
+            cleanup_worker_drain()
             old_manifest = json.loads((old / 'release.json').read_text())
             assert_project_workspace_support(old_manifest, retained_environment)
             assert_task_worktree_support(old_manifest, retained_environment)
@@ -422,6 +441,7 @@ def main():
             old_healthy = (lambda: healthy(old_sha)) if args.no_restart else (lambda: restart_and_check(old_sha))
             recovered = old_healthy()
             raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
+        cleanup_worker_drain()
         switch(previous, old)
         print(json.dumps({'release': target.name, 'previous': old.name, 'health': 'healthy', 'migrations': SCHEMA_COUNT}))
 

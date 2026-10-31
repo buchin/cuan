@@ -22,14 +22,28 @@ const Command = "--cuan-task-supervisor"
 const ConflictExit = 75
 
 const (
-	DefaultTaskTimeout = 20 * time.Minute
-	DefaultGracePeriod = 10 * time.Second
+	DefaultTaskTimeout    = 15 * time.Minute
+	DefaultRequeueTimeout = 20 * time.Minute
+	DefaultMaxCapTimeout  = 25 * time.Minute
+	DefaultGracePeriod    = 20 * time.Second
 )
 
 func getTaskTimeout() time.Duration {
 	if v := os.Getenv("CUAN_TASK_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			return d
+		}
+	}
+	if v := os.Getenv("CUAN_TASK_ATTEMPT"); v != "" {
+		if att, err := strconv.Atoi(v); err == nil {
+			switch {
+			case att <= 1:
+				return DefaultTaskTimeout
+			case att == 2:
+				return DefaultRequeueTimeout
+			default:
+				return DefaultMaxCapTimeout
+			}
 		}
 	}
 	return DefaultTaskTimeout

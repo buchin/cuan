@@ -145,4 +145,17 @@ class Gates(unittest.TestCase):
                 hashlib.sha256(target_binary.read_bytes()).hexdigest()
             )
 
+    def test_worker_drain_signal_and_cleanup(self):
+        drain_file = Path('/tmp/cuan-drain')
+        try:
+            drain_file.unlink(missing_ok=True)
+            with patch.object(a.subprocess, 'run') as mock_run:
+                a.signal_worker_drain()
+                self.assertTrue(drain_file.exists())
+                mock_run.assert_called_once_with(['pkill', '-USR1', '-f', 'cuan-runner'], check=False)
+            a.cleanup_worker_drain()
+            self.assertFalse(drain_file.exists())
+        finally:
+            drain_file.unlink(missing_ok=True)
+
 if __name__ == '__main__': unittest.main()

@@ -151,6 +151,7 @@ release_dir="$HOME/.local/share/cuan-releases/$release_sha"
 mkdir -p "$release_dir/bin" "$release_dir/web"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-server" ./cmd/server
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-migrate" ./cmd/migrate
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-runner" ./cmd/runner
 if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
   npm run build --prefix web
 elif [ -d "web/dist" ]; then
