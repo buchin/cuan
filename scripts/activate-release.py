@@ -15,7 +15,7 @@ import urllib.parse
 BASE = Path('/opt/cuan')
 SERVICE = 'cuan'
 PORT = 8080
-SCHEMA_COUNT = 30
+SCHEMA_COUNT = 31
 
 
 def switch(link, target):
@@ -351,7 +351,7 @@ def main():
     parser.add_argument('--base', type=Path, default=BASE, help='Native installation directory (isolated drill uses its own base)')
     parser.add_argument('--service', default=SERVICE, help='Existing systemd service')
     parser.add_argument('--port', type=int, default=PORT, help='Loopback health port')
-    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
+    parser.add_argument('--schema-count', type=int, choices=(19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32), default=SCHEMA_COUNT, help='Exact applied DB count, including on application rollback')
     parser.add_argument('--allow-divergent', action='store_true', help='Allow activating a release that does not contain active release commits')
     parser.add_argument('--no-restart', action='store_true', help='Skip service restart for zero-downtime static asset releases')
     args = parser.parse_args()
