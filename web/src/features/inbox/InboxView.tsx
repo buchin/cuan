@@ -62,6 +62,8 @@ import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard
 import { ConversationWorkMonitor } from './ConversationWorkMonitor'
 import { TaskItemCard } from '../tasks/TaskItemCard'
 import { getQueuedTasksPositions } from '../tasks/task-ui'
+import { TaskProgressBanner, isTaskActive } from './TaskProgressBanner'
+import { TaskCompletionCard } from './TaskCompletionCard'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 import { TasteGroundingChips } from './TasteGroundingChips'
@@ -160,6 +162,9 @@ export function InboxView({
   const prevMessageCountRef = useRef(0)
   const [streamState, setStreamState] = useState('connecting')
   const [linkedTasks, setLinkedTasks] = useState<Task[]>([])
+  const activeConversationTasks = useMemo(() => {
+    return linkedTasks.filter(isTaskActive)
+  }, [linkedTasks])
   const [showTasksModal, setShowTasksModal] = useState(false)
   const [convTab, setConvTab] = useState<'chat' | 'tasks'>('chat')
   const [escalatingMessage, setEscalatingMessage] = useState<ChatMessage | null>(null)
@@ -230,6 +235,17 @@ export function InboxView({
     olderAnchor.current = null
   }, [activeContact?.id])
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const unattachedCompletedTasks = useMemo(() => {
+    const visibleMsgIds = new Set(messages.map((m) => m.uuid).filter(Boolean))
+    return linkedTasks.filter((t) => {
+      const isCompleted =
+        (t.status || '').toLowerCase().trim() === 'done' ||
+        (t.status || '').toLowerCase().trim() === 'review'
+      if (!isCompleted) return false
+      if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
+      return true
+    })
+  }, [linkedTasks, messages])
   const [inputMessage, setInputMessage] = useState('')
   const uploads = useAttachments(
     'cuan-inbox-attachments:' +
@@ -565,6 +581,24 @@ export function InboxView({
       document.removeEventListener('visibilitychange', visible)
     }
   }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
+
+  // Adaptive task poller: 3-5s (4000ms) when in-flight tasks exist, idle backoff (20000ms) otherwise
+  const hasActiveTasks = activeConversationTasks.length > 0
+  useEffect(() => {
+    if (!activeContact) return
+    const convId = activeContact.conversation_id || activeContact.id
+    if (!convId) return
+
+    const intervalMs = hasActiveTasks ? 4000 : 20000
+
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void loadConversation(convId)
+      }
+    }, intervalMs)
+
+    return () => clearInterval(timer)
+  }, [activeContact?.conversation_id, activeContact?.id, hasActiveTasks, loadConversation])
 
   useLayoutEffect(() => {
     if (!requestedMessageId || !activeContact) return
@@ -1126,10 +1160,20 @@ export function InboxView({
 
             {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
             <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
+              {/* Floating Live Progress Chip for Queued/Running Tasks */}
+              <TaskProgressBanner
+                tasks={activeConversationTasks}
+                onViewTasks={() => setConvTab('tasks')}
+                onOpenTask={() => setConvTab('tasks')}
+              />
+
               <div
                 ref={messageListRef}
                 onScroll={handleScroll}
-                className="inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
+                className={cn(
+                  "inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2",
+                  activeConversationTasks.length > 0 && "pt-14 sm:pt-14"
+                )}
               >
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
@@ -1610,6 +1654,10 @@ export function InboxView({
                           }
                           messageId={msg.uuid}
                           draft={isAgentMessage ? msg.task_draft : undefined}
+                          onContinueChat={(text) => {
+                            setInputMessage((prev) => (prev ? `${prev} ${text}` : text))
+                            textareaRef.current?.focus()
+                          }}
                         />
                       )}
                       {msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
@@ -1672,6 +1720,28 @@ export function InboxView({
                   </div>
                 )
               })}
+
+              {/* Unattached or latest completed conversation tasks */}
+              {unattachedCompletedTasks.map((completedTask) => (
+                <div
+                  key={`standalone-completed-${completedTask.id}`}
+                  className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
+                >
+                  <div className="wa-message-bubble wa-incoming relative min-w-0 max-w-xl w-full">
+                    <TaskCompletionCard
+                      task={completedTask}
+                      conversationId={
+                        activeContact.conversation_id || activeContact.id
+                      }
+                      onContinueChat={(text) => {
+                        setInputMessage((prev) => (prev ? `${prev} ${text}` : text))
+                        textareaRef.current?.focus()
+                      }}
+                      onViewDetails={() => setConvTab('tasks')}
+                    />
+                  </div>
+                </div>
+              ))}
 
               {sendError && (
                 <div

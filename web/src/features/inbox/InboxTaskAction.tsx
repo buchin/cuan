@@ -6,17 +6,20 @@ import { InboxTaskDraft } from '../../api/chat'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
 import { TaskItemCard } from '../tasks/TaskItemCard'
+import { TaskCompletionCard } from './TaskCompletionCard'
 
 export function InboxTaskAction({
   conversationId,
   messageId,
   draft,
   linkedTask,
+  onContinueChat,
 }: {
   conversationId: string
   messageId: string
   draft?: InboxTaskDraft
   linkedTask?: Task
+  onContinueChat?: (suggestedText: string) => void
 }) {
   const { t } = useLanguage()
 
@@ -70,7 +73,23 @@ export function InboxTaskAction({
   }, [draft, existing, messageId, retry])
 
   if (!draft && !existing) return null
-  if (existing)
+  if (existing) {
+    const isCompleted =
+      (existing.status || '').toLowerCase().trim() === 'done' ||
+      (existing.status || '').toLowerCase().trim() === 'review'
+
+    if (isCompleted) {
+      return (
+        <div className="mt-2.5 w-full min-w-0" aria-label="Task completion from conversation">
+          <TaskCompletionCard
+            task={existing}
+            conversationId={conversationId}
+            onContinueChat={onContinueChat}
+          />
+        </div>
+      )
+    }
+
     return (
       <div className="mt-2.5 w-full min-w-0" aria-label="Task from conversation">
         <TaskItemCard
@@ -82,6 +101,7 @@ export function InboxTaskAction({
         />
       </div>
     )
+  }
   return (
     <form
       aria-label="Draft task"

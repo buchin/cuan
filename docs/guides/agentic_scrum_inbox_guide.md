@@ -125,3 +125,21 @@ Seluruh data percakapan Inbox dan task terhubung aman di PostgreSQL:
 - `project_rooms`: Menyimpan metadata thread percakapan.
 - `project_messages`: Menyimpan histori obrolan lengkap dengan tipe author (`user`, `agent`, `system`).
 - `project_tasks`: Terikat relasional dengan `room_id` dan mempertahankan 100% data migrasi dari Sprint 1 hingga Sprint 17 tanpa regresi schema.
+
+---
+
+## 7. Real-Time Task Progress Banner & Actionable Completion Card (Sprint 57)
+
+Mulai Sprint 57, antarmuka obrolan Conversational Inbox dilengkapi dengan umpan balik visual instan (*real-time task feedback*) yang ramah pengguna awam dan non-developer:
+
+### 7.1 Floating Live Progress Chip (`TaskProgressBanner`)
+- **Deteksi Reaktif:** Terhubung langsung dengan selector `activeConversationTasks`, mendeteksi tugas aktif yang berstatus `queued` atau `running`.
+- **Live Elapsed Timer & Agent:** Menampilkan indikator denyut (*pulse*), status antrean atau pemrosesan, nama agen pelaksana (`cuan-runner`), dan durasi berjalan (*live elapsed time*) yang bertambah per detik.
+- **Polling Adaptif:** Mengaktifkan interval polling kilat (3–5 detik) saat tugas sedang berjalan (*in-flight*), dan otomatis kembali ke interval santai (*idle backoff* 20 detik) saat tidak ada tugas aktif, memastikan zero re-render storm dan server hemat sumber daya.
+- **Non-Intrusive Floating:** Mengambang secara elegan di bagian atas aliran obrolan tanpa mengganggu alur membaca maupun interaksi formulir composer.
+
+### 7.2 Actionable Completion Card (`TaskCompletionCard`)
+- **Bahasa Bisnis Bebas Jargon:** Menampilkan ringkasan hasil kerja ramah UMKM (*business summary*), bukan sekadar tumpukan log teknis mentah.
+- **Kriteria Selesai (DoD):** Menampilkan rekap pemenuhan kriteria Definition of Done dengan visual lencana hijau yang menenangkan (*zero guesswork & total peace of mind*).
+- **Tombol Aksi Cepat:** Menyediakan tombol pintas langsung menuju halaman detail tugas serta tombol "Lanjutkan Diskusi" yang memicu instruksi lanjutan tanpa perlu mengetik ulang referensi tugas.
+

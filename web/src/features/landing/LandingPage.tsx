@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Zap,
   Clock,
+  Sparkles,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -269,6 +270,11 @@ export function LandingPage() {
                 Icon: Zap,
                 title: 'Isolated cuan-runner daemon & auto-undrain deployment.',
                 text: 'Tasks are dispatched to a standalone worker daemon isolated from the web server. Deploy hooks automatically clean drain flags and restart workers with zero interruption to ongoing tasks.',
+              },
+              {
+                Icon: Sparkles,
+                title: 'Real-time task progress & actionable completion cards.',
+                text: 'Instant visual feedback with floating live progress chips and live duration timers during execution, followed by jargon-free completion cards embedded in chat.',
               },
               {
                 Icon: Clock,
