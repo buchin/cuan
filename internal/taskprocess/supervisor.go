@@ -21,6 +21,29 @@ import (
 const Command = "--cuan-task-supervisor"
 const ConflictExit = 75
 
+const (
+	DefaultTaskTimeout = 20 * time.Minute
+	DefaultGracePeriod = 10 * time.Second
+)
+
+func getTaskTimeout() time.Duration {
+	if v := os.Getenv("CUAN_TASK_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return DefaultTaskTimeout
+}
+
+func getGracePeriod() time.Duration {
+	if v := os.Getenv("CUAN_TASK_GRACE_PERIOD"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return DefaultGracePeriod
+}
+
 var ErrActive = errors.New("a task process still owns this execution")
 
 // OpenLock never truncates or unlinks a live lock. All hosts for this local
@@ -85,7 +108,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "Task execution ownership could not be verified.")
 		return 74
 	}
-	defer file.Close()
+	defer func() {
+		if file != nil {
+			_ = file.Close()
+		}
+	}()
 
 	// Demote task supervisor and all child processes to background CPU priority (nice 19)
 	// so agent workloads (compiles, test suites, builds) never starve the main HTTP server or DB.
@@ -155,6 +182,20 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	go func() { waited <- child.Wait() }()
 	parentCheck := time.NewTicker(200 * time.Millisecond)
 	defer parentCheck.Stop()
+
+	taskTimeout := getTaskTimeout()
+	timeoutTimer := time.NewTimer(taskTimeout)
+	defer timeoutTimer.Stop()
+
+	var timedOut bool
+	var timeoutStopping <-chan time.Time
+	var timeoutGraceTimer *time.Timer
+	defer func() {
+		if timeoutGraceTimer != nil {
+			timeoutGraceTimer.Stop()
+		}
+	}()
+
 	var stopping <-chan time.Time
 	var timer *time.Timer
 	defer func() {
@@ -174,8 +215,16 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		select {
 		case <-waited:
 			code := child.ProcessState.ExitCode()
-			if stopping != nil || code != 0 {
+			if stopping != nil || timeoutStopping != nil || timedOut || code != 0 {
 				_ = syscall.Kill(-child.Process.Pid, syscall.SIGKILL)
+			}
+			if timedOut {
+				// Cleanly release lock file before exiting on timeout
+				if file != nil {
+					_ = file.Close()
+					file = nil
+				}
+				return 124
 			}
 			if code < 0 {
 				if status, ok := child.ProcessState.Sys().(syscall.WaitStatus); ok && status.Signaled() {
@@ -190,6 +239,20 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			if os.Getppid() != initialParent {
 				stop(syscall.SIGTERM)
 			}
+		case <-timeoutTimer.C:
+			if !timedOut && stopping == nil {
+				timedOut = true
+				fmt.Fprintln(stderr, "Task execution exceeded hard timeout.")
+				// Stage 1: Send graceful SIGTERM to the process tree (pgid)
+				_ = syscall.Kill(-child.Process.Pid, syscall.SIGTERM)
+				grace := getGracePeriod()
+				timeoutGraceTimer = time.NewTimer(grace)
+				timeoutStopping = timeoutGraceTimer.C
+			}
+		case <-timeoutStopping:
+			// Stage 2: Grace period expired, escalate to SIGKILL
+			_ = syscall.Kill(-child.Process.Pid, syscall.SIGKILL)
+			timeoutStopping = nil
 		case <-stopping:
 			_ = syscall.Kill(-child.Process.Pid, syscall.SIGKILL)
 			stopping = nil

@@ -1056,6 +1056,74 @@ func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
 	return nil
 }
 
+// ReconcileZombieAttempts sweeps task attempts and launches whose OS process
+// is dead or has exceeded the hard execution timeout. It marks them failed / stopped
+// and frees the project lane so subsequent tasks can run automatically.
+func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Duration, isTaskActiveOnHost func(taskID string) bool) error {
+	if timeout <= 0 {
+		timeout = 20 * time.Minute
+	}
+	tasks, err := s.store.ListTasks(ctx, TaskFilter{})
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+
+	for _, t := range tasks {
+		a, err := s.store.GetLatestAttempt(ctx, t.ID)
+		if err != nil || a == nil {
+			continue
+		}
+
+		if a.Status != "running" && a.Status != "queued" {
+			// If attempt has ended but task is still in doing/working, reconcile task status to failed
+			if t.Status == TaskStatusDoing || t.Status == "working" {
+				t.Status = TaskStatusFailed
+				t.UpdatedAt = now
+				_ = s.store.UpdateTask(ctx, t)
+				_ = s.FinishTaskLaunches(ctx, t.ID, "stopped")
+			}
+			continue
+		}
+
+		// Check 1: Exceeded hard timeout (> 20 minutes)
+		startTime := a.CreatedAt
+		if a.StartedAt != nil && !a.StartedAt.IsZero() {
+			startTime = *a.StartedAt
+		}
+		exceededTimeout := now.Sub(startTime) > timeout
+
+		// Check 2: OS process is dead
+		processDead := false
+		if isTaskActiveOnHost != nil && !isTaskActiveOnHost(t.ID) {
+			processDead = true
+		}
+
+		if exceededTimeout || processDead {
+			msg := "Task runner process terminated or inactive (zombie attempt reaped)."
+			if exceededTimeout {
+				msg = fmt.Sprintf("Task runner exceeded hard execution timeout (%v).", timeout)
+			}
+
+			// Mark attempt failed
+			_, _ = s.UpdateAttemptStatus(ctx, a.ID, "zombie_reaper", UpdateAttemptRequest{
+				Status:       AttemptStatusFailed,
+				ErrorMessage: msg,
+			})
+
+			// Mark task failed
+			t.Status = TaskStatusFailed
+			t.UpdatedAt = now
+			_ = s.store.UpdateTask(ctx, t)
+
+			// Mark task launches stopped
+			_ = s.FinishTaskLaunches(ctx, t.ID, "stopped")
+		}
+	}
+
+	return nil
+}
+
 func validateChecklist(items []DoDItem) error {
 	if len(items) > 50 {
 		return fmt.Errorf("%w: use up to 50 acceptance criteria", ErrInvalidTaskInput)

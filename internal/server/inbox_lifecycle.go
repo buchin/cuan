@@ -58,6 +58,7 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 					log.Print("local attempt recovery unavailable")
 				}
 				_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
+				_ = s.ReconcileZombies(ctx)
 			}
 			if s.runnerSvc != nil {
 				_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)

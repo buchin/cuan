@@ -978,3 +978,108 @@ func TestVisitorChatSession_FiltersInternalMessages(t *testing.T) {
 		t.Fatalf("expected public reply in refresh response")
 	}
 }
+
+func TestChatHandlers_CustomerEmail(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// 1. Initialize visitor chat session with email
+	visitorInitPayload := map[string]interface{}{
+		"guest_uuid":  "guest-uuid-email-test",
+		"product":     "shuriken",
+		"name":        "Siti Rahma",
+		"email":       "siti.rahma@example.com",
+		"current_url": "https://shuriken.dojo.cc/pricing",
+		"page_title":  "Pricing Page",
+		"message":     "Halo, saya ingin menanyakan paket enterprise.",
+	}
+	initBody, _ := json.Marshal(visitorInitPayload)
+	reqInit := httptest.NewRequest(http.MethodPost, "/api/chat/session", bytes.NewReader(initBody))
+	reqInit.Header.Set("Content-Type", "application/json")
+	recInit := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInit, reqInit)
+	if recInit.Code != http.StatusOK {
+		t.Fatalf("expected 200 for visitor chat session init, got %d: %s", recInit.Code, recInit.Body.String())
+	}
+
+	var initResp struct {
+		OK      bool `json:"ok"`
+		Session struct {
+			UUID string `json:"uuid"`
+		} `json:"session"`
+	}
+	if err := json.Unmarshal(recInit.Body.Bytes(), &initResp); err != nil || !initResp.OK {
+		t.Fatalf("failed to decode init response: %v", err)
+	}
+	sessionUUID := initResp.Session.UUID
+
+	// 2. Fetch contacts list -> verify email is present in ChatContact
+	reqContacts := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=customers", nil)
+	reqContacts.Header.Set("Authorization", "Bearer "+token)
+	recContacts := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recContacts, reqContacts)
+	if recContacts.Code != http.StatusOK {
+		t.Fatalf("expected 200 for contacts, got %d: %s", recContacts.Code, recContacts.Body.String())
+	}
+	var contactsResp struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(recContacts.Body.Bytes(), &contactsResp); err != nil {
+		t.Fatalf("failed to decode contacts response: %v", err)
+	}
+	var found *ChatContact
+	for _, c := range contactsResp.Contacts {
+		if c.ConversationID == sessionUUID {
+			found = &c
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected contact with conversationID %s in contacts list, got %+v", sessionUUID, contactsResp.Contacts)
+	}
+	if found.Email != "siti.rahma@example.com" {
+		t.Fatalf("expected Email 'siti.rahma@example.com', got '%s'", found.Email)
+	}
+	if found.Name != "Siti Rahma" {
+		t.Fatalf("expected Name 'Siti Rahma', got '%s'", found.Name)
+	}
+
+	// 3. Search contacts by email query
+	reqSearch := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?search=siti.rahma@example.com", nil)
+	reqSearch.Header.Set("Authorization", "Bearer "+token)
+	recSearch := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recSearch, reqSearch)
+	if recSearch.Code != http.StatusOK {
+		t.Fatalf("expected 200 for search contacts, got %d", recSearch.Code)
+	}
+	var searchResp struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(recSearch.Body.Bytes(), &searchResp); err != nil || len(searchResp.Contacts) == 0 {
+		t.Fatalf("expected at least 1 contact matching email search, got %d", len(searchResp.Contacts))
+	}
+	if searchResp.Contacts[0].Email != "siti.rahma@example.com" {
+		t.Fatalf("expected searched contact email 'siti.rahma@example.com', got '%s'", searchResp.Contacts[0].Email)
+	}
+
+	// 4. Fetch conversation messages -> verify contact.email is returned
+	reqConv := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+sessionUUID+"/messages", nil)
+	reqConv.Header.Set("Authorization", "Bearer "+token)
+	recConv := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recConv, reqConv)
+	if recConv.Code != http.StatusOK {
+		t.Fatalf("expected 200 for conversation messages, got %d: %s", recConv.Code, recConv.Body.String())
+	}
+	var convResp struct {
+		Contact  ChatContact      `json:"contact"`
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recConv.Body.Bytes(), &convResp); err != nil {
+		t.Fatalf("failed to decode conversation messages: %v", err)
+	}
+	if convResp.Contact.Email != "siti.rahma@example.com" {
+		t.Fatalf("expected conv contact Email 'siti.rahma@example.com', got '%s'", convResp.Contact.Email)
+	}
+	if convResp.Contact.Name != "Siti Rahma" {
+		t.Fatalf("expected conv contact Name 'Siti Rahma', got '%s'", convResp.Contact.Name)
+	}
+}

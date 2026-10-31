@@ -14,6 +14,7 @@ const (
 	TaskStatusReview  = "review"
 	TaskStatusDone    = "done"
 	TaskStatusBlocked = "blocked"
+	TaskStatusFailed  = "failed"
 )
 
 // Attempt execution status constants

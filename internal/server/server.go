@@ -595,6 +595,7 @@ func (s *Server) reconcileStartupState(ctx context.Context) {
 	if s.runnerSvc != nil {
 		_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
 	}
+	_ = s.ReconcileZombies(ctx)
 	s.deliverInboxTaskUpdates(ctx)
 	s.kickTaskLaunches()
 }

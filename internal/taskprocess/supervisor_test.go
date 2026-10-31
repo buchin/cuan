@@ -123,3 +123,41 @@ func TestSupervisorRejectsSymlinkAndReturnsAgentExit(t *testing.T) {
 		t.Fatal("agent exit code not preserved")
 	}
 }
+
+func TestSupervisorHardTimeoutGracefulSigtermAndSigkill(t *testing.T) {
+	root := t.TempDir()
+	lock := filepath.Join(root, "task.lock")
+	checkpoint := filepath.Join(root, "sigterm.log")
+	executable, _ := os.Executable()
+
+	// Test two-stage termination: agent traps TERM, records receipt, then killed by SIGKILL
+	cmd := exec.Command(executable, Command, lock, strconv.Itoa(os.Getpid()), "--", "/bin/sh", "-c", `
+		trap 'echo SIGTERM_RECEIVED > "$1"' TERM
+		while :; do sleep 0.02; done
+	`, "fixture", checkpoint)
+	cmd.Env = append(os.Environ(), "CUAN_TASK_TIMEOUT=200ms", "CUAN_TASK_GRACE_PERIOD=200ms")
+	output, err := cmd.CombinedOutput()
+	exitCode := cmd.ProcessState.ExitCode()
+	if exitCode != 124 {
+		t.Fatalf("expected timeout exit code 124, got %d (err: %v, output: %s)", exitCode, err, string(output))
+	}
+
+	// Verify SIGTERM was received first (Stage 1)
+	body, err := os.ReadFile(checkpoint)
+	if err != nil || !strings.Contains(string(body), "SIGTERM_RECEIVED") {
+		t.Fatalf("expected SIGTERM_RECEIVED recorded in checkpoint, got: %s (err: %v)", string(body), err)
+	}
+
+	// Verify lock was cleanly released on timeout
+	active, err := Active(lock)
+	if err != nil || active {
+		t.Fatalf("expected lock file to be cleanly released after timeout, got active=%v, err=%v", active, err)
+	}
+
+	// Subsequent command can immediately acquire the lock
+	nextCmd := exec.Command(executable, Command, lock, strconv.Itoa(os.Getpid()), "--", "/bin/sh", "-c", "echo OK")
+	nextOutput, nextErr := nextCmd.CombinedOutput()
+	if nextErr != nil || strings.TrimSpace(string(nextOutput)) != "OK" {
+		t.Fatalf("expected next execution to succeed after timeout, got: %s, err: %v", string(nextOutput), nextErr)
+	}
+}

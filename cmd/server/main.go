@@ -208,6 +208,7 @@ func main() {
 	inboxCtx, stopInbox := context.WithCancel(context.Background())
 	defer stopInbox()
 	srv.StartInboxDispatcher(inboxCtx)
+	srv.StartZombieReaper(inboxCtx)
 	srv.StartNotificationDispatcher(inboxCtx)
 	srv.StartWorkspaceRetention(inboxCtx)
 	srv.StartGitHubRecovery(inboxCtx)

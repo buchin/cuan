@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -235,12 +236,93 @@ func (m *Manager) CloseSession(taskID string) error {
 	if exists {
 		delete(m.sessions, taskID)
 	}
+	for pID, tID := range m.projectSessions {
+		if tID == taskID {
+			delete(m.projectSessions, pID)
+		}
+	}
 	m.mu.Unlock()
 
 	if !exists {
 		return nil
 	}
 	return sess.Close()
+}
+
+// ReconcileZombieSessions sweeps any sessions whose OS process has died or
+// exceeded the maximum execution duration. It closes them and frees project lanes.
+func (m *Manager) ReconcileZombieSessions(maxDuration time.Duration) []string {
+	if maxDuration <= 0 {
+		maxDuration = 20 * time.Minute
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var reaped []string
+	now := time.Now().UTC()
+
+	for taskID, sess := range m.sessions {
+		isZombie := false
+		reason := ""
+
+		if sess.IsClosed() {
+			isZombie = true
+			reason = "session_closed"
+		} else if sess.PTY() != nil {
+			pid := sess.PTY().PID()
+			if pid <= 0 {
+				isZombie = true
+				reason = "invalid_pid"
+			} else if err := syscall.Kill(pid, 0); err != nil && errors.Is(err, syscall.ESRCH) {
+				isZombie = true
+				reason = "process_dead"
+			}
+		}
+
+		if !isZombie && maxDuration > 0 && now.Sub(sess.CreatedAt()) > maxDuration {
+			isZombie = true
+			reason = "execution_timeout"
+		}
+
+		if isZombie {
+			reaped = append(reaped, taskID)
+			_ = sess.Close()
+			delete(m.sessions, taskID)
+
+			for pID, tID := range m.projectSessions {
+				if tID == taskID {
+					delete(m.projectSessions, pID)
+				}
+			}
+
+			runs := m.histories[taskID]
+			if len(runs) > 0 {
+				last := runs[len(runs)-1]
+				if last.Status == "running" {
+					last.Status = "failed"
+					last.EndReason = reason
+					last.FinishedAt = now
+					last.DurationMs = now.Sub(last.StartedAt).Milliseconds()
+					if last.ExitCode == 0 {
+						if reason == "execution_timeout" {
+							last.ExitCode = 124
+						} else {
+							last.ExitCode = 1
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Also prune any orphaned projectSessions entries whose task is not active in m.sessions
+	for pID, tID := range m.projectSessions {
+		if s, ok := m.sessions[tID]; !ok || s.IsClosed() {
+			delete(m.projectSessions, pID)
+		}
+	}
+
+	return reaped
 }
 
 // ActiveSessions returns a snapshot list of running sessions.

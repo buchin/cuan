@@ -31,6 +31,7 @@ type ChatContact struct {
 	ID             string    `json:"id"`
 	Type           string    `json:"type"` // "agent" or "customer"
 	Name           string    `json:"name"`
+	Email          string    `json:"email,omitempty"`
 	Avatar         string    `json:"avatar"`
 	Status         string    `json:"status"` // "online", "idle", "offline"
 	Product        string    `json:"product,omitempty"`
@@ -890,10 +891,21 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			}
 
 			tc, at, qt, dt, ft := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			contactEmail := sess.Email
+			if contactEmail == "" && liveSess != nil && liveSess.Email != "" {
+				contactEmail = liveSess.Email
+			}
+			if contactEmail == "" {
+				if crmS, err := s.crmSession(r.Context(), sess.UUID); err == nil && crmS != nil && crmS.Email != "" {
+					contactEmail = crmS.Email
+				}
+			}
+
 			custContact := ChatContact{
 				ID:             "cust_" + sess.UUID,
 				Type:           "customer",
 				Name:           sess.Name,
+				Email:          contactEmail,
 				Avatar:         "👤",
 				Status:         status,
 				Product:        sess.Product,
@@ -922,7 +934,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	if searchQuery != "" {
 		filtered := make([]ChatContact, 0)
 		for _, c := range contacts {
-			if strings.Contains(strings.ToLower(c.Name+" "+c.AgentName), searchQuery) ||
+			if strings.Contains(strings.ToLower(c.Name+" "+c.AgentName+" "+c.Email), searchQuery) ||
 				strings.Contains(strings.ToLower(c.LastMessage), searchQuery) ||
 				strings.Contains(strings.ToLower(c.Product), searchQuery) {
 				filtered = append(filtered, c)
@@ -1215,10 +1227,12 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		name := "Customer"
 		product := ""
 		guestUUID := ""
+		email := ""
 		if sess != nil {
 			name = sess.Name
 			product = sess.Product
 			guestUUID = sess.GuestUUID
+			email = sess.Email
 		} else if s.projectStudioRepo != nil {
 			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); err == nil && rm != nil {
 				name = rm.Title
@@ -1226,10 +1240,26 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			}
 		}
 
+		if crmSess, err := s.crmSession(r.Context(), resolved.RoomID); err == nil && crmSess != nil {
+			if name == "" || name == "Customer" {
+				name = crmSess.Name
+			}
+			if product == "" {
+				product = crmSess.Product
+			}
+			if guestUUID == "" {
+				guestUUID = crmSess.GuestUUID
+			}
+			if email == "" {
+				email = crmSess.Email
+			}
+		}
+
 		contact = ChatContact{
 			ID:             "cust_" + resolved.RoomID,
 			Type:           "customer",
 			Name:           name,
+			Email:          email,
 			Avatar:         "👤",
 			Status:         "online",
 			Product:        product,
