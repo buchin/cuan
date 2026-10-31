@@ -22,10 +22,10 @@ const Command = "--cuan-task-supervisor"
 const ConflictExit = 75
 
 const (
-	DefaultTaskTimeout    = 15 * time.Minute
-	DefaultRequeueTimeout = 20 * time.Minute
-	DefaultMaxCapTimeout  = 25 * time.Minute
-	DefaultGracePeriod    = 20 * time.Second
+	DefaultTaskTimeout    = 25 * time.Minute
+	DefaultRequeueTimeout = 35 * time.Minute
+	DefaultMaxCapTimeout  = 45 * time.Minute
+	DefaultGracePeriod    = 30 * time.Second
 )
 
 func getTaskTimeout() time.Duration {

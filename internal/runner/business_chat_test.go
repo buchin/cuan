@@ -69,3 +69,51 @@ func TestDefaultBusinessChatNotifier_SendTaskCompletedBusinessMessage(t *testing
 		t.Fatalf("expected task link in sent content, got:\n%s", sentContent)
 	}
 }
+
+func TestFormatBusinessFriendlyReviewMessage_PurgesJargonAndProvidesOptions(t *testing.T) {
+	title := "Implementasi Integrasi Gateway Pembayaran"
+	summary := "Evaluasi DoD menemukan gap pada penanganan callback webhook"
+	gaps := []string{"Targeted tests definition of done belum 100% pass", "Working tree git commit dirty"}
+
+	msg, opts := FormatBusinessFriendlyReviewMessage(title, summary, gaps, 3)
+
+	forbidden := []string{"dod", "definition of done", "git commit", "pull request"}
+	msgLower := strings.ToLower(msg)
+	for _, term := range forbidden {
+		if strings.Contains(msgLower, term) {
+			t.Fatalf("found forbidden jargon %q in review message:\n%s", term, msg)
+		}
+	}
+
+	if !strings.Contains(msg, "Pembaruan penting untuk toko Anda") {
+		t.Fatalf("expected friendly intro in review message, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Opsi Tindak Lanjut yang Dapat Anda Pilih") {
+		t.Fatalf("expected follow up options section in review message, got:\n%s", msg)
+	}
+	if len(opts) < 2 {
+		t.Fatalf("expected at least 2 strategic follow-up options, got %d", len(opts))
+	}
+}
+
+func TestDefaultBusinessChatNotifier_SendTaskReviewBusinessMessage(t *testing.T) {
+	var sentRoomID string
+	var sentContent string
+
+	notifier := NewDefaultBusinessChatNotifier(func(ctx context.Context, roomID, messageContent string) error {
+		sentRoomID = roomID
+		sentContent = messageContent
+		return nil
+	})
+
+	err := notifier.SendTaskReviewBusinessMessage(context.Background(), "room_shop_review", "task_xyz", "Rekap Laporan Keuangan", "Laporan siap ditinjau", []string{"Perlu penyesuaian format angka desimal"}, 3)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sentRoomID != "room_shop_review" {
+		t.Fatalf("expected roomID room_shop_review, got %s", sentRoomID)
+	}
+	if !strings.Contains(sentContent, "Tinjau rincian pekerjaan") || !strings.Contains(sentContent, "/tasks/task_xyz") {
+		t.Fatalf("expected task link in review content, got:\n%s", sentContent)
+	}
+}

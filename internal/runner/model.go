@@ -100,6 +100,7 @@ type StreamLogsRequest struct {
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
 	RunnerID                string               `json:"runner_id"`
+	RoomID                  string               `json:"room_id,omitempty"`
 	Status                  string               `json:"status"` // succeeded, failed, canceled
 	ExitCode                int                  `json:"exit_code"`
 	PeakRSSBytes            int64                `json:"peak_rss_bytes"`

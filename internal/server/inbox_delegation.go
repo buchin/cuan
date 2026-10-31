@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -303,7 +304,18 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			return fail("the work was cancelled; a new user instruction is required to continue")
 		}
 		if taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
-			return fail("the task reached its retry limit; its blocker needs review")
+			reviewStatus := task.TaskStatusReview
+			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
+			t.Status = task.TaskStatusReview
+
+			s.sendBusinessFriendlyReviewNotification(ctx, t.ID, t.Title, t.Summary, q.RoomID, t.SourceRoomID, 3, []string{
+				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
+			})
+
+			friendlyMsg, _ := runner.FormatBusinessFriendlyReviewMessage(t.Title, t.Summary, []string{
+				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
+			}, 3)
+			return wrapResult(friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", t.ID))
 		}
 		if t.Status == task.TaskStatusDone || t.Status == task.TaskStatusBlocked {
 			review := task.TaskStatusReview
@@ -626,4 +638,37 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 		items = items[:25]
 	}
 	return items
+}
+
+func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, taskID, title, summary, currentRoomID, sourceRoomID string, attemptNum int, gaps []string) {
+	if s.projectStudioRepo == nil {
+		return
+	}
+	content, _ := runner.FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNum)
+	taskLink := fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", taskID)
+	fullMsg := content + taskLink
+
+	rooms := make(map[string]bool)
+	if currentRoomID != "" {
+		rooms[currentRoomID] = true
+	}
+	if sourceRoomID != "" {
+		rooms[sourceRoomID] = true
+	}
+
+	for rID := range rooms {
+		msg := &db.ProjectMessage{
+			ID:         db.GenerateUUID(),
+			RoomID:     rID,
+			AuthorType: "agent",
+			AuthorID:   "cuan_assistant",
+			AuthorName: "Cuan",
+			Content:    fullMsg,
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
+		}
+		if err := s.projectStudioRepo.CreateMessage(ctx, msg); err == nil {
+			s.publishInbox(rID)
+		}
+	}
 }

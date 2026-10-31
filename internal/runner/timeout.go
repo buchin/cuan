@@ -7,17 +7,17 @@ import (
 )
 
 const (
-	DefaultBaseTimeout    = 15 * time.Minute // Attempt 1 (Base Run)
-	DefaultRequeueTimeout = 20 * time.Minute // Attempt 2 (First Requeue / Gap Fixable)
-	DefaultMaxCapTimeout  = 25 * time.Minute // Attempt 3+ (Final Requeue / Max Cap)
-	DefaultGracePeriod    = 20 * time.Second // Termination tolerance grace period before SIGKILL
+	DefaultBaseTimeout    = 25 * time.Minute // Attempt 1 (Base Run)
+	DefaultRequeueTimeout = 35 * time.Minute // Attempt 2 (First Requeue / Gap Fixable)
+	DefaultMaxCapTimeout  = 45 * time.Minute // Attempt 3+ (Final Requeue / Max Cap)
+	DefaultGracePeriod    = 30 * time.Second // Termination tolerance grace period before SIGKILL
 	MaxAttempts           = 3                // Maximum attempts allowed per task before review/blocked
 )
 
 // CalculateAdaptiveTimeout returns progressive adaptive timeout based on attempt count:
-// - Attempt 1 (Base): 15m
-// - Attempt 2 (First Requeue): 20m
-// - Attempt 3+ (Final Requeue / Hard Cap): 25m
+// - Attempt 1 (Base): 25m
+// - Attempt 2 (First Requeue): 35m
+// - Attempt 3+ (Final Requeue / Hard Cap): 45m
 func CalculateAdaptiveTimeout(attemptNumber int) time.Duration {
 	if v := os.Getenv("CUAN_TASK_TIMEOUT_OVERRIDE"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {

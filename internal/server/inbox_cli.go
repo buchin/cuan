@@ -132,9 +132,15 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		timeout := "180s"
+		timeout := "360s"
+		if v := os.Getenv("INBOX_CLI_TIMEOUT"); v != "" {
+			timeout = v
+		}
 		if directCoordinator || toolBudgetRecovery {
-			timeout = "60s"
+			timeout = "120s"
+			if v := os.Getenv("INBOX_CLI_DIRECT_RECOVERY_TIMEOUT"); v != "" {
+				timeout = v
+			}
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
 		if workspace != "" && !directCoordinator && !toolBudgetRecovery {

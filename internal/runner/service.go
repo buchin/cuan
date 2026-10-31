@@ -260,8 +260,10 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					t.DoDChecklist[i].Completed = true
 				}
 				// Proactive messenger di Chat/Inbox: lapor tugas tuntas dalam bahasa bisnis ramah
-				if s.chatNotifier != nil && t.SourceRoomID != "" {
-					_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, t.SourceRoomID, t.ID, t.Title, t.Summary)
+				if s.chatNotifier != nil {
+					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
+						_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary)
+					}
 				}
 			} else if dodVal != nil && dodVal.Action == "auto_requeue" && att.AttemptNumber < MaxAttempts {
 				// Ada gap fixable & attempt < 3: Requeue otomatis dengan alokasi waktu adaptif
@@ -303,9 +305,27 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				_ = s.taskStore.CreateActivity(ctx, requeueAct)
 			} else {
 				t.Status = task.TaskStatusReview
+				if s.chatNotifier != nil {
+					var gaps []string
+					if dodVal != nil {
+						gaps = dodVal.Gaps
+					}
+					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
+						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, gaps, att.AttemptNumber)
+					}
+				}
 			}
 		} else if status == task.AttemptStatusFailed || status == task.AttemptStatusCanceled {
 			t.Status = task.TaskStatusBlocked
+			if s.chatNotifier != nil {
+				errMsg := att.ErrorMessage
+				if errMsg == "" {
+					errMsg = "Pekerjaan terhenti dan memerlukan peninjauan lebih lanjut."
+				}
+				for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
+					_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+				}
+			}
 		}
 
 		if req.BranchName != "" {
@@ -380,4 +400,17 @@ func hasAutoDeployVerification(note, summary string) bool {
 	combined := strings.ToLower(note + " " + summary)
 	return (strings.Contains(combined, "deploy") || strings.Contains(combined, "release") || strings.Contains(combined, "rilis")) &&
 		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
+}
+
+func uniqueRooms(rooms ...string) []string {
+	seen := make(map[string]bool)
+	var list []string
+	for _, r := range rooms {
+		trimmed := strings.TrimSpace(r)
+		if trimmed != "" && !seen[trimmed] {
+			seen[trimmed] = true
+			list = append(list, trimmed)
+		}
+	}
+	return list
 }

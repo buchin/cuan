@@ -355,7 +355,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		DefaultShell:          "",
 		DefaultCols:           80,
 		DefaultRows:           24,
-		IdleTimeout:           15 * time.Minute,
+		IdleTimeout:           30 * time.Minute,
 		DisconnectGracePeriod: 30 * time.Second,
 	})
 	termHandler := terminal.NewHandler(terminal.HandlerConfig{

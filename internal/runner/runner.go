@@ -519,6 +519,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	var compReq CompleteAttemptRequest
 	compReq.RunnerID = r.cfg.RunnerID
 	compReq.AgentReportRequired = claim.TaskAgent != nil
+	if claim.Task != nil && claim.Task.SourceRoomID != "" {
+		compReq.RoomID = claim.Task.SourceRoomID
+	}
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {

@@ -9,6 +9,7 @@ import (
 // BusinessChatNotifier defines the contract for sending proactive zero-jargon business messages.
 type BusinessChatNotifier interface {
 	SendTaskCompletedBusinessMessage(ctx context.Context, roomID, taskID, title, summary string) error
+	SendTaskReviewBusinessMessage(ctx context.Context, roomID, taskID, title, summary string, gaps []string, attemptNumber int) error
 }
 
 // Technical and Scrum jargon terms that must be purged from user-facing shop messages.
@@ -50,6 +51,49 @@ func FormatBusinessFriendlyMessage(title, summary string) (string, []string) {
 	sb.WriteString("Silakan tinjau hasilnya di aplikasi Cuan kapan saja. Jika ada hal lain yang ingin dikerjakan, cukup beri tahu kami di sini!")
 
 	return sb.String(), nextSteps
+}
+
+// FormatBusinessFriendlyReviewMessage formats a warm, transparent, zero-jargon business message
+// when a task reaches the retry limit or needs human review/direction.
+func FormatBusinessFriendlyReviewMessage(title, summary string, gaps []string, attemptNumber int) (string, []string) {
+	cleanTitle := sanitizeJargon(title)
+	cleanSummary := sanitizeJargon(summary)
+
+	if cleanTitle == "" {
+		cleanTitle = "Pekerjaan Toko Online"
+	}
+	if cleanSummary == "" {
+		cleanSummary = "Pekerjaan sistem telah kami proses dan memerlukan peninjauan lebih lanjut agar hasil akhirnya optimal untuk toko Anda."
+	}
+
+	followUpOptions := []string{
+		"Beri arahan tambahan atau sesuaikan instruksi pekerjaan di obrolan ini agar kami dapat melanjutkannya.",
+		"Tinjau perkembangan yang sudah selesai di menu Tugas aplikasi Cuan dan putuskan langkah prioritas berikutnya.",
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Halo! Pembaruan penting untuk toko Anda terkait pekerjaan:\n\n")
+	sb.WriteString(fmt.Sprintf("**%s**\n", cleanTitle))
+	sb.WriteString(fmt.Sprintf("%s\n\n", cleanSummary))
+
+	if len(gaps) > 0 {
+		sb.WriteString("**Catatan yang Memerlukan Perhatian:**\n")
+		for i, gap := range gaps {
+			cleanGap := sanitizeJargon(gap)
+			if cleanGap != "" {
+				sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, cleanGap))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("**Opsi Tindak Lanjut yang Dapat Anda Pilih:**\n")
+	for i, opt := range followUpOptions {
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, opt))
+	}
+	sb.WriteString("\nKami siap membantu melanjutkan kapan saja sesuai keputusan Anda!")
+
+	return sb.String(), followUpOptions
 }
 
 func sanitizeJargon(text string) string {
@@ -121,5 +165,14 @@ func (n *DefaultBusinessChatNotifier) SendTaskCompletedBusinessMessage(ctx conte
 	}
 	content, _ := FormatBusinessFriendlyMessage(title, summary)
 	taskLink := fmt.Sprintf("\n\n[Lihat rincian pekerjaan](/tasks/%s)", taskID)
+	return n.Sender(ctx, roomID, content+taskLink)
+}
+
+func (n *DefaultBusinessChatNotifier) SendTaskReviewBusinessMessage(ctx context.Context, roomID, taskID, title, summary string, gaps []string, attemptNumber int) error {
+	if n.Sender == nil || roomID == "" {
+		return nil
+	}
+	content, _ := FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNumber)
+	taskLink := fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", taskID)
 	return n.Sender(ctx, roomID, content+taskLink)
 }

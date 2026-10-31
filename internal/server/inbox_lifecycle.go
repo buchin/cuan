@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -146,7 +147,13 @@ func (s *Server) drainInboxRoom(room string) {
 	}
 }
 func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRequest) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	lifecycleTimeout := 10 * time.Minute
+	if v := os.Getenv("INBOX_LIFECYCLE_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			lifecycleTimeout = d
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), lifecycleTimeout)
 	if s.inboxStopping.Load() {
 		cancel()
 	}
@@ -294,7 +301,13 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						}
 						if s.inboxReviewedTask(ctx, q) == nil && output == "" && ctx.Err() == nil && (strings.Contains(strings.ToLower(failure), "tool permission") || strings.Contains(strings.ToLower(failure), "action outside the chat workflow") || strings.Contains(strings.ToLower(failure), "could not be validated") || strings.Contains(strings.ToLower(failure), "tool budget")) {
 							step("response_recovery", "A tool or validation issue occurred. Answering directly from conversation context with structured actions.")
-							directCtx, directCancel := context.WithTimeout(ctx, 60*time.Second)
+							directRecoveryTimeout := 120 * time.Second
+							if v := os.Getenv("INBOX_DIRECT_RECOVERY_TIMEOUT"); v != "" {
+								if d, err := time.ParseDuration(v); err == nil && d > 0 {
+									directRecoveryTimeout = d
+								}
+							}
+							directCtx, directCancel := context.WithTimeout(ctx, directRecoveryTimeout)
 							directCtx = context.WithValue(directCtx, inboxCoordinatorDirectKey{}, true)
 							directCtx = context.WithValue(directCtx, inboxSchemaRetryKey{}, true)
 							if strings.Contains(strings.ToLower(failure), "tool budget") {

@@ -13,27 +13,27 @@ func TestCalculateAdaptiveTimeout_ProgressiveScale(t *testing.T) {
 	os.Unsetenv("CUAN_TASK_TIMEOUT_REQUEUE")
 	os.Unsetenv("CUAN_TASK_TIMEOUT_MAX")
 
-	// Attempt 1: Base Run -> 15 minutes
-	if d := CalculateAdaptiveTimeout(1); d != 15*time.Minute {
-		t.Fatalf("expected 15m for attempt 1, got %v", d)
+	// Attempt 1: Base Run -> 25 minutes
+	if d := CalculateAdaptiveTimeout(1); d != 25*time.Minute {
+		t.Fatalf("expected 25m for attempt 1, got %v", d)
 	}
-	if d := CalculateAdaptiveTimeout(0); d != 15*time.Minute {
-		t.Fatalf("expected 15m for attempt 0 (base), got %v", d)
-	}
-
-	// Attempt 2: First Requeue -> 20 minutes
-	if d := CalculateAdaptiveTimeout(2); d != 20*time.Minute {
-		t.Fatalf("expected 20m for attempt 2, got %v", d)
+	if d := CalculateAdaptiveTimeout(0); d != 25*time.Minute {
+		t.Fatalf("expected 25m for attempt 0 (base), got %v", d)
 	}
 
-	// Attempt 3: Final Requeue / Max Cap -> 25 minutes
-	if d := CalculateAdaptiveTimeout(3); d != 25*time.Minute {
-		t.Fatalf("expected 25m for attempt 3, got %v", d)
+	// Attempt 2: First Requeue -> 35 minutes
+	if d := CalculateAdaptiveTimeout(2); d != 35*time.Minute {
+		t.Fatalf("expected 35m for attempt 2, got %v", d)
 	}
 
-	// Attempt 4+: Max Cap -> 25 minutes
-	if d := CalculateAdaptiveTimeout(4); d != 25*time.Minute {
-		t.Fatalf("expected 25m for attempt 4, got %v", d)
+	// Attempt 3: Final Requeue / Max Cap -> 45 minutes
+	if d := CalculateAdaptiveTimeout(3); d != 45*time.Minute {
+		t.Fatalf("expected 45m for attempt 3, got %v", d)
+	}
+
+	// Attempt 4+: Max Cap -> 45 minutes
+	if d := CalculateAdaptiveTimeout(4); d != 45*time.Minute {
+		t.Fatalf("expected 45m for attempt 4, got %v", d)
 	}
 }
 
@@ -60,8 +60,8 @@ func TestCalculateAdaptiveTimeout_EnvOverride(t *testing.T) {
 
 func TestGetGracePeriod_DefaultAndOverride(t *testing.T) {
 	os.Unsetenv("CUAN_TASK_GRACE_PERIOD")
-	if gp := GetGracePeriod(); gp != 20*time.Second {
-		t.Fatalf("expected default grace period 20s, got %v", gp)
+	if gp := GetGracePeriod(); gp != 30*time.Second {
+		t.Fatalf("expected default grace period 30s, got %v", gp)
 	}
 
 	os.Setenv("CUAN_TASK_GRACE_PERIOD", "35s")

@@ -198,9 +198,9 @@ func TestRunnerService_DoDFixableGap_AutoRequeueWithAdaptiveTimeout(t *testing.T
 		t.Fatalf("expected new attempt status 'queued', got %s", latestAtt.Status)
 	}
 
-	// 3. Verify adaptive timeout calculation for Attempt 2 is 20m
-	if timeout := CalculateAdaptiveTimeout(latestAtt.AttemptNumber); timeout != 20*time.Minute {
-		t.Fatalf("expected 20m timeout for Attempt 2, got %v", timeout)
+	// 3. Verify adaptive timeout calculation for Attempt 2 is 35m
+	if timeout := CalculateAdaptiveTimeout(latestAtt.AttemptNumber); timeout != 35*time.Minute {
+		t.Fatalf("expected 35m timeout for Attempt 2, got %v", timeout)
 	}
 
 	// 4. Verify task activities record auto-requeue feedback
@@ -235,13 +235,24 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 	}
 	svc.SetDoDEvaluator(mockEval)
 
+	// Capture multi-room proactive review notifications
+	var capturedRooms []string
+	var capturedReviewMsg string
+	svc.SetChatNotifier(NewDefaultBusinessChatNotifier(func(ctx context.Context, roomID, messageContent string) error {
+		capturedRooms = append(capturedRooms, roomID)
+		capturedReviewMsg = messageContent
+		return nil
+	}))
+
 	ctx := context.Background()
 	taskItem := &task.Task{
-		ID:        "task_max_att",
-		Title:     "Perbaikan Algoritma Rekomendasi",
-		Status:    task.TaskStatusDoing,
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		ID:           "task_max_att",
+		Title:        "Perbaikan Algoritma Rekomendasi",
+		Summary:      "Pembaruan algoritma membutuhkan penyesuaian parameter",
+		SourceRoomID: "room_source_shop",
+		Status:       task.TaskStatusDoing,
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
 	}
 	_ = taskStore.CreateTask(ctx, taskItem)
 
@@ -257,6 +268,7 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 
 	req := CompleteAttemptRequest{
 		RunnerID:             "runner_test",
+		RoomID:               "room_active_chat",
 		Status:               task.AttemptStatusSucceeded,
 		ExitCode:             0,
 		AgentReportConfirmed: true,
@@ -271,5 +283,16 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 	updatedTask, _ := taskStore.GetTask(ctx, taskItem.ID)
 	if updatedTask.Status != task.TaskStatusReview {
 		t.Fatalf("expected task status to be 'review' after reaching max attempts, got %s", updatedTask.Status)
+	}
+
+	// Verify multi-room proactive notification was delivered to both active room & source room
+	if len(capturedRooms) != 2 {
+		t.Fatalf("expected 2 rooms notified (source + active), got %d: %v", len(capturedRooms), capturedRooms)
+	}
+	if !strings.Contains(capturedReviewMsg, "Pembaruan penting untuk toko Anda") {
+		t.Fatalf("expected warm business greeting in review notification, got:\n%s", capturedReviewMsg)
+	}
+	if !strings.Contains(capturedReviewMsg, "Opsi Tindak Lanjut") {
+		t.Fatalf("expected clear follow-up options in review message, got:\n%s", capturedReviewMsg)
 	}
 }

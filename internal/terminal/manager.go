@@ -101,7 +101,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		cfg.DefaultRows = 24
 	}
 	if cfg.IdleTimeout <= 0 {
-		cfg.IdleTimeout = 15 * time.Minute
+		cfg.IdleTimeout = 30 * time.Minute
 	}
 	if cfg.DisconnectGracePeriod <= 0 {
 		cfg.DisconnectGracePeriod = 30 * time.Second
@@ -370,6 +370,8 @@ func (m *Manager) BroadcastNotice(chunk []byte) {
 }
 
 // CleanIdleSessions sweeps sessions that have been idle longer than the specified duration.
+// Mid-turn activity immunity: As long as an agent is actively running or generating
+// output/input within maxIdle, it is protected from false idle termination.
 func (m *Manager) CleanIdleSessions(maxIdle time.Duration) int {
 	if maxIdle <= 0 {
 		maxIdle = m.cfg.IdleTimeout
@@ -382,6 +384,8 @@ func (m *Manager) CleanIdleSessions(maxIdle time.Duration) int {
 	for taskID, s := range m.sessions {
 		runs := m.histories[taskID]
 		activeAgent := len(runs) > 0 && runs[len(runs)-1].Status == "running"
+		// Mid-turn activity protection: If the agent is actively running or has recent
+		// terminal activity, never sweep the session.
 		if s.IsClosed() || (!activeAgent && s.SubscriberCount() == 0 && s.LastActivity().Before(threshold)) {
 			toClose = append(toClose, taskID)
 		}
