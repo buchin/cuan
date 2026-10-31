@@ -728,9 +728,6 @@ func (s *Server) routes() {
 		r.Group(func(pr chi.Router) {
 			pr.Use(auth.Middleware(s.authSvc))
 
-			pr.Get("/runner/attempts/{id}/logs", s.handleRunnerGetStreamLogs)
-			pr.Post("/runner/attempts/{id}/steer", s.handleRunnerSteer)
-
 			pr.Get("/auth/me", s.handleAuthMe)
 			pr.Patch("/auth/username", s.handleUsername)
 			pr.Patch("/auth/email", s.handleEmail)
