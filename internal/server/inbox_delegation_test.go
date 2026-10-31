@@ -21,7 +21,11 @@ func TestInboxDelegationProtocol(t *testing.T) {
 	if err != nil || d == nil || text != "Plan" {
 		t.Fatal(text, d, err)
 	}
-	for _, bad := range []string{valid + " trailing", valid + valid, strings.Replace(valid, "\"p1\"", "\"\"", 1), strings.Replace(valid, "\"title\":", "\"shell\":\"dangerous\",\"title\":", 1), strings.Replace(valid, "}\n```", "} {}\n```", 1), valid + "\n```cuan-task\n{}\n```"} {
+	textWithTrailing, dTrailing, err := parseInboxDelegation(valid + " trailing")
+	if err != nil || dTrailing == nil || !strings.Contains(textWithTrailing, "trailing") {
+		t.Fatal("valid trailing prose rejected", textWithTrailing, dTrailing, err)
+	}
+	for _, bad := range []string{valid + valid, strings.Replace(valid, "\"p1\"", "\"\"", 1), strings.Replace(valid, "\"title\":", "\"shell\":\"dangerous\",\"title\":", 1), strings.Replace(valid, "}\n```", "} {}\n```", 1), valid + "\n```cuan-task\n{}\n```"} {
 		if _, _, err := parseInboxDelegation(bad); err == nil {
 			t.Fatal("invalid action accepted", bad)
 		}
