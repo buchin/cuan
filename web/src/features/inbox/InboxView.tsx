@@ -83,6 +83,7 @@ import {
 } from '../tasks/task-ui'
 import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
+import { TaskCard } from './TaskCard'
 import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
@@ -425,6 +426,18 @@ export function InboxView({
         (t.status || '').toLowerCase().trim() === 'done' ||
         (t.status || '').toLowerCase().trim() === 'review'
       if (!isCompleted) return false
+      if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
+      return true
+    })
+  }, [linkedTasks, messages])
+
+  const unattachedActiveTasks = useMemo(() => {
+    const visibleMsgIds = new Set(messages.map((m) => m.uuid).filter(Boolean))
+    return linkedTasks.filter((t) => {
+      const isCompleted =
+        (t.status || '').toLowerCase().trim() === 'done' ||
+        (t.status || '').toLowerCase().trim() === 'review'
+      if (isCompleted) return false
       if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
       return true
     })
@@ -1814,6 +1827,28 @@ export function InboxView({
                 )
               })}
 
+              {/* Unattached active or in-flight conversation tasks */}
+              {unattachedActiveTasks.map((t) => (
+                <div
+                  key={`standalone-active-${t.id}`}
+                  className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
+                >
+                  <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
+                    <TaskCard
+                      taskId={t.id}
+                      initialTask={t}
+                      returnTo={`/inbox/${encodeURIComponent(activeContact.conversation_id || activeContact.id)}`}
+                      onClick={(task: Task) => handleOpenTaskDrawer(task, 'details')}
+                      onOpenTerminal={(task: Task) => handleOpenTaskDrawer(task, 'terminal')}
+                      onUseDraft={handleUseDraft}
+                      onRetry={handleTaskRetry}
+                      onContinueChat={handleUseDraft}
+                      isCustomerRoom={activeContact.type === 'customer'}
+                    />
+                  </div>
+                </div>
+              ))}
+
               {/* Unattached or latest completed conversation tasks */}
               {unattachedCompletedTasks.map((completedTask) => (
                 <div
@@ -2274,7 +2309,10 @@ export function InboxView({
                         attempt={peekTask.latest_attempt || ({
                           id: peekTask.id,
                           task_id: peekTask.id,
-                          status: peekTask.status === 'doing' ? 'running' : 'succeeded',
+                          status:
+                            peekTask.status === 'doing' || peekTask.status === 'queued'
+                              ? 'running'
+                              : 'succeeded',
                           agent_name: peekTask.assignee_id || 'cuan-runner',
                           created_at: peekTask.created_at,
                         } as any)}
