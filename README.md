@@ -267,6 +267,9 @@ workspace.backend.db_layer -> workspace.storage.pg_db
 - **Frontend SPA (`web/`)**:
   - Built with React 18, Vite, TypeScript, Tailwind CSS, and shadcn/ui components (`web/src/components/ui/`).
   - Master-detail responsive layouts, dark/light themes, keyboard navigation, and full i18n support.
+- **Atomic Micro-Packages (`pkg/taskfsm`, `pkg/dodeval`)**:
+  - **`pkg/taskfsm`**: Standalone, zero-dependency Go Finite State Machine engine managing task and sprint lifecycles (`planning → approved → running → review → completed`, `blocked`, `canceled`) with illegal transition guardrails and JSON audit logs.
+  - **`pkg/dodeval`**: Standalone, zero-dependency Definition of Done evaluator and Markdown checklist parser with evidence gap analysis and automated completion decisions.
 
 ---
 
@@ -383,6 +386,7 @@ For detailed operational procedures, see the [Deployment and Recovery Guide](doc
 - [Multi-User & Unified Team Guide](docs/guides/unified_team_and_global_tasks_guide.md) — Team management, staff invites, and task delegation.
 - [Contacts CRM & Live Chat](docs/guides/contacts-crm.md) — Multi-channel inbox, WhatsApp integration, and contact funnel.
 - [Tasks Workspace & Lifecycle](docs/guides/tasks-workspace.md) — Task lifecycles, execution attempts, and sessions.
+- [Atomic Micro-Packages Architecture](docs/guides/atomic_micro_packages_guide.md) — Design principles, zero context overload, and standalone Go package specifications.
 - [GitHub Integration & PAT Setup](docs/guides/github_token_guide.md) — Connecting repositories and managing access tokens.
 - [Deployment & Recovery Playbook](docs/guides/deployment_recovery_guide.md) — Production staging, automated backup, and rollback drills.
 - [Troubleshooting Playbook](docs/guides/troubleshooting.md) — Common operational issues, logs diagnosis, and service recovery.
