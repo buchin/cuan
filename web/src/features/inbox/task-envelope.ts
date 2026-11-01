@@ -16,6 +16,19 @@ export interface ParsedEnvelopeResult {
   isFromEnvelope: boolean
 }
 
+export function sanitizeJargon(text: string): string {
+  if (!text) return ''
+  let cleaned = text
+  cleaned = cleaned.replace(/\b(?:runner\s+)?heartbeat\s+lost\b/gi, 'koneksi terputus')
+  cleaned = cleaned.replace(/\b(?:and\s+)?lease\s+expired\b/gi, 'waktu sesi habis')
+  cleaned = cleaned.replace(/\battempt\s*(?:#?\s*\d+)?\b/gi, '')
+  cleaned = cleaned.replace(/\bdefinition\s+of\s+done\b/gi, '')
+  cleaned = cleaned.replace(/\bdefinition-of-done\b/gi, '')
+  cleaned = cleaned.replace(/\bdod\b/gi, '')
+  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim()
+  return cleaned
+}
+
 /**
  * Parses the dual-channel output envelope from task summary, complete_note, or metadata.
  * Returns human-readable operator summary, visitor reply draft, technical evidence,
@@ -29,7 +42,7 @@ export function parseTaskReviewEnvelope(
     return {
       envelope: null,
       summary: '',
-      draft: fallbackDraft || '',
+      draft: fallbackDraft ? sanitizeJargon(fallbackDraft) : '',
       evidence: '',
       requiresDeploy: false,
       isFromEnvelope: false,
@@ -147,8 +160,8 @@ export function parseTaskReviewEnvelope(
 
   return {
     envelope: parsed,
-    summary,
-    draft,
+    summary: sanitizeJargon(summary),
+    draft: sanitizeJargon(draft),
     evidence,
     requiresDeploy,
     isFromEnvelope: Boolean(parsed),

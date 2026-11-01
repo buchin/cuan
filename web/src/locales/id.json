@@ -1521,5 +1521,7 @@
   "Stopping task execution…": "Menghentikan eksekusi tugas…",
   "Task execution stopped.": "Eksekusi tugas telah dihentikan.",
   "Stop / Interrupt": "Hentikan / Interupsi",
-  "Stop / Interrupt (Ctrl+C)": "Hentikan / Interupsi (Ctrl+C)"
+  "Stop / Interrupt (Ctrl+C)": "Hentikan / Interupsi (Ctrl+C)",
+  "Smart Auto-Deploy Gate, Dual-Channel Envelope & 1-Click Actionable Draft.": "Smart Auto-Deploy Gate, Dual-Channel Envelope & Draf Aksi 1-Klik.",
+  "Intelligent conditional deployment gate distinguishing code-fixes from investigations, dual-channel output envelopes with zero technical jargon, and hybrid actionable task cards with 1-click visitor draft insertion.": "Gerbang deployment otomatis cerdas yang membedakan perbaikan kode dari investigasi, amplop keluaran dua saluran bebas jargon teknis, dan kartu tugas terpadu dengan penyisipan draf pengunjung 1-klik."
 }

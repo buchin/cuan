@@ -249,6 +249,11 @@ export function LandingPage() {
           <div className="mt-8 grid gap-x-8 gap-y-7 sm:grid-cols-2">
             {[
               {
+                Icon: CheckCircle2,
+                title: 'Smart Auto-Deploy Gate, Dual-Channel Envelope & 1-Click Actionable Draft.',
+                text: 'Intelligent conditional deployment gate distinguishing code-fixes from investigations, dual-channel output envelopes with zero technical jargon, and hybrid actionable task cards with 1-click visitor draft insertion.',
+              },
+              {
                 Icon: Users,
                 title: '5-Pillar Navigation: Chat, Tasks, Projects, Contacts, User Profile.',
                 text: 'Ergonomic bottom navigation bringing primary workflows into instant reach, accompanied by header quick access [⋮] for Agents, Schedules, and Settings.',
