@@ -1112,10 +1112,10 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 		taskTimeout := timeout
 		combinedMeta := strings.ToLower(t.Title + " " + t.Instructions)
 		if t.ExecutionCategory == ExecutionCategoryReadOnly ||
-			strings.Contains(combinedMeta, "investigasi") ||
-			strings.Contains(combinedMeta, "investigation") ||
-			strings.Contains(combinedMeta, "rca") ||
-			strings.Contains(combinedMeta, "analisis") {
+			(t.ExecutionCategory != ExecutionCategoryCode && (strings.Contains(combinedMeta, "investigasi") ||
+				strings.Contains(combinedMeta, "investigation") ||
+				strings.Contains(combinedMeta, "rca") ||
+				strings.Contains(combinedMeta, "analisis"))) {
 			taskTimeout = 5 * time.Minute
 		}
 		startTime := a.CreatedAt
@@ -1123,6 +1123,16 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 			startTime = *a.StartedAt
 		}
 		exceededTimeout := now.Sub(startTime) > taskTimeout
+
+		// If a decoupled runner is actively heartbeating with an active lease,
+		// allow up to a 2-minute grace period so it is not reaped while finalizing.
+		if exceededTimeout && a.RunnerID != "" && a.RunnerID != "local_terminal" {
+			if a.LeaseExpiresAt != nil && now.Before(*a.LeaseExpiresAt) {
+				if now.Sub(startTime) <= taskTimeout+2*time.Minute {
+					exceededTimeout = false
+				}
+			}
+		}
 
 		// Check 2: OS process is dead (only for local_terminal attempts currently running;
 		// decoupled runner daemon attempts are tracked via lease heartbeats, not local terminalManager)

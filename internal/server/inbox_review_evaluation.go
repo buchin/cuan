@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -220,6 +221,10 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
 			}
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
+			if s.isCustomerRoom(ctx, q.RoomID) {
+				friendlyMsg, _ := runner.FormatBusinessFriendlyMessage(d.Title, d.Summary, d.ProjectName)
+				return friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", d.ID)
+			}
 			if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
 				return decision.Explanation + taskLink
 			}
@@ -233,6 +238,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
 		if !strings.Contains(output, "/tasks/"+d.ID) && !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
 			output += taskLink
+		}
+		if s.isCustomerRoom(ctx, q.RoomID) {
+			return output
 		}
 		if strings.TrimSpace(decision.Explanation) != "" {
 			return decision.Explanation + "\n\n" + output
