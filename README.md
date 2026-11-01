@@ -134,8 +134,17 @@ Transform customer interactions into structured business workflows:
 
 Cuan incorporates a **Calm & Layered UI System** inspired by world-class productivity tools **Things 3** and **Bear Notes**:
 
+- **Things 3 Pure Task Rows (Zero Action Buttons on Rows)**:
+  - Task lists across desktop and mobile adhere to pure Things 3 design: subtle `StatusDot` micro-indicators on the left, spacious Geist typography in the center, and muted tabular relative timestamps on the right.
+  - Complete elimination of loud `action-primary` buttons (*View result*, *Live Terminal*, *Retry*) from row surfaces. Every row is an expansive tap target that opens deep task actions inside an on-demand side drawer (`SlideDrawer` / `TaskSidePeek`).
+- **Bear Notes Chat Stream & Borderless Artifacts**:
+  - Chat stream streams smoothly without thick nested borders or harsh framing. Approval cards, task completion cards, and status summaries render as calm typographic text blocks with subtle inline badges.
 - **Card Diet & Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`)**:
-  - Eliminates visual clutter and thick nested cards (`box inside box`). Replaced with flat serene surfaces, crisp hairline dividers (`divide-border/40`), micro-indicators (`StatusDot`), and Apple-style grouped rows (`GroupedSection`).
+  - Eliminates visual clutter, SaaS education banners, and thick nested cards (`box inside box`). Replaced with flat serene surfaces, crisp hairline dividers (`divide-border/40`), micro-indicators (`StatusDot`), and Apple-style grouped rows (`GroupedSection`) across Apps & Skills and General Settings.
+- **Progressive Disclosure in Agents View**:
+  - Streamlines agent profile cards from 14 cluttered DevOps elements down to clean, essential identity profiles (Avatar, Name, Role Handle, Short Description, and StatusDot). Advanced engine parameters, BYOK configs, vision toggles, and token controls are revealed on-demand via `SlideDrawer`.
+- **Inclusive Workspace Language**:
+  - 100% elimination of legacy "Toko" terminology across all UI views and locale dictionaries (`id.json` and `en.json`) in favor of universal "Workspace" / "Ruang Kerja" language suited for creators, solopreneurs, and agencies.
 - **Standalone Studio Canvas & Calm Chat Stream**:
   - Standalone Studio Canvas (`/studio`): Spacious, focused ideation canvas (`max-w-[75ch]`) with back navigation (`←`) and smooth redirect to execution threads upon submission.
   - Complete Elimination of Mobile Clashes: Removed conflicting FABs in mobile bottom nav and eliminated cramped slide-up sheets.
@@ -347,7 +356,8 @@ For detailed operational procedures, see the [Deployment and Recovery Guide](doc
 
 Cuan is engineered under strict **Agentic Scrum** standards where every sprint produces a documented Single Source of Truth (`docs/sprints/S{number}.md`) and Definition of Done (DoD) verification evidence:
 
-- **Sprint 59 (Current)**: [Calm & Layered UI System (Things 3 & Bear Notes Inspired) and Unified Workspace](docs/sprints/S59.md) — Things 3 & Bear Notes design philosophy, Unified Chat Workspace (Studio + Inbox fusion), 3-group desktop navigation and 4-pillar mobile bottom nav, Card Diet refactor across core pages (Projects, Schedules, Contacts, Settings), and Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`).
+- **Sprint 60 (Current)**: [The Real Things 3 & Bear Overhaul + Mobile Bug Fixes & Toko Relics Elimination](docs/sprints/S60.md) — Things 3 pure task rows with 0 loud buttons and mobile glitch fix, total card diet & elimination of SaaS banners in Apps & Skills and General Settings, progressive disclosure in Agents View, 100% elimination of legacy "Toko" relics, and Bear Notes chat stream typography with borderless artifacts.
+- **Sprint 59**: [Calm & Layered UI System (Things 3 & Bear Notes Inspired) and Unified Workspace](docs/sprints/S59.md) — Things 3 & Bear Notes design philosophy, Unified Chat Workspace (Studio + Inbox fusion), 3-group desktop navigation and 4-pillar mobile bottom nav, Card Diet refactor across core pages (Projects, Schedules, Contacts, Settings), and Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`).
 - **Sprint 58**: [Clean Chat UI, Live Streaming Logs & Interactive Agent Steering in cuan-runner](docs/sprints/S58.md) — Live stdout/stderr streaming pipe, harmonic Web Audio chime notification, tab title status badges, and interactive chat steering.
 - **Sprint 51**: [Multi-User Collaboration & Staff Management with RBAC](docs/sprints/S51.md) — Fural permission model (Owner vs Member), TeamView staff management, 1-click WhatsApp invitations, `/invite/accept` activation page, and migration `000030`.
 - **Sprint 50**: [Dual-Mode AI Engine & Universal BYOK](docs/sprints/S50.md) — Official subscription harnesses (Claude, Codex, AGY), Universal BYOK (OpenAI, DeepSeek V3/R1, Anthropic), user-space binary manager in `~/.local/bin`, and AES-256-GCM encryption.

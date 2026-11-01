@@ -251,8 +251,8 @@ export function LandingPage() {
               },
               {
                 Icon: Sparkles,
-                title: 'Calm Design System & Layered UI.',
-                text: 'Inspired by Things 3 and Bear Notes. Zero nested cards, hairline dividers, progressive disclosure via slide drawers, and crisp 65-80ch reading rhythm.',
+                title: 'Things 3 Task Rows & Bear Notes Stream.',
+                text: 'Inspired by Things 3 and Bear Notes. Pure task rows with zero loud buttons, glitch-free mobile render, zero nested cards, progressive disclosure drawers, and peaceful typography.',
               },
               {
                 Icon: Compass,

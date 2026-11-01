@@ -1,10 +1,10 @@
 # Cuan Calm Design System — Single Source of Truth
 
-**Topic:** Calm Software Philosophy (Things 3 & Bear Notes Inspired) for Agentic Project Management  
-**Target Audience:** Solopreneurs, small teams, online store owners, and non-technical entrepreneurs  
-**Repository:** `cuan` (`RPcd484fc4229ae192d17a0f01`)  
-**Status:** Living Design System Guideline  
-**Version:** 1.0.0 (Established in Sprint 59)  
+**Topic:** Calm Software Philosophy (Things 3 & Bear Notes Inspired) for Agentic Project Management
+**Target Audience:** Solopreneurs, small teams, creator businesses, and non-technical entrepreneurs
+**Repository:** `cuan` (`RPcd484fc4229ae192d17a0f01`)
+**Status:** Living Design System Guideline
+**Version:** 1.1.0 (Updated in Sprint 60: Things 3 Pure Task Rows & Bear Notes Stream)
 **Author:** Buchin <buchin@dropsugar.com>  
 
 ---
@@ -13,34 +13,42 @@
 
 Dalam era kecerdasan buatan (*Agentic Era*), perangkat lunak sering kali terjebak dalam perangkap "kelebihan visual" (*visual clutter*): dashboard dengan puluhan kartu bertumpuk, badge warna-warni yang berkedip, log teknis yang membanjiri layar, dan tombol aksi yang membingungkan.
 
-Bagi solopreneur, pemilik toko online, dan tim kecil, tujuan utama menggunakan agen AI bukanlah untuk menonton kode berjalan, melainkan untuk **mencapai ketenangan pikiran (*peace of mind*) dan kejelasan operasional (*operational clarity*)**.
+Bagi solopreneur, pemilik usaha kreatif, dan tim kecil, tujuan utama menggunakan agen AI bukanlah untuk menonton kode berjalan, melainkan untuk **mencapai ketenangan pikiran (*peace of mind*) dan kejelasan operasional (*operational clarity*)**.
 
 Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh dua tolok ukur desain perangkat lunak paling elegan di dunia:
-- **Things 3 (Cultured Code):** Keindahan kanvas datar, ritme visual yang lapang, hierarki tanpa kartu tebal (*card diet*), serta interaksi yang mengalir tanpa friksi.
-- **Bear Notes (Shiny Frog):** Kesederhanaan tipografis, estetika monokromatik yang hangat, ketajaman teks, dan fokus mendalam pada konten tanpa ornamen artifisial.
+- **Things 3 (Cultured Code):** Keindahan kanvas datar, ritme visual yang lapang, hierarki tanpa kartu tebal (*card diet*), baris tugas murni tanpa tombol aksi berisik, serta interaksi yang mengalir tanpa friksi.
+- **Bear Notes (Shiny Frog):** Kesederhanaan tipografis, estetika monokromatik yang hangat, ketajaman teks Geist, gelembung percakapan mengalir tanpa bingkai tebal berlapis, dan fokus mendalam pada konten tanpa ornamen artifisial.
 
 ---
 
-## 2. Lima Prinsip Inti (Core Principles)
+## 2. Enam Prinsip Inti (Core Principles)
 
-### 2.1. Card Diet: Larangan Tegas Nested Cards
-- **Aturan Utama:** Dilarang keras menempatkan kartu di dalam kartu (*zero nested cards / no boxes inside boxes*).
+### 2.1. Card Diet: Larangan Tegas Nested Cards & Banners
+- **Aturan Utama:** Dilarang keras menempatkan kartu di dalam kartu (*zero nested cards / no boxes inside boxes*), serta dilarang memasang banner edukasi SaaS yang berisik di dalam ruang kerja operasional.
 - **Mekanisme Alternatif:**
   - Gunakan kanvas latar belakang yang bersih dan datar (`bg-background` atau `bg-card/50`).
   - Pemisahan antar-item dilakukan menggunakan garis batas setipis helai rambut (*hairline divider*): `border-b border-border/40` atau `divide-y divide-border/40`.
   - Hindari drop-shadow tebal (`shadow-lg`, `shadow-xl`) pada daftar item berulang. Gunakan transisi hover latar belakang lembut (`hover:bg-muted/30`) untuk menunjukkan keterbukaan interaksi.
-- **Komponen Penopang:** `HairlineList` dan `HairlineListItem`.
+  - Untuk formulir pengaturan dan integrasi, gunakan *Apple-style Inset Grouped Rows* (`GroupedSection`).
+- **Komponen Penopang:** `HairlineList`, `HairlineListItem`, dan `GroupedSection`.
 
-### 2.2. Information Layering & Progressive Disclosure
+### 2.2. Things 3 Pure Task Rows (Zero Action Buttons on Rows)
+- **Aturan Utama:** Baris daftar tugas di desktop maupun mobile murni menyajikan tiga elemen esensial:
+  1. **Kiri:** Indikator status mikro (`StatusDot`) berbasis *Status-by-Exception*.
+  2. **Tengah:** Judul tugas bernapas lega dengan tipografi Geist tanpa badge bertumpuk.
+  3. **Kanan:** Timestamp relatif abu-abu teredam (`text-muted-foreground` dengan `tabular-nums`).
+- **Larangan Keras:** Dilarang menempatkan tombol aksi eksekusi berwarna mencolok (`action-primary`, *View result*, *Retry*, *Live Terminal*) pada baris daftar tugas. Seluruh baris adalah satu kesatuan *touch target* yang membuka laci samping (`SlideDrawer` / `TaskSidePeek`) di mana aksi eksekusi dipusatkan secara teratur.
+
+### 2.3. Information Layering & Progressive Disclosure
 - **Aturan Utama:** Pisahkan pengalaman pengguna menjadi dua lapisan yang tegas:
   1. **Glanceable Layer (Permukaan):** Menampilkan informasi esensial dan hasil ringkas yang langsung dapat dipahami dalam 2 detik (judul tugas, waktu relatif, status terkini, hasil utama).
-  2. **Deep Layer (Kedalaman On-Demand):** Menyembunyikan seluruh parameter teknis (prompt mentah, log stdout/stderr, token usage, hash commit, branch git, JSON payload) hingga pengguna secara sadar meminta untuk melihatnya.
+  2. **Deep Layer (Kedalaman On-Demand):** Menyembunyikan seluruh parameter teknis (prompt mentah, log stdout/stderr, token usage, hash commit, branch git, konfigurasi API model) hingga pengguna secara sadar meminta untuk melihatnya.
 - **Mekanisme Interaksi:**
-  - Klik pada baris `HairlineListItem` atau tombol detail membuka panel samping kanan yang mulus (`SlideDrawer` / `SideDrawer`) pada desktop, atau *Bottom Sheet* pada mobile.
+  - Klik pada baris atau tombol kelola membuka panel samping kanan yang mulus (`SlideDrawer` / `SideDrawer`) pada desktop, atau *Bottom Sheet* pada mobile.
   - Jangan pernah membanjiri aliran percakapan utama dengan ratusan baris log teknis yang merusak ritme membaca.
 - **Komponen Penopang:** `SlideDrawer` (SideDrawer) dan *inline expansion*.
 
-### 2.3. Status-by-Exception (Ketenangan Tanpa Alarm Palsu)
+### 2.4. Status-by-Exception (Ketenangan Tanpa Alarm Palsu)
 - **Aturan Utama:** Warna kontras tinggi (merah/amber/destructive) dicadangkan **HANYA** untuk status luar biasa (*exceptions*), galat (*errors*), kegagalan sistem, atau tindakan kritis yang mutlak membutuhkan keputusan manusia.
 - **Aturan Status Normal:**
   - Status sehat, sukses, atau selesai ditampilkan secara tenang dan bersahaja: gunakan teks netral (`text-muted-foreground`) atau micro-indicator berukuran 6–8px (`StatusDot status="healthy"`).
@@ -48,13 +56,13 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
   - Status agen sedang bekerja menggunakan denyut lembut (*calm pulse*) warna biru/sky (`StatusDot status="running"`), bukan animasi berputar yang agresif.
 - **Komponen Penopang:** `StatusDot`.
 
-### 2.4. Desktop Column Constraints (Batas Kolom 65–80ch)
+### 2.5. Desktop Column Constraints (Batas Kolom 65–80ch)
 - **Aturan Utama:** Konten membaca, aliran percakapan, dan form instruksi pada layar desktop **WAJIB** dibatasi pada lebar optimal 65 hingga 80 karakter (*typographic measure* ~680px–760px): `max-w-[75ch]` atau `max-w-3xl mx-auto`.
 - **Rasional:**
   - Membaca baris teks yang membentang dari ujung kiri ke ujung kanan pada monitor ultrawide menyebabkan mata lelah (*eye fatigue*) dan kehilangan fokus.
   - Ruang kosong di sisi kiri dan kanan (*aesthetic whitespace*) bukanlah pemborosan ruang, melainkan ruang bernapas visual (*visual breathing room*) yang menciptakan ketenangan.
 
-### 2.5. Tipografi Geist yang Tajam & Spacing Tokens Terpadu
+### 2.6. Tipografi Geist yang Tajam & Spacing Tokens Terpadu
 - **Aturan Utama:**
   - Font Sans: `@fontsource-variable/geist` (`font-sans`, `'Geist Variable'`). Karakter font netral, modern, dan sangat mudah dibaca pada ukuran kecil (11px–13px) hingga judul besar.
   - Font Mono: `@fontsource-variable/geist-mono` (`font-mono`, `'Geist Mono Variable'`) untuk ID tugas (`#GQATE`), durasi, hash git, dan angka monospaced.
@@ -110,7 +118,7 @@ import { StatusDot } from '@/components/ui/StatusDot'
 <StatusDot status="exception" title="Koneksi terputus" />
 
 // Dengan Label Teks Pendukung
-<StatusDot status="healthy" label="Toko Online Aktif" showLabel />
+<StatusDot status="healthy" label="Workspace Aktif" showLabel />
 ```
 
 ### 4.2. `HairlineList` & `HairlineListItem`
@@ -162,7 +170,7 @@ import { GroupedSection, GroupedRow } from '@/components/layout/GroupedSection'
 
 <GroupedSection
   title="Notifikasi & Otomasi"
-  description="Pilih bagaimana agen memberitahukan status tugas toko Anda."
+  description="Pilih bagaimana agen memberitahukan status tugas workspace Anda."
   footerNote="Pembaruan disimpan secara otomatis ke profil Anda."
 >
   <GroupedRow
@@ -199,7 +207,9 @@ import { GroupedSection, GroupedRow } from '@/components/layout/GroupedSection'
 ## 6. Daftar Larangan Desain (Design Anti-Patterns)
 
 1. **DILARANG:** Menumpuk `Card` di dalam `Card` (*Nested Cards*). Jika data perlu dikelompokkan, gunakan `GroupedSection` atau `HairlineList`.
-2. **DILARANG:** Menggunakan warna merah/kuning untuk status yang normal atau berhasil. Warna merah dicadangkan khusus untuk error kritis (*Status-by-Exception*).
-3. **DILARANG:** Membiarkan kolom baca teks membentang hingga 100% lebar layar pada monitor desktop lebar tanpa batas `max-w-[75ch]`.
-4. **DILARANG:** Menampilkan raw JSON, log streaming panjang, atau prompt mentah langsung di aliran pesan utama (*Glanceable Layer*). Buka di `SlideDrawer`.
-5. **DILARANG:** Menggunakan animasi berputar (*spinning spinner*) berukuran besar yang membuat cemas. Gunakan denyut lembut `StatusDot` (`animate-pulse`) atau skeleton tenang.
+2. **DILARANG:** Memasang tombol aksi mencolok (`action-primary`, *View result*, *Live Terminal*, *Retry*) di setiap baris daftar tugas. Seluruh baris harus bersih ala Things 3.
+3. **DILARANG:** Menggunakan warna merah/kuning untuk status yang normal atau berhasil. Warna merah dicadangkan khusus untuk error kritis (*Status-by-Exception*).
+4. **DILARANG:** Membiarkan kolom baca teks membentang hingga 100% lebar layar pada monitor desktop lebar tanpa batas `max-w-[75ch]`.
+5. **DILARANG:** Menampilkan raw JSON, log streaming panjang, atau prompt mentah langsung di aliran pesan utama (*Glanceable Layer*). Buka di `SlideDrawer`.
+6. **DILARANG:** Menggunakan animasi berputar (*spinning spinner*) berukuran besar yang membuat cemas. Gunakan denyut lembut `StatusDot` (`animate-pulse`) atau skeleton tenang.
+7. **DILARANG:** Menggunakan peninggalan kata "Toko" pada teks antarmuka atau kamus locale. Gunakan terminologi netral dan inklusif: "Workspace", "Ruang Kerja", atau "Bisnis".
