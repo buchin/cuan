@@ -46,7 +46,7 @@ export function TaskSessionPage({
   taskId: string
   sessionId: string
 }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const location = useLocation(),
     navigate = useNavigate()
   const [detail, setDetail] = useState<TaskDetail | null>(null),
@@ -417,16 +417,24 @@ export function TaskSessionPage({
   }
 
   const status = workStatus(detail)
-  const statusLabel = answer ? 'Answered' : !latest ? attemptLabel(attempt) : status
   const isWorking = status === 'Working'
-  const isConnected = terminalConnection === 'connected'
-  const isConnecting = terminalConnection === 'connecting' || terminalConnection === 'loading'
+  const isConnected = terminalConnection === 'connected' || terminalConnection === 'streaming'
+  const isConnecting = (terminalConnection === 'connecting' || terminalConnection === 'loading') && !isConnected
+  const statusLabel = answer
+    ? 'Answered'
+    : !latest
+      ? attemptLabel(attempt)
+      : isWorking
+        ? (language === 'id' ? 'Berjalan' : 'Live')
+        : status
 
   const statusBadge = (
     <span
       className={cn(
         'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
-        workStatusBadgeClass(status)
+        isWorking && isConnected
+          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+          : workStatusBadgeClass(status)
       )}
       title={terminalConnection ? `${statusLabel} (${terminalConnection})` : statusLabel}
     >

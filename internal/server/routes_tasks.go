@@ -36,6 +36,7 @@ func (s *Server) registerTaskRoutes(pr chi.Router) {
 	pr.Post("/tasks/{id}/retry", s.handleRetryTask)
 	pr.Post("/tasks/{id}/apply", s.handleApplyTask)
 	pr.Get("/tasks/{id}/attempts/{attemptId}/logs", s.handleGetAttemptLogs)
+	pr.Post("/tasks/{id}/steer", s.handleTaskSteer)
 	pr.Post("/tasks/{id}/files", s.handleUploadTaskFile)
 	pr.Get("/tasks/{id}/files/raw", s.handleGetTaskWorkspaceFile)
 	pr.Get("/tasks/{id}/usage", s.handleGetTaskUsage)
@@ -648,6 +649,54 @@ func (s *Server) handleRunnerSteer(w http.ResponseWriter, r *http.Request) {
 	if s.runnerSvc == nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "runner service not available")
 		return
+	}
+
+	resp, err := s.runnerSvc.Steer(r.Context(), attemptID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			respondJSONError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleTaskSteer(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req runner.SteerAttemptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(req.Prompt) == "" {
+		respondJSONError(w, http.StatusBadRequest, "prompt is required")
+		return
+	}
+
+	if req.Author == "" {
+		if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+			req.Author = owner.Email
+		} else {
+			req.Author = "user"
+		}
+	}
+
+	if s.runnerSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "runner service not available")
+		return
+	}
+
+	attemptID := id
+	if s.taskSvc != nil {
+		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), id); err == nil && detail != nil {
+			if detail.LatestAttempt != nil && detail.LatestAttempt.ID != "" {
+				attemptID = detail.LatestAttempt.ID
+			}
+		}
 	}
 
 	resp, err := s.runnerSvc.Steer(r.Context(), attemptID, req)

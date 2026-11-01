@@ -199,6 +199,31 @@ func TestRunnerStreamLogsAndSteerEndpoints(t *testing.T) {
 		t.Errorf("direct steer handler did not receive expected prompt, got: %s", directSteerPrompt)
 	}
 
+	// 6b. Test Steering via Task ID: POST /api/v1/tasks/{taskId}/steer
+	directSteerPrompt = ""
+	taskSteerURL := ts.URL + "/api/v1/tasks/" + taskID + "/steer"
+	taskSteerPayload := runner.SteerAttemptRequest{
+		Prompt: "Task-scoped steering directive",
+		Author: "owner@example.com",
+	}
+	taskSteerBytes, _ := json.Marshal(taskSteerPayload)
+	taskSteerReq, _ := http.NewRequestWithContext(ctx, "POST", taskSteerURL, bytes.NewReader(taskSteerBytes))
+	taskSteerReq.Header.Set("Authorization", "Bearer "+token)
+	taskSteerReq.Header.Set("Content-Type", "application/json")
+
+	taskSteerResp, err := http.DefaultClient.Do(taskSteerReq)
+	if err != nil {
+		t.Fatalf("POST /tasks/{id}/steer failed: %v", err)
+	}
+	defer taskSteerResp.Body.Close()
+
+	if taskSteerResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK from /tasks/{id}/steer, got %d", taskSteerResp.StatusCode)
+	}
+	if directSteerPrompt != "Task-scoped steering directive" {
+		t.Errorf("expected directSteerPrompt 'Task-scoped steering directive', got: %s", directSteerPrompt)
+	}
+
 	// 7. Complete the attempt and verify is_final is true
 	attempt.Status = task.AttemptStatusSucceeded
 	_ = srv.taskSvc.Store().UpdateAttempt(ctx, attempt)
