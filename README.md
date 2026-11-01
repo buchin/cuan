@@ -127,16 +127,27 @@ Transform customer interactions into structured business workflows:
   - Independent Go worker daemon decoupled from the HTTP web server, guaranteeing zero interrupted work during server restarts or deployments.
   - **Graceful Drain & Zero-Interruption Self-Update**: Automatically finishes in-flight jobs during deployment before swapping to new release binaries.
   - **Progressive Adaptive Timeout**: Adaptively scales execution limits (Attempt 1: 15m -> Attempt 2: 20m -> Attempt 3: 25m max cap) with 20s graceful termination tolerance.
-- **Autonomous DoD Quality Loop & Proactive Business Chat**:
-  - Background listener captures worker completion events (`task:attempt_succeeded`) and objectively evaluates Definition of Done criteria (clean git working tree, 100% targeted test pass in <10s, zero build errors, lean modularity, and docs/Landing Page updates).
+- **Autonomous Scrum Engine & Proactive Review with AGENTS.md Injection**:
+  - Background event listener captures worker completion events (`task:attempt_succeeded`, `task:attempt_failed`) and objectively evaluates Definition of Done criteria (clean git working tree, 100% targeted test pass in <10s, zero build errors, lean modularity, and docs/Landing Page updates).
+  - Automatically injects repository rules and guidelines (`AGENTS.md` and Scrum rules §1–§13) into system prompts of Chat Agent and Runner Agent.
   - **Self-Healing Auto-Requeue**: Automatically returns tasks to the queue with actionable revision instructions and progressive timeouts for fixable gaps (capped at 3 attempts).
-  - **Auto-Mark Done & Zero-Jargon Chat**: Automatically marks verified tasks as `done` and proactively delivers warm, business-friendly reports and strategic next steps to store owners in Chat/Inbox.
+  - **Auto-Mark Done & Zero-Jargon Chat**: Automatically marks verified tasks as `done` and proactively delivers warm, business-friendly reports and strategic next steps to store owners in Chat/Inbox without waiting for human prompts.
+- **Direct PTY Live Terminal with Things 3 Visual Step Formatter**:
+  - Live NDJSON stream formatting (`VisualStepsList`) converts raw terminal output into calm, human-readable Things 3 cards with tool badges, execution durations, and collapsible command details.
+  - Interactive mid-run steering via `TerminalComposer` connected to `POST /api/v1/runner/attempts/{id}/steer` and graceful stop/cancel actions directly on mobile and desktop viewports.
+- **Canonical Task Hierarchy & Breathing Room Layout**:
+  - Unified routing consolidates task inspection and live execution under canonical `/tasks/:taskId`, eliminating route fragmentation while retaining contextual return navigation (`taskReturnTo`).
+  - Reduced outer padding on mobile (390px) and desktop gives tasks breathing room, free of nested border boxes.
 - **Creator Blueprints & Studio**:
   - Standardized project templates, execution blueprints, and modular workspaces for rapid business asset generation.
 
 ### 6. Calm Design System & Unified Chat Workspace
 
 Cuan incorporates a **Calm & Layered UI System** inspired by world-class productivity tools **Things 3** and **Bear Notes**:
+
+- **5-Pillar Navigation & Header Quick Access**:
+  - Primary bottom navigation organized into 5 ergonomic thumb-zone pillars: **Chat** (`/chat`), **Tasks** (`/tasks`), **Projects** (`/projects`), **Contacts** (`/contacts`), and **User Profile** (compact avatar popover).
+  - Top header features MoreVertical `[⋮]` quick access menu directly navigating to **Agents** (`/agents`), **Schedules** (`/schedules`), and **Settings** (`/settings`).
 
 - **Apple Mail & Bear Inset List in Inbox (Zero Screen-Wide Clutter Bars)**:
   - Subpanel conversations formatted into an Apple Mail & Bear Notes 3-tier inset list: sender & tabular timestamp on row 1, clean Geist subject with micro-indicator `StatusDot` on row 2, and 2-line snippet in muted zinc-400 on row 3.
@@ -174,10 +185,10 @@ Cuan incorporates a **Calm & Layered UI System** inspired by world-class product
   - Calm neutral palette with high-contrast accent colors reserved strictly for exceptions requiring user intervention, preventing cognitive fatigue.
 - **Ergonomic Desktop Column Constraints & Geist Typography**:
   - Strict 65–80ch reading widths (`max-w-[75ch]`) preventing eye strain on widescreen monitors, paired with the razor-sharp Geist typeface.
-- **4-Pillar Mobile Bottom Navigation & Calm Chat Canvas**:
-  - Primary mobile navigation streamlined into 4 ergonomic thumb-zone pillars: **Chat** (`/inbox`), **Tasks** (`/tasks`), **Contacts** (`/contacts`), and **Menu** (opens `SlideDrawer` for Projects, Settings, and Account).
+- **5-Pillar Bottom Navigation & Calm Chat Canvas**:
+  - Primary navigation streamlined into 5 ergonomic thumb-zone pillars: **Chat** (`/chat`), **Tasks** (`/tasks`), **Projects** (`/projects`), **Contacts** (`/contacts`), and **User Profile** (compact avatar popover).
   - Chat canvas stripped of rigid 1px wireframe border cuts and noisy AI memory chips, featuring a floating borderless soft surface composer ala Bear Notes.
-  - Interactive Task Terminal with real-time `stream-json` streaming chunks and emerald pulsing live log indicator.
+  - Direct PTY Live Terminal with Things 3 visual steps formatter and emerald pulsing live log indicator.
 
 ---
 

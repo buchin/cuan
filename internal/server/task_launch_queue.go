@@ -130,7 +130,11 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if detail.AssignedAgent != "" {
 		targetAgent = detail.AssignedAgent
 	}
-	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: "cuan-runner"}, job.OwnerID)
+	runnerID := "cuan-runner"
+	if targetAgent == "agent_lifecycle" || targetAgent == "agent_queued" || job.AgentID == "agent_lifecycle" || job.AgentID == "agent_queued" {
+		runnerID = "local_terminal"
+	}
+	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID}, job.OwnerID)
 	if response.code == 200 {
 		return finish("started", "")
 	}

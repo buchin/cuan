@@ -359,7 +359,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 							}
 						}
-						if output == "" && snapshotReview {
+						if output == "" && snapshotReview && !strings.Contains(failure, "tool permission was denied") {
 							output = s.applyInboxReviewEvaluation(ctx, q, "")
 							failure = ""
 						}

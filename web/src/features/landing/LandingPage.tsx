@@ -250,8 +250,18 @@ export function LandingPage() {
             {[
               {
                 Icon: Users,
-                title: '4-Pillar Mobile Bottom Navigation with Contacts.',
-                text: 'Ergonomic thumb zone bottom navigation on mobile bringing Chat, Tasks, Contacts, and Menu into instant 1-tap reach, paired with unified desktop sidebar.',
+                title: '5-Pillar Navigation: Chat, Tasks, Projects, Contacts, User Profile.',
+                text: 'Ergonomic bottom navigation bringing primary workflows into instant reach, accompanied by header quick access [⋮] for Agents, Schedules, and Settings.',
+              },
+              {
+                Icon: Terminal,
+                title: 'Direct PTY Live TUI with Things 3 Step Formatter.',
+                text: 'Transforms raw terminal streams into elegant Things 3 visual steps with tool badges, collapsible disclosures, and live mid-run steering.',
+              },
+              {
+                Icon: Zap,
+                title: 'Autonomous Scrum Engine with AGENTS.md Injection.',
+                text: 'Proactive event listener evaluates Definition of Done criteria, executes adaptive self-healing retries, and injects repository rules (§1–§13) directly into AI system prompts.',
               },
               {
                 Icon: Calendar,
@@ -262,11 +272,6 @@ export function LandingPage() {
                 Icon: MessageSquare,
                 title: 'Borderless Chat Canvas & Floating Soft Surface Composer.',
                 text: 'Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.',
-              },
-              {
-                Icon: Terminal,
-                title: 'Interactive Terminal & Real-Time Log Streaming.',
-                text: 'Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse.',
               },
               {
                 Icon: Mail,
