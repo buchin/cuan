@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laporan Inspeksi Visual S64-T1: Deep Formatter & Human Action Cards</title>
+  <title>Laporan Inspeksi Visual S64-T1: Eliminasi Abstraksi Visual Steps Menuju Live PTY Terminal Penuh</title>
   <style>
     body {
       background: #09090b;
@@ -103,15 +103,15 @@
 </head>
 <body>
   <div class="container">
-    <h1>Inspeksi Visual S64-T1: Deep Formatter & Human Action Cards</h1>
-    <div class="badge">Quality Gate: PASS 100% — Zero Cognitive Fatigue & Things 3 Standard</div>
+    <h1>Inspeksi Visual S64-T1: Eliminasi Abstraksi Visual Steps Menuju Live PTY Terminal Penuh</h1>
+    <div class="badge">Keputusan PO: "Live terminal ya live terminal ngapain ada step2an?" — PASS 100%</div>
 
     <h2>1. Perbandingan Viewport Mobile (390px — iPhone Standard)</h2>
     <div class="comparison-grid">
       <div class="card">
         <div class="card-header">
-          <span>BEFORE: Duplikasi "#8 Agent Step / Agent Step"</span>
-          <span style="color: #ef4444; font-size: 11px;">High Noise</span>
+          <span>BEFORE: Tab Toggle "Visual Steps" & Duplikasi "Agent Step"</span>
+          <span style="color: #ef4444; font-size: 11px;">High Noise Abstraction</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-mobile-before.png" alt="Mobile Before">
@@ -119,8 +119,8 @@
       </div>
       <div class="card">
         <div class="card-header">
-          <span>AFTER: Human Action Cards ("Inspect Tasks"), Tanpa Duplikasi</span>
-          <span style="color: #10b981; font-size: 11px;">Things 3 Standard</span>
+          <span>AFTER: Pure Live PTY Terminal (Full Viewport xterm.js + ANSI Streaming)</span>
+          <span style="color: #10b981; font-size: 11px;">Authentic & Zero Noise</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-mobile-after.png" alt="Mobile After">
@@ -132,8 +132,8 @@
     <div class="comparison-grid">
       <div class="card">
         <div class="card-header">
-          <span>BEFORE: Fallback Generik Tanpa Informasi Tool Riil</span>
-          <span style="color: #ef4444; font-size: 11px;">Cluttered</span>
+          <span>BEFORE: Tombol Tab [Langkah Visual | Terminal] di Toolbar</span>
+          <span style="color: #ef4444; font-size: 11px;">Redundant Tab</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-desktop-before.png" alt="Desktop Before">
@@ -141,8 +141,8 @@
       </div>
       <div class="card">
         <div class="card-header">
-          <span>AFTER: Deep Payload Parsing, Clean Badges & Disclosure Accordion</span>
-          <span style="color: #10b981; font-size: 11px;">Zero Noise</span>
+          <span>AFTER: Layar Penuh xterm.js dengan TerminalComposer & Quick Action Chips</span>
+          <span style="color: #10b981; font-size: 11px;">Pure Terminal</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-desktop-after.png" alt="Desktop After">
@@ -151,12 +151,12 @@
     </div>
 
     <div class="summary-box">
-      <h3 style="margin-top: 0; font-size: 16px;">Evaluasi Kepatuhan Standar Kenyamanan (§7 & AGENTS.md):</h3>
+      <h3 style="margin-top: 0; font-size: 16px;">Evaluasi Kepatuhan Arsitektur & Keputusan PO:</h3>
       <ul>
-        <li><strong>Zero Visual Noise:</strong> Mengeliminasi 100% duplikasi teks "#8 Agent Step / Agent Step". Tool calls dipetakan ke judul tindakan ramah manusia (misal <code>cuan-inspect: list_tasks</code> menjadi <code>Inspect Tasks</code>, <code>read_file</code> menjadi <code>Read &lt;filename&gt;</code>, <code>write_file</code> menjadi <code>Update &lt;filename&gt;</code>).</li>
-        <li><strong>Breathing Room:</strong> Jika summary tidak memiliki informasi tambahan dibanding judul atau kosong, subtitle ditekan dan dihilangkan sehingga kartu visual tetap ringkas dan elegan tanpa teks redundan.</li>
-        <li><strong>Progressive Disclosure:</strong> Parameter teknis (misal ServerName, ToolName, Arguments) tersimpan rapi di dalam drawer disclosure collapsible dengan 1-click salin JSON yang tenang.</li>
-        <li><strong>Dukungan Mobile 390px Sempurna:</strong> Pada layar kecil, kartu langkah tersusun proporsional tanpa overflow horizontal, padding rapat namun bernapas, serta ikon mikro yang tenang.</li>
+        <li><strong>Eliminasi Total Tab Abstraksi Visual Steps:</strong> State <code>viewMode</code> ('steps' | 'terminal') dan tombol toggle tab [Langkah Visual | Terminal] di toolbar telah dihapus total.</li>
+        <li><strong>xterm.js sebagai Viewport Tunggal Penuh:</strong> Komponen <code>task-terminal-viewport</code> kini menjadi satu-satunya viewport utama, selalu terpasang secara aktif (full height/width), langsung tersinkronisasi dengan FitAddon tanpa delay render dari tab tersembunyi.</li>
+        <li><strong>Live ANSI/VT100 & Autoscroll:</strong> Log NDJSON diformat secara elegan via ANSI color codes (emerald check, rose cross, amber pulse, tool badges), autoscroll berjalan lancar saat log mengalir.</li>
+        <li><strong>Interaktivitas Terjaga:</strong> <code>TerminalComposer</code> tetap aktif di bagian bawah viewport untuk intervensi live (Ctrl+C, slash commands, text input via <code>/steer</code>).</li>
       </ul>
     </div>
   </div>

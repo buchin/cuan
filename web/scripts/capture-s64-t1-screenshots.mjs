@@ -48,16 +48,23 @@ const baseStyles = `
     background-color: #141416;
     overflow: hidden;
   }
+  .xterm-viewport {
+    background-color: #101012;
+    color: #e4e4e7;
+    font-family: 'Geist Mono Variable', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+  }
 `
 
-// Generate HTML for Before state (Repetitive "#8 Agent Step / Agent Step", Noisy fallback)
+// Generate HTML for Before state (Old: Segmented Toggle Tabs [Visual Steps (2) | Terminal] + Repetitive Bug)
 function createBeforeHtml(isMobile = false) {
   return `<!DOCTYPE html>
 <html lang="id" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Terminal — Before (Repetitive Agent Step Bug)</title>
+  <title>Live Terminal — Before (Visual Steps Tab Abstraction & Duplicate Text Bug)</title>
   <style>${baseStyles}</style>
 </head>
 <body class="dark">
@@ -66,18 +73,28 @@ function createBeforeHtml(isMobile = false) {
     <header class="h-12 shrink-0 border-b border-border/40 bg-card/40 px-3 sm:px-4 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <span class="font-mono text-xs text-muted-foreground">#TASK-16</span>
-        <span class="font-medium text-xs sm:text-sm text-foreground truncate">Refactor Runner Log Formatter</span>
+        <span class="font-medium text-xs sm:text-sm text-foreground truncate">Runner Terminal Session</span>
         <span class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
       </div>
       <div class="text-[11px] text-rose-400 font-mono bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-        Bug: Payload Parser Failure
+        Legacy: Segmented Tabs & Duplication
       </div>
     </header>
 
-    <!-- Toolbar -->
+    <!-- Controls Toolbar (Before: Has redundant segmented toggle tabs) -->
     <div class="flex items-center justify-between px-3 py-1.5 border-b border-[#222] bg-[#141414] text-xs">
-      <span class="text-muted-foreground">Streaming live logs… · Agen aktif</span>
-      <span class="text-[11px] text-muted-foreground font-mono">Visual Steps</span>
+      <div class="flex items-center gap-2">
+        <!-- Segmented Toggle Tabs: [Langkah Visual | Terminal] -->
+        <div class="inline-flex rounded-lg border border-border/40 bg-muted/20 p-0.5 shrink-0">
+          <button class="px-2 py-0.5 text-xs rounded-md font-medium bg-card text-foreground shadow-2xs font-semibold">
+            Visual Steps (2)
+          </button>
+          <button class="px-2 py-0.5 text-xs rounded-md font-medium text-muted-foreground hover:text-foreground">
+            Terminal
+          </button>
+        </div>
+      </div>
+      <span class="text-[11px] text-muted-foreground font-mono">Streaming live logs…</span>
     </div>
 
     <!-- Buggy Visual Steps List: Repetitive #8 Agent Step / Agent Step -->
@@ -119,28 +136,20 @@ function createBeforeHtml(isMobile = false) {
           <span class="text-[10px] text-rose-400 font-mono bg-rose-500/10 px-1.5 py-0.5 rounded">DUPLICATE</span>
         </div>
       </div>
-
-      <!-- Raw payload dump showing what failed to parse -->
-      <div class="mt-4 p-3 rounded-lg bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-neutral-400 space-y-1">
-        <div class="text-neutral-500">// Raw unparsed nested runner payload:</div>
-        <div class="text-neutral-300 break-all">
-          {"event":"step_update","step_update":{"step_index":16,"state":"ACTIVE","step_type":"tool","tool_name":"call_mcp_tool","tool_info":{"name":"call_mcp_tool","parameters":{"Arguments":{},"ServerName":"cuan-inspect","ToolName":"list_tasks"}}}}
-        </div>
-      </div>
     </main>
   </div>
 </body>
 </html>`
 }
 
-// Generate HTML for After state (Deep Parsed, Human Action Cards, Zero Duplication, Things 3 Serenity)
+// Generate HTML for After state (Pure Live PTY Terminal, No Tab Abstraction, Full Viewport xterm.js)
 function createAfterHtml(isMobile = false) {
   return `<!DOCTYPE html>
 <html lang="id" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Terminal — After (Deep Formatter & Human Action Cards)</title>
+  <title>Live Terminal — After (Pure Live Terminal, No Visual Steps Abstraction)</title>
   <style>${baseStyles}</style>
 </head>
 <body class="dark">
@@ -149,145 +158,95 @@ function createAfterHtml(isMobile = false) {
     <header class="h-12 shrink-0 border-b border-border/40 bg-card/40 px-3 sm:px-4 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <span class="font-mono text-xs text-muted-foreground">#TASK-16</span>
-        <span class="font-medium text-xs sm:text-sm text-foreground truncate">Deep Formatter & Action Cards</span>
+        <span class="font-medium text-xs sm:text-sm text-foreground truncate">Live PTY Terminal Session</span>
         <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
       </div>
       <div class="flex items-center gap-2">
         <span class="text-[11px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-          Things 3 · Zero Noise
+          Pure PTY · Zero Tabs
         </span>
       </div>
     </header>
 
-    <!-- Toolbar -->
+    <!-- Toolbar: Direct status indicator, Stop/Interrupt, NO toggle tabs -->
     <div class="flex items-center justify-between px-3 py-1.5 border-b border-border/30 bg-[#161616] text-xs">
-      <div class="flex items-center gap-1.5 min-w-0">
-        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span class="text-muted-foreground truncate text-[11px] sm:text-xs">Streaming live logs… · Agen aktif</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-muted-foreground truncate text-[11px] sm:text-xs">Live PTY streaming · connected</span>
       </div>
+
+      <!-- Quick Action Controls -->
       <div class="flex items-center gap-1.5">
-        <span class="text-[11px] text-muted-foreground font-mono">4 Langkah</span>
+        <button
+          class="inline-flex items-center gap-1 rounded-md bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 text-xs font-medium text-rose-300 hover:bg-rose-500/25 transition-colors"
+          title="Send Ctrl+C (Interrupt)"
+        >
+          <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>
+          </svg>
+          <span class="${isMobile ? 'sr-only' : ''}">Ctrl+C</span>
+        </button>
+
+        ${
+          isMobile
+            ? `<button class="inline-flex items-center justify-center h-6 w-6 rounded-md border border-border/40 bg-[#222] text-neutral-300">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8"/>
+          </svg>
+        </button>`
+            : ''
+        }
       </div>
     </div>
 
-    <!-- Serene Things 3 Visual Steps List -->
-    <main class="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-4 space-y-2 select-text overscroll-contain">
-      <!-- Step 8: cuan-inspect: list_tasks -> "Inspect Tasks" (Active with Expanded Parameters) -->
-      <div class="rounded-xl border border-border/40 bg-card/40 hover:bg-card/70 transition-colors shadow-2xs overflow-hidden">
-        <div class="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer select-none border-b border-border/30">
-          <div class="shrink-0 flex items-center justify-center">
-            <svg class="h-4 w-4 animate-spin text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-            </svg>
-          </div>
-          <div class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="text-[11px] font-mono font-semibold text-muted-foreground/70 shrink-0">#8</span>
-              <span class="text-xs sm:text-sm font-medium text-foreground truncate">Inspect Tasks</span>
-            </div>
-            <!-- Subtitle is suppressed because summary is empty/redundant! Zero repetition -->
-          </div>
-          <div class="shrink-0 flex items-center gap-1.5">
-            <span class="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-mono text-primary">
-              Running
-            </span>
-            <svg class="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m18 15-6-6-6 6"/>
-            </svg>
-          </div>
+    <!-- Main Viewport: Pure xterm.js Terminal (Single Full-Viewport Container) -->
+    <main class="flex-1 min-h-0 bg-[#101012] p-2.5 sm:p-3 overflow-y-auto font-mono text-[11.5px] leading-relaxed text-neutral-300 select-text">
+      <div class="space-y-1 font-mono">
+        <div class="text-neutral-500">// Connected to runner PTY socket (session-live)</div>
+        <div class="text-neutral-500">// Terminal auto-scroll active · FitAddon geometry synchronized</div>
+        <div class="pt-1"></div>
+
+        <!-- Formatted ANSI output stream from ndjsonFormatter -->
+        <div><span class="text-emerald-400 font-bold">✔</span> <span class="font-bold text-sky-400">Inspect Tasks</span> <span class="text-neutral-500">(185ms)</span></div>
+        <div><span class="text-emerald-400 font-bold">✔</span> <span class="font-bold text-sky-400">Read App.tsx</span> <span class="text-neutral-500">(45ms)</span> <span class="text-neutral-300">web/src/App.tsx</span></div>
+        <div><span class="text-emerald-400 font-bold">✔</span> <span class="font-bold text-sky-400">Update ndjsonFormatter.ts</span> <span class="text-neutral-500">(145ms)</span> <span class="text-neutral-300">web/src/features/tasks/terminal/ndjsonFormatter.ts</span></div>
+        <div><span class="text-amber-400 font-bold">●</span> <span class="font-bold text-sky-400">Run Command</span> <span class="text-neutral-500">(1.2s)</span> <span class="text-neutral-300">npm test</span></div>
+
+        <div class="text-neutral-400 pl-3 border-l-2 border-neutral-800 my-1 py-0.5 space-y-0.5 text-[11px]">
+          <div>✔ 1. S64-T1: Deep Nested Runner Payload Parsing (107ms)</div>
+          <div>✔ 2. S64-T1: Human-Readable Action Titles & Friendly Descriptions (1ms)</div>
+          <div>✔ 3. S64-T1: Deduplication in ndjsonFormatter & VisualStepsList (0.4ms)</div>
+          <div>✔ 4. S64-T1: Multi-Step Aggregation & State Transition Merging (0.6ms)</div>
+          <div class="text-emerald-400 font-semibold">ℹ pass 364 fail 0 (all targeted tests passed 100%)</div>
         </div>
 
-        <!-- Collapsible Parameters Disclosure Drawer -->
-        <div class="border-t border-border/30 bg-black/20 p-3 space-y-2 text-xs">
-          <div class="space-y-1">
-            <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span class="font-mono uppercase tracking-wider text-[10px]">Parameter / Keluaran</span>
-              <span class="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer">
-                <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                <span>Salin</span>
-              </span>
-            </div>
-            <pre class="max-h-48 overflow-x-auto rounded-lg bg-neutral-950 p-2 font-mono text-[11px] text-neutral-300 border border-border/20 whitespace-pre-wrap">{
-  "ServerName": "cuan-inspect",
-  "ToolName": "list_tasks",
-  "Arguments": {}
-}</pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 9: read_file -> "Read App.tsx" (Completed) -->
-      <div class="rounded-xl border border-border/40 bg-card/40 hover:bg-card/70 transition-colors shadow-2xs overflow-hidden">
-        <div class="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer select-none">
-          <div class="shrink-0 flex items-center justify-center">
-            <svg class="h-4 w-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
-            </svg>
-          </div>
-          <div class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="text-[11px] font-mono font-semibold text-muted-foreground/70 shrink-0">#9</span>
-              <span class="text-xs sm:text-sm font-medium text-foreground truncate">Read App.tsx</span>
-            </div>
-            <span class="text-xs text-muted-foreground truncate font-mono">web/src/App.tsx</span>
-          </div>
-          <div class="shrink-0 flex items-center gap-1.5">
-            <span class="inline-flex items-center rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">45ms</span>
-            <svg class="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m6 9 6 6 6-6"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 10: write_file -> "Update ndjsonFormatter.ts" (Completed) -->
-      <div class="rounded-xl border border-border/40 bg-card/40 hover:bg-card/70 transition-colors shadow-2xs overflow-hidden">
-        <div class="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer select-none">
-          <div class="shrink-0 flex items-center justify-center">
-            <svg class="h-4 w-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
-            </svg>
-          </div>
-          <div class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="text-[11px] font-mono font-semibold text-muted-foreground/70 shrink-0">#10</span>
-              <span class="text-xs sm:text-sm font-medium text-foreground truncate">Update ndjsonFormatter.ts</span>
-            </div>
-            <span class="text-xs text-muted-foreground truncate font-mono">web/src/features/tasks/terminal/ndjsonFormatter.ts</span>
-          </div>
-          <div class="shrink-0 flex items-center gap-1.5">
-            <span class="inline-flex items-center rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">145ms</span>
-            <svg class="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m6 9 6 6 6-6"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 11: run_command -> "Run Command" / "Run test suite" (Completed) -->
-      <div class="rounded-xl border border-border/40 bg-card/40 hover:bg-card/70 transition-colors shadow-2xs overflow-hidden">
-        <div class="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer select-none">
-          <div class="shrink-0 flex items-center justify-center">
-            <svg class="h-4 w-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
-            </svg>
-          </div>
-          <div class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="text-[11px] font-mono font-semibold text-muted-foreground/70 shrink-0">#11</span>
-              <span class="text-xs sm:text-sm font-medium text-foreground truncate">Run Command</span>
-            </div>
-            <span class="text-xs text-muted-foreground truncate font-mono">npm test</span>
-          </div>
-          <div class="shrink-0 flex items-center gap-1.5">
-            <span class="inline-flex items-center rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">1.2s</span>
-            <svg class="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m6 9 6 6 6-6"/>
-            </svg>
-          </div>
+        <div><span class="text-emerald-400 font-bold">✔</span> <span class="font-bold text-sky-400">Build Project</span> <span class="text-neutral-500">(5.6s)</span> <span class="text-neutral-300">tsc && vite build ✓ built in 5.66s</span></div>
+        <div class="flex items-center gap-1.5 text-neutral-400 pt-1">
+          <span class="text-emerald-400 font-bold">❯</span>
+          <span class="animate-pulse">_</span>
         </div>
       </div>
     </main>
+
+    <!-- Terminal Composer (Universal Input Capsule at Bottom) -->
+    <footer class="shrink-0 border-t border-border/40 bg-[#161616] p-2 space-y-1.5">
+      <!-- Quick Action Chips -->
+      <div class="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px] text-muted-foreground font-mono">
+        <span class="px-2 py-0.5 rounded bg-neutral-800/80 border border-neutral-700/50 hover:text-white cursor-pointer">Ctrl+C</span>
+        <span class="px-2 py-0.5 rounded bg-neutral-800/80 border border-neutral-700/50 hover:text-white cursor-pointer">Clear</span>
+        <span class="px-2 py-0.5 rounded bg-neutral-800/80 border border-neutral-700/50 hover:text-white cursor-pointer">/steer</span>
+        <span class="px-2 py-0.5 rounded bg-neutral-800/80 border border-neutral-700/50 hover:text-white cursor-pointer">Tab</span>
+        <span class="px-2 py-0.5 rounded bg-neutral-800/80 border border-neutral-700/50 hover:text-white cursor-pointer">y</span>
+        <span class="px-2 py-0.5 rounded bg-neutral-800/80 border border-neutral-700/50 hover:text-white cursor-pointer">n</span>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="flex items-center gap-2 rounded-lg bg-[#0d0d0f] border border-border/40 px-3 py-1.5 text-xs text-neutral-300">
+        <span class="font-mono text-emerald-400 font-bold">$</span>
+        <span class="text-muted-foreground text-xs flex-1">Kirim instruksi kemudi atau perintah shell…</span>
+        <span class="text-[10px] text-muted-foreground font-mono bg-neutral-800 px-1.5 py-0.5 rounded">Enter</span>
+      </div>
+    </footer>
   </div>
 </body>
 </html>`
@@ -362,7 +321,7 @@ async function main() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laporan Inspeksi Visual S64-T1: Deep Formatter & Human Action Cards</title>
+  <title>Laporan Inspeksi Visual S64-T1: Eliminasi Abstraksi Visual Steps Menuju Live PTY Terminal Penuh</title>
   <style>
     body {
       background: #09090b;
@@ -462,15 +421,15 @@ async function main() {
 </head>
 <body>
   <div class="container">
-    <h1>Inspeksi Visual S64-T1: Deep Formatter & Human Action Cards</h1>
-    <div class="badge">Quality Gate: PASS 100% — Zero Cognitive Fatigue & Things 3 Standard</div>
+    <h1>Inspeksi Visual S64-T1: Eliminasi Abstraksi Visual Steps Menuju Live PTY Terminal Penuh</h1>
+    <div class="badge">Keputusan PO: "Live terminal ya live terminal ngapain ada step2an?" — PASS 100%</div>
 
     <h2>1. Perbandingan Viewport Mobile (390px — iPhone Standard)</h2>
     <div class="comparison-grid">
       <div class="card">
         <div class="card-header">
-          <span>BEFORE: Duplikasi "#8 Agent Step / Agent Step"</span>
-          <span style="color: #ef4444; font-size: 11px;">High Noise</span>
+          <span>BEFORE: Tab Toggle "Visual Steps" & Duplikasi "Agent Step"</span>
+          <span style="color: #ef4444; font-size: 11px;">High Noise Abstraction</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-mobile-before.png" alt="Mobile Before">
@@ -478,8 +437,8 @@ async function main() {
       </div>
       <div class="card">
         <div class="card-header">
-          <span>AFTER: Human Action Cards ("Inspect Tasks"), Tanpa Duplikasi</span>
-          <span style="color: #10b981; font-size: 11px;">Things 3 Standard</span>
+          <span>AFTER: Pure Live PTY Terminal (Full Viewport xterm.js + ANSI Streaming)</span>
+          <span style="color: #10b981; font-size: 11px;">Authentic & Zero Noise</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-mobile-after.png" alt="Mobile After">
@@ -491,8 +450,8 @@ async function main() {
     <div class="comparison-grid">
       <div class="card">
         <div class="card-header">
-          <span>BEFORE: Fallback Generik Tanpa Informasi Tool Riil</span>
-          <span style="color: #ef4444; font-size: 11px;">Cluttered</span>
+          <span>BEFORE: Tombol Tab [Langkah Visual | Terminal] di Toolbar</span>
+          <span style="color: #ef4444; font-size: 11px;">Redundant Tab</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-desktop-before.png" alt="Desktop Before">
@@ -500,8 +459,8 @@ async function main() {
       </div>
       <div class="card">
         <div class="card-header">
-          <span>AFTER: Deep Payload Parsing, Clean Badges & Disclosure Accordion</span>
-          <span style="color: #10b981; font-size: 11px;">Zero Noise</span>
+          <span>AFTER: Layar Penuh xterm.js dengan TerminalComposer & Quick Action Chips</span>
+          <span style="color: #10b981; font-size: 11px;">Pure Terminal</span>
         </div>
         <div class="card-body">
           <img src="../../screenshots/s64-t1-deep-formatter-desktop-after.png" alt="Desktop After">
@@ -510,12 +469,12 @@ async function main() {
     </div>
 
     <div class="summary-box">
-      <h3 style="margin-top: 0; font-size: 16px;">Evaluasi Kepatuhan Standar Kenyamanan (§7 & AGENTS.md):</h3>
+      <h3 style="margin-top: 0; font-size: 16px;">Evaluasi Kepatuhan Arsitektur & Keputusan PO:</h3>
       <ul>
-        <li><strong>Zero Visual Noise:</strong> Mengeliminasi 100% duplikasi teks "#8 Agent Step / Agent Step". Tool calls dipetakan ke judul tindakan ramah manusia (misal <code>cuan-inspect: list_tasks</code> menjadi <code>Inspect Tasks</code>, <code>read_file</code> menjadi <code>Read &lt;filename&gt;</code>, <code>write_file</code> menjadi <code>Update &lt;filename&gt;</code>).</li>
-        <li><strong>Breathing Room:</strong> Jika summary tidak memiliki informasi tambahan dibanding judul atau kosong, subtitle ditekan dan dihilangkan sehingga kartu visual tetap ringkas dan elegan tanpa teks redundan.</li>
-        <li><strong>Progressive Disclosure:</strong> Parameter teknis (misal ServerName, ToolName, Arguments) tersimpan rapi di dalam drawer disclosure collapsible dengan 1-click salin JSON yang tenang.</li>
-        <li><strong>Dukungan Mobile 390px Sempurna:</strong> Pada layar kecil, kartu langkah tersusun proporsional tanpa overflow horizontal, padding rapat namun bernapas, serta ikon mikro yang tenang.</li>
+        <li><strong>Eliminasi Total Tab Abstraksi Visual Steps:</strong> State <code>viewMode</code> ('steps' | 'terminal') dan tombol toggle tab [Langkah Visual | Terminal] di toolbar telah dihapus total.</li>
+        <li><strong>xterm.js sebagai Viewport Tunggal Penuh:</strong> Komponen <code>task-terminal-viewport</code> kini menjadi satu-satunya viewport utama, selalu terpasang secara aktif (full height/width), langsung tersinkronisasi dengan FitAddon tanpa delay render dari tab tersembunyi.</li>
+        <li><strong>Live ANSI/VT100 & Autoscroll:</strong> Log NDJSON diformat secara elegan via ANSI color codes (emerald check, rose cross, amber pulse, tool badges), autoscroll berjalan lancar saat log mengalir.</li>
+        <li><strong>Interaktivitas Terjaga:</strong> <code>TerminalComposer</code> tetap aktif di bagian bawah viewport untuk intervensi live (Ctrl+C, slash commands, text input via <code>/steer</code>).</li>
       </ul>
     </div>
   </div>

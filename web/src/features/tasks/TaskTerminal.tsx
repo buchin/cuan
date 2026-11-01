@@ -27,12 +27,7 @@ import './task-workspace.css'
 import { MobileTerminalKeyboard } from './terminal/MobileTerminalKeyboard'
 import { TerminalContextMenu } from './terminal/TerminalContextMenu'
 import { TerminalComposer } from './terminal/TerminalComposer'
-import { VisualStepsList } from './terminal/VisualStepsList'
-import {
-  formatLogLineForTerminal,
-  parseLogsToVisualSteps,
-  type VisualStep,
-} from './terminal/ndjsonFormatter'
+import { formatLogLineForTerminal } from './terminal/ndjsonFormatter'
 import { FilePreviewModal } from '../../components/dialogs/FilePreviewModal'
 import type { Attachment } from '../inbox/Attachments'
 
@@ -66,8 +61,6 @@ export function TaskTerminal({
   const [search, setSearch] = useState('')
   const [match, setMatch] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [viewMode, setViewMode] = useState<'steps' | 'terminal'>('steps')
-  const [visualSteps, setVisualSteps] = useState<VisualStep[]>([])
   const [activeSessionId, setActiveSessionId] = useState(live?.session_id || '')
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean
@@ -366,7 +359,7 @@ export function TaskTerminal({
       }
     }, 60)
     return () => clearTimeout(timer)
-  }, [isFullscreen, viewMode])
+  }, [isFullscreen])
 
   // Terminal lifecycle & WebSocket connection
   useEffect(() => {
@@ -881,9 +874,6 @@ export function TaskTerminal({
         }
         if (disposed) return
 
-        // Update visual steps from initial logs
-        setVisualSteps(parseLogsToVisualSteps(logs.current))
-
         // Incremental polling loop while attempt is active
         const pollNextLogs = async () => {
           if (disposed) return
@@ -901,7 +891,6 @@ export function TaskTerminal({
               activeTerm.write(next.map((l) => formatLogLineForTerminal(l.line)).join('\r\n') + '\r\n')
               if (following.current) activeTerm.scrollToBottom()
               after = next[next.length - 1].id
-              setVisualSteps(parseLogsToVisualSteps(logs.current))
             }
             const isFinal =
               (result as any).is_final ||
@@ -1046,35 +1035,6 @@ export function TaskTerminal({
           title={connection}
         />
       )}
-
-      {/* View Mode Toggle: Langkah Visual vs Terminal */}
-      <div className="inline-flex rounded-lg border border-border/40 bg-muted/20 p-0.5 shrink-0">
-        <button
-          type="button"
-          onClick={() => setViewMode('steps')}
-          className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors ${
-            viewMode === 'steps'
-              ? 'bg-card text-foreground shadow-2xs font-semibold'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {t('Visual Steps')} {visualSteps.length > 0 ? `(${visualSteps.length})` : ''}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setViewMode('terminal')
-            setTimeout(() => fitRef.current?.fit(), 40)
-          }}
-          className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors ${
-            viewMode === 'terminal'
-              ? 'bg-card text-foreground shadow-2xs font-semibold'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {t('Terminal')}
-        </button>
-      </div>
 
       {/* Quick Action Toolbar */}
       <div className="flex flex-wrap items-center gap-1">
@@ -1321,15 +1281,9 @@ export function TaskTerminal({
         aria-label="Terminal output"
         onContextMenu={handleContextMenu}
       >
-        {viewMode === 'steps' ? (
-          <VisualStepsList steps={visualSteps} className="h-full w-full" />
-        ) : null}
-
         <div
           ref={mount}
-          className={`task-terminal-viewport h-full w-full overscroll-contain touch-none ${
-            viewMode === 'terminal' ? 'block' : 'hidden'
-          }`}
+          className="task-terminal-viewport h-full w-full overscroll-contain touch-none block"
         />
       </div>
 

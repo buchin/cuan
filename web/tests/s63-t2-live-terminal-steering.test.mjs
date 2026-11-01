@@ -106,23 +106,18 @@ test('2. S63-T2: VisualStepsList Component & Collapsible Step Disclosure', () =>
   assert.ok(content.includes('shadow-2xs'), 'Must use minimal 2xs shadow instead of harsh drop-shadow')
 })
 
-test('3. S63-T2: TaskTerminal Segmented View & Direct PTY Terminal', () => {
+test('3. S63-T2: TaskTerminal Direct PTY Terminal (Pure Full-Viewport xterm.js)', () => {
   const content = fs.readFileSync(taskTerminalPath, 'utf8')
 
-  // View mode toggle
-  assert.ok(content.includes("const [viewMode, setViewMode] = useState<'steps' | 'terminal'>('steps')"))
-  assert.ok(content.includes("viewMode === 'steps'"))
-  assert.ok(content.includes("viewMode === 'terminal'"))
-  assert.ok(content.includes('<VisualStepsList'), 'Must render VisualStepsList in TaskTerminal')
+  // Direct full-viewport mount
+  assert.ok(content.includes('task-terminal-viewport'), 'Must mount direct task-terminal-viewport')
+  assert.ok(!content.includes('viewMode'), 'Must eliminate viewMode and steps toggle')
+  assert.ok(!content.includes('<VisualStepsList'), 'Must eliminate VisualStepsList abstraction in favor of live terminal')
 
   // ANSI formatting on log write
   assert.ok(
     content.includes('formatLogLineForTerminal'),
     'TaskTerminal must format raw NDJSON into human-readable ANSI before writing to xterm',
-  )
-  assert.ok(
-    content.includes('parseLogsToVisualSteps'),
-    'TaskTerminal must aggregate logs into visual steps',
   )
 })
 
