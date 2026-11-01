@@ -53,13 +53,13 @@ test('1. Safe Area Alignment & Android Navigation Bar Cushion', () => {
 })
 
 test('2. Visual Border/Radius and Dark/Light Mode Contrast', () => {
-  // Check contrast fix: In dark mode, --wa-send-text must be #ffffff (not dark #121212)
+  // Check contrast fix: In dark mode with light send button (#ededed), --wa-send-text must be dark (#141416) for clear contrast
   const darkChatBlockMatch = cssSource.match(/\.dark \.wa-chat\s*\{([^}]+)\}/)
   assert.ok(darkChatBlockMatch, '.dark .wa-chat block must exist')
   const darkChatProps = darkChatBlockMatch[1]
   assert.ok(
-    darkChatProps.includes('--wa-send-text: #ffffff;'),
-    'Dark mode send button text/icon must be #ffffff for clear contrast on teal/green'
+    darkChatProps.includes('--wa-send-text: #141416;'),
+    'Dark mode send button text/icon must be #141416 for clear contrast on light #ededed button'
   )
 
   // In dark mode, .wa-input-capsule must have refined background #1e2023 and border
