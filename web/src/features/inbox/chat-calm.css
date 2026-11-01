@@ -1,0 +1,554 @@
+/* Cuan Calm Design System — Monochromatic Chat Stream (Things 3 & Bear Notes Inspired)
+   Eliminates all legacy WhatsApp styles (green bubble colors, clip-path tails, wallpaper dot-pattern). */
+
+.wa-chat,
+.calm-chat {
+  --wa-bg: hsl(var(--background));
+  --wa-header: hsl(var(--card));
+  --wa-incoming: hsl(var(--muted) / 0.5);
+  --wa-outgoing: hsl(var(--secondary) / 0.85);
+  --wa-text: hsl(var(--foreground));
+  --wa-meta: hsl(var(--muted-foreground));
+  --wa-outgoing-meta: hsl(var(--muted-foreground));
+  --wa-send: hsl(var(--foreground));
+  --wa-send-text: hsl(var(--background));
+  --wa-pattern: transparent;
+  background: var(--wa-bg);
+  color: var(--wa-text);
+  font-family: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+.dark .wa-chat {
+  --wa-bg: #141416;
+  --wa-header: #18181a;
+  --wa-incoming: #1b1c1f;
+  --wa-outgoing: #25272c;
+  --wa-text: #ededed;
+  --wa-meta: #8e8e93;
+  --wa-outgoing-meta: #8e8e93;
+  --wa-send: #ededed;
+  --wa-send-text: #ffffff;
+  --wa-pattern: transparent;
+}
+
+.dark .calm-chat {
+  --wa-bg: #141416;
+  --wa-header: #18181a;
+  --wa-incoming: #1b1c1f;
+  --wa-outgoing: #25272c;
+  --wa-text: #ededed;
+  --wa-meta: #8e8e93;
+  --wa-outgoing-meta: #8e8e93;
+  --wa-send: #ededed;
+  --wa-send-text: #ffffff;
+  --wa-pattern: transparent;
+}
+
+.dark .wa-message-bubble,
+.dark .calm-message-bubble {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.dark .wa-incoming,
+.dark .calm-incoming {
+  background: var(--wa-incoming);
+  border-color: transparent !important;
+}
+
+.dark .wa-outgoing,
+.dark .calm-outgoing {
+  background: var(--wa-outgoing);
+  border-color: transparent !important;
+}
+
+/* Header */
+.wa-chat-header,
+.calm-chat-header {
+  background: var(--wa-header);
+  color: var(--wa-text);
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+}
+
+/* Conversation Stream: Pure, flat canvas without dot-pattern wallpaper */
+.wa-conversation,
+.calm-conversation {
+  background-color: var(--wa-bg);
+  background-image: none !important;
+}
+
+/* Desktop Typographic Constraint (Principle 2.4: 65-80ch) */
+.calm-stream-constraint {
+  max-width: min(75ch, 100%);
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+/* Chat Message Bubbles: Symmetrical, calm, soft rounded rectangles. No clip-path tails! */
+.wa-message-bubble,
+.calm-message-bubble {
+  max-width: calc(100% - 32px);
+  width: fit-content;
+  padding: 8px 14px 8px;
+  border-radius: 16px;
+  box-shadow: none;
+  color: var(--wa-text);
+  border: 1px solid hsl(var(--border) / 0.2);
+  border-color: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+@media (min-width: 1200px) {
+  .wa-message-bubble,
+  .calm-message-bubble {
+    max-width: min(75%, 68ch);
+  }
+}
+
+/* Incoming bubble: Soft neutral gray */
+.wa-incoming,
+.calm-incoming {
+  background: var(--wa-incoming);
+  border-color: transparent;
+}
+
+/* Outgoing bubble: Calm monochromatic neutral */
+.wa-outgoing,
+.calm-outgoing {
+  background: var(--wa-outgoing);
+  border-color: transparent;
+}
+
+/* Strictly ELIMINATE the legacy WhatsApp speech bubble tail clip-path */
+.wa-message-bubble::before,
+.calm-message-bubble::before {
+  display: none !important;
+  content: none !important;
+}
+.wa-incoming::before,
+.calm-incoming::before,
+.wa-outgoing::before,
+.calm-outgoing::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Typography & Metadata - Bear Notes Inspired (relaxed leading and breathing room) */
+.wa-chat .wa-plain-text,
+.calm-chat .calm-plain-text {
+  font-size: 15px;
+  line-height: 1.62;
+  letter-spacing: -0.011em;
+  overflow-wrap: anywhere;
+}
+.wa-plain-text::after,
+.calm-plain-text::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
+.wa-message-meta,
+.calm-message-meta {
+  display: inline-flex;
+  float: right;
+  align-items: center;
+  gap: 3px;
+  margin: 4px 0 0 10px;
+  white-space: nowrap;
+  color: var(--wa-meta);
+  font-size: 11px;
+  line-height: 14px;
+}
+.wa-outgoing .wa-message-meta,
+.calm-outgoing .calm-message-meta {
+  color: var(--wa-outgoing-meta);
+}
+
+.wa-markdown-footer,
+.calm-markdown-footer {
+  min-height: 16px;
+}
+.wa-markdown-footer::after,
+.calm-markdown-footer::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+.wa-markdown-footer .wa-message-meta,
+.calm-markdown-footer .calm-message-meta {
+  margin-top: 2px;
+}
+
+.wa-day-label,
+.calm-day-label {
+  background: transparent !important;
+  color: hsl(var(--muted-foreground));
+  border: none !important;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 0;
+  padding: 4px 0;
+  box-shadow: none !important;
+}
+
+.dark .wa-day-label,
+.dark .calm-day-label {
+  background: transparent !important;
+  color: #8e8e93 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Composer: Calm Monochromatic with ergonomic safe-area cushion */
+.wa-composer,
+.calm-composer {
+  background: var(--wa-bg);
+  padding: 8px 10px max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+  transition: padding-bottom 0.15s ease-out;
+  border-top: 1px solid hsl(var(--border) / 0.35);
+}
+@media (min-width: 640px) {
+  .wa-composer,
+  .calm-composer {
+    padding: 10px 16px max(12px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.wa-input-capsule,
+.calm-input-capsule {
+  background: var(--wa-incoming);
+  color: var(--wa-text);
+  border: 1px solid hsl(var(--border) / 0.5);
+  border-radius: 24px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
+  transition: border-radius 0.18s ease-out, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.wa-input-capsule.is-multiline,
+.calm-input-capsule.is-multiline {
+  border-radius: 18px;
+}
+.wa-input-capsule:focus-within,
+.calm-input-capsule:focus-within {
+  border-color: hsl(var(--foreground) / 0.35);
+  box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.2), 0 1px 3px rgb(0 0 0 / 0.05);
+}
+.dark .wa-input-capsule,
+.dark .calm-input-capsule {
+  background: #1e2023;
+  border-color: rgb(255 255 255 / 0.1);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.dark .wa-input-capsule:focus-within,
+.dark .calm-input-capsule:focus-within {
+  border-color: rgb(255 255 255 / 0.3);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.15), 0 2px 6px rgb(0 0 0 / 0.3);
+}
+
+.wa-action-btn,
+.calm-action-btn {
+  color: var(--wa-meta);
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.wa-action-btn:hover,
+.calm-action-btn:hover {
+  color: var(--wa-text);
+  background-color: hsl(var(--muted) / 0.5);
+}
+.dark .wa-action-btn:hover,
+.dark .calm-action-btn:hover {
+  color: #ededed;
+  background-color: rgb(255 255 255 / 0.1);
+}
+
+.wa-input,
+.calm-input {
+  background: transparent;
+  color: var(--wa-text);
+  border: 0;
+  box-shadow: none;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wa-meta) 35%, transparent) transparent;
+}
+.wa-input::placeholder,
+.calm-input::placeholder {
+  color: var(--wa-meta);
+  opacity: 0.8;
+}
+.wa-input:focus-visible,
+.calm-input:focus-visible {
+  outline: none;
+}
+.wa-input::-webkit-scrollbar,
+.calm-input::-webkit-scrollbar {
+  width: 4px;
+}
+.wa-input::-webkit-scrollbar-track,
+.calm-input::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+}
+.wa-input::-webkit-scrollbar-thumb,
+.calm-input::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--wa-meta) 35%, transparent);
+  border-radius: 9999px;
+}
+.wa-input::-webkit-scrollbar-thumb:hover,
+.calm-input::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wa-meta) 60%, transparent);
+}
+.dark .wa-input,
+.dark .calm-input {
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.dark .wa-input::-webkit-scrollbar-thumb,
+.dark .calm-input::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+}
+.dark .wa-input::-webkit-scrollbar-thumb:hover,
+.dark .calm-input::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Send Button: Calm Monochromatic */
+.wa-send,
+.calm-send {
+  background: var(--wa-send);
+  color: var(--wa-send-text);
+  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease, filter 0.15s ease;
+}
+.wa-send:hover:not(:disabled),
+.calm-send:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+.dark .wa-send:hover:not(:disabled),
+.dark .calm-send:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* Markdown typography in chat - Bear Notes Inspired */
+.wa-chat .chat-markdown,
+.calm-chat .chat-markdown {
+  font-size: 15px;
+  line-height: 1.62;
+  letter-spacing: -0.011em;
+}
+.wa-chat .chat-markdown h1,
+.calm-chat .chat-markdown h1 { font-size: 18px; font-weight: 600; margin: 0.8em 0 0.3em; }
+.wa-chat .chat-markdown h2,
+.calm-chat .chat-markdown h2 { font-size: 16px; font-weight: 600; margin: 0.7em 0 0.25em; }
+.wa-chat .chat-markdown h3,
+.calm-chat .chat-markdown h3 { font-size: 15px; font-weight: 600; margin: 0.6em 0 0.2em; }
+.wa-chat .chat-markdown p,
+.calm-chat .chat-markdown p { margin: 0.5em 0; }
+.wa-chat .chat-markdown > :first-child,
+.calm-chat .chat-markdown > :first-child { margin-top: 0; }
+.wa-chat .chat-markdown > :last-child,
+.calm-chat .chat-markdown > :last-child { margin-bottom: 0; }
+
+/* Blockquote in Calm Stream: Clean neutral accent line, NO WhatsApp green */
+.wa-chat .chat-markdown blockquote,
+.calm-chat .chat-markdown blockquote {
+  border-left: 3.5px solid hsl(var(--border) / 0.8);
+  background: hsl(var(--muted) / 0.35);
+  border-radius: 0 6px 6px 0;
+  padding: 5px 9px;
+  margin: 3px 0 6px 0;
+  max-height: 6rem;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--wa-meta);
+  overflow: hidden;
+}
+.dark .wa-chat .chat-markdown blockquote,
+.dark .calm-chat .chat-markdown blockquote {
+  background: rgba(255, 255, 255, 0.06);
+  border-left-color: rgba(255, 255, 255, 0.2);
+  color: #b5b5b5;
+}
+.wa-incoming .chat-markdown blockquote,
+.calm-incoming .chat-markdown blockquote {
+  border-left-color: hsl(var(--border));
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--wa-meta);
+}
+.dark .wa-incoming .chat-markdown blockquote,
+.dark .calm-incoming .chat-markdown blockquote {
+  background: rgba(255, 255, 255, 0.05);
+  border-left-color: rgba(255, 255, 255, 0.25);
+  color: #b5b5b5;
+}
+.wa-outgoing .chat-markdown blockquote,
+.calm-outgoing .chat-markdown blockquote {
+  border-left-color: hsl(var(--foreground) / 0.4);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--wa-outgoing-meta);
+}
+.dark .wa-outgoing .chat-markdown blockquote,
+.dark .calm-outgoing .chat-markdown blockquote {
+  border-left-color: rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.15);
+  color: var(--wa-outgoing-meta);
+}
+
+.wa-message-bubble > .chat-markdown > p:last-child::after,
+.calm-message-bubble > .chat-markdown > p:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 56px;
+  height: 1px;
+}
+.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer,
+.calm-message-bubble:has(> .chat-markdown > p:last-child) .calm-markdown-footer {
+  position: absolute;
+  right: 9px;
+  bottom: 7px;
+  min-height: 0;
+}
+.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer .wa-message-meta,
+.calm-message-bubble:has(> .chat-markdown > p:last-child) .calm-markdown-footer .calm-message-meta {
+  float: none;
+  margin: 0;
+}
+
+/* Seamless Borderless Artifacts inside Calm Stream (Bear Notes Inspired) */
+.wa-message-bubble:has(.status-report-card),
+.calm-message-bubble:has(.status-report-card),
+.wa-message-bubble:has(.approval-card),
+.calm-message-bubble:has(.approval-card),
+.wa-message-bubble:has([data-card="task-card"]),
+.calm-message-bubble:has([data-card="task-card"]),
+.wa-message-bubble:has([data-testid="task-completion-card"]),
+.calm-message-bubble:has([data-testid="task-completion-card"]),
+.wa-message-bubble:has([aria-label="Agent response progress"]),
+.calm-message-bubble:has([aria-label="Agent response progress"]),
+.wa-message-bubble:has([aria-label="Task from conversation"]),
+.calm-message-bubble:has([aria-label="Task from conversation"]),
+[aria-label="Agent response progress"] .wa-message-bubble,
+[aria-label="Agent response progress"] .calm-message-bubble {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  width: 100%;
+  max-width: min(96%, 680px);
+}
+@media (min-width: 1024px) {
+  .wa-message-bubble:has(.status-report-card),
+  .calm-message-bubble:has(.status-report-card),
+  .wa-message-bubble:has(.approval-card),
+  .calm-message-bubble:has(.approval-card),
+  .wa-message-bubble:has([data-card="task-card"]),
+  .calm-message-bubble:has([data-card="task-card"]),
+  .wa-message-bubble:has([data-testid="task-completion-card"]),
+  .calm-message-bubble:has([data-testid="task-completion-card"]),
+  .wa-message-bubble:has([aria-label="Agent response progress"]),
+  .calm-message-bubble:has([aria-label="Agent response progress"]),
+  .wa-message-bubble:has([aria-label="Task from conversation"]),
+  .calm-message-bubble:has([aria-label="Task from conversation"]),
+  [aria-label="Agent response progress"] .wa-message-bubble,
+  [aria-label="Agent response progress"] .calm-message-bubble {
+    max-width: min(88%, 700px);
+  }
+}
+.wa-message-bubble:has(.status-report-card) .wa-markdown-footer,
+.calm-message-bubble:has(.status-report-card) .calm-markdown-footer,
+.wa-message-bubble:has([data-testid="task-completion-card"]) .wa-markdown-footer,
+.calm-message-bubble:has([data-testid="task-completion-card"]) .calm-markdown-footer {
+  position: static;
+  margin-top: 4px;
+}
+
+/* Conversation list surfaces */
+.inbox-list { background: hsl(var(--background)); }
+.inbox-search { background: hsl(var(--muted) / 0.5); }
+.dark .inbox-list { background: #121212; }
+.dark .inbox-search, .dark .app-page-header { background: #18181b; }
+
+/* Hairline inset divider */
+.inbox-item-divider {
+  position: absolute;
+  bottom: 0;
+  left: 3.75rem;
+  right: 0;
+  inset-inline-start: 3.75rem;
+  inset-inline-end: 0;
+  height: 1px;
+  background-color: hsl(var(--border) / 0.4);
+  pointer-events: none;
+}
+.dark .inbox-item-divider {
+  background-color: hsl(var(--border) / 0.3);
+}
+.inbox-list .overflow-y-auto > :last-child .inbox-item-divider,
+.inbox-item-row:last-child .inbox-item-divider {
+  display: none !important;
+}
+
+.message-actions .wa-message-bubble,
+.message-actions .calm-message-bubble {
+  max-width: 100%;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .message-actions:hover .message-menu-trigger,
+  .message-actions:focus-within .message-menu-trigger {
+    opacity: 1;
+    pointer-events: auto;
+    background: var(--wa-incoming);
+  }
+}
+
+/* Floating Scroll to Bottom Button */
+.wa-scroll-btn,
+.calm-scroll-btn {
+  background: var(--wa-incoming);
+  color: var(--wa-meta);
+  border: 1px solid color-mix(in srgb, var(--wa-meta) 25%, transparent);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.08);
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.15s ease,
+              color 0.15s ease,
+              box-shadow 0.15s ease;
+}
+.wa-scroll-btn:hover,
+.calm-scroll-btn:hover {
+  background: var(--wa-header);
+  color: var(--wa-text);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+.wa-scroll-btn:active,
+.calm-scroll-btn:active {
+  transform: scale(0.94);
+}
+.dark .wa-scroll-btn,
+.dark .calm-scroll-btn {
+  background: var(--wa-incoming);
+  color: var(--wa-text);
+  border: 1px solid color-mix(in srgb, var(--wa-meta) 30%, transparent);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.dark .wa-scroll-btn:hover,
+.dark .calm-scroll-btn:hover {
+  background: #27272a;
+}
+.wa-scroll-badge,
+.calm-scroll-badge {
+  background: var(--wa-send);
+  color: var(--wa-send-text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  border: 2px solid var(--wa-bg);
+  animation: wa-badge-pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes wa-badge-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

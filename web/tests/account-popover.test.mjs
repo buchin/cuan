@@ -71,17 +71,25 @@ test('3. Consolidated Account & Security vs Preferences grouping', async () => {
     'Popover must contain Preferences group header',
   )
 
-  // Check items order: Account & Security contains Profile & password and Contacts
+  // Check items order: Account & Security contains Profile & password
   const accountGroupPos = popoverContent.indexOf("t('Account & Security')")
   const profilePos = popoverContent.indexOf("navigate('/settings/profile')")
-  const contactsPos = popoverContent.indexOf("navigate('/account/contacts')")
   const prefGroupPos = popoverContent.indexOf("t('Preferences')")
   const settingsPos = popoverContent.indexOf("navigate('/settings')")
 
   assert.ok(accountGroupPos < profilePos, 'Profile & password must follow Account & Security header')
-  assert.ok(profilePos < contactsPos, 'Contacts must be within Account group')
-  assert.ok(contactsPos < prefGroupPos, 'Preferences group must follow Account group')
+  assert.ok(profilePos < prefGroupPos, 'Preferences group must follow Account group')
   assert.ok(prefGroupPos < settingsPos, 'Settings must follow Preferences header')
+
+  // In S59-T3, Contacts and Schedules are lifted out of NavUser popover into primary Operations navigation
+  assert.ok(
+    !popoverContent.includes("navigate('/account/contacts')"),
+    'Contacts must no longer be inside NavUser popover (S59-T3)',
+  )
+  assert.ok(
+    !popoverContent.includes("navigate('/settings/schedules')"),
+    'Schedules must no longer be inside NavUser popover (S59-T3)',
+  )
 
   // Check SettingsView tabs also expose Profile & password
   const settingsViewContent = fs.readFileSync(

@@ -20,6 +20,7 @@
   - [3. Multi-Channel Inbox & Contacts CRM](#3-multi-channel-inbox--contacts-crm)
   - [4. Extensibility & MCP Client Engine](#4-extensibility--mcp-client-engine)
   - [5. Project & Task Workspace Management](#5-project--task-workspace-management)
+  - [6. Calm Design System & Unified Chat Workspace](#6-calm-design-system--unified-chat-workspace)
 - [Architecture Overview](#architecture-overview)
   - [System Architecture Diagram](#system-architecture-diagram)
   - [Core Components](#core-components)
@@ -132,6 +133,48 @@ Transform customer interactions into structured business workflows:
   - **Auto-Mark Done & Zero-Jargon Chat**: Automatically marks verified tasks as `done` and proactively delivers warm, business-friendly reports and strategic next steps to store owners in Chat/Inbox.
 - **Creator Blueprints & Studio**:
   - Standardized project templates, execution blueprints, and modular workspaces for rapid business asset generation.
+
+### 6. Calm Design System & Unified Chat Workspace
+
+Cuan incorporates a **Calm & Layered UI System** inspired by world-class productivity tools **Things 3** and **Bear Notes**:
+
+- **Apple Mail & Bear Inset List in Inbox (Zero Screen-Wide Clutter Bars)**:
+  - Subpanel conversations formatted into an Apple Mail & Bear Notes 3-tier inset list: sender & tabular timestamp on row 1, clean Geist subject with micro-indicator `StatusDot` on row 2, and 2-line snippet in muted zinc-400 on row 3.
+  - Total elimination of full-width `[+ New Idea / Task]` quick bars and loud neon blue filter buttons in favor of calm, neutral Things 3 segments (`All`, `Agents`, `Customers`).
+  - Separated by elegant hairline dividers (`border-b border-border/40`) with zero nested cards.
+- **Calm Low-Contrast Chat Bubbles & Quiet Date Dividers**:
+  - Chat bubbles designed with monochromatic micro-tints (`#1b1c1f` vs `#25272c`) on a deep `#141416` dark canvas, eliminating harsh 1px solid white wireframe borders.
+  - Date dividers (`Today`, `Yesterday`) use quiet muted text with zero solid white `#ffffff` glowing pills in dark mode.
+  - In-stream agent status summaries and task cards flow borderless with subtle typographic hierarchy.
+- **Progressive Disclosure SlideDrawer for Task References in Chat**:
+  - Clicking task links or task cards inside the chat stream opens an on-demand `SlideDrawer` from the right edge, eliminating canvas disruptions and preserving 100% of the active conversation stream.
+- **Things 3 Pure Task Rows (Zero Action Buttons on Rows)**:
+  - Task lists across desktop and mobile adhere to pure Things 3 design: subtle `StatusDot` micro-indicators on the left, spacious Geist typography in the center, and muted tabular relative timestamps on the right.
+  - Complete elimination of loud `action-primary` buttons (*View result*, *Live Terminal*, *Retry*) from row surfaces. Every row is an expansive tap target that opens deep task actions inside an on-demand side drawer (`SlideDrawer` / `TaskSidePeek`).
+- **Bear Notes Chat Stream & Borderless Artifacts**:
+  - Chat stream streams smoothly without thick nested borders or harsh framing. Approval cards, task completion cards, and status summaries render as calm typographic text blocks with subtle inline badges.
+- **Card Diet & Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`)**:
+  - Eliminates visual clutter, SaaS education banners, and thick nested cards (`box inside box`). Replaced with flat serene surfaces, crisp hairline dividers (`divide-border/40`), micro-indicators (`StatusDot`), and Apple-style grouped rows (`GroupedSection`) across Apps & Skills and General Settings.
+- **Progressive Disclosure in Agents View**:
+  - Streamlines agent profile cards from 14 cluttered DevOps elements down to clean, essential identity profiles (Avatar, Name, Role Handle, Short Description, and StatusDot). Advanced engine parameters, BYOK configs, vision toggles, and token controls are revealed on-demand via `SlideDrawer`.
+- **Inclusive Workspace Language**:
+  - 100% elimination of legacy "Toko" terminology across all UI views and locale dictionaries (`id.json` and `en.json`) in favor of universal "Workspace" / "Ruang Kerja" language suited for creators, solopreneurs, and agencies.
+- **Standalone Studio Canvas & Calm Chat Stream**:
+  - Standalone Studio Canvas (`/studio`): Spacious, focused ideation canvas (`max-w-[75ch]`) with back navigation (`←`) and smooth redirect to execution threads upon submission.
+  - Complete Elimination of Mobile Clashes: Removed conflicting FABs in mobile bottom nav and eliminated cramped slide-up sheets.
+  - Clean Thread List & Status-by-Exception: Replaced noisy 4-badge stacks on thread lists with a single subtle `StatusDot` micro-indicator active only when agents are working.
+  - Clean JSON Snippets: Stripped raw JSON payloads in thread previews into human-friendly text.
+- **Clean Account vs Settings Separation**:
+  - Dedicated `/account` workspace for personal preferences (Profile, Appearance, Notifications, Sign Out) using Apple-style Inset Grouped Sections.
+  - Dedicated `/settings` workspace for operational configuration (General Workspace, Schedules, AI Providers & Models, Agent Memory, Agents, Apps & Skills).
+- **Information Layering & Progressive Disclosure**:
+  - Essential glanceable operational state stays on the surface; deep technical data (git branches, terminal sessions, raw stdout/stderr logs) is revealed smoothly on-demand via `SlideDrawer` side drawers.
+- **Status-by-Exception**:
+  - Calm neutral palette with high-contrast accent colors reserved strictly for exceptions requiring user intervention, preventing cognitive fatigue.
+- **Ergonomic Desktop Column Constraints & Geist Typography**:
+  - Strict 65–80ch reading widths (`max-w-[75ch]`) preventing eye strain on widescreen monitors, paired with the razor-sharp Geist typeface.
+- **3-Group Information Architecture**:
+  - Desktop sidebar organized into **WORKSPACE** (Chat, Tasks, Projects), **OPERATIONS** (Schedules, Contacts), and **SYSTEM** (Settings), paired with an essential 4-pillar mobile bottom navigation (Chat, Tasks, Projects, Menu).
 
 ---
 
@@ -327,7 +370,10 @@ For detailed operational procedures, see the [Deployment and Recovery Guide](doc
 
 Cuan is engineered under strict **Agentic Scrum** standards where every sprint produces a documented Single Source of Truth (`docs/sprints/S{number}.md`) and Definition of Done (DoD) verification evidence:
 
-- **Sprint 51 (Current)**: [Multi-User Collaboration & Staff Management with RBAC](docs/sprints/S51.md) — Fural permission model (Owner vs Member), TeamView staff management, 1-click WhatsApp invitations, `/invite/accept` activation page, and migration `000030`.
+- **Sprint 60 (Current)**: [The Real Things 3 & Bear Overhaul + Mobile Bug Fixes & Toko Relics Elimination](docs/sprints/S60.md) — Things 3 pure task rows with 0 loud buttons and mobile glitch fix, total card diet & elimination of SaaS banners in Apps & Skills and General Settings, progressive disclosure in Agents View, 100% elimination of legacy "Toko" relics, and Bear Notes chat stream typography with borderless artifacts.
+- **Sprint 59**: [Calm & Layered UI System (Things 3 & Bear Notes Inspired) and Unified Workspace](docs/sprints/S59.md) — Things 3 & Bear Notes design philosophy, Unified Chat Workspace (Studio + Inbox fusion), 3-group desktop navigation and 4-pillar mobile bottom nav, Card Diet refactor across core pages (Projects, Schedules, Contacts, Settings), and Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`).
+- **Sprint 58**: [Clean Chat UI, Live Streaming Logs & Interactive Agent Steering in cuan-runner](docs/sprints/S58.md) — Live stdout/stderr streaming pipe, harmonic Web Audio chime notification, tab title status badges, and interactive chat steering.
+- **Sprint 51**: [Multi-User Collaboration & Staff Management with RBAC](docs/sprints/S51.md) — Fural permission model (Owner vs Member), TeamView staff management, 1-click WhatsApp invitations, `/invite/accept` activation page, and migration `000030`.
 - **Sprint 50**: [Dual-Mode AI Engine & Universal BYOK](docs/sprints/S50.md) — Official subscription harnesses (Claude, Codex, AGY), Universal BYOK (OpenAI, DeepSeek V3/R1, Anthropic), user-space binary manager in `~/.local/bin`, and AES-256-GCM encryption.
 - **Sprint 1–49**: Historical sprint specifications and DoD verification records are preserved under [`docs/sprints/`](docs/sprints/) and [`docs/sprints/evidence/`](docs/sprints/evidence/).
 

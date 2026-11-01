@@ -24,6 +24,7 @@ import {
   getQueuedTasksPositions,
 } from './task-ui'
 import { TaskItemCard } from './TaskItemCard'
+import { HairlineList } from '../../components/layout/HairlineList'
 import { cn } from '../../lib/utils'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
@@ -810,13 +811,14 @@ export function TaskBoardView({
               </tbody>
             </table>
           </div>
-          <div className="space-y-3 p-3 lg:hidden">
+          <HairlineList className="lg:hidden px-2">
             {(() => {
               const queuedPositions = getQueuedTasksPositions(rows)
               return rows.slice(0, limit).map((t) => (
                 <TaskItemCard
                   key={t.id}
                   task={t}
+                  variant="row"
                   queuePosition={queuedPositions.get(t.id)}
                   showProject={!activeProject}
                   onClick={onSelectTask}
@@ -824,7 +826,7 @@ export function TaskBoardView({
                 />
               ))
             })()}
-          </div>
+          </HairlineList>
           {rows.length > limit && (
             <button
               className="action-secondary m-3"

@@ -175,7 +175,7 @@ export function InviteMemberModal({
                   id="invite-email"
                   type="email"
                   required
-                  placeholder={t('misal: staf@toko.com')}
+                  placeholder={t('misal: staf@workspace.com')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="field-control w-full text-sm"
@@ -190,7 +190,7 @@ export function InviteMemberModal({
                 <input
                   id="invite-name"
                   type="text"
-                  placeholder={t('misal: Budi Santoso / Admin Toko')}
+                  placeholder={t('misal: Budi Santoso / Tim Ruang Kerja')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="field-control w-full text-sm"

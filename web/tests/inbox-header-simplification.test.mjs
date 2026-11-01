@@ -96,26 +96,23 @@ test('3. Requirement 3: Clean chat header preserving back navigation and chat id
   )
 })
 
-test('4. Requirement 4: Room tasks remain accessible via sub-panel tabs and global navigation', () => {
+test('4. Requirement 4: Room tasks remain accessible via global navigation; rigid sub-tabs eliminated for calm canvas (S59-T6)', () => {
   const inboxViewSource = fs.readFileSync(inboxViewPath, 'utf8')
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
-  // Verify sub-tabs below header for Chat and Tasks
+  // Verify rigid sub-tabs button bar is eliminated in S59-T6 for serene canvas
   assert.ok(
-    inboxViewSource.includes("onClick={() => setConvTab('chat')}"),
-    'InboxView must maintain Chat tab button in sub-panel'
+    !inboxViewSource.includes('{/* ── Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) ── */}'),
+    'InboxView must eliminate rigid sub-tabs bar for calm canvas'
+  )
+  // In S61-T3, rigid ConversationWorkMonitor sub-tab is eliminated in favor of Progressive Disclosure SlideDrawer
+  assert.ok(
+    !inboxViewSource.includes('<ConversationWorkMonitor'),
+    'InboxView must eliminate ConversationWorkMonitor in favor of SlideDrawer'
   )
   assert.ok(
-    inboxViewSource.includes("onClick={() => setConvTab('tasks')}"),
-    'InboxView must maintain Tasks tab button in sub-panel'
-  )
-  assert.ok(
-    inboxViewSource.includes('<ConversationWorkMonitor'),
-    'InboxView must render ConversationWorkMonitor when convTab is tasks'
-  )
-  assert.ok(
-    inboxViewSource.includes('tasks={linkedTasks}'),
-    'ConversationWorkMonitor must receive room linked tasks'
+    inboxViewSource.includes('SlideDrawer'),
+    'InboxView must integrate SlideDrawer for task peek'
   )
 
   // Verify global navigation to Tasks remains intact in AppShell

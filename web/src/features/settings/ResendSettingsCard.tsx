@@ -340,12 +340,12 @@ export function ResendSettingsCard() {
             <input
               type="email"
               className="field-control w-full min-h-11 text-sm"
-              placeholder="pemilik@toko.com"
+              placeholder="pemilik@workspace.com"
               value={notificationEmail}
               onChange={(e) => setNotificationEmail(e.target.value)}
             />
             <p className="text-[11px] text-muted-foreground">
-              {t('Alamat email staf / pemilik toko untuk menerima ringkasan pesan chat yang belum terbaca.')}
+              {t('Alamat email staf / pemilik ruang kerja untuk menerima ringkasan pesan chat yang belum terbaca.')}
             </p>
           </div>
           <div className="space-y-1.5">

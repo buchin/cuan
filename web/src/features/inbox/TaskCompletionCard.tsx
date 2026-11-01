@@ -10,7 +10,6 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
-  Check,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
@@ -89,23 +88,23 @@ export function TaskCompletionCard({
       role="region"
       aria-label={isDone ? t('Kartu Tugas Selesai') : t('Kartu Tugas Siap Reviu')}
       className={cn(
-        'w-full max-w-xl rounded-2xl border p-4 sm:p-5 shadow-sm transition-all text-card-foreground',
+        'w-full max-w-xl rounded-xl border border-border/40 bg-card/40 dark:bg-card/20 p-3.5 sm:p-4 text-card-foreground transition-all',
         isDone
-          ? 'border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20'
-          : 'border-purple-500/30 bg-purple-500/5 dark:bg-purple-950/20',
+          ? 'border-l-2 border-l-emerald-500/70 border-emerald-500/20'
+          : 'border-l-2 border-l-purple-500/70 border-purple-500/20',
         className
       )}
     >
       {/* Top Header Badge & Timestamp */}
-      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border/60 pb-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border/40 pb-2.5">
         <div className="flex items-center gap-2">
           <span
             data-testid="completion-card-status"
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase border',
+              'inline-flex items-center gap-1.5 text-xs font-medium',
               isDone
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                : 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-purple-600 dark:text-purple-400'
             )}
           >
             {isDone ? (
@@ -116,7 +115,7 @@ export function TaskCompletionCard({
             <span>{isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
           </span>
 
-          <span className="text-xs font-mono font-semibold text-muted-foreground">
+          <span className="text-xs font-mono font-medium text-muted-foreground">
             {taskRef(task.id)}
           </span>
         </div>
@@ -128,7 +127,7 @@ export function TaskCompletionCard({
       </div>
 
       {/* Main Body: Title & Business Summary */}
-      <div className="mt-3 space-y-2.5">
+      <div className="mt-3 space-y-2">
         <h4
           data-testid="completion-card-title"
           className="text-sm sm:text-base font-semibold text-foreground leading-snug"
@@ -138,10 +137,10 @@ export function TaskCompletionCard({
 
         <div
           data-testid="completion-card-summary"
-          className="rounded-xl bg-card border border-border/80 p-3 sm:p-3.5 text-xs sm:text-sm text-foreground/90 leading-relaxed shadow-xs"
+          className="text-xs sm:text-sm text-foreground/90 leading-relaxed space-y-1"
         >
-          <div className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-primary" />
+          <div className="text-[11px] font-medium text-muted-foreground/80 flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-muted-foreground/70" />
             <span>{t('Ringkasan Hasil')}</span>
           </div>
           <div className="prose prose-xs dark:prose-invert max-w-none break-words">
@@ -151,27 +150,27 @@ export function TaskCompletionCard({
 
         {/* Criteria / Definition of Done Checklist if available */}
         {dodItems.length > 0 && (
-          <div className="mt-2 rounded-xl bg-background/60 border border-border/60 p-3 text-xs space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <div className="mt-3 pt-2.5 border-t border-border/30 text-xs space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
               <span>{t('Kriteria Selesai (DoD)')}</span>
-              <span className="text-emerald-600 dark:text-emerald-400">
+              <span className="text-[11px] font-mono text-muted-foreground">
                 {dodItems.filter((i) => i.completed).length}/{dodItems.length} {t('Terpenuhi')}
               </span>
             </div>
-            <ul className="space-y-1 pt-1">
+            <ul className="space-y-1.5 pt-0.5">
               {dodItems.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-foreground/80">
+                <li key={idx} className="flex items-start gap-2.5 text-foreground/85 leading-normal">
                   <span
                     className={cn(
-                      'mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[9px]',
+                      'mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px]',
                       item.completed
-                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold'
-                        : 'bg-muted text-muted-foreground'
+                        ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                        : 'text-muted-foreground/50'
                     )}
                   >
-                    {item.completed ? <Check className="h-2.5 w-2.5" /> : '·'}
+                    {item.completed ? '✓' : '·'}
                   </span>
-                  <span className={cn('break-words', item.completed && 'font-medium text-foreground')}>
+                  <span className={cn('break-words', item.completed && 'font-normal text-foreground')}>
                     {item.text}
                   </span>
                 </li>
@@ -209,12 +208,12 @@ export function TaskCompletionCard({
       </div>
 
       {/* Actionable Quick Action Buttons */}
-      <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+      <div className="mt-3.5 flex flex-wrap items-center justify-end gap-2 border-t border-border/40 pt-2.5">
         <button
           type="button"
           data-testid="completion-card-chat-btn"
           onClick={handleContinueChat}
-          className="action-secondary min-h-9 px-3 py-1.5 text-xs inline-flex items-center gap-1.5 rounded-lg cursor-pointer"
+          className="min-h-8 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 rounded-md hover:bg-muted/40 transition-colors cursor-pointer"
         >
           <MessageSquare className="h-3.5 w-3.5" />
           <span>{t('Lanjutkan Diskusi')}</span>
@@ -225,19 +224,19 @@ export function TaskCompletionCard({
             type="button"
             data-testid="completion-card-action-btn"
             onClick={() => onViewDetails(task)}
-            className="action-primary min-h-9 px-3.5 py-1.5 text-xs inline-flex items-center gap-1.5 rounded-lg cursor-pointer"
+            className="min-h-8 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-md hover:bg-muted/40 transition-colors cursor-pointer group"
           >
             <span>{t('Buka Detail Tugas')}</span>
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 group-hover:translate-x-0.5 transition-transform" />
           </button>
         ) : (
           <Link
             to={taskDetailPath}
             data-testid="completion-card-action-btn"
-            className="action-primary min-h-9 px-3.5 py-1.5 text-xs inline-flex items-center gap-1.5 rounded-lg"
+            className="min-h-8 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-md hover:bg-muted/40 transition-colors group"
           >
             <span>{t('Buka Detail Tugas')}</span>
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         )}
       </div>

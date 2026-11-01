@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const cssFilePath = path.join(__dirname, '../src/features/inbox/chat-whatsapp.css')
+const cssFilePath = path.join(__dirname, '../src/features/inbox/chat-calm.css')
 const inboxViewPath = path.join(__dirname, '../src/features/inbox/InboxView.tsx')
 const localePath = path.join(__dirname, '../src/locales/id.json')
 
@@ -16,10 +16,10 @@ const inboxViewSource = fs.readFileSync(inboxViewPath, 'utf8')
 const idLocale = JSON.parse(fs.readFileSync(localePath, 'utf8'))
 
 test('1. Scroll to Bottom CSS Styles, Dark Theme & Smooth Transition', () => {
-  assert.ok(cssSource.includes('.wa-scroll-btn'), 'chat-whatsapp.css must define .wa-scroll-btn')
-  assert.ok(cssSource.includes('.dark .wa-scroll-btn'), 'chat-whatsapp.css must define dark mode .wa-scroll-btn')
-  assert.ok(cssSource.includes('.wa-scroll-badge'), 'chat-whatsapp.css must define .wa-scroll-badge')
-  assert.ok(cssSource.includes('@keyframes wa-badge-pop'), 'chat-whatsapp.css must define wa-badge-pop keyframe animation')
+  assert.ok(cssSource.includes('.wa-scroll-btn'), 'chat-calm.css must define .wa-scroll-btn')
+  assert.ok(cssSource.includes('.dark .wa-scroll-btn'), 'chat-calm.css must define dark mode .wa-scroll-btn')
+  assert.ok(cssSource.includes('.wa-scroll-badge'), 'chat-calm.css must define .wa-scroll-badge')
+  assert.ok(cssSource.includes('@keyframes wa-badge-pop'), 'chat-calm.css must define wa-badge-pop keyframe animation')
   assert.ok(cssSource.includes('transition:'), '.wa-scroll-btn must define smooth transitions')
   assert.ok(cssSource.includes('box-shadow:'), '.wa-scroll-btn must define floating shadow')
 })

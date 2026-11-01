@@ -15,6 +15,8 @@ import {
   Sparkles,
   Volume2,
   Activity,
+  Radio,
+  Compass,
   Layers,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
@@ -79,7 +81,11 @@ export function LandingPage() {
           aria-labelledby="landing-title"
         >
           <div>
-            <p className="mb-5 text-sm font-medium text-muted-foreground">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>{t('Calm & Layered UI System · Things 3 & Bear Notes Inspired')}</span>
+            </div>
+            <p className="mb-4 text-sm font-medium text-muted-foreground">
               {t('Your always-on project manager.')}
             </p>
             <h1
@@ -240,9 +246,29 @@ export function LandingPage() {
           <div className="mt-8 grid gap-x-8 gap-y-7 sm:grid-cols-2">
             {[
               {
+                Icon: Mail,
+                title: 'Apple Mail & Bear Inset List in Inbox.',
+                text: '3-tier conversation list with sender and tabular-nums time, Geist typography subject with micro-indicator StatusDot, 2-line snippet in muted zinc-400, hairline dividers, and zero screen-wide quick bar clutter.',
+              },
+              {
                 Icon: MessageSquare,
-                title: 'One conversation, with context.',
-                text: 'Keep the goal, decisions and updates together. Open the underlying work whenever you need more detail.',
+                title: 'Calm Low-Contrast Chat Bubbles & Quiet Dividers.',
+                text: 'Monochromatic micro-tint chat bubbles, quiet muted date dividers with zero solid white pill glare, and borderless inline status and task cards.',
+              },
+              {
+                Icon: Sparkles,
+                title: 'SlideDrawer Progressive Disclosure.',
+                text: 'Tap task references directly inside chat bubbles to slide open rich task inspection on the right without interrupting or obscuring the conversation stream.',
+              },
+              {
+                Icon: CheckCircle2,
+                title: 'Things 3 Task Rows & Bear Notes Stream.',
+                text: 'Inspired by Things 3 and Bear Notes. Pure task rows with zero loud buttons, glitch-free mobile render, zero nested cards, progressive disclosure drawers, and peaceful typography.',
+              },
+              {
+                Icon: Compass,
+                title: 'Clean Account vs Settings Separation.',
+                text: 'Personal profile, appearance, and notifications cleanly isolated in /account with Apple-style grouped rows; workspace AI models, memory, and team config in /settings.',
               },
               {
                 Icon: Bell,
@@ -276,8 +302,8 @@ export function LandingPage() {
               },
               {
                 Icon: Sparkles,
-                title: 'Real-time task progress & actionable completion cards.',
-                text: 'Instant visual feedback with floating live progress chips and live duration timers during execution, followed by jargon-free completion cards embedded in chat.',
+                title: 'De-cluttered chat & self-contained task cards.',
+                text: 'Clean, distraction-free chat with self-contained task cards handling queued states, live pulse & duration timers, and seamless transitions to actionable completion cards.',
               },
               {
                 Icon: Volume2,
@@ -288,6 +314,11 @@ export function LandingPage() {
                 Icon: Activity,
                 title: 'Worker observability & queue health.',
                 text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
+              },
+              {
+                Icon: Radio,
+                title: 'Real-time log streaming & interactive steering.',
+                text: 'Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.',
               },
               {
                 Icon: Clock,

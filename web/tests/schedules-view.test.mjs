@@ -18,13 +18,13 @@ test('1. SchedulesView component exists and supports task listing, creation moda
   assert.ok(content.includes('Weekly'), 'Must support Weekly frequency')
 })
 
-test('2. NavUser includes Schedules link in preferences/automations list', () => {
-  const file = path.join(webSrcDir, 'components/layout/NavUser.tsx')
-  assert.ok(fs.existsSync(file), 'NavUser.tsx must exist')
+test('2. AppShell includes Schedules link in Operations group (S59-T3)', () => {
+  const file = path.join(webSrcDir, 'components/layout/AppShell.tsx')
+  assert.ok(fs.existsSync(file), 'AppShell.tsx must exist')
 
   const content = fs.readFileSync(file, 'utf8')
-  assert.ok(content.includes('/settings/schedules'), 'Must link to /settings/schedules')
-  assert.ok(content.includes("t('Schedules')"), 'Must display translated Schedules label')
+  assert.ok(content.includes('/schedules'), 'Must link to /schedules')
+  assert.ok(content.includes("t('Schedules')") || content.includes("'Schedules'"), 'Must display translated Schedules label')
 })
 
 test('3. SettingsView includes Schedules tab item', () => {

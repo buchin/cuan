@@ -33,14 +33,14 @@ const AcceptInvitePage = lazy(() =>
     default: m.AcceptInvitePage,
   })),
 )
-const StudioView = lazy(() =>
-  import('./features/inbox/StudioView').then((m) => ({
-    default: m.StudioView,
-  })),
-)
 const InboxView = lazy(() =>
   import('./features/inbox/InboxView').then((m) => ({
     default: m.InboxView,
+  })),
+)
+const StudioView = lazy(() =>
+  import('./features/inbox/StudioView').then((m) => ({
+    default: m.StudioView,
   })),
 )
 const ContactsView = lazy(() =>
@@ -158,7 +158,7 @@ export function App() {
       case 'chat':
         return 'chat'
       case 'studio':
-        return 'chat'
+        return 'studio'
       default:
         return 'chat'
     }
@@ -180,9 +180,7 @@ export function App() {
   useEffect(() => {
     if (rootSegment === 'team')
       navigate('/settings/agents' + location.search, { replace: true })
-    if (rootSegment === 'studio')
-      navigate('/chat' + location.search + location.hash, { replace: true })
-  }, [rootSegment, location.search, location.hash, navigate])
+  }, [rootSegment, location.search, navigate])
 
   // Active selections
   const [activeProject, setActiveProject] = useState<Project | undefined>(
@@ -206,7 +204,7 @@ export function App() {
     kind: 'message' | 'contact' | 'task' | 'project' | 'agent' | 'menu',
   ) => {
     setNewFlow(null)
-    if (kind === 'message') navigate('/chat')
+    if (kind === 'message') navigate('/studio')
     else if (kind === 'task') setIsCreateTaskOpen(true)
     else if (kind === 'project') setIsCreateProjectOpen(true)
     else if (kind === 'agent') {
@@ -436,19 +434,56 @@ export function App() {
       )
   }, [rootSegment, subParam, location.pathname, navigate])
 
-  // Deep Link Synchronization: /chat/:roomId -> /inbox/:roomId
+  // Deep Link Synchronization & Backward Compatibility Aliases (S59-T3):
+  // /chat -> /inbox (and /chat/:roomId -> /inbox/:roomId)
+  // /account/contacts -> /contacts
+  // /settings/schedules -> /schedules
   useEffect(() => {
     if (rootSegment === 'chat' && subParam) {
-      navigate('/inbox/' + encodeURIComponent(subParam) + location.search, {
+      navigate('/inbox/' + encodeURIComponent(subParam) + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    } else if (rootSegment === 'chat') {
+      navigate('/inbox' + location.search + location.hash, {
         replace: true,
         state: location.state,
       })
     }
-  }, [rootSegment, subParam, location.search, location.state, navigate])
+    if (
+      (rootSegment === 'account' || rootSegment === 'settings') &&
+      subParam === 'contacts'
+    ) {
+      navigate('/contacts' + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+    if (rootSegment === 'settings' && subParam === 'schedules') {
+      navigate('/schedules' + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+    if (rootSegment === 'settings' && ['profile', 'appearance', 'notifications'].includes(subParam)) {
+      navigate('/account/' + encodeURIComponent(subParam) + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+    if (rootSegment === 'account' && ['general', 'ai-providers', 'memory', 'agents', 'apps-skills', 'integrations'].includes(subParam)) {
+      navigate('/settings/' + encodeURIComponent(subParam) + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+  }, [rootSegment, subParam, location.search, location.hash, location.state, navigate])
 
   // Navigation handlers
   const handleSelectTab = (tab: AppTab) => {
-    if (tab === 'inbox') {
+    if ((tab as string) === 'studio') {
+      navigate('/studio')
+    } else if (tab === 'chat' || (tab as string) === 'studio' || tab === 'inbox') {
       navigate(
         activeContact
           ? `/inbox/${activeContact.conversation_id || activeContact.id}`
@@ -460,14 +495,18 @@ export function App() {
       )
     } else if (tab === 'projects') {
       navigate(activeProject ? `/projects/${activeProject.id}` : '/projects')
+    } else if (tab === 'schedules') {
+      navigate('/schedules')
+    } else if (tab === 'contacts') {
+      navigate('/contacts')
+    } else if (tab === 'settings') {
+      navigate('/settings')
     } else if (tab === 'account') {
       navigate('/account')
-    } else if (tab === 'chat' || (tab as string) === 'studio') {
-      navigate('/chat')
     } else {
       navigate(`/${tab}`)
     }
-    if (tab !== 'inbox') {
+    if (tab !== 'inbox' && tab !== 'chat') {
       setIsMobileChatActive(false)
     }
   }
@@ -692,7 +731,9 @@ export function App() {
         : pathSegments[2] === 'github' ? 'GitHub' : settingTitles[subParam]
       : currentTab === 'account'
         ? 'Account'
-        : undefined
+        : currentTab === 'studio'
+          ? 'Studio'
+          : undefined
   const headerBreadcrumbs = projectDetail
     ? [
         { label: 'Projects', to: '/projects' },
@@ -804,6 +845,10 @@ export function App() {
           <InboxSubPanel
             contacts={contacts}
             onNewMessage={() => openNew('message')}
+            onNewStudio={() => {
+              setActiveContact(undefined)
+              navigate('/studio')
+            }}
             agents={directoryAgents}
             loading={contactsLoading}
             error={contactsError}
@@ -819,9 +864,57 @@ export function App() {
       >
         <Suspense fallback={<ViewFallback />}>
           {currentTab === 'notifications' && <NotificationsView />}
+          {currentTab === 'studio' && (
+            <div className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+              <StudioView
+                onAccepted={() => void refreshContacts()}
+                onConversationCreated={(id) => navigate('/inbox/' + encodeURIComponent(id))}
+                agentSetup={
+                  !agentsLoaded ? 'loading' : agentsError ? 'error' :
+                  directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
+                    ? 'ready' : 'needed'
+                }
+                firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+                hasProject={
+                  projectsLoading || !!projectsError ||
+                  projects.some((p) => p.id !== 'default' || !!p.repo_url)
+                }
+                onAgentConnected={() => void refreshContacts()}
+                onCreateProject={() => setIsCreateProjectOpen(true)}
+                onRetrySetup={() => void refreshContacts()}
+                checkRuntime={!directoryAgents.some((a) =>
+                  a.enabled !== false && a.status !== 'inactive' &&
+                  ['codex', 'claude'].includes(a.harness || a.provider || '')
+                )}
+                autoFocus={true}
+              />
+            </div>
+          )}
           {currentTab === 'chat' && (
-            <StudioView
-              onAccepted={() => void refreshContacts()}
+            <InboxView
+              contacts={contacts}
+              agents={directoryAgents}
+              loading={contactsLoading}
+              error={contactsError}
+              onRetry={refreshContacts}
+              activeContact={visibleContact}
+              onSelectContact={handleSelectContact}
+              onNewMessage={() => openNew('message')}
+              onNewStudio={() => {
+                setActiveContact(undefined)
+                navigate('/studio')
+              }}
+              onContactUpdated={refreshContacts}
+              contactTab={contactTab}
+              onContactTabChange={setContactTab}
+              contactSearch={contactSearch}
+              onContactSearchChange={setContactSearch}
+              onBackToContacts={() => {
+                setActiveContact(undefined)
+                navigate('/inbox')
+              }}
+              onMobileChatActiveChange={setIsMobileChatActive}
+              initialMode="studio"
               checkRuntime={!directoryAgents.some((a) =>
                 a.enabled !== false && a.status !== 'inactive' &&
                 ['codex', 'claude'].includes(a.harness || a.provider || '')
@@ -852,6 +945,10 @@ export function App() {
               activeContact={visibleContact}
               onSelectContact={handleSelectContact}
               onNewMessage={() => openNew('message')}
+              onNewStudio={() => {
+                setActiveContact(undefined)
+                navigate('/studio')
+              }}
               onContactUpdated={refreshContacts}
               contactTab={contactTab}
               onContactTabChange={setContactTab}
@@ -862,6 +959,24 @@ export function App() {
                 navigate('/inbox')
               }}
               onMobileChatActiveChange={setIsMobileChatActive}
+              initialMode={visibleContact ? 'chat' : 'studio'}
+              checkRuntime={!directoryAgents.some((a) =>
+                a.enabled !== false && a.status !== 'inactive' &&
+                ['codex', 'claude'].includes(a.harness || a.provider || '')
+              )}
+              agentSetup={
+                !agentsLoaded ? 'loading' : agentsError ? 'error' :
+                directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
+                  ? 'ready' : 'needed'
+              }
+              firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+              hasProject={
+                projectsLoading || !!projectsError ||
+                projects.some((p) => p.id !== 'default' || !!p.repo_url)
+              }
+              onAgentConnected={() => void refreshContacts()}
+              onCreateProject={() => setIsCreateProjectOpen(true)}
+              onRetrySetup={() => void refreshContacts()}
             />
           )}
 
@@ -988,13 +1103,15 @@ export function App() {
             ))}
 
           {/* 4. Schedules Hub */}
-          {currentTab === 'schedules' && (
+          {(currentTab === 'schedules' ||
+            (currentTab === 'settings' && subParam === 'schedules')) && (
             <SchedulesView />
           )}
 
           {/* 5. Settings / Account Configuration */}
         {(currentTab === 'settings' || currentTab === 'account') &&
-          subParam !== 'contacts' && (
+          subParam !== 'contacts' &&
+          subParam !== 'schedules' && (
             <div className="min-h-full">
                 <SettingsView
                   projects={projects}

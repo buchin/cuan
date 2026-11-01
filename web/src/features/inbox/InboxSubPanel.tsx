@@ -1,21 +1,64 @@
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
+import { HairlineList } from '../../components/layout/HairlineList'
+import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive, CheckCheck, CheckSquare, Zap, XCircle, Clock } from 'lucide-react'
+import { Search, Bot, User, Archive, CheckCheck } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import './chat-whatsapp.css'
+import './chat-calm.css'
 
 export function conversationPreview(message?: string) {
   if (!message?.trim()) return 'No messages yet.'
+  let text = message.trim()
+
+  // Clean raw JSON strings (e.g. {"decision": "revise", ...}) to friendly summary text
+  try {
+    const rawCandidate = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    if ((rawCandidate.startsWith('{') && rawCandidate.endsWith('}')) || (rawCandidate.startsWith('[') && rawCandidate.endsWith(']'))) {
+      const parsed = JSON.parse(rawCandidate)
+      if (parsed && typeof parsed === 'object') {
+        if ('decision' in parsed) {
+          const dec = String(parsed.decision).toLowerCase()
+          const reason = parsed.reason || parsed.feedback || parsed.notes || parsed.message || ''
+          if (dec === 'approve' || dec === 'approved') {
+            return reason ? `Disetujui: ${reason}` : 'Persetujuan diberikan'
+          }
+          if (dec === 'revise' || dec === 'revision') {
+            return reason ? `Revisi: ${reason}` : 'Permintaan revisi'
+          }
+          if (dec === 'reject' || dec === 'rejected') {
+            return reason ? `Ditolak: ${reason}` : 'Keputusan: Ditolak'
+          }
+          return `Keputusan: ${parsed.decision}${reason ? ` · ${reason}` : ''}`
+        }
+        if (parsed.summary) return String(parsed.summary)
+        if (parsed.plan) return String(parsed.plan)
+        if (parsed.title) return String(parsed.title)
+        if (parsed.message) return String(parsed.message)
+        if (parsed.text) return String(parsed.text)
+        if (parsed.description) return String(parsed.description)
+        if (parsed.action) return `Aksi: ${parsed.action}`
+      }
+    }
+  } catch {
+    // Regex clean-up if JSON is embedded in text
+    text = text.replace(/\{[^{}]*"decision"\s*:\s*"([^"]+)"[^{}]*\}/g, (_m, dec) => `Keputusan: ${dec}`)
+    text = text.replace(/\{[^{}]*"summary"\s*:\s*"([^"]+)"[^{}]*\}/g, '$1')
+  }
+
+  // Strip residual raw JSON string blocks like {"key": "value", ...}
+  text = text.replace(/\{[^{}]*"(?:decision|action|plan|status|reason|type)"\s*:[^{}]*\}/gi, ' ')
+  text = text.replace(/\{[^{}]*"[a-zA-Z0-9_]+"\s*:[^{}]*\}/g, ' ')
+
   return (
-    message
+    text
       .replace(/^\s*\[@[^\]\r\n]{1,100}\]\s*/, '')
       .replace(/```cuan-task[\s\S]*?(?:```|$)/g, ' Draft task ')
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -33,10 +76,218 @@ export function conversationPreview(message?: string) {
   )
 }
 
+export function formatConversationTime(iso?: string, language: string = 'en') {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return ''
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (date.toDateString() === today.toDateString())
+    return date.toLocaleTimeString(language, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return date.toLocaleDateString(language, { day: 'numeric', month: 'short' })
+}
+
+export interface ConversationItemProps {
+  contact: ChatContact
+  isSelected: boolean
+  isLast: boolean
+  now: number
+  agents?: Agent[]
+  archive: ReturnType<typeof useArchivedItems>
+  showArchived: boolean
+  onSelectContact: (contact: ChatContact) => void
+  language?: string
+}
+
+export function ConversationItem({
+  contact,
+  isSelected,
+  isLast,
+  now,
+  agents = [],
+  archive,
+  showArchived,
+  onSelectContact,
+  language,
+}: ConversationItemProps) {
+  const { t } = useLanguage()
+  const status = connectionStatus(
+    agentForContact(contact, agents),
+    now,
+  )
+  const warning =
+    contact.type === 'agent' &&
+    [
+      'disabled',
+      'login_required',
+      'quota_limited',
+      'unavailable',
+    ].includes(status.state)
+  const id = contact.conversation_id || contact.id
+  const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
+  const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
+
+  const rawAgent = contact.agent_name || ''
+  const formattedAgent = rawAgent
+    ? (rawAgent.startsWith('@')
+        ? rawAgent
+        : (rawAgent.startsWith('agent_')
+            ? '@' + rawAgent.slice(6)
+            : '@' + rawAgent))
+    : ''
+  const showAgentName = Boolean(formattedAgent && contact.name !== formattedAgent && contact.name !== rawAgent)
+
+  const subject =
+    contact.product ||
+    (showAgentName ? formattedAgent : null) ||
+    contact.page_title ||
+    (contact.type === 'agent' ? (formattedAgent || t('Asisten AI')) : t('Percakapan'))
+
+  const openContact = () => {
+    onSelectContact(contact)
+    void archive.markRead(id, true, contact.last_message_at).catch(() => {})
+  }
+  const archiveAction = {
+    label: showArchived ? 'Restore conversation' : 'Archive conversation',
+    previewLabel: showArchived ? 'Restore' : 'Archive',
+    disabled: !archive.loaded,
+    run: () => archive.archive(id, !showArchived),
+  }
+
+  return (
+    <ItemActions
+      key={contact.id}
+      label={contact.name}
+      swipeAction={archiveAction}
+      className={cn('inbox-item-row border-b border-border/40', !isLast && 'has-divider')}
+      actions={[
+        { label: 'Open conversation', run: openContact },
+        { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
+        { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(id)) },
+        archiveAction,
+      ]}
+    >
+      <button
+        type="button"
+        onClick={openContact}
+        aria-pressed={isSelected}
+        data-testid="conversation-item"
+        className={cn(
+          'inbox-contact-row w-full min-h-[4.5rem] text-left px-3.5 py-3 transition-colors flex items-start gap-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
+          isSelected && 'bg-accent/70 text-accent-foreground font-medium',
+        )}
+      >
+        {/* Avatar with StatusDot micro-indicator */}
+        <div className="relative shrink-0 mt-0.5">
+          <div className="h-9 w-9 rounded-full bg-secondary/80 flex items-center justify-center text-sm font-semibold border border-border/60 shadow-xs">
+            {contact.avatar ? (
+              <span>{contact.avatar}</span>
+            ) : contact.type === 'agent' ? (
+              <Bot className="h-4 w-4 text-primary" />
+            ) : (
+              <User className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+          {contact.type === 'agent' ? (
+            <div className="absolute -bottom-0.5 -right-0.5">
+              <StatusDot
+                status={warning ? 'exception' : status.state === 'ready' || status.state === 'online' ? 'healthy' : 'neutral'}
+                pulse={status.state === 'running'}
+                size="sm"
+              />
+            </div>
+          ) : contact.is_online ? (
+            <div className="absolute -bottom-0.5 -right-0.5">
+              <StatusDot status="healthy" size="sm" title={t('Online on website')} />
+            </div>
+          ) : null}
+        </div>
+
+        {/* 3-Tier Apple Mail & Bear Inset List Content */}
+        <div className="flex-1 min-w-0">
+          {/* Tingkat 1: Pengirim + timestamp tabular-nums di kanan */}
+          <div className="flex items-center justify-between gap-1.5 mb-0.5">
+            <div className="flex items-center gap-1.5 min-w-0 truncate">
+              {unread > 0 && (
+                <span
+                  aria-label={`${unread} unread messages`}
+                  className="h-2 w-2 shrink-0 rounded-full bg-primary"
+                  title={`${unread} unread`}
+                />
+              )}
+              <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-medium")}>
+                {contact.name}
+              </span>
+            </div>
+            <span className={cn("text-xs shrink-0 tabular-nums", unread ? "text-primary font-medium" : "text-muted-foreground")}>
+              {formatConversationTime(contact.last_message_at || contact.updated_at, language)}
+            </span>
+          </div>
+
+          {/* Tingkat 2: Subjek / Judul tipografi bersih Geist & Status-by-Exception */}
+          <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
+            <span className={cn("text-xs truncate font-medium", unread ? "text-foreground font-semibold" : "text-foreground/80")}>
+              {subject}
+            </span>
+            {/* Active task micro-indicator & unread count badge */}
+            <div data-testid="task-count-badge" className="flex items-center gap-1.5 shrink-0">
+              {activeTasks > 0 && (
+                <span
+                  data-testid="task-badge-active"
+                  className="inline-flex shrink-0 items-center gap-1.5"
+                  title={`${activeTasks} ${activeTasks === 1 ? t('task') : t('tasks')} ${t('aktif')}`}
+                  aria-label={`${activeTasks} active tasks`}
+                >
+                  <StatusDot status="working" size="xs" pulse aria-label={`${activeTasks} active tasks`} />
+                  <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                    {activeTasks} {t('bekerja')}
+                  </span>
+                </span>
+              )}
+              {unread > 0 && (
+                <span
+                  aria-label={`${unread} unread messages`}
+                  className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center tabular-nums"
+                >
+                  {unread}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Tingkat 3: Cuplikan 2 baris line-clamp-2 warna muted zinc-400 */}
+          <p className="text-xs text-muted-foreground text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">
+            {conversationPreview(contact.last_message)}
+          </p>
+
+          {warning && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              {status.label}
+            </p>
+          )}
+        </div>
+      </button>
+      {!isLast && (
+        <div
+          aria-hidden="true"
+          className="inbox-item-divider"
+        />
+      )}
+    </ItemActions>
+  )
+}
+
 export type ContactFilterTab = 'all' | 'agents' | 'customers'
 
 interface InboxSubPanelProps {
   onNewMessage?: () => void
+  onNewStudio?: () => void
   contacts: ChatContact[]
   agents?: Agent[]
   now?: number
@@ -54,6 +305,7 @@ interface InboxSubPanelProps {
 export function InboxSubPanel({
   contacts,
   onNewMessage,
+  onNewStudio,
   agents = [],
   now: suppliedNow,
   loading = false,
@@ -137,26 +389,22 @@ export function InboxSubPanel({
     return true
   })
 
-  const formatTime = (iso?: string) => {
-    if (!iso) return ''
-    const date = new Date(iso)
-    if (!Number.isFinite(date.getTime())) return ''
-    const today = new Date()
-    const yesterday = new Date()
-    yesterday.setDate(today.getDate() - 1)
-    if (date.toDateString() === today.toDateString())
-      return date.toLocaleTimeString(language, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-      })
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-    return date.toLocaleDateString(language, { day: 'numeric', month: 'short' })
-  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        if (onNewStudio) onNewStudio()
+        else if (onNewMessage) onNewMessage()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onNewStudio, onNewMessage])
 
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
-      <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1">
+      <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1.5">
         <ListCreateAction label="New message" kind="inbox" onClick={onNewMessage} />
         {/* Search Bar */}
         <ItemActions
@@ -180,7 +428,7 @@ export function InboxSubPanel({
 
         </ItemActions>
 
-        {/* Filter Chips (All, Agents, Customers, Archived) */}
+        {/* Filter Chips (All, Agents, Customers, Archived) - Calm Things 3 / Bear Notes Segments */}
         <div className="flex items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label={t('Conversation filters')}>
           <button
             type="button"
@@ -189,8 +437,8 @@ export function InboxSubPanel({
             className={cn(
               'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               activeTab === 'all'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
+                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
+                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
             )}
           >
             <span>{t('All')}</span>
@@ -202,8 +450,8 @@ export function InboxSubPanel({
             className={cn(
               'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               activeTab === 'agents'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
+                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
+                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
             )}
           >
             <span>{t('Agents')}</span>
@@ -211,7 +459,7 @@ export function InboxSubPanel({
               className={cn(
                 'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
                 activeTab === 'agents'
-                  ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                  ? 'bg-background/80 text-foreground font-semibold'
                   : 'bg-muted-foreground/15 text-muted-foreground',
               )}
             >
@@ -225,8 +473,8 @@ export function InboxSubPanel({
             className={cn(
               'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               activeTab === 'customers'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
+                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
+                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
             )}
           >
             <span>{t('Customers')}</span>
@@ -240,7 +488,7 @@ export function InboxSubPanel({
               className={cn(
                 'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
                 activeTab === 'customers'
-                  ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                  ? 'bg-background/80 text-foreground font-semibold'
                   : 'bg-muted-foreground/15 text-muted-foreground',
               )}
             >
@@ -256,8 +504,8 @@ export function InboxSubPanel({
             className={cn(
               'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
               showArchived
-                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
+                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
+                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
             )}
           >
             <Archive className="h-3.5 w-3.5" aria-hidden="true" />
@@ -266,7 +514,7 @@ export function InboxSubPanel({
                 className={cn(
                   'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
                   showArchived
-                    ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
+                    ? 'bg-background/80 text-foreground font-semibold'
                     : 'bg-muted-foreground/15 text-muted-foreground',
                 )}
               >
@@ -301,14 +549,14 @@ export function InboxSubPanel({
               className={cn(
                 'px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5',
                 customerSubFilter === 'chats'
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                  ? 'bg-secondary text-foreground font-semibold border border-border/50'
+                  : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60'
               )}
             >
               <span>{t('Chats')}</span>
               <span className={cn(
                 'text-[10px] px-1.5 py-0.2 rounded-full tabular-nums',
-                customerSubFilter === 'chats' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-background/80 text-muted-foreground'
+                customerSubFilter === 'chats' ? 'bg-background/80 text-foreground font-semibold' : 'bg-background/60 text-muted-foreground'
               )}>
                 {activeCustomerCount}
               </span>
@@ -320,8 +568,8 @@ export function InboxSubPanel({
               className={cn(
                 'px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5',
                 customerSubFilter === 'online'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                  ? 'bg-emerald-600/20 text-emerald-400 font-semibold border border-emerald-500/30'
+                  : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60'
               )}
             >
               <span className="relative flex h-2 w-2">
@@ -333,7 +581,7 @@ export function InboxSubPanel({
               <span>{t('Online')}</span>
               <span className={cn(
                 'text-[10px] px-1.5 py-0.2 rounded-full tabular-nums',
-                customerSubFilter === 'online' ? 'bg-white/20 text-white' : 'bg-background/80 text-muted-foreground'
+                customerSubFilter === 'online' ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'bg-background/60 text-muted-foreground'
               )}>
                 {onlineVisitorCount}
               </span>
@@ -377,180 +625,28 @@ export function InboxSubPanel({
             )}
           </div>
         ) : (
-          filteredContacts.map((contact, index) => {
-            const isSelected =
-              activeContactId === contact.id ||
-              activeContactId === contact.conversation_id
-            const isLast = index === filteredContacts.length - 1
-            const status = connectionStatus(
-              agentForContact(contact, agents),
-              now,
-            )
-            const warning =
-              contact.type === 'agent' &&
-              [
-                'disabled',
-                'login_required',
-                'quota_limited',
-                'unavailable',
-              ].includes(status.state)
-            const id = contact.conversation_id || contact.id
-            const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
-            const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
-            const queuedTasks = typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0
-            const totalTasks = typeof contact.task_count === 'number' ? contact.task_count : Number(contact.task_count) || 0
-            const failedTasks = typeof contact.failed_tasks === 'number' ? contact.failed_tasks : Number(contact.failed_tasks) || 0
-            const doneTasks = typeof contact.done_tasks === 'number'
-              ? contact.done_tasks
-              : Math.max(0, totalTasks - activeTasks - queuedTasks - failedTasks)
-            const hasTasks = totalTasks > 0 || activeTasks > 0 || queuedTasks > 0 || doneTasks > 0 || failedTasks > 0
-
-            const rawAgent = contact.agent_name || ''
-            const formattedAgent = rawAgent
-              ? (rawAgent.startsWith('@')
-                  ? rawAgent
-                  : (rawAgent.startsWith('agent_')
-                      ? '@' + rawAgent.slice(6)
-                      : '@' + rawAgent))
-              : ''
-            const showAgentName = Boolean(formattedAgent && contact.name !== formattedAgent && contact.name !== rawAgent)
-
-            const openContact = () => {
-              onSelectContact(contact)
-              void archive.markRead(id, true, contact.last_message_at).catch(() => {})
-            }
-            const archiveAction = { label: showArchived ? 'Restore conversation' : 'Archive conversation', previewLabel: showArchived ? 'Restore' : 'Archive', disabled: !archive.loaded, run: () => archive.archive(id, !showArchived) }
-            return (
-              <ItemActions key={contact.id} label={contact.name} swipeAction={archiveAction} className={cn('inbox-item-row', !isLast && 'has-divider')} actions={[
-                { label: 'Open conversation', run: openContact },
-                { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
-                { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(id)) },
-                archiveAction,
-              ]}>
-              <button
-                key={contact.id}
-                onClick={openContact}
-                aria-pressed={isSelected}
-                className={cn(
-                  'inbox-contact-row w-full min-h-[4.5rem] text-left px-3 py-2.5 transition-colors flex items-center gap-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
-                  isSelected && 'bg-accent text-accent-foreground font-medium',
-                )}
-              >
-                {/* Avatar with Online Dot */}
-                <div className="relative shrink-0 mt-0.5">
-                  <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold border border-border shadow-xs">
-                    {contact.avatar ? (
-                      <span>{contact.avatar}</span>
-                    ) : contact.type === 'agent' ? (
-                      <Bot className="h-4 w-4 text-primary" />
-                    ) : (
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  {contact.is_online && (
-                    <span
-                      className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
-                      title={t('Online on website')}
-                    />
-                  )}
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                    <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-normal")}>
-                      {contact.name}
-                    </span>
-                    <span className={cn("text-xs shrink-0 tabular-nums", unread ? "text-primary font-medium" : "text-muted-foreground")}>
-                      {formatTime(
-                        contact.last_message_at || contact.updated_at,
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Second Line: Agent Handle & Smart Task Badges */}
-                  {(showAgentName || hasTasks) && (
-                    <div data-testid="task-count-badge" className="flex items-center gap-1.5 mb-0.5 min-w-0 flex-wrap">
-                      {showAgentName && (
-                        <span className="text-xs text-muted-foreground font-medium truncate shrink-0">
-                          {formattedAgent}
-                        </span>
-                      )}
-                      {activeTasks > 0 && (
-                        <span
-                          data-testid="task-badge-active"
-                          aria-label={`${activeTasks} active tasks`}
-                          title={`${activeTasks} active ${activeTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25"
-                        >
-                          <Zap className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
-                          <span>{activeTasks}</span>
-                        </span>
-                      )}
-                      {queuedTasks > 0 && (
-                        <span
-                          data-testid="task-badge-queued"
-                          aria-label={`${queuedTasks} queued tasks`}
-                          title={`${queuedTasks} queued ${queuedTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25"
-                        >
-                          <Clock className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{queuedTasks}</span>
-                        </span>
-                      )}
-                      {failedTasks > 0 && (
-                        <span
-                          data-testid="task-badge-failed"
-                          aria-label={`${failedTasks} failed or blocked tasks`}
-                          title={`${failedTasks} blocked or failed ${failedTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
-                        >
-                          <XCircle className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{failedTasks}</span>
-                        </span>
-                      )}
-                      {doneTasks > 0 && (
-                        <span
-                          data-testid="task-badge-done"
-                          aria-label={`${doneTasks} completed tasks`}
-                          title={`${doneTasks} completed ${doneTasks === 1 ? t('task') : t('tasks')}`}
-                          className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums leading-none border shadow-xs transition-colors bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
-                        >
-                          <CheckSquare className="h-2.5 w-2.5" aria-hidden="true" />
-                          <span>{doneTasks}</span>
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground truncate leading-5">
-                      {conversationPreview(contact.last_message)}
-                    </p>
-                    {unread > 0 && (
-                      <span
-                        aria-label={`${unread} unread messages`}
-                        className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center"
-                      >
-                        {unread}
-                      </span>
-                    )}
-                  </div>
-                  {warning && (
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                      {status.label}
-                    </p>
-                  )}
-                </div>
-              </button>
-              {!isLast && (
-                <div
-                  aria-hidden="true"
-                  className="inbox-item-divider"
+          <HairlineList className="divide-y divide-border/40">
+            {filteredContacts.map((contact, index) => {
+              const isSelected =
+                activeContactId === contact.id ||
+                activeContactId === contact.conversation_id
+              const isLast = index === filteredContacts.length - 1
+              return (
+                <ConversationItem
+                  key={contact.id}
+                  contact={contact}
+                  isSelected={isSelected}
+                  isLast={isLast}
+                  now={now}
+                  agents={agents}
+                  archive={archive}
+                  showArchived={showArchived}
+                  onSelectContact={onSelectContact}
+                  language={language}
                 />
-              )}
-              </ItemActions>
-            )
-          })
+              )
+            })}
+          </HairlineList>
         )}
       </div>
       <ArchiveNotice state={archive} />

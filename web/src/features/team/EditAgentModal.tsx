@@ -561,7 +561,7 @@ export function EditAgentModal({
                 className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
               >
                 <option value="default">
-                  ⭐ {t('Ikuti Default Toko ({provider})').replace('{provider}', defaultProviderName)}
+                  ⭐ {t('Ikuti Default Ruang Kerja ({provider})').replace('{provider}', defaultProviderName)}
                 </option>
                 {availableProviders.length > 0
                   ? availableProviders.map((p) => (
@@ -584,8 +584,8 @@ export function EditAgentModal({
               </select>
               <p className="text-[11px] text-muted-foreground">
                 {selectedProvider === 'default'
-                  ? t('Agen akan otomatis mengikuti penyedia AI utama yang Anda jadikan Default Toko di Pengaturan.')
-                  : t('Penyedia AI khusus untuk agen ini (override dari default toko).')}
+                  ? t('Agen akan otomatis mengikuti penyedia AI utama yang Anda jadikan Default Ruang Kerja di Pengaturan.')
+                  : t('Penyedia AI khusus untuk agen ini (override dari default ruang kerja).')}
               </p>
             </div>
 

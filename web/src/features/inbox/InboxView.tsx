@@ -10,8 +10,7 @@ import {
   useAttachments,
 } from './Attachments'
 import { CannedResponsesPicker } from './CannedResponsesPicker'
-import { Link, useLocation } from 'react-router-dom'
-import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { type Agent, isModelVisionCapable } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
@@ -51,18 +50,35 @@ import {
   EyeOff,
   Lock,
   Copy,
+  Plus,
+  Clock,
+  CheckCircle2,
+  ListChecks,
+  GitBranch,
+  ExternalLink,
+  ArrowRight,
+  Terminal,
 } from 'lucide-react'
 import { Task } from '../../api/types'
-import './chat-whatsapp.css'
+import { tasksApi } from '../../api/tasks'
+import './chat-calm.css'
+import { StudioView } from './StudioView'
 import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
-import { ConversationWorkMonitor } from './ConversationWorkMonitor'
-import { TaskItemCard } from '../tasks/TaskItemCard'
-import { getQueuedTasksPositions } from '../tasks/task-ui'
-import { TaskProgressBanner, isTaskActive } from './TaskProgressBanner'
+import { SlideDrawer } from '../../components/layout/SlideDrawer'
+import { ChatMarkdown } from './ChatMarkdown'
+import {
+  taskRef,
+  statusLabel,
+  taskTargetUrl,
+  taskTerminalUrl,
+  relativeTime,
+  agentDisplayName,
+} from '../tasks/task-ui'
+import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
 import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
@@ -82,6 +98,7 @@ const EscalateTaskDialog = lazy(() =>
 
 interface InboxViewProps {
   onNewMessage?: () => void
+  onNewStudio?: () => void
   contacts?: ChatContact[]
   agents?: Agent[]
   now?: number
@@ -97,10 +114,20 @@ interface InboxViewProps {
   onContactSearchChange?: (q: string) => void
   onBackToContacts?: () => void
   onMobileChatActiveChange?: (active: boolean) => void
+  initialMode?: 'chat' | 'studio'
+  // Studio Canvas props
+  agentSetup?: 'loading' | 'needed' | 'ready' | 'error'
+  firstGoal?: boolean
+  hasProject?: boolean
+  onAgentConnected?: () => void
+  onCreateProject?: () => void
+  checkRuntime?: boolean
+  onRetrySetup?: () => void
 }
 
 export function InboxView({
   onNewMessage: _onNewMessage,
+  onNewStudio: _onNewStudio,
   contacts = [],
   agents = [],
   now: suppliedNow,
@@ -116,10 +143,63 @@ export function InboxView({
   onContactSearchChange,
   onBackToContacts,
   onMobileChatActiveChange,
+  initialMode,
+  agentSetup = 'ready',
+  firstGoal = false,
+  hasProject = true,
+  onAgentConnected,
+  onCreateProject,
+  checkRuntime = true,
+  onRetrySetup,
 }: InboxViewProps) {
+  const navigate = useNavigate()
   const clock = useConnectionClock(agents)
   const now = suppliedNow ?? clock
   const location = useLocation()
+  const isChatRoute = location.pathname.startsWith('/chat')
+  const [canvasMode, setCanvasMode] = useState<'chat' | 'studio'>(() => {
+    if (initialMode === 'studio' || isChatRoute || !activeContact) return 'studio'
+    return 'chat'
+  })
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/chat') && !location.pathname.startsWith('/chat/')) {
+      setCanvasMode('studio')
+    } else if (activeContact) {
+      setCanvasMode('chat')
+    } else if (!activeContact) {
+      setCanvasMode('studio')
+    }
+  }, [location.pathname, activeContact])
+
+  const handleStudioConversationCreated = useCallback((conversationId: string) => {
+    setCanvasMode('chat')
+    setMobileView('chat')
+    onMobileChatActiveChange?.(true)
+    onContactUpdated?.()
+    const target = contacts.find(
+      (c) => (c.conversation_id || c.id) === conversationId,
+    )
+    if (target) {
+      onSelectContact?.(target)
+    } else {
+      onSelectContact?.({
+        id: conversationId,
+        conversation_id: conversationId,
+        name: 'Agent Task',
+        type: 'agent',
+        avatar: '',
+        unread_count: 0,
+        status: 'online',
+        updated_at: new Date().toISOString(),
+      })
+    }
+    navigate('/inbox/' + encodeURIComponent(conversationId), { replace: true })
+  }, [contacts, onSelectContact, onMobileChatActiveChange, onContactUpdated, navigate])
+
+  const handleOpenStudio = useCallback(() => {
+    navigate('/studio' + location.search)
+  }, [navigate, location.search])
   const requestedMessageId =
     new URLSearchParams(location.search).get('message') || ''
   const openedSearchMessage = useRef('')
@@ -188,13 +268,50 @@ export function InboxView({
     }
     prevActiveTasksRef.current = currentActiveIds
   }, [activeConversationTasks, linkedTasks])
-  const [showTasksModal, setShowTasksModal] = useState(false)
-  const [convTab, setConvTab] = useState<'chat' | 'tasks'>('chat')
+  const [peekTask, setPeekTask] = useState<Task | null>(null)
+  const [_peekTaskLoading, setPeekTaskLoading] = useState(false)
   const [escalatingMessage, setEscalatingMessage] = useState<ChatMessage | null>(null)
 
-  useEffect(() => {
-    setConvTab('chat')
-  }, [activeContact?.id])
+  const handleOpenTaskDrawer = useCallback(
+    async (taskOrId: Task | string) => {
+      if (typeof taskOrId === 'string') {
+        const existing = linkedTasks.find((t) => t.id === taskOrId)
+        if (existing) {
+          setPeekTask(existing)
+          return
+        }
+        setPeekTaskLoading(true)
+        try {
+          const fetched = await tasksApi.get(taskOrId)
+          if (fetched) setPeekTask(fetched)
+        } catch {
+          // ignore error
+        } finally {
+          setPeekTaskLoading(false)
+        }
+      } else {
+        setPeekTask(taskOrId)
+      }
+    },
+    [linkedTasks]
+  )
+
+  const handleMessageContainerClick = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      const anchor = target?.closest('a')
+      if (anchor) {
+        const href = anchor.getAttribute('href') || ''
+        const match = href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
+        if (match && match[1]) {
+          e.preventDefault()
+          e.stopPropagation()
+          handleOpenTaskDrawer(match[1])
+        }
+      }
+    },
+    [handleOpenTaskDrawer]
+  )
 
   const [copiedEmail, setCopiedEmail] = useState(false)
   const copyEmailTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -946,7 +1063,7 @@ export function InboxView({
       {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
       <div
         className={cn(
-          'w-full h-full min-[1200px]:hidden flex-col',
+          'w-full h-full min-[1200px]:hidden flex-col relative',
           mobileView === 'contacts' ? 'flex' : 'hidden',
         )}
       >
@@ -959,6 +1076,8 @@ export function InboxView({
           onRetry={onRetry}
           activeContactId={activeContact?.id}
           onSelectContact={handleSelectContactInternal}
+          onNewStudio={handleOpenStudio}
+          onNewMessage={handleOpenStudio}
           selectedTab={contactTab}
           onTabChange={onContactTabChange}
           searchQuery={contactSearch}
@@ -973,17 +1092,22 @@ export function InboxView({
           mobileView === 'chat' ? 'flex' : 'hidden min-[1200px]:flex',
         )}
       >
-        {!activeContact ? (
-          <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-background select-none">
-            <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground mb-4 shadow-sm border border-border">
-              <Bot className="h-8 w-8 text-primary" />
+        {canvasMode === 'studio' || !activeContact ? (
+          <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+            <div className="calm-stream-constraint max-w-2xl mx-auto">
+              <StudioView
+                onAccepted={() => onContactUpdated?.()}
+                onConversationCreated={handleStudioConversationCreated}
+                agentSetup={agentSetup}
+                firstGoal={firstGoal}
+                hasProject={hasProject}
+                onAgentConnected={onAgentConnected ?? (() => {})}
+                onCreateProject={onCreateProject ?? (() => {})}
+                onRetrySetup={onRetrySetup ?? (() => {})}
+                checkRuntime={checkRuntime}
+                autoFocus={true}
+              />
             </div>
-            <h3 className="text-base font-bold text-foreground">
-              Your conversations
-            </h3>
-            <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-              Choose a conversation to continue, or start something new in Chat.
-            </p>
           </div>
         ) : (
           <>
@@ -1098,106 +1222,31 @@ export function InboxView({
                     <Settings className="h-5 w-5" />
                   </Link>
                 )}
+                <button
+                  type="button"
+                  data-testid="header-new-studio-btn"
+                  onClick={handleOpenStudio}
+                  title={t('Ide / Tugas Baru (Cmd+K)')}
+                  aria-label={t('Ide / Tugas Baru (Cmd+K)')}
+                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/60 bg-muted/30 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5 text-primary" />
+                  <span>{t('Ide Baru')}</span>
+                </button>
               </div>
             </div>
 
-            {/* ── Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) ── */}
-            <div className="flex shrink-0 items-center border-b border-border bg-background px-3 sm:px-4 text-xs font-medium">
-              <button
-                type="button"
-                onClick={() => setConvTab('chat')}
-                className={cn(
-                  "flex items-center gap-1.5 py-2 px-3 border-b-2 transition-colors",
-                  convTab === 'chat'
-                    ? "border-primary text-primary font-semibold"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Bot className="h-4 w-4" />
-                <span>{t('Chat')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setConvTab('tasks')}
-                className={cn(
-                  "flex items-center gap-1.5 py-2 px-3 border-b-2 transition-colors",
-                  convTab === 'tasks'
-                    ? "border-primary text-primary font-semibold"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <CheckSquare className="h-4 w-4" />
-                <span>{t('Tasks')}</span>
-                {linkedTasks.some((t) => t.status === 'doing' || t.status === 'queued' || t.status === 'review') && (
-                  <span className="relative flex h-2 w-2 ml-0.5" title="Active tasks in progress">
-                    <span className={cn(
-                      "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-                      linkedTasks.some((t) => t.status === 'review') ? "bg-amber-400" : "bg-emerald-400"
-                    )} />
-                    <span className={cn(
-                      "relative inline-flex rounded-full h-2 w-2",
-                      linkedTasks.some((t) => t.status === 'review') ? "bg-amber-500" : "bg-emerald-500"
-                    )} />
-                  </span>
-                )}
-                {linkedTasks.length > 0 && (
-                  <span className={cn(
-                    "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold",
-                    convTab === 'tasks'
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-primary/10 text-primary"
-                  )}>
-                    {linkedTasks.length}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {convTab === 'tasks' ? (
-              <ConversationWorkMonitor
-                tasks={linkedTasks}
-                activeContact={activeContact}
-                onRefresh={() =>
-                  loadConversation(
-                    activeContact.conversation_id || activeContact.id,
-                    false,
-                  )
-                }
-                onNewTask={() => {
-                  const latest = messages[messages.length - 1]
-                  setEscalatingMessage(
-                    latest || ({
-                      id: 0,
-                      uuid: '',
-                      author_type: 'user',
-                      content: '',
-                      created_at: new Date().toISOString(),
-                    } as any)
-                  )
-                }}
-                onBackToChat={() => setConvTab('chat')}
-                loading={loading}
-              />
-            ) : (
-              <>
+            {/* Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) eliminated for serene canvas in S59-T6 */}
 
             {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
             <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
-              {/* Floating Live Progress Chip for Queued/Running Tasks */}
-              <TaskProgressBanner
-                tasks={activeConversationTasks}
-                onViewTasks={() => setConvTab('tasks')}
-                onOpenTask={() => setConvTab('tasks')}
-              />
-
               <div
                 ref={messageListRef}
                 onScroll={handleScroll}
-                className={cn(
-                  "inbox-message-list wa-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2",
-                  activeConversationTasks.length > 0 && "pt-14 sm:pt-14"
-                )}
+                onClick={handleMessageContainerClick}
+                className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
+                <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2">
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
                   {activeContact?.type === 'customer' ? (
@@ -1453,7 +1502,7 @@ export function InboxView({
                     {showDate && (
                       <time
                         dateTime={msg.created_at}
-                        className="wa-day-label mb-3 mt-1 self-center rounded-md px-3 py-1 text-xs"
+                        className="wa-day-label calm-day-label my-3 self-center text-xs font-medium text-muted-foreground"
                       >
                         {dayLabel}
                       </time>
@@ -1529,6 +1578,7 @@ export function InboxView({
                           content={msg.content || msg.message}
                           hideTaskActions={!!linkedTaskForMsg}
                           receiptExtraction={msg.receipt_extraction}
+                          onTaskClick={handleOpenTaskDrawer}
                         />
                       ) : (
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
@@ -1603,9 +1653,9 @@ export function InboxView({
 
                       {/* 1-Click Execution Action Card for Agent Messages */}
                       {isAgentMessage && msg.action_card && (
-                        <div className="mt-3 p-3 rounded-xl bg-background/90 border border-border text-foreground space-y-2.5 shadow-xs">
-                          <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
-                            <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <div className="mt-3 p-3 rounded-xl bg-card/40 border border-border/40 text-foreground space-y-2">
+                          <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
+                            <div className="flex items-center gap-1.5 font-semibold text-xs">
                               <Sparkles className="h-3.5 w-3.5 text-primary" />
                               <span>Sprint execution plan</span>
                             </div>
@@ -1614,16 +1664,16 @@ export function InboxView({
                             </span>
                           </div>
 
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5 pt-0.5">
                             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                               Definition of Done (DoD):
                             </div>
-                            <div className="space-y-1 bg-muted/30 p-2 rounded-lg border border-border/40">
+                            <div className="space-y-1 pt-0.5">
                               {msg.action_card.dod_checklist.map(
                                 (item, idx) => (
                                   <div
                                     key={idx}
-                                    className="flex items-start gap-2 text-[11px]"
+                                    className="flex items-start gap-2 text-[11px] leading-snug"
                                   >
                                     <CheckSquare className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                                     <span className="text-foreground">
@@ -1636,10 +1686,10 @@ export function InboxView({
                           </div>
 
                           {/* 1-Click Button */}
-                          <div className="pt-1">
+                          <div className="pt-1 border-t border-border/30">
                             {approvedTasks[msg.action_card.task_title] ? (
-                              <div className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-center gap-2">
-                                <CheckCheck className="h-4 w-4" />
+                              <div className="w-full py-1.5 px-2 text-emerald-600 dark:text-emerald-400 text-xs font-medium flex items-center justify-center gap-1.5">
+                                <CheckCheck className="h-3.5 w-3.5" />
                                 <span>Task started successfully!</span>
                               </div>
                             ) : (
@@ -1655,7 +1705,7 @@ export function InboxView({
                                       activeContact.id,
                                   )
                                 }
-                                className="w-full py-2 px-3 rounded-lg bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shadow-xs"
+                                className="w-full min-h-8 py-1.5 px-3 rounded-md bg-primary text-primary-foreground font-medium text-xs hover:bg-primary/90 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shadow-xs"
                               >
                                 <Play className="h-3.5 w-3.5 fill-current" />
                                 <span>
@@ -1677,6 +1727,7 @@ export function InboxView({
                           }
                           messageId={msg.uuid}
                           draft={isAgentMessage ? msg.task_draft : undefined}
+                          onViewTask={handleOpenTaskDrawer}
                           onContinueChat={(text) => {
                             setInputMessage((prev) => (prev ? `${prev} ${text}` : text))
                             textareaRef.current?.focus()
@@ -1686,11 +1737,15 @@ export function InboxView({
                       {msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
                         <button
                           type="button"
-                          onClick={() => setConvTab('tasks')}
-                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                          data-testid="assigned-task-btn"
+                          onClick={() => {
+                            const task = linkedTasks.find((t) => t.source_message_id === msg.uuid)
+                            if (task) handleOpenTaskDrawer(task)
+                          }}
+                          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-0 p-0"
                           title={t('View in Tasks')}
                         >
-                          <CheckSquare className="h-3 w-3" />
+                          <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>{t('Assigned to task')}</span>
                         </button>
                       )}
@@ -1728,9 +1783,9 @@ export function InboxView({
                         <div
                           key={q.request_id}
                           aria-label="Agent response progress"
-                          className="mt-3 flex w-full self-stretch flex-col items-start"
+                          className="mt-2.5 flex w-full self-stretch flex-col items-start"
                         >
-                          <div className="wa-message-bubble wa-incoming relative min-w-0">
+                          <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
                             {activity}
                           </div>
                         </div>
@@ -1750,7 +1805,7 @@ export function InboxView({
                   key={`standalone-completed-${completedTask.id}`}
                   className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
                 >
-                  <div className="wa-message-bubble wa-incoming relative min-w-0 max-w-xl w-full">
+                  <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
                     <TaskCompletionCard
                       task={completedTask}
                       conversationId={
@@ -1760,7 +1815,7 @@ export function InboxView({
                         setInputMessage((prev) => (prev ? `${prev} ${text}` : text))
                         textareaRef.current?.focus()
                       }}
-                      onViewDetails={() => setConvTab('tasks')}
+                      onViewDetails={() => handleOpenTaskDrawer(completedTask)}
                     />
                   </div>
                 </div>
@@ -1826,6 +1881,7 @@ export function InboxView({
                   </div>
                 </div>
               )}
+                </div>
             </div>
 
             {/* ── Floating 'Scroll to Bottom' Button ── */}
@@ -1897,7 +1953,7 @@ export function InboxView({
               }}
               onDragOver={uploads.onDragOver}
             >
-              <div className="mx-auto max-w-4xl space-y-2">
+              <div className="mx-auto max-w-[75ch] space-y-2">
                 {activeContact.type === 'customer' && (
                   <div className="flex flex-wrap items-center justify-between gap-1.5 px-1.5 text-xs">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -2049,44 +2105,235 @@ export function InboxView({
                 </div>
               </div>
             </div>
-              </>
-            )}
           </>
         )}
       </div>
 
-      <ActionDialog
-        open={showTasksModal}
-        title={t('Connected tasks')}
-        onClose={() => setShowTasksModal(false)}
+      {/* Progressive Disclosure SlideDrawer for Linked Task Peek */}
+      <SlideDrawer
+        isOpen={Boolean(peekTask)}
+        onClose={() => setPeekTask(null)}
+        title={peekTask?.title || t('Detail Tugas')}
+        description={
+          peekTask
+            ? `${taskRef(peekTask.id)} · ${statusLabel(peekTask.status || 'not_started')}`
+            : undefined
+        }
+        size="md"
+        data-testid="inbox-task-drawer"
+        badge={
+          peekTask && (
+            <span
+              className={cn(
+                'text-[11px] font-mono font-medium px-2 py-0.5 rounded border border-border/40',
+                peekTask.status === 'done'
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                  : peekTask.status === 'review'
+                    ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10'
+                    : peekTask.status === 'doing'
+                      ? 'text-blue-600 dark:text-blue-400 bg-blue-500/10'
+                      : 'text-muted-foreground bg-muted/40'
+              )}
+            >
+              {taskRef(peekTask.id)}
+            </span>
+          )
+        }
+        headerActions={
+          peekTask && (
+            <Link
+              to={taskTargetUrl(peekTask)}
+              className="rounded-md p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+              title={t('Buka Halaman Tugas Penuh')}
+              aria-label={t('Buka Halaman Tugas Penuh')}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          )
+        }
+        footer={
+          peekTask && (
+            <div className="flex items-center justify-between w-full gap-2">
+              <button
+                type="button"
+                onClick={() => setPeekTask(null)}
+                className="action-secondary min-h-10 px-3.5 text-xs"
+              >
+                <span>{t('Tutup')}</span>
+              </button>
+              <Link
+                to={taskTargetUrl(peekTask)}
+                className="action-primary min-h-10 px-3.5 text-xs inline-flex items-center gap-1.5"
+              >
+                <span>{t('Buka Halaman Tugas')}</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          )
+        }
       >
-        <div className="space-y-3">
-          {linkedTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground space-y-2">
-              <CheckSquare className="h-8 w-8 text-muted-foreground/50" />
-              <p className="text-sm font-medium">{t('No tasks connected to this conversation')}</p>
-              <p className="text-xs text-muted-foreground/80 max-w-xs">
-                {t('Tasks created by agents during this conversation will appear here.')}
-              </p>
+        {peekTask && (
+          <div className="space-y-4 text-sm" data-testid="inbox-task-drawer-content">
+            {/* Meta Strip: Status, Assignee, Time */}
+            <div className="rounded-xl border border-border/40 bg-card/60 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 text-xs font-medium',
+                      peekTask.status === 'done'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : peekTask.status === 'review'
+                          ? 'text-purple-600 dark:text-purple-400'
+                          : peekTask.status === 'doing'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-muted-foreground'
+                    )}
+                  >
+                    {peekTask.status === 'done' ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <Clock className="h-4 w-4" />
+                    )}
+                    <span>{statusLabel(peekTask.status || 'not_started')}</span>
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
+                  <span>{relativeTime(peekTask.updated_at || peekTask.created_at)}</span>
+                </div>
+              </div>
+
+              {/* Assignee & Branch */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/30 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  <Bot className="h-3.5 w-3.5 text-primary" />
+                  <span>
+                    {agentDisplayName(
+                      peekTask.latest_attempt?.agent_name ||
+                        peekTask.assignee_id ||
+                        peekTask.assignee ||
+                        'cuan-runner'
+                    )}
+                  </span>
+                </span>
+
+                {peekTask.branch_name && (
+                  <span className="inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded">
+                    <GitBranch className="h-3 w-3" />
+                    <span>{peekTask.branch_name}</span>
+                  </span>
+                )}
+
+                {peekTask.pr_url && (
+                  <a
+                    href={peekTask.pr_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs ml-auto"
+                  >
+                    <span>Pull Request</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {(() => {
-                const queuedPositions = getQueuedTasksPositions(linkedTasks)
-                return linkedTasks.map((task) => (
-                  <TaskItemCard
-                    key={task.id}
-                    task={task}
-                    queuePosition={queuedPositions.get(task.id)}
-                    returnTo={location.pathname}
-                    onNavigate={() => setShowTasksModal(false)}
+
+            {/* Summary / Completion Note */}
+            {(peekTask.summary || peekTask.complete_note) && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span>{t('Ringkasan Hasil')}</span>
+                </div>
+                <div className="rounded-xl border border-border/40 bg-card/40 p-3 text-xs leading-relaxed text-foreground">
+                  <ChatMarkdown
+                    content={peekTask.summary || peekTask.complete_note || ''}
                   />
-                ))
-              })()}
-            </div>
-          )}
-        </div>
-      </ActionDialog>
+                </div>
+              </div>
+            )}
+
+            {/* Definition of Done Checklist */}
+            {peekTask.dod_checklist && Array.isArray(peekTask.dod_checklist) && peekTask.dod_checklist.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <ListChecks className="h-3.5 w-3.5 text-primary" />
+                    <span>{t('Kriteria Selesai (DoD)')}</span>
+                  </span>
+                  <span className="font-mono text-[11px]">
+                    {
+                      peekTask.dod_checklist.filter((item) =>
+                        typeof item === 'string'
+                          ? item.startsWith('[x]') || item.startsWith('[X]') || item.startsWith('✓')
+                          : !!item.completed
+                      ).length
+                    }
+                    /{peekTask.dod_checklist.length}
+                  </span>
+                </div>
+                <ul className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-2 text-xs">
+                  {peekTask.dod_checklist.map((item, idx) => {
+                    const isChecked =
+                      typeof item === 'string'
+                        ? item.startsWith('[x]') || item.startsWith('[X]') || item.startsWith('✓')
+                        : !!item.completed
+                    const text =
+                      typeof item === 'string'
+                        ? item.replace(/^(\[[ xX]\]|✓)\s*/, '').trim()
+                        : item.text
+                    return (
+                      <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                        <span
+                          className={cn(
+                            'mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px]',
+                            isChecked
+                              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                              : 'text-muted-foreground/50'
+                          )}
+                        >
+                          {isChecked ? '✓' : '·'}
+                        </span>
+                        <span className={cn('break-words text-foreground/90', isChecked && 'font-medium text-foreground')}>
+                          {text}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* Task Instructions / Description */}
+            {peekTask.description && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t('Instruksi / Deskripsi')}
+                </div>
+                <div className="rounded-xl border border-border/40 bg-card/40 p-3 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                  {peekTask.description}
+                </div>
+              </div>
+            )}
+
+            {/* Active Execution / Terminal link */}
+            {(peekTask.status === 'doing' ||
+              peekTask.latest_attempt?.status === 'running' ||
+              peekTask.latest_attempt?.status === 'queued') && (
+              <div className="pt-2">
+                <Link
+                  to={taskTerminalUrl(peekTask)}
+                  className="action-secondary w-full text-xs py-2.5 inline-flex items-center justify-center gap-2 rounded-lg"
+                >
+                  <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>{t('Buka Terminal Langsung')}</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </SlideDrawer>
 
       {escalatingMessage && (
         <Suspense fallback={null}>
@@ -2097,7 +2344,7 @@ export function InboxView({
             onClose={() => setEscalatingMessage(null)}
             onTaskCreated={(newTask) => {
               setLinkedTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)])
-              setConvTab('tasks')
+              handleOpenTaskDrawer(newTask)
               if (activeContact) {
                 activeContact.task_count = (activeContact.task_count || 0) + 1
                 activeContact.active_tasks = (activeContact.active_tasks || 0) + 1
