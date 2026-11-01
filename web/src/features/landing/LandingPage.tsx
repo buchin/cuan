@@ -15,6 +15,7 @@ import {
   Sparkles,
   Volume2,
   Activity,
+  Workflow,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -292,6 +293,11 @@ export function LandingPage() {
                 Icon: Clock,
                 title: 'Zero-interruption worker & proactive chat.',
                 text: 'Decoupled worker runs independently with progressive timeouts. Once completed, friendly zero-jargon updates and strategic next steps arrive in your chat.',
+              },
+              {
+                Icon: Workflow,
+                title: 'Micro-modular task orchestration & DoD evaluator.',
+                text: 'Zero-dependency state machine engine (taskfsm) and automated markdown criteria evaluator (dodeval) enforce strict quality guardrails with lightning-fast execution (<10ms).',
               },
             ].map(({ Icon, title, text }) => (
               <div key={title} className="border-t border-border pt-5">
