@@ -197,6 +197,10 @@ workspace.backend.db_layer -> workspace.storage.pg_db
 - **Frontend SPA (`web/`)**:
   - Built with React 18, Vite, TypeScript, Tailwind CSS, and shadcn/ui components (`web/src/components/ui/`).
   - Master-detail responsive layouts, dark/light themes, keyboard navigation, and full i18n support.
+- **Micro-Packages (`pkg/`)**:
+  - **`pkg/taskfsm`**: Zero-dependency finite state machine engine managing task lifecycles (`planning → approved → running → review → completed`, `canceled`, `blocked`) with strict guardrails preventing illegal transitions (<10ms execution).
+  - **`pkg/dodeval`**: Autonomous Definition of Done evaluator and markdown checklist parser with intelligent gap analysis between criteria and verification evidence (<10ms execution).
+  - **`pkg/extensions`**: Cuan v1 SDK for trusted, build-time Go extensions and host capability contracts.
 
 ---
 

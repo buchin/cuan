@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/buchin/cuan/pkg/dodeval"
 )
 
 // DoDValidationRequest specifies input for autonomous DoD evaluation.
@@ -113,6 +115,26 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 	if err != nil || !leanPass || !docsPass {
 		if directiveMsg != "" {
 			res.Gaps = append(res.Gaps, directiveMsg)
+		}
+	}
+
+	// 5. Check Criteria Acceptance & Markdown DoD Checklist via pkg/dodeval
+	if req.Instructions != "" {
+		criteria := dodeval.ParseAcceptanceCriteria(req.Instructions)
+		if len(criteria) > 0 {
+			evalEvidence := dodeval.Evidence{
+				Summary:           req.Summary,
+				CompleteNote:      req.CompleteNote,
+				CleanWorkingTree:  clean,
+				TargetedTestsPass: testsPass,
+				BuildZeroError:    buildZero,
+			}
+			gapResult := dodeval.AnalyzeGaps(criteria, evalEvidence)
+			if !gapResult.Passed {
+				for _, gap := range gapResult.Gaps {
+					res.Gaps = append(res.Gaps, fmt.Sprintf("Celah DoD checklist [%s]: %s", gap.Criterion.Text, gap.Reason))
+				}
+			}
 		}
 	}
 
