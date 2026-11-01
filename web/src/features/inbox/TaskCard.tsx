@@ -9,6 +9,8 @@ import {
   FileText,
   AlertCircle,
   Clock,
+  Send,
+  Sparkles,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
@@ -28,15 +30,19 @@ import {
 } from '../tasks/task-ui'
 import { isTaskActive, formatDuration } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
+import { parseTaskReviewEnvelope } from './task-envelope'
 
 export interface TaskCardProps {
   taskId: string
   initialTask?: Task
   onNavigate?: () => void
-  onClick?: (task: Task) => void
+  onClick?: (task: Task, tab?: 'details' | 'terminal') => void
   className?: string
   returnTo?: string
   onContinueChat?: (suggestedText: string) => void
+  onUseDraft?: (draftText: string) => void
+  onOpenTerminal?: (task: Task) => void
+  onRetry?: (task: Task) => Promise<void> | void
   disableCompletionCard?: boolean
 }
 
@@ -48,6 +54,9 @@ export function TaskCard({
   className,
   returnTo,
   onContinueChat,
+  onUseDraft,
+  onOpenTerminal,
+  onRetry,
   disableCompletionCard = false,
 }: TaskCardProps) {
   const { t } = useLanguage()
@@ -167,7 +176,7 @@ export function TaskCard({
 
   const handleCardClick = (_e: React.MouseEvent) => {
     if (onClick && currentTask) {
-      onClick(currentTask)
+      onClick(currentTask, 'details')
     } else {
       const url = currentTask ? taskTargetUrl(currentTask) : `/tasks/${encodeURIComponent(taskId)}`
       navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
@@ -179,7 +188,7 @@ export function TaskCard({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       if (onClick && currentTask) {
-        onClick(currentTask)
+        onClick(currentTask, 'details')
       } else {
         const url = currentTask ? taskTargetUrl(currentTask) : `/tasks/${encodeURIComponent(taskId)}`
         navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
@@ -218,16 +227,26 @@ export function TaskCard({
     } else if (status === 'Working' || status === 'Queued' || (status as string) === 'Waiting to start') {
       url = taskTerminalUrl(currentTask)
     }
-    navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    if (onOpenTerminal && (status === 'Working' || status === 'Queued')) {
+      onOpenTerminal(currentTask)
+    } else if (onClick) {
+      onClick(currentTask, 'details')
+    } else {
+      navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    }
     onNavigate?.()
   }
 
-  const handleViewDetails = (task: Task) => {
-    if (onClick) {
-      onClick(task)
+  const handleOpenTerminal = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!currentTask) return
+    if (onOpenTerminal) {
+      onOpenTerminal(currentTask)
+    } else if (onClick) {
+      onClick(currentTask, 'terminal')
     } else {
-      const url = taskDetailUrl(task)
-      navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+      navigate(taskTerminalUrl(currentTask), returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
     }
     onNavigate?.()
   }
@@ -238,23 +257,48 @@ export function TaskCard({
     if (retrying || !currentTask) return
     setRetrying(true)
     try {
-      const agentId =
-        currentTask.latest_attempt?.agent_name ||
-        currentTask.assignee_id ||
-        currentTask.assignee ||
-        'agy'
-      await tasksApi.runAgent(currentTask.id, {
-        request_id: crypto.randomUUID(),
-        agent_id: agentId,
-      })
-      const updated = await tasksApi.get(currentTask.id)
-      if (updated) setCurrentTask(updated)
+      if (onRetry) {
+        await onRetry(currentTask)
+      } else {
+        const agentId =
+          currentTask.latest_attempt?.agent_name ||
+          currentTask.assignee_id ||
+          currentTask.assignee ||
+          'agy'
+        await tasksApi.runAgent(currentTask.id, {
+          request_id: crypto.randomUUID(),
+          agent_id: agentId,
+        })
+        const updated = await tasksApi.get(currentTask.id)
+        if (updated) setCurrentTask(updated)
+      }
       onNavigate?.()
     } catch {
       // ignore
     } finally {
       setRetrying(false)
     }
+  }
+
+  const handleUseDraft = (e: React.MouseEvent, draftText: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draftText) return
+    if (onUseDraft) {
+      onUseDraft(draftText)
+    } else if (onContinueChat) {
+      onContinueChat(draftText)
+    }
+  }
+
+  const handleViewDetails = (task: Task, tab: 'details' | 'terminal' = 'details') => {
+    if (onClick) {
+      onClick(task, tab)
+    } else {
+      const url = taskDetailUrl(task)
+      navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    }
+    onNavigate?.()
   }
 
   if (loading) {
@@ -331,7 +375,10 @@ export function TaskCard({
           task={currentTask}
           conversationId={convId}
           onContinueChat={onContinueChat}
+          onUseDraft={onUseDraft}
           onViewDetails={handleViewDetails}
+          onOpenTerminal={onOpenTerminal}
+          onRetry={onRetry}
         />
       </div>
     )
@@ -348,7 +395,9 @@ export function TaskCard({
     currentTask.latest_attempt?.agent_name ||
     currentTask.assignee_id ||
     currentTask.assignee
-  const summary = taskSummaryText(currentTask)
+
+  const envelopeResult = parseTaskReviewEnvelope(currentTask)
+  const summary = envelopeResult.summary || taskSummaryText(currentTask)
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
   const queuedActivity =
     currentTask.latest_progress || t('Menunggu antrean worker…')
@@ -361,12 +410,12 @@ export function TaskCard({
       role="button"
       tabIndex={0}
       className={cn(
-        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer select-none space-y-2.5 min-h-[44px]',
+        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer select-none space-y-3 min-h-[44px]',
         className
       )}
     >
       {/* Header: Status, Live Timer, Project, TaskRef, and Timestamp */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span
             className={cn(
@@ -416,13 +465,33 @@ export function TaskCard({
           </span>
         </div>
 
-        <time
-          dateTime={currentTask.updated_at}
-          title={new Date(currentTask.updated_at).toLocaleString()}
-          className="text-xs text-muted-foreground whitespace-nowrap shrink-0"
-        >
-          {t(relativeTime(currentTask.updated_at))}
-        </time>
+        {/* Live Terminal & Retry Actionable Controls in Header */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenTerminal}
+            data-testid="task-card-terminal-btn"
+            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40"
+            title={t('Live Terminal')}
+            aria-label={t('Live Terminal')}
+          >
+            <Terminal className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <span className="hidden xs:inline sm:inline">{t('Live Terminal')}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={retrying}
+            onClick={handleRetry}
+            data-testid="task-card-retry-btn"
+            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40 disabled:opacity-50"
+            title={t('Coba Lagi')}
+            aria-label={t('Coba Lagi')}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin text-primary')} />
+            <span className="hidden xs:inline sm:inline">{retrying ? t('Retrying...') : t('Coba Lagi')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Title & Description */}
@@ -445,6 +514,61 @@ export function TaskCard({
         ) : null}
       </div>
 
+      {/* Visitor Reply Draft Section if draft exists */}
+      {envelopeResult.draft && (
+        <div
+          data-testid="task-card-draft-section"
+          onClick={(e) => e.stopPropagation()}
+          className="rounded-xl border border-border/40 bg-muted/30 dark:bg-muted/20 p-3 space-y-2 cursor-default"
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-2">
+            <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>{t('Draf Balasan Pengunjung')}</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => handleUseDraft(e, envelopeResult.draft)}
+              data-testid="task-card-use-draft-btn"
+              className="min-h-7 px-3 py-1 text-xs font-medium rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-none"
+              title={t('Gunakan Draf di Input')}
+            >
+              <Send className="h-3 w-3 shrink-0" />
+              <span>{t('Gunakan Draf di Input')}</span>
+            </button>
+          </div>
+          <p className="text-xs text-foreground/90 italic bg-background/50 p-2.5 rounded-lg border border-border/30 whitespace-pre-wrap leading-relaxed break-words">
+            "{envelopeResult.draft}"
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            {t('1-klik mengisi composer obrolan dan fokus kursor otomatis.')}
+          </p>
+        </div>
+      )}
+
+      {/* Secondary Technical Details link: parks details to SlideDrawer */}
+      <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/30 text-xs">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            handleViewDetails(currentTask, 'details')
+          }}
+          data-testid="task-card-diagnostic-link"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
+        >
+          <span>{t('Detail Diagnostik & Status Deploy →')}</span>
+        </button>
+
+        <time
+          dateTime={currentTask.updated_at}
+          title={new Date(currentTask.updated_at).toLocaleString()}
+          className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0"
+        >
+          {t(relativeTime(currentTask.updated_at))}
+        </time>
+      </div>
+
       {/* Assignee snippet */}
       {agent && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
@@ -453,7 +577,7 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Footer: Quick Action Buttons - Calm inline Bear Notes style */}
+      {/* Footer: Quick Action Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
         <button
           type="button"
@@ -491,7 +615,7 @@ export function TaskCard({
           >
             {isWorking ? (
               <>
-                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                <Terminal className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                 <span>{t('Live Terminal')}</span>
               </>
             ) : isQueued ? (

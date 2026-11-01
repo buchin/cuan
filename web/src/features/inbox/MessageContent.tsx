@@ -39,11 +39,19 @@ export function MessageContent({
   hideTaskActions = false,
   receiptExtraction,
   onTaskClick,
+  onOpenTerminal,
+  onUseDraft,
+  onRetry,
+  onContinueChat,
 }: {
   content: string
   hideTaskActions?: boolean
   receiptExtraction?: ReceiptExtraction
   onTaskClick?: (task: Task) => void
+  onOpenTerminal?: (task: Task) => void
+  onUseDraft?: (draftText: string) => void
+  onRetry?: (task: Task) => Promise<void> | void
+  onContinueChat?: (suggestedText: string) => void
 }) {
   const { language, t } = useLanguage()
   const { body, actions } = messageNavigation(content)
@@ -87,7 +95,16 @@ export function MessageContent({
             const taskMatch = action.href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
             const taskId = taskMatch ? taskMatch[1] : extractTaskId(action.href)
             if (taskId) {
-              return <TaskCard key={action.href} taskId={taskId} onClick={onTaskClick} />
+              return (
+                <TaskCard key={action.href}
+                  taskId={taskId}
+                  onClick={onTaskClick}
+                  onOpenTerminal={onOpenTerminal}
+                  onUseDraft={onUseDraft}
+                  onRetry={onRetry}
+                  onContinueChat={onContinueChat}
+                />
+              )
             }
             const inboxMatch = action.href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
             const chatMatch = action.href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)
