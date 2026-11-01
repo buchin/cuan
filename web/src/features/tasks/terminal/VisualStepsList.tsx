@@ -126,9 +126,15 @@ export function VisualStepsList({
                     {step.toolDisplayName}
                   </span>
                 </div>
-                <span className="text-xs text-muted-foreground truncate font-mono">
-                  {step.summary}
-                </span>
+                {Boolean(step.summary) &&
+                  step.summary.trim() !== '' &&
+                  step.summary.trim().toLowerCase() !== step.toolDisplayName.trim().toLowerCase() &&
+                  step.summary.trim() !== 'Agent Step' &&
+                  step.summary.trim() !== 'Agent Action' && (
+                    <span className="text-xs text-muted-foreground truncate font-mono">
+                      {step.summary}
+                    </span>
+                  )}
               </div>
 
               {/* Duration & Status Badge */}
