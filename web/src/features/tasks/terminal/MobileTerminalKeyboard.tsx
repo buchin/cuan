@@ -169,7 +169,7 @@ export function MobileTerminalKeyboard({
     <div
       role="toolbar"
       aria-label="Terminal Mobile Toolbar"
-      className={`sm:hidden shrink-0 select-none touch-manipulation border-t border-[#262626] bg-[#161616] pb-1 ${className}`}
+      className={`sm:hidden shrink-0 select-none touch-manipulation border-t border-[#262626] bg-[#161616] pb-[max(0.75rem,env(safe-area-inset-bottom))] ${className}`}
     >
       {/* Mobile Floating Prompt Bar - Isolated from xterm re-render stream (when standalone) */}
       {showPromptInput && (

@@ -1355,7 +1355,11 @@ export function TaskTerminal({
       )}
 
       <div
-        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-1.5 sm:p-2 overscroll-contain flex flex-col"
+        className={`min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-1.5 sm:p-2 overscroll-contain flex flex-col ${
+          !isTaskActive && !Boolean(activeSessionId || live?.session_id)
+            ? 'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+            : ''
+        }`}
         aria-label="Terminal output"
         onContextMenu={handleContextMenu}
       >
@@ -1399,7 +1403,7 @@ export function TaskTerminal({
         />
       )}
 
-      {/* Universal Modern Terminal Composer Capsule (Desktop & Mobile) - Active without legacy liveId gate */}
+      {/* Universal Modern Terminal Composer Capsule (Desktop & Mobile) - Active with safe-area padding */}
       {(isTaskActive || Boolean(activeSessionId || live?.session_id)) && (
         <TerminalComposer
           taskId={taskId}
@@ -1412,10 +1416,15 @@ export function TaskTerminal({
           onToggleMobileKbd={() => setIsMobileKeyboardActive((prev) => !prev)}
           isMobileKbdActive={isMobileKeyboardActive}
           disabled={false}
+          className={
+            isMobileKeyboardActive
+              ? 'pb-2'
+              : 'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+          }
         />
       )}
 
-      {/* Mobile Accessory Keyboard Bar (Blink & Developer style) - Conditional on active focus/toggle */}
+      {/* Mobile Accessory Keyboard Bar (Blink & Developer style) - Conditional on active focus/toggle with safe-area padding */}
       {liveId && isMobileKeyboardActive && (
         <MobileTerminalKeyboard
           onInject={sendKey}
@@ -1426,6 +1435,7 @@ export function TaskTerminal({
           onClose={hideMobileKeyboard}
           disabled={false}
           compact
+          className="pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         />
       )}
 
