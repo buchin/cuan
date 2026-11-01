@@ -15,7 +15,6 @@ import {
   CheckSquare,
   FolderGit2,
   PanelLeft,
-  CalendarClock,
   Users,
   Settings,
   Menu,
@@ -88,7 +87,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     id: 'operations',
     label: 'Operations',
     items: [
-      { id: 'schedules', label: 'Schedules', icon: CalendarClock, to: '/schedules', description: 'Otomasi & cron rutin' },
       { id: 'contacts', label: 'Contacts', icon: Users, to: '/contacts', description: 'CRM & memori pelanggan' },
     ],
   },
@@ -524,25 +522,25 @@ export function AppShell({
               <span>{t('Tasks')}</span>
             </button>
 
-            {/* Pillar 3: Projects */}
+            {/* Pillar 3: Contacts */}
             <button
-              key="projects"
-              data-testid="bottom-nav-projects"
-              aria-label={t('Projects')}
-              aria-current={currentTab === 'projects' ? 'page' : undefined}
+              key="contacts"
+              data-testid="bottom-nav-contacts"
+              aria-label={t('Contacts')}
+              aria-current={currentTab === 'contacts' ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
-                navigate('projects')
+                navigate('contacts')
               }}
               className={cn(
                 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
-                currentTab === 'projects'
+                currentTab === 'contacts'
                   ? 'font-semibold text-primary'
                   : 'text-muted-foreground',
               )}
             >
-              <FolderGit2 className="h-5 w-5" />
-              <span>{t('Projects')}</span>
+              <Users className="h-5 w-5" />
+              <span>{t('Contacts')}</span>
             </button>
 
             {/* Pillar 4: Menu */}
@@ -552,8 +550,7 @@ export function AppShell({
               aria-label={t('Menu')}
               aria-expanded={mobileMenuOpen}
               aria-current={
-                currentTab === 'schedules' ||
-                currentTab === 'contacts' ||
+                currentTab === 'projects' ||
                 currentTab === 'settings' ||
                 currentTab === 'account'
                   ? 'page'
@@ -563,8 +560,7 @@ export function AppShell({
               className={cn(
                 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
                 mobileMenuOpen ||
-                  currentTab === 'schedules' ||
-                  currentTab === 'contacts' ||
+                  currentTab === 'projects' ||
                   currentTab === 'settings' ||
                   currentTab === 'account'
                   ? 'font-semibold text-primary'
@@ -581,43 +577,51 @@ export function AppShell({
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
             title={t('Menu')}
-            description={t('Operations & System')}
+            description={t('Workspace & System')}
             size="sm"
             className="md:hidden"
             data-testid="mobile-menu-drawer"
           >
             <div className="space-y-6 py-2">
+              {/* Workspace */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('Workspace')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-projects"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('projects')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'projects'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
+                      <FolderGit2 className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">{t('Projects')}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t('Workspaces & repo')}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Operations */}
               <div className="space-y-2">
                 <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                   {t('Operations')}
                 </div>
                 <div className="space-y-1">
-                  <button
-                    type="button"
-                    data-testid="menu-drawer-link-schedules"
-                    onClick={() => {
-                      setMobileMenuOpen(false)
-                      navigate('schedules')
-                    }}
-                    className={cn(
-                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
-                      currentTab === 'schedules'
-                        ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-foreground/90 hover:bg-muted/50',
-                    )}
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
-                      <CalendarClock className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground">{t('Schedules')}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {t('Otomasi & cron rutin')}
-                      </div>
-                    </div>
-                  </button>
-
                   <button
                     type="button"
                     data-testid="menu-drawer-link-contacts"

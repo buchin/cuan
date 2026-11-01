@@ -1,0 +1,204 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const repoRoot = path.resolve(__dirname, '..', '..')
+const webSrcRoot = path.resolve(__dirname, '..', 'src')
+
+const appShellPath = path.resolve(webSrcRoot, 'components', 'layout', 'AppShell.tsx')
+const appPath = path.resolve(webSrcRoot, 'App.tsx')
+const settingsViewPath = path.resolve(webSrcRoot, 'features', 'settings', 'SettingsView.tsx')
+const s62DocPath = path.resolve(repoRoot, 'docs', 'sprints', 'S62.md')
+
+test('1. S62-T1: 4-Pillar Mobile Bottom Navigation with Contacts as Core Pillar', () => {
+  const appShellSource = fs.readFileSync(appShellPath, 'utf8')
+
+  // Pillar 1: Chat (/inbox)
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-chat"'),
+    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-chat"'
+  )
+  assert.ok(
+    appShellSource.includes("navigate('inbox')"),
+    'Pillar 1 Chat must navigate to inbox tab'
+  )
+  assert.ok(
+    appShellSource.includes('MessageSquare'),
+    'Pillar 1 Chat must render MessageSquare icon'
+  )
+
+  // Pillar 2: Tasks (/tasks)
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-tasks"'),
+    'Bottom navigation must render Pillar 2: Tasks with data-testid="bottom-nav-tasks"'
+  )
+  assert.ok(
+    appShellSource.includes("navigate('tasks')"),
+    'Pillar 2 Tasks must navigate to tasks tab'
+  )
+  assert.ok(
+    appShellSource.includes('CheckSquare'),
+    'Pillar 2 Tasks must render CheckSquare icon'
+  )
+
+  // Pillar 3: Contacts (/contacts) - Core S62 requirement
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-contacts"'),
+    'Bottom navigation must render Pillar 3: Contacts with data-testid="bottom-nav-contacts"'
+  )
+  assert.ok(
+    appShellSource.includes("navigate('contacts')"),
+    'Pillar 3 Contacts must navigate to contacts tab'
+  )
+  assert.ok(
+    appShellSource.includes('<Users className="h-5 w-5" />'),
+    'Pillar 3 Contacts must render Users icon'
+  )
+  assert.ok(
+    appShellSource.includes("currentTab === 'contacts' ? 'page' : undefined"),
+    'Pillar 3 Contacts must properly indicate active page state via aria-current'
+  )
+
+  // Pillar 4: Menu (SlideDrawer opener)
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-menu"'),
+    'Bottom navigation must render Pillar 4: Menu with data-testid="bottom-nav-menu"'
+  )
+  assert.ok(
+    appShellSource.includes('setMobileMenuOpen'),
+    'Pillar 4 Menu must toggle mobile menu state'
+  )
+
+  // Ensure touch accessibility on all pillars
+  const minHeightMatches = appShellSource.match(/min-h-14/g)
+  assert.ok(
+    minHeightMatches && minHeightMatches.length >= 4,
+    'All bottom navigation buttons must meet touch target min-h-14 (56px >= 44px)'
+  )
+})
+
+test('2. S62-T1: Elimination of Duplicated Schedules from Desktop Sidebar NAV_GROUPS', () => {
+  const appShellSource = fs.readFileSync(appShellPath, 'utf8')
+
+  // Find NAV_GROUPS definition block
+  const navGroupsStart = appShellSource.indexOf('export const NAV_GROUPS: NavGroupConfig[] = [')
+  const navGroupsEnd = appShellSource.indexOf('export function AppShell', navGroupsStart)
+  assert.ok(navGroupsStart !== -1 && navGroupsEnd !== -1, 'NAV_GROUPS must be defined')
+
+  const navGroupsBlock = appShellSource.slice(navGroupsStart, navGroupsEnd)
+
+  // Verify Schedules is NOT present in NAV_GROUPS
+  assert.ok(
+    !navGroupsBlock.includes("id: 'schedules'"),
+    'NAV_GROUPS must not contain id: schedules'
+  )
+  assert.ok(
+    !navGroupsBlock.includes("to: '/schedules'"),
+    'NAV_GROUPS must not contain to: /schedules'
+  )
+
+  // Verify Operations contains Contacts
+  assert.ok(
+    navGroupsBlock.includes("id: 'operations'"),
+    'NAV_GROUPS must contain operations group'
+  )
+  assert.ok(
+    navGroupsBlock.includes("to: '/contacts'"),
+    'NAV_GROUPS operations group must contain /contacts'
+  )
+})
+
+test('3. S62-T1: Clean Mobile Drawer Menu without Schedules Duplication', () => {
+  const appShellSource = fs.readFileSync(appShellPath, 'utf8')
+
+  // Find Mobile Menu Drawer SlideDrawer section
+  const drawerStart = appShellSource.indexOf('data-testid="mobile-menu-drawer"')
+  assert.ok(drawerStart !== -1, 'SlideDrawer mobile menu must exist')
+
+  const drawerSection = appShellSource.slice(drawerStart)
+
+  // Verify Schedules link is completely removed from mobile drawer
+  assert.ok(
+    !drawerSection.includes('data-testid="menu-drawer-link-schedules"'),
+    'Mobile drawer must no longer contain menu-drawer-link-schedules'
+  )
+  assert.ok(
+    !drawerSection.includes("navigate('schedules')"),
+    'Mobile drawer must no longer navigate directly to standalone schedules'
+  )
+
+  // Verify Projects, Contacts, Settings, and Account are accessible in mobile drawer
+  assert.ok(
+    drawerSection.includes('data-testid="menu-drawer-link-projects"'),
+    'Mobile drawer must provide link to Projects'
+  )
+  assert.ok(
+    drawerSection.includes('data-testid="menu-drawer-link-contacts"'),
+    'Mobile drawer must provide link to Contacts'
+  )
+  assert.ok(
+    drawerSection.includes('data-testid="menu-drawer-link-settings"'),
+    'Mobile drawer must provide link to Settings'
+  )
+  assert.ok(
+    drawerSection.includes('data-testid="menu-drawer-link-account"'),
+    'Mobile drawer must provide link to Account'
+  )
+
+  // Verify touch target compliance on drawer items (min-h-12 / 48px >= 44px)
+  const minH12Matches = drawerSection.match(/min-h-12/g)
+  assert.ok(
+    minH12Matches && minH12Matches.length >= 4,
+    'All drawer navigation buttons must satisfy min-h-12 touch targets'
+  )
+})
+
+test('4. S62-T1: Route Consolidation & Deep Link Forwarding to SettingsView (/settings/schedules)', () => {
+  const appSource = fs.readFileSync(appPath, 'utf8')
+  const settingsSource = fs.readFileSync(settingsViewPath, 'utf8')
+
+  // Verify /schedules deep link automatically redirects to /settings/schedules
+  assert.ok(
+    appSource.includes("if (rootSegment === 'schedules')") &&
+      appSource.includes("navigate('/settings/schedules'"),
+    'App.tsx must redirect /schedules to /settings/schedules'
+  )
+
+  // Verify handleSelectTab navigates to /settings/schedules when schedules tab is selected
+  assert.ok(
+    appSource.includes("else if (tab === 'schedules')") &&
+      appSource.includes("navigate('/settings/schedules')"),
+    'App.tsx handleSelectTab must navigate to /settings/schedules'
+  )
+
+  // Verify /settings/schedules is rendered within SettingsView master-detail
+  assert.ok(
+    settingsSource.includes("section === 'schedules'") &&
+      settingsSource.includes('<SchedulesView embedded />'),
+    'SettingsView must render SchedulesView embedded in the calm master-detail layout'
+  )
+})
+
+test('5. S62-T1: Sprint Documentation & Quality Gate Artifacts', () => {
+  assert.ok(fs.existsSync(s62DocPath), 'docs/sprints/S62.md must exist')
+
+  const s62Doc = fs.readFileSync(s62DocPath, 'utf8')
+  assert.ok(s62Doc.includes('Sprint 62'), 'S62 doc must mention Sprint 62')
+  assert.ok(s62Doc.includes('S62-T1'), 'S62 doc must document Task 1')
+  assert.ok(s62Doc.includes('S62-T2'), 'S62 doc must document Task 2')
+  assert.ok(s62Doc.includes('S62-T3'), 'S62 doc must document Task 3')
+  assert.ok(s62Doc.includes('S62-T4'), 'S62 doc must document Task 4')
+  assert.ok(s62Doc.includes('```d2'), 'S62 doc must use D2 diagram with TALA layout')
+
+  // Verify Before screenshot exists
+  const beforeScreenshotPath = path.resolve(repoRoot, 'screenshots', 's62-t1-mobile-nav-before.png')
+  assert.ok(
+    fs.existsSync(beforeScreenshotPath),
+    'screenshots/s62-t1-mobile-nav-before.png must exist'
+  )
+})

@@ -459,8 +459,8 @@ export function App() {
         state: location.state,
       })
     }
-    if (rootSegment === 'settings' && subParam === 'schedules') {
-      navigate('/schedules' + location.search + location.hash, {
+    if (rootSegment === 'schedules') {
+      navigate('/settings/schedules' + location.search + location.hash, {
         replace: true,
         state: location.state,
       })
@@ -496,7 +496,7 @@ export function App() {
     } else if (tab === 'projects') {
       navigate(activeProject ? `/projects/${activeProject.id}` : '/projects')
     } else if (tab === 'schedules') {
-      navigate('/schedules')
+      navigate('/settings/schedules')
     } else if (tab === 'contacts') {
       navigate('/contacts')
     } else if (tab === 'settings') {
@@ -1102,16 +1102,14 @@ export function App() {
               />
             ))}
 
-          {/* 4. Schedules Hub */}
-          {(currentTab === 'schedules' ||
-            (currentTab === 'settings' && subParam === 'schedules')) && (
+          {/* 4. Schedules Hub (Standalone fallback for /schedules) */}
+          {currentTab === 'schedules' && (
             <SchedulesView />
           )}
 
-          {/* 5. Settings / Account Configuration */}
+          {/* 5. Settings / Account Configuration (Consolidated hub including /settings/schedules) */}
         {(currentTab === 'settings' || currentTab === 'account') &&
-          subParam !== 'contacts' &&
-          subParam !== 'schedules' && (
+          subParam !== 'contacts' && (
             <div className="min-h-full">
                 <SettingsView
                   projects={projects}
