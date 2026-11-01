@@ -5,6 +5,7 @@ import { InstallAppCard } from './InstallAppCard'
 import { AppUpdateCard } from './AppUpdateCard'
 import { ScheduledJobsCard } from './ScheduledJobsCard'
 import { WorkerHealthCard } from './WorkerHealthCard'
+export { GeneralSettings } from './GeneralSettings'
 import { SchedulesView } from '../schedules/SchedulesView'
 import {
   useLanguage,

@@ -11,9 +11,7 @@ import {
   Bot,
   Receipt,
   Table,
-  CheckCircle2,
   Unplug,
-  ShieldCheck,
   ArrowRight,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -22,6 +20,8 @@ import {
   type App,
   type Skill,
 } from '../../api/appsSkills'
+import { GroupedSection } from '../../components/layout/GroupedSection'
+import { StatusDot } from '../../components/layout/StatusDot'
 
 export interface AppsSkillsViewProps {
   initialTab?: 'apps' | 'skills'
@@ -259,22 +259,10 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
       )}
 
       {/* ==================================================================== */}
-      {/* TAB 1: CONNECTED APPS */}
+      {/* TAB 1: CONNECTED APPS (Apple-style Inset Grouped Rows) */}
       {/* ==================================================================== */}
       {!loading && activeTab === 'apps' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl border border-primary/20 bg-primary/[0.03] space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-              <ShieldCheck className="h-4 w-4" />
-              <span>{t('Zero-Developer Friction & Safe Execution')}</span>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {t(
-                'Apps connect your favorite third-party business services via secure 1-click authentication. No API keys, complex JSON setups, or ambient credential leaks.'
-              )}
-            </p>
-          </div>
-
           {apps.length === 0 ? (
             <div className="p-8 text-center rounded-xl border border-border bg-card text-muted-foreground text-xs space-y-2">
               <Plug className="h-8 w-8 mx-auto opacity-40" />
@@ -282,7 +270,10 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
               <p>{t('Apps registered in the system will automatically appear here.')}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <GroupedSection
+              title={t('Connected Apps')}
+              description={t('1-click integrations with your business services.')}
+            >
               {apps.map((app) => {
                 const isConnected = app.status === 'connected'
                 const isError = app.status === 'error'
@@ -290,104 +281,93 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
                 return (
                   <div
                     key={app.id}
-                    className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-4 flex flex-col justify-between hover:border-border/80 transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3.5 py-3.5 sm:px-4 sm:py-4 transition-colors"
                     data-testid={`app-card-${app.id}`}
                   >
-                    <div className="space-y-3">
-                      {/* Top Header */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                            {app.icon === 'sheet' || app.id.includes('sheet') ? (
-                              <Table className="h-5 w-5" />
-                            ) : (
-                              <Plug className="h-5 w-5" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <h2 className="text-sm font-bold text-foreground truncate">
-                              {app.name}
-                            </h2>
-                            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                              {app.category}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Status Badge */}
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border shrink-0 ${
-                            isConnected
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                              : isError
-                                ? 'bg-destructive/10 text-destructive border-destructive/20'
-                                : 'bg-muted text-muted-foreground border-border/50'
-                          }`}
-                          data-testid={`app-status-${app.id}`}
-                        >
-                          {isConnected ? (
-                            <>
-                              <CheckCircle2 className="h-3 w-3" />
-                              <span>{t('Connected')}</span>
-                            </>
-                          ) : isError ? (
-                            <>
-                              <AlertCircle className="h-3 w-3" />
-                              <span>{t('Connection Error')}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Unplug className="h-3 w-3" />
-                              <span>{t('Disconnected')}</span>
-                            </>
-                          )}
-                        </span>
+                    {/* Left: Icon + Info */}
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+                        {app.icon === 'sheet' || app.id.includes('sheet') ? (
+                          <Table className="h-4 w-4" />
+                        ) : (
+                          <Plug className="h-4 w-4" />
+                        )}
                       </div>
 
-                      {/* Description */}
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                        {app.description}
-                      </p>
-
-                      {/* Connected Account Info */}
-                      {isConnected && app.account && (
-                        <div className="p-2.5 rounded-lg border border-border/50 bg-muted/30 text-xs space-y-0.5">
-                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                            {t('Connected Account')}:
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {app.name}
                           </span>
-                          <span className="font-mono text-foreground font-semibold block truncate">
-                            {app.account}
+                          <span className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">
+                            {app.category}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-xs">
+                            <StatusDot
+                              status={isConnected ? 'healthy' : isError ? 'exception' : 'neutral'}
+                              size="xs"
+                            />
+                            <span
+                              className={`text-[11px] font-medium ${
+                                isConnected
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : isError
+                                  ? 'text-destructive'
+                                  : 'text-muted-foreground'
+                              }`}
+                              data-testid={`app-status-${app.id}`}
+                            >
+                              {isConnected
+                                ? t('Connected')
+                                : isError
+                                ? t('Connection Error')
+                                : t('Disconnected')}
+                            </span>
                           </span>
                         </div>
-                      )}
 
-                      {/* Capabilities */}
-                      {app.capabilities && app.capabilities.length > 0 && (
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
-                            {t('Capabilities')}:
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {app.description}
+                        </p>
+
+                        {/* Connected Account Info - flat inline, 0 nested cards */}
+                        {isConnected && app.account && (
+                          <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                            <span className="text-[11px] text-muted-foreground/80">
+                              {t('Connected Account')}:
+                            </span>
+                            <span className="font-mono text-foreground font-medium text-xs">
+                              {app.account}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Capabilities - flat minimal text / tags */}
+                        {app.capabilities && app.capabilities.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                              {t('Capabilities')}:
+                            </span>
                             {app.capabilities.map((cap) => (
                               <span
                                 key={cap}
-                                className="px-2 py-0.5 rounded text-[10px] font-mono bg-secondary text-secondary-foreground"
+                                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted text-muted-foreground"
                               >
                                 {cap}
                               </span>
                             ))}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="pt-2 border-t border-border/40">
+                    {/* Right: Action button */}
+                    <div className="flex shrink-0 items-center sm:self-center pl-12 sm:pl-0">
                       {isConnected ? (
                         <button
                           type="button"
                           onClick={() => setDisconnectingAppId(app.id)}
-                          className="w-full inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99] cursor-pointer"
+                          className="min-h-11 sm:min-h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99] cursor-pointer"
                           data-testid={`disconnect-btn-${app.id}`}
                         >
                           <Unplug className="h-3.5 w-3.5" />
@@ -397,7 +377,7 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
                         <button
                           type="button"
                           onClick={() => handleOpenConnect(app)}
-                          className="w-full inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99] shadow-xs cursor-pointer"
+                          className="min-h-11 sm:min-h-8 inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99] shadow-2xs cursor-pointer"
                           data-testid={`connect-btn-${app.id}`}
                         >
                           <Plug className="h-3.5 w-3.5" />
@@ -408,13 +388,13 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
                   </div>
                 )
               })}
-            </div>
+            </GroupedSection>
           )}
         </div>
       )}
 
       {/* ==================================================================== */}
-      {/* TAB 2: SKILLS CATALOG */}
+      {/* TAB 2: SKILLS CATALOG (Apple-style Inset Grouped Rows) */}
       {/* ==================================================================== */}
       {!loading && activeTab === 'skills' && (
         <div className="space-y-4">
@@ -448,7 +428,10 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
               <p className="font-semibold">{t('No skills found in this category')}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <GroupedSection
+              title={t('Skills Catalog')}
+              description={t('Modular intelligence capabilities available to assign to agents.')}
+            >
               {filteredSkills.map((skill) => {
                 const isVision =
                   skill.category === 'vision' ||
@@ -460,105 +443,100 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
                 return (
                   <div
                     key={skill.id}
-                    className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-4 flex flex-col justify-between hover:border-border/80 transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3.5 py-3.5 sm:px-4 sm:py-4 transition-colors"
                     data-testid={`skill-card-${skill.id}`}
                   >
-                    <div className="space-y-3">
-                      {/* Top Header */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                            {isVision ? (
-                              <Receipt className="h-5 w-5" />
-                            ) : isSheet ? (
-                              <Table className="h-5 w-5" />
-                            ) : (
-                              <Boxes className="h-5 w-5" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <h2 className="text-sm font-bold text-foreground truncate">
-                              {skill.name}
-                            </h2>
-                            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                              {skill.category}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Status Badge */}
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
-                          <Check className="h-3 w-3" />
-                          <span>{t('Active')}</span>
-                        </span>
-                      </div>
-
-                      {/* Benefit Description */}
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {skill.description}
-                      </p>
-
-                      {/* Bound Agents Badge List */}
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                          <Bot className="h-3 w-3 text-primary" />
-                          <span>{t('Bound Agents')}:</span>
-                        </span>
-
-                        {skill.bound_agents && skill.bound_agents.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {skill.bound_agents.map((agId) => (
-                              <span
-                                key={agId}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-primary/10 text-primary border border-primary/20"
-                              >
-                                <Bot className="h-2.5 w-2.5" />
-                                <span>{agId.replace('agent_', '@')}</span>
-                              </span>
-                            ))}
-                          </div>
+                    {/* Left: Icon + Info */}
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+                        {isVision ? (
+                          <Receipt className="h-4 w-4" />
+                        ) : isSheet ? (
+                          <Table className="h-4 w-4" />
                         ) : (
-                          <span className="text-[11px] text-muted-foreground italic">
-                            {t('No agents bound yet')}
-                          </span>
+                          <Boxes className="h-4 w-4" />
                         )}
                       </div>
 
-                      {/* Tools list */}
-                      {skill.tools && skill.tools.length > 0 && (
-                        <div className="space-y-1 pt-1">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
-                            Tools:
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {skill.name}
                           </span>
-                          <div className="flex flex-wrap gap-1.5">
+                          <span className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">
+                            {skill.category}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-xs">
+                            <StatusDot status="healthy" size="xs" />
+                            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                              {t('Active')}
+                            </span>
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {skill.description}
+                        </p>
+
+                        {/* Bound Agents Badge List */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                            <Bot className="h-3 w-3 text-primary" />
+                            <span>{t('Bound Agents')}:</span>
+                          </span>
+
+                          {skill.bound_agents && skill.bound_agents.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {skill.bound_agents.map((agId) => (
+                                <span
+                                  key={agId}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted text-foreground"
+                                >
+                                  <span>{agId.replace('agent_', '@')}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground italic">
+                              {t('No agents bound yet')}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Tools list */}
+                        {skill.tools && skill.tools.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Tools:
+                            </span>
                             {skill.tools.map((tl) => (
                               <span
                                 key={tl}
-                                className="px-2 py-0.5 rounded text-[10px] font-mono bg-muted text-foreground border border-border/50"
+                                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/60 text-muted-foreground"
                               >
                                 {tl}
                               </span>
                             ))}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
-                    {/* Footer Shortcut to Configure in Agents */}
-                    <div className="pt-2 border-t border-border/40">
+                    {/* Right: Configure link */}
+                    <div className="flex shrink-0 items-center sm:self-center pl-12 sm:pl-0">
                       <Link
                         to="/settings/agents"
-                        className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                        className="min-h-11 sm:min-h-8 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                       >
                         <Bot className="h-3.5 w-3.5 text-primary" />
                         <span>{t('Configure in Agents & Team')}</span>
-                        <ArrowRight className="h-3.5 w-3.5 ml-1 opacity-60" />
+                        <ArrowRight className="h-3.5 w-3.5 ml-0.5 opacity-60" />
                       </Link>
                     </div>
                   </div>
                 )
               })}
-            </div>
+            </GroupedSection>
           )}
         </div>
       )}
