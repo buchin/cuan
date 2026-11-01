@@ -87,3 +87,24 @@ func TestCanRequeue_MaxAttemptsGuard(t *testing.T) {
 		t.Fatal("expected attempt 4 to NOT be requeueable")
 	}
 }
+
+func TestCalculateTaskTimeout_InvestigationPruning(t *testing.T) {
+	// Standard code lane gets adaptive timeout (25m, 35m, 45m)
+	if d := CalculateTaskTimeout("code", 1, "Build user auth", "create table users"); d != 25*time.Minute {
+		t.Fatalf("expected 25m for code attempt 1, got %v", d)
+	}
+
+	// Readonly lane gets 5m
+	if d := CalculateTaskTimeout("readonly", 1, "Audit logs", "inspect logs"); d != 5*time.Minute {
+		t.Fatalf("expected 5m for readonly lane, got %v", d)
+	}
+
+	// Investigation in title/prompt gets pruned to 5m (down from 20m)
+	if d := CalculateTaskTimeout("code", 1, "Investigasi error 500", "analisis root cause timeout"); d != 5*time.Minute {
+		t.Fatalf("expected 5m for investigation task, got %v", d)
+	}
+
+	if d := CalculateTaskTimeout("", 1, "RCA payment gateway outage", "check provider status"); d != 5*time.Minute {
+		t.Fatalf("expected 5m for RCA task, got %v", d)
+	}
+}

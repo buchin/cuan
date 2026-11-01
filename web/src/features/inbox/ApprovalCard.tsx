@@ -67,35 +67,36 @@ export function ApprovalCard({
       data-testid="approval-card"
       data-status={accepted ? 'accepted' : deferred ? 'deferred' : 'pending'}
       className={cn(
-        'approval-card mt-3 rounded-xl border p-3.5 sm:p-4 space-y-3 shadow-xs transition-all duration-200 min-w-0 max-w-full overflow-hidden',
+        'approval-card mt-3 rounded-xl border p-3.5 sm:p-4 space-y-3 shadow-none transition-all duration-200 min-w-0 max-w-full overflow-hidden',
         accepted
-          ? 'border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] border-l-4 border-l-emerald-500 dark:border-l-emerald-400'
+          ? 'border-border/30 bg-card/20 dark:bg-card/10 border-l-2 border-l-emerald-500'
           : deferred
-            ? 'border-border/60 bg-muted/20 border-l-4 border-l-muted-foreground/60'
-            : 'border-primary/25 bg-background/80 dark:bg-card/70 border-l-4 border-l-primary shadow-xs',
+            ? 'border-border/40 bg-muted/10 border-l-2 border-l-muted-foreground'
+            : 'border-border/60 bg-card/60 dark:bg-card/40 border-l-2 border-l-primary shadow-2xs',
         className,
       )}
     >
       {/* Header Badge & Project Tag */}
-      <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
+      <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
         <div className="flex items-center gap-1.5 min-w-0">
           {accepted ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
           ) : deferred ? (
-            <Clock3 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Clock3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           ) : (
-            <ClipboardCheck className="h-4 w-4 text-primary shrink-0" />
+            <ClipboardCheck className="h-3.5 w-3.5 text-primary shrink-0" />
           )}
           <span
             className={cn(
-              'text-xs font-semibold tracking-wide uppercase truncate',
+              'text-xs font-medium tracking-normal truncate',
               accepted
-                ? 'text-emerald-700 dark:text-emerald-300'
+                ? 'text-emerald-600 dark:text-emerald-400'
                 : deferred
                   ? 'text-muted-foreground'
-                  : 'text-primary',
+                  : 'text-primary font-semibold',
             )}
           >
+            {accepted ? '✓ ' : ''}
             {t(
               accepted
                 ? 'Approved'
@@ -130,23 +131,27 @@ export function ApprovalCard({
       )}
 
       {/* Action Buttons (Touch target min-h-11, mobile responsive wrap) */}
-      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40">
+      <div className={cn(
+        'flex flex-wrap items-center gap-2 pt-1',
+        accepted ? 'border-t-0 pt-0' : 'border-t border-border/40'
+      )}>
         <Button
           size="sm"
           className={cn(
-            'min-h-11 font-semibold text-xs px-3.5 py-2 gap-1.5 cursor-pointer shadow-xs',
-            accepted &&
-              'bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-500 opacity-90 text-white cursor-default',
+            'min-h-11 text-xs gap-1.5',
+            accepted
+              ? 'bg-transparent hover:bg-transparent text-emerald-600 dark:text-emerald-400 font-medium cursor-default shadow-none border-0 px-0'
+              : 'font-semibold px-3.5 py-2 cursor-pointer shadow-xs bg-primary text-primary-foreground',
           )}
           disabled={accepted || disabled}
           onClick={onApprove}
         >
           {accepted ? (
-            <CheckCheck className="h-3.5 w-3.5" />
+            <CheckCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
           ) : (
             <Play className="h-3.5 w-3.5 fill-current" />
           )}
-          <span>{t(accepted ? 'Approved' : 'Approve and start')}</span>
+          <span>{accepted ? '✓ ' : ''}{t(accepted ? 'Approved' : 'Approve and start')}</span>
         </Button>
 
         {!accepted && (

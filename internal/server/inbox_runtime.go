@@ -26,7 +26,12 @@ type inboxRuntimeStream struct {
 	step                                    func(string, string)
 	maxToolCalls                            int
 	disallowTools                           bool
+	adaptiveBatching                        bool
+	inspectionBatchFactor                   int
 	toolCalls                               int
+	inspectionCalls                         int
+	nonInspectionCalls                      int
+	consecutiveFailures                     int
 	toolIndices                             map[int]bool
 	toolBudgetExceeded                      bool
 	cancel                                  func()
@@ -66,6 +71,29 @@ func isSafeInboxTool(tool string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func isInspectionTool(tool string) bool {
+	clean := tool
+	if idx := strings.Index(clean, "/"); idx != -1 {
+		clean = clean[idx+1:]
+	} else if idx := strings.Index(clean, ":"); idx != -1 {
+		clean = clean[idx+1:]
+	}
+	switch clean {
+	case "read_file", "view_file", "view_file_outline", "view_code_item",
+		"list_dir", "grep_search", "find_by_name",
+		"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches",
+		"inspect_system_health", "inspect_typecheck",
+		"inspect_database_query", "inspect_database_schema", "inspect_app_logs",
+		"search_web", "call_mcp_tool",
+		"list_projects", "get_project", "list_tasks", "get_task",
+		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
+		"list_scheduled_jobs", "get_system_settings", "list_apps", "list_skills":
+		return true
+	default:
+		return strings.HasPrefix(clean, "inspect_") || strings.HasPrefix(clean, "get_") || strings.HasPrefix(clean, "list_") || strings.HasPrefix(clean, "search_")
 	}
 }
 
@@ -214,12 +242,43 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				if !s.toolIndices[*u.Index] {
 					s.toolIndices[*u.Index] = true
 					s.toolCalls++
-					if s.maxToolCalls > 0 && s.toolCalls > s.maxToolCalls {
+
+					budgetExceeded := false
+					if s.maxToolCalls > 0 {
+						if s.adaptiveBatching {
+							factor := s.inspectionBatchFactor
+							if factor <= 0 {
+								factor = 5
+							}
+							if isInspectionTool(u.Tool) {
+								s.inspectionCalls++
+							} else {
+								s.nonInspectionCalls++
+							}
+							// Adaptive batching: up to factor inspection calls count as 1 turn unit.
+							effectiveTurns := s.nonInspectionCalls + (s.inspectionCalls+factor-1)/factor
+							// Absolute safety ceiling to protect against infinite loops
+							hardCeiling := s.maxToolCalls * factor
+							if hardCeiling < 50 && s.maxToolCalls >= 10 {
+								hardCeiling = 50
+							}
+							if s.toolCalls > hardCeiling || effectiveTurns > s.maxToolCalls {
+								budgetExceeded = true
+							}
+						} else {
+							if s.toolCalls > s.maxToolCalls {
+								budgetExceeded = true
+							}
+						}
+					}
+
+					if budgetExceeded {
 						s.toolBudgetExceeded = true
 						s.emit("runtime_tool_budget_exceeded", fmt.Sprintf("Tool limit of %d calls reached for coordinator chat. Finishing response.", s.maxToolCalls))
 						if s.cancel != nil {
 							s.cancel()
 						}
+						return
 					}
 				}
 			}
@@ -276,10 +335,19 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			kind, label := "runtime_tool_started", "started"
 			if u.State == "DONE" {
 				kind, label = "runtime_tool_finished", "activity ended"
+				s.consecutiveFailures = 0
 			}
 			if u.State == "ERROR" {
 				kind, label = "runtime_tool_failed", "failed"
 				s.toolFailures++
+				s.consecutiveFailures++
+				if s.consecutiveFailures >= 5 && s.maxToolCalls > 0 {
+					s.toolBudgetExceeded = true
+					s.emit("runtime_tool_budget_exceeded", "Consecutive tool error loop detected for coordinator chat. Finishing response.")
+					if s.cancel != nil {
+						s.cancel()
+					}
+				}
 			}
 			s.emit(kind, fmt.Sprintf("Tool #%d · %s %s%s.", *u.Index, name, label, duration))
 		} else {

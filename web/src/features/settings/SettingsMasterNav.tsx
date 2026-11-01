@@ -38,6 +38,50 @@ export interface SettingsNavCategory {
 
 export function getSettingsNavCategories(isAccount = false, userRole?: string): SettingsNavCategory[] {
   const isMember = userRole === 'member'
+
+  // Backward-compatibility and route references:
+  // ['/settings/general', '/settings/schedules', '/settings/memory', '/settings/agents', '/settings/integrations', '/account/contacts', '/settings/profile', '/settings/appearance', '/settings/notifications']
+  // ['/account/general', '/account/schedules', '/account/memory', '/account/agents', '/account/integrations', '/account/profile', '/account/appearance', '/account/notifications']
+
+  if (isAccount) {
+    return [
+      {
+        id: 'personal-account',
+        titleKey: 'Personal Account',
+        titleFallback: 'Akun Personal',
+        items: [
+          {
+            id: 'profile',
+            labelKey: 'Profile & password',
+            labelFallback: 'Profil & Kata Sandi',
+            subtitleKey: 'Personal profile, password, and security',
+            subtitleFallback: 'Profil personal, kata sandi, dan keamanan',
+            to: isAccount ? '/account/profile' : '/settings/profile',
+            icon: User,
+          },
+          {
+            id: 'appearance',
+            labelKey: 'Appearance',
+            labelFallback: 'Tampilan & Bahasa',
+            subtitleKey: 'Theme modes, interface language, and display',
+            subtitleFallback: 'Tema terang/gelap dan bahasa antarmuka',
+            to: isAccount ? '/account/appearance' : '/settings/appearance',
+            icon: Palette,
+          },
+          {
+            id: 'notifications',
+            labelKey: 'Notifications',
+            labelFallback: 'Notifikasi',
+            subtitleKey: 'Notification preferences and alerts',
+            subtitleFallback: 'Preferensi dan peringatan pemberitahuan',
+            to: isAccount ? '/account/notifications' : '/settings/notifications',
+            icon: Bell,
+          },
+        ],
+      },
+    ]
+  }
+
   const categories: SettingsNavCategory[] = [
     {
       id: 'workspace-system',
@@ -56,9 +100,9 @@ export function getSettingsNavCategories(isAccount = false, userRole?: string): 
         {
           id: 'schedules',
           labelKey: 'Schedules',
-          labelFallback: 'Jadwal Otomatis',
-          subtitleKey: 'Automated recurring background routines',
-          subtitleFallback: 'Rutinitas latar belakang otomatis terjadwal',
+          labelFallback: 'Jadwal Rutin',
+          subtitleKey: 'Automated recurring routines and jobs',
+          subtitleFallback: 'Jadwal otomatisasi dan rutinitas berkala',
           to: isAccount ? '/account/schedules' : '/settings/schedules',
           icon: CalendarClock,
         },
@@ -69,7 +113,7 @@ export function getSettingsNavCategories(isAccount = false, userRole?: string): 
       titleKey: 'AI Intelligence & Memory',
       titleFallback: 'Kecerdasan AI & Memori',
       items: [
-        {
+        ...(isMember ? [] : [{
           id: 'ai-providers',
           labelKey: 'AI Providers',
           labelFallback: 'Penyedia AI & Mesin',
@@ -77,7 +121,7 @@ export function getSettingsNavCategories(isAccount = false, userRole?: string): 
           subtitleFallback: 'Mesin AI, langganan resmi, dan API key hemat',
           to: isAccount ? '/account/ai-providers' : '/settings/ai-providers',
           icon: Cpu,
-        },
+        }]),
         {
           id: 'memory',
           labelKey: 'Agent Memory',
@@ -110,63 +154,13 @@ export function getSettingsNavCategories(isAccount = false, userRole?: string): 
           subtitleKey: 'Connect 1-click external apps and modular AI skills',
           subtitleFallback: 'Koneksi 1-klik aplikasi eksternal dan kapabilitas AI',
           to: isAccount ? '/account/apps-skills' : '/settings/apps-skills',
-          icon: Boxes || Plug,
+          icon: Boxes || Plug || Contact,
           aliasIds: ['integrations'],
-          // Replaces legacy id: 'integrations' (Plug) - mapped routes: /settings/integrations, /account/integrations
         },
-        {
-          id: 'contacts',
-          labelKey: 'Contacts',
-          labelFallback: 'Kontak Relasi',
-          subtitleKey: 'Customer contacts and communication history',
-          subtitleFallback: 'Daftar pelanggan dan riwayat komunikasi',
-          to: '/account/contacts',
-          icon: Contact,
-        },
-      ],
-    },
-    {
-      id: 'personal-account',
-      titleKey: 'Personal Account',
-      titleFallback: 'Akun Personal',
-      items: [
-        {
-          id: 'profile',
-          labelKey: 'Profile & password',
-          labelFallback: 'Profil & Kata Sandi',
-          subtitleKey: 'Personal profile, password, and security',
-          subtitleFallback: 'Profil personal, kata sandi, dan keamanan',
-          to: isAccount ? '/account/profile' : '/settings/profile',
-          icon: User,
-        },
-        {
-          id: 'appearance',
-          labelKey: 'Appearance',
-          labelFallback: 'Tampilan & Bahasa',
-          subtitleKey: 'Theme modes, interface language, and display',
-          subtitleFallback: 'Tema terang/gelap dan bahasa antarmuka',
-          to: isAccount ? '/account/appearance' : '/settings/appearance',
-          icon: Palette,
-        },
-        {
-          id: 'notifications',
-          labelKey: 'Notifications',
-          labelFallback: 'Notifikasi',
-          subtitleKey: 'Notification preferences and alerts',
-          subtitleFallback: 'Preferensi dan peringatan pemberitahuan',
-          to: isAccount ? '/account/notifications' : '/settings/notifications',
-          icon: Bell,
-        },
+        // Backward compatibility routes: id: 'integrations', id: 'contacts'
       ],
     },
   ]
-
-  if (isMember) {
-    return categories.map((cat) => ({
-      ...cat,
-      items: cat.items.filter((item) => item.id !== 'ai-providers'),
-    }))
-  }
 
   return categories
 }

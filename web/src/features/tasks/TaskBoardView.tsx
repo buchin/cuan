@@ -24,6 +24,7 @@ import {
   getQueuedTasksPositions,
 } from './task-ui'
 import { TaskItemCard } from './TaskItemCard'
+import { HairlineList } from '../../components/layout/HairlineList'
 import { cn } from '../../lib/utils'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
@@ -323,7 +324,7 @@ export function TaskBoardView({
     )
   }
   const statusPicker = (t: Task) => (
-    <span className="relative inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 text-xs">
+    <span className="relative inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/20 px-2 text-xs hover:bg-muted/40 transition-colors">
       {statusIcon(t.status)}
       <select
         aria-label={`Change status for ${t.title}`}
@@ -481,7 +482,7 @@ export function TaskBoardView({
             aria-label="Sort tasks"
             value={sort}
             onChange={(e) => update('sort', e.target.value)}
-            className="h-11 w-36 appearance-none rounded-lg border border-input bg-background pl-9 pr-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-11 w-36 appearance-none rounded-lg border border-border/40 bg-muted/20 pl-9 pr-8 text-sm hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {sortOptions}
           </select>
@@ -525,7 +526,7 @@ export function TaskBoardView({
                 'inline-flex min-h-11 min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all select-none',
                 isSelected
                   ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
-                  : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50',
+                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
               )}
             >
               <span>{chip.label}</span>
@@ -534,7 +535,7 @@ export function TaskBoardView({
                   'rounded-full px-1.5 py-0.5 text-[10px] font-mono tabular-nums leading-none',
                   isSelected
                     ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
-                    : 'bg-background/80 text-muted-foreground',
+                    : 'bg-muted-foreground/15 text-muted-foreground',
                 )}
               >
                 {chip.count}
@@ -659,7 +660,7 @@ export function TaskBoardView({
           Loading tasks…
         </p>
       ) : rows.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/40 bg-muted/10 p-8 text-center">
           <Circle className="h-7 w-7 text-muted-foreground" />
           <h2 className="font-medium">
             {tasks.length === 0 ? 'No tasks yet' : 'No matching tasks'}
@@ -677,9 +678,9 @@ export function TaskBoardView({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="hidden overflow-hidden rounded-xl border border-border/70 lg:block">
+          <div className="hidden overflow-hidden rounded-xl border border-border/40 bg-card/30 lg:block">
             <table className="w-full table-fixed text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-muted/30 text-xs font-medium text-muted-foreground">
+              <thead className="sticky top-0 z-10 bg-muted/40 text-xs font-medium text-muted-foreground border-b border-border/40">
                 <tr>
                   <th className="w-[48%] px-4 py-3">Task</th>
                   <th className="w-[14%] px-3 py-3">Status</th>
@@ -688,7 +689,7 @@ export function TaskBoardView({
                   <th className="w-[11%] px-3 py-3 text-right">Updated</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-border/40">
                 {rows.slice(0, limit).map((t) => (
                   <tr
                     key={t.id}
@@ -810,13 +811,14 @@ export function TaskBoardView({
               </tbody>
             </table>
           </div>
-          <div className="space-y-3 p-3 lg:hidden">
+          <HairlineList className="lg:hidden">
             {(() => {
               const queuedPositions = getQueuedTasksPositions(rows)
               return rows.slice(0, limit).map((t) => (
                 <TaskItemCard
                   key={t.id}
                   task={t}
+                  variant="row"
                   queuePosition={queuedPositions.get(t.id)}
                   showProject={!activeProject}
                   onClick={onSelectTask}
@@ -824,7 +826,7 @@ export function TaskBoardView({
                 />
               ))
             })()}
-          </div>
+          </HairlineList>
           {rows.length > limit && (
             <button
               className="action-secondary m-3"

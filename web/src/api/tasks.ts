@@ -121,6 +121,26 @@ export const tasksApi = {
   },
   cancel: (id: string): Promise<TaskAttempt> =>
     apiFetch(path(id) + '/cancel', { method: 'POST' }),
+  steer: (
+    id: string,
+    prompt: string,
+    author?: string,
+  ): Promise<{ status: string; fallback?: boolean; message?: string }> =>
+    apiFetch<{ status: string; fallback?: boolean; message?: string }>(
+      `/api/v1/tasks/${encodeURIComponent(id)}/steer`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ prompt, author: author || 'user' }),
+      },
+    ).catch(() =>
+      apiFetch<{ status: string; fallback?: boolean; message?: string }>(
+        `/api/v1/runner/attempts/${encodeURIComponent(id)}/steer`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ prompt, author: author || 'user' }),
+        },
+      ),
+    ),
   runtime: (
     id: string,
   ): Promise<{

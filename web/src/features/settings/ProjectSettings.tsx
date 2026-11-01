@@ -69,7 +69,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <textarea id="project-instructions" className="field-control min-h-28 resize-y py-3" rows={4} maxLength={4000} disabled={busy} value={form.instructions} onChange={event => change('instructions', event.target.value)} placeholder={t('Preferences, constraints, or context Cuan should remember.')} />
         <p className="text-xs text-muted-foreground">{t('Applies to new tasks. Existing tasks keep their original instructions.')}</p>
       </div>
-      <div className="flex items-center justify-between rounded-lg border bg-muted/10 p-3 sm:p-4">
+      <div className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/20 p-4">
         <div className="space-y-0.5">
           <label htmlFor="project-auto-deploy" className="text-sm font-medium">{t('Auto-deploy completed tasks to live server')}</label>
           <p className="text-xs text-muted-foreground">{t('When enabled (recommended), changes verified by Scrum Master are automatically deployed live. You can override this per task.')}</p>
@@ -77,7 +77,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <input
           id="project-auto-deploy"
           type="checkbox"
-          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
           checked={form.auto_deploy}
           disabled={busy}
           onChange={event => change('auto_deploy', event.target.checked)}
@@ -90,12 +90,12 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
           <h2 className="text-sm font-semibold">{t('Repository')}</h2>
           <p className="text-sm leading-6 text-muted-foreground">{t('Connect a repository to keep this project’s files and version history together.')}</p>
         </div>
-        {form.repo_url ? <div className="rounded-lg border bg-muted/20 p-4">
+        {form.repo_url ? <div className="rounded-xl border border-border/40 bg-muted/20 p-4">
           <p className="text-xs text-muted-foreground">{t(form.repo_url === baseline.repo_url ? 'Connected repository' : 'Selected repository')}</p>
           <p className="mt-1 break-all text-sm font-medium">{form.repo_url.replace(/^https?:\/\/(?:www\.)?github\.com\//i, '').replace(/\.git$/, '')}</p>
         </div> : <p className="text-sm text-muted-foreground">{t('No repository connected. This project can still work without one.')}</p>}
         <GitHubRepositoryPicker disabled={busy} onSelect={url => { setForm(old => ({ ...old, repo_url: url, default_branch: url === baseline.repo_url ? baseline.default_branch : '' })); setNotice(''); setError('') }} />
-        <details className="border-t pt-2">
+        <details className="border-t border-border/40 pt-2">
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{t('Advanced')}</summary>
         <div className="space-y-4 pb-3 pt-2">
           <div className="space-y-2"><label htmlFor="project-repository" className="text-sm font-medium">{t('Repository URL')}</label>

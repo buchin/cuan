@@ -152,4 +152,22 @@ Mulai Sprint 57, antarmuka obrolan Conversational Inbox dilengkapi dengan umpan 
 - **Visual Indicator Ramah Bisnis:** Menyajikan widget status kesehatan daemon `cuan-runner` di halaman Pengaturan (`WorkerHealthCard`), dilengkapi lampu indikator visual (Hijau = Aktif/Siap, Kuning = Sedang Memproses, Merah/Abu-abu = Perhatian/Tidak Aktif).
 - **Kedalaman Antrean:** Menampilkan metrik antrean tugas (*queued*, *running*, dan *queue depth*) serta detak jantung (*heartbeat*) terakhir dari worker secara seketika via endpoint `GET /api/system/worker-health`.
 
+---
+
+## 8. Chat UI De-clutter & Mobile Task Card Maximization (Sprint 58)
+
+Mulai Sprint 58, tata letak antarmuka obrolan Conversational Inbox ditingkatkan lebih jauh menjadi lebih bersih, lapang, dan ramah pengguna ponsel pintar (*mobile-first*):
+
+### 8.1 Eliminasi Redundansi Floating Banner & Padding Kompensasi
+- **Penghapusan `TaskProgressBanner.tsx`:** Mengeliminasi komponen banner mengambang ganda di bagian atas viewport obrolan yang sebelumnya memakan ruang vertikal berharga di layar ponsel.
+- **Penghapusan Padding Kompensasi `pt-14`:** Kontainer pesan obrolan kini memiliki padding natural (`px-3 py-3 sm:px-6 sm:py-4`) tanpa lonjakan tata letak artifisial (*zero layout shifts*) saat tugas aktif berganti status.
+- **Scroll Halus & Menempel di Bawah (*Stick-to-Bottom Auto-Scroll*):** Aliran obrolan bergulir mulus dan mempertahankan posisi baca yang nyaman tanpa terputus atau terhalang elemen mengambang.
+
+### 8.2 Maksimalisasi Siklus Hidup Mandiri pada `TaskCard`
+- **Penanganan Siklus Utuh dalam Aliran Obrolan:** Komponen `TaskCard` di thread pesan obrolan kini menangani seluruh siklus tugas secara mandiri dari awal hingga akhir:
+  - **Status Antrean (`queued`):** Menampilkan lencana status antrean dengan indikator denyut amber (*amber pulse*), pesan status antrean (`Menunggu antrean worker…`), dan penghitung waktu tunggu berjalan.
+  - **Status Eksekusi (`running` / `doing`):** Menampilkan indikator denyut biru (*blue ping pulse*), timer durasi pengerjaan berjalan seketika (*live duration timer* dengan ikon `Clock` dan interval pembaruan 1 detik), serta ringkasan aktivitas aktif (`taskLiveActivityText`).
+  - **Transisi Mulus ke `TaskCompletionCard`:** Saat tugas selesai (`done` atau `review`), `TaskCard` bertransisi secara mulus (*smooth transition with fade-in animation*) menjadi `TaskCompletionCard` interaktif yang menampilkan ringkasan bisnis bebas jargon, rekap checklist kriteria DoD, serta tombol pintas "Lanjutkan Diskusi" dan "Buka Detail Tugas".
+- **Polling Mandiri:** `TaskCard` yang terpasang di thread percakapan secara otomatis memperbarui statusnya setiap 3.5 detik saat tugas sedang aktif (*in-flight*), menjamin transisi otomatis ke kartu penyelesaian tanpa me-reload halaman.
+
 

@@ -4,13 +4,12 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ReloadButton } from '../ui/ReloadButton'
 import {
-  CalendarClock,
   Keyboard,
   LogOut,
   KeyRound,
   MoreHorizontal,
   Settings,
-  Users,
+  Globe,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -34,7 +33,7 @@ export function NavUser({
   bottomNavigation = false,
   active = false,
 }: NavUserProps) {
-  const { t } = useLanguage()
+  const { t, language, setPreference } = useLanguage()
 
   const navigate = useNavigate()
   const compact = isCollapsed || (sidebar && collapsed)
@@ -87,6 +86,7 @@ export function NavUser({
         <button
           type="button"
           ref={triggerRef}
+          data-testid={bottomNavigation ? 'bottom-nav-user-button' : undefined}
           aria-label={t('Account menu')}
           aria-expanded={menuOpen}
           aria-current={active ? 'page' : undefined}
@@ -210,17 +210,6 @@ export function NavUser({
               <KeyRound className="h-4 w-4 text-primary shrink-0" />
               <span>{t('Profile & password')}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false)
-                navigate('/account/contacts')
-              }}
-              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
-            >
-              <Users className="h-4 w-4 text-primary shrink-0" />
-              <span>{t('Contacts')}</span>
-            </button>
 
             <div className="h-px bg-border my-1" />
 
@@ -242,14 +231,18 @@ export function NavUser({
             </button>
             <button
               type="button"
-              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
+              data-testid="navuser-language-toggle"
               onClick={() => {
-                setMenuOpen(false)
-                navigate('/settings/schedules')
+                const next = language === 'id' ? 'en' : 'id'
+                setPreference(next)
               }}
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
             >
-              <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span>{t('Schedules')}</span>
+              <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>{t('Language')}</span>
+              <span className="ml-auto text-xs font-mono font-medium text-muted-foreground">
+                {language === 'id' ? 'Bahasa Indonesia' : 'English'}
+              </span>
             </button>
             {!bottomNavigation && (
               <button

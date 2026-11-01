@@ -36,6 +36,7 @@ func (s *Server) registerTaskRoutes(pr chi.Router) {
 	pr.Post("/tasks/{id}/retry", s.handleRetryTask)
 	pr.Post("/tasks/{id}/apply", s.handleApplyTask)
 	pr.Get("/tasks/{id}/attempts/{attemptId}/logs", s.handleGetAttemptLogs)
+	pr.Post("/tasks/{id}/steer", s.handleTaskSteer)
 	pr.Post("/tasks/{id}/files", s.handleUploadTaskFile)
 	pr.Get("/tasks/{id}/files/raw", s.handleGetTaskWorkspaceFile)
 	pr.Get("/tasks/{id}/usage", s.handleGetTaskUsage)
@@ -577,6 +578,140 @@ func (s *Server) handleRunnerStreamLogs(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) handleRunnerGetStreamLogs(w http.ResponseWriter, r *http.Request) {
+	attemptID := chi.URLParam(r, "id")
+	att, err := s.taskSvc.GetAttempt(r.Context(), attemptID)
+	if err != nil || att == nil {
+		respondJSONError(w, http.StatusNotFound, "Attempt not found")
+		return
+	}
+
+	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
+	if afterID == 0 {
+		offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
+		if offset > 0 {
+			afterID = offset
+		}
+	}
+
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
+
+	logs, err := s.taskSvc.GetAttemptLogs(r.Context(), attemptID, afterID, limit)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get logs: %v", err))
+		return
+	}
+	if logs == nil {
+		logs = []*task.LogRecord{}
+	}
+
+	nextOffset := afterID
+	if len(logs) > 0 {
+		nextOffset = logs[len(logs)-1].ID
+	}
+
+	isFinal := att.Status != task.AttemptStatusQueued && att.Status != task.AttemptStatusRunning
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"attempt_id": attemptID,
+		"status":     att.Status,
+		"is_final":   isFinal,
+		"offset":     nextOffset,
+		"total":      len(logs),
+		"logs":       logs,
+	})
+}
+
+func (s *Server) handleRunnerSteer(w http.ResponseWriter, r *http.Request) {
+	attemptID := chi.URLParam(r, "id")
+	var req runner.SteerAttemptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(req.Prompt) == "" {
+		respondJSONError(w, http.StatusBadRequest, "prompt is required")
+		return
+	}
+
+	if req.Author == "" {
+		if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+			req.Author = owner.Email
+		} else {
+			req.Author = "user"
+		}
+	}
+
+	if s.runnerSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "runner service not available")
+		return
+	}
+
+	resp, err := s.runnerSvc.Steer(r.Context(), attemptID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			respondJSONError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleTaskSteer(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req runner.SteerAttemptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(req.Prompt) == "" {
+		respondJSONError(w, http.StatusBadRequest, "prompt is required")
+		return
+	}
+
+	if req.Author == "" {
+		if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+			req.Author = owner.Email
+		} else {
+			req.Author = "user"
+		}
+	}
+
+	if s.runnerSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "runner service not available")
+		return
+	}
+
+	attemptID := id
+	if s.taskSvc != nil {
+		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), id); err == nil && detail != nil {
+			if detail.LatestAttempt != nil && detail.LatestAttempt.ID != "" {
+				attemptID = detail.LatestAttempt.ID
+			}
+		}
+	}
+
+	resp, err := s.runnerSvc.Steer(r.Context(), attemptID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			respondJSONError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, resp)
+}
+
 func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 	attemptID := chi.URLParam(r, "id")
 	var req runner.CompleteAttemptRequest
@@ -590,6 +725,9 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to complete attempt: %v", err))
 		return
 	}
+
+	// Trigger autonomous scrum engine for attempt completion
+	s.onRunnerAttemptCompleted(r.Context(), att)
 
 	respondJSON(w, http.StatusOK, att)
 }

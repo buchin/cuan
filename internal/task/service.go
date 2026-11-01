@@ -910,12 +910,29 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, author string, r
 		if latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued {
 			return nil, fmt.Errorf("%w: task is running or already queued", ErrInvalidTaskInput)
 		}
-		if latest.AttemptNumber > 0 {
-			nextAttemptNum = latest.AttemptNumber + 1
-		} else {
-			attempts, _ := s.store.ListAttempts(ctx, taskID)
-			nextAttemptNum = len(attempts) + 1
+		attempts, _ := s.store.ListAttempts(ctx, taskID)
+		businessCount := 0
+		for _, a := range attempts {
+			if a == nil || a.Status == AttemptStatusCanceled || a.CancelRequested || a.CanceledAt != nil {
+				continue
+			}
+			if a.Status == AttemptStatusInterrupted {
+				continue
+			}
+			var ec int
+			if a.ExitCode != nil {
+				ec = *a.ExitCode
+			}
+			if ec == 137 || ec == 143 {
+				continue
+			}
+			errLower := strings.ToLower(a.ErrorMessage)
+			if strings.Contains(errLower, "lease expired") || strings.Contains(errLower, "heartbeat lost") || strings.Contains(errLower, "runner killed") || strings.Contains(errLower, "runner restart") || strings.Contains(errLower, "connection lost") || strings.Contains(errLower, "interrupted") {
+				continue
+			}
+			businessCount++
 		}
+		nextAttemptNum = businessCount + 1
 	}
 
 	if runnerID == "" {
@@ -1091,12 +1108,31 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 			continue
 		}
 
-		// Check 1: Exceeded hard timeout (> 20 minutes)
+		// Check 1: Exceeded timeout (pruned 5m for investigation/readonly tasks, default 20m for code tasks)
+		taskTimeout := timeout
+		combinedMeta := strings.ToLower(t.Title + " " + t.Instructions)
+		if t.ExecutionCategory == ExecutionCategoryReadOnly ||
+			(t.ExecutionCategory != ExecutionCategoryCode && (strings.Contains(combinedMeta, "investigasi") ||
+				strings.Contains(combinedMeta, "investigation") ||
+				strings.Contains(combinedMeta, "rca") ||
+				strings.Contains(combinedMeta, "analisis"))) {
+			taskTimeout = 5 * time.Minute
+		}
 		startTime := a.CreatedAt
 		if a.StartedAt != nil && !a.StartedAt.IsZero() {
 			startTime = *a.StartedAt
 		}
-		exceededTimeout := now.Sub(startTime) > timeout
+		exceededTimeout := now.Sub(startTime) > taskTimeout
+
+		// If a decoupled runner is actively heartbeating with an active lease,
+		// allow up to a 2-minute grace period so it is not reaped while finalizing.
+		if exceededTimeout && a.RunnerID != "" && a.RunnerID != "local_terminal" {
+			if a.LeaseExpiresAt != nil && now.Before(*a.LeaseExpiresAt) {
+				if now.Sub(startTime) <= taskTimeout+2*time.Minute {
+					exceededTimeout = false
+				}
+			}
+		}
 
 		// Check 2: OS process is dead (only for local_terminal attempts currently running;
 		// decoupled runner daemon attempts are tracked via lease heartbeats, not local terminalManager)

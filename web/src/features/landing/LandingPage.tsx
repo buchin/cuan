@@ -16,6 +16,12 @@ import {
   Volume2,
   Activity,
   Cpu,
+  Radio,
+  Compass,
+  Layers,
+  Users,
+  Calendar,
+  Terminal,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -79,7 +85,11 @@ export function LandingPage() {
           aria-labelledby="landing-title"
         >
           <div>
-            <p className="mb-5 text-sm font-medium text-muted-foreground">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>{t('Calm & Layered UI System · Things 3 & Bear Notes Inspired')}</span>
+            </div>
+            <p className="mb-4 text-sm font-medium text-muted-foreground">
               {t('Your always-on project manager.')}
             </p>
             <h1
@@ -240,9 +250,59 @@ export function LandingPage() {
           <div className="mt-8 grid gap-x-8 gap-y-7 sm:grid-cols-2">
             {[
               {
+                Icon: CheckCircle2,
+                title: 'Smart Auto-Deploy Gate, Dual-Channel Envelope & 1-Click Actionable Draft.',
+                text: 'Intelligent conditional deployment gate distinguishing code-fixes from investigations, dual-channel output envelopes with zero technical jargon, and hybrid actionable task cards with 1-click visitor draft insertion.',
+              },
+              {
+                Icon: Users,
+                title: '5-Pillar Navigation: Chat, Tasks, Projects, Contacts, User Profile.',
+                text: 'Ergonomic bottom navigation bringing primary workflows into instant reach, accompanied by header quick access [⋮] for Agents, Schedules, and Settings.',
+              },
+              {
+                Icon: Terminal,
+                title: 'Pure Live PTY Terminal, Deep Payload Formatter & Mobile Safe-Area Ergonomics.',
+                text: 'Pure full-viewport xterm.js terminal with deep runner payload parsing (human-readable action cards), graceful stream resilience on decoupled runners, calm Things 3 status indicator, mid-run steering bridge, and comfortable mobile safe-area touch ergonomics.',
+              },
+              {
+                Icon: Zap,
+                title: 'Autonomous Scrum Engine with AGENTS.md Injection.',
+                text: 'Proactive event listener evaluates Definition of Done criteria, executes adaptive self-healing retries, and injects repository rules (§1–§13) directly into AI system prompts.',
+              },
+              {
+                Icon: Calendar,
+                title: 'Consolidated Schedules in Settings.',
+                text: 'All routine automation and background cron schedules organized cleanly in /settings/schedules, eliminating sidebar clutter and mental friction.',
+              },
+              {
                 Icon: MessageSquare,
-                title: 'One conversation, with context.',
-                text: 'Keep the goal, decisions and updates together. Open the underlying work whenever you need more detail.',
+                title: 'Borderless Chat Canvas & Floating Soft Surface Composer.',
+                text: 'Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.',
+              },
+              {
+                Icon: Mail,
+                title: 'Apple Mail & Bear Inset List in Inbox.',
+                text: '3-tier conversation list with sender and tabular-nums time, Geist typography subject with micro-indicator StatusDot, 2-line snippet in muted zinc-400, hairline dividers, and zero screen-wide quick bar clutter.',
+              },
+              {
+                Icon: MessageSquare,
+                title: 'Calm Low-Contrast Chat Bubbles & Quiet Dividers.',
+                text: 'Monochromatic micro-tint chat bubbles, quiet muted date dividers with zero solid white pill glare, and borderless inline status and task cards.',
+              },
+              {
+                Icon: Sparkles,
+                title: 'SlideDrawer Progressive Disclosure.',
+                text: 'Tap task references directly inside chat bubbles to slide open rich task inspection on the right without interrupting or obscuring the conversation stream.',
+              },
+              {
+                Icon: CheckCircle2,
+                title: 'Things 3 Task Rows & Bear Notes Stream.',
+                text: 'Inspired by Things 3 and Bear Notes. Pure task rows with zero loud buttons, glitch-free mobile render, zero nested cards, progressive disclosure drawers, and peaceful typography.',
+              },
+              {
+                Icon: Compass,
+                title: 'Clean Account vs Settings Separation.',
+                text: 'Personal profile, appearance, and notifications cleanly isolated in /account with Apple-style grouped rows; workspace AI models, memory, and team config in /settings.',
               },
               {
                 Icon: Bell,
@@ -276,8 +336,8 @@ export function LandingPage() {
               },
               {
                 Icon: Sparkles,
-                title: 'Real-time task progress & actionable completion cards.',
-                text: 'Instant visual feedback with floating live progress chips and live duration timers during execution, followed by jargon-free completion cards embedded in chat.',
+                title: 'De-cluttered chat & self-contained task cards.',
+                text: 'Clean, distraction-free chat with self-contained task cards handling queued states, live pulse & duration timers, and seamless transitions to actionable completion cards.',
               },
               {
                 Icon: Volume2,
@@ -290,14 +350,26 @@ export function LandingPage() {
                 text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
               },
               {
+              {
                 Icon: Cpu,
                 title: 'Atomic execution engine & DoD evaluation.',
                 text: 'Ultra-reliable state machine and automated Definition of Done evaluation run lightning-fast in isolated packages, guaranteeing zero timeout and robust task completion.',
               },
               {
+                Icon: Radio,
+                title: 'Real-time log streaming & interactive steering.',
+                text: 'Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.',
+              },
+              },
+              {
                 Icon: Clock,
                 title: 'Zero-interruption worker & proactive chat.',
                 text: 'Decoupled worker runs independently with progressive timeouts. Once completed, friendly zero-jargon updates and strategic next steps arrive in your chat.',
+              },
+              {
+                Icon: Layers,
+                title: 'Adaptive tool budgeting & deep project inspection.',
+                text: 'Chat agents inspect codebases, repositories, and data without hitting premature turn quotas. Adaptive batching and loop guards prevent cut-off responses.',
               },
             ].map(({ Icon, title, text }) => (
               <div key={title} className="border-t border-border pt-5">

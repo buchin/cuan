@@ -98,7 +98,7 @@ export function AIProvidersView() {
       ...prev,
       [provider.id]: {
         type: 'success',
-        text: t('Berhasil dijadikan default toko. Seluruh agen otomatis menggunakan {name}.').replace(
+        text: t('Berhasil dijadikan default ruang kerja. Seluruh agen otomatis menggunakan {name}.').replace(
           '{name}',
           provider.name
         ),
@@ -223,40 +223,29 @@ export function AIProvidersView() {
 
   return (
     <div className="space-y-6">
-      {/* Overview & Store Default Hero Banner */}
-      <section className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-background to-accent/10 p-5 md:p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1.5 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
-              <Zap className="h-3.5 w-3.5" />
-              <span>{t('Arsitektur Dual-Mode & Zero-Friction')}</span>
-            </div>
-            <h3 className="text-xl font-bold tracking-tight text-foreground">
-              {t('Penyedia AI & Mesin Cerdas')}
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {t(
-                'Set Sekali, Jalan Semua. Pilih penyedia AI default untuk toko Anda, atau gunakan akun langganan resmi & API Key hemat langsung tanpa perlu membuka terminal.'
-              )}
-            </p>
-          </div>
+      {/* Calm Header & Workspace Default Status */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/40">
+        <div>
+          <h3 className="text-base sm:text-lg font-semibold text-foreground">
+            {t('Penyedia AI & Mesin Cerdas')}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {t(
+              'Set Sekali, Jalan Semua. Pilih penyedia AI default untuk ruang kerja Anda, atau gunakan akun langganan resmi & API Key hemat langsung tanpa perlu membuka terminal.'
+            )}
+          </p>
+        </div>
 
-          <div className="shrink-0 flex flex-col sm:items-end justify-center gap-1.5 bg-card/60 backdrop-blur-xs p-3.5 rounded-lg border border-border">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              {t('Default Toko Saat Ini')}
-            </span>
-            <div className="flex items-center gap-2">
-              <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
-              <span className="text-base font-bold text-foreground">
-                {defaultProviderObj ? defaultProviderObj.name : defaultProvider || 'Google Gemini'}
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {t('Semua agen otomatis memakai engine ini')}
+        <div className="shrink-0 flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1.5 text-xs">
+          <span className="text-muted-foreground font-medium">{t('Default Ruang Kerja Saat Ini')}:</span>
+          <div className="flex items-center gap-1.5">
+            <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+            <span className="font-semibold text-foreground">
+              {defaultProviderObj ? defaultProviderObj.name : defaultProvider || 'Google Gemini'}
             </span>
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Global Error Banner */}
       {error && (
@@ -319,10 +308,10 @@ export function AIProvidersView() {
           return (
             <article
               key={provider.id}
-              className={`flex flex-col justify-between rounded-xl border bg-card transition-all shadow-xs ${
+              className={`flex flex-col justify-between rounded-xl border bg-card transition-all shadow-2xs ${
                 isStoreDefault
-                  ? 'border-primary ring-2 ring-primary/20 shadow-md'
-                  : 'border-border hover:border-border/80'
+                  ? 'border-primary/60 bg-card shadow-xs'
+                  : 'border-border/70 hover:border-border'
               }`}
             >
               {/* Card Header */}
@@ -374,7 +363,7 @@ export function AIProvidersView() {
                   {isStoreDefault && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 text-primary px-2.5 py-1 text-xs font-semibold">
                       <Star className="h-3.5 w-3.5 fill-current" />
-                      {t('Default Toko')}
+                      {t('Default Ruang Kerja')}
                     </span>
                   )}
                 </div>
@@ -697,7 +686,7 @@ export function AIProvidersView() {
                     className={`h-4 w-4 ${isStoreDefault ? 'fill-primary text-primary' : 'text-muted-foreground'}`}
                   />
                   <span>
-                    {isStoreDefault ? t('Default Toko Aktif') : t('Jadikan Default Toko')}
+                    {isStoreDefault ? t('Default Ruang Kerja Aktif') : t('Jadikan Default Ruang Kerja')}
                   </span>
                 </button>
 

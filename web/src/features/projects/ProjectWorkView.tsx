@@ -71,13 +71,13 @@ export function ProjectWorkView({
       : `/projects/${encodeURIComponent(project.id)}/tasks`
 
   useEffect(() => {
-    if (taskId && isDetailView) {
-      navigate(`/tasks/${encodeURIComponent(taskId)}${location.search}`, {
+    if (taskId) {
+      navigate(`/tasks/${encodeURIComponent(taskId)}${sessionId ? '/sessions/' + encodeURIComponent(sessionId) : ''}${location.search}`, {
         replace: true,
         state: { ...location.state, taskReturnTo: backURL },
       })
     }
-  }, [taskId, isDetailView, location.search, location.state, backURL, navigate])
+  }, [taskId, sessionId, location.search, location.state, backURL, navigate])
 
   const [directTask, setDirectTask] = useState<Task | null>(null)
   const [directLoading, setDirectLoading] = useState(false)
@@ -377,13 +377,13 @@ export function ProjectWorkView({
                     {
                       label: 'Open task',
                       run: () =>
-                        navigate(base + '/' + encodeURIComponent(item.id), {
+                        navigate('/tasks/' + encodeURIComponent(item.id), {
                           state: { ...location.state, taskReturnTo: base },
                         }),
                     },
                     {
                       label: 'Copy link',
-                      run: () => copyItemLink(base + '/' + encodeURIComponent(item.id)),
+                      run: () => copyItemLink('/tasks/' + encodeURIComponent(item.id)),
                     },
                   ]}
                 >

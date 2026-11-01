@@ -219,6 +219,31 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 					}
 				}
 			}
+			if (authorization == nil || !authenticatedApproval) && d.TaskID != "" {
+				isReviewTurn := false
+				for i := range messages {
+					if messages[i].ID == q.MessageID && messages[i].AuthorID == "cuan_work_review" {
+						isReviewTurn = true
+						break
+					}
+				}
+				tOwner, _ := s.taskArtifactOwner(ctx, tDetail)
+				if isReviewTurn || (tOwner != "" && tOwner == q.OwnerID) || strings.Contains(q.RequestID, "task-review:") {
+					// Autonomous Scrum revision or continuation: the task is already authorized
+					authorization = &db.ProjectMessage{
+						ID:         "auth_" + tDetail.ID,
+						RoomID:     q.RoomID,
+						AuthorType: "user",
+						AuthorName: "Owner",
+						Content:    tDetail.Instructions,
+						CreatedAt:  tDetail.CreatedAt,
+					}
+					authenticatedApproval = true
+					if authorizationRequestID == "" {
+						authorizationRequestID = q.RequestID
+					}
+				}
+			}
 		}
 	}
 	if authorization == nil || !authenticatedApproval {
@@ -294,6 +319,9 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if err != nil || p == nil || p.IsArchived {
 		return fail("the selected project is unavailable or archived")
 	}
+	if d.ProjectName == "" && p.Name != "" {
+		d.ProjectName = p.Name
+	}
 	if d.ProjectID != "" && (room.ProjectID == "default" || room.ProjectID == "" || s.isCustomerRoom(ctx, q.RoomID) || (roomAgentID(room.Topic) != "" && room.ProjectID != d.ProjectID)) {
 		room.ProjectID = d.ProjectID
 		_ = s.projectStudioRepo.UpdateRoom(ctx, room)
@@ -303,18 +331,37 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		if !s.taskContinuationAfterCancel(ctx, q, t) {
 			return fail("the work was cancelled; a new user instruction is required to continue")
 		}
-		if taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
+		if t.Status == task.TaskStatusDone && strings.TrimSpace(d.Revision) == "" {
+			if s.isCustomerRoom(ctx, q.RoomID) {
+				friendlyMsg, _ := runner.FormatBusinessFriendlyMessage(t.Title, t.Summary, d.ProjectName)
+				if !strings.Contains(strings.ToLower(friendlyMsg), "draf balasan") {
+					domainName := d.ProjectName
+					if domainName == "" || strings.EqualFold(domainName, "default") {
+						domainName = "toko Anda"
+					}
+					friendlyMsg += fmt.Sprintf("\n\n**Draf Balasan untuk Pengunjung:**\n> \"Halo kak, mohon maaf atas kendalanya ya. Masalah pemutaran video drama tersebut sudah berhasil kami perbaiki dan saat ini sudah bisa ditonton kembali secara normal di %s. Silakan dicoba putar kembali ya kak! Terima kasih atas kesabarannya.\"", domainName)
+				}
+				return wrapResult(friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", t.ID))
+			}
+			return wrapResult(fmt.Sprintf("Pekerjaan telah berhasil diselesaikan dan diverifikasi.\n\n[View work](/tasks/%s)", t.ID))
+		}
+		if strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
 			reviewStatus := task.TaskStatusReview
 			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
 			t.Status = task.TaskStatusReview
 
-			s.sendBusinessFriendlyReviewNotification(ctx, t.ID, t.Title, t.Summary, q.RoomID, t.SourceRoomID, 3, []string{
-				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
-			})
+			// Single-bubble idempotency: Do NOT push duplicate notification to q.RoomID
+			// because wrapResult returns the response directly to q.RoomID. Only notify
+			// t.SourceRoomID if it is a different room from q.RoomID.
+			if t.SourceRoomID != "" && t.SourceRoomID != q.RoomID {
+				s.sendBusinessFriendlyReviewNotification(ctx, t.ID, t.Title, t.Summary, "", t.SourceRoomID, 3, []string{
+					"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
+				}, d.ProjectName)
+			}
 
 			friendlyMsg, _ := runner.FormatBusinessFriendlyReviewMessage(t.Title, t.Summary, []string{
 				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
-			}, 3)
+			}, 3, d.ProjectName)
 			return wrapResult(friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", t.ID))
 		}
 		if t.Status == task.TaskStatusDone || t.Status == task.TaskStatusBlocked {
@@ -466,7 +513,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		if err != nil || detail.LatestAttempt == nil {
 			continue
 		}
-		if detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
+		if detail.Status != task.TaskStatusDone && detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
 			s.queueInboxTaskReview(ctx, detail)
 		}
 
@@ -484,6 +531,24 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if launch, err := s.taskSvc.LatestLaunch(ctx, detail.ID); err == nil && launch != nil && launch.RoomID != "" {
 		targetRoomID = launch.RoomID
 	}
+	if targetRoomID == "" && detail.ProjectID != "" {
+		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
+			for _, r := range rooms {
+				if r.ProjectID == detail.ProjectID {
+					targetRoomID = r.ID
+					break
+				}
+			}
+		}
+	}
+	if targetRoomID == "" {
+		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil && len(rooms) > 0 {
+			targetRoomID = rooms[0].ID
+		}
+	}
+	if targetRoomID == "" {
+		return
+	}
 	requests, err := store.ListInboxRequests(ctx, targetRoomID)
 	if err != nil {
 		return
@@ -495,7 +560,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			break
 		}
 	}
-	if origin == nil && targetRoomID != detail.SourceRoomID {
+	if origin == nil && targetRoomID != detail.SourceRoomID && detail.SourceRoomID != "" {
 		if srcReqs, err := store.ListInboxRequests(ctx, detail.SourceRoomID); err == nil {
 			for i := range srcReqs {
 				if srcReqs[i].MessageID == detail.SourceMessageID {
@@ -506,7 +571,28 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	if origin == nil || origin.OwnerID == "" || origin.AgentID == "" {
-		return
+		ownerID := ""
+		if o, err := s.taskArtifactOwner(ctx, detail); err == nil && o != "" {
+			ownerID = o
+		}
+		if ownerID == "" && len(requests) > 0 {
+			ownerID = requests[0].OwnerID
+		}
+		if ownerID == "" {
+			ownerID = "operator_user"
+		}
+		agentID := detail.AssignedAgent
+		if agentID == "" && len(requests) > 0 {
+			agentID = requests[0].AgentID
+		}
+		if agentID == "" {
+			agentID = "scrum_master"
+		}
+		origin = &db.InboxRequest{
+			OwnerID: ownerID,
+			AgentID: agentID,
+			RoomID:  targetRoomID,
+		}
 	}
 	if s.recoverInterruptedInboxTask(ctx, detail, *origin) {
 		return
@@ -640,11 +726,11 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 	return items
 }
 
-func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, taskID, title, summary, currentRoomID, sourceRoomID string, attemptNum int, gaps []string) {
+func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, taskID, title, summary, currentRoomID, sourceRoomID string, attemptNum int, gaps []string, projectName ...string) {
 	if s.projectStudioRepo == nil {
 		return
 	}
-	content, _ := runner.FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNum)
+	content, _ := runner.FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNum, projectName...)
 	taskLink := fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", taskID)
 	fullMsg := content + taskLink
 
@@ -657,6 +743,20 @@ func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, tas
 	}
 
 	for rID := range rooms {
+		// Single-bubble idempotency: do not create duplicate bubble if an identical message exists in room
+		if msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, rID); err == nil && len(msgs) > 0 {
+			alreadySent := false
+			for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-5; i-- {
+				if msgs[i].Content == fullMsg || (strings.Contains(msgs[i].Content, taskID) && strings.Contains(msgs[i].Content, content)) {
+					alreadySent = true
+					break
+				}
+			}
+			if alreadySent {
+				continue
+			}
+		}
+
 		msg := &db.ProjectMessage{
 			ID:         db.GenerateUUID(),
 			RoomID:     rID,

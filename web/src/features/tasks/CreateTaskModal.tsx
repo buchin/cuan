@@ -165,7 +165,7 @@ export function CreateTaskModal({
         e.preventDefault()
         close()
       }}
-      className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-xl overflow-y-auto rounded-2xl border bg-card p-4 text-card-foreground shadow-2xl backdrop:bg-black/50 sm:p-6"
+      className="m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-xl overflow-y-auto rounded-2xl border border-border/40 bg-card/95 backdrop-blur-md p-4 text-card-foreground shadow-2xl backdrop:bg-black/50 sm:p-6"
     >
       <header className="mb-4 flex items-center justify-between gap-3">
         <h2 id="create-task-heading" className="text-lg font-semibold">
@@ -185,7 +185,7 @@ export function CreateTaskModal({
         <span className="text-xs text-muted-foreground">Project</span>
         <select
           aria-label="Project"
-          className="min-h-11 min-w-0 max-w-[70%] rounded-md border border-input bg-background px-3 text-sm"
+          className="min-h-11 min-w-0 max-w-[70%] rounded-lg border border-border/40 bg-muted/20 px-3 text-sm hover:bg-muted/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
           value={draft.project}
           onChange={(e) => change({ project: e.target.value })}
           disabled={loading}
@@ -259,7 +259,7 @@ export function CreateTaskModal({
           }
         }}
       >
-        <div className="overflow-hidden rounded-xl border bg-background focus-within:ring-2 focus-within:ring-ring">
+        <div className="overflow-hidden rounded-xl border border-border/40 bg-muted/20 focus-within:border-border/60 focus-within:bg-muted/30 transition-colors focus-within:ring-2 focus-within:ring-ring">
           <textarea
             ref={input}
             aria-label="Task instructions"
@@ -289,7 +289,7 @@ export function CreateTaskModal({
               <span className="sr-only">Agent</span>
               <select
                 aria-label="Agent"
-                className="min-h-11 min-w-0 max-w-[150px] rounded-md border border-input bg-card px-2 text-xs sm:max-w-[240px]"
+                className="min-h-11 min-w-0 max-w-[150px] rounded-lg border border-border/40 bg-card/60 px-2.5 text-xs sm:max-w-[240px] hover:bg-card transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={draft.agent}
                 onChange={(e) => change({ agent: e.target.value })}
                 disabled={loading || agentsLoading}

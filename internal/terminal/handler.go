@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -181,13 +182,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Negotiate subprotocol if requested
+	responseHeader := make(http.Header)
+	for _, sub := range websocket.Subprotocols(r) {
+		if sub == "cuan-terminal" {
+			responseHeader.Set("Sec-WebSocket-Protocol", "cuan-terminal")
+			break
+		}
+	}
+
 	// 5. Retrieve or spawn terminal session
 	var session *Session
 	var err error
 	if h.attachOnly || q.Get("attach") == "1" {
 		var found bool
-		session, found = h.mgr.GetSession(taskID)
+		if h.mgr != nil {
+			session, found = h.mgr.GetSession(taskID)
+		}
 		if !found {
+			// Check if decoupled cuan-runner has an active PTY socket for this task
+			if SocketExists(taskID) {
+				h.proxySocketToWebSocket(w, r, taskID, responseHeader)
+				return
+			}
 			http.Error(w, "No live session. Start a task explicitly or open saved output.", http.StatusNotFound)
 			return
 		}
@@ -198,24 +215,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		session, err = h.mgr.GetOrCreateSession(r.Context(), taskID, clientMode, cols, rows)
+		if h.mgr != nil {
+			session, err = h.mgr.GetOrCreateSession(r.Context(), taskID, clientMode, cols, rows)
+		}
 	}
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to initialize pty session: %v", err), http.StatusInternalServerError)
+	if session == nil {
+		if SocketExists(taskID) {
+			h.proxySocketToWebSocket(w, r, taskID, responseHeader)
+			return
+		}
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to initialize pty session: %v", err), http.StatusInternalServerError)
+		} else {
+			http.Error(w, "No live session. Start a task explicitly or open saved output.", http.StatusNotFound)
+		}
 		return
 	}
 
 	if cols > 0 && rows > 0 {
 		_ = session.Resize(cols, rows)
-	}
-
-	// Negotiate subprotocol if requested
-	responseHeader := make(http.Header)
-	for _, sub := range websocket.Subprotocols(r) {
-		if sub == "cuan-terminal" {
-			responseHeader.Set("Sec-WebSocket-Protocol", "cuan-terminal")
-			break
-		}
 	}
 
 	// 6. Upgrade connection to WebSocket
@@ -416,4 +434,108 @@ func generateSubscriberID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return "sub_" + hex.EncodeToString(b)
+}
+
+// proxySocketToWebSocket bridges a WebSocket client directly to a decoupled Unix domain socket.
+// This allows cuan-server to seamlessly proxy terminal connections to cuan-runner, surviving
+// web server restarts and deployments without disrupting active task agent execution.
+func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request, taskID string, responseHeader http.Header) {
+	conn, err := h.upgrader.Upgrade(w, r, responseHeader)
+	if err != nil {
+		log.Printf("[TerminalWS] Upgrade failed for runner task %s: %v", taskID, err)
+		return
+	}
+	defer conn.Close()
+
+	sockPath := SocketPath(taskID)
+	unixConn, err := net.DialTimeout("unix", sockPath, 2*time.Second)
+	if err != nil {
+		log.Printf("[TerminalWS] Dial runner socket failed for task %s (%s): %v", taskID, sockPath, err)
+		_ = conn.WriteJSON(TerminalMessage{
+			Type:    "error",
+			Message: "runner terminal session is unavailable",
+		})
+		return
+	}
+	defer unixConn.Close()
+
+	var writeMu sync.Mutex
+	writeWS := func(kind int, data []byte) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+		return conn.WriteMessage(kind, data)
+	}
+
+	// Send handshake connected message
+	_ = writeWS(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"connected","session":"runner-%s","task_id":"%s","mode":"interactive","cols":80,"rows":24}`, taskID, taskID)))
+
+	// Setup ping/pong
+	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetPongHandler(func(string) error {
+		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
+	done := make(chan struct{})
+	var closeOnce sync.Once
+	closeBoth := func() {
+		closeOnce.Do(func() {
+			close(done)
+			_ = unixConn.Close()
+			_ = conn.Close()
+		})
+	}
+
+	// Goroutine 1: Runner Unix Socket -> WebSocket
+	go func() {
+		defer closeBoth()
+		buf := make([]byte, 4096)
+		for {
+			n, rErr := unixConn.Read(buf)
+			if n > 0 {
+				if err := writeWS(websocket.BinaryMessage, buf[:n]); err != nil {
+					return
+				}
+			}
+			if rErr != nil {
+				return
+			}
+		}
+	}()
+
+	// Heartbeat pinger
+	go func() {
+		ticker := time.NewTicker(defaultPingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				writeMu.Lock()
+				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+				err := conn.WriteMessage(websocket.PingMessage, nil)
+				writeMu.Unlock()
+				if err != nil {
+					closeBoth()
+					return
+				}
+			}
+		}
+	}()
+
+	// Goroutine 2: WebSocket -> Runner Unix Socket
+	defer closeBoth()
+	for {
+		msgType, data, rErr := conn.ReadMessage()
+		if rErr != nil {
+			break
+		}
+		if msgType == websocket.TextMessage || msgType == websocket.BinaryMessage {
+			if _, wErr := unixConn.Write(data); wErr != nil {
+				break
+			}
+		}
+	}
 }

@@ -244,7 +244,7 @@ func TestS26DedicatedAgentRegistrationAndRuntimeIsolation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := httptest.NewRequest("POST", "/api/v1/tasks/"+bound.ID+"/run-agent", strings.NewReader(`{"agent_id":"`+id+`","prompt":"fixture"}`))
+		r := httptest.NewRequest("POST", "/api/v1/tasks/"+bound.ID+"/run-agent", strings.NewReader(`{"agent_id":"`+id+`","prompt":"fixture","runner_id":"local_terminal"}`))
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		s.Router().ServeHTTP(w, r)

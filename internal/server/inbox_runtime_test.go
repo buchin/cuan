@@ -294,3 +294,68 @@ func TestInboxRuntimeStreamPrefixedMCPTools(t *testing.T) {
 		})
 	}
 }
+
+func TestInboxRuntimeStreamAdaptiveBatching(t *testing.T) {
+	cancelled := false
+	var traces []string
+	stream := &inboxRuntimeStream{
+		maxToolCalls:          3,
+		adaptiveBatching:      true,
+		inspectionBatchFactor: 3,
+		cancel:                func() { cancelled = true },
+		step:                  func(k, v string) { traces = append(traces, k+":"+v) },
+	}
+
+	inspectionTools := []string{
+		"read_file", "view_file", "grep_search",
+		"list_dir", "find_by_name", "inspect_git_status",
+		"inspect_git_log", "inspect_database_query", "inspect_system_health",
+	}
+
+	// 9 inspection calls should fit within 3 turn units (9 / 3 = 3)
+	for i, tool := range inspectionTools {
+		stepIdx := i + 1
+		stream.Write([]byte(fmt.Sprintf(`{"event":"step_update","step_update":{"step_index":%d,"state":"ACTIVE","step_type":"tool","tool_name":"%s"}}`+"\n", stepIdx, tool)))
+		stream.Write([]byte(fmt.Sprintf(`{"event":"step_update","step_update":{"step_index":%d,"state":"DONE","step_type":"tool","tool_name":"%s"}}`+"\n", stepIdx, tool)))
+	}
+
+	if cancelled || stream.toolBudgetExceeded || stream.toolCalls != 9 || stream.inspectionCalls != 9 {
+		t.Fatalf("expected 9 inspection tools within adaptive budget, cancelled=%v budgetExceeded=%v count=%d", cancelled, stream.toolBudgetExceeded, stream.toolCalls)
+	}
+
+	// 10th tool call exceeds effective turn budget ((10+2)/3 = 4 > 3)
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":10,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}` + "\n"))
+
+	if !cancelled {
+		t.Fatal("expected cancel callback to be invoked on exceeding adaptive budget")
+	}
+	if !stream.toolBudgetExceeded {
+		t.Fatal("expected toolBudgetExceeded to be true")
+	}
+}
+
+func TestInboxRuntimeStreamConsecutiveFailureLoopProtection(t *testing.T) {
+	cancelled := false
+	var traces []string
+	stream := &inboxRuntimeStream{
+		maxToolCalls:          10,
+		adaptiveBatching:      true,
+		inspectionBatchFactor: 3,
+		cancel:                func() { cancelled = true },
+		step:                  func(k, v string) { traces = append(traces, k+":"+v) },
+	}
+
+	// Emit 5 consecutive errors on tool calls
+	for i := 1; i <= 5; i++ {
+		stream.Write([]byte(fmt.Sprintf(`{"event":"step_update","step_update":{"step_index":%d,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}`+"\n", i)))
+		stream.Write([]byte(fmt.Sprintf(`{"event":"step_update","step_update":{"step_index":%d,"state":"ERROR","step_type":"tool","tool_name":"read_file"}}`+"\n", i)))
+	}
+
+	if !cancelled || !stream.toolBudgetExceeded {
+		t.Fatalf("expected consecutive failure loop protection to trigger, cancelled=%v budgetExceeded=%v", cancelled, stream.toolBudgetExceeded)
+	}
+	joined := strings.Join(traces, "\n")
+	if !strings.Contains(joined, "Consecutive tool error loop detected") {
+		t.Fatalf("expected consecutive error loop trace, got: %s", joined)
+	}
+}

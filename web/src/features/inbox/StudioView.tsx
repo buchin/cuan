@@ -2,7 +2,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, AttachmentPreviews, useAttachments } from './Attachments'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, LoaderCircle, Brain, Sparkles, X, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, LoaderCircle, Brain, Sparkles, X, RotateCcw } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
@@ -13,10 +13,19 @@ import { StudioExecutionSelector } from './StudioExecutionSelector'
 import { TasteGroundingChips } from './TasteGroundingChips'
 
 export function StudioView({
-  onAccepted, agentSetup, firstGoal, hasProject,
-  onAgentConnected, onCreateProject, onRetrySetup, checkRuntime = true,
+  onAccepted,
+  onConversationCreated,
+  agentSetup,
+  firstGoal,
+  hasProject,
+  onAgentConnected,
+  onCreateProject,
+  onRetrySetup,
+  checkRuntime = true,
+  autoFocus = false,
 }: {
   onAccepted: () => void
+  onConversationCreated?: (conversationId: string) => void
   agentSetup: 'loading' | 'needed' | 'ready' | 'error'
   firstGoal: boolean
   hasProject: boolean
@@ -24,6 +33,7 @@ export function StudioView({
   onCreateProject: () => void
   checkRuntime?: boolean
   onRetrySetup: () => void
+  autoFocus?: boolean
 }) {
   const { t } = useLanguage()
   const [connectRequested, setConnectRequested] = useState(false)
@@ -91,8 +101,12 @@ export function StudioView({
       setTimeout(() => {
         goalInput.current?.focus()
       }, 60)
+    } else if (autoFocus) {
+      setTimeout(() => {
+        goalInput.current?.focus()
+      }, 60)
     }
-  }, [searchParams])
+  }, [searchParams, autoFocus])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const supportsVision = selectedAgent
@@ -244,7 +258,11 @@ export function StudioView({
       setGoal('')
       uploads.clear()
       onAccepted()
-      navigate('/inbox/' + encodeURIComponent(result.conversation_id))
+      if (onConversationCreated) {
+        onConversationCreated(result.conversation_id)
+      } else {
+        navigate('/inbox/' + encodeURIComponent(result.conversation_id))
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('provider_quota_exhausted') || msg.includes('quota')) {
@@ -261,10 +279,19 @@ export function StudioView({
     }
   }
   return (
-    <section aria-label={t('Chat')} className="mx-auto w-full max-w-2xl">
+    <section aria-label={t('Chat')} className="mx-auto w-full max-w-[75ch]">
+      <div className="mb-2 sm:mb-4 pt-1">
+        <Link
+          to="/inbox"
+          className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg px-2.5 py-1.5 bg-muted/30 hover:bg-muted/60"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>{t('Kembali ke Chat')}</span>
+        </Link>
+      </div>
       <div
         data-studio-goal-panel
-        className="flex min-h-[calc(var(--visible-height,100dvh)-136px-env(safe-area-inset-bottom))] flex-col justify-center py-4 md:min-h-[calc(100dvh-112px)]"
+        className="flex min-h-[calc(var(--visible-height,100dvh)-180px-env(safe-area-inset-bottom))] flex-col justify-center py-2 md:min-h-[calc(100dvh-150px)]"
       >
         <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t('What would you like to get done today?')}

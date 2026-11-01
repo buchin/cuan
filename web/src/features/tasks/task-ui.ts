@@ -147,7 +147,7 @@ export function workStatusBadgeClass(status: string) {
     case 'Not running':
     case 'Not started':
     default:
-      return 'bg-muted/80 text-muted-foreground border-border'
+      return 'bg-muted/80 text-muted-foreground border-border/40'
   }
 }
 
@@ -167,7 +167,7 @@ export function taskStatusBadgeClass(status: TaskStatus | string) {
     case 'todo':
     case 'backlog':
     default:
-      return 'bg-muted text-muted-foreground border-border/60'
+      return 'bg-muted text-muted-foreground border-border/40'
   }
 }
 
@@ -245,9 +245,7 @@ export function parseTaskInstructions(text?: string): ParsedTaskInstructions {
 }
 
 export function taskTargetUrl(task: { id: string; project_id?: string | null }) {
-  return task.project_id
-    ? `/projects/${encodeURIComponent(task.project_id)}/tasks/${encodeURIComponent(task.id)}`
-    : `/tasks/${encodeURIComponent(task.id)}`
+  return `/tasks/${encodeURIComponent(task.id)}`
 }
 
 export function taskDetailUrl(task: { id: string; project_id?: string | null }) {

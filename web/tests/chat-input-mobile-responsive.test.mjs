@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const cssFilePath = path.join(__dirname, '../src/features/inbox/chat-whatsapp.css')
+const cssFilePath = path.join(__dirname, '../src/features/inbox/chat-calm.css')
 const inboxViewPath = path.join(__dirname, '../src/features/inbox/InboxView.tsx')
 const cannedPickerPath = path.join(__dirname, '../src/features/inbox/CannedResponsesPicker.tsx')
 const attachmentsPath = path.join(__dirname, '../src/features/inbox/Attachments.tsx')
@@ -151,18 +151,18 @@ test('3. Button Proportion, Spacing, and Right-Aligned Saved Replies Action', ()
     'autoResizeTextarea must dynamically adapt minH to 36px on mobile'
   )
 
-  // Textarea custom scrollbar styling in chat-whatsapp.css
+  // Textarea custom scrollbar styling in chat-calm.css
   assert.ok(
     cssSource.includes('scrollbar-width: thin;'),
-    'chat-whatsapp.css must specify thin scrollbar for textarea'
+    'chat-calm.css must specify thin scrollbar for textarea'
   )
   assert.ok(
     cssSource.includes('.wa-input::-webkit-scrollbar'),
-    'chat-whatsapp.css must define custom webkit-scrollbar for textarea'
+    'chat-calm.css must define custom webkit-scrollbar for textarea'
   )
   assert.ok(
     cssSource.includes('.wa-input::-webkit-scrollbar-thumb'),
-    'chat-whatsapp.css must style rounded thumb for textarea'
+    'chat-calm.css must style rounded thumb for textarea'
   )
 })
 

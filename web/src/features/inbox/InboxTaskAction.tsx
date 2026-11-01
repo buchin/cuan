@@ -5,8 +5,8 @@ import { apiFetch } from '../../api/client'
 import { InboxTaskDraft } from '../../api/chat'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
-import { TaskItemCard } from '../tasks/TaskItemCard'
 import { TaskCompletionCard } from './TaskCompletionCard'
+import { TaskCard } from './TaskCard'
 
 export function InboxTaskAction({
   conversationId,
@@ -14,12 +14,22 @@ export function InboxTaskAction({
   draft,
   linkedTask,
   onContinueChat,
+  onViewTask,
+  onOpenTerminal,
+  onUseDraft,
+  onRetry,
+  isCustomerRoom,
 }: {
   conversationId: string
   messageId: string
   draft?: InboxTaskDraft
   linkedTask?: Task
   onContinueChat?: (suggestedText: string) => void
+  onViewTask?: (task: Task) => void
+  onOpenTerminal?: (task: Task) => void
+  onUseDraft?: (draftText: string) => void
+  onRetry?: (task: Task) => Promise<void> | void
+  isCustomerRoom?: boolean
 }) {
   const { t } = useLanguage()
 
@@ -85,6 +95,11 @@ export function InboxTaskAction({
             task={existing}
             conversationId={conversationId}
             onContinueChat={onContinueChat}
+            onUseDraft={onUseDraft}
+            onViewDetails={onViewTask}
+            onOpenTerminal={onOpenTerminal}
+            onRetry={onRetry}
+            isCustomerRoom={isCustomerRoom}
           />
         </div>
       )
@@ -92,12 +107,16 @@ export function InboxTaskAction({
 
     return (
       <div className="mt-2.5 w-full min-w-0" aria-label="Task from conversation">
-        <TaskItemCard
-          task={existing}
+        <TaskCard
+          taskId={existing.id}
+          initialTask={existing}
           returnTo={`/inbox/${encodeURIComponent(conversationId)}`}
-          showProject={true}
-          showActions={true}
-          className="p-3 sm:p-3.5 bg-background/80 dark:bg-background/40 border-border/70"
+          onClick={onViewTask}
+          onOpenTerminal={onOpenTerminal}
+          onUseDraft={onUseDraft}
+          onRetry={onRetry}
+          onContinueChat={onContinueChat}
+          isCustomerRoom={isCustomerRoom}
         />
       </div>
     )

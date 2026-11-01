@@ -2,8 +2,10 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/project"
@@ -15,12 +17,15 @@ type ProjectFinder interface {
 }
 
 type RunnerService struct {
-	store         Store
-	taskStore     task.Store
-	projectFinder ProjectFinder
-	dodEvaluator  *DoDEvaluator
-	chatNotifier  BusinessChatNotifier
-	eventBus      *EventBus
+	store           Store
+	taskStore       task.Store
+	projectFinder   ProjectFinder
+	dodEvaluator    *DoDEvaluator
+	chatNotifier    BusinessChatNotifier
+	eventBus        *EventBus
+	steerMu         sync.Mutex
+	pendingSteering map[string][]SteeringDirective
+	steerHandlers   map[string]func(attemptID, prompt string) error
 }
 
 func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinder) *RunnerService {
@@ -29,11 +34,13 @@ func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinde
 		pf = projectFinder[0]
 	}
 	return &RunnerService{
-		store:         store,
-		taskStore:     taskStore,
-		projectFinder: pf,
-		dodEvaluator:  NewDoDEvaluator(),
-		eventBus:      GlobalEventBus,
+		store:           store,
+		taskStore:       taskStore,
+		projectFinder:   pf,
+		dodEvaluator:    NewDoDEvaluator(),
+		eventBus:        GlobalEventBus,
+		pendingSteering: make(map[string][]SteeringDirective),
+		steerHandlers:   make(map[string]func(attemptID, prompt string) error),
 	}
 }
 
@@ -51,6 +58,11 @@ func (s *RunnerService) SetChatNotifier(notifier BusinessChatNotifier) {
 
 func (s *RunnerService) SetEventBus(bus *EventBus) {
 	s.eventBus = bus
+}
+
+// EventBus returns the registered EventBus, or nil if none is set.
+func (s *RunnerService) EventBus() *EventBus {
+	return s.eventBus
 }
 
 // Heartbeat processes heartbeat and lease renewal from a runner daemon.
@@ -98,11 +110,114 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 		}
 	}
 
+	s.steerMu.Lock()
+	var directives []SteeringDirective
+	for _, attID := range attemptIDsToCheck {
+		if pending, ok := s.pendingSteering[attID]; ok && len(pending) > 0 {
+			directives = append(directives, pending...)
+			delete(s.pendingSteering, attID)
+		}
+	}
+	s.steerMu.Unlock()
+
 	return &HeartbeatResponse{
 		Status:             "ok",
 		LeaseDurationSec:   int(leaseDuration.Seconds()),
 		ShouldCancel:       shouldCancel,
 		CanceledAttemptIDs: canceledIDs,
+		SteeringDirectives: directives,
+	}, nil
+}
+
+// RegisterSteerHandler connects an in-process or local runner's steering dispatcher.
+func (s *RunnerService) RegisterSteerHandler(runnerID string, handler func(attemptID, prompt string) error) {
+	s.steerMu.Lock()
+	defer s.steerMu.Unlock()
+	s.steerHandlers[runnerID] = handler
+}
+
+// Steer injects an interactive steering prompt into the active attempt's agent process stdin,
+// or queues it for runner heartbeat dispatch, or performs a graceful fallback to a follow-up comment.
+func (s *RunnerService) Steer(ctx context.Context, attemptID string, req SteerAttemptRequest) (*SteerAttemptResponse, error) {
+	if strings.TrimSpace(req.Prompt) == "" {
+		return nil, errors.New("prompt is required")
+	}
+
+	att, err := s.taskStore.GetAttempt(ctx, attemptID)
+	if err != nil {
+		return nil, fmt.Errorf("attempt %s: %w", attemptID, err)
+	}
+	if att == nil {
+		return nil, fmt.Errorf("attempt not found: %s", attemptID)
+	}
+
+	author := req.Author
+	if author == "" {
+		author = "user"
+	}
+
+	// If attempt is not running, gracefully fallback by recording a queued follow-up activity on the task
+	if att.Status != task.AttemptStatusRunning {
+		_ = s.taskStore.CreateActivity(ctx, &task.TaskActivity{
+			TaskID:       att.TaskID,
+			AttemptID:    &attemptID,
+			ActivityType: task.ActivityTypeComment,
+			Author:       author,
+			Message:      fmt.Sprintf("[Follow-up Prompt] %s", req.Prompt),
+			CreatedAt:    time.Now().UTC(),
+		})
+		return &SteerAttemptResponse{
+			Status:   "queued",
+			Fallback: true,
+			Message:  "Attempt is not running; prompt recorded as queued follow-up on task.",
+		}, nil
+	}
+
+	// Try immediate delivery if a direct steer handler is registered for this runner
+	s.steerMu.Lock()
+	handler, hasHandler := s.steerHandlers[att.RunnerID]
+	s.steerMu.Unlock()
+
+	if hasHandler && handler != nil {
+		if hErr := handler(attemptID, req.Prompt); hErr == nil {
+			_ = s.taskStore.CreateActivity(ctx, &task.TaskActivity{
+				TaskID:       att.TaskID,
+				AttemptID:    &attemptID,
+				ActivityType: task.ActivityTypeComment,
+				Author:       author,
+				Message:      fmt.Sprintf("[Interactive Steering] %s", req.Prompt),
+				CreatedAt:    time.Now().UTC(),
+			})
+			return &SteerAttemptResponse{
+				Status:   "delivered",
+				Fallback: false,
+				Message:  "Steering instruction injected to active agent process stdin.",
+			}, nil
+		}
+	}
+
+	// Queue for next heartbeat dispatch to runner
+	s.steerMu.Lock()
+	s.pendingSteering[attemptID] = append(s.pendingSteering[attemptID], SteeringDirective{
+		AttemptID: attemptID,
+		Prompt:    req.Prompt,
+		Author:    author,
+	})
+	s.steerMu.Unlock()
+
+	_ = s.taskStore.CreateActivity(ctx, &task.TaskActivity{
+		TaskID:       att.TaskID,
+		AttemptID:    &attemptID,
+		ActivityType: task.ActivityTypeComment,
+		Author:       author,
+		Message:      fmt.Sprintf("[Interactive Steering Queued] %s", req.Prompt),
+		CreatedAt:    time.Now().UTC(),
+	})
+
+	return &SteerAttemptResponse{
+		Status:   "delivered",
+		Fallback: false,
+		Message:  "Steering instruction queued for active runner.",
 	}, nil
 }
 
@@ -162,7 +277,9 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	att.ExitCode = &req.ExitCode
 
 	status := req.Status
-	if req.ExitCode != 0 && status != task.AttemptStatusCanceled {
+	if IsInfraFault(status, req.ErrorMessage, req.ExitCode) {
+		status = task.AttemptStatusInterrupted
+	} else if req.ExitCode != 0 && status != task.AttemptStatusCanceled {
 		status = task.AttemptStatusFailed
 	}
 	if status == task.AttemptStatusSucceeded && req.AgentReportRequired && !req.AgentReportConfirmed {
@@ -174,7 +291,16 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
 				settings := project.SettingsFromMetadata(p.Metadata)
 				isCodeLane := t.ExecutionCategory == "" || t.ExecutionCategory == task.ExecutionCategoryCode
-				if settings.IsAutoDeployEnabled() && isCodeLane {
+				requiresDeploy := isCodeLane
+				if req.RequiresDeploy != nil {
+					requiresDeploy = *req.RequiresDeploy
+				} else if (req.HasCodeChanges != nil && !*req.HasCodeChanges) || (req.DiffSummary == "" && req.CommitSHA == "") {
+					if isInvestigationOrNonCode(t.Title, t.Instructions, t.Summary, t.CompleteNote) {
+						requiresDeploy = false
+					}
+				}
+
+				if settings.IsAutoDeployEnabled() && requiresDeploy {
 					if !req.LiveDeploymentConfirmed && !hasAutoDeployVerification(t.CompleteNote, t.Summary) {
 						status = task.AttemptStatusFailed
 						att.ErrorMessage = "Kepatuhan auto_deploy: perubahan wajib di-deploy dan terverifikasi live di production sebelum task dinyatakan selesai; commit/push saja tidak memenuhi syarat"
@@ -197,32 +323,39 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	if err == nil && t != nil {
 		oldStatus := t.Status
 
-		// 1. Emisi internal event task:attempt_succeeded saat worker sukses
+		// 1. Emisi internal event task:attempt_succeeded / task:attempt_completed
+		completedEvt := AttemptCompletedEvent{
+			EventID:       fmt.Sprintf("evt_%d", time.Now().UnixNano()),
+			EventType:     EventTaskAttemptCompleted,
+			TaskID:        t.ID,
+			AttemptID:     att.ID,
+			AttemptNumber: att.AttemptNumber,
+			RunnerID:      req.RunnerID,
+			ExitCode:      req.ExitCode,
+			BranchName:    req.BranchName,
+			CommitSHA:     req.CommitSHA,
+			ExecutionLane: t.ExecutionCategory,
+			Status:        status,
+			Summary:       t.Summary,
+			CompleteNote:  t.CompleteNote,
+			ErrorMessage:  att.ErrorMessage,
+			SourceRoomID:  t.SourceRoomID,
+			EmittedAt:     now,
+			Metadata: map[string]any{
+				"runner_id":    req.RunnerID,
+				"exit_code":    req.ExitCode,
+				"test_summary": req.TestSummary,
+			},
+		}
 		if status == task.AttemptStatusSucceeded {
-			evt := AttemptSucceededEvent{
-				EventID:       fmt.Sprintf("evt_%d", time.Now().UnixNano()),
-				EventType:     EventTaskAttemptSucceeded,
-				TaskID:        t.ID,
-				AttemptID:     att.ID,
-				AttemptNumber: att.AttemptNumber,
-				BranchName:    req.BranchName,
-				CommitSHA:     req.CommitSHA,
-				ExecutionLane: t.ExecutionCategory,
-				Status:        status,
-				Summary:       t.Summary,
-				CompleteNote:  t.CompleteNote,
-				EmittedAt:     now,
-				Metadata: map[string]any{
-					"runner_id":    req.RunnerID,
-					"exit_code":    req.ExitCode,
-					"test_summary": req.TestSummary,
-				},
-			}
-			if s.eventBus != nil {
-				s.eventBus.Publish(ctx, evt)
-			} else {
-				EmitAttemptSucceeded(ctx, evt)
-			}
+			completedEvt.EventType = EventTaskAttemptSucceeded
+		} else {
+			completedEvt.EventType = EventTaskAttemptFailed
+		}
+		if s.eventBus != nil {
+			s.eventBus.PublishCompleted(ctx, completedEvt)
+		} else {
+			EmitAttemptCompleted(ctx, completedEvt)
 		}
 
 		// 2. Evaluasi DoD Otonom & Logika Auto-Mark Done / Auto-Requeue
@@ -261,8 +394,18 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 				// Proactive messenger di Chat/Inbox: lapor tugas tuntas dalam bahasa bisnis ramah
 				if s.chatNotifier != nil {
+					pName := ""
+					if s.projectFinder != nil && t.ProjectID != "" {
+						if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+							pName = p.Name
+						}
+					}
 					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
-						_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary)
+						if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+							_ = pn.SendTaskCompletedBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName)
+						} else {
+							_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary)
+						}
 					}
 				}
 			} else if dodVal != nil && dodVal.Action == "auto_requeue" && att.AttemptNumber < MaxAttempts {
@@ -310,8 +453,39 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					if dodVal != nil {
 						gaps = dodVal.Gaps
 					}
+					pName := ""
+					if s.projectFinder != nil && t.ProjectID != "" {
+						if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+							pName = p.Name
+						}
+					}
 					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
-						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, gaps, att.AttemptNumber)
+						if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+							_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, gaps, att.AttemptNumber)
+						} else {
+							_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, gaps, att.AttemptNumber)
+						}
+					}
+				}
+			}
+		} else if status == task.AttemptStatusInterrupted || IsInfraFault(status, att.ErrorMessage, req.ExitCode) {
+			t.Status = task.TaskStatusReview
+			if s.chatNotifier != nil {
+				errMsg := att.ErrorMessage
+				if errMsg == "" {
+					errMsg = "Koneksi runner terputus saat eksekusi (Needs Attention). Konteks dan pekerjaan tersimpan aman."
+				}
+				pName := ""
+				if s.projectFinder != nil && t.ProjectID != "" {
+					if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+						pName = p.Name
+					}
+				}
+				for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
+					if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+						_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+					} else {
+						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
 					}
 				}
 			}
@@ -322,8 +496,18 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				if errMsg == "" {
 					errMsg = "Pekerjaan terhenti dan memerlukan peninjauan lebih lanjut."
 				}
+				pName := ""
+				if s.projectFinder != nil && t.ProjectID != "" {
+					if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+						pName = p.Name
+					}
+				}
 				for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
-					_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+					if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+						_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+					} else {
+						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+					}
 				}
 			}
 		}
@@ -402,6 +586,19 @@ func hasAutoDeployVerification(note, summary string) bool {
 		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
 }
 
+func isInvestigationOrNonCode(texts ...string) bool {
+	combined := strings.ToLower(strings.Join(texts, " "))
+	for _, term := range []string{
+		"investigasi", "investigation", "rca", "root cause",
+		"analisis", "analysis", "klarifikasi", "audit", "pemadaman", "outage",
+	} {
+		if strings.Contains(combined, term) {
+			return true
+		}
+	}
+	return false
+}
+
 func uniqueRooms(rooms ...string) []string {
 	seen := make(map[string]bool)
 	var list []string
@@ -413,4 +610,26 @@ func uniqueRooms(rooms ...string) []string {
 		}
 	}
 	return list
+}
+
+// IsInfraFault returns true if the attempt status, error message, or exit code indicates
+// an infrastructure or technical connection issue (runner disconnected, heartbeat lost,
+// lease expired, runner killed/restarted) rather than a business task criteria failure.
+func IsInfraFault(status, errorMessage string, exitCode int) bool {
+	if status == task.AttemptStatusInterrupted {
+		return true
+	}
+	if exitCode == 137 || exitCode == 143 {
+		return true
+	}
+	lower := strings.ToLower(errorMessage)
+	return strings.Contains(lower, "lease expired") ||
+		strings.Contains(lower, "heartbeat lost") ||
+		strings.Contains(lower, "runner killed") ||
+		strings.Contains(lower, "runner restart") ||
+		strings.Contains(lower, "runner context") ||
+		strings.Contains(lower, "connection lost") ||
+		strings.Contains(lower, "connection refused") ||
+		strings.Contains(lower, "runner disconnected") ||
+		strings.Contains(lower, "interrupted")
 }

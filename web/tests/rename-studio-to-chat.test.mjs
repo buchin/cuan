@@ -74,24 +74,24 @@ test('2. Routing & Entry Point: /chat registered as primary workspace route', ()
     'App.tsx must render chat workspace (StudioView) for currentTab chat',
   )
 
-  // New message action opens /chat
+  // New message action opens /studio (S59-T6 Standalone Studio Canvas)
   assert.ok(
-    appSource.includes("if (kind === 'message') navigate('/chat')"),
-    'openNew message action must navigate to /chat',
+    appSource.includes("if (kind === 'message') navigate('/studio')"),
+    'openNew message action must navigate to /studio',
   )
 })
 
-test('3. Backward Compatibility: /studio automatically redirects to /chat preserving query params and hash', () => {
+test('3. S59-T6: /studio registered as standalone Studio canvas workspace', () => {
   const appSource = fs.readFileSync(appPath, 'utf8')
 
-  // Automatic redirect effect exists in App.tsx
+  // /studio resolves to studio tab
   assert.ok(
-    appSource.includes("if (rootSegment === 'studio')"),
-    'App.tsx must detect rootSegment studio',
+    appSource.includes("case 'studio':\n        return 'studio'"),
+    'App.tsx must resolve /studio to studio tab',
   )
   assert.ok(
-    appSource.includes("navigate('/chat' + location.search + location.hash, { replace: true })"),
-    'App.tsx must redirect /studio to /chat with location.search and location.hash preserved',
+    appSource.includes("currentTab === 'studio' && ("),
+    'App.tsx must render standalone StudioView for currentTab studio',
   )
 
   // Tab navigation handler supports chat and studio

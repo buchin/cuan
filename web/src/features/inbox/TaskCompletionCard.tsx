@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
   ClipboardCheck,
@@ -10,49 +10,58 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
-  Check,
+  Terminal,
+  RefreshCw,
+  Send,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
+import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
-import { taskRef, agentDisplayName, relativeTime } from '../tasks/task-ui'
+import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl } from '../tasks/task-ui'
 import { ChatMarkdown } from './ChatMarkdown'
+import { parseTaskReviewEnvelope } from './task-envelope'
 
 export interface TaskCompletionCardProps {
   task: Task
   conversationId?: string
   onContinueChat?: (suggestedText: string) => void
-  onViewDetails?: (task: Task) => void
+  onUseDraft?: (draftText: string) => void
+  onViewDetails?: (task: Task, tab?: 'details' | 'terminal') => void
+  onOpenTerminal?: (task: Task) => void
+  onRetry?: (task: Task) => Promise<void> | void
   className?: string
+  isCustomerRoom?: boolean
 }
 
 export function TaskCompletionCard({
   task,
   conversationId,
   onContinueChat,
+  onUseDraft,
   onViewDetails,
+  onOpenTerminal,
+  onRetry,
   className,
+  isCustomerRoom = false,
 }: TaskCompletionCardProps) {
   const { t } = useLanguage()
+  const navigate = useNavigate()
 
-  const isDone = (task.status || '').toLowerCase().trim() === 'done'
+  const [currentTask, setCurrentTask] = useState<Task>(task)
+  const [retrying, setRetrying] = useState(false)
 
-  // Extract business-friendly summary (avoiding raw technical stack traces)
-  const businessSummary = useMemo(() => {
-    const raw = (task.summary || task.complete_note || task.description || '').trim()
-    if (!raw) {
-      return isDone
-        ? t('Instruksi tugas berhasil diselesaikan dengan baik.')
-        : t('Tugas telah selesai diproses dan siap untuk direviu.')
-    }
-    // Clean up if starts with redundant title
-    return raw
-  }, [task.summary, task.complete_note, task.description, isDone, t])
+  const isDone = (currentTask.status || '').toLowerCase().trim() === 'done'
 
-  // Parse DoD items
+  // Parse dual-channel output envelope & fallback
+  const envelopeResult = useMemo(() => {
+    return parseTaskReviewEnvelope(currentTask)
+  }, [currentTask])
+
+  // Parse DoD items for metadata count and SlideDrawer handoff
   const dodItems = useMemo(() => {
-    if (!task.dod_checklist || !Array.isArray(task.dod_checklist)) return []
-    return task.dod_checklist.map((item) => {
+    if (!currentTask.dod_checklist || !Array.isArray(currentTask.dod_checklist)) return []
+    return currentTask.dod_checklist.map((item) => {
       if (typeof item === 'string') {
         const checked = item.startsWith('[x]') || item.startsWith('[X]') || item.startsWith('✓')
         const text = item.replace(/^(\[[ xX]\]|✓)\s*/, '').trim()
@@ -63,23 +72,81 @@ export function TaskCompletionCard({
         completed: !!item.completed,
       }
     })
-  }, [task.dod_checklist])
+  }, [currentTask.dod_checklist])
 
   const agentName = agentDisplayName(
-    task.latest_attempt?.agent_name || task.assignee || 'cuan-runner'
+    currentTask.latest_attempt?.agent_name || currentTask.assignee || 'cuan-runner'
   )
 
-  const taskDetailPath = `/tasks/${encodeURIComponent(task.id)}${
+  const taskDetailPath = `/tasks/${encodeURIComponent(currentTask.id)}${
     conversationId ? `?returnTo=${encodeURIComponent(`/inbox/${conversationId}`)}` : ''
   }`
 
   const handleContinueChat = () => {
-    const ref = taskRef(task.id)
+    const ref = taskRef(currentTask.id)
     const suggested = isDone
-      ? t(`Terima kasih. Terkait tugas ${ref} (${task.title}), tolong bantu `)
-      : t(`Saya ingin mereviu hasil tugas ${ref} (${task.title}): `)
+      ? t(`Terima kasih. Terkait tugas ${ref} (${currentTask.title}), tolong bantu `)
+      : t(`Saya ingin mereviu hasil tugas ${ref} (${currentTask.title}): `)
     if (onContinueChat) {
       onContinueChat(suggested)
+    }
+  }
+
+  const handleUseDraft = () => {
+    const draftText = envelopeResult.draft
+    if (!draftText) return
+    if (onUseDraft) {
+      onUseDraft(draftText)
+    } else if (onContinueChat) {
+      onContinueChat(draftText)
+    }
+  }
+
+  const handleOpenTerminal = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (onOpenTerminal) {
+      onOpenTerminal(currentTask)
+    } else if (onViewDetails) {
+      onViewDetails(currentTask, 'terminal')
+    } else {
+      navigate(taskTerminalUrl(currentTask))
+    }
+  }
+
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (retrying) return
+    setRetrying(true)
+    try {
+      if (onRetry) {
+        await onRetry(currentTask)
+      } else {
+        const agentId =
+          currentTask.latest_attempt?.agent_name ||
+          currentTask.assignee_id ||
+          currentTask.assignee ||
+          'agy'
+        await tasksApi.runAgent(currentTask.id, {
+          request_id: crypto.randomUUID(),
+          agent_id: agentId,
+        })
+        const updated = await tasksApi.get(currentTask.id)
+        if (updated) setCurrentTask(updated)
+      }
+    } catch {
+      // ignore retry error
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  const handleViewDetails = (tab: 'details' | 'terminal' = 'details') => {
+    if (onViewDetails) {
+      onViewDetails(currentTask, tab)
+    } else {
+      navigate(taskDetailUrl(currentTask))
     }
   }
 
@@ -89,96 +156,140 @@ export function TaskCompletionCard({
       role="region"
       aria-label={isDone ? t('Kartu Tugas Selesai') : t('Kartu Tugas Siap Reviu')}
       className={cn(
-        'w-full max-w-xl rounded-2xl border p-4 sm:p-5 shadow-sm transition-all text-card-foreground',
+        'w-full max-w-xl rounded-xl border border-border/40 bg-card/40 dark:bg-card/20 p-3.5 sm:p-4 text-card-foreground transition-all shadow-xs space-y-3',
         isDone
-          ? 'border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20'
-          : 'border-purple-500/30 bg-purple-500/5 dark:bg-purple-950/20',
+          ? 'border-l-2 border-l-emerald-500/70 border-emerald-500/20'
+          : 'border-l-2 border-l-purple-500/70 border-purple-500/20',
         className
       )}
     >
-      {/* Top Header Badge & Timestamp */}
-      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border/60 pb-3">
-        <div className="flex items-center gap-2">
+      {/* Top Header: Calm Status, TaskRef, Live Terminal & Retry Buttons */}
+      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-border/40 pb-2.5">
+        <div className="flex items-center gap-2 min-w-0">
           <span
             data-testid="completion-card-status"
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase border',
+              'inline-flex items-center gap-1.5 text-xs font-medium',
               isDone
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                : 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-purple-600 dark:text-purple-400'
             )}
           >
             {isDone ? (
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             ) : (
-              <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+              <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
             )}
             <span>{isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
           </span>
 
-          <span className="text-xs font-mono font-semibold text-muted-foreground">
-            {taskRef(task.id)}
+          <span className="text-xs font-mono font-medium text-muted-foreground">
+            {taskRef(currentTask.id)}
           </span>
+
+          <div className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span>{relativeTime(currentTask.updated_at || currentTask.created_at)}</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <Clock className="h-3 w-3 shrink-0" />
-          <span>{relativeTime(task.updated_at || task.created_at)}</span>
+        {/* Actionable Controls: Live Terminal & Retry */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenTerminal}
+            data-testid="task-card-terminal-btn"
+            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40"
+            title={t('Live Terminal')}
+            aria-label={t('Live Terminal')}
+          >
+            <Terminal className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <span className="hidden xs:inline sm:inline">{t('Live Terminal')}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={retrying}
+            onClick={handleRetry}
+            data-testid="task-card-retry-btn"
+            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40 disabled:opacity-50"
+            title={t('Coba Lagi')}
+            aria-label={t('Coba Lagi')}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin text-primary')} />
+            <span className="hidden xs:inline sm:inline">{retrying ? t('Retrying...') : t('Coba Lagi')}</span>
+          </button>
         </div>
       </div>
 
       {/* Main Body: Title & Business Summary */}
-      <div className="mt-3 space-y-2.5">
+      <div className="space-y-2">
         <h4
           data-testid="completion-card-title"
-          className="text-sm sm:text-base font-semibold text-foreground leading-snug"
+          className="text-sm sm:text-base font-semibold text-foreground leading-snug break-words"
         >
-          {task.title}
+          {currentTask.title}
         </h4>
 
         <div
           data-testid="completion-card-summary"
-          className="rounded-xl bg-card border border-border/80 p-3 sm:p-3.5 text-xs sm:text-sm text-foreground/90 leading-relaxed shadow-xs"
+          className="text-xs sm:text-sm text-foreground/90 leading-relaxed space-y-1"
         >
-          <div className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-primary" />
+          <div className="text-[11px] font-medium text-muted-foreground/80 flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-muted-foreground/70" />
             <span>{t('Ringkasan Hasil')}</span>
           </div>
           <div className="prose prose-xs dark:prose-invert max-w-none break-words">
-            <ChatMarkdown content={businessSummary} />
+            <ChatMarkdown content={envelopeResult.summary} />
           </div>
         </div>
 
-        {/* Criteria / Definition of Done Checklist if available */}
-        {dodItems.length > 0 && (
-          <div className="mt-2 rounded-xl bg-background/60 border border-border/60 p-3 text-xs space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              <span>{t('Kriteria Selesai (DoD)')}</span>
-              <span className="text-emerald-600 dark:text-emerald-400">
-                {dodItems.filter((i) => i.completed).length}/{dodItems.length} {t('Terpenuhi')}
-              </span>
+        {/* 1-Click Actionable Visitor Reply Draft if customer room and draft exists */}
+        {isCustomerRoom && envelopeResult.draft && (
+          <div
+            data-testid="task-card-draft-section"
+            className="border-t border-border/30 pt-2.5 space-y-2"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
+                <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>{t('Draf Balasan Pengunjung')}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleUseDraft}
+                data-testid="task-card-use-draft-btn"
+                className="min-h-7 px-2.5 py-1 text-xs font-medium rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-none"
+                title={t('Gunakan Draf di Input')}
+              >
+                <Send className="h-3 w-3 shrink-0" />
+                <span>{t('Gunakan Draf di Input')}</span>
+              </button>
             </div>
-            <ul className="space-y-1 pt-1">
-              {dodItems.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-foreground/80">
-                  <span
-                    className={cn(
-                      'mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[9px]',
-                      item.completed
-                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold'
-                        : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {item.completed ? <Check className="h-2.5 w-2.5" /> : '·'}
-                  </span>
-                  <span className={cn('break-words', item.completed && 'font-medium text-foreground')}>
-                    {item.text}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <p className="text-xs text-foreground/90 italic border-l-2 border-primary/40 pl-3 py-1 whitespace-pre-wrap leading-relaxed break-words">
+              "{envelopeResult.draft}"
+            </p>
           </div>
         )}
+
+        {/* Secondary Technical Details link: parks raw DoD checklist to SlideDrawer */}
+        <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/30 text-xs">
+          <button
+            type="button"
+            onClick={() => handleViewDetails('details')}
+            data-testid="task-card-diagnostic-link"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
+          >
+            <span>{t('Detail Diagnostik & Status Deploy →')}</span>
+          </button>
+
+          {/* Accessibility & test requirement compatibility: keep DoD criteria count */}
+          {dodItems.length > 0 && (
+            <span className="text-[11px] font-mono text-muted-foreground/80">
+              {t('Kriteria Selesai (DoD)')}: {dodItems.filter((i) => i.completed).length}/{dodItems.length} {t('Terpenuhi')}
+            </span>
+          )}
+        </div>
 
         {/* Meta Row: Branch / PR / Worker Info */}
         <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-muted-foreground">
@@ -187,16 +298,16 @@ export function TaskCompletionCard({
             <span>{agentName}</span>
           </span>
 
-          {task.branch_name && (
+          {currentTask.branch_name && (
             <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 font-mono text-[10px]">
               <GitBranch className="h-3 w-3 text-muted-foreground" />
-              <span>{task.branch_name}</span>
+              <span>{currentTask.branch_name}</span>
             </span>
           )}
 
-          {task.pr_url && (
+          {currentTask.pr_url && (
             <a
-              href={task.pr_url}
+              href={currentTask.pr_url}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
@@ -209,12 +320,12 @@ export function TaskCompletionCard({
       </div>
 
       {/* Actionable Quick Action Buttons */}
-      <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/40 pt-2.5">
         <button
           type="button"
           data-testid="completion-card-chat-btn"
           onClick={handleContinueChat}
-          className="action-secondary min-h-9 px-3 py-1.5 text-xs inline-flex items-center gap-1.5 rounded-lg cursor-pointer"
+          className="min-h-8 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 rounded-md hover:bg-muted/40 transition-colors cursor-pointer"
         >
           <MessageSquare className="h-3.5 w-3.5" />
           <span>{t('Lanjutkan Diskusi')}</span>
@@ -224,20 +335,20 @@ export function TaskCompletionCard({
           <button
             type="button"
             data-testid="completion-card-action-btn"
-            onClick={() => onViewDetails(task)}
-            className="action-primary min-h-9 px-3.5 py-1.5 text-xs inline-flex items-center gap-1.5 rounded-lg cursor-pointer"
+            onClick={() => handleViewDetails('details')}
+            className="min-h-8 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-md hover:bg-muted/40 transition-colors cursor-pointer group"
           >
             <span>{t('Buka Detail Tugas')}</span>
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 group-hover:translate-x-0.5 transition-transform" />
           </button>
         ) : (
           <Link
             to={taskDetailPath}
             data-testid="completion-card-action-btn"
-            className="action-primary min-h-9 px-3.5 py-1.5 text-xs inline-flex items-center gap-1.5 rounded-lg"
+            className="min-h-8 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-md hover:bg-muted/40 transition-colors group"
           >
             <span>{t('Buka Detail Tugas')}</span>
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         )}
       </div>

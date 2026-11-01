@@ -178,22 +178,17 @@ test('3. UI Component: 1-Click Context Popover detail and /settings/memory short
   )
 })
 
-test('4. Chat Integration: InboxView and StudioView render TasteGroundingChips', () => {
+test('4. Chat Integration: StudioView renders TasteGroundingChips (eliminated from InboxView in S62-T2)', () => {
   assert.ok(fs.existsSync(inboxViewPath), 'InboxView.tsx must exist')
   assert.ok(fs.existsSync(studioViewPath), 'StudioView.tsx must exist')
 
   const inboxSource = fs.readFileSync(inboxViewPath, 'utf8')
   const studioSource = fs.readFileSync(studioViewPath, 'utf8')
 
-  // InboxView chat bubble integration
+  // InboxView chat bubble clutter elimination (S62-T2)
   assert.ok(
-    inboxSource.includes("import { TasteGroundingChips } from './TasteGroundingChips'"),
-    'InboxView must import TasteGroundingChips component',
-  )
-  assert.ok(
-    inboxSource.includes('msg.grounding_tastes') &&
-      inboxSource.includes('<TasteGroundingChips'),
-    'InboxView must render TasteGroundingChips for messages with grounding_tastes',
+    !inboxSource.includes('<TasteGroundingChips'),
+    'InboxView must eliminate TasteGroundingChips from chat bubble canvas to avoid visual clutter',
   )
 
   // StudioView chat composer integration

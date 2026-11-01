@@ -12,6 +12,7 @@ import {
 export { ChatPreviewCard } from './RoomCard'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import type { ReceiptExtraction } from '../../api/appsSkills'
+import type { Task } from '../../api/types'
 
 // Promote a trailing paragraph of known navigation links. Never interpret model
 // text as an executable action or turn arbitrary destinations into primary CTAs.
@@ -37,10 +38,22 @@ export function MessageContent({
   content,
   hideTaskActions = false,
   receiptExtraction,
+  onTaskClick,
+  onOpenTerminal,
+  onUseDraft,
+  onRetry,
+  onContinueChat,
+  isCustomerRoom,
 }: {
   content: string
   hideTaskActions?: boolean
   receiptExtraction?: ReceiptExtraction
+  onTaskClick?: (task: Task) => void
+  onOpenTerminal?: (task: Task) => void
+  onUseDraft?: (draftText: string) => void
+  onRetry?: (task: Task) => Promise<void> | void
+  onContinueChat?: (suggestedText: string) => void
+  isCustomerRoom?: boolean
 }) {
   const { language, t } = useLanguage()
   const { body, actions } = messageNavigation(content)
@@ -52,11 +65,20 @@ export function MessageContent({
       )
     : actions
 
-  const report = body ? parseTaskReportMessage(body, language) : null
-  const extractedReceipt = receiptExtraction || (body ? parseReceiptExtraction(body) : null)
+  const report = (body ? parseTaskReportMessage(body, language) : null) || parseTaskReportMessage(content, language)
+  const extractedReceipt = receiptExtraction || (body ? parseReceiptExtraction(body) : null) || parseReceiptExtraction(content)
   const displayBody = extractedReceipt
-    ? body.replace(/```(?:cuan-receipt|receipt)\s*[\s\S]*?```/, '').trim()
+    ? (body || content).replace(/```(?:cuan-receipt|receipt)\s*[\s\S]*?```/, '').trim()
     : body
+
+  // Fallback to un-suppress bubbles: never leave a blank bubble when content or links exist
+  const effectiveActions =
+    visibleActions.length === 0 && !report && !extractedReceipt && !body.trim() && actions.length > 0
+      ? actions
+      : visibleActions
+
+  const effectiveBody =
+    displayBody || (!report && !extractedReceipt && effectiveActions.length === 0 ? content.trim() : '')
 
   return (
     <>
@@ -65,26 +87,36 @@ export function MessageContent({
           <StatusReportCard report={report} />
           {report.dodDetails?.remainingText && (
             <div className="pt-1">
-              <ChatMarkdown content={report.dodDetails.remainingText} />
+              <ChatMarkdown content={report.dodDetails.remainingText} onTaskClick={onTaskClick} isCustomerRoom={isCustomerRoom} />
             </div>
           )}
         </div>
       ) : (
-        displayBody && <ChatMarkdown content={displayBody} />
+        effectiveBody ? <ChatMarkdown content={effectiveBody} onTaskClick={onTaskClick} isCustomerRoom={isCustomerRoom} /> : null
       )}
       {extractedReceipt && (
         <ReceiptPreviewCard extraction={extractedReceipt} />
       )}
-      {visibleActions.length > 0 && (
+      {effectiveActions.length > 0 && (
         <div
           className="mt-3 flex flex-col gap-2.5 w-full max-w-full"
           aria-label="Message actions"
         >
-          {visibleActions.map((action) => {
+          {effectiveActions.map((action) => {
             const taskMatch = action.href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
             const taskId = taskMatch ? taskMatch[1] : extractTaskId(action.href)
             if (taskId) {
-              return <TaskCard key={action.href} taskId={taskId} />
+              return (
+                <TaskCard key={action.href}
+                  taskId={taskId}
+                  onClick={onTaskClick}
+                  onOpenTerminal={onOpenTerminal}
+                  onUseDraft={onUseDraft}
+                  onRetry={onRetry}
+                  onContinueChat={onContinueChat}
+                  isCustomerRoom={isCustomerRoom}
+                />
+              )
             }
             const inboxMatch = action.href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
             const chatMatch = action.href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)

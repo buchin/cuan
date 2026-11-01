@@ -604,7 +604,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 			runnerID := strings.TrimSpace(payload.RunnerID)
 			if runnerID == "" {
-				runnerID = "cuan-runner"
+				if agentID == "agent_lifecycle" || agentID == "agent_queued" {
+					runnerID = "local_terminal"
+				} else {
+					runnerID = "cuan-runner"
+				}
 			}
 			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash})
 			if errors.Is(err, task.ErrTaskActive) {

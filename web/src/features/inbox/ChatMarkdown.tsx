@@ -18,6 +18,7 @@ import { Check, Copy, ChevronDown, Workflow } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
+import type { Task } from '../../api/types'
 import {
   extractConversationRoomId,
   extractTaskId,
@@ -220,9 +221,13 @@ function prepareChatMarkdown(raw: string): string {
 export const ChatMarkdown = memo(function ChatMarkdown({
   content,
   className,
+  onTaskClick,
+  isCustomerRoom = false,
 }: {
   content: string
   className?: string
+  onTaskClick?: (task: Task) => void
+  isCustomerRoom?: boolean
 }) {
   const extensionRevision = useExtensionRevision()
   const preparedContent = prepareChatMarkdown(content)
@@ -260,7 +265,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
               const taskMatch = href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
               const taskId = taskMatch ? taskMatch[1] : extractTaskId(href)
               if (taskId) {
-                return <TaskCard taskId={taskId} className="my-2" />
+                return <TaskCard taskId={taskId} className="my-2" onClick={onTaskClick} isCustomerRoom={isCustomerRoom} />
               }
               const inboxMatch = href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
               const chatMatch = href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)

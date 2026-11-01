@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { CalendarClock, Play, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import { Play, CheckCircle2, AlertCircle, Clock, CalendarClock } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
+import { GroupedSection } from '../../components/layout/GroupedSection'
 
 interface ScheduledJob {
   id: string
@@ -61,38 +62,31 @@ export function ScheduledJobsCard() {
   }
 
   return (
-    <section
+    <GroupedSection
       id="scheduled-jobs"
       aria-labelledby="scheduled-jobs-title"
-      className="space-y-4 rounded-lg border border-border bg-card p-5"
+      title={
+        <span className="inline-flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-muted-foreground" />
+          <span>{t('Scheduled Routines & Automations')}</span>
+        </span>
+      }
+      description={t('Automated system routines running quietly in the background.')}
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <CalendarClock className="h-5 w-5 text-primary" />
-            <h2 id="scheduled-jobs-title" className="text-lg font-semibold">
-              {t('Scheduled Routines & Automations')}
-            </h2>
+      <div className="p-4 sm:p-5 space-y-3">
+        {feedback && (
+          <div className="text-xs text-emerald-500 flex items-center gap-1.5 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            <span>{feedback}</span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('Automated system routines running quietly in the background.')}
-          </p>
-        </div>
-      </div>
+        )}
 
-      {feedback && (
-        <div className="text-xs text-emerald-500 flex items-center gap-1.5 bg-emerald-500/10 p-2.5 rounded border border-emerald-500/20">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
-      {loading && jobs.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-2">{t('Loading schedules...')}</div>
-      ) : jobs.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-2">{t('No active background routines.')}</div>
-      ) : (
-        <div className="divide-y divide-border">
+        {loading && jobs.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-2">{t('Loading schedules...')}</div>
+        ) : jobs.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-2">{t('No active background routines.')}</div>
+        ) : (
+          <div className="divide-y divide-border/40">
           {jobs.map((job) => (
             <div key={job.id} className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
@@ -145,6 +139,7 @@ export function ScheduledJobsCard() {
           ))}
         </div>
       )}
-    </section>
+      </div>
+    </GroupedSection>
   )
 }

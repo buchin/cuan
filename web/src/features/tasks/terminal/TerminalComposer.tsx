@@ -24,11 +24,14 @@ import { getAuthToken } from '../../../api/client'
 import { ActionDialog } from '../../../components/dialogs/ActionDialog'
 import { useLanguage } from '../../../context/LanguageContext'
 import { isImageFile } from '../../../components/dialogs/filePreviewUtils'
-import '../../inbox/chat-whatsapp.css'
+import '../../inbox/chat-calm.css'
 
 export type TerminalComposerProps = {
   taskId: string
+  attemptId?: string
   onSend: (data: string) => void
+  onSteer?: (prompt: string) => Promise<boolean | void> | void
+  onStop?: () => void
   onClearScreen: () => void
   onInterrupt: () => void
   onToggleMobileKbd?: () => void
@@ -51,7 +54,10 @@ interface SlashCommand {
 
 export function TerminalComposer({
   taskId,
+  attemptId,
   onSend,
+  onSteer,
+  onStop,
   onClearScreen,
   onInterrupt,
   onToggleMobileKbd,
@@ -116,11 +122,11 @@ export function TerminalComposer({
     }
   }, [])
 
-  // Auto-resize textarea to match Inbox experience (min 36-38px, max 140px, auto overflow)
+  // Auto-resize textarea to match Inbox experience (min 38-44px, max 140px, auto overflow)
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto'
     const scrollH = el.scrollHeight
-    const minH = window.innerWidth < 640 ? 36 : 38
+    const minH = window.innerWidth < 640 ? 44 : 38
     const cap = Math.max(
       minH,
       Math.min(
@@ -321,7 +327,7 @@ export function TerminalComposer({
       command: '/stop',
       label: 'Stop Process (Ctrl+C)',
       description: 'Kirim sinyal interupsi SIGINT ke proses yang berjalan',
-      action: () => onInterrupt(),
+      action: () => (onStop ? onStop() : onInterrupt()),
     },
   ]
 
@@ -358,6 +364,9 @@ export function TerminalComposer({
 
     addToHistory(toSend)
     onSend(toSend)
+    if (onSteer) {
+      void onSteer(toSend)
+    }
     setTimeout(() => {
       onSend('\r')
     }, 40)
@@ -553,7 +562,8 @@ export function TerminalComposer({
 
   return (
     <div
-      className={`wa-chat relative shrink-0 select-none bg-[#141414] border-t border-[#262626] px-2.5 py-2 space-y-1.5 ${className}`}
+      data-attempt-id={attemptId}
+      className={`wa-chat relative shrink-0 select-none bg-[#141414] border-t border-[#262626] px-2.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-1.5 ${className}`}
     >
       {/* ── Slash Commands Autocomplete Popup ── */}
       {showSlashPopup && filteredCommands.length > 0 && (
@@ -656,22 +666,27 @@ export function TerminalComposer({
         <p className="text-xs text-destructive px-1">{uploadError}</p>
       )}
 
-      {/* ── Quick Action Chips Row (Desktop only; hidden on mobile to eliminate clutter) ── */}
-      <div className="hidden sm:flex items-center gap-1 overflow-x-auto select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {/* Mobile Accessory Keyboard Toggle (Prominently first on mobile) */}
+      {/* ── Quick Action Chips Row (Horizontal scroll on mobile with touch-friendly >= 44x44px targets) ── */}
+      <div
+        role="toolbar"
+        aria-label="Terminal Quick Action Chips"
+        className="flex items-center gap-1.5 overflow-x-auto select-none py-0.5 px-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+      >
+        {/* Mobile Accessory Keyboard Toggle */}
         {onToggleMobileKbd && (
           <button
             type="button"
             disabled={disabled}
             onClick={onToggleMobileKbd}
-            className={`inline-flex sm:hidden h-6 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-mono font-semibold transition-colors disabled:opacity-40 ${
+            className={`inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-mono font-semibold transition-colors disabled:opacity-40 cursor-pointer ${
               isMobileKbdActive
                 ? 'border-emerald-500 bg-emerald-600 text-white shadow-xs'
                 : 'border-neutral-700 bg-neutral-800 text-emerald-400 hover:bg-neutral-700 active:bg-neutral-600'
             }`}
             title="Toggle extra virtual keys drawer (ESC, Arrows, CTRL, ALT)"
+            aria-label="Toggle extra virtual keys drawer"
           >
-            <Keyboard className="h-3 w-3" />
+            <Keyboard className="h-3.5 w-3.5" />
             <span>Kbd</span>
           </button>
         )}
@@ -680,10 +695,11 @@ export function TerminalComposer({
           type="button"
           disabled={disabled}
           onClick={() => handleSend('y')}
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-[#333] bg-[#222] px-2 text-[11px] font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40"
+          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
           title="Send 'y' (confirm Yes)"
+          aria-label="Send y (confirm Yes)"
         >
-          <Check className="h-2.5 w-2.5 text-emerald-400" />
+          <Check className="h-3 w-3 text-emerald-400" />
           <span>y (Yes)</span>
         </button>
 
@@ -691,32 +707,35 @@ export function TerminalComposer({
           type="button"
           disabled={disabled}
           onClick={() => handleSend('n')}
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-[#333] bg-[#222] px-2 text-[11px] font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40"
+          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
           title="Send 'n' (confirm No)"
+          aria-label="Send n (confirm No)"
         >
-          <X className="h-2.5 w-2.5 text-rose-400" />
+          <X className="h-3 w-3 text-rose-400" />
           <span>n (No)</span>
         </button>
 
         <button
           type="button"
           disabled={disabled}
-          onClick={onInterrupt}
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-[#333] bg-[#222] px-2 text-[11px] font-mono font-medium text-rose-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40"
+          onClick={onStop || onInterrupt}
+          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-mono font-semibold text-rose-300 hover:bg-rose-500/20 active:bg-rose-500/30 transition-colors disabled:opacity-40 cursor-pointer"
           title="Send SIGINT (Ctrl+C) to cancel process"
+          aria-label="Stop Process (Ctrl+C)"
         >
-          <Ban className="h-2.5 w-2.5" />
-          <span>Ctrl+C</span>
+          <Ban className="h-3 w-3 text-rose-400" />
+          <span>Stop (Ctrl+C)</span>
         </button>
 
         <button
           type="button"
           disabled={disabled}
           onClick={onClearScreen}
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-[#333] bg-[#222] px-2 text-[11px] font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40"
+          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
           title="Clear screen buffer"
+          aria-label="Clear screen buffer"
         >
-          <Trash2 className="h-2.5 w-2.5 text-neutral-400" />
+          <Trash2 className="h-3 w-3 text-neutral-400" />
           <span>Clear</span>
         </button>
 
@@ -724,8 +743,9 @@ export function TerminalComposer({
           type="button"
           disabled={disabled}
           onClick={() => onSend('\t')}
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-[#333] bg-[#222] px-2 text-[11px] font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40"
+          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
           title="Send TAB (autocomplete)"
+          aria-label="Send Tab autocomplete"
         >
           <span>Tab</span>
         </button>
@@ -784,23 +804,23 @@ export function TerminalComposer({
         aria-label="Terminal input composer"
         className="wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
       >
-        {/* Attachment Picker Button */}
+        {/* Attachment Picker Button (WCAG >= 44x44px touch target on mobile) */}
         <button
           type="button"
           disabled={disabled || uploading}
           onClick={() => setShowAttachmentMenu(true)}
-          className="wa-action-btn h-9 w-9 flex items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40 mb-0.5"
+          className="wa-action-btn min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40 mb-0.5 cursor-pointer"
           title="Upload file ke workspace tugas (/upload)"
           aria-label={t('Add attachment')}
         >
           {uploading ? (
-            <LoaderCircle className="h-4 w-4 animate-spin text-emerald-400" />
+            <LoaderCircle className="h-5 w-5 animate-spin text-emerald-400" />
           ) : (
             <Paperclip className="h-5 w-5" />
           )}
         </button>
 
-        {/* Multiline Command / Text Input (Auto-expanding like Inbox) */}
+        {/* Multiline Command / Text Input (Auto-expanding like Inbox with min-h-[44px] on mobile) */}
         <div className="relative flex-1 min-w-0 flex items-center">
           <textarea
             ref={textareaRef}
@@ -825,7 +845,7 @@ export function TerminalComposer({
             data-form-type="other"
             data-lpignore="true"
             data-1p-ignore="true"
-            className="wa-input w-full min-w-0 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 px-2 pr-6 text-xs sm:text-sm font-mono leading-relaxed"
+            className="wa-input w-full min-w-0 min-h-[44px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2.5 px-3 pr-8 text-xs sm:text-sm font-mono leading-relaxed"
           />
           {text && (
             <button
@@ -838,21 +858,22 @@ export function TerminalComposer({
                   textareaRef.current.focus()
                 }
               }}
-              className="absolute right-1 top-2.5 p-1 text-neutral-400 hover:text-white transition-colors"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[36px] min-w-[36px] flex items-center justify-center p-1 text-neutral-400 hover:text-white transition-colors cursor-pointer"
               title="Clear input"
+              aria-label="Clear input"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        {/* Mobile Terminal Keys Toggle (Right side before send button, like WhatsApp emoji/aux keyboard) */}
+        {/* Mobile Terminal Keys Toggle (Right side before send button, >= 44x44px touch target) */}
         {onToggleMobileKbd && (
           <button
             type="button"
             disabled={disabled}
             onClick={onToggleMobileKbd}
-            className={`sm:hidden h-8 w-8 flex items-center justify-center rounded-full transition-all shrink-0 mb-1 ${
+            className={`sm:hidden min-h-[44px] min-w-[44px] h-11 w-11 flex items-center justify-center rounded-full transition-all shrink-0 mb-0.5 cursor-pointer ${
               isMobileKbdActive
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-neutral-400 hover:text-emerald-400 active:bg-neutral-800'
@@ -860,17 +881,17 @@ export function TerminalComposer({
             title="Toggle terminal keys (ESC, TAB, Arrows)"
             aria-label="Toggle terminal keys"
           >
-            <Keyboard className="h-4 w-4" />
+            <Keyboard className="h-5 w-5" />
           </button>
         )}
 
-        {/* Voice Dictation (Speech-to-Text) Button */}
+        {/* Voice Dictation (Speech-to-Text) Button (>= 44x44px touch target) */}
         {speechSupported && (
           <button
             type="button"
             disabled={disabled}
             onClick={toggleListening}
-            className={`h-9 w-9 rounded-full flex items-center justify-center transition-all shrink-0 mb-0.5 ${
+            className={`min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center transition-all shrink-0 mb-0.5 cursor-pointer ${
               isListening
                 ? 'bg-rose-600 text-white animate-pulse shadow-md'
                 : 'text-neutral-400 hover:text-emerald-400 hover:bg-neutral-800'
@@ -878,16 +899,16 @@ export function TerminalComposer({
             title={isListening ? 'Hentikan dikte suara' : 'Dikte suara (Speech-to-Text)'}
             aria-label="Voice input"
           >
-            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
           </button>
         )}
 
-        {/* Send Button (Inbox WhatsApp circular button) */}
+        {/* Send Button (Inbox WhatsApp circular button, >= 44x44px touch target) */}
         <button
           type="button"
           disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
           onClick={() => handleSend()}
-          className="wa-send h-9 w-9 sm:h-9.5 sm:w-9.5 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5"
+          className="wa-send min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5"
           title="Kirim ke terminal (Enter)"
           aria-label="Send input"
         >

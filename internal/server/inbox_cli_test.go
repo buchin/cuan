@@ -47,6 +47,7 @@ func TestInboxCLIExitZeroFailureAndTrace(t *testing.T) {
 	}
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "4")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	steps := map[string]string{}
 	var mu sync.Mutex
@@ -107,6 +108,7 @@ echo private-stderr >&2
 	}
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "4")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	var trace []string
 	out, failure := s.executeInboxCLI(context.Background(), "fixture", "agy", "Analyze README", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) })
@@ -187,6 +189,7 @@ fi
 	}
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "2")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	var trace []string
 	safe := false
@@ -229,6 +232,7 @@ exit 0
 	}
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "2")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	var trace []string
 	safe := false
@@ -237,10 +241,52 @@ exit 0
 	if failure != "" {
 		t.Fatalf("expected graceful fallback without fatal failure, got failure: %q", failure)
 	}
-	if out == "" || !strings.Contains(out, "Pemeriksaan tool telah mencapai batas kuota turn ini") {
+	if out == "" || !strings.Contains(out, "Berdasarkan analisis konteks proyek dan riwayat yang terkumpul") {
 		t.Fatalf("expected graceful fallback message in output, got: %q", out)
 	}
 	if strings.Contains(out, "```cuan-") {
 		t.Fatalf("expected action: null with no action markers, got: %q", out)
+	}
+}
+
+func TestInboxCLIAdaptiveBatchingCodeInspection(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	// Mock agy: executes 50 inspection read_file calls (which would fail on old limits)
+	// With adaptive batching (factor 5) and default 50 turn budget (250 capacity), it completes cleanly on 1st invocation.
+	script := `#!/bin/sh
+i=1
+while [ "$i" -le 50 ]; do
+    printf '{"event":"step_update","step_update":{"step_index":%d,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}\n' "$i"
+    printf '{"event":"step_update","step_update":{"step_index":%d,"state":"DONE","step_type":"tool","tool_name":"read_file"}}\n' "$i"
+    i=$((i + 1))
+done
+printf '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Analisis 50 berkas kode telah selesai secara menyeluruh tanpa kendala.\",\"topic_title\":\"\",\"action\":null}"}}\n'
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	// Ensure default budget is used without override
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "")
+	t.Setenv("INBOX_TOOL_BUDGET", "")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	var trace []string
+	safe := false
+	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Inspeksi seluruh modul kode di workspace", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) }, &safe)
+
+	if failure != "" {
+		t.Fatalf("expected 50 inspection tool calls to succeed with adaptive batching, got failure: %q", failure)
+	}
+	if out == "" || !strings.Contains(out, "Analisis 50 berkas kode telah selesai") {
+		t.Fatalf("expected successful analysis reply, got: %q", out)
+	}
+	joined := strings.Join(trace, "\n")
+	if strings.Contains(joined, "runtime_tool_budget_exceeded") {
+		t.Fatalf("did not expect tool budget exceeded during normal 50-file inspection, got trace: %s", joined)
+	}
+	if strings.Contains(joined, "response_recovery") {
+		t.Fatalf("did not expect response recovery during normal 50-file inspection, got trace: %s", joined)
 	}
 }

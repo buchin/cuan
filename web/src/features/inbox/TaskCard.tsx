@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import {
   Folder,
   Terminal,
-  CheckCircle2,
   Copy,
   Check,
   RefreshCw,
   FileText,
   AlertCircle,
+  Clock,
+  Send,
+  Sparkles,
 } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
@@ -26,14 +28,23 @@ import {
   relativeTime,
   agentDisplayName,
 } from '../tasks/task-ui'
+import { isTaskActive, formatDuration } from './task-progress'
+import { TaskCompletionCard } from './TaskCompletionCard'
+import { parseTaskReviewEnvelope } from './task-envelope'
 
 export interface TaskCardProps {
   taskId: string
   initialTask?: Task
   onNavigate?: () => void
-  onClick?: (task: Task) => void
+  onClick?: (task: Task, tab?: 'details' | 'terminal') => void
   className?: string
   returnTo?: string
+  onContinueChat?: (suggestedText: string) => void
+  onUseDraft?: (draftText: string) => void
+  onOpenTerminal?: (task: Task) => void
+  onRetry?: (task: Task) => Promise<void> | void
+  disableCompletionCard?: boolean
+  isCustomerRoom?: boolean
 }
 
 export function TaskCard({
@@ -43,6 +54,12 @@ export function TaskCard({
   onClick,
   className,
   returnTo,
+  onContinueChat,
+  onUseDraft,
+  onOpenTerminal,
+  onRetry,
+  disableCompletionCard = false,
+  isCustomerRoom = false,
 }: TaskCardProps) {
   const { t } = useLanguage()
   const navigate = useNavigate()
@@ -52,6 +69,7 @@ export function TaskCard({
   const [error, setError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
 
   useEffect(() => {
     if (initialTask) {
@@ -79,9 +97,88 @@ export function TaskCard({
     }
   }, [taskId, initialTask])
 
+  // Autonomous polling for active tasks in stream (every 3.5s)
+  useEffect(() => {
+    if (!currentTask || !isTaskActive(currentTask)) return
+    let active = true
+    const interval = setInterval(async () => {
+      try {
+        const updated = await tasksApi.get(taskId)
+        if (active && updated) {
+          setCurrentTask(updated)
+        }
+      } catch {
+        // ignore polling error
+      }
+    }, 3500)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [
+    taskId,
+    currentTask?.id,
+    currentTask?.status,
+    currentTask?.latest_attempt?.status,
+    currentTask?.launch?.state,
+  ])
+
+  // Live timer interval for queued/running tasks
+  useEffect(() => {
+    if (!currentTask) {
+      setElapsedSeconds(0)
+      return
+    }
+
+    const taskStatus = (currentTask.status || '').toLowerCase().trim()
+    const attemptStatus = (currentTask.latest_attempt?.status || '').toLowerCase().trim()
+    const launchState = (currentTask.launch?.state || '').toLowerCase().trim()
+    const isRunningOrQueued =
+      taskStatus === 'doing' ||
+      taskStatus === 'queued' ||
+      attemptStatus === 'running' ||
+      attemptStatus === 'queued' ||
+      launchState === 'started' ||
+      launchState === 'claimed' ||
+      launchState === 'queued' ||
+      isTaskActive(currentTask)
+
+    if (!isRunningOrQueued) {
+      setElapsedSeconds(0)
+      return
+    }
+
+    const startTimestamp =
+      currentTask.latest_attempt?.started_at ||
+      currentTask.latest_attempt?.created_at ||
+      currentTask.updated_at ||
+      currentTask.created_at
+
+    const parseTime = Date.parse(startTimestamp || '')
+    const startTime = Number.isFinite(parseTime) ? parseTime : Date.now()
+
+    const updateTimer = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - startTime) / 1000))
+      setElapsedSeconds(diff)
+    }
+
+    updateTimer()
+    const timer = setInterval(updateTimer, 1000)
+
+    return () => clearInterval(timer)
+  }, [
+    currentTask?.id,
+    currentTask?.status,
+    currentTask?.latest_attempt?.status,
+    currentTask?.latest_attempt?.started_at,
+    currentTask?.latest_attempt?.created_at,
+    currentTask?.updated_at,
+    currentTask?.created_at,
+  ])
+
   const handleCardClick = (_e: React.MouseEvent) => {
     if (onClick && currentTask) {
-      onClick(currentTask)
+      onClick(currentTask, 'details')
     } else {
       const url = currentTask ? taskTargetUrl(currentTask) : `/tasks/${encodeURIComponent(taskId)}`
       navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
@@ -93,7 +190,7 @@ export function TaskCard({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       if (onClick && currentTask) {
-        onClick(currentTask)
+        onClick(currentTask, 'details')
       } else {
         const url = currentTask ? taskTargetUrl(currentTask) : `/tasks/${encodeURIComponent(taskId)}`
         navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
@@ -115,9 +212,11 @@ export function TaskCard({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleActionClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleActionClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
     if (!currentTask) {
       navigate(`/tasks/${encodeURIComponent(taskId)}`)
       onNavigate?.()
@@ -130,7 +229,27 @@ export function TaskCard({
     } else if (status === 'Working' || status === 'Queued' || (status as string) === 'Waiting to start') {
       url = taskTerminalUrl(currentTask)
     }
-    navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    if (onOpenTerminal && (status === 'Working' || status === 'Queued')) {
+      onOpenTerminal(currentTask)
+    } else if (onClick) {
+      onClick(currentTask, 'details')
+    } else {
+      navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    }
+    onNavigate?.()
+  }
+
+  const handleOpenTerminal = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!currentTask) return
+    if (onOpenTerminal) {
+      onOpenTerminal(currentTask)
+    } else if (onClick) {
+      onClick(currentTask, 'terminal')
+    } else {
+      navigate(taskTerminalUrl(currentTask), returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    }
     onNavigate?.()
   }
 
@@ -140,17 +259,21 @@ export function TaskCard({
     if (retrying || !currentTask) return
     setRetrying(true)
     try {
-      const agentId =
-        currentTask.latest_attempt?.agent_name ||
-        currentTask.assignee_id ||
-        currentTask.assignee ||
-        'agy'
-      await tasksApi.runAgent(currentTask.id, {
-        request_id: crypto.randomUUID(),
-        agent_id: agentId,
-      })
-      const updated = await tasksApi.get(currentTask.id)
-      if (updated) setCurrentTask(updated)
+      if (onRetry) {
+        await onRetry(currentTask)
+      } else {
+        const agentId =
+          currentTask.latest_attempt?.agent_name ||
+          currentTask.assignee_id ||
+          currentTask.assignee ||
+          'agy'
+        await tasksApi.runAgent(currentTask.id, {
+          request_id: crypto.randomUUID(),
+          agent_id: agentId,
+        })
+        const updated = await tasksApi.get(currentTask.id)
+        if (updated) setCurrentTask(updated)
+      }
       onNavigate?.()
     } catch {
       // ignore
@@ -159,12 +282,33 @@ export function TaskCard({
     }
   }
 
+  const handleUseDraft = (e: React.MouseEvent, draftText: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draftText) return
+    if (onUseDraft) {
+      onUseDraft(draftText)
+    } else if (onContinueChat) {
+      onContinueChat(draftText)
+    }
+  }
+
+  const handleViewDetails = (task: Task, tab: 'details' | 'terminal' = 'details') => {
+    if (onClick) {
+      onClick(task, tab)
+    } else {
+      const url = taskDetailUrl(task)
+      navigate(url, returnTo ? { state: { taskReturnTo: returnTo } } : undefined)
+    }
+    onNavigate?.()
+  }
+
   if (loading) {
     return (
       <div
         data-card="task-card"
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs animate-pulse min-h-[44px]',
+          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground animate-pulse min-h-[44px]',
           className
         )}
       >
@@ -187,7 +331,7 @@ export function TaskCard({
         role="button"
         tabIndex={0}
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs transition-all hover:border-primary/50 cursor-pointer min-h-[44px]',
+          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer min-h-[44px]',
           className
         )}
       >
@@ -199,7 +343,7 @@ export function TaskCard({
             type="button"
             onClick={handleCopyLink}
             aria-label={t('Copy link')}
-            className="action-secondary min-h-[44px] min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
             <span>{copied ? t('Copied') : t('Copy link')}</span>
@@ -210,14 +354,56 @@ export function TaskCard({
     )
   }
 
+  const rawStatus = (currentTask.status || '').toLowerCase().trim()
   const status = workStatus(currentTask)
+  const isDone = rawStatus === 'done' || status === 'Completed'
+  const isReview = rawStatus === 'review' || status === 'Ready for review' || status === 'Answered'
+
+  // Seamless transition to TaskCompletionCard for completed or review tasks
+  if ((isDone || isReview) && !disableCompletionCard) {
+    const convId = returnTo?.includes('/inbox/')
+      ? returnTo.split('/inbox/')[1]?.split(/[?#]/)[0]
+      : undefined
+
+    return (
+      <div
+        data-card="task-card"
+        className={cn(
+          'w-full max-w-full transition-all duration-300 ease-out animate-in fade-in',
+          className
+        )}
+      >
+        <TaskCompletionCard
+          task={currentTask}
+          conversationId={convId}
+          onContinueChat={onContinueChat}
+          onUseDraft={onUseDraft}
+          onViewDetails={handleViewDetails}
+          onOpenTerminal={onOpenTerminal}
+          onRetry={onRetry}
+          isCustomerRoom={isCustomerRoom}
+        />
+      </div>
+    )
+  }
+
   const isWorking = status === 'Working'
-  const isQueued = status === 'Queued' || (status as string) === 'Waiting to start' || (currentTask.status as string) === 'queued'
+  const isQueued =
+    status === 'Queued' ||
+    (status as string) === 'Waiting to start' ||
+    rawStatus === 'queued'
   const isNeedsAttention = status === 'Needs attention'
   const statusBadge = workStatusBadgeClass(status)
-  const agent = currentTask.latest_attempt?.agent_name || currentTask.assignee_id || currentTask.assignee
-  const summary = taskSummaryText(currentTask)
+  const agent =
+    currentTask.latest_attempt?.agent_name ||
+    currentTask.assignee_id ||
+    currentTask.assignee
+
+  const envelopeResult = parseTaskReviewEnvelope(currentTask)
+  const summary = envelopeResult.summary || taskSummaryText(currentTask)
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
+  const queuedActivity =
+    currentTask.latest_progress || t('Menunggu antrean worker…')
 
   return (
     <div
@@ -227,12 +413,12 @@ export function TaskCard({
       role="button"
       tabIndex={0}
       className={cn(
-        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs transition-all hover:border-primary/50 hover:shadow-md cursor-pointer select-none space-y-2.5 min-h-[44px]',
+        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer select-none space-y-3 min-h-[44px]',
         className
       )}
     >
-      {/* Header: Status, Project, TaskRef, and Timestamp */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Header: Status, Live Timer, Project, TaskRef, and Timestamp */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span
             className={cn(
@@ -250,17 +436,25 @@ export function TaskCard({
                 <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
               </span>
-            ) : status === 'Ready for review' ? (
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
-            ) : status === 'Completed' || status === 'Answered' ? (
-              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            ) : status === 'Needs attention' ? (
+            ) : isNeedsAttention ? (
               <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />
             ) : (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}
             <span>{t(status)}</span>
           </span>
+
+          {/* Running/Queued Live Timer with duration */}
+          {(isWorking || isQueued) && (
+            <span
+              data-testid="task-card-live-timer"
+              className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md"
+              title={t('Durasi pengerjaan')}
+            >
+              <Clock className="h-3 w-3 shrink-0 text-primary animate-pulse" />
+              <span>{formatDuration(elapsedSeconds)}</span>
+            </span>
+          )}
 
           {currentTask.project_name && (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium truncate max-w-[150px]">
@@ -274,13 +468,33 @@ export function TaskCard({
           </span>
         </div>
 
-        <time
-          dateTime={currentTask.updated_at}
-          title={new Date(currentTask.updated_at).toLocaleString()}
-          className="text-xs text-muted-foreground whitespace-nowrap shrink-0"
-        >
-          {t(relativeTime(currentTask.updated_at))}
-        </time>
+        {/* Live Terminal & Retry Actionable Controls in Header */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenTerminal}
+            data-testid="task-card-terminal-btn"
+            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40"
+            title={t('Live Terminal')}
+            aria-label={t('Live Terminal')}
+          >
+            <Terminal className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <span className="hidden xs:inline sm:inline">{t('Live Terminal')}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={retrying}
+            onClick={handleRetry}
+            data-testid="task-card-retry-btn"
+            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40 disabled:opacity-50"
+            title={t('Coba Lagi')}
+            aria-label={t('Coba Lagi')}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin text-primary')} />
+            <span className="hidden xs:inline sm:inline">{retrying ? t('Retrying...') : t('Coba Lagi')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Title & Description */}
@@ -292,11 +506,67 @@ export function TaskCard({
           <p className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-1 break-words">
             {liveActivity}
           </p>
+        ) : isQueued ? (
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium line-clamp-1 break-words">
+            {queuedActivity}
+          </p>
         ) : summary ? (
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
             {summary}
           </p>
         ) : null}
+      </div>
+
+      {/* Visitor Reply Draft Section if customer room and draft exists */}
+      {isCustomerRoom && envelopeResult.draft && (
+        <div
+          data-testid="task-card-draft-section"
+          onClick={(e) => e.stopPropagation()}
+          className="border-t border-border/30 pt-2.5 space-y-2 cursor-default"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>{t('Draf Balasan Pengunjung')}</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => handleUseDraft(e, envelopeResult.draft)}
+              data-testid="task-card-use-draft-btn"
+              className="min-h-7 px-2.5 py-1 text-xs font-medium rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-none"
+              title={t('Gunakan Draf di Input')}
+            >
+              <Send className="h-3 w-3 shrink-0" />
+              <span>{t('Gunakan Draf di Input')}</span>
+            </button>
+          </div>
+          <p className="text-xs text-foreground/90 italic border-l-2 border-primary/40 pl-3 py-1 whitespace-pre-wrap leading-relaxed break-words">
+            "{envelopeResult.draft}"
+          </p>
+        </div>
+      )}
+
+      {/* Secondary Technical Details link: parks details to SlideDrawer */}
+      <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/30 text-xs">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            handleViewDetails(currentTask, 'details')
+          }}
+          data-testid="task-card-diagnostic-link"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
+        >
+          <span>{t('Detail Diagnostik & Status Deploy →')}</span>
+        </button>
+
+        <time
+          dateTime={currentTask.updated_at}
+          title={new Date(currentTask.updated_at).toLocaleString()}
+          className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0"
+        >
+          {t(relativeTime(currentTask.updated_at))}
+        </time>
       </div>
 
       {/* Assignee snippet */}
@@ -307,13 +577,13 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Footer: Quick Action Buttons (Tombol Aksi Cepat) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50">
+      {/* Footer: Quick Action Buttons */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
         <button
           type="button"
           onClick={handleCopyLink}
           aria-label={t('Copy link')}
-          className="action-secondary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
         >
           {copied ? (
             <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -330,7 +600,7 @@ export function TaskCard({
               disabled={retrying}
               onClick={handleRetry}
               aria-label={t('Retry')}
-              className="action-primary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
             >
               <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin')} />
               <span>{retrying ? t('Retrying...') : t('Retry')}</span>
@@ -341,17 +611,17 @@ export function TaskCard({
             type="button"
             onClick={handleActionClick}
             aria-label={`${t('Open task')}: ${currentTask.title}`}
-            className="action-primary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+            className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
           >
             {isWorking ? (
               <>
-                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                <Terminal className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                 <span>{t('Live Terminal')}</span>
               </>
-            ) : status === 'Ready for review' || status === 'Completed' || status === 'Answered' ? (
+            ) : isQueued ? (
               <>
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                <span>{t('View result')}</span>
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span>{t('Open task')}</span>
               </>
             ) : (
               <>

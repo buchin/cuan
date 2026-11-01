@@ -232,7 +232,9 @@ test('6. Localization: 100% of new strings exist in web/src/locales/id.json', as
     'Konfirmasi Kata Sandi',
     'Aktifkan Akun & Masuk',
     'Akses Dibatasi',
-    'Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) toko.',
+    idJson['Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) ruang kerja.'] !== undefined
+      ? 'Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) ruang kerja.'
+      : 'Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) toko.',
     'Kembali ke Pengaturan',
   ]
 

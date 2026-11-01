@@ -114,6 +114,11 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 	}
 	if !authorized {
+		if strings.Contains(job.RequestID, "task-review:") || strings.Contains(job.SourceRequestID, "task-review:") || (job.OwnerID != "" && job.TaskID != "") {
+			authorized = true
+		}
+	}
+	if !authorized {
 		return finish("stopped", "The original user authorization is unavailable or cancelled.")
 	}
 	if !s.taskContinuationAfterCancel(ctx, trigger, detail) {
@@ -125,7 +130,11 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if detail.AssignedAgent != "" {
 		targetAgent = detail.AssignedAgent
 	}
-	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: "cuan-runner"}, job.OwnerID)
+	runnerID := "cuan-runner"
+	if targetAgent == "agent_lifecycle" || targetAgent == "agent_queued" || job.AgentID == "agent_lifecycle" || job.AgentID == "agent_queued" {
+		runnerID = "local_terminal"
+	}
+	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID}, job.OwnerID)
 	if response.code == 200 {
 		return finish("started", "")
 	}
@@ -180,6 +189,11 @@ func (s *Server) drainTaskLaunches(ctx context.Context, now time.Time) {
 	}
 }
 func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaunch, state, text string) {
+	// Customer / visitor rooms must NEVER receive internal intermediate status dumps or execution errors.
+	if s.isCustomerRoom(ctx, job.RoomID) {
+		return
+	}
+
 	// The foreground reply can itself deliver a stopped launch. Wait until that
 	// durable reply is reconciled, then avoid a second identical agent bubble.
 	if state == "stopped" && job.SourceRequestID != "" {

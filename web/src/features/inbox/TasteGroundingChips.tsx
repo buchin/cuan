@@ -86,19 +86,12 @@ export function TasteGroundingChips({
             }}
             title={taste.summary || taste.preview || taste.content || topicName}
             className={cn(
-              'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer shadow-2xs max-w-[220px]',
-              taste.category === 'technical'
-                ? 'bg-cyan-500/10 text-cyan-900 dark:text-cyan-200 border border-cyan-500/25 hover:bg-cyan-500/20'
-                : 'bg-amber-500/10 text-amber-900 dark:text-amber-200 border border-amber-500/25 hover:bg-amber-500/20'
+              'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer max-w-[220px]',
+              'bg-muted/40 hover:bg-muted/70 text-muted-foreground hover:text-foreground border border-border/30 shadow-none'
             )}
           >
             <Sparkles
-              className={cn(
-                'h-3 w-3 shrink-0',
-                taste.category === 'technical'
-                  ? 'text-cyan-600 dark:text-cyan-400'
-                  : 'text-amber-600 dark:text-amber-400'
-              )}
+              className="h-3 w-3 shrink-0 text-muted-foreground/70"
               aria-hidden="true"
             />
             <span className="truncate">
@@ -120,7 +113,7 @@ export function TasteGroundingChips({
           }}
           aria-label={`${remainingCount} ${t('preferensi memori lainnya')}`}
           title={`${remainingCount} ${t('preferensi memori lainnya')}`}
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/60 transition-colors cursor-pointer shadow-2xs"
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted/30 hover:bg-muted/60 text-muted-foreground hover:text-foreground border border-border/30 transition-colors cursor-pointer"
         >
           <span>+{remainingCount} {t('lainnya')}</span>
         </button>

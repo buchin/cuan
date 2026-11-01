@@ -399,6 +399,73 @@ func TestRunner_AutoDeployEnforcement(t *testing.T) {
 	}
 }
 
+func TestRunner_AutoDeployCompliance_NonCodeInvestigation_SucceedsWithoutDeploy(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+
+	finder := &mockProjectFinder{
+		projects: map[string]*project.ProjectResponse{
+			"proj_autodeploy_investigation": {
+				ID:       "proj_autodeploy_investigation",
+				Metadata: json.RawMessage(`{"cuan_settings":{"auto_deploy":true}}`),
+			},
+		},
+	}
+	svc := NewService(runnerStore, taskStore, finder)
+
+	// Investigation task without code modifications
+	tk := &task.Task{
+		ID:                "task_investigation_1",
+		ProjectID:         "proj_autodeploy_investigation",
+		Title:             "Investigasi kegagalan integrasi pihak ketiga",
+		Instructions:      "Lakukan analisis log dan RCA penyebab kegagalan pembayaran",
+		Summary:           "RCA teknis selesai: timeout koneksi dari payment gateway",
+		CompleteNote:      "Hasil investigasi dan draf solusi untuk pelanggan telah siap.",
+		ExecutionCategory: task.ExecutionCategoryReadOnly,
+		Status:            task.TaskStatusDoing,
+	}
+	_ = taskStore.CreateTask(ctx, tk)
+
+	att := &task.TaskAttempt{
+		ID:     "att_inv_1",
+		TaskID: tk.ID,
+		Status: task.AttemptStatusRunning,
+	}
+	_ = taskStore.CreateAttempt(ctx, att)
+
+	noDeploy := false
+	req := CompleteAttemptRequest{
+		RunnerID:             "runner_1",
+		Status:               task.AttemptStatusSucceeded,
+		ExitCode:             0,
+		AgentReportConfirmed: true,
+		AgentReportRequired:  true,
+		RequiresDeploy:       &noDeploy,
+		DiffSummary:          "",
+		CommitSHA:            "",
+	}
+
+	completedAtt, err := svc.Complete(ctx, att.ID, req)
+	if err != nil {
+		t.Fatalf("Complete investigation attempt failed: %v", err)
+	}
+
+	// Smart Compliance Gate: Must succeed without live deployment requirement
+	if completedAtt.Status != task.AttemptStatusSucceeded {
+		t.Fatalf("Expected investigation attempt to succeed without deploy, got status '%s' (err: %s)", completedAtt.Status, completedAtt.ErrorMessage)
+	}
+
+	// Verify task is marked done
+	updatedTask, err := taskStore.GetTask(ctx, tk.ID)
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if updatedTask.Status != task.TaskStatusDone && updatedTask.Status != task.TaskStatusReview {
+		t.Fatalf("Expected task status 'done' or 'review', got '%s'", updatedTask.Status)
+	}
+}
+
 func TestRunner_MetadataInference(t *testing.T) {
 	// Test inference of execution categories
 	tests := []struct {

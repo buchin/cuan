@@ -18,13 +18,17 @@ test('1. SchedulesView component exists and supports task listing, creation moda
   assert.ok(content.includes('Weekly'), 'Must support Weekly frequency')
 })
 
-test('2. NavUser includes Schedules link in preferences/automations list', () => {
-  const file = path.join(webSrcDir, 'components/layout/NavUser.tsx')
-  assert.ok(fs.existsSync(file), 'NavUser.tsx must exist')
+test('2. Schedules consolidated into Settings (S62-T1) eliminating redundant AppShell Operations link', () => {
+  const file = path.join(webSrcDir, 'components/layout/AppShell.tsx')
+  assert.ok(fs.existsSync(file), 'AppShell.tsx must exist')
 
   const content = fs.readFileSync(file, 'utf8')
-  assert.ok(content.includes('/settings/schedules'), 'Must link to /settings/schedules')
-  assert.ok(content.includes("t('Schedules')"), 'Must display translated Schedules label')
+  // In S62-T1, Schedules is consolidated into Settings (/settings/schedules) and eliminated from primary AppShell nav
+  assert.ok(!content.includes("to: '/schedules'"), 'AppShell NAV_GROUPS must not contain redundant to: /schedules')
+  assert.ok(
+    content.includes("currentTab === 'schedules'") && content.includes("t('Schedules')"),
+    'Must handle Schedules label if referenced'
+  )
 })
 
 test('3. SettingsView includes Schedules tab item', () => {

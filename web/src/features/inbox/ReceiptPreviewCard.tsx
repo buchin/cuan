@@ -105,7 +105,7 @@ function sanitizeExtraction(raw: any): ReceiptExtraction {
         : items.reduce((acc, it) => acc + it.total, 0)
 
   return {
-    merchant: String(raw.merchant || 'Toko / Merchant'),
+    merchant: String(raw.merchant || 'Bisnis / Workspace'),
     date: String(raw.date || new Date().toISOString().split('T')[0]),
     total_amount: totalAmount,
     currency: String(raw.currency || 'IDR'),

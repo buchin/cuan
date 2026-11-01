@@ -184,14 +184,14 @@ export function ResendSettingsCard() {
 
   if (loading) {
     return (
-      <section className="rounded-lg border border-border bg-card p-5" aria-label="Resend Email Settings">
+      <section className="rounded-xl border border-border/40 bg-card/50 p-5" aria-label="Resend Email Settings">
         <p className="text-sm text-muted-foreground">{t('Memuat konfigurasi Resend…')}</p>
       </section>
     )
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5 space-y-5" aria-label="Resend Email Settings">
+    <section className="rounded-xl border border-border/40 bg-card/50 p-5 space-y-5" aria-label="Resend Email Settings">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -340,12 +340,12 @@ export function ResendSettingsCard() {
             <input
               type="email"
               className="field-control w-full min-h-11 text-sm"
-              placeholder="pemilik@toko.com"
+              placeholder="pemilik@workspace.com"
               value={notificationEmail}
               onChange={(e) => setNotificationEmail(e.target.value)}
             />
             <p className="text-[11px] text-muted-foreground">
-              {t('Alamat email staf / pemilik toko untuk menerima ringkasan pesan chat yang belum terbaca.')}
+              {t('Alamat email staf / pemilik ruang kerja untuk menerima ringkasan pesan chat yang belum terbaca.')}
             </p>
           </div>
           <div className="space-y-1.5">

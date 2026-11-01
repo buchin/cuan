@@ -9,7 +9,19 @@ import { useAuth } from '../../context/AuthContext'
 import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
-import { Inbox, CheckSquare, FolderGit2, PanelLeft } from 'lucide-react'
+import { SlideDrawer } from './SlideDrawer'
+import {
+  Inbox,
+  CheckSquare,
+  FolderGit2,
+  PanelLeft,
+  Users,
+  Settings,
+  MessageSquare,
+  MoreVertical,
+  Bot,
+  Clock,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export type AppTab =
@@ -49,6 +61,46 @@ const NAV_ITEMS = [
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
 ] as const
 
+export interface NavItemConfig {
+  id: AppTab
+  label: string
+  icon: ComponentType<{ className?: string }>
+  to: string
+  description?: string
+}
+
+export interface NavGroupConfig {
+  id: 'workspace' | 'operations' | 'system'
+  label: string
+  items: NavItemConfig[]
+}
+
+export const NAV_GROUPS: NavGroupConfig[] = [
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    items: [
+      { id: 'inbox', label: 'Chat', icon: MessageSquare, to: '/inbox', description: 'Unified Studio & Inbox' },
+      { id: 'tasks', label: 'Tasks', icon: CheckSquare, to: '/tasks', description: 'Papan tiket agen' },
+      { id: 'projects', label: 'Projects', icon: FolderGit2, to: '/projects', description: 'Workspaces & repo' },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    items: [
+      { id: 'contacts', label: 'Contacts', icon: Users, to: '/contacts', description: 'CRM & memori pelanggan' },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'System',
+    items: [
+      { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Profil, AI providers, team' },
+    ],
+  },
+]
+
 export function AppShell({
   currentTab,
   onSelectTab,
@@ -69,11 +121,43 @@ export function AppShell({
   hideSearch,
 }: AppShellProps) {
   const { t } = useLanguage()
-  const { isOwner } = useAuth()
+  const { isOwner, user } = useAuth()
   const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
 
   const routerNavigate = useNavigate()
   const location = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+    setMoreMenuOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        moreMenuRef.current &&
+        !moreMenuRef.current.contains(event.target as Node)
+      ) {
+        setMoreMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMoreMenuOpen(false)
+      }
+    }
+    if (moreMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [moreMenuOpen])
 
   // Eliminate redundant top navigation search icon on views with internal search inputs/filters or settings/account
   const hasInternalSearch =
@@ -120,6 +204,17 @@ export function AppShell({
       viewport?.removeEventListener('scroll', update)
     }
   }, [])
+  const isTabActive = (id: AppTab) => {
+    if (id === 'inbox' || id === 'chat') {
+      return (
+        currentTab === 'inbox' ||
+        currentTab === 'chat' ||
+        (currentTab as string) === 'studio'
+      )
+    }
+    return currentTab === id
+  }
+
   const label =
     currentTab === 'notifications'
       ? 'Notifications'
@@ -131,9 +226,13 @@ export function AppShell({
             ? t('Account')
             : currentTab === 'contacts'
               ? t('Contacts')
-              : (currentTab as string) === 'studio'
-                ? t('Chat')
-                : NAV_ITEMS.find((n) => n.id === currentTab)?.label
+              : currentTab === 'schedules'
+                ? t('Schedules')
+                : currentTab === 'projects'
+                  ? t('Projects')
+                  : currentTab === 'inbox' || currentTab === 'chat' || (currentTab as string) === 'studio'
+                    ? t('Chat')
+                    : (NAV_ITEMS as readonly { id: string; label: string }[]).find((n) => n.id === (currentTab as string))?.label
 
   useEffect(() => {
     const rawTitle = pageTitleIsContent ? pageTitle : t(pageTitle || label || '')
@@ -147,38 +246,41 @@ export function AppShell({
     id: AppTab,
     text: string,
     Icon: ComponentType<{ className?: string }>,
-  ) => (
-    <button
-      key={id}
-      title={t(text)}
-      aria-label={t(text)}
-      aria-current={currentTab === id ? 'page' : undefined}
-      onClick={() => navigate(id)}
-      className={cn(
-        'nav-action',
-        currentTab === id &&
-          'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
-      )}
-    >
-      <span className="relative">
-        {id === 'chat' || (id as string) === 'studio' ? (
-          <CuanMark decorative className="h-5 w-5 text-inherit" />
-        ) : (
-          <Icon className="h-5 w-5 shrink-0" />
+  ) => {
+    const active = isTabActive(id)
+    return (
+      <button
+        key={id}
+        title={t(text)}
+        aria-label={t(text)}
+        aria-current={active ? 'page' : undefined}
+        onClick={() => navigate(id)}
+        className={cn(
+          'nav-action',
+          active &&
+            'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
         )}
-        {id === 'inbox' && effectiveInboxUnread > 0 && (
-          <span
-            data-testid="inbox-unread-badge-rail"
-            aria-label={`${effectiveInboxUnread} unread messages`}
-            className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
-          >
-            {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
-          </span>
-        )}
-      </span>
-      <span className="nav-label">{t(text)}</span>
-    </button>
-  )
+      >
+        <span className="relative">
+          {id === 'chat' || (id as string) === 'studio' ? (
+            <CuanMark decorative className="h-5 w-5 text-inherit" />
+          ) : (
+            <Icon className="h-5 w-5 shrink-0" />
+          )}
+          {id === 'inbox' && effectiveInboxUnread > 0 && (
+            <span
+              data-testid="inbox-unread-badge-rail"
+              aria-label={`${effectiveInboxUnread} unread messages`}
+              className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
+            >
+              {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
+            </span>
+          )}
+        </span>
+        <span className="nav-label">{t(text)}</span>
+      </button>
+    )
+  }
   return (
     <div
       ref={shell}
@@ -227,24 +329,35 @@ export function AppShell({
             <PanelLeft className="h-4 w-4" />
           </button>
         </div>
-        <div className="flex-1 space-y-1 p-2.5">
-          {NAV_ITEMS.map((n) => navButton(n.id, n.label, n.icon))}
+        <div className="flex-1 space-y-4 overflow-y-auto p-2.5">
+          {NAV_GROUPS.map((group, index) => (
+            <div
+              key={group.id}
+              data-testid={`nav-group-${group.id}`}
+              className="space-y-1"
+            >
+              {!effectiveCollapsed ? (
+                <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t(group.label)}
+                </div>
+              ) : (
+                index > 0 && <div className="my-1.5 h-px bg-border/40" />
+              )}
+              {group.items.map((n) => navButton(n.id, n.label, n.icon))}
+            </div>
+          ))}
         </div>
         <div className="space-y-2 border-t border-border p-2.5">
           <NavUser
             sidebar
             collapsed={effectiveCollapsed}
-            active={
-              currentTab === 'settings' ||
-              currentTab === 'account' ||
-              currentTab === 'contacts'
-            }
+            active={currentTab === 'account'}
             onWork={() => navigate('tasks')}
             onSettings={() => navigate('settings')}
           />
         </div>
       </nav>
-      {currentTab === 'inbox' && listOpen && (
+      {(currentTab === 'inbox' || currentTab === 'chat') && listOpen && (
         <section
           aria-label={t('Conversations')}
           className="conversation-sidebar hidden h-full w-[280px] shrink-0 flex-col border-r border-border min-[1200px]:flex"
@@ -317,23 +430,25 @@ export function AppShell({
             <h1 className="page-title min-w-0 truncate text-xl font-semibold tracking-tight">
               {pageTitleIsContent ? pageTitle : t(pageTitle || label || '')}
             </h1>
-            <span
-              data-testid="user-role-badge"
-              className={cn(
-                'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0',
-                !isOwner
-                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                  : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-              )}
-            >
+            {currentTab === 'account' && (
               <span
+                data-testid="user-role-badge"
                 className={cn(
-                  'h-1.5 w-1.5 rounded-full',
-                  !isOwner ? 'bg-blue-500' : 'bg-green-500'
+                  'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0',
+                  !isOwner
+                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                    : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
                 )}
-              />
-              <span className="capitalize">{!isOwner ? t('Member') : t('Owner')}</span>
-            </span>
+              >
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full',
+                    !isOwner ? 'bg-blue-500' : 'bg-green-500'
+                  )}
+                />
+                <span className="capitalize">{!isOwner ? t('Member') : t('Owner')}</span>
+              </span>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <UniversalSearch hideTrigger={shouldHideSearch} />
@@ -359,6 +474,66 @@ export function AppShell({
               />
               </div>
             )}
+            <div className="relative" ref={moreMenuRef}>
+              <button
+                type="button"
+                data-testid="header-more-menu-trigger"
+                aria-label={t('More options')}
+                aria-expanded={moreMenuOpen}
+                onClick={() => setMoreMenuOpen((open) => !open)}
+                className="icon-action text-muted-foreground hover:text-foreground"
+                title={t('More options')}
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
+              {moreMenuOpen && (
+                <div
+                  data-testid="header-more-menu"
+                  role="menu"
+                  className="absolute right-0 top-full mt-1.5 z-50 min-w-44 bg-popover text-popover-foreground border border-border/40 shadow-md p-1.5 rounded-lg text-sm"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="more-menu-agents"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      routerNavigate('/agents')
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                  >
+                    <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Agents')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="more-menu-schedules"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      routerNavigate('/schedules')
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                  >
+                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Schedules')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="more-menu-settings"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      routerNavigate('/settings')
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                  >
+                    <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Settings')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         {secondaryNavigation}
@@ -370,7 +545,9 @@ export function AppShell({
               projectWorkspace ||
               sessionWorkspace
               ? 'overflow-hidden'
-              : 'overflow-auto p-3 sm:p-4 md:p-6',
+              : currentTab === 'tasks'
+                ? 'overflow-auto p-2 sm:p-3 md:p-4 lg:p-6'
+                : 'overflow-auto p-3 sm:p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',
           )}
         >
@@ -378,29 +555,31 @@ export function AppShell({
         </div>
       </main>
       {!hideBottomNav && (
-        <nav
-          aria-label={t('Bottom navigation')}
-          className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
-        >
-          {NAV_ITEMS.map(({ id, label: text, icon: Icon }) => (
+        <>
+          <nav
+            aria-label={t('Bottom navigation')}
+            className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
+          >
+            {/* Pillar 1: Chat */}
             <button
-              key={id}
-              aria-current={currentTab === id ? 'page' : undefined}
-              onClick={() => navigate(id)}
+              key="chat"
+              data-testid="bottom-nav-chat"
+              aria-label={t('Chat')}
+              aria-current={isTabActive('inbox') ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('inbox')
+              }}
               className={cn(
                 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
-                currentTab === id
+                isTabActive('inbox')
                   ? 'font-semibold text-primary'
                   : 'text-muted-foreground',
               )}
             >
               <span className="relative">
-                {id === 'chat' || (id as string) === 'studio' ? (
-                  <CuanMark decorative className="h-5 w-5 text-inherit" />
-                ) : (
-                  <Icon className="h-5 w-5" />
-                )}
-                {id === 'inbox' && effectiveInboxUnread > 0 && (
+                <MessageSquare className="h-5 w-5" />
+                {effectiveInboxUnread > 0 && (
                   <span
                     data-testid="inbox-unread-badge-bottom"
                     aria-label={`${effectiveInboxUnread} unread messages`}
@@ -410,23 +589,236 @@ export function AppShell({
                   </span>
                 )}
               </span>
-              {t(text)}
+              <span>{t('Chat')}</span>
             </button>
-          ))}
-          <div className="min-w-0 flex-1">
-            <NavUser
-              bottomNavigation
-              active={
-                currentTab === 'settings' ||
-                currentTab === 'account' ||
+
+            {/* Pillar 2: Tasks */}
+            <button
+              key="tasks"
+              data-testid="bottom-nav-tasks"
+              aria-label={t('Tasks')}
+              aria-current={currentTab === 'tasks' ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('tasks')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                currentTab === 'tasks'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <CheckSquare className="h-5 w-5" />
+              <span>{t('Tasks')}</span>
+            </button>
+
+            {/* Pillar 3: Projects */}
+            <button
+              key="projects"
+              data-testid="bottom-nav-projects"
+              aria-label={t('Projects')}
+              aria-current={currentTab === 'projects' ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('projects')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                currentTab === 'projects'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <FolderGit2 className="h-5 w-5" />
+              <span>{t('Projects')}</span>
+            </button>
+
+            {/* Pillar 4: Contacts */}
+            <button
+              key="contacts"
+              data-testid="bottom-nav-contacts"
+              aria-label={t('Contacts')}
+              aria-current={currentTab === 'contacts' ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('contacts')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
                 currentTab === 'contacts'
-              }
-              onWork={() => navigate('tasks')}
-              dropdownPosition="top-right"
-              onSettings={() => navigate('settings')}
-            />
-          </div>
-        </nav>
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <Users className="h-5 w-5" />
+              <span>{t('Contacts')}</span>
+            </button>
+
+            {/* Pillar 5: Avatar Profil Pengguna (NavUser compact) */}
+            <div
+              data-testid="bottom-nav-user"
+              className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center"
+            >
+              <NavUser
+                bottomNavigation
+                active={currentTab === 'account'}
+                dropdownPosition="top-right"
+                onSettings={() => navigate('settings')}
+                onWork={() => navigate('tasks')}
+              />
+            </div>
+          </nav>
+
+          {/* Mobile Menu Drawer */}
+          <SlideDrawer
+            isOpen={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            title={t('Menu')}
+            description={t('Workspace & System')}
+            size="sm"
+            className="md:hidden"
+            data-testid="mobile-menu-drawer"
+          >
+            <div className="space-y-6 py-2">
+              {/* Workspace */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('Workspace')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-projects"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('projects')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'projects'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
+                      <FolderGit2 className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">{t('Projects')}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t('Workspaces & repo')}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Operations */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('Operations')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-contacts"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('contacts')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'contacts'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">{t('Contacts')}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t('CRM & memori pelanggan')}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* System */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('System')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-settings"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('settings')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'settings'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
+                      <Settings className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">{t('Settings')}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {t('Profil, AI providers, team')}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-px bg-border/40" />
+
+              {/* Account */}
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t('Account')}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="menu-drawer-link-account"
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      navigate('account')
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      currentTab === 'account'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-foreground/90 hover:bg-muted/50',
+                    )}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-mono font-bold text-xs">
+                      {user?.display_name ? user.display_name.slice(0, 2).toUpperCase() : 'CU'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">
+                        {user?.display_name || user?.username || 'User'}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {user?.email || 'user@cuan.local'}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </SlideDrawer>
+        </>
       )}
     </div>
   )

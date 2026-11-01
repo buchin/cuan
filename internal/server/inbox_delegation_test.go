@@ -320,7 +320,7 @@ esac
 	q := accepted.Request
 	q.RequestID = db.GenerateUUID()
 	q.CreatedAt = time.Now()
-	if response = s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(revision)+"\n```"); !strings.Contains(response, "retry limit") {
+	if response = s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(revision)+"\n```"); !strings.Contains(response, "retry limit") && !strings.Contains(response, "batas maksimal") {
 		t.Fatal(response)
 	}
 
@@ -442,6 +442,9 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 
 	// Mark task as blocked (e.g. after attempts reached max or error)
 	statusBlocked := task.TaskStatusBlocked
+	if detail, err := s.taskSvc.GetTaskDetail(ctx, existingTaskID); err == nil && detail.LatestAttempt != nil {
+		s.taskSvc.UpdateAttemptStatus(ctx, detail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Fixture task blocked"})
+	}
 	s.taskSvc.UpdateTask(ctx, existingTaskID, "coordinator", task.UpdateTaskRequest{Status: &statusBlocked})
 	s.terminalManager.CloseSession(existingTaskID)
 	for i := 0; i < 50; i++ {
@@ -478,10 +481,10 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 		t.Fatalf("expected continuation to start, got: %s", contOut)
 	}
 
-	// Verify task status was reset to doing or review
+	// Verify task status was reset to queued, doing or review
 	updatedDetail, _ := s.taskSvc.GetTaskDetail(ctx, existingTaskID)
-	if updatedDetail.Status != task.TaskStatusDoing && updatedDetail.Status != task.TaskStatusReview {
-		t.Fatalf("expected task status to be doing or review, got: %s", updatedDetail.Status)
+	if updatedDetail.Status != task.TaskStatusQueued && updatedDetail.Status != task.TaskStatusDoing && updatedDetail.Status != task.TaskStatusReview {
+		t.Fatalf("expected task status to be queued, doing or review, got: %s", updatedDetail.Status)
 	}
 }
 

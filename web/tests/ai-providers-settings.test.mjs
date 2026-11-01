@@ -58,9 +58,9 @@ test('2. UI Component: AIProvidersView.tsx Dual-Mode & Zero-Friction Architectur
   assert.ok(viewSrc.includes('aiProvidersApi'), 'Must import aiProvidersApi')
 
   // Hero Banner & Store Default
-  assert.ok(viewSrc.includes('Default Toko Saat Ini'), 'Must display Current Store Default badge')
+  assert.ok(viewSrc.includes('Default Ruang Kerja Saat Ini') || viewSrc.includes('Default Toko Saat Ini'), 'Must display Current Store Default badge')
   assert.ok(viewSrc.includes('handleSetDefaultStore'), 'Must provide handleSetDefaultStore action')
-  assert.ok(viewSrc.includes('Jadikan Default Toko'), 'Must provide button to set provider as store default')
+  assert.ok(viewSrc.includes('Jadikan Default Ruang Kerja') || viewSrc.includes('Jadikan Default Toko'), 'Must provide button to set provider as store default')
 
   // Dual-Mode Selector (Subscription vs BYOK)
   assert.ok(viewSrc.includes('Mode Langganan Flat'), 'Must render Mode Langganan Flat selector')
@@ -122,7 +122,7 @@ test('4. EditAgentModal: Per-Agent Provider & Model Selection with Store Default
 
   // UI Dropdown
   assert.ok(modalSrc.includes('id="agent-ai-provider"'), 'Must render agent-ai-provider select element')
-  assert.ok(modalSrc.includes('Ikuti Default Toko'), 'Must provide Ikuti Default Toko default option')
+  assert.ok(modalSrc.includes('Ikuti Default Ruang Kerja') || modalSrc.includes('Ikuti Default Toko'), 'Must provide Ikuti Default Ruang Kerja default option')
   assert.ok(modalSrc.includes('handleProviderChange'), 'Must handle provider changes dynamically')
 
   // Dynamic model catalog update per provider
@@ -207,9 +207,12 @@ test('5. Localization Completeness: Indonesian dictionary contains 100% of new s
       assert.ok(idLocale[k] !== undefined, `Missing key in id.json: "${k}"`)
       continue
     }
-    assert.ok(idLocale[key] !== undefined, `Missing key in id.json: "${key}"`)
+    const altKey = key.replace(/toko/g, 'ruang kerja').replace(/Toko/g, 'Ruang Kerja')
+    const hasKey = idLocale[key] !== undefined || idLocale[altKey] !== undefined
+    assert.ok(hasKey, `Missing key in id.json: "${key}" or "${altKey}"`)
+    const val = idLocale[key] !== undefined ? idLocale[key] : idLocale[altKey]
     assert.ok(
-      typeof idLocale[key] === 'string' && idLocale[key].length > 0,
+      typeof val === 'string' && val.length > 0,
       `Value for key "${key}" must not be empty`,
     )
   }

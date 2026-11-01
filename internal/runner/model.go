@@ -50,10 +50,31 @@ type HeartbeatRequest struct {
 
 // HeartbeatResponse instructs the runner on lease renewal and whether cancellation is requested.
 type HeartbeatResponse struct {
-	Status             string   `json:"status"`
-	LeaseDurationSec   int      `json:"lease_duration_sec"`
-	ShouldCancel       bool     `json:"should_cancel"`
-	CanceledAttemptIDs []string `json:"canceled_attempt_ids,omitempty"`
+	Status             string              `json:"status"`
+	LeaseDurationSec   int                 `json:"lease_duration_sec"`
+	ShouldCancel       bool                `json:"should_cancel"`
+	CanceledAttemptIDs []string            `json:"canceled_attempt_ids,omitempty"`
+	SteeringDirectives []SteeringDirective `json:"steering_directives,omitempty"`
+}
+
+// SteeringDirective is sent from server to runner to steer an in-flight attempt.
+type SteeringDirective struct {
+	AttemptID string `json:"attempt_id"`
+	Prompt    string `json:"prompt"`
+	Author    string `json:"author,omitempty"`
+}
+
+// SteerAttemptRequest is sent by client or API to steer an active attempt.
+type SteerAttemptRequest struct {
+	Prompt string `json:"prompt"`
+	Author string `json:"author,omitempty"`
+}
+
+// SteerAttemptResponse reports the outcome of a steering instruction.
+type SteerAttemptResponse struct {
+	Status   string `json:"status"` // "delivered", "queued", "fallback"
+	Message  string `json:"message"`
+	Fallback bool   `json:"fallback"`
 }
 
 // ClaimTaskRequest is sent by a runner to acquire the next queued task attempt for available lanes.
@@ -116,4 +137,6 @@ type CompleteAttemptRequest struct {
 	LiveDeploymentConfirmed bool                 `json:"live_deployment_confirmed,omitempty"`
 	DoDValidation           *DoDValidationResult `json:"dod_validation,omitempty"`
 	RequeueFeedback         string               `json:"requeue_feedback,omitempty"`
+	RequiresDeploy          *bool                `json:"requires_deploy,omitempty"`
+	HasCodeChanges          *bool                `json:"has_code_changes,omitempty"`
 }

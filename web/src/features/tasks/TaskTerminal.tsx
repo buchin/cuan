@@ -27,6 +27,7 @@ import './task-workspace.css'
 import { MobileTerminalKeyboard } from './terminal/MobileTerminalKeyboard'
 import { TerminalContextMenu } from './terminal/TerminalContextMenu'
 import { TerminalComposer } from './terminal/TerminalComposer'
+import { formatLogLineForTerminal } from './terminal/ndjsonFormatter'
 import { FilePreviewModal } from '../../components/dialogs/FilePreviewModal'
 import type { Attachment } from '../inbox/Attachments'
 
@@ -60,6 +61,7 @@ export function TaskTerminal({
   const [search, setSearch] = useState('')
   const [match, setMatch] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [activeSessionId, setActiveSessionId] = useState(live?.session_id || '')
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean
     x: number
@@ -96,6 +98,7 @@ export function TaskTerminal({
   const isReconnecting = useRef(false)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isTaskActive = ['running', 'queued'].includes(attempt.status)
   const isTaskActiveRef = useRef(isTaskActive)
@@ -105,7 +108,9 @@ export function TaskTerminal({
     !!live &&
     (!live.attempt_id || live.attempt_id === attempt.id) &&
     isTaskActive
-  const liveId = isLive ? live.session_id : ''
+  const liveId = isLive
+    ? live.session_id
+    : activeSessionId || (isTaskActive ? attempt.id || 'active' : '')
   const liveIdRef = useRef(liveId)
   liveIdRef.current = liveId
 
@@ -156,6 +161,90 @@ export function TaskTerminal({
     }
   }, [])
 
+  const probeTerminalAvailability = useCallback(async (): Promise<number | null> => {
+    try {
+      const probeUrl = new URL(
+        `/api/v1/tasks/${encodeURIComponent(taskId)}/terminal`,
+        window.location.href,
+      )
+      probeUrl.searchParams.set('attach', '1')
+      if (liveIdRef.current) {
+        probeUrl.searchParams.set('session_id', liveIdRef.current)
+      }
+      const token = getAuthToken()
+      const res = await fetch(probeUrl.toString(), {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      return res.status
+    } catch {
+      return null
+    }
+  }, [taskId])
+
+  const handleSteer = useCallback(
+    async (promptText: string) => {
+      const textToSend = promptText.trim()
+      if (!textToSend) return
+
+      // 1. Send direct to terminal PTY if WebSocket is connected
+      if (socket.current?.readyState === WebSocket.OPEN) {
+        sendKey(textToSend + '\n')
+      }
+
+      // 2. Inject to task & runner steering endpoint via /api/v1/tasks/:id/steer
+      if (isTaskActiveRef.current) {
+        const steerTarget = taskId || attempt?.id
+        if (steerTarget) {
+          try {
+            const res = await tasksApi.steer(steerTarget, textToSend)
+            if (res.status === 'delivered') {
+              setNotice(t('Steering instruction delivered to agent.'))
+            } else {
+              setNotice(t('Steering instruction queued for agent.'))
+            }
+            setTimeout(() => setNotice(''), 3000)
+          } catch {
+            if (taskId && attempt?.id && steerTarget !== attempt.id) {
+              try {
+                const res = await tasksApi.steer(attempt.id, textToSend)
+                if (res.status === 'delivered') {
+                  setNotice(t('Steering instruction delivered to agent.'))
+                } else {
+                  setNotice(t('Steering instruction queued for agent.'))
+                }
+                setTimeout(() => setNotice(''), 3000)
+                return
+              } catch {}
+            }
+            setError(t('Could not deliver steering instruction.'))
+            setTimeout(() => setError(''), 4000)
+          }
+        }
+      }
+    },
+    [taskId, attempt?.id, sendKey, t],
+  )
+
+  const handleInterrupt = useCallback(() => {
+    sendKey('\x03')
+  }, [sendKey])
+
+  const handleStop = useCallback(async () => {
+    handleInterrupt()
+    if (isTaskActiveRef.current && taskId) {
+      try {
+        setNotice(t('Stopping task execution…'))
+        await tasksApi.cancel(taskId)
+        setNotice(t('Task execution stopped.'))
+        setTimeout(() => setNotice(''), 3000)
+        refreshRef.current?.()
+      } catch {
+        // Transient error
+      }
+    }
+  }, [handleInterrupt, taskId, t])
+
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText()
@@ -171,10 +260,6 @@ export function TaskTerminal({
   const handleClear = useCallback(() => {
     term.current?.clear()
     sendKey('\x0c')
-  }, [sendKey])
-
-  const handleInterrupt = useCallback(() => {
-    sendKey('\x03')
   }, [sendKey])
 
   const handleSelectAll = useCallback(() => {
@@ -263,7 +348,7 @@ export function TaskTerminal({
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
     retryCount.current = 0
     isReconnecting.current = true
-    setConnection('connecting')
+    setConnection(isTaskActiveRef.current ? 'streaming' : 'connecting')
     onRefresh()
     connectSocketRef.current()
   }, [onRefresh])
@@ -274,6 +359,8 @@ export function TaskTerminal({
     const handleActive = () => {
       if (document.visibilityState !== 'visible') return
       if (!isTaskActiveRef.current) return
+      // If task is actively streaming or connected, maintain calm Things 3 serenity
+      if (connection === 'streaming' || connection === 'connected') return
       if (connection !== 'disconnected' && connection !== 'error') return
 
       const now = Date.now()
@@ -333,7 +420,9 @@ export function TaskTerminal({
     const connectSocket = () => {
       if (disposed) return
       const currentLiveId = liveIdRef.current
-      if (!currentLiveId) return
+
+      // If task is not active and we don't have a liveId, nothing to attach to
+      if (!isTaskActiveRef.current && !currentLiveId) return
 
       if (socket.current) {
         try {
@@ -342,15 +431,22 @@ export function TaskTerminal({
         socket.current = null
       }
 
-      setConnection('connecting')
+      // In decoupled runner architecture, default active tasks to calm 'streaming' status
+      if (isTaskActiveRef.current) {
+        setConnection('streaming')
+      } else {
+        setConnection('connecting')
+      }
       const url = new URL(
         `/api/v1/tasks/${encodeURIComponent(taskId)}/terminal`,
         window.location.href,
       )
       url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
       url.searchParams.set('mode', 'interactive')
-      url.searchParams.set('attach', '1')
-      url.searchParams.set('session_id', currentLiveId)
+      if (currentLiveId) {
+        url.searchParams.set('attach', '1')
+        url.searchParams.set('session_id', currentLiveId)
+      }
       if (isReconnecting.current) {
         url.searchParams.set('reconnect', '1')
       }
@@ -379,17 +475,12 @@ export function TaskTerminal({
         }
 
         try {
-          const data = JSON.parse(String(event.data))
+          const rawText = String(event.data)
+          const data = JSON.parse(rawText)
           if (data.type === 'connected') {
-            if (data.session_id !== currentLiveId && !isReconnecting.current) {
-              ws.close()
-              setError(
-                'The terminal belongs to a different session. Refresh and open the selected session again.',
-              )
-              return
-            }
             if (data.session_id) {
               liveIdRef.current = data.session_id
+              setActiveSessionId(data.session_id)
             }
 
             // Zero-flicker reset before replay
@@ -427,47 +518,68 @@ export function TaskTerminal({
             setError(data.message || 'Terminal request failed.')
           }
         } catch {
-          setError(
-            'Unexpected terminal response. Reconnect to the existing session.',
-          )
+          // Non-JSON string data: format and output to terminal
+          const formatted = formatLogLineForTerminal(String(event.data))
+          term.current?.write(formatted + '\r\n')
         }
       }
 
       ws.onerror = () => {
         if (!disposed) {
-          setConnection('disconnected')
+          if (isTaskActiveRef.current) {
+            setConnection('streaming')
+          } else {
+            setConnection('disconnected')
+          }
         }
       }
 
-      ws.onclose = (event) => {
+      ws.onclose = async (event) => {
         if (disposed) return
-        setConnection('disconnected')
         interactive.current = false
         setInput(false)
         if (term.current) term.current.options.disableStdin = true
 
-        // Soft backoff reconnect if task is still actively running
-        if (
-          isTaskActiveRef.current &&
-          event.code !== 1000 &&
-          retryCount.current < 8
-        ) {
-          const delay = Math.min(
-            1000 * Math.pow(1.5, retryCount.current),
-            5000,
-          )
-          retryCount.current++
-          isReconnecting.current = true
-          setConnection('connecting')
-          setNotice('Sistem sedang diperbarui / menyambungkan kembali...')
-          if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
-          reconnectTimer.current = setTimeout(() => {
-            if (!disposed) {
-              refreshRef.current?.()
-              connectSocket()
+        if (isTaskActiveRef.current) {
+          // Check if interactive endpoint returned 404 (decoupled runner daemon)
+          const httpStatus = await probeTerminalAvailability()
+          if (httpStatus === 404) {
+            // Decoupled runner daemon: quiet live log stream fallback without panicky reconnect loop
+            setConnection('streaming')
+            setNotice('')
+            setError('')
+            isReconnecting.current = false
+            retryCount.current = 0
+            if (reconnectTimer.current) {
+              clearTimeout(reconnectTimer.current)
+              reconnectTimer.current = null
             }
-          }, delay)
+            return
+          }
+
+          // If real unexpected drop on active task, retry quietly while maintaining streaming view
+          if (event.code !== 1000 && retryCount.current < 5) {
+            const delay = Math.min(
+              1000 * Math.pow(1.5, retryCount.current),
+              5000,
+            )
+            retryCount.current++
+            isReconnecting.current = true
+            setConnection('streaming')
+            if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+            reconnectTimer.current = setTimeout(() => {
+              if (!disposed && isTaskActiveRef.current) {
+                refreshRef.current?.()
+                connectSocket()
+              }
+            }, delay)
+            return
+          }
+
+          setConnection('streaming')
+          setNotice('')
         } else {
+          setConnection('saved')
           if (refreshTimer.current) clearTimeout(refreshTimer.current)
           refreshTimer.current = setTimeout(() => refreshRef.current(), 300)
         }
@@ -531,7 +643,7 @@ export function TaskTerminal({
         const webLinks = new WebLinksAddon()
         terminal.loadAddon(webLinks)
 
-        // Custom Link Provider for workspace file paths (code, images, docs) in terminal output
+        // Custom Link Provider for workspace file paths in terminal output
         const fileRegex = /(?:[\w.-]+\/)*[\w.-]+\.(?:md|json|ts|tsx|js|jsx|go|py|html|css|txt|csv|png|jpg|jpeg|svg|webp|gif|sh|yml|yaml|sql)\b/gi
         try {
           linkDisposable = terminal.registerLinkProvider({
@@ -605,7 +717,7 @@ export function TaskTerminal({
           }, 60)
         }
 
-        // Fural-style precision cell fitting with subpixel cell reclaim
+        // Precision cell fitting with subpixel cell reclaim
         const fitTerminal = () => {
           if (
             disposed ||
@@ -622,7 +734,6 @@ export function TaskTerminal({
               let cols = Math.max(2, Math.floor(widthPx / cellW))
               let rows = Math.max(1, Math.floor(heightPx / cellH))
 
-              // Fural cell reclaim: if leftover margin > 2/3 cell width/height, absorb extra col/row
               if (widthPx - cols * cellW > cellW * (2 / 3)) {
                 cols += 1
               }
@@ -637,9 +748,7 @@ export function TaskTerminal({
               fit.fit()
             }
             schedulePtyResize(terminal.cols, terminal.rows)
-          } catch {
-            /* Detached during responsive navigation */
-          }
+          } catch {}
         }
 
         fitTerminal()
@@ -808,34 +917,77 @@ export function TaskTerminal({
           }
         })
 
-        // If no live session is active, load saved paginated logs
-        if (!liveId) {
-          let after = 0
-          for (let page = 0; page < 8 && !disposed; page++) {
+        // Always load initial logs and parse visual steps
+        if (pollTimerRef.current) {
+          clearTimeout(pollTimerRef.current)
+          pollTimerRef.current = null
+        }
+
+        let after = 0
+        for (let page = 0; page < 8 && !disposed; page++) {
+          const result = await tasksApi.logs(taskId, attempt.id, after)
+          if (disposed) return
+          const next = result.logs || []
+          logs.current.push(...next)
+          if (next.length) {
+            terminal.write(next.map((l) => formatLogLineForTerminal(l.line)).join('\r\n') + '\r\n')
+            if (following.current) terminal.scrollToBottom()
+            after = next[next.length - 1].id
+          }
+          if (next.length < 250) break
+        }
+        if (disposed) return
+
+        // Incremental polling loop while attempt is active
+        const pollNextLogs = async () => {
+          if (disposed) return
+          if (!isTaskActiveRef.current) {
+            setConnection('saved')
+            return
+          }
+          try {
             const result = await tasksApi.logs(taskId, attempt.id, after)
             if (disposed) return
             const next = result.logs || []
-            logs.current.push(...next)
-            if (next.length) {
-              terminal.write(next.map((l) => l.line).join('\r\n') + '\r\n')
+            const activeTerm = term.current || terminal
+            if (next.length > 0 && activeTerm) {
+              logs.current.push(...next)
+              activeTerm.write(next.map((l) => formatLogLineForTerminal(l.line)).join('\r\n') + '\r\n')
+              if (following.current) activeTerm.scrollToBottom()
+              after = next[next.length - 1].id
             }
-            if (next.length < 250) break
-            after = next[next.length - 1].id
+            const isFinal =
+              (result as any).is_final ||
+              ['succeeded', 'failed', 'canceled', 'cancelled'].includes(
+                (result as any).status || '',
+              )
+            if (isFinal) {
+              setConnection('saved')
+              refreshRef.current?.()
+              return
+            }
+          } catch {
+            // Ignore transient polling failure
           }
-          if (disposed) return
-          setConnection('saved')
-          if (!logs.current.length) {
-            setNotice(
-              ['running', 'queued'].includes(attempt.status)
-                ? 'No live terminal is available. This attempt is still recorded as active; refresh its status or cancel it before retrying.'
-                : 'No output was saved for this session.',
-            )
+
+          if (!disposed && isTaskActiveRef.current) {
+            pollTimerRef.current = setTimeout(pollNextLogs, 1000)
+          } else {
+            setConnection('saved')
           }
-          return
         }
 
-        // Live session: connect WebSocket
-        connectSocket()
+        // If task is active, connect socket or start incremental polling
+        if (isTaskActiveRef.current) {
+          connectSocket()
+          setConnection('streaming')
+          pollTimerRef.current = setTimeout(pollNextLogs, 1000)
+        } else {
+          setConnection('saved')
+          if (!logs.current.length) {
+            setNotice(t('No output was saved for this session.'))
+          }
+        }
       } catch (e) {
         if (!disposed) {
           setConnection('error')
@@ -856,6 +1008,7 @@ export function TaskTerminal({
       if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
       if (socket.current) {
         socket.current.close()
         socket.current = null
@@ -864,16 +1017,7 @@ export function TaskTerminal({
       if (term.current === terminal) term.current = null
       fitRef.current = null
     }
-  }, [taskId, attempt.id]) // Recreate terminal only if task or attempt identity changes!
-
-  // Re-connect when liveId transitions from empty to active without recreating Terminal
-  useEffect(() => {
-    if (liveId && term.current && connection === 'saved') {
-      setNotice('')
-      setError('')
-      connectSocketRef.current()
-    }
-  }, [liveId, connection])
+  }, [taskId, attempt.id])
 
   // Context menu click-outside / escape
   useEffect(() => {
@@ -901,71 +1045,85 @@ export function TaskTerminal({
     }
   }, [isFullscreen])
 
+  // Eliminate false "Terminal disconnected" yellow banners when task is actively running.
+  // When runner daemon executes decoupled, xterm gracefully consumes the live log stream without disruption.
   const showDisconnectBanner =
-    isTaskActive &&
-    (connection === 'disconnected' ||
-      (connection === 'connecting' && retryCount.current > 0) ||
-      (connection === 'error' && !logs.current.length))
+    !isTaskActive &&
+    (connection === 'disconnected' || connection === 'connecting') &&
+    retryCount.current > 0 &&
+    !logs.current.length
 
   const controls = (
     <div
       className={
         controlsTarget && !isFullscreen
-          ? 'flex items-center gap-1'
-          : 'flex shrink-0 items-center gap-1 bg-background px-2 py-1'
+          ? 'flex items-center gap-1.5'
+          : 'flex shrink-0 items-center justify-between gap-1.5 bg-background px-2 py-1'
       }
     >
-      <span
-        role="status"
-        className={
-          controlsTarget && !isFullscreen
-            ? 'sr-only'
-            : 'min-w-0 flex-1 truncate text-xs text-muted-foreground'
-        }
-      >
-        {
-          (
+      <div className="flex items-center gap-1.5 min-w-0">
+        {isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
+            role="status"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{language === 'id' ? '• Berjalan' : '• Live'}</span>
+          </span>
+        ) : (
+          <span
+            role="status"
+            className={
+              controlsTarget && !isFullscreen
+                ? 'sr-only'
+                : 'min-w-0 flex-1 truncate text-xs text-muted-foreground'
+            }
+          >
             {
-              loading: t('Loading output…'),
-              connecting: t('Connecting to existing session…'),
-              connected: input
-                ? t('Connected · input enabled')
-                : t('Connected · read-only'),
-              saved: t('Saved output'),
-              disconnected: t(
-                'Disconnected · task status is checked separately',
-              ),
-              error: t('Output unavailable'),
-            } as Record<string, string>
-          )[connection]
-        }
-      </span>
-      {(!controlsTarget || isFullscreen) && (
-        <span
-          aria-hidden
-          className={
-            'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
-            (connection === 'connected'
-              ? 'bg-emerald-500'
-              : connection === 'saved'
-                ? 'bg-muted-foreground'
-                : 'bg-amber-500')
-          }
-          title={connection}
-        />
-      )}
+              (
+                {
+                  loading: t('Loading output…'),
+                  connecting: t('Connecting to existing session…'),
+                  connected: input
+                    ? t('Connected · input enabled')
+                    : t('Connected · read-only'),
+                  streaming: t('Streaming live logs…'),
+                  saved: t('Saved output'),
+                  disconnected: t(
+                    'Disconnected · task status is checked separately',
+                  ),
+                  error: t('Output unavailable'),
+                } as Record<string, string>
+              )[connection]
+            }
+          </span>
+        )}
+        {(!controlsTarget || isFullscreen) && !(isTaskActive && (connection === 'streaming' || connection === 'connected')) && (
+          <span
+            aria-hidden
+            className={
+              'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
+              (connection === 'connected' || connection === 'streaming'
+                ? 'bg-emerald-500 animate-pulse'
+                : connection === 'saved'
+                  ? 'bg-muted-foreground'
+                  : 'bg-amber-500')
+            }
+            title={connection}
+          />
+        )}
+      </div>
 
       {/* Quick Action Toolbar */}
       <div className="flex flex-wrap items-center gap-1">
-        {/* Quick Stop / Interrupt (Ctrl+C) */}
-        {liveId && (
+        {/* Quick Stop / Interrupt (Ctrl+C) - Active without legacy liveId gate */}
+        {isTaskActive && (
           <button
             type="button"
             className="icon-action text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 active:bg-rose-600 active:text-white"
             aria-label={t('Send Ctrl+C (Interrupt)')}
             title={t('Send Ctrl+C (Interrupt)')}
-            disabled={connection !== 'connected'}
-            onClick={handleInterrupt}
+            onClick={handleStop}
           >
             <Ban className="h-3.5 w-3.5" />
           </button>
@@ -997,19 +1155,16 @@ export function TaskTerminal({
           )}
         </button>
 
-        {/* Mobile keyboard trigger */}
-        {liveId && (
-          <button
-            type="button"
-            className="icon-action sm:hidden"
-            aria-label={t('Show keyboard')}
-            title={t('Show keyboard')}
-            disabled={connection !== 'connected'}
-            onClick={showKeyboard}
-          >
-            <Keyboard className="h-4 w-4" />
-          </button>
-        )}
+        {/* Mobile keyboard trigger - Active without legacy liveId gate */}
+        <button
+          type="button"
+          className="icon-action sm:hidden"
+          aria-label={t('Show keyboard')}
+          title={t('Show keyboard')}
+          onClick={showKeyboard}
+        >
+          <Keyboard className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Details dropdown for extra tools */}
@@ -1200,13 +1355,17 @@ export function TaskTerminal({
       )}
 
       <div
-        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-1.5 sm:p-2 overscroll-contain"
+        className={`min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-1.5 sm:p-2 overscroll-contain flex flex-col ${
+          !isTaskActive && !Boolean(activeSessionId || live?.session_id)
+            ? 'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+            : ''
+        }`}
         aria-label="Terminal output"
         onContextMenu={handleContextMenu}
       >
         <div
           ref={mount}
-          className="task-terminal-viewport h-full w-full overscroll-contain touch-none"
+          className="task-terminal-viewport h-full w-full overscroll-contain touch-none block"
         />
       </div>
 
@@ -1244,20 +1403,28 @@ export function TaskTerminal({
         />
       )}
 
-      {/* Universal Modern Terminal Composer Capsule (Desktop & Mobile) */}
-      {liveId && (
+      {/* Universal Modern Terminal Composer Capsule (Desktop & Mobile) - Active with safe-area padding */}
+      {(isTaskActive || Boolean(activeSessionId || live?.session_id)) && (
         <TerminalComposer
           taskId={taskId}
+          attemptId={attempt.id}
           onSend={sendKey}
+          onSteer={handleSteer}
+          onStop={handleStop}
           onClearScreen={handleClear}
           onInterrupt={handleInterrupt}
           onToggleMobileKbd={() => setIsMobileKeyboardActive((prev) => !prev)}
           isMobileKbdActive={isMobileKeyboardActive}
-          disabled={connection !== 'connected'}
+          disabled={false}
+          className={
+            isMobileKeyboardActive
+              ? 'pb-2'
+              : 'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+          }
         />
       )}
 
-      {/* Mobile Accessory Keyboard Bar (Blink & Developer style) - Conditional on active focus/toggle */}
+      {/* Mobile Accessory Keyboard Bar (Blink & Developer style) - Conditional on active focus/toggle with safe-area padding */}
       {liveId && isMobileKeyboardActive && (
         <MobileTerminalKeyboard
           onInject={sendKey}
@@ -1266,13 +1433,14 @@ export function TaskTerminal({
           onClear={handleClear}
           onToggleKeyboard={showKeyboard}
           onClose={hideMobileKeyboard}
-          disabled={connection !== 'connected'}
+          disabled={false}
           compact
+          className="pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         />
       )}
 
       <p className="sr-only">
-        {liveId
+        {activeSessionId || live?.session_id
           ? 'Closing this view does not stop the task. Use Cancel session to stop execution.'
           : 'Saved output is bounded and redacted. This view does not start a process.'}
       </p>

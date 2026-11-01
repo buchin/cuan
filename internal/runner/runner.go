@@ -13,18 +13,23 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/git"
+	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 type activeAttempt struct {
-	attempt *task.TaskAttempt
-	lane    string
-	cancel  context.CancelFunc
+	attempt   *task.TaskAttempt
+	lane      string
+	cancel    context.CancelFunc
+	steerFunc func(prompt string) error
+	steerChan chan string
 }
 
 type Runner struct {
@@ -280,8 +285,44 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 				log.Printf("[Runner %s] Heartbeat received cancellation directive for active attempts", r.cfg.RunnerID)
 				r.cancelCurrentExecution()
 			}
+
+			// Process interactive steering directives from server
+			if len(hbResp.SteeringDirectives) > 0 {
+				for _, dir := range hbResp.SteeringDirectives {
+					log.Printf("[Runner %s] Heartbeat received steering directive for attempt %s: %s", r.cfg.RunnerID, dir.AttemptID, dir.Prompt)
+					if sErr := r.SteerAttempt(dir.AttemptID, dir.Prompt); sErr != nil {
+						r.streamLogLine(ctx, dir.AttemptID, "system", fmt.Sprintf("Steering fallback: %v. Arahan dicatat sebagai follow-up.", sErr))
+					} else {
+						r.streamLogLine(ctx, dir.AttemptID, "system", fmt.Sprintf("Interactive steering injected ke agent (dari %s): %s", dir.Author, dir.Prompt))
+					}
+				}
+			}
 		}
 	}
+}
+
+// SteerAttempt delivers an interactive steering prompt into the stdin of an active agent execution.
+func (r *Runner) SteerAttempt(attemptID, prompt string) error {
+	r.mu.Lock()
+	act, exists := r.activeAttempts[attemptID]
+	r.mu.Unlock()
+
+	if !exists || act == nil {
+		return fmt.Errorf("attempt %s is not active on runner %s", attemptID, r.cfg.RunnerID)
+	}
+
+	if act.steerFunc != nil {
+		return act.steerFunc(prompt)
+	}
+	if act.steerChan != nil {
+		select {
+		case act.steerChan <- prompt:
+			return nil
+		default:
+			return errors.New("steer channel is full or blocked")
+		}
+	}
+	return errors.New("agent adapter does not support interactive steering")
 }
 
 func (r *Runner) pollAndExecute(ctx context.Context) {
@@ -364,14 +405,16 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	execCtx, cancelFunc := context.WithCancel(ctx)
+	steerChan := make(chan string, 16)
 	r.mu.Lock()
 	if r.activeAttempts == nil {
 		r.activeAttempts = make(map[string]*activeAttempt)
 	}
 	r.activeAttempts[claimResp.Attempt.ID] = &activeAttempt{
-		attempt: claimResp.Attempt,
-		lane:    lane,
-		cancel:  cancelFunc,
+		attempt:   claimResp.Attempt,
+		lane:      lane,
+		cancel:    cancelFunc,
+		steerChan: steerChan,
 	}
 	r.currentAttempt = claimResp.Attempt
 	r.cancelAttempt = cancelFunc
@@ -423,8 +466,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		lane = task.ExecutionCategoryCode
 	}
 
-	// Progressive Adaptive Timeout calculation (Attempt 1: 15m, Attempt 2: 20m, Attempt 3+: 25m)
-	timeoutDuration := CalculateAdaptiveTimeout(att.AttemptNumber)
+	// Adaptive Timeout calculation with pruned 5m timeout for investigation/readonly tasks
+	timeoutDuration := CalculateTaskTimeout(lane, att.AttemptNumber, t.Title, t.Instructions)
 	gracePeriod := GetGracePeriod()
 
 	// Stream initial start log
@@ -475,14 +518,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Lane %s: menggunakan direktori operasional '%s' tanpa checkout git branch baru.", lane, workingDir))
 	}
 
-	// Prepare execution request
-	prompt := t.Instructions
-	if prompt == "" {
-		prompt = t.Title
-	}
-	if claim.AgentPrompt != "" {
-		prompt += claim.AgentPrompt
-	}
+	// Prepare execution request with AGENTS.md guidance & Scrum rules injected
+	prompt := cuanPrompt.BuildRunnerPrompt(t.Title, t.Instructions, claim.AgentPrompt, workingDir)
 
 	// Prepare workspace settings & MCP tool configurations for runner session
 	home, _ := os.UserHomeDir()
@@ -504,16 +541,49 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	env["CUAN_TASK_TIMEOUT"] = timeoutDuration.String()
 	env["CUAN_TASK_GRACE_PERIOD"] = gracePeriod.String()
 
-	req := agent.ExecutionRequest{
-		TaskID:       t.ID,
-		Prompt:       prompt,
-		WorkingDir:   workingDir,
-		Env:          env,
-		Timeout:      timeoutDuration,
-		OutputFormat: "json",
+	var liveStreamedCount int64
+	var result *agent.ExecutionResult
+	var err error
+
+	// If using the official agy adapter on a host where agy binary is present,
+	// execute inside a native OS pseudo-terminal (creack/pty) and expose a live
+	// Unix domain socket bridge for zero-downtime streaming.
+	if _, isAGY := r.adapter.(*agent.AGYAdapter); isAGY {
+		if agyPath, rErr := agent.ResolveAGYBinaryPath(); rErr == nil && agyPath != "" {
+			result, err = r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
+		}
 	}
 
-	result, err := r.adapter.Execute(ctx, req)
+	// Fallback to standard adapter execution (used by mock adapters in test suite)
+	if result == nil && err == nil {
+		req := agent.ExecutionRequest{
+			TaskID:       t.ID,
+			Prompt:       prompt,
+			WorkingDir:   workingDir,
+			Env:          env,
+			Timeout:      timeoutDuration,
+			OutputFormat: "stream-json",
+			OnLog: func(stream, line string) {
+				atomic.AddInt64(&liveStreamedCount, 1)
+				r.streamLogLine(ctx, att.ID, stream, line)
+			},
+			RegisterSteer: func(steerFn func(prompt string) error) {
+				r.mu.Lock()
+				if act, ok := r.activeAttempts[att.ID]; ok {
+					act.steerFunc = steerFn
+				}
+				r.mu.Unlock()
+			},
+		}
+
+		r.mu.Lock()
+		if act, ok := r.activeAttempts[att.ID]; ok {
+			req.SteerChan = act.steerChan
+		}
+		r.mu.Unlock()
+
+		result, err = r.adapter.Execute(ctx, req)
+	}
 	duration := time.Since(startTime)
 
 	var compReq CompleteAttemptRequest
@@ -528,6 +598,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusCanceled
 			compReq.ExitCode = 130
 			compReq.ErrorMessage = "Execution canceled by runner context"
+		} else if IsInfraFault("", err.Error(), 1) {
+			compReq.Status = task.AttemptStatusInterrupted
+			compReq.ExitCode = 137
+			compReq.ErrorMessage = err.Error()
 		} else {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 1
@@ -536,13 +610,25 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	} else if result != nil {
 		compReq.PeakRSSBytes = result.PeakRSSBytes
 
-		// Stream stdout & stderr logs (bounded & masked)
-		r.streamOutputLogs(ctx, att.ID, result.Stdout, result.Stderr)
+		// If no logs were live-streamed during execution (e.g. mock adapter), stream buffered output
+		if atomic.LoadInt64(&liveStreamedCount) == 0 {
+			r.streamOutputLogs(ctx, att.ID, result.Stdout, result.Stderr)
+		}
 
 		if result.Status == "CANCELED" {
 			compReq.Status = task.AttemptStatusCanceled
 			compReq.ExitCode = 130
 			compReq.ErrorMessage = "Execution canceled"
+		} else if result.Status == "INTERRUPTED" || IsInfraFault(result.Status, result.Error, result.ExitCode) {
+			compReq.Status = task.AttemptStatusInterrupted
+			compReq.ExitCode = result.ExitCode
+			if compReq.ExitCode == 0 {
+				compReq.ExitCode = 137
+			}
+			compReq.ErrorMessage = result.Error
+			if compReq.ErrorMessage == "" {
+				compReq.ErrorMessage = "Runner connection lost or process interrupted"
+			}
 		} else if result.Status == "TIMEOUT" {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 124
@@ -573,13 +659,32 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					compReq.ErrorMessage = verification.Error
 				}
 			}
-			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy && lane == task.ExecutionCategoryCode {
-				deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim)
-				if !deployed {
-					compReq.Status = task.AttemptStatusFailed
-					compReq.ErrorMessage = errNote
+			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy {
+				hasCodeChanges, diffSummary := r.detectRepoCodeChanges(ctx, ws, claim.DefaultBranch)
+				compReq.HasCodeChanges = &hasCodeChanges
+				requiresDeploy := hasCodeChanges && lane == task.ExecutionCategoryCode
+				compReq.RequiresDeploy = &requiresDeploy
+				if diffSummary != "" && compReq.DiffSummary == "" {
+					compReq.DiffSummary = diffSummary
+				}
+
+				if requiresDeploy {
+					deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim, true)
+					if !deployed {
+						compReq.Status = task.AttemptStatusFailed
+						compReq.ErrorMessage = errNote
+					} else {
+						compReq.LiveDeploymentConfirmed = true
+					}
 				} else {
-					compReq.LiveDeploymentConfirmed = true
+					// Non-code or investigation tasks pass compliance without forcing fake live deploy
+					passed, errNote := r.confirmAutoDeployCompliance(ctx, claim, false)
+					if !passed {
+						compReq.Status = task.AttemptStatusFailed
+						compReq.ErrorMessage = errNote
+					} else {
+						r.streamLogLine(ctx, att.ID, "system", "Tugas investigasi/non-kode tanpa modifikasi berkas repo: meloloskan gate kepatuhan auto_deploy tanpa deployment palsu.")
+					}
 				}
 			}
 		}
@@ -652,4 +757,190 @@ func (r *Runner) doRequest(ctx context.Context, method, path string, body interf
 	}
 
 	return r.httpClient.Do(req)
+}
+
+// executeWithPTY spawns agy inside a native pseudo-terminal (creack/pty) and binds
+// Unix domain sockets for decoupled streaming to cuan-server.
+func (r *Runner) executeWithPTY(
+	ctx context.Context,
+	claim ClaimTaskResponse,
+	t *task.Task,
+	att *task.TaskAttempt,
+	prompt, workingDir string,
+	env map[string]string,
+	timeoutDuration time.Duration,
+	liveStreamedCount *int64,
+) (*agent.ExecutionResult, error) {
+	agyBin, err := agent.ResolveAGYBinaryPath()
+	if err != nil || agyBin == "" {
+		return nil, fmt.Errorf("resolve agy binary: %w", err)
+	}
+
+	execCtx, cancelExec := context.WithTimeout(ctx, timeoutDuration)
+	defer cancelExec()
+
+	r.mu.Lock()
+	if act, ok := r.activeAttempts[att.ID]; ok {
+		act.cancel = cancelExec
+	}
+	r.mu.Unlock()
+
+	ptyArgs := []string{
+		"--dangerously-skip-permissions",
+		"--prompt-interactive", prompt,
+		"--add-dir", workingDir,
+	}
+	if claim.Task != nil && claim.Task.AssignedAgent != "" && claim.Task.AssignedAgent != "agy" {
+		ptyArgs = append(ptyArgs, "--model", claim.Task.AssignedAgent)
+	}
+
+	ptyEnv := []string{
+		"SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22",
+		"SSH_CLIENT=127.0.0.1 22 22",
+		"SSH_TTY=/dev/pts/0",
+		"TERM=xterm-256color",
+		"COLORTERM=truecolor",
+	}
+	for k, v := range env {
+		ptyEnv = append(ptyEnv, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	proc, err := terminal.SpawnPTY(execCtx, terminal.PTYConfig{
+		TaskID:      t.ID,
+		WorkDir:     workingDir,
+		Shell:       agyBin,
+		Args:        ptyArgs,
+		Env:         ptyEnv,
+		InitialCols: 100,
+		InitialRows: 30,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("spawn pty: %w", err)
+	}
+	defer proc.Close()
+
+	sessionID := "runner-sess-" + att.ID
+	sess := terminal.NewSession(sessionID, t.ID, proc, terminal.ModeInteractive)
+	defer sess.Close()
+
+	// Expose Unix domain socket bridge for both task ID and attempt ID
+	bridgeTask, _ := terminal.NewSocketBridge(sess, terminal.SocketPath(t.ID))
+	if bridgeTask != nil {
+		defer bridgeTask.Close()
+	}
+	bridgeAtt, _ := terminal.NewSocketBridge(sess, terminal.SocketPath(att.ID))
+	if bridgeAtt != nil {
+		defer bridgeAtt.Close()
+	}
+
+	// Register steering function
+	steerFunc := func(steerPrompt string) error {
+		_, wErr := sess.WriteInput("steer", []byte(steerPrompt+"\n"))
+		return wErr
+	}
+
+	r.mu.Lock()
+	var steerCh <-chan string
+	if act, ok := r.activeAttempts[att.ID]; ok {
+		act.steerFunc = steerFunc
+		steerCh = act.steerChan
+	}
+	r.mu.Unlock()
+
+	if steerCh != nil {
+		go func() {
+			for {
+				select {
+				case <-execCtx.Done():
+					return
+				case p, ok := <-steerCh:
+					if !ok {
+						return
+					}
+					_ = steerFunc(p)
+				}
+			}
+		}()
+	}
+
+	// Subscribe logger to feed database logs in real time
+	logSubID := "logger-" + att.ID
+	logSub, _, _ := sess.Subscribe(logSubID, terminal.ModeWatch)
+	defer sess.Unsubscribe(logSubID)
+
+	var logBuf bytes.Buffer
+	var logMu sync.Mutex
+	go func() {
+		for {
+			select {
+			case <-execCtx.Done():
+				return
+			case chunk, ok := <-logSub.SendChan:
+				if !ok {
+					return
+				}
+				logMu.Lock()
+				logBuf.Write(chunk)
+				for {
+					line, lErr := logBuf.ReadString('\n')
+					if len(line) > 0 {
+						clean := strings.TrimRight(line, "\r\n")
+						if clean != "" {
+							atomic.AddInt64(liveStreamedCount, 1)
+							r.streamLogLine(ctx, att.ID, "stdout", clean)
+						}
+					}
+					if lErr != nil {
+						break
+					}
+				}
+				logMu.Unlock()
+			}
+		}
+	}()
+
+	// Monitor agent task report completion in background
+	reportCheckTicker := time.NewTicker(500 * time.Millisecond)
+	defer reportCheckTicker.Stop()
+
+	doneChan := make(chan struct{})
+	go func() {
+		defer close(doneChan)
+		for {
+			select {
+			case <-execCtx.Done():
+				return
+			case <-reportCheckTicker.C:
+				if r.confirmAgentReport(ctx, claim) {
+					// Agent has completed task report, flush output and stop
+					time.Sleep(1500 * time.Millisecond)
+					_ = sess.Close()
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for PTY process completion or context cancellation
+	waitErr := proc.Wait()
+	exitCode := proc.ExitCode()
+
+	res := &agent.ExecutionResult{
+		Status:   "SUCCESS",
+		ExitCode: exitCode,
+		Duration: timeoutDuration,
+	}
+	if exitCode != 0 {
+		res.Status = "FAILED"
+		res.Error = fmt.Sprintf("exit code %d", exitCode)
+	}
+	if waitErr != nil && errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+		res.Status = "TIMEOUT"
+		res.Error = "execution timed out"
+	} else if waitErr != nil && errors.Is(execCtx.Err(), context.Canceled) {
+		res.Status = "CANCELED"
+		res.Error = "execution canceled"
+	}
+
+	return res, nil
 }

@@ -178,11 +178,11 @@ func TestInboxLifecycleContextFIFOStreamAndTask(t *testing.T) {
 	}
 	prepareTaskReporter(t, s)
 	runPath := "/api/v1/tasks/" + created.ID + "/run-agent"
-	w := call("POST", runPath, `{"agent_id":"agent_lifecycle"}`)
+	w := call("POST", runPath, `{"agent_id":"agent_lifecycle","runner_id":"local_terminal"}`)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	w = call("POST", runPath, `{"agent_id":"agent_lifecycle"}`)
+	w = call("POST", runPath, `{"agent_id":"agent_lifecycle","runner_id":"local_terminal"}`)
 	if w.Code != 409 {
 		t.Fatal("duplicate launch accepted", w.Code, w.Body.String())
 	}
@@ -314,7 +314,7 @@ func TestInboxLifecycleNegativeCasesAndRetainedTaskOutput(t *testing.T) {
 	s.taskSvc.CancelTask(ctx, created.ID, "fixture")
 	// A missing local CLI produces a failed attempt and blocked task, not doing.
 	os.Remove(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"))
-	w = call("POST", "/api/v1/tasks/"+created.ID+"/run-agent", `{"agent_id":"agent_lifecycle","binary":"agy"}`)
+	w = call("POST", "/api/v1/tasks/"+created.ID+"/run-agent", `{"agent_id":"agent_lifecycle","binary":"agy","runner_id":"local_terminal"}`)
 	if w.Code != 500 {
 		t.Fatal(w.Code, w.Body.String())
 	}
