@@ -64,14 +64,11 @@ test('1. S62-T1: 4-Pillar Mobile Bottom Navigation with Contacts as Core Pillar'
     'Pillar 3 Contacts must properly indicate active page state via aria-current'
   )
 
-  // Pillar 4: Menu (SlideDrawer opener)
+  // Pillar 4 / 5: Menu (SlideDrawer opener in S62) or NavUser in S63
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-menu"'),
-    'Bottom navigation must render Pillar 4: Menu with data-testid="bottom-nav-menu"'
-  )
-  assert.ok(
-    appShellSource.includes('setMobileMenuOpen'),
-    'Pillar 4 Menu must toggle mobile menu state'
+    appShellSource.includes('data-testid="bottom-nav-menu"') ||
+      appShellSource.includes('data-testid="bottom-nav-user"'),
+    'Bottom navigation must render Pillar 4: Menu with data-testid="bottom-nav-menu" or Pillar 5: User with data-testid="bottom-nav-user"'
   )
 
   // Ensure touch accessibility on all pillars

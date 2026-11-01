@@ -9,6 +9,7 @@ import {
   KeyRound,
   MoreHorizontal,
   Settings,
+  Globe,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -32,7 +33,7 @@ export function NavUser({
   bottomNavigation = false,
   active = false,
 }: NavUserProps) {
-  const { t } = useLanguage()
+  const { t, language, setPreference } = useLanguage()
 
   const navigate = useNavigate()
   const compact = isCollapsed || (sidebar && collapsed)
@@ -85,6 +86,7 @@ export function NavUser({
         <button
           type="button"
           ref={triggerRef}
+          data-testid={bottomNavigation ? 'bottom-nav-user-button' : undefined}
           aria-label={t('Account menu')}
           aria-expanded={menuOpen}
           aria-current={active ? 'page' : undefined}
@@ -226,6 +228,21 @@ export function NavUser({
             >
               <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>{t('Settings')}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="navuser-language-toggle"
+              onClick={() => {
+                const next = language === 'id' ? 'en' : 'id'
+                setPreference(next)
+              }}
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>{t('Language')}</span>
+              <span className="ml-auto text-xs font-mono font-medium text-muted-foreground">
+                {language === 'id' ? 'Bahasa Indonesia' : 'English'}
+              </span>
             </button>
             {!bottomNavigation && (
               <button

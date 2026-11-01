@@ -245,9 +245,7 @@ export function parseTaskInstructions(text?: string): ParsedTaskInstructions {
 }
 
 export function taskTargetUrl(task: { id: string; project_id?: string | null }) {
-  return task.project_id
-    ? `/projects/${encodeURIComponent(task.project_id)}/tasks/${encodeURIComponent(task.id)}`
-    : `/tasks/${encodeURIComponent(task.id)}`
+  return `/tasks/${encodeURIComponent(task.id)}`
 }
 
 export function taskDetailUrl(task: { id: string; project_id?: string | null }) {

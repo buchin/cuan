@@ -17,8 +17,10 @@ import {
   PanelLeft,
   Users,
   Settings,
-  Menu,
   MessageSquare,
+  MoreVertical,
+  Bot,
+  Clock,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -125,10 +127,37 @@ export function AppShell({
   const routerNavigate = useNavigate()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMobileMenuOpen(false)
+    setMoreMenuOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        moreMenuRef.current &&
+        !moreMenuRef.current.contains(event.target as Node)
+      ) {
+        setMoreMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMoreMenuOpen(false)
+      }
+    }
+    if (moreMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [moreMenuOpen])
 
   // Eliminate redundant top navigation search icon on views with internal search inputs/filters or settings/account
   const hasInternalSearch =
@@ -445,6 +474,66 @@ export function AppShell({
               />
               </div>
             )}
+            <div className="relative" ref={moreMenuRef}>
+              <button
+                type="button"
+                data-testid="header-more-menu-trigger"
+                aria-label={t('More options')}
+                aria-expanded={moreMenuOpen}
+                onClick={() => setMoreMenuOpen((open) => !open)}
+                className="icon-action text-muted-foreground hover:text-foreground"
+                title={t('More options')}
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
+              {moreMenuOpen && (
+                <div
+                  data-testid="header-more-menu"
+                  role="menu"
+                  className="absolute right-0 top-full mt-1.5 z-50 min-w-44 bg-popover text-popover-foreground border border-border/40 shadow-md p-1.5 rounded-lg text-sm"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="more-menu-agents"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      routerNavigate('/agents')
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                  >
+                    <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Agents')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="more-menu-schedules"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      routerNavigate('/schedules')
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                  >
+                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Schedules')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="more-menu-settings"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      routerNavigate('/settings')
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                  >
+                    <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Settings')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         {secondaryNavigation}
@@ -456,7 +545,9 @@ export function AppShell({
               projectWorkspace ||
               sessionWorkspace
               ? 'overflow-hidden'
-              : 'overflow-auto p-3 sm:p-4 md:p-6',
+              : currentTab === 'tasks'
+                ? 'overflow-auto p-2 sm:p-3 md:p-4 lg:p-6'
+                : 'overflow-auto p-3 sm:p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',
           )}
         >
@@ -522,7 +613,28 @@ export function AppShell({
               <span>{t('Tasks')}</span>
             </button>
 
-            {/* Pillar 3: Contacts */}
+            {/* Pillar 3: Projects */}
+            <button
+              key="projects"
+              data-testid="bottom-nav-projects"
+              aria-label={t('Projects')}
+              aria-current={currentTab === 'projects' ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('projects')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                currentTab === 'projects'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <FolderGit2 className="h-5 w-5" />
+              <span>{t('Projects')}</span>
+            </button>
+
+            {/* Pillar 4: Contacts */}
             <button
               key="contacts"
               data-testid="bottom-nav-contacts"
@@ -543,33 +655,19 @@ export function AppShell({
               <span>{t('Contacts')}</span>
             </button>
 
-            {/* Pillar 4: Menu */}
-            <button
-              key="menu"
-              data-testid="bottom-nav-menu"
-              aria-label={t('Menu')}
-              aria-expanded={mobileMenuOpen}
-              aria-current={
-                currentTab === 'projects' ||
-                currentTab === 'settings' ||
-                currentTab === 'account'
-                  ? 'page'
-                  : undefined
-              }
-              onClick={() => setMobileMenuOpen((open) => !open)}
-              className={cn(
-                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
-                mobileMenuOpen ||
-                  currentTab === 'projects' ||
-                  currentTab === 'settings' ||
-                  currentTab === 'account'
-                  ? 'font-semibold text-primary'
-                  : 'text-muted-foreground',
-              )}
+            {/* Pillar 5: Avatar Profil Pengguna (NavUser compact) */}
+            <div
+              data-testid="bottom-nav-user"
+              className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center"
             >
-              <Menu className="h-5 w-5" />
-              <span>{t('Menu')}</span>
-            </button>
+              <NavUser
+                bottomNavigation
+                active={currentTab === 'account'}
+                dropdownPosition="top-right"
+                onSettings={() => navigate('settings')}
+                onWork={() => navigate('tasks')}
+              />
+            </div>
           </nav>
 
           {/* Mobile Menu Drawer */}

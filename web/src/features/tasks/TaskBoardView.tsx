@@ -811,7 +811,7 @@ export function TaskBoardView({
               </tbody>
             </table>
           </div>
-          <HairlineList className="lg:hidden px-2">
+          <HairlineList className="lg:hidden">
             {(() => {
               const queuedPositions = getQueuedTasksPositions(rows)
               return rows.slice(0, limit).map((t) => (

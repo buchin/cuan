@@ -145,6 +145,8 @@ export function App() {
         return 'tasks'
       case 'schedules':
         return 'schedules'
+      case 'agents':
+        return 'settings'
       case 'projects':
         return 'projects'
       case 'team':
@@ -465,6 +467,25 @@ export function App() {
         state: location.state,
       })
     }
+    if (rootSegment === 'agents') {
+      navigate('/settings/agents' + location.search + location.hash, {
+        replace: true,
+        state: location.state,
+      })
+    }
+    // Canonical Route Consolidation: /projects/:projectId/tasks/:taskId -> /tasks/:taskId
+    if (rootSegment === 'projects' && pathSegments[2] === 'tasks' && pathSegments[3]) {
+      const taskId = pathSegments[3]
+      const rest = pathSegments.slice(4).join('/')
+      const target = `/tasks/${encodeURIComponent(taskId)}${rest ? '/' + rest : ''}${location.search}${location.hash}`
+      navigate(target, {
+        replace: true,
+        state: {
+          taskReturnTo: `/projects/${encodeURIComponent(subParam)}/tasks`,
+          ...location.state,
+        },
+      })
+    }
     if (rootSegment === 'settings' && ['profile', 'appearance', 'notifications'].includes(subParam)) {
       navigate('/account/' + encodeURIComponent(subParam) + location.search + location.hash, {
         replace: true,
@@ -529,7 +550,7 @@ export function App() {
         ? location.state.taskReturnTo
         : '/tasks' + suffix
     navigate(
-      `${t.project_id ? `/projects/${encodeURIComponent(t.project_id)}/tasks/` : '/tasks/'}${encodeURIComponent(t.id)}${suffix}`,
+      `/tasks/${encodeURIComponent(t.id)}${suffix}`,
       {
         state: { taskReturnTo: returnTo },
       },
@@ -637,7 +658,7 @@ export function App() {
     setIsSidePeekOpen(false)
     setSelectedTask(null)
     navigate(
-      `${created.project_id ? `/projects/${encodeURIComponent(created.project_id)}/tasks/` : '/tasks/'}${encodeURIComponent(created.id)}/sessions/start${suffix}`,
+      `/tasks/${encodeURIComponent(created.id)}/sessions/start${suffix}`,
       { state: { taskReturnTo: returnTo, startRequestId: payload.request_id } },
     )
   }
@@ -798,7 +819,6 @@ export function App() {
         )}
         onSelectTab={handleSelectTab}
         newAction={
-          currentTab === 'chat' ||
           currentTab === 'notifications' ||
           projectDetail ||
           (currentTab === 'inbox' && (!!subParam || isMobileChatActive)) ||

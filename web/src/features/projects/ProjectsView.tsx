@@ -54,7 +54,7 @@ export function ProjectsView({
         localStorage.setItem('cuan_terminal_pin', 'true')
       } catch {}
       navigate(
-        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open`,
+        `/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open`,
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
@@ -108,7 +108,7 @@ export function ProjectsView({
         const res = await tasksApi.runAgent(created.id, launchPayload)
         if (res?.attempt?.id) {
           navigate(
-            `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(res.attempt.id)}?terminal=open`,
+            `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(res.attempt.id)}?terminal=open`,
             {
               state: {
                 taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
@@ -121,7 +121,7 @@ export function ProjectsView({
       } catch {}
 
       navigate(
-        `/projects/${encodeURIComponent(projId)}/tasks/${encodeURIComponent(created.id)}/sessions/start?terminal=open`,
+        `/tasks/${encodeURIComponent(created.id)}/sessions/start?terminal=open`,
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
