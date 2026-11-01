@@ -32,6 +32,14 @@ import {
 } from '../../api/accounts'
 import { agentsApi, type Agent, type HarnessAuth, type ModelInfo, isModelVisionCapable } from '../../api/agents'
 import { EditAgentModal } from './EditAgentModal'
+import { SlideDrawer } from '../../components/layout/SlideDrawer'
+import { StatusDot } from '../../components/layout/StatusDot'
+
+function getAgentHandle(agent: { name: string; id: string }): string {
+  if (agent.name.startsWith('@')) return agent.name
+  if (agent.id.startsWith('agent_')) return `@${agent.id.slice(6)}`
+  return `@${agent.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '')}`
+}
 
 function formatJoinedDate(isoString?: string): string {
   if (!isoString) return '-'
@@ -263,6 +271,7 @@ export function TeamView({
   const [search, setSearch] = useState('')
   const [agents, setAgents] = useState<Agent[]>([])
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
+  const [drawerAgent, setDrawerAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
@@ -811,6 +820,37 @@ export function TeamView({
     const q = memberSearch.toLowerCase().trim()
     return inv.email.toLowerCase().includes(q) || inv.role.toLowerCase().includes(q)
   })
+
+  const activeDrawerAgent = drawerAgent
+    ? agents.find((ag) => ag.id === drawerAgent.id) || drawerAgent
+    : null
+  const activeDrawerAccount = activeDrawerAgent
+    ? accounts.find(
+        (item) =>
+          !item.legacy &&
+          item.agent_id === activeDrawerAgent.id &&
+          (activeDrawerAgent.connection_id
+            ? item.connection_id === activeDrawerAgent.connection_id
+            : true),
+      ) || accounts.find((item) => !item.legacy && item.agent_id === activeDrawerAgent.id)
+    : undefined
+  const activeDrawerExpiry = activeDrawerAgent?.verified_at
+    ? Date.parse(activeDrawerAgent.verified_at) + 5 * 60_000
+    : NaN
+  const activeDrawerState = activeDrawerAgent ? connectionStatus(activeDrawerAgent, now) : null
+  const activeDrawerA =
+    activeDrawerAgent && activeDrawerState
+      ? { ...activeDrawerAgent, connection_state: activeDrawerState.state }
+      : null
+  const details: Record<string, string> = {
+    verified: 'The provider responded successfully.',
+    unknown:
+      'No current result. Check the connection without signing in again.',
+    login_required: 'Sign-in required. Your history is saved.',
+    quota_limited:
+      'Provider quota reached. Wait for it to reset; you do not need to sign in again.',
+    unavailable: 'The provider is unreachable. Check again later.',
+  }
   const secondary =
     'inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm hover:bg-muted disabled:opacity-50'
   const primary =
@@ -968,519 +1008,616 @@ export function TeamView({
           className="divide-y divide-border rounded-lg border border-border"
         >
           {visibleAgents.map((agent) => {
-            const account =
-              accounts.find(
-                (item) =>
-                  !item.legacy &&
-                  item.agent_id === agent.id &&
-                  (agent.connection_id
-                    ? item.connection_id === agent.connection_id
-                    : true),
-              ) ||
-              accounts.find(
-                (item) => !item.legacy && item.agent_id === agent.id,
-              )
-            const expiry = agent.verified_at
-              ? Date.parse(agent.verified_at) + 5 * 60_000
-              : NaN
             const state = connectionStatus(agent, now)
             const a = { ...agent, connection_state: state.state }
-            const details: Record<string, string> = {
-              verified: 'The provider responded successfully.',
-              unknown:
-                'No current result. Check the connection without signing in again.',
-              login_required: 'Sign-in required. Your history is saved.',
-              quota_limited:
-                'Provider quota reached. Wait for it to reset; you do not need to sign in again.',
-              unavailable: 'The provider is unreachable. Check again later.',
-            }
             return (
               <div
                 role="listitem"
                 aria-label={`Agent ${a.name}`}
                 key={a.id}
                 id={`settings-agent-${a.id}`}
-                className="p-4 sm:p-5"
+                className="group relative flex items-center justify-between p-3.5 sm:p-4 hover:bg-muted/30 transition-colors cursor-pointer select-none"
+                onClick={() => setDrawerAgent(a)}
               >
-                {/* 1. Header: Bot Icon + Agent Name + Status Badge (Left) & Actions Menu (Right) */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 mt-0.5">
-                      <Bot className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
-                          {a.name}
-                        </h3>
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold border shrink-0 ${
-                            state.verified
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                              : state.state === 'quota_limited'
-                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                                : state.state === 'login_required' || state.state === 'unavailable'
-                                  ? 'bg-destructive/10 text-destructive border-destructive/20'
-                                  : 'bg-muted text-muted-foreground border-border'
-                          }`}
-                        >
-                          {state.verified && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )}
-                          {state.state === 'unknown'
-                            ? a.last_checked_at || a.verified_at
-                              ? t('Check needed')
-                              : t('Not checked')
-                            : t(state.label)}
-                        </span>
-                      </div>
-                      {account?.email && (
-                        <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
-                          {account.email}
-                        </p>
+                {/* Minimalist Profile Card (Avatar, Name, Handle, Role, StatusDot) ala Things 3 */}
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="relative shrink-0">
+                    <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 text-base font-semibold">
+                      {a.avatar ? (
+                        <span>{a.avatar}</span>
+                      ) : (
+                        <Bot className="h-5 w-5" />
                       )}
                     </div>
-                  </div>
-                  {/* Dedicated top-right corner actions menu: NEVER collides with name/badge */}
-                  {canManageAgents && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label={`Edit ${a.name}`}
-                        title={`Edit ${a.name}`}
-                        onClick={() => setEditingAgent(a)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <AgentActions
-                        name={a.name}
-                        disabled={!!checking || !!removing || !!lifecycleBusy}
-                        onEdit={() => setEditingAgent(a)}
-                        onRemove={() => void remove(a.id)}
+                    <div className="absolute -bottom-0.5 -right-0.5">
+                      <StatusDot
+                        status={
+                          state.verified
+                            ? 'healthy'
+                            : state.state === 'quota_limited'
+                              ? 'warning'
+                              : state.state === 'login_required' || state.state === 'unavailable'
+                                ? 'exception'
+                                : 'neutral'
+                        }
+                        size="sm"
                       />
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* 2. Metadata Chips: Clean, structured badges eliminating hanging dots */}
-                <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
-                    <span className="text-muted-foreground">Source:</span>
-                    <span className="font-semibold text-foreground">
-                      {a.auth_type === 'byok'
-                        ? 'BYOK'
-                        : a.auth_type === 'subscription'
-                          ? 'Subscription'
-                          : account?.provider === 'agy'
-                            ? 'Google account'
-                            : 'Provider'}
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
-                    <span className="text-muted-foreground">Provider:</span>
-                    <span className="font-semibold text-foreground">
-                      {a.provider || account?.provider || 'Unknown'}
-                    </span>
-                  </span>
-                  {a.model_id && (
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
-                      <span className="text-muted-foreground">Model:</span>
-                      <span className="font-semibold text-foreground">{a.model_id}</span>
-                      {isModelVisionCapable(a.model_id, a.provider) ? (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          <Eye className="h-2.5 w-2.5" />
-                          <span>Vision</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
-                          <span>Text</span>
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {a.fallback_model_id && (
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
-                      <span className="text-muted-foreground">Fallback:</span>
-                      <span className="font-semibold text-foreground">{a.fallback_model_id}</span>
-                      {isModelVisionCapable(a.fallback_model_id, a.provider) ? (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          <Eye className="h-2.5 w-2.5" />
-                          <span>Vision</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
-                          <span>Text</span>
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {(a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at) && (
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50"
-                      title={a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at}
-                    >
-                      <span className="text-muted-foreground">Last verified:</span>
-                      <span className="font-semibold text-foreground font-mono">
-                        {formatVerificationTime(
-                          a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at,
-                        )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
+                        {a.name}
+                      </h3>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {getAgentHandle(a)}
                       </span>
-                    </span>
-                  )}
-                </div>
-
-                {/* Alerts if quota limited or unavailable */}
-                {state.state === 'quota_limited' && (
-                  <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
-                    <p className="font-medium">{t('Individual account quota reached')}</p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      {account?.message?.includes('Resets in')
-                        ? account.message
-                        : t(
-                            'Google has paused CLI access for this Google account until its reset period. Per-model token capacity may still show 100%, but this account cannot execute queries until it resets or is upgraded.',
-                          )}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground mt-0.5">
+                      {a.role || (a.system_prompt ? a.system_prompt.slice(0, 80) : '') || t('Asisten AI ruang kerja')}
                     </p>
-                    {account?.quota_retry_at && (
-                      <p className="mt-1.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
-                        {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
-                      </p>
-                    )}
                   </div>
-                )}
-                {state.state === 'unavailable' && (
-                  <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-xs">
-                    <span className="min-w-0 truncate text-destructive">
-                      {t('Agent unavailable')} · {t('Inbox will not route new work here.')}
-                    </span>
-                    <span className="shrink-0 text-muted-foreground">
-                      {t('Check connection')}
-                    </span>
-                  </div>
-                )}
-
-                {/* 3. Primary Actions Row: Dedicated full-width container with comfortable touch targets */}
-                <div className="mt-3.5 flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
-                  {canManageAgents && (
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors"
-                      onClick={() => setEditingAgent(a)}
-                      aria-label={`Edit ${a.name}`}
-                    >
-                      <Pencil className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                      <span>{t('Edit Config')}</span>
-                    </button>
-                  )}
-                  {state.state !== 'verified' && (
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
-                      disabled={!!lifecycleBusy || !!removing}
-                      onClick={() => void reconnect(a, account)}
-                      aria-label={`Reconnect ${a.name}`}
-                    >
-                      <RefreshCw
-                        className={`mr-1.5 h-3.5 w-3.5 shrink-0 ${lifecycleBusy === a.id ? 'animate-spin' : ''}`}
-                      />
-                      <span>{lifecycleBusy === a.id ? 'Working…' : 'Reconnect'}</span>
-                    </button>
-                  )}
-                  {a.enabled !== false && (
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
-                      disabled={!!lifecycleBusy || !!removing}
-                      onClick={() => void disconnect(a)}
-                      aria-label={`Disconnect ${a.name}`}
-                    >
-                      Disconnect
-                    </button>
-                  )}
-                  {(a.auth_type === 'byok' || a.provider === 'commandcode') && (
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
-                      disabled={!!lifecycleBusy || !!removing}
-                      onClick={() => setReplaceAgentId(replaceAgentId === a.id ? '' : a.id)}
-                      aria-label={`Replace BYOK credential for ${a.name}`}
-                    >
-                      <Key className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                      <span>Replace BYOK</span>
-                    </button>
-                  )}
                 </div>
 
-                {/* Inline Replace BYOK form */}
-                {replaceAgentId === a.id && (a.auth_type === 'byok' || a.provider === 'commandcode') && (
-                  <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3 sm:flex-row">
-                    <label className="sr-only" htmlFor={`replace-key-${a.id}`}>
-                      New API key
-                    </label>
-                    <input
-                      id={`replace-key-${a.id}`}
-                      type="password"
-                      autoComplete="off"
-                      value={replacementKey}
-                      onChange={(e) => setReplacementKey(e.target.value)}
-                      placeholder="Enter a new API key"
-                      className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                {/* Corner Actions Trigger */}
+                {canManageAgents && (
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={`Edit ${a.name}`}
+                      title={`Edit ${a.name}`}
+                      onClick={() => setEditingAgent(a)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <AgentActions
+                      name={a.name}
+                      disabled={!!checking || !!removing || !!lifecycleBusy}
+                      onEdit={() => setEditingAgent(a)}
+                      onRemove={() => void remove(a.id)}
                     />
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="min-h-11 rounded-md bg-primary px-3 text-xs text-primary-foreground disabled:opacity-50"
-                        disabled={replacementKey.trim().length < 8 || !!lifecycleBusy}
-                        onClick={() => void replaceBYOK(a)}
-                      >
-                        {lifecycleBusy === a.id ? 'Saving…' : 'Save key'}
-                      </button>
-                      <button
-                        type="button"
-                        className="min-h-11 rounded-md border border-border bg-background px-3 text-xs text-foreground hover:bg-muted"
-                        disabled={!!lifecycleBusy}
-                        onClick={() => {
-                          setReplaceAgentId('')
-                          setReplacementKey('')
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
                   </div>
-                )}
-                {account && (
-                  <details className="mt-3 border-t border-border/60 pt-2">
-                    <summary className="flex min-h-11 cursor-pointer items-center justify-between text-sm font-medium text-foreground">
-                      <span>{t('Agent details')}</span>
-                      <span className="text-xs text-muted-foreground">{t('Quota, routing and usage')}</span>
-                    </summary>
-                  <div className="space-y-2.5 pb-1">
-                    <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 rounded border-input"
-                        checked={!!account.allow_failover}
-                        disabled={!!backupBusy}
-                        onChange={async (e) => {
-                          const enabled = e.target.checked
-                          setBackupBusy(account.id)
-                          setBackupError('')
-                          try {
-                            const updated = await accountsApi.failover(
-                              account.id,
-                              enabled,
-                            )
-                            setAccounts((old) =>
-                              old.map((item) =>
-                                item.id === updated.id ? updated : item,
-                              ),
-                            )
-                          } catch {
-                            setBackupError(
-                              'Could not save backup account settings. Try again.',
-                            )
-                          } finally {
-                            setBackupBusy('')
-                          }
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <span>{t('Use as backup')}</span>
-                        <p className="text-[11px] text-muted-foreground font-normal leading-normal">
-                          {t('Auto-failover for Inbox & tasks when primary quota is low.')}
-                        </p>
-                      </div>
-                    </label>
-
-                    <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 rounded border-input"
-                        checked={!!account.allow_model_fallback}
-                        disabled={!!backupBusy}
-                        onChange={async (e) => {
-                          const enabled = e.target.checked
-                          setBackupBusy(account.id)
-                          setBackupError('')
-                          try {
-                            const updated = await accountsApi.modelFallback(
-                              account.id,
-                              enabled,
-                            )
-                            setAccounts((old) =>
-                              old.map((item) =>
-                                item.id === updated.id ? updated : item,
-                              ),
-                            )
-                          } catch {
-                            setBackupError(
-                              'Could not save backup account settings. Try again.',
-                            )
-                          } finally {
-                            setBackupBusy('')
-                          }
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <span>{t('Allow model fallback')}</span>
-                        <p className="text-[11px] text-muted-foreground font-normal leading-normal">
-                          {t('Auto-switch between available Gemini and Claude models.')}
-                        </p>
-                      </div>
-                    </label>
-
-                    {/* Compact action buttons grid */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40">
-                      {(a.harness === 'agy' ||
-                        a.provider === 'agy' ||
-                        a.provider === 'antigravity') && (
-                        <button
-                          onClick={() => void check(a.id)}
-                          disabled={!!checking || !!removing}
-                          aria-label={`Check connection ${a.name}`}
-                          className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 shrink-0 ${checking === a.id ? 'animate-spin' : ''}`}
-                          />
-                          <span className="truncate">{checking === a.id ? t('Checking…') : t('Check connection')}</span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
-                        disabled={!!usageBusy}
-                        onClick={async () => {
-                          setUsageBusy(account.id)
-                          setBackupError('')
-                          try {
-                            setUsage((old) => ({
-                              ...old,
-                              [account.id]: {
-                                available: false,
-                                checked_at: '',
-                                models: [],
-                                message: '',
-                              },
-                            }))
-                            const result = await accountsApi.usage(account.id)
-                            setUsage((old) => ({ ...old, [account.id]: result }))
-                          } catch {
-                            setBackupError(
-                              'Could not check model usage. Try again.',
-                            )
-                          } finally {
-                            setUsageBusy('')
-                          }
-                        }}
-                      >
-                        <BarChart2 className="h-3.5 w-3.5" />
-                        <span>{usageBusy === account.id ? t('Checking…') : t('Check model usage')}</span>
-                      </button>
-                    </div>
-                    {usage[account.id] && !usageBusy && (
-                      <div
-                        className="mt-3 space-y-2 text-xs text-muted-foreground"
-                        aria-label={t('Model usage')}
-                      >
-                        {state.state === 'quota_limited' && (
-                          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
-                            <p>{t('Note: The percentages below reflect per-model token capacity. Execution for this account is currently paused due to Google individual subscription quota.')}</p>
-                            {account?.quota_retry_at && (
-                              <p className="mt-1 font-mono text-[11px]">
-                                {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        {usage[account.id].available ? (
-                          usage[account.id].models.map((model) => (
-                            <div
-                              key={model.model}
-                              className="flex min-w-0 flex-wrap justify-between gap-2"
-                            >
-                              <span className="min-w-0 break-all">
-                                {model.model}
-                              </span>
-                              <span>
-                                {Math.round(model.remaining_percent)}%{' '}
-                                {t('remaining')}
-                              </span>
-                              {model.reset_at && (
-                                <span className="w-full">
-                                  {t('Resets')}:{' '}
-                                  {new Date(model.reset_at).toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <p>
-                            {t(
-                              'Model usage is unavailable. No remaining quota is assumed.',
-                            )}
-                          </p>
-                        )}
-                        {usage[account.id].checked_at && (
-                          <p>
-                            {t('Checked')}:{' '}
-                            {new Date(
-                              usage[account.id].checked_at,
-                            ).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  </details>
-                )}
-                {(a.last_checked_at || a.verified_at || state.state === 'unknown' || state.state === 'unavailable' || state.state === 'login_required') && (
-                  <details className="mt-2 text-xs text-muted-foreground">
-                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
-                      Connection details
-                    </summary>
-                    <div className="space-y-2 pb-2">
-                      <p className="text-sm">
-                        {state.state === 'disabled'
-                          ? 'This agent is disabled.'
-                          : state.state === 'unknown'
-                            ? (a.last_checked_at || a.verified_at
-                              ? 'The last connection check has expired. Check the connection before routing new work here.'
-                              : 'This agent has not been checked yet. Check the connection to confirm whether it is available.')
-                          : details[a.connection_state || 'unknown'] ||
-                            details.unknown}
-                      </p>
-                      {a.last_checked_at && (
-                        <p>
-                          Checked:{' '}
-                          <time dateTime={a.last_checked_at}>
-                            {new Date(a.last_checked_at).toLocaleString(
-                              'en-US',
-                            )}
-                          </time>
-                        </p>
-                      )}
-                      {a.verified_at && Number.isFinite(expiry) && (
-                        <p>
-                          {state.verified ? 'Valid until' : 'Result expired at'}
-                          :{' '}
-                          <time dateTime={new Date(expiry).toISOString()}>
-                            {new Date(expiry).toLocaleString('en-US')}
-                          </time>
-                        </p>
-                      )}
-                    </div>
-                  </details>
                 )}
               </div>
             )
           })}
         </div>
       )}
-      </div>
-      ) : (
-        <div className="space-y-6">
+
+      {/* Progressive Disclosure SlideDrawer for Deep Technical Details & Actions */}
+      <SlideDrawer
+        isOpen={Boolean(drawerAgent && activeDrawerAgent)}
+        onClose={() => {
+          setDrawerAgent(null)
+          setReplaceAgentId('')
+          setReplacementKey('')
+        }}
+        title={activeDrawerAgent ? activeDrawerAgent.name : t('Agent details')}
+        description={
+          activeDrawerAgent
+            ? `${getAgentHandle(activeDrawerAgent)} · ${activeDrawerAgent.role || (activeDrawerAgent.system_prompt ? activeDrawerAgent.system_prompt.slice(0, 80) : '') || t('Konfigurasi teknis & routing model')}`
+            : undefined
+        }
+        size="md"
+        badge={
+          activeDrawerAgent && (
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded">
+              {activeDrawerAgent.provider || activeDrawerAccount?.provider || 'AI Engine'}
+            </span>
+          )
+        }
+        footer={
+          activeDrawerAgent && (
+            <div className="flex items-center justify-between w-full gap-2">
+              {canManageAgents && (
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  onClick={() => {
+                    setEditingAgent(activeDrawerAgent)
+                    setDrawerAgent(null)
+                  }}
+                >
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                  <span>{t('Edit Config')}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="action-secondary min-h-11 px-3 text-xs"
+                onClick={() => setDrawerAgent(null)}
+              >
+                {t('Tutup')}
+              </button>
+            </div>
+          )
+        }
+      >
+        {activeDrawerAgent && activeDrawerState && activeDrawerA && (() => {
+          const a = activeDrawerA
+          const account = activeDrawerAccount
+          const expiry = activeDrawerExpiry
+          const state = activeDrawerState
+          return (
+          <div className="space-y-5 p-1">
+            {/* 1. Header: Bot Icon + Agent Name + Status Badge (Left) & Actions Menu (Right) */}
+            <div className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-border/60 bg-muted/20">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                  {a.avatar ? (
+                    <span className="text-lg">{a.avatar}</span>
+                  ) : (
+                    <Bot className="h-6 w-6" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-base font-semibold text-foreground truncate">{a.name}</h4>
+                    <span className="font-mono text-xs text-muted-foreground">{getAgentHandle(a)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {account?.email || a.role || t('Asisten AI')}
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border shrink-0 ${
+                  state.verified
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                    : state.state === 'quota_limited'
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                      : state.state === 'login_required' || state.state === 'unavailable'
+                        ? 'bg-destructive/10 text-destructive border-destructive/20'
+                        : 'bg-muted text-muted-foreground border-border'
+                }`}
+              >
+                {state.verified && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                )}
+                {state.state === 'unknown'
+                  ? a.last_checked_at || a.verified_at
+                    ? t('Check needed')
+                    : t('Not checked')
+                  : t(state.label)}
+              </span>
+            </div>
+
+            {/* 2. Metadata Chips: Clean, structured badges eliminating hanging dots */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                {t('Konfigurasi Model & Provider')}
+              </label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                  <span className="text-muted-foreground">Source:</span>
+                  <span className="font-semibold text-foreground">
+                    {a.auth_type === 'byok'
+                      ? 'BYOK'
+                      : a.auth_type === 'subscription'
+                        ? 'Subscription'
+                        : account?.provider === 'agy'
+                          ? 'Google account'
+                          : 'Provider'}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                  <span className="text-muted-foreground">Provider:</span>
+                  <span className="font-semibold text-foreground">
+                    {a.provider || account?.provider || 'Unknown'}
+                  </span>
+                </span>
+                {a.model_id && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                    <span className="text-muted-foreground">Model:</span>
+                    <span className="font-semibold text-foreground">{a.model_id}</span>
+                    {isModelVisionCapable(a.model_id, a.provider) ? (
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <Eye className="h-2.5 w-2.5" />
+                        <span>Vision</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                        <span>Text</span>
+                      </span>
+                    )}
+                  </span>
+                )}
+                {a.fallback_model_id && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50">
+                    <span className="text-muted-foreground">Fallback:</span>
+                    <span className="font-semibold text-foreground">{a.fallback_model_id}</span>
+                    {isModelVisionCapable(a.fallback_model_id, a.provider) ? (
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <Eye className="h-2.5 w-2.5" />
+                        <span>Vision</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                        <span>Text</span>
+                      </span>
+                    )}
+                  </span>
+                )}
+                {(a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at) && (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-[11px] font-medium border border-border/50"
+                    title={a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at}
+                  >
+                    <span className="text-muted-foreground">Last verified:</span>
+                    <span className="font-semibold text-foreground font-mono">
+                      {formatVerificationTime(
+                        a.verified_at || a.last_checked_at || account?.verified_at || account?.last_checked_at,
+                      )}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Alerts if quota limited or unavailable */}
+            {state.state === 'quota_limited' && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                <p className="font-medium">{t('Individual account quota reached')}</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  {account?.message?.includes('Resets in')
+                    ? account.message
+                    : t(
+                        'Google has paused CLI access for this Google account until its reset period. Per-model token capacity may still show 100%, but this account cannot execute queries until it resets or is upgraded.',
+                      )}
+                </p>
+                {account?.quota_retry_at && (
+                  <p className="mt-1.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
+                    {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
+            {state.state === 'unavailable' && (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs">
+                <span className="min-w-0 truncate text-destructive">
+                  {t('Agent unavailable')} · {t('Inbox will not route new work here.')}
+                </span>
+                <span className="shrink-0 text-muted-foreground">
+                  {t('Check connection')}
+                </span>
+              </div>
+            )}
+
+            {/* 3. Primary Actions Row: Dedicated full-width container with comfortable touch targets */}
+            <div className="space-y-2 pt-2 border-t border-border/40">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                {t('Aksi & Siklus Hidup')}
+              </label>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {canManageAgents && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors"
+                    onClick={() => {
+                      setEditingAgent(a)
+                      setDrawerAgent(null)
+                    }}
+                    aria-label={`Edit ${a.name}`}
+                  >
+                    <Pencil className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{t('Edit Config')}</span>
+                  </button>
+                )}
+                {state.state !== 'verified' && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
+                    disabled={!!lifecycleBusy || !!removing}
+                    onClick={() => void reconnect(a, account)}
+                    aria-label={`Reconnect ${a.name}`}
+                  >
+                    <RefreshCw
+                      className={`mr-1.5 h-3.5 w-3.5 shrink-0 ${lifecycleBusy === a.id ? 'animate-spin' : ''}`}
+                    />
+                    <span>{lifecycleBusy === a.id ? 'Working…' : 'Reconnect'}</span>
+                  </button>
+                )}
+                {a.enabled !== false && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
+                    disabled={!!lifecycleBusy || !!removing}
+                    onClick={() => void disconnect(a)}
+                    aria-label={`Disconnect ${a.name}`}
+                  >
+                    Disconnect
+                  </button>
+                )}
+                {(a.auth_type === 'byok' || a.provider === 'commandcode') && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors disabled:opacity-50"
+                    disabled={!!lifecycleBusy || !!removing}
+                    onClick={() => setReplaceAgentId(replaceAgentId === a.id ? '' : a.id)}
+                    aria-label={`Replace BYOK credential for ${a.name}`}
+                  >
+                    <Key className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <span>Replace BYOK</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Inline Replace BYOK form */}
+            {replaceAgentId === a.id && (a.auth_type === 'byok' || a.provider === 'commandcode') && (
+              <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3 sm:flex-row">
+                <label className="sr-only" htmlFor={`replace-key-${a.id}`}>
+                  New API key
+                </label>
+                <input
+                  id={`replace-key-${a.id}`}
+                  type="password"
+                  autoComplete="off"
+                  value={replacementKey}
+                  onChange={(e) => setReplacementKey(e.target.value)}
+                  placeholder="Enter a new API key"
+                  className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-md bg-primary px-3 text-xs text-primary-foreground disabled:opacity-50"
+                    disabled={replacementKey.trim().length < 8 || !!lifecycleBusy}
+                    onClick={() => void replaceBYOK(a)}
+                  >
+                    {lifecycleBusy === a.id ? 'Saving…' : 'Save key'}
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-md border border-border bg-background px-3 text-xs text-foreground hover:bg-muted"
+                    disabled={!!lifecycleBusy}
+                    onClick={() => {
+                      setReplaceAgentId('')
+                      setReplacementKey('')
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Account Failover & Routing Details */}
+            {account && (
+              <details className="mt-3 border-t border-border/60 pt-2">
+                <summary className="flex min-h-11 cursor-pointer items-center justify-between text-sm font-medium text-foreground">
+                  <span>{t('Agent details')}</span>
+                  <span className="text-xs text-muted-foreground">{t('Quota, routing and usage')}</span>
+                </summary>
+                <div className="space-y-2.5 pb-1 mt-2">
+                  <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 rounded border-input"
+                      checked={!!account.allow_failover}
+                      disabled={!!backupBusy}
+                      onChange={async (e) => {
+                        const enabled = e.target.checked
+                        setBackupBusy(account.id)
+                        setBackupError('')
+                        try {
+                          const updated = await accountsApi.failover(
+                            account.id,
+                            enabled,
+                          )
+                          setAccounts((old) =>
+                            old.map((item) =>
+                              item.id === updated.id ? updated : item,
+                            ),
+                          )
+                        } catch {
+                          setBackupError(
+                            'Could not save backup account settings. Try again.',
+                          )
+                        } finally {
+                          setBackupBusy('')
+                        }
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <span>{t('Use as backup')}</span>
+                      <p className="text-[11px] text-muted-foreground font-normal leading-normal">
+                        {t('Auto-failover for Inbox & tasks when primary quota is low.')}
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex cursor-pointer items-start gap-2.5 text-xs font-medium text-foreground">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 rounded border-input"
+                      checked={!!account.allow_model_fallback}
+                      disabled={!!backupBusy}
+                      onChange={async (e) => {
+                        const enabled = e.target.checked
+                        setBackupBusy(account.id)
+                        setBackupError('')
+                        try {
+                          const updated = await accountsApi.modelFallback(
+                            account.id,
+                            enabled,
+                          )
+                          setAccounts((old) =>
+                            old.map((item) =>
+                              item.id === updated.id ? updated : item,
+                            ),
+                          )
+                        } catch {
+                          setBackupError(
+                            'Could not save backup account settings. Try again.',
+                          )
+                        } finally {
+                          setBackupBusy('')
+                        }
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <span>{t('Allow model fallback')}</span>
+                      <p className="text-[11px] text-muted-foreground font-normal leading-normal">
+                        {t('Auto-switch between available Gemini and Claude models.')}
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Compact action buttons grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40">
+                    {(a.harness === 'agy' ||
+                      a.provider === 'agy' ||
+                      a.provider === 'antigravity') && (
+                      <button
+                        onClick={() => void check(a.id)}
+                        disabled={!!checking || !!removing}
+                        aria-label={`Check connection ${a.name}`}
+                        className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
+                      >
+                        <RefreshCw
+                          className={`h-3.5 w-3.5 shrink-0 ${checking === a.id ? 'animate-spin' : ''}`}
+                        />
+                        <span className="truncate">{checking === a.id ? t('Checking…') : t('Check connection')}</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="action-secondary text-xs py-2 px-2 inline-flex items-center justify-center gap-1.5"
+                      disabled={!!usageBusy}
+                      onClick={async () => {
+                        setUsageBusy(account.id)
+                        setBackupError('')
+                        try {
+                          setUsage((old) => ({
+                            ...old,
+                            [account.id]: {
+                              available: false,
+                              checked_at: '',
+                              models: [],
+                              message: '',
+                            },
+                          }))
+                          const result = await accountsApi.usage(account.id)
+                          setUsage((old) => ({ ...old, [account.id]: result }))
+                        } catch {
+                          setBackupError(
+                            'Could not check model usage. Try again.',
+                          )
+                        } finally {
+                          setUsageBusy('')
+                        }
+                      }}
+                    >
+                      <BarChart2 className="h-3.5 w-3.5" />
+                      <span>{usageBusy === account.id ? t('Checking…') : t('Check model usage')}</span>
+                    </button>
+                  </div>
+                  {usage[account.id] && !usageBusy && (
+                    <div
+                      className="mt-3 space-y-2 text-xs text-muted-foreground"
+                      aria-label={t('Model usage')}
+                    >
+                      {state.state === 'quota_limited' && (
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
+                          <p>{t('Note: The percentages below reflect per-model token capacity. Execution for this account is currently paused due to Google individual subscription quota.')}</p>
+                          {account?.quota_retry_at && (
+                            <p className="mt-1 font-mono text-[11px]">
+                              {t('Resets')}: {new Date(account.quota_retry_at).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {usage[account.id].available ? (
+                        usage[account.id].models.map((model) => (
+                          <div
+                            key={model.model}
+                            className="flex min-w-0 flex-wrap justify-between gap-2"
+                          >
+                            <span className="min-w-0 break-all">
+                              {model.model}
+                            </span>
+                            <span>
+                              {Math.round(model.remaining_percent)}%{' '}
+                              {t('remaining')}
+                            </span>
+                            {model.reset_at && (
+                              <span className="w-full">
+                                {t('Resets')}:{' '}
+                                {new Date(model.reset_at).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p>
+                          {t(
+                            'Model usage is unavailable. No remaining quota is assumed.',
+                          )}
+                        </p>
+                      )}
+                      {usage[account.id].checked_at && (
+                        <p>
+                          {t('Checked')}:{' '}
+                          {new Date(
+                            usage[account.id].checked_at,
+                          ).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+
+            {/* Connection details accordion */}
+            {(a.last_checked_at || a.verified_at || state.state === 'unknown' || state.state === 'unavailable' || state.state === 'login_required') && (
+              <details className="mt-2 text-xs text-muted-foreground border-t border-border/40 pt-2">
+                <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm underline underline-offset-2">
+                  Connection details
+                </summary>
+                <div className="space-y-2 pb-2 mt-1">
+                  <p className="text-sm">
+                    {state.state === 'disabled'
+                      ? 'This agent is disabled.'
+                      : state.state === 'unknown'
+                        ? (a.last_checked_at || a.verified_at
+                          ? 'The last connection check has expired. Check the connection before routing new work here.'
+                          : 'This agent has not been checked yet. Check the connection to confirm whether it is available.')
+                        : details[a.connection_state || 'unknown'] ||
+                          details.unknown}
+                  </p>
+                  {a.last_checked_at && (
+                    <p>
+                      Checked:{' '}
+                      <time dateTime={a.last_checked_at}>
+                        {new Date(a.last_checked_at).toLocaleString(
+                          'en-US',
+                        )}
+                      </time>
+                    </p>
+                  )}
+                  {a.verified_at && Number.isFinite(expiry) && (
+                    <p>
+                      {state.verified ? 'Valid until' : 'Result expired at'}
+                      :{' '}
+                      <time dateTime={new Date(expiry).toISOString()}>
+                        {new Date(expiry).toLocaleString('en-US')}
+                      </time>
+                    </p>
+                  )}
+                </div>
+              </details>
+            )}
+          </div>
+          )
+        })()}
+      </SlideDrawer>
+    </div>
+  ) : (
+    <div className="space-y-6">
           {/* Subheader: Title, description, and Invite button */}
           <div className="flex items-center justify-between gap-3">
             <div>

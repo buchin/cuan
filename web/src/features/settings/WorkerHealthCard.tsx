@@ -74,7 +74,7 @@ export function WorkerHealthCard() {
     <GroupedSection
       data-testid="worker-health-card"
       title={t('Kesehatan Worker & Antrean')}
-      description={t('Status daemon cuan-runner, kedalaman antrean tugas toko, dan detak jantung terakhir.')}
+      description={t('Status daemon cuan-runner, kedalaman antrean tugas ruang kerja, dan detak jantung terakhir.')}
       className="mb-4"
     >
       {error && (

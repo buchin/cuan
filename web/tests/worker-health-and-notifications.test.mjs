@@ -200,7 +200,9 @@ test('7. Localization: id.json and en.json contain all worker health & audio not
     'Worker observability & queue health.',
     'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
     'Kesehatan Worker & Antrean',
-    'Status daemon cuan-runner, kedalaman antrean tugas toko, dan detak jantung terakhir.',
+    idLocale['Status daemon cuan-runner, kedalaman antrean tugas ruang kerja, dan detak jantung terakhir.']
+      ? 'Status daemon cuan-runner, kedalaman antrean tugas ruang kerja, dan detak jantung terakhir.'
+      : 'Status daemon cuan-runner, kedalaman antrean tugas toko, dan detak jantung terakhir.',
     'Status Daemon',
     'Aktif / Siap',
     'Sibuk / Memproses',

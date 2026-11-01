@@ -205,7 +205,7 @@ export function SettingsView({
               <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
                 {t(
                   section === 'ai-providers'
-                    ? 'Pilih dan atur penyedia AI toko Anda, langganan resmi, dan kunci API hemat.'
+                    ? 'Pilih dan atur penyedia AI ruang kerja Anda, langganan resmi, dan kunci API hemat.'
                     : section === 'apps-skills'
                     ? 'Connect 1-click external business apps and discover modular AI intelligence capabilities.'
                     : section === 'integrations'
@@ -231,7 +231,7 @@ export function SettingsView({
               <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-center space-y-3">
                 <h3 className="font-semibold text-destructive">{t('Akses Dibatasi')}</h3>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  {t('Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) toko.')}
+                  {t('Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) ruang kerja.')}
                 </p>
                 <div>
                   <Link to={isAccount ? '/account' : '/settings'} className="action-secondary text-xs inline-flex items-center">

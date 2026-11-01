@@ -596,7 +596,7 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
 
               {/* Quick preset account chips */}
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {['bisnis@cuan.id', 'owner@warung.com', 'admin@toko.id'].map((acc) => (
+                {['bisnis@cuan.id', 'owner@workspace.com', 'admin@cuan.id'].map((acc) => (
                   <button
                     key={acc}
                     type="button"

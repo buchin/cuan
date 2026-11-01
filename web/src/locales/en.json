@@ -17,7 +17,7 @@
   "Worker observability & queue health.": "Worker observability & queue health.",
   "Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.": "Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.",
   "Kesehatan Worker & Antrean": "Worker Health & Queue",
-  "Status daemon cuan-runner, kedalaman antrean tugas toko, dan detak jantung terakhir.": "cuan-runner daemon status, store task queue depth, and latest heartbeat.",
+  "Status daemon cuan-runner, kedalaman antrean tugas ruang kerja, dan detak jantung terakhir.": "cuan-runner daemon status, workspace task queue depth, and latest heartbeat.",
   "Status Daemon": "Daemon Status",
   "Aktif / Siap": "Active / Ready",
   "Sibuk / Memproses": "Busy / Processing",
@@ -90,7 +90,7 @@
   "Email Pengirim (From Email)": "Sender Email (From Email)",
   "Gunakan domain terverifikasi Anda di Resend, atau default onboarding@resend.dev untuk testing.": "Use your verified Resend domain, or default onboarding@resend.dev for testing.",
   "Email Penerima Notifikasi Transkrip": "Transcript Notification Recipient Email",
-  "Alamat email staf / pemilik toko untuk menerima ringkasan pesan chat yang belum terbaca.": "Staff or store owner email address to receive unread chat message summaries.",
+  "Alamat email staf / pemilik ruang kerja untuk menerima ringkasan pesan chat yang belum terbaca.": "Staff or workspace owner email address to receive unread chat message summaries.",
   "Ambang Batas Waktu Chat Idle": "Chat Idle Threshold",
   "Menit (Testing / Cepat)": "Minutes (Fast / Testing)",
   "Menit (Direkomendasikan)": "Minutes (Recommended)",
@@ -113,5 +113,11 @@
   "CRM & memori pelanggan": "CRM & customer memory",
   "Profil, AI providers, team": "Profile, AI providers, team",
   "Operations & System": "Operations & System",
-  "Operations, System & Account": "Operations, System & Account"
+  "Operations, System & Account": "Operations, System & Account",
+  "Default Ruang Kerja Saat Ini": "Current Workspace Default",
+  "Default Ruang Kerja": "Workspace Default",
+  "Default Ruang Kerja Aktif": "Active Workspace Default",
+  "Jadikan Default Ruang Kerja": "Set as Workspace Default",
+  "Ikuti Default Ruang Kerja ({provider})": "Follow Workspace Default ({provider})",
+  "Penyedia AI Ruang Kerja": "Workspace AI Provider"
 }
