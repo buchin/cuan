@@ -262,7 +262,7 @@ export function TaskCard({
       <div
         data-card="task-card"
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs animate-pulse min-h-[44px]',
+          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground animate-pulse min-h-[44px]',
           className
         )}
       >
@@ -285,7 +285,7 @@ export function TaskCard({
         role="button"
         tabIndex={0}
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs transition-all hover:border-primary/50 cursor-pointer min-h-[44px]',
+          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer min-h-[44px]',
           className
         )}
       >
@@ -297,7 +297,7 @@ export function TaskCard({
             type="button"
             onClick={handleCopyLink}
             aria-label={t('Copy link')}
-            className="action-secondary min-h-[44px] min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
             <span>{copied ? t('Copied') : t('Copy link')}</span>
@@ -361,7 +361,7 @@ export function TaskCard({
       role="button"
       tabIndex={0}
       className={cn(
-        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs transition-all hover:border-primary/50 hover:shadow-md cursor-pointer select-none space-y-2.5 min-h-[44px]',
+        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer select-none space-y-2.5 min-h-[44px]',
         className
       )}
     >
@@ -453,13 +453,13 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Footer: Quick Action Buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50">
+      {/* Footer: Quick Action Buttons - Calm inline Bear Notes style */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
         <button
           type="button"
           onClick={handleCopyLink}
           aria-label={t('Copy link')}
-          className="action-secondary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
         >
           {copied ? (
             <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -476,7 +476,7 @@ export function TaskCard({
               disabled={retrying}
               onClick={handleRetry}
               aria-label={t('Retry')}
-              className="action-primary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
             >
               <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin')} />
               <span>{retrying ? t('Retrying...') : t('Retry')}</span>
@@ -487,7 +487,7 @@ export function TaskCard({
             type="button"
             onClick={handleActionClick}
             aria-label={`${t('Open task')}: ${currentTask.title}`}
-            className="action-primary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+            className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
           >
             {isWorking ? (
               <>

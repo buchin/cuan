@@ -72,11 +72,11 @@
 .calm-message-bubble {
   max-width: calc(100% - 32px);
   width: fit-content;
-  padding: 8px 13px 8px;
+  padding: 8px 14px 8px;
   border-radius: 16px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  box-shadow: none;
   color: var(--wa-text);
-  border: 1px solid hsl(var(--border) / 0.35);
+  border: 1px solid hsl(var(--border) / 0.2);
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -91,14 +91,14 @@
 .wa-incoming,
 .calm-incoming {
   background: var(--wa-incoming);
-  border-color: hsl(var(--border) / 0.4);
+  border-color: hsl(var(--border) / 0.25);
 }
 
 /* Outgoing bubble: Calm monochromatic neutral */
 .wa-outgoing,
 .calm-outgoing {
   background: var(--wa-outgoing);
-  border-color: hsl(var(--border) / 0.45);
+  border-color: hsl(var(--border) / 0.25);
 }
 
 /* Strictly ELIMINATE the legacy WhatsApp speech bubble tail clip-path */
@@ -115,11 +115,12 @@
   content: none !important;
 }
 
-/* Typography & Metadata */
+/* Typography & Metadata - Bear Notes Inspired (relaxed leading and breathing room) */
 .wa-chat .wa-plain-text,
 .calm-chat .calm-plain-text {
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.62;
+  letter-spacing: -0.011em;
   overflow-wrap: anywhere;
 }
 .wa-plain-text::after,
@@ -298,20 +299,21 @@
   filter: brightness(1.1);
 }
 
-/* Markdown typography in chat */
+/* Markdown typography in chat - Bear Notes Inspired */
 .wa-chat .chat-markdown,
 .calm-chat .chat-markdown {
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.62;
+  letter-spacing: -0.011em;
 }
 .wa-chat .chat-markdown h1,
-.calm-chat .chat-markdown h1 { font-size: 18px; }
+.calm-chat .chat-markdown h1 { font-size: 18px; font-weight: 600; margin: 0.8em 0 0.3em; }
 .wa-chat .chat-markdown h2,
-.calm-chat .chat-markdown h2 { font-size: 17px; }
+.calm-chat .chat-markdown h2 { font-size: 16px; font-weight: 600; margin: 0.7em 0 0.25em; }
 .wa-chat .chat-markdown h3,
-.calm-chat .chat-markdown h3 { font-size: 15px; }
+.calm-chat .chat-markdown h3 { font-size: 15px; font-weight: 600; margin: 0.6em 0 0.2em; }
 .wa-chat .chat-markdown p,
-.calm-chat .chat-markdown p { margin: 0.4em 0; }
+.calm-chat .chat-markdown p { margin: 0.5em 0; }
 .wa-chat .chat-markdown > :first-child,
 .calm-chat .chat-markdown > :first-child { margin-top: 0; }
 .wa-chat .chat-markdown > :last-child,
@@ -382,21 +384,38 @@
   margin: 0;
 }
 
-/* Status Report Cards inside Calm Stream */
+/* Seamless Borderless Artifacts inside Calm Stream (Bear Notes Inspired) */
 .wa-message-bubble:has(.status-report-card),
-.calm-message-bubble:has(.status-report-card) {
+.calm-message-bubble:has(.status-report-card),
+.wa-message-bubble:has(.approval-card),
+.calm-message-bubble:has(.approval-card),
+.wa-message-bubble:has([data-card="task-card"]),
+.calm-message-bubble:has([data-card="task-card"]),
+.wa-message-bubble:has([data-testid="task-completion-card"]),
+.calm-message-bubble:has([data-testid="task-completion-card"]) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
   width: 100%;
-  max-width: min(94%, 640px);
-  padding: 6px;
+  max-width: min(96%, 680px);
 }
 @media (min-width: 1024px) {
   .wa-message-bubble:has(.status-report-card),
-  .calm-message-bubble:has(.status-report-card) {
-    max-width: min(85%, 680px);
+  .calm-message-bubble:has(.status-report-card),
+  .wa-message-bubble:has(.approval-card),
+  .calm-message-bubble:has(.approval-card),
+  .wa-message-bubble:has([data-card="task-card"]),
+  .calm-message-bubble:has([data-card="task-card"]),
+  .wa-message-bubble:has([data-testid="task-completion-card"]),
+  .calm-message-bubble:has([data-testid="task-completion-card"]) {
+    max-width: min(88%, 700px);
   }
 }
 .wa-message-bubble:has(.status-report-card) .wa-markdown-footer,
-.calm-message-bubble:has(.status-report-card) .calm-markdown-footer {
+.calm-message-bubble:has(.status-report-card) .calm-markdown-footer,
+.wa-message-bubble:has([data-testid="task-completion-card"]) .wa-markdown-footer,
+.calm-message-bubble:has([data-testid="task-completion-card"]) .calm-markdown-footer {
   position: static;
   margin-top: 4px;
 }

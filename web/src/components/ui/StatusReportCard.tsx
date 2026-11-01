@@ -38,10 +38,10 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
   switch (status) {
     case 'success':
       return {
-        accentBorder: 'border-l-4 border-l-emerald-500 dark:border-l-emerald-400',
-        containerBg: 'bg-emerald-500/[0.06] dark:bg-emerald-500/[0.12]',
-        containerBorder: 'border-emerald-500/25 dark:border-emerald-500/35',
-        badgeClasses: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-800 dark:text-emerald-300',
+        accentBorder: 'border-l-2 border-l-emerald-500/70',
+        containerBg: 'bg-card/40 dark:bg-card/20',
+        containerBorder: 'border-border/40',
+        badgeClasses: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400',
         iconColor: 'text-emerald-600 dark:text-emerald-400',
         defaultBadge: 'Success',
         defaultTitle: 'Verification Report',
@@ -50,10 +50,10 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
     case 'failed':
     case 'blocked':
       return {
-        accentBorder: 'border-l-4 border-l-rose-500 dark:border-l-rose-400',
-        containerBg: 'bg-rose-500/[0.06] dark:bg-rose-500/[0.12]',
-        containerBorder: 'border-rose-500/25 dark:border-rose-500/35',
-        badgeClasses: 'bg-rose-500/15 border-rose-500/30 text-rose-800 dark:text-rose-300',
+        accentBorder: 'border-l-2 border-l-rose-500/70',
+        containerBg: 'bg-card/40 dark:bg-card/20',
+        containerBorder: 'border-border/40',
+        badgeClasses: 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400',
         iconColor: 'text-rose-600 dark:text-rose-400',
         defaultBadge: status === 'blocked' ? 'Blocked' : 'Failed',
         defaultTitle: 'Needs Attention',
@@ -61,10 +61,10 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
       }
     case 'review':
       return {
-        accentBorder: 'border-l-4 border-l-amber-500 dark:border-l-amber-400',
-        containerBg: 'bg-amber-500/[0.06] dark:bg-amber-500/[0.12]',
-        containerBorder: 'border-amber-500/25 dark:border-amber-500/35',
-        badgeClasses: 'bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-300',
+        accentBorder: 'border-l-2 border-l-amber-500/70',
+        containerBg: 'bg-card/40 dark:bg-card/20',
+        containerBorder: 'border-border/40',
+        badgeClasses: 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400',
         iconColor: 'text-amber-600 dark:text-amber-400',
         defaultBadge: 'Review',
         defaultTitle: 'Review Required',
@@ -72,10 +72,10 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
       }
     case 'running':
       return {
-        accentBorder: 'border-l-4 border-l-sky-500 dark:border-l-sky-400',
-        containerBg: 'bg-sky-500/[0.06] dark:bg-sky-500/[0.12]',
-        containerBorder: 'border-sky-500/25 dark:border-sky-500/35',
-        badgeClasses: 'bg-sky-500/15 border-sky-500/30 text-sky-800 dark:text-sky-300',
+        accentBorder: 'border-l-2 border-l-sky-500/70',
+        containerBg: 'bg-card/40 dark:bg-card/20',
+        containerBorder: 'border-border/40',
+        badgeClasses: 'bg-sky-500/10 border-sky-500/20 text-sky-700 dark:text-sky-400',
         iconColor: 'text-sky-600 dark:text-sky-400',
         defaultBadge: 'In Progress',
         defaultTitle: 'Work Update',
@@ -84,10 +84,10 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
     case 'info':
     default:
       return {
-        accentBorder: 'border-l-4 border-l-sky-500 dark:border-l-sky-400',
-        containerBg: 'bg-muted/40 dark:bg-muted/20',
-        containerBorder: 'border-border/80',
-        badgeClasses: 'bg-muted border-border text-foreground',
+        accentBorder: 'border-l-2 border-l-border',
+        containerBg: 'bg-card/40 dark:bg-card/20',
+        containerBorder: 'border-border/40',
+        badgeClasses: 'bg-muted border-border/40 text-foreground',
         iconColor: 'text-muted-foreground',
         defaultBadge: 'Info',
         defaultTitle: 'Task Info',
@@ -521,10 +521,10 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
 
         {/* DoD Structured Content */}
         {dod ? (
-          <div className="space-y-2.5 min-w-0 max-w-full text-foreground/90">
+          <div className="space-y-2 min-w-0 max-w-full text-foreground/90">
             {/* Task Title */}
             {dod.taskTitle && (
-              <div className="flex items-center gap-1.5 text-xs text-foreground/90 font-medium bg-muted/30 px-2.5 py-1.5 rounded-lg border border-border/50 min-w-0">
+              <div className="flex items-center gap-1.5 text-xs text-foreground/90 font-medium py-0.5 min-w-0">
                 <CheckSquare className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span className="truncate">{dod.taskTitle}</span>
               </div>
@@ -532,8 +532,8 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
 
             {/* Summary / Ringkasan */}
             {dod.summary && (
-              <div className="text-xs sm:text-sm text-foreground/90 bg-muted/20 p-2.5 rounded-lg border border-border/40 leading-relaxed break-words">
-                <div className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+              <div className="text-xs sm:text-sm text-foreground/90 leading-relaxed break-words space-y-1">
+                <div className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                   <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                   <span>Ringkasan</span>
                 </div>
@@ -543,26 +543,21 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
 
             {/* DoD Checklist Items */}
             {dod.checklist && dod.checklist.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-1 pt-1.5 border-t border-border/30">
                 <div className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-1">
                   <ListChecks className="h-3 w-3 text-primary shrink-0" />
                   <span>Kriteria Selesai (DoD)</span>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {dod.checklist.map((item, idx) => (
                     <div
                       key={idx}
-                      className={cn(
-                        "flex items-start gap-2 p-2 rounded-lg text-xs sm:text-sm transition-colors",
-                        item.completed
-                          ? "bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 text-foreground"
-                          : "bg-muted/40 border border-border/50 text-foreground/80"
-                      )}
+                      className="flex items-start gap-2 py-0.5 text-xs sm:text-sm transition-colors text-foreground leading-snug"
                     >
                       {item.completed ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                       ) : (
-                        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
                       )}
                       <div className="min-w-0 flex-1 leading-snug break-words">
                         {item.title && (
@@ -579,24 +574,24 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
             )}
 
             {/* Gap / Tindak Lanjut Items */}
-            <div className="space-y-1.5">
+            <div className="space-y-1 pt-1.5 border-t border-border/30">
               <div className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-1">
                 <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
                 <span>Gap / Tindak Lanjut</span>
               </div>
               {dod.hasExplicitNoGap || (dod.gaps.length === 0 && activeStatus === 'success') ? (
-                <div className="flex items-center gap-1.5 p-2 rounded-lg bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 text-xs text-foreground/90">
-                  <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                <div className="flex items-center gap-1.5 py-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+                  <Check className="h-3.5 w-3.5 shrink-0" />
                   <span>Semua kriteria terpenuhi (tidak ada gap)</span>
                 </div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {dod.gaps.map((gap, idx) => (
                     <div
                       key={idx}
-                      className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs sm:text-sm text-amber-900 dark:text-amber-200"
+                      className="flex items-start gap-2 py-0.5 text-xs sm:text-sm text-amber-800 dark:text-amber-300"
                     >
-                      <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1 leading-snug break-words">
                         {gap.title && <span className="font-semibold mr-1.5">{gap.title}:</span>}
                         <span>{gap.detail || gap.text}</span>
@@ -609,12 +604,12 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
 
             {/* Technical Verification */}
             {dod.technicalVerification && (
-              <div className="space-y-1.5">
+              <div className="space-y-1 pt-1.5 border-t border-border/30">
                 <div className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-1">
                   <Terminal className="h-3 w-3 text-primary shrink-0" />
                   <span>Verifikasi Teknis</span>
                 </div>
-                <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-xs space-y-2">
+                <div className="pt-0.5 text-xs space-y-1.5">
                   {dod.technicalVerification.commit && (
                     <div className="flex items-center gap-2 flex-wrap min-w-0">
                       <span className="text-muted-foreground flex items-center gap-1 shrink-0">
@@ -631,7 +626,7 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
                           }
                         }}
                         title="Klik untuk copy commit SHA"
-                        className="inline-flex items-center gap-1 font-mono text-[11px] bg-background px-1.5 py-0.5 rounded border border-border hover:bg-muted transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 font-mono text-[11px] bg-muted/50 px-1.5 py-0.5 rounded border border-border/60 hover:bg-muted transition-colors cursor-pointer"
                       >
                         <span>{dod.technicalVerification.commitShort || dod.technicalVerification.commit.slice(0, 7)}</span>
                         {copiedCommit ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground opacity-60" />}
@@ -669,7 +664,7 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
 
             {/* Action */}
             {dod.action && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/30 px-2.5 py-1.5 rounded-lg border border-border/40">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t border-border/30">
                 <ArrowRight className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span>
                   <strong className="text-foreground font-semibold">Tindakan:</strong> {dod.action}

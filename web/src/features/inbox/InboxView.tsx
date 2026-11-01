@@ -1628,9 +1628,9 @@ export function InboxView({
 
                       {/* 1-Click Execution Action Card for Agent Messages */}
                       {isAgentMessage && msg.action_card && (
-                        <div className="mt-3 p-3 rounded-xl bg-background/90 border border-border text-foreground space-y-2.5 shadow-xs">
-                          <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
-                            <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <div className="mt-3 p-3 rounded-xl bg-card/40 border border-border/40 text-foreground space-y-2">
+                          <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
+                            <div className="flex items-center gap-1.5 font-semibold text-xs">
                               <Sparkles className="h-3.5 w-3.5 text-primary" />
                               <span>Sprint execution plan</span>
                             </div>
@@ -1639,16 +1639,16 @@ export function InboxView({
                             </span>
                           </div>
 
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5 pt-0.5">
                             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                               Definition of Done (DoD):
                             </div>
-                            <div className="space-y-1 bg-muted/30 p-2 rounded-lg border border-border/40">
+                            <div className="space-y-1 pt-0.5">
                               {msg.action_card.dod_checklist.map(
                                 (item, idx) => (
                                   <div
                                     key={idx}
-                                    className="flex items-start gap-2 text-[11px]"
+                                    className="flex items-start gap-2 text-[11px] leading-snug"
                                   >
                                     <CheckSquare className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                                     <span className="text-foreground">
@@ -1661,10 +1661,10 @@ export function InboxView({
                           </div>
 
                           {/* 1-Click Button */}
-                          <div className="pt-1">
+                          <div className="pt-1 border-t border-border/30">
                             {approvedTasks[msg.action_card.task_title] ? (
-                              <div className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-center gap-2">
-                                <CheckCheck className="h-4 w-4" />
+                              <div className="w-full py-1.5 px-2 text-emerald-600 dark:text-emerald-400 text-xs font-medium flex items-center justify-center gap-1.5">
+                                <CheckCheck className="h-3.5 w-3.5" />
                                 <span>Task started successfully!</span>
                               </div>
                             ) : (
@@ -1680,7 +1680,7 @@ export function InboxView({
                                       activeContact.id,
                                   )
                                 }
-                                className="w-full py-2 px-3 rounded-lg bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shadow-xs"
+                                className="w-full min-h-8 py-1.5 px-3 rounded-md bg-primary text-primary-foreground font-medium text-xs hover:bg-primary/90 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shadow-xs"
                               >
                                 <Play className="h-3.5 w-3.5 fill-current" />
                                 <span>
@@ -1775,7 +1775,7 @@ export function InboxView({
                   key={`standalone-completed-${completedTask.id}`}
                   className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
                 >
-                  <div className="wa-message-bubble wa-incoming relative min-w-0 max-w-xl w-full">
+                  <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
                     <TaskCompletionCard
                       task={completedTask}
                       conversationId={
