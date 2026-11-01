@@ -277,7 +277,9 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	att.ExitCode = &req.ExitCode
 
 	status := req.Status
-	if req.ExitCode != 0 && status != task.AttemptStatusCanceled {
+	if IsInfraFault(status, req.ErrorMessage, req.ExitCode) {
+		status = task.AttemptStatusInterrupted
+	} else if req.ExitCode != 0 && status != task.AttemptStatusCanceled {
 		status = task.AttemptStatusFailed
 	}
 	if status == task.AttemptStatusSucceeded && req.AgentReportRequired && !req.AgentReportConfirmed {
@@ -466,6 +468,27 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					}
 				}
 			}
+		} else if status == task.AttemptStatusInterrupted || IsInfraFault(status, att.ErrorMessage, req.ExitCode) {
+			t.Status = task.TaskStatusReview
+			if s.chatNotifier != nil {
+				errMsg := att.ErrorMessage
+				if errMsg == "" {
+					errMsg = "Koneksi runner terputus saat eksekusi (Needs Attention). Konteks dan pekerjaan tersimpan aman."
+				}
+				pName := ""
+				if s.projectFinder != nil && t.ProjectID != "" {
+					if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+						pName = p.Name
+					}
+				}
+				for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
+					if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+						_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+					} else {
+						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+					}
+				}
+			}
 		} else if status == task.AttemptStatusFailed || status == task.AttemptStatusCanceled {
 			t.Status = task.TaskStatusBlocked
 			if s.chatNotifier != nil {
@@ -587,4 +610,26 @@ func uniqueRooms(rooms ...string) []string {
 		}
 	}
 	return list
+}
+
+// IsInfraFault returns true if the attempt status, error message, or exit code indicates
+// an infrastructure or technical connection issue (runner disconnected, heartbeat lost,
+// lease expired, runner killed/restarted) rather than a business task criteria failure.
+func IsInfraFault(status, errorMessage string, exitCode int) bool {
+	if status == task.AttemptStatusInterrupted {
+		return true
+	}
+	if exitCode == 137 || exitCode == 143 {
+		return true
+	}
+	lower := strings.ToLower(errorMessage)
+	return strings.Contains(lower, "lease expired") ||
+		strings.Contains(lower, "heartbeat lost") ||
+		strings.Contains(lower, "runner killed") ||
+		strings.Contains(lower, "runner restart") ||
+		strings.Contains(lower, "runner context") ||
+		strings.Contains(lower, "connection lost") ||
+		strings.Contains(lower, "connection refused") ||
+		strings.Contains(lower, "runner disconnected") ||
+		strings.Contains(lower, "interrupted")
 }

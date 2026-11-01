@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -73,15 +74,29 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 // Cancellation already requires a fresh authenticated user instruction. It is
 // not an automated correction attempt and must not permanently exhaust that
 // user's ability to continue the original task after resolving a blocker.
+// Runner connection and infrastructure disconnects (interrupted, lease expired,
+// heartbeat lost, runner killed/restarted) are also technical faults and MUST NOT
+// consume the 3x business revision quota.
 func taskRevisionAttemptCount(d *task.TaskDetailResponse) int {
 	if d == nil {
 		return 0
 	}
 	count := 0
 	for _, a := range d.Attempts {
-		if a != nil && a.Status != task.AttemptStatusCanceled && !a.CancelRequested && a.CanceledAt == nil {
-			count++
+		if a == nil {
+			continue
 		}
+		if a.Status == task.AttemptStatusCanceled || a.CancelRequested || a.CanceledAt != nil {
+			continue
+		}
+		var exitCode int
+		if a.ExitCode != nil {
+			exitCode = *a.ExitCode
+		}
+		if a.Status == task.AttemptStatusInterrupted || runner.IsInfraFault(a.Status, a.ErrorMessage, exitCode) {
+			continue
+		}
+		count++
 	}
 	return count
 }

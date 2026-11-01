@@ -582,6 +582,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusCanceled
 			compReq.ExitCode = 130
 			compReq.ErrorMessage = "Execution canceled by runner context"
+		} else if IsInfraFault("", err.Error(), 1) {
+			compReq.Status = task.AttemptStatusInterrupted
+			compReq.ExitCode = 137
+			compReq.ErrorMessage = err.Error()
 		} else {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 1
@@ -599,6 +603,16 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusCanceled
 			compReq.ExitCode = 130
 			compReq.ErrorMessage = "Execution canceled"
+		} else if result.Status == "INTERRUPTED" || IsInfraFault(result.Status, result.Error, result.ExitCode) {
+			compReq.Status = task.AttemptStatusInterrupted
+			compReq.ExitCode = result.ExitCode
+			if compReq.ExitCode == 0 {
+				compReq.ExitCode = 137
+			}
+			compReq.ErrorMessage = result.Error
+			if compReq.ErrorMessage == "" {
+				compReq.ErrorMessage = "Runner connection lost or process interrupted"
+			}
 		} else if result.Status == "TIMEOUT" {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 124

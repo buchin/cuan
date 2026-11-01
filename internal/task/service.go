@@ -910,12 +910,29 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, author string, r
 		if latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued {
 			return nil, fmt.Errorf("%w: task is running or already queued", ErrInvalidTaskInput)
 		}
-		if latest.AttemptNumber > 0 {
-			nextAttemptNum = latest.AttemptNumber + 1
-		} else {
-			attempts, _ := s.store.ListAttempts(ctx, taskID)
-			nextAttemptNum = len(attempts) + 1
+		attempts, _ := s.store.ListAttempts(ctx, taskID)
+		businessCount := 0
+		for _, a := range attempts {
+			if a == nil || a.Status == AttemptStatusCanceled || a.CancelRequested || a.CanceledAt != nil {
+				continue
+			}
+			if a.Status == AttemptStatusInterrupted {
+				continue
+			}
+			var ec int
+			if a.ExitCode != nil {
+				ec = *a.ExitCode
+			}
+			if ec == 137 || ec == 143 {
+				continue
+			}
+			errLower := strings.ToLower(a.ErrorMessage)
+			if strings.Contains(errLower, "lease expired") || strings.Contains(errLower, "heartbeat lost") || strings.Contains(errLower, "runner killed") || strings.Contains(errLower, "runner restart") || strings.Contains(errLower, "connection lost") || strings.Contains(errLower, "interrupted") {
+				continue
+			}
+			businessCount++
 		}
+		nextAttemptNum = businessCount + 1
 	}
 
 	if runnerID == "" {

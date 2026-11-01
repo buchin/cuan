@@ -63,11 +63,20 @@ export function MessageContent({
       )
     : actions
 
-  const report = body ? parseTaskReportMessage(body, language) : null
-  const extractedReceipt = receiptExtraction || (body ? parseReceiptExtraction(body) : null)
+  const report = (body ? parseTaskReportMessage(body, language) : null) || parseTaskReportMessage(content, language)
+  const extractedReceipt = receiptExtraction || (body ? parseReceiptExtraction(body) : null) || parseReceiptExtraction(content)
   const displayBody = extractedReceipt
-    ? body.replace(/```(?:cuan-receipt|receipt)\s*[\s\S]*?```/, '').trim()
+    ? (body || content).replace(/```(?:cuan-receipt|receipt)\s*[\s\S]*?```/, '').trim()
     : body
+
+  // Fallback to un-suppress bubbles: never leave a blank bubble when content or links exist
+  const effectiveActions =
+    visibleActions.length === 0 && !report && !extractedReceipt && !body.trim() && actions.length > 0
+      ? actions
+      : visibleActions
+
+  const effectiveBody =
+    displayBody || (!report && !extractedReceipt && effectiveActions.length === 0 ? content.trim() : '')
 
   return (
     <>
@@ -81,17 +90,17 @@ export function MessageContent({
           )}
         </div>
       ) : (
-        displayBody && <ChatMarkdown content={displayBody} onTaskClick={onTaskClick} />
+        effectiveBody ? <ChatMarkdown content={effectiveBody} onTaskClick={onTaskClick} /> : null
       )}
       {extractedReceipt && (
         <ReceiptPreviewCard extraction={extractedReceipt} />
       )}
-      {visibleActions.length > 0 && (
+      {effectiveActions.length > 0 && (
         <div
           className="mt-3 flex flex-col gap-2.5 w-full max-w-full"
           aria-label="Message actions"
         >
-          {visibleActions.map((action) => {
+          {effectiveActions.map((action) => {
             const taskMatch = action.href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
             const taskId = taskMatch ? taskMatch[1] : extractTaskId(action.href)
             if (taskId) {

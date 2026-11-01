@@ -119,6 +119,24 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 		if errMsg == "" {
 			errMsg = "Eksekusi attempt runner keluar dengan kode kesalahan (non-zero)."
 		}
+		var exitCode int
+		if att.ExitCode != nil {
+			exitCode = *att.ExitCode
+		}
+		if att.Status == task.AttemptStatusInterrupted || runner.IsInfraFault(att.Status, att.ErrorMessage, exitCode) {
+			sb.WriteString("**Status:** PERLU PERHATIAN (Kendala Koneksi Runner / Needs Attention)\n\n")
+			sb.WriteString("**Bukti yang Terverifikasi:**\n")
+			sb.WriteString("- [x] **Penyimpanan Konteks**: Konteks pekerjaan dan perubahan tersimpan aman.\n\n")
+			sb.WriteString("**Catatan Teknis (Infra):**\n")
+			sb.WriteString("- [ ] **Koneksi Runner**: " + errMsg + "\n\n")
+			sb.WriteString("**Tindakan:** Tugas memerlukan perhatian teknis dan dapat dijalankan ulang secara manual tanpa mengurangi kuota 3x revisi bisnis.")
+			return inboxReviewEvaluation{
+				Decision:    "review",
+				Explanation: sb.String(),
+				Revision:    "",
+			}
+		}
+
 		sb.WriteString("**Status:** BELUM LULUS (Perlu Revisi)\n\n")
 		sb.WriteString("**Bukti yang Terverifikasi:**\n")
 		sb.WriteString("- [x] **Pencatatan Eksekusi**: Runner mencatat proses attempt #" + strconv.Itoa(att.AttemptNumber) + ".\n\n")

@@ -1462,24 +1462,6 @@ export function InboxView({
                   }
                 }
 
-                // Suppress pure duplicate intermediate runner progress reports that do not carry
-                // any linked task cards, drafts, action cards, or approval plans.
-                if (
-                  !linkedTaskForMsg &&
-                  !msg.action_card &&
-                  !msg.approval_plan &&
-                  !msg.task_draft &&
-                  (msg.author_name === 'Cuan' || msg.author_type === 'agent') &&
-                  (msgContent.includes('[View work](/tasks/') || msgContent.includes('[Lihat tugas](/tasks/')) &&
-                  !msgContent.includes('Work marked completed') &&
-                  !msgContent.includes('Pekerjaan ditandai selesai') &&
-                  !msgContent.includes('stopped') &&
-                  !msgContent.includes('dihentikan') &&
-                  !msgContent.includes('cancelled') &&
-                  !msgContent.includes('dibatalkan')
-                ) {
-                  return null
-                }
                 const date = new Date(msg.created_at)
                 const showDate =
                   Number.isFinite(date.getTime()) &&

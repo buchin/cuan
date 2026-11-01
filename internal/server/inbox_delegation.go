@@ -333,9 +333,14 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
 			t.Status = task.TaskStatusReview
 
-			s.sendBusinessFriendlyReviewNotification(ctx, t.ID, t.Title, t.Summary, q.RoomID, t.SourceRoomID, 3, []string{
-				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
-			}, d.ProjectName)
+			// Single-bubble idempotency: Do NOT push duplicate notification to q.RoomID
+			// because wrapResult returns the response directly to q.RoomID. Only notify
+			// t.SourceRoomID if it is a different room from q.RoomID.
+			if t.SourceRoomID != "" && t.SourceRoomID != q.RoomID {
+				s.sendBusinessFriendlyReviewNotification(ctx, t.ID, t.Title, t.Summary, "", t.SourceRoomID, 3, []string{
+					"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
+				}, d.ProjectName)
+			}
 
 			friendlyMsg, _ := runner.FormatBusinessFriendlyReviewMessage(t.Title, t.Summary, []string{
 				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
@@ -721,6 +726,20 @@ func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, tas
 	}
 
 	for rID := range rooms {
+		// Single-bubble idempotency: do not create duplicate bubble if an identical message exists in room
+		if msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, rID); err == nil && len(msgs) > 0 {
+			alreadySent := false
+			for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-5; i-- {
+				if msgs[i].Content == fullMsg || (strings.Contains(msgs[i].Content, taskID) && strings.Contains(msgs[i].Content, content)) {
+					alreadySent = true
+					break
+				}
+			}
+			if alreadySent {
+				continue
+			}
+		}
+
 		msg := &db.ProjectMessage{
 			ID:         db.GenerateUUID(),
 			RoomID:     rID,

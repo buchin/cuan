@@ -597,6 +597,14 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 			if s.projectStudioRepo == nil || roomID == "" {
 				return nil
 			}
+			// Single-bubble idempotency: avoid inserting duplicate message if already present in room
+			if msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, roomID); err == nil && len(msgs) > 0 {
+				for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-5; i-- {
+					if msgs[i].Content == messageContent {
+						return nil
+					}
+				}
+			}
 			msg := &cuanDB.ProjectMessage{
 				ID:         cuanDB.GenerateUUID(),
 				RoomID:     roomID,
