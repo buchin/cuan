@@ -305,13 +305,13 @@ test('3. Status Badge WCAG 2.1 AA Contrast Ratios & Header/Filter Layout Consist
     'TaskBoardView must NOT contain mobile status select dropdown (vertical clutter eliminated)'
   )
 
-  // 2. Consistent Horizontal Category Chips pattern
+  // 2. Consistent Horizontal Category Chips pattern (Supports default primary and Things 3 / Bear Notes calm segments)
   const hasUnifiedChipsPattern = (src) =>
     src.includes('overflow-x-auto') &&
     src.includes('rounded-full') &&
     src.includes('min-h-11') &&
-    src.includes('bg-primary text-primary-foreground') &&
-    src.includes('bg-muted/60 text-muted-foreground')
+    (src.includes('bg-primary text-primary-foreground') || src.includes('bg-secondary text-foreground')) &&
+    (src.includes('text-muted-foreground'))
 
   assert(hasUnifiedChipsPattern(taskBoardSrc), 'Tasks must implement unified category chips pattern')
   assert(hasUnifiedChipsPattern(inboxSubPanelSrc), 'Inbox must implement unified category chips pattern')

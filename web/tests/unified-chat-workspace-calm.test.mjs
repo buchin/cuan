@@ -102,10 +102,10 @@ test('3. S59-T2: 2-Column Desktop Architecture & Fusion of Studio + Inbox', () =
   const inboxViewContent = fs.readFileSync(inboxViewPath, 'utf8')
   const studioViewContent = fs.readFileSync(studioViewPath, 'utf8')
 
-  // Quick entry bar in SubPanel
+  // Quick entry bar in SubPanel (eliminated in S61-T1 in favor of clean Apple Mail & Bear Inset List)
   assert.ok(
-    inboxSubPanelContent.includes('data-testid="new-goal-quick-bar"'),
-    'InboxSubPanel must contain quick entry bar with data-testid="new-goal-quick-bar"'
+    !inboxSubPanelContent.includes('data-testid="new-goal-quick-bar"'),
+    'InboxSubPanel must eliminate full-width quick entry bar in S61'
   )
 
   // Global Cmd+K / Ctrl+K keyboard shortcut listener
