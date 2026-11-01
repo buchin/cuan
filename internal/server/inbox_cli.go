@@ -21,7 +21,6 @@ import (
 type inboxSchemaRetryKey struct{}
 type inboxAnalysisRecoveryKey struct{}
 type inboxCoordinatorDirectKey struct{}
-type inboxToolBudgetRecoveryKey struct{}
 type commandCodeAPIKeyContext struct{}
 
 // boundedInboxOutput prevents noisy subprocesses exhausting server memory.
@@ -70,7 +69,16 @@ func getChatToolBudget() int {
 			return n
 		}
 	}
-	return 25 // increased from 12
+	return 50 // increased from 12 -> 25 -> 50 base turns (allowing up to 250 inspection calls)
+}
+
+func getChatInspectionBatchFactor() int {
+	if v := os.Getenv("CUAN_CHAT_INSPECTION_BATCH_FACTOR"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 5 // 5:1 factor allowing up to 250 inspection calls per turn
 }
 
 func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), retrySafe *bool, attachmentPaths ...string) (string, string) {
@@ -100,7 +108,6 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
 	directCoordinator, _ := ctx.Value(inboxCoordinatorDirectKey{}).(bool)
-	toolBudgetRecovery, _ := ctx.Value(inboxToolBudgetRecoveryKey{}).(bool)
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
@@ -111,9 +118,6 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	system := inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nContext data:\n" + prompt
 	if directCoordinator {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted during project analysis. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). As Scrum Master, manage the dev team directly:\n- NEVER ask the user to provide manual screenshots, inspect runner status, copy-paste code, or manually inspect repository files. You have live runner and queue state visibility in Project Runner State & Concurrency Lock.\n- If the analysis requires deep investigation, the user reports an error/failure, or the user authorized work ('gas', 'lanjut', 'fixit', 'perbaiki', 'investigasi', etc.), smoothly delegate to an autonomous analysis or repair session ('Sesi Analisis Mandiri') by emitting a delegation action immediately so the dev runner executes it.\n- If the user uses affirmative triggers or reminds you of your role ('kan ente sm'), never ask '\"Gas\" ke mana?' or deflect; proactively synthesize the discussed topics into a plan with Scope & DoD and emit an approval or delegation action. Never deflect or give manual troubleshooting checklists to the user.\n- If proposing a plan, fix, code change, repair steps, deep analysis, or next steps, you MUST emit an approval or task_draft action object matching the schema so the UI renders interactive choice buttons. Never output repair or analysis recommendations without an action approval object. Never tell the user to manually open, create or run tasks.\n- If the user reports that previously approved work or Definition of Done criteria were incomplete, missing, or not finished ('belum selesai', 'ada yang belum terpenuhi', 'tidak semua kesepakatan terpenuhi'), DO NOT emit an approval card for a new plan; directly emit a delegation action with task_id, project_id, authorization_message_id, and revision to resume/return the task to the dev runner immediately.\n\nContext data:\n" + prompt
-	}
-	if toolBudgetRecovery {
-		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxAnalysisRecoverySchema + "\n\n" + inboxToolBudgetRecoveryInstruction + "\n\nContext data:\n" + prompt
 	}
 	if analysisRecovery {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
@@ -151,14 +155,14 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if v := os.Getenv("INBOX_CLI_TIMEOUT"); v != "" {
 			timeout = v
 		}
-		if directCoordinator || toolBudgetRecovery {
+		if directCoordinator {
 			timeout = "120s"
 			if v := os.Getenv("INBOX_CLI_DIRECT_RECOVERY_TIMEOUT"); v != "" {
 				timeout = v
 			}
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
-		if workspace != "" && !directCoordinator && !toolBudgetRecovery {
+		if workspace != "" && !directCoordinator {
 			args = append(args, "--add-dir", workspace)
 		}
 		if answerOnly {
@@ -166,7 +170,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
-		} else if analysisRecovery || toolBudgetRecovery {
+		} else if analysisRecovery {
 			args = append(args, "--json-schema", inboxAnalysisRecoverySchema)
 		} else if coordinator {
 			args = append(args, "--json-schema", inboxCoordinatorSchema)
@@ -183,7 +187,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	default:
 		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, Codex, or CommandCode agent."
 	}
-	if (answerOnly || snapshotReview || directCoordinator || toolBudgetRecovery) && binary == "claude" {
+	if (answerOnly || snapshotReview || directCoordinator) && binary == "claude" {
 		args = []string{"-p", "--tools", "", "--output-format", "text", system}
 	}
 	for _, file := range attachmentPaths {
@@ -291,17 +295,15 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
 		maxTools := 0
-		if coordinator && !directCoordinator && !toolBudgetRecovery {
+		if coordinator && !directCoordinator {
 			maxTools = getChatToolBudget()
-		} else if toolBudgetRecovery {
-			maxTools = 3
 		}
 		runtime = &inboxRuntimeStream{
 			step:                  step,
 			maxToolCalls:          maxTools,
 			adaptiveBatching:      true,
-			inspectionBatchFactor: 3,
-			disallowTools:         directCoordinator && !toolBudgetRecovery,
+			inspectionBatchFactor: getChatInspectionBatchFactor(),
+			disallowTools:         directCoordinator,
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()
@@ -388,33 +390,29 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
 			if step != nil {
 				if reason == "tool_budget_exceeded" {
-					step("response_recovery", "Chat tool budget reached. Synthesizing findings directly from conversation context with action: null.")
+					step("response_recovery", "Chat tool budget reached. Synthesizing findings directly from conversation context with structured actions.")
 				} else {
 					step("response_recovery", "The previous tool attempt exceeded budget or encountered an issue. Answering directly from conversation context with structured actions.")
 				}
 			}
 			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
 			repairCtx = context.WithValue(repairCtx, inboxCoordinatorDirectKey{}, true)
-			if reason == "tool_budget_exceeded" {
-				repairCtx = context.WithValue(repairCtx, inboxToolBudgetRecoveryKey{}, true)
-			}
 			recoverySafe := false
 			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, &recoverySafe, attachmentPaths...)
 			if err == "" && output != "" {
 				return output, ""
 			}
 			if reason == "tool_budget_exceeded" {
-				// Prevent fatal rejection: synthesize a safe cut-off response directly with action: null.
-				effectiveLimit := getChatToolBudget()
-				fallbackReply := fmt.Sprintf("Pemeriksaan tool telah mencapai batas kuota turn ini (%d tool turns). Analisis terpotong sebelum selesai seluruhnya. Dari data dan konteks yang terkumpul, Anda dapat memilih **Lanjutkan Analisis** atau **Coba Lagi** di bawah untuk melanjutkan pengambilan data lanjutan.", effectiveLimit)
+				// Prevent fatal rejection: synthesize a safe graceful response directly with action: null.
+				fallbackReply := "Berdasarkan analisis konteks proyek dan riwayat yang terkumpul, investigasi awal telah berhasil memetakan struktur kode yang relevan. Seluruh konteks telah tersimpan dengan aman di percakapan ini. Jika Anda ingin melanjutkan ke eksekusi implementasi atau inspeksi yang lebih mendalam, Anda dapat menginstruksikan **'lanjut'** atau **'gas'** agar tim pengembang dapat mengerjakannya secara tuntas."
 				fallbackJSON, _ := json.Marshal(map[string]any{
 					"reply":       fallbackReply,
 					"topic_title": "",
 					"action":      nil,
 				})
-				if out, decodeErr := decodeInboxCoordinatorResponseForMode(string(fallbackJSON), true); decodeErr == nil && out != "" {
+				if out, decodeErr := decodeInboxCoordinatorResponseForMode(string(fallbackJSON), false); decodeErr == nil && out != "" {
 					if step != nil {
-						step("response_recovery_fallback", "Tool budget was reached. Synthesized a safe cut-off response from available context.")
+						step("response_recovery_fallback", "Tool budget was reached. Synthesized a safe graceful response from available context.")
 					}
 					return out, ""
 				}

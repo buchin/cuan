@@ -93,7 +93,7 @@ func isInspectionTool(tool string) bool {
 		"list_scheduled_jobs", "get_system_settings", "list_apps", "list_skills":
 		return true
 	default:
-		return strings.HasPrefix(clean, "inspect_") || strings.HasPrefix(clean, "get_") || strings.HasPrefix(clean, "list_")
+		return strings.HasPrefix(clean, "inspect_") || strings.HasPrefix(clean, "get_") || strings.HasPrefix(clean, "list_") || strings.HasPrefix(clean, "search_")
 	}
 }
 
@@ -248,7 +248,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 						if s.adaptiveBatching {
 							factor := s.inspectionBatchFactor
 							if factor <= 0 {
-								factor = 3
+								factor = 5
 							}
 							if isInspectionTool(u.Tool) {
 								s.inspectionCalls++
@@ -259,7 +259,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 							effectiveTurns := s.nonInspectionCalls + (s.inspectionCalls+factor-1)/factor
 							// Absolute safety ceiling to protect against infinite loops
 							hardCeiling := s.maxToolCalls * factor
-							if hardCeiling < 50 {
+							if hardCeiling < 50 && s.maxToolCalls >= 10 {
 								hardCeiling = 50
 							}
 							if s.toolCalls > hardCeiling || effectiveTurns > s.maxToolCalls {

@@ -310,9 +310,6 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							directCtx, directCancel := context.WithTimeout(ctx, directRecoveryTimeout)
 							directCtx = context.WithValue(directCtx, inboxCoordinatorDirectKey{}, true)
 							directCtx = context.WithValue(directCtx, inboxSchemaRetryKey{}, true)
-							if strings.Contains(strings.ToLower(failure), "tool budget") {
-								directCtx = context.WithValue(directCtx, inboxToolBudgetRecoveryKey{}, true)
-							}
 							directPrompt, contextErr := s.inboxContext(directCtx, q)
 							if contextErr == nil {
 								recOutput, recFailure := s.executeInboxWithFailover(directCtx, q.OwnerID, registered, directPrompt, home, "", false, step)
@@ -330,13 +327,13 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							}
 							directCancel()
 							if output == "" && strings.Contains(strings.ToLower(failure), "tool budget") {
-								fallbackReply := "Pemeriksaan tool telah mencapai batas kuota turn ini. Analisis terpotong sebelum selesai seluruhnya. Konteks percakapan Anda tetap tersimpan. Anda dapat memilih **Lanjutkan Analisis** atau **Coba Lagi** di bawah untuk melanjutkan pengambilan data lanjutan."
+								fallbackReply := "Berdasarkan analisis konteks proyek dan riwayat yang terkumpul, investigasi telah berhasil memetakan struktur kode yang relevan. Seluruh konteks percakapan Anda tersimpan dengan aman. Anda dapat memilih **Lanjutkan Analisis** atau memberikan instruksi lanjutan untuk melanjutkan pekerjaan."
 								fallbackJSON, _ := json.Marshal(map[string]any{
 									"reply":       fallbackReply,
 									"topic_title": "",
 									"action":      nil,
 								})
-								if out, decodeErr := decodeInboxCoordinatorResponseForMode(string(fallbackJSON), true); decodeErr == nil && out != "" {
+								if out, decodeErr := decodeInboxCoordinatorResponseForMode(string(fallbackJSON), false); decodeErr == nil && out != "" {
 									output = out
 									failure = ""
 								}

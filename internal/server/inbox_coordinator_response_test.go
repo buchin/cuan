@@ -241,6 +241,7 @@ fi
 	}
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "2")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	safe := false
 	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "General question", home, t.TempDir(), nil, &safe)

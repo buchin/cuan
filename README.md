@@ -100,8 +100,8 @@ Transform customer interactions into structured business workflows:
 - **Autonomous AI Agent Triage & Auto-Response**:
   - AI agents triage incoming customer inquiries, answer questions using persistent business memory and canned responses, classify intent, and escalate complex issues to human team members.
 - **Adaptive Tool Budgeting & Infinite-Loop Guards**:
-  - Robust turn budget guard for Inbox coordinator chat (`CUAN_CHAT_TOOL_BUDGET`, default 25 turns).
-  - Adaptive batching for code/file inspections (3:1 factor allowing up to 75 inspection calls per turn) preventing premature cut-offs during deep repository investigation.
+  - Robust turn budget guard for Inbox coordinator chat (`CUAN_CHAT_TOOL_BUDGET`, default 50 turns).
+  - Adaptive batching for code/file inspections (5:1 factor allowing up to 250 inspection calls per turn) preventing premature cut-offs during deep repository investigation.
   - Hard safety ceilings and consecutive failure protection prevent runaway infinite loops while enabling seamless direct synthesis recovery.
 - **Contacts CRM & Deal Funnel**:
   - Comprehensive customer contact profiles, persistent contact memory, interaction history timelines, deal stage tracking, and customer journey management.
