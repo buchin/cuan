@@ -459,6 +459,31 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 	}
 	defer unixConn.Close()
 
+	q := r.URL.Query()
+	var cols uint16 = 80
+	if cStr := q.Get("cols"); cStr != "" {
+		if c, err := strconv.ParseUint(cStr, 10, 16); err == nil && c > 0 {
+			cols = uint16(c)
+		}
+	}
+
+	var rows uint16 = 24
+	if rStr := q.Get("rows"); rStr != "" {
+		if rVal, err := strconv.ParseUint(rStr, 10, 16); err == nil && rVal > 0 {
+			rows = uint16(rVal)
+		}
+	}
+
+	// Immediately notify runner PTY of client dimensions before streaming history
+	if cols > 0 && rows > 0 {
+		resizePayload, _ := json.Marshal(TerminalMessage{
+			Type: "resize",
+			Cols: cols,
+			Rows: rows,
+		})
+		_, _ = unixConn.Write(resizePayload)
+	}
+
 	var writeMu sync.Mutex
 	writeWS := func(kind int, data []byte) error {
 		writeMu.Lock()
@@ -468,7 +493,7 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Send handshake connected message
-	_ = writeWS(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"connected","session":"runner-%s","task_id":"%s","mode":"interactive","cols":80,"rows":24}`, taskID, taskID)))
+	_ = writeWS(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"connected","session":"runner-%s","task_id":"%s","mode":"interactive","cols":%d,"rows":%d}`, taskID, taskID, cols, rows)))
 
 	// Setup ping/pong
 	_ = conn.SetReadDeadline(time.Now().Add(pongWait))

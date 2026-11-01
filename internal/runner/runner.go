@@ -811,8 +811,8 @@ func (r *Runner) executeWithPTY(
 		Shell:       agyBin,
 		Args:        ptyArgs,
 		Env:         ptyEnv,
-		InitialCols: 100,
-		InitialRows: 30,
+		InitialCols: 80,
+		InitialRows: 24,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("spawn pty: %w", err)

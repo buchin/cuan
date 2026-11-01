@@ -341,6 +341,7 @@ export function TaskTerminal({
 
   // Ref to hold connectSocket so reconnect and event listeners can call it
   const connectSocketRef = useRef<() => void>(() => {})
+  const pollNextLogsRef = useRef<() => void>(() => {})
 
   const handleReconnect = useCallback(() => {
     setError('')
@@ -483,12 +484,16 @@ export function TaskTerminal({
               setActiveSessionId(data.session_id)
             }
 
-            // Zero-flicker reset before replay
-            if (isReconnecting.current) {
-              t.reset()
-              isReconnecting.current = false
-            }
+            // Always reset terminal on connect so no stale ghost lines or duplicate logs remain
+            t.reset()
+            isReconnecting.current = false
             retryCount.current = 0
+
+            // Disarm incremental database log poller while live PTY is connected
+            if (pollTimerRef.current) {
+              clearTimeout(pollTimerRef.current)
+              pollTimerRef.current = null
+            }
 
             const enabled = data.mode === 'interactive'
             interactive.current = enabled
@@ -518,9 +523,8 @@ export function TaskTerminal({
             setError(data.message || 'Terminal request failed.')
           }
         } catch {
-          // Non-JSON string data: format and output to terminal
-          const formatted = formatLogLineForTerminal(String(event.data))
-          term.current?.write(formatted + '\r\n')
+          // Non-JSON string data: direct raw string output over terminal stream
+          term.current?.write(String(event.data))
         }
       }
 
@@ -553,6 +557,9 @@ export function TaskTerminal({
             if (reconnectTimer.current) {
               clearTimeout(reconnectTimer.current)
               reconnectTimer.current = null
+            }
+            if (!pollTimerRef.current) {
+              pollTimerRef.current = setTimeout(() => pollNextLogsRef.current(), 300)
             }
             return
           }
@@ -917,32 +924,16 @@ export function TaskTerminal({
           }
         })
 
-        // Always load initial logs and parse visual steps
-        if (pollTimerRef.current) {
-          clearTimeout(pollTimerRef.current)
-          pollTimerRef.current = null
-        }
-
+        // Incremental polling loop used exclusively as fallback when PTY socket is unavailable
         let after = 0
-        for (let page = 0; page < 8 && !disposed; page++) {
-          const result = await tasksApi.logs(taskId, attempt.id, after)
-          if (disposed) return
-          const next = result.logs || []
-          logs.current.push(...next)
-          if (next.length) {
-            terminal.write(next.map((l) => formatLogLineForTerminal(l.line)).join('\r\n') + '\r\n')
-            if (following.current) terminal.scrollToBottom()
-            after = next[next.length - 1].id
-          }
-          if (next.length < 250) break
-        }
-        if (disposed) return
-
-        // Incremental polling loop while attempt is active
         const pollNextLogs = async () => {
           if (disposed) return
           if (!isTaskActiveRef.current) {
             setConnection('saved')
+            return
+          }
+          // Do NOT poll or write database logs while pure PTY WebSocket is actively streaming
+          if (socket.current?.readyState === WebSocket.OPEN) {
             return
           }
           try {
@@ -950,7 +941,7 @@ export function TaskTerminal({
             if (disposed) return
             const next = result.logs || []
             const activeTerm = term.current || terminal
-            if (next.length > 0 && activeTerm) {
+            if (next.length > 0 && activeTerm && socket.current?.readyState !== WebSocket.OPEN) {
               logs.current.push(...next)
               activeTerm.write(next.map((l) => formatLogLineForTerminal(l.line)).join('\r\n') + '\r\n')
               if (following.current) activeTerm.scrollToBottom()
@@ -970,20 +961,39 @@ export function TaskTerminal({
             // Ignore transient polling failure
           }
 
-          if (!disposed && isTaskActiveRef.current) {
+          if (!disposed && isTaskActiveRef.current && socket.current?.readyState !== WebSocket.OPEN) {
             pollTimerRef.current = setTimeout(pollNextLogs, 1000)
           } else {
-            setConnection('saved')
+            if (!isTaskActiveRef.current) setConnection('saved')
           }
         }
+        pollNextLogsRef.current = pollNextLogs
 
-        // If task is active, connect socket or start incremental polling
+        // Always clear any previous poll timer
+        if (pollTimerRef.current) {
+          clearTimeout(pollTimerRef.current)
+          pollTimerRef.current = null
+        }
+
+        // If task is active, connect socket directly for pure real-time PTY stream (zero log collision)
         if (isTaskActiveRef.current) {
           connectSocket()
           setConnection('streaming')
-          pollTimerRef.current = setTimeout(pollNextLogs, 1000)
         } else {
+          // Task is finished: load saved historical output from database
           setConnection('saved')
+          for (let page = 0; page < 8 && !disposed; page++) {
+            const result = await tasksApi.logs(taskId, attempt.id, after)
+            if (disposed) return
+            const next = result.logs || []
+            logs.current.push(...next)
+            if (next.length) {
+              terminal.write(next.map((l) => formatLogLineForTerminal(l.line)).join('\r\n') + '\r\n')
+              if (following.current) terminal.scrollToBottom()
+              after = next[next.length - 1].id
+            }
+            if (next.length < 250) break
+          }
           if (!logs.current.length) {
             setNotice(t('No output was saved for this session.'))
           }
