@@ -1,4 +1,6 @@
 {
+  "Adaptive tool budgeting & deep project inspection.": "Budget tool adaptif & inspeksi proyek mendalam.",
+  "Chat agents inspect codebases, repositories, and data without hitting premature turn quotas. Adaptive batching and loop guards prevent cut-off responses.": "Agen chat menginspeksi kode, repositori, dan data tanpa terpotong kuota turn prematur. Adaptive batching dan guard loop memastikan analisis tuntas.",
   "Background audio chime & tab notifications.": "Audio chime latar belakang & notifikasi tab.",
   "Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.": "Web Audio chime harmonis memutar nada lembut dan memperbarui lencana tab browser saat tugas selesai di latar belakang, dilengkapi fallback senyap tanpa hambatan.",
   "Worker observability & queue health.": "Observabilitas worker & kesehatan antrean.",

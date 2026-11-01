@@ -79,3 +79,12 @@ Downloads require sign-in and remain available as immutable snapshots after the
 execution exits or the source file changes. Repeating the same delivery does not
 create duplicate message cards. Work reports and attachment delivery are distinct
 from the coordinator's acceptance decision.
+
+## Tool turn budget, adaptive batching, and infinite-loop guards
+
+During chat analysis and proposal stages, Inbox coordinator agents call read-only tools to inspect repository source files, git histories, and system status. To prevent runaway token consumption or infinite tool loops while enabling comprehensive code analysis:
+
+- **Configurable Tool Budget**: The base tool call limit defaults to 25 turn units (increased from 12), and can be customized via the `CUAN_CHAT_TOOL_BUDGET` (or `INBOX_TOOL_BUDGET`) environment variable.
+- **Adaptive Batching for Inspection**: Read-only inspection tools (`read_file`, `view_file`, `grep_search`, `list_dir`, `find_by_name`, `inspect_git_*`, `inspect_system_*`, and MCP queries) are adaptively batched with a 3:1 factor (up to 3 inspection calls count as 1 turn unit). This allows coordinators to inspect up to 75 files and components in a single analysis turn without premature interruption.
+- **Infinite Loop Guard**: Runaway execution is bounded by an absolute hard ceiling (e.g. 75 calls) and consecutive failure detection (5 consecutive tool errors stop the runaway loop).
+- **Graceful Recovery Synthesis**: If the tool turn budget is ever reached, Cuan does not terminate the chat abruptly. Instead, it enters direct coordinator synthesis mode, instructing the agent to synthesize all inspected findings from the conversation and gathered files into an actionable summary, eliminating jarring quota cut-off error messages.

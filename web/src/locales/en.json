@@ -1,4 +1,6 @@
 {
+  "Adaptive tool budgeting & deep project inspection.": "Adaptive tool budgeting & deep project inspection.",
+  "Chat agents inspect codebases, repositories, and data without hitting premature turn quotas. Adaptive batching and loop guards prevent cut-off responses.": "Chat agents inspect codebases, repositories, and data without hitting premature turn quotas. Adaptive batching and loop guards prevent cut-off responses.",
   "Background audio chime & tab notifications.": "Background audio chime & tab notifications.",
   "Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.": "Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.",
   "Worker observability & queue health.": "Worker observability & queue health.",
