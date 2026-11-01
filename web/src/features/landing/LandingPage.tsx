@@ -350,7 +350,6 @@ export function LandingPage() {
                 text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
               },
               {
-              {
                 Icon: Cpu,
                 title: 'Atomic execution engine & DoD evaluation.',
                 text: 'Ultra-reliable state machine and automated Definition of Done evaluation run lightning-fast in isolated packages, guaranteeing zero timeout and robust task completion.',
@@ -359,7 +358,6 @@ export function LandingPage() {
                 Icon: Radio,
                 title: 'Real-time log streaming & interactive steering.',
                 text: 'Live stdout/stderr streaming pipe brings instant transparency into active tasks, while interactive chat steering lets you guide the agent without restarting from scratch.',
-              },
               },
               {
                 Icon: Clock,
