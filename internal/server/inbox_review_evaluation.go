@@ -223,6 +223,13 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
 			if s.isCustomerRoom(ctx, q.RoomID) {
 				friendlyMsg, _ := runner.FormatBusinessFriendlyMessage(d.Title, d.Summary, d.ProjectName)
+				if !strings.Contains(strings.ToLower(friendlyMsg), "draf balasan") {
+					domainName := d.ProjectName
+					if domainName == "" || strings.EqualFold(domainName, "default") {
+						domainName = "toko Anda"
+					}
+					friendlyMsg += fmt.Sprintf("\n\n**Draf Balasan untuk Pengunjung:**\n> \"Halo kak, mohon maaf atas kendalanya ya. Masalah terkait sudah berhasil kami perbaiki dan layanan sudah bisa diakses kembali secara normal di %s. Silakan dicoba kembali ya kak! Terima kasih banyak atas kesabarannya.\"", domainName)
+				}
 				return friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", d.ID)
 			}
 			if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {

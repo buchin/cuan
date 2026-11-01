@@ -587,7 +587,24 @@ export function formatLogLineForTerminal(line: string): string {
 
   const summaryText = hasSummary ? `\x1b[38;2;229;229;229m${step.summary}\x1b[0m` : ''
 
-  return `${iconSymbol} ${toolBadge} ${durBadge}${summaryText}`.trimEnd()
+  let lineOut = `${iconSymbol} ${toolBadge} ${durBadge}${summaryText}`.trimEnd()
+  if (step.status === 'completed' && step.details) {
+    const cleanDetails = stripAnsi(step.details).trim()
+    if (
+      cleanDetails &&
+      cleanDetails !== step.summary &&
+      !cleanDetails.startsWith('{"event":') &&
+      cleanDetails.length < 3000
+    ) {
+      const indented = cleanDetails
+        .split('\n')
+        .slice(0, 12)
+        .map((l) => `  \x1b[38;2;163;163;163m${l.trimEnd()}\x1b[0m`)
+        .join('\r\n')
+      lineOut += '\r\n' + indented
+    }
+  }
+  return lineOut
 }
 
 /**

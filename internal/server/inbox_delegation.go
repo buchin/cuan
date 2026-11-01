@@ -331,7 +331,21 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		if !s.taskContinuationAfterCancel(ctx, q, t) {
 			return fail("the work was cancelled; a new user instruction is required to continue")
 		}
-		if taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
+		if t.Status == task.TaskStatusDone && strings.TrimSpace(d.Revision) == "" {
+			if s.isCustomerRoom(ctx, q.RoomID) {
+				friendlyMsg, _ := runner.FormatBusinessFriendlyMessage(t.Title, t.Summary, d.ProjectName)
+				if !strings.Contains(strings.ToLower(friendlyMsg), "draf balasan") {
+					domainName := d.ProjectName
+					if domainName == "" || strings.EqualFold(domainName, "default") {
+						domainName = "toko Anda"
+					}
+					friendlyMsg += fmt.Sprintf("\n\n**Draf Balasan untuk Pengunjung:**\n> \"Halo kak, mohon maaf atas kendalanya ya. Masalah pemutaran video drama tersebut sudah berhasil kami perbaiki dan saat ini sudah bisa ditonton kembali secara normal di %s. Silakan dicoba putar kembali ya kak! Terima kasih atas kesabarannya.\"", domainName)
+				}
+				return wrapResult(friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", t.ID))
+			}
+			return wrapResult(fmt.Sprintf("Pekerjaan telah berhasil diselesaikan dan diverifikasi.\n\n[View work](/tasks/%s)", t.ID))
+		}
+		if strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
 			reviewStatus := task.TaskStatusReview
 			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
 			t.Status = task.TaskStatusReview
@@ -499,7 +513,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		if err != nil || detail.LatestAttempt == nil {
 			continue
 		}
-		if detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
+		if detail.Status != task.TaskStatusDone && detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
 			s.queueInboxTaskReview(ctx, detail)
 		}
 

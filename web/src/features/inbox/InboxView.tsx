@@ -1405,10 +1405,23 @@ export function InboxView({
                 const isFormattedMessage = true
 
                 const isOutgoing = isUserInAgentRoom || isOperatorInCustomerRoom
+                const msgContent = msg.content || msg.message || ''
+
+                // Suppress internal system cues (e.g. cuan_work_review)
+                if (
+                  msg.author_id === 'cuan_work_review' ||
+                  msgContent.startsWith('I’m checking the latest work update') ||
+                  msgContent.startsWith("I'm checking the latest work update") ||
+                  msgContent.startsWith('Review the result for [')
+                ) {
+                  return null
+                }
+
                 const linkedTaskForMsg = msg.uuid
                   ? linkedTasks.find(
                       (task) =>
                         (task.source_message_id === msg.uuid ||
+                          msgContent.includes(`/tasks/${task.id}`) ||
                           requests.some(
                             (q) =>
                               q.reply_id === msg.uuid &&
@@ -1422,16 +1435,6 @@ export function InboxView({
                           )),
                     )
                   : undefined
-
-                // Suppress internal system cues (e.g. cuan_work_review)
-                const msgContent = msg.content || msg.message || ''
-                if (
-                  msg.author_id === 'cuan_work_review' ||
-                  msgContent.startsWith('I’m checking the latest work update') ||
-                  msgContent.startsWith("I'm checking the latest work update")
-                ) {
-                  return null
-                }
 
                 // Suppress obsolete stopped launch notifications if the task already succeeded/review/done
                 // or if there is a DoD evaluation or completion in the room
@@ -1860,21 +1863,36 @@ export function InboxView({
                 </div>
               )}
 
-              {/* Typing Indicator */}
-              {sending && activeContact.type === 'agent' && (
-                <div className="flex flex-col items-start animate-fade-in">
-                  <div className="bg-card text-card-foreground border border-border rounded-2xl rounded-tl-xs p-3 shadow-xs flex items-center gap-2.5">
-                    <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-xs">
+              {/* Typing / In-flight Working Indicator */}
+              {((sending && activeContact.type === 'agent') || activeConversationTasks.length > 0) && (
+                <div className="flex flex-col items-start animate-fade-in my-2" data-testid="inbox-working-indicator">
+                  <div className="bg-card text-card-foreground border border-border/80 rounded-2xl rounded-tl-xs p-3 shadow-xs flex items-center gap-2.5 max-w-md">
+                    <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-xs shrink-0">
                       {activeContact.avatar ? (
                         <span>{activeContact.avatar}</span>
                       ) : (
                         <Bot className="h-3.5 w-3.5 text-primary" />
                       )}
                     </div>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      Sending message to {activeContact.name}...
-                    </span>
-                    <div className="flex items-center gap-1 ml-1">
+                    <div className="flex flex-col min-w-0 pr-1">
+                      {activeConversationTasks.length > 0 ? (
+                        <>
+                          <span className="text-xs text-foreground font-medium truncate">
+                            {activeConversationTasks[0].title || t('Task is running')}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <span>{activeConversationTasks[0].assignee ? `@${activeConversationTasks[0].assignee}` : (activeConversationTasks[0] as any).assigned_agent ? `@${(activeConversationTasks[0] as any).assigned_agent}` : t('Agent')}</span>
+                            <span>·</span>
+                            <span>{t('sedang mengeksekusi di background')}</span>
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {t('Sending message to')} {activeContact.name}...
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 ml-auto shrink-0 pl-1">
                       <span
                         className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce"
                         style={{ animationDelay: '0ms' }}
@@ -1888,6 +1906,15 @@ export function InboxView({
                         style={{ animationDelay: '300ms' }}
                       />
                     </div>
+                    {activeConversationTasks.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenTaskDrawer(activeConversationTasks[0], 'terminal')}
+                        className="ml-2 text-xs font-medium text-primary hover:underline shrink-0"
+                      >
+                        {t('Live Terminal')}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
