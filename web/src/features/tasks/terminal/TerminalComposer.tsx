@@ -28,7 +28,10 @@ import '../../inbox/chat-calm.css'
 
 export type TerminalComposerProps = {
   taskId: string
+  attemptId?: string
   onSend: (data: string) => void
+  onSteer?: (prompt: string) => Promise<boolean | void> | void
+  onStop?: () => void
   onClearScreen: () => void
   onInterrupt: () => void
   onToggleMobileKbd?: () => void
@@ -51,7 +54,10 @@ interface SlashCommand {
 
 export function TerminalComposer({
   taskId,
+  attemptId,
   onSend,
+  onSteer,
+  onStop,
   onClearScreen,
   onInterrupt,
   onToggleMobileKbd,
@@ -321,7 +327,7 @@ export function TerminalComposer({
       command: '/stop',
       label: 'Stop Process (Ctrl+C)',
       description: 'Kirim sinyal interupsi SIGINT ke proses yang berjalan',
-      action: () => onInterrupt(),
+      action: () => (onStop ? onStop() : onInterrupt()),
     },
   ]
 
@@ -358,6 +364,9 @@ export function TerminalComposer({
 
     addToHistory(toSend)
     onSend(toSend)
+    if (onSteer) {
+      void onSteer(toSend)
+    }
     setTimeout(() => {
       onSend('\r')
     }, 40)
@@ -553,6 +562,7 @@ export function TerminalComposer({
 
   return (
     <div
+      data-attempt-id={attemptId}
       className={`wa-chat relative shrink-0 select-none bg-[#141414] border-t border-[#262626] px-2.5 py-2 space-y-1.5 ${className}`}
     >
       {/* ── Slash Commands Autocomplete Popup ── */}
@@ -701,7 +711,7 @@ export function TerminalComposer({
         <button
           type="button"
           disabled={disabled}
-          onClick={onInterrupt}
+          onClick={onStop || onInterrupt}
           className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-[#333] bg-[#222] px-2 text-[11px] font-mono font-medium text-rose-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40"
           title="Send SIGINT (Ctrl+C) to cancel process"
         >

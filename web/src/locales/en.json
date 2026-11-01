@@ -136,5 +136,20 @@
   "Borderless Chat Canvas & Floating Soft Surface Composer.": "Borderless Chat Canvas & Floating Soft Surface Composer.",
   "Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.": "Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.",
   "Interactive Terminal & Real-Time Log Streaming.": "Interactive Terminal & Real-Time Log Streaming.",
-  "Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse.": "Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse."
+  "Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse.": "Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse.",
+  "Visual Steps": "Visual Steps",
+  "Terminal": "Terminal",
+  "Steering instruction delivered to agent.": "Steering instruction delivered to agent.",
+  "Steering instruction queued for agent.": "Steering instruction queued for agent.",
+  "Could not deliver steering instruction.": "Could not deliver steering instruction.",
+  "Stopping task execution…": "Stopping task execution…",
+  "Task execution stopped.": "Task execution stopped.",
+  "Stop / Interrupt": "Stop / Interrupt",
+  "Stop / Interrupt (Ctrl+C)": "Stop / Interrupt (Ctrl+C)",
+  "Send Ctrl+C (Interrupt)": "Send Ctrl+C (Interrupt)",
+  "Clear terminal": "Clear terminal",
+  "Exit fullscreen": "Exit fullscreen",
+  "Fullscreen": "Fullscreen",
+  "Show keyboard": "Show keyboard",
+  "Terminal tools": "Terminal tools"
 }
