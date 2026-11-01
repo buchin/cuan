@@ -160,17 +160,27 @@ export function SettingsView({
           <div className="md:hidden">
             <Link
               to={
-                location.search
-                  ? `${isAccount ? '/account' : '/settings'}${location.search}`
-                  : isAccount
-                    ? '/account'
-                    : '/settings'
+                safeReturn
+                  ? safeReturn
+                  : location.search
+                    ? `${isAccount ? '/account' : '/settings'}${location.search}`
+                    : isAccount
+                      ? '/account'
+                      : '/settings'
               }
               className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
             >
               <ChevronLeft className="h-4 w-4 shrink-0" />
               <span>
-                {isAccount ? t('← Back to Account') : t('← Back to Settings')}
+                {safeReturn
+                  ? t(
+                      safeReturn === '/chat' || safeReturn === '/studio'
+                        ? '← Back to Chat'
+                        : '← Back to conversation',
+                    )
+                  : isAccount
+                    ? t('← Back to Account')
+                    : t('← Back to Settings')}
               </span>
             </Link>
           </div>
@@ -250,15 +260,6 @@ export function SettingsView({
             <NotificationSettings />
           ) : section === 'agents' ? (
             <div className="space-y-4">
-              {safeReturn && (
-                <Link to={safeReturn} className="action-secondary text-xs inline-flex items-center">
-                  {t(
-                    safeReturn === '/chat' || safeReturn === '/studio'
-                      ? '← Back to Chat'
-                      : '← Back to conversation',
-                  )}
-                </Link>
-              )}
               <TeamView
                 showHeading={false}
                 showCreateAction={false}

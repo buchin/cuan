@@ -34,6 +34,7 @@ import { agentsApi, type Agent, type HarnessAuth, type ModelInfo, isModelVisionC
 import { EditAgentModal } from './EditAgentModal'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { StatusDot } from '../../components/layout/StatusDot'
+import { HairlineList, HairlineListItem } from '../../components/layout/HairlineList'
 
 function getAgentHandle(agent: { name: string; id: string }): string {
   if (agent.name.startsWith('@')) return agent.name
@@ -112,7 +113,7 @@ function AgentActions({
     >
       <button
         ref={trigger}
-        className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+        className="inline-flex min-h-11 min-w-11 h-9 w-9 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
         aria-label={`Actions ${name}`}
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
@@ -1002,87 +1003,88 @@ export function TeamView({
           </button>
         </div>
       ) : (
-        <div
-          role="list"
-          aria-label="Agent list"
-          className="divide-y divide-border rounded-lg border border-border"
-        >
-          {visibleAgents.map((agent) => {
-            const state = connectionStatus(agent, now)
-            const a = { ...agent, connection_state: state.state }
-            return (
-              <div
-                role="listitem"
-                aria-label={`Agent ${a.name}`}
-                key={a.id}
-                id={`settings-agent-${a.id}`}
-                className="group relative flex items-center justify-between p-3.5 sm:p-4 hover:bg-muted/30 transition-colors cursor-pointer select-none"
-                onClick={() => setDrawerAgent(a)}
-              >
-                {/* Minimalist Profile Card (Avatar, Name, Handle, Role, StatusDot) ala Things 3 */}
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="relative shrink-0">
-                    <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 text-base font-semibold">
-                      {a.avatar ? (
-                        <span>{a.avatar}</span>
-                      ) : (
-                        <Bot className="h-5 w-5" />
-                      )}
+        <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden transition-colors">
+          <HairlineList role="list" aria-label="Agent list">
+            {visibleAgents.map((agent) => {
+              const state = connectionStatus(agent, now)
+              const a = { ...agent, connection_state: state.state }
+              const handle = getAgentHandle(a)
+              const cleanName = a.name.replace(/^@/, '').toLowerCase().trim()
+              const cleanHandle = handle.replace(/^@/, '').toLowerCase().trim()
+              const isHandleSame = cleanName === cleanHandle || a.name.startsWith('@')
+              return (
+                <HairlineListItem
+                  role="listitem"
+                  aria-label={`Agent ${a.name}`}
+                  key={a.id}
+                  id={`settings-agent-${a.id}`}
+                  interactive
+                  onClick={() => setDrawerAgent(a)}
+                  leading={
+                    <div className="relative shrink-0">
+                      <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 text-base font-semibold">
+                        {a.avatar ? (
+                          <span>{a.avatar}</span>
+                        ) : (
+                          <Bot className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5">
+                        <StatusDot
+                          status={
+                            state.verified
+                              ? 'healthy'
+                              : state.state === 'quota_limited'
+                                ? 'warning'
+                                : state.state === 'login_required' || state.state === 'unavailable'
+                                  ? 'exception'
+                                  : 'neutral'
+                          }
+                          size="sm"
+                        />
+                      </div>
                     </div>
-                    <div className="absolute -bottom-0.5 -right-0.5">
-                      <StatusDot
-                        status={
-                          state.verified
-                            ? 'healthy'
-                            : state.state === 'quota_limited'
-                              ? 'warning'
-                              : state.state === 'login_required' || state.state === 'unavailable'
-                                ? 'exception'
-                                : 'neutral'
-                        }
-                        size="sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
+                  }
+                  title={
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
                         {a.name}
                       </h3>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {getAgentHandle(a)}
-                      </span>
+                      {!isHandleSame && (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {handle}
+                        </span>
+                      )}
                     </div>
-                    <p className="truncate text-xs text-muted-foreground mt-0.5">
-                      {a.role || (a.system_prompt ? a.system_prompt.slice(0, 80) : '') || t('Asisten AI ruang kerja')}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Corner Actions Trigger */}
-                {canManageAgents && (
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={`Edit ${a.name}`}
-                      title={`Edit ${a.name}`}
-                      onClick={() => setEditingAgent(a)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <AgentActions
-                      name={a.name}
-                      disabled={!!checking || !!removing || !!lifecycleBusy}
-                      onEdit={() => setEditingAgent(a)}
-                      onRemove={() => void remove(a.id)}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                  }
+                  description={
+                    a.role || (a.system_prompt ? a.system_prompt.slice(0, 80) : '') || t('Asisten AI ruang kerja')
+                  }
+                  trailing={
+                    canManageAgents ? (
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="hidden sm:inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label={`Edit ${a.name}`}
+                          title={`Edit ${a.name}`}
+                          onClick={() => setEditingAgent(a)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <AgentActions
+                          name={a.name}
+                          disabled={!!checking || !!removing || !!lifecycleBusy}
+                          onEdit={() => setEditingAgent(a)}
+                          onRemove={() => void remove(a.id)}
+                        />
+                      </div>
+                    ) : undefined
+                  }
+                />
+              )
+            })}
+          </HairlineList>
         </div>
       )}
 
@@ -1155,7 +1157,9 @@ export function TeamView({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="text-base font-semibold text-foreground truncate">{a.name}</h4>
-                    <span className="font-mono text-xs text-muted-foreground">{getAgentHandle(a)}</span>
+                    {!(a.name.replace(/^@/, '').toLowerCase().trim() === getAgentHandle(a).replace(/^@/, '').toLowerCase().trim() || a.name.startsWith('@')) && (
+                      <span className="font-mono text-xs text-muted-foreground">{getAgentHandle(a)}</span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {account?.email || a.role || t('Asisten AI')}
@@ -1290,7 +1294,7 @@ export function TeamView({
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 {t('Aksi & Siklus Hidup')}
               </label>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
                 {canManageAgents && (
                   <button
                     type="button"
@@ -1711,12 +1715,12 @@ export function TeamView({
                   </h3>
                 </div>
 
-                <div
-                  role="list"
-                  aria-label={t('Daftar Anggota Tim')}
-                  className="divide-y divide-border rounded-lg border border-border bg-card shadow-sm"
-                >
-                  {filteredMembers.map((member) => {
+                <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden transition-colors">
+                  <HairlineList
+                    role="list"
+                    aria-label={t('Daftar Anggota Tim')}
+                  >
+                    {filteredMembers.map((member) => {
                     const displayName = member.name || member.username || member.email
                     const initials = displayName.slice(0, 2).toUpperCase()
                     const isSelf = member.id === user?.id
@@ -1788,6 +1792,7 @@ export function TeamView({
                       </div>
                     )
                   })}
+                  </HairlineList>
                 </div>
               </div>
 
@@ -1801,12 +1806,12 @@ export function TeamView({
                     </h3>
                   </div>
 
-                  <div
-                    role="list"
-                    aria-label={t('Daftar Undangan Tertunda')}
-                    className="divide-y divide-border rounded-lg border border-border bg-card shadow-sm"
-                  >
-                    {filteredInvitations.map((invite) => {
+                  <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden transition-colors">
+                    <HairlineList
+                      role="list"
+                      aria-label={t('Daftar Undangan Tertunda')}
+                    >
+                      {filteredInvitations.map((invite) => {
                       const isInviteOwner = invite.role === 'owner'
                       return (
                         <div
@@ -1863,6 +1868,7 @@ export function TeamView({
                         </div>
                       )
                     })}
+                    </HairlineList>
                   </div>
                 </div>
               )}
