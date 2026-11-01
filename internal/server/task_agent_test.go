@@ -131,7 +131,7 @@ func TestTaskAgentExitWithoutReportIsBlocked(t *testing.T) {
 	defer api.Close()
 	s.taskAgentURL = api.URL
 	c := workspaceTask(t, call)
-	w := call("POST", "/api/v1/tasks/"+c.ID+"/run-agent", `{"agent_id":"agent_lifecycle","request_id":"90000000-0000-4000-8000-000000000001"}`)
+	w := call("POST", "/api/v1/tasks/"+c.ID+"/run-agent", `{"agent_id":"agent_lifecycle","request_id":"90000000-0000-4000-8000-000000000001","runner_id":"local_terminal"}`)
 	if w.Code != http.StatusOK {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -157,7 +157,7 @@ func TestTaskAgentFailureAndBlockerDoNotBecomeReview(t *testing.T) {
 				t.Fatal(e)
 			}
 			created := workspaceTask(t, call)
-			w := call("POST", "/api/v1/tasks/"+created.ID+"/run-agent", `{"agent_id":"agent_lifecycle","request_id":"90000000-0000-4000-8000-000000000002"}`)
+			w := call("POST", "/api/v1/tasks/"+created.ID+"/run-agent", `{"agent_id":"agent_lifecycle","request_id":"90000000-0000-4000-8000-000000000002","runner_id":"local_terminal"}`)
 			if w.Code != 200 {
 				t.Fatal(w.Code, w.Body.String())
 			}
@@ -209,7 +209,7 @@ while :; do sleep 1; done
 			}
 			created := workspaceTask(t, call)
 			path := "/api/v1/tasks/" + created.ID + "/run-agent"
-			w := call("POST", path, `{"agent_id":"agent_lifecycle","request_id":"91000000-0000-4000-8000-000000000001"}`)
+			w := call("POST", path, `{"agent_id":"agent_lifecycle","request_id":"91000000-0000-4000-8000-000000000001","runner_id":"local_terminal"}`)
 			if w.Code != 200 {
 				t.Fatal(w.Code, w.Body.String())
 			}
@@ -273,7 +273,7 @@ while :; do sleep 1; done
 				t.Fatal(err)
 			}
 			c := workspaceTask(t, call)
-			w := call("POST", "/api/v1/tasks/"+c.ID+"/run-agent", `{"agent_id":"agent_lifecycle","request_id":"92000000-0000-4000-8000-000000000001"}`)
+			w := call("POST", "/api/v1/tasks/"+c.ID+"/run-agent", `{"agent_id":"agent_lifecycle","request_id":"92000000-0000-4000-8000-000000000001","runner_id":"local_terminal"}`)
 			if w.Code != 200 {
 				t.Fatal(w.Code)
 			}

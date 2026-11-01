@@ -4,7 +4,7 @@
 **Target Audience:** Solopreneurs, small teams, creator businesses, and non-technical entrepreneurs
 **Repository:** `cuan` (`RPcd484fc4229ae192d17a0f01`)
 **Status:** Living Design System Guideline
-**Version:** 1.2.0 (Updated in Sprint 61: Things 3 & Bear Notes Total Overhaul — Apple Mail Inset List, Calm Low-Contrast Chat Bubbles & SlideDrawer Task Integration)
+**Version:** 1.3.0 (Updated in Sprint 62: Things 3 & Bear Notes Navigation & Visual Calm — Mobile Nav 4-Pillar with Contacts, Schedules Consolidation, Floating Soft Surface Composer, Universal Inset Groups & Terminal Streaming)
 **Author:** Buchin <buchin@dropsugar.com>  
 
 ---
@@ -87,6 +87,30 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
 ### 2.9. Progressive Disclosure SlideDrawer untuk Referensi Tugas di Chat
 - **Aturan Utama:** Mengklik referensi tugas dari gelembung percakapan (atau kartu aksi tugas) meluncurkan laci samping kanan (`SlideDrawer` / `TaskSidePeek`), bukan mengganti kanvas obrolan (*zero canvas disruption*).
 - **Hasil Pengalaman Pengguna:** Aliran percakapan di sebelah kiri tetap utuh, terlihat, dan aktif, sehingga pengguna dapat memeriksa detail teknis tugas tanpa kehilangan konteks diskusi dengan asisten AI.
+
+### 2.10. 4 Pilar Mobile Bottom Navigation & Ergonomi Jempol (Thumb Zone Ergonomics)
+- **Aturan Utama:** Navigasi bawah mobile (`AppShell.tsx`) murni terdiri dari 4 pilar utama simetris dan lapang:
+  1. **Chat (`/inbox`, MessageSquare):** Aliran percakapan pelanggan dan asisten AI.
+  2. **Tasks (`/tasks`, CheckSquare):** Pusat penugasan dan antrean kerja otomatis.
+  3. **Contacts (`/contacts`, Users):** Direktori pelanggan, rekanan, dan asisten digital.
+  4. **Menu (Aksi Drawer, Menu):** Membuka SlideDrawer menu untuk navigasi sekunder (Projects, Settings, Account).
+- **Hasil Pengalaman Pengguna:** Memberikan akses 1-tap instan ke kontak pelanggan harian tanpa harus masuk ke sub-drawer menu berkali-kali. Target sentuh dijaga $\ge$ 44x44px (`min-h-14` / 56px) untuk kenyamanan jempol saat bepergian.
+
+### 2.11. Konsolidasi Rute Otomasi Jadwal ke Settings (/settings/schedules)
+- **Aturan Utama:** Menghilangkan link / item menu redundan `Schedules` dari sidebar desktop dan drawer mobile. Seluruh akses manajemen jadwal/rutinitas otomatis dikonsolidasikan ke `SettingsView.tsx` (`/settings/schedules`).
+- **Mental Model Clarity:** Otomasi jadwal adalah konfigurasi operasional latar belakang sistem (*system automation setting*), bukan daftar tugas interaktif harian. Deep link dan bookmark lama diarahkan secara mulus via redirect otomatis tanpa broken link.
+
+### 2.12. Kanvas Chat Murni Borderless & Floating Soft Surface Composer
+- **Aturan Utama:**
+  - Menghilangkan total garis horizontal 1px kaku (`border-b border-border/40` pada header chat dan `border-t border-border/40` di atas composer input).
+  - Header chat mobile menampilkan identitas kontak/agen yang ramah dan manusiawi, bebas dari potongan teks ID tiket teknis pengembang.
+  - Mengeliminasi total chip memori teknis AI (`TasteGroundingChips`) dari balon percakapan obrolan (ekspos jeroan AI yang menabrak timestamp); konfigurasi preferensi dipusatkan di Settings.
+  - Wadah composer bertransformasi menjadi *floating soft surface tint* borderless (#1e2023 / surface elevation) ala Bear Notes dengan tombol kirim sirkular lembut.
+
+### 2.13. Universal Inset Group Audit & Real-Time Terminal Streaming
+- **Aturan Utama:**
+  - Seluruh halaman dan turunannya (Tasks, Projects, Contacts, Settings) mematuhi audit Things 3: 0 border kawat 1px kaku, 0 pil putih solid `#ffffff`, konsisten menggunakan `GroupedSection`, `HairlineList`, `border-border/40` dan `bg-card/30` - `bg-card/50`.
+  - Komponen `TaskTerminal.tsx` dan backend Go `agy_adapter.go` / `runner.go` menggunakan format keluaran `stream-json` seketika. Log mengalir lancar dengan incremental poller (`after_id=N`) tanpa buffering delay dan dilengkapi indikator denyut hijau zamrud (*Streaming live logs…*).
 
 ---
 

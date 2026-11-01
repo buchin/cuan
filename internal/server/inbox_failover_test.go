@@ -367,7 +367,7 @@ func TestTaskProviderPreflightChoosesBackupWithoutChangingAgent(t *testing.T) {
 	bin := strings.Split(os.Getenv("PATH"), ":")[0]
 	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/task-argv\"\nsleep 0.1\n"), 0700)
 	created := workspaceTask(t, call)
-	body := `{"request_id":"` + db.GenerateUUID() + `","agent_id":"agent_lifecycle"}`
+	body := `{"request_id":"` + db.GenerateUUID() + `","agent_id":"agent_lifecycle","runner_id":"local_terminal"}`
 	path := "/api/v1/tasks/" + created.ID + "/run-agent"
 	w := call("POST", path, body)
 	if w.Code != 200 {

@@ -218,8 +218,8 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 	// Channel to signal process completion
 	doneChan := make(chan error, 1)
 	go func() {
+		streamWg.Wait() // ensure all streaming output has been read before cmd.Wait closes pipes
 		waitErr := cmd.Wait()
-		streamWg.Wait() // ensure all streaming output has been read
 		doneChan <- waitErr
 	}()
 

@@ -18,6 +18,9 @@ import {
   Radio,
   Compass,
   Layers,
+  Users,
+  Calendar,
+  Terminal,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -245,6 +248,26 @@ export function LandingPage() {
           </div>
           <div className="mt-8 grid gap-x-8 gap-y-7 sm:grid-cols-2">
             {[
+              {
+                Icon: Users,
+                title: '4-Pillar Mobile Bottom Navigation with Contacts.',
+                text: 'Ergonomic thumb zone bottom navigation on mobile bringing Chat, Tasks, Contacts, and Menu into instant 1-tap reach, paired with unified desktop sidebar.',
+              },
+              {
+                Icon: Calendar,
+                title: 'Consolidated Schedules in Settings.',
+                text: 'All routine automation and background cron schedules organized cleanly in /settings/schedules, eliminating sidebar clutter and mental friction.',
+              },
+              {
+                Icon: MessageSquare,
+                title: 'Borderless Chat Canvas & Floating Soft Surface Composer.',
+                text: 'Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.',
+              },
+              {
+                Icon: Terminal,
+                title: 'Interactive Terminal & Real-Time Log Streaming.',
+                text: 'Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse.',
+              },
               {
                 Icon: Mail,
                 title: 'Apple Mail & Bear Inset List in Inbox.',

@@ -1525,5 +1525,13 @@
   "CRM & memori pelanggan": "CRM & memori pelanggan",
   "Profil, AI providers, team": "Profil, AI providers, team",
   "Operations & System": "Operasi & Sistem",
-  "Operations, System & Account": "Operasi, Sistem & Akun"
+  "Operations, System & Account": "Operasi, Sistem & Akun",
+  "4-Pillar Mobile Bottom Navigation with Contacts.": "Navigasi Bawah Mobile 4 Pilar dengan Kontak.",
+  "Ergonomic thumb zone bottom navigation on mobile bringing Chat, Tasks, Contacts, and Menu into instant 1-tap reach, paired with unified desktop sidebar.": "Navigasi bawah ergonomis jangkauan jempol di mobile menghadirkan Chat, Tasks, Contacts, dan Menu dalam akses 1-ketukan instan, selaras dengan sidebar desktop yang rapi.",
+  "Consolidated Schedules in Settings.": "Konsolidasi Jadwal Otomasi di Pengaturan.",
+  "All routine automation and background cron schedules organized cleanly in /settings/schedules, eliminating sidebar clutter and mental friction.": "Semua otomatisasi rutin dan cron jadwal terorganisir rapi di /settings/schedules, meniadakan menu berisik di sidebar dan keraguan mental.",
+  "Borderless Chat Canvas & Floating Soft Surface Composer.": "Kanvas Chat Borderless & Composer Terapung Lembut.",
+  "Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.": "0 potongan garis kawat 1px pada header dan composer, bebas dari chip memori teknis di aliran pesan, dan wadah input terapung bersahaja ala Bear Notes.",
+  "Interactive Terminal & Real-Time Log Streaming.": "Terminal Interaktif & Streaming Log Seketika.",
+  "Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse.": "Potongan stream-json seketika dan poller inkremental mengalirkan update eksekusi terminal tanpa jeda buffer, dilengkapi indikator denyut hijau zamrud."
 }

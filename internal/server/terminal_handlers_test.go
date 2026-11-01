@@ -315,7 +315,7 @@ func TestServer_RunTaskAgentEndpoint(t *testing.T) {
 
 	// 1. Trigger POST /api/v1/tasks/{id}/run-agent
 	runURL := ts.URL + "/api/v1/tasks/" + taskID + "/run-agent"
-	reqPayload := `{"agent_id":"worker-flash","binary":"agy","prompt":"Write unit test for S22"}`
+	reqPayload := `{"agent_id":"worker-flash","binary":"agy","prompt":"Write unit test for S22","runner_id":"local_terminal"}`
 	req, err := http.NewRequest("POST", runURL, strings.NewReader(reqPayload))
 	if err != nil {
 		t.Fatalf("create POST /run-agent request failed: %v", err)

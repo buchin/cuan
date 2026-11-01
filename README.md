@@ -164,17 +164,20 @@ Cuan incorporates a **Calm & Layered UI System** inspired by world-class product
   - Complete Elimination of Mobile Clashes: Removed conflicting FABs in mobile bottom nav and eliminated cramped slide-up sheets.
   - Clean Thread List & Status-by-Exception: Replaced noisy 4-badge stacks on thread lists with a single subtle `StatusDot` micro-indicator active only when agents are working.
   - Clean JSON Snippets: Stripped raw JSON payloads in thread previews into human-friendly text.
-- **Clean Account vs Settings Separation**:
+- **Clean Account vs Settings Separation & Schedules Consolidation**:
   - Dedicated `/account` workspace for personal preferences (Profile, Appearance, Notifications, Sign Out) using Apple-style Inset Grouped Sections.
   - Dedicated `/settings` workspace for operational configuration (General Workspace, Schedules, AI Providers & Models, Agent Memory, Agents, Apps & Skills).
+  - Schedules consolidated directly into Settings (`/settings/schedules`), establishing a single calm center for background system automations.
 - **Information Layering & Progressive Disclosure**:
   - Essential glanceable operational state stays on the surface; deep technical data (git branches, terminal sessions, raw stdout/stderr logs) is revealed smoothly on-demand via `SlideDrawer` side drawers.
 - **Status-by-Exception**:
   - Calm neutral palette with high-contrast accent colors reserved strictly for exceptions requiring user intervention, preventing cognitive fatigue.
 - **Ergonomic Desktop Column Constraints & Geist Typography**:
   - Strict 65–80ch reading widths (`max-w-[75ch]`) preventing eye strain on widescreen monitors, paired with the razor-sharp Geist typeface.
-- **3-Group Information Architecture**:
-  - Desktop sidebar organized into **WORKSPACE** (Chat, Tasks, Projects), **OPERATIONS** (Schedules, Contacts), and **SYSTEM** (Settings), paired with an essential 4-pillar mobile bottom navigation (Chat, Tasks, Projects, Menu).
+- **4-Pillar Mobile Bottom Navigation & Calm Chat Canvas**:
+  - Primary mobile navigation streamlined into 4 ergonomic thumb-zone pillars: **Chat** (`/inbox`), **Tasks** (`/tasks`), **Contacts** (`/contacts`), and **Menu** (opens `SlideDrawer` for Projects, Settings, and Account).
+  - Chat canvas stripped of rigid 1px wireframe border cuts and noisy AI memory chips, featuring a floating borderless soft surface composer ala Bear Notes.
+  - Interactive Task Terminal with real-time `stream-json` streaming chunks and emerald pulsing live log indicator.
 
 ---
 

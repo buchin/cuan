@@ -128,5 +128,13 @@
   "Default Ruang Kerja Aktif": "Active Workspace Default",
   "Jadikan Default Ruang Kerja": "Set as Workspace Default",
   "Ikuti Default Ruang Kerja ({provider})": "Follow Workspace Default ({provider})",
-  "Penyedia AI Ruang Kerja": "Workspace AI Provider"
+  "Penyedia AI Ruang Kerja": "Workspace AI Provider",
+  "4-Pillar Mobile Bottom Navigation with Contacts.": "4-Pillar Mobile Bottom Navigation with Contacts.",
+  "Ergonomic thumb zone bottom navigation on mobile bringing Chat, Tasks, Contacts, and Menu into instant 1-tap reach, paired with unified desktop sidebar.": "Ergonomic thumb zone bottom navigation on mobile bringing Chat, Tasks, Contacts, and Menu into instant 1-tap reach, paired with unified desktop sidebar.",
+  "Consolidated Schedules in Settings.": "Consolidated Schedules in Settings.",
+  "All routine automation and background cron schedules organized cleanly in /settings/schedules, eliminating sidebar clutter and mental friction.": "All routine automation and background cron schedules organized cleanly in /settings/schedules, eliminating sidebar clutter and mental friction.",
+  "Borderless Chat Canvas & Floating Soft Surface Composer.": "Borderless Chat Canvas & Floating Soft Surface Composer.",
+  "Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.": "Zero 1px wireframe cuts on header and composer, zero noisy memory chips in chat stream, and an elevated soft surface input tint inspired by Bear Notes.",
+  "Interactive Terminal & Real-Time Log Streaming.": "Interactive Terminal & Real-Time Log Streaming.",
+  "Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse.": "Real-time stream-json chunks and incremental poller deliver instant, unbuffered terminal execution updates with an emerald live pulse."
 }
