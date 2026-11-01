@@ -134,6 +134,16 @@ Transform customer interactions into structured business workflows:
 
 Cuan incorporates a **Calm & Layered UI System** inspired by world-class productivity tools **Things 3** and **Bear Notes**:
 
+- **Apple Mail & Bear Inset List in Inbox (Zero Screen-Wide Clutter Bars)**:
+  - Subpanel conversations formatted into an Apple Mail & Bear Notes 3-tier inset list: sender & tabular timestamp on row 1, clean Geist subject with micro-indicator `StatusDot` on row 2, and 2-line snippet in muted zinc-400 on row 3.
+  - Total elimination of full-width `[+ New Idea / Task]` quick bars and loud neon blue filter buttons in favor of calm, neutral Things 3 segments (`All`, `Agents`, `Customers`).
+  - Separated by elegant hairline dividers (`border-b border-border/40`) with zero nested cards.
+- **Calm Low-Contrast Chat Bubbles & Quiet Date Dividers**:
+  - Chat bubbles designed with monochromatic micro-tints (`#1b1c1f` vs `#25272c`) on a deep `#141416` dark canvas, eliminating harsh 1px solid white wireframe borders.
+  - Date dividers (`Today`, `Yesterday`) use quiet muted text with zero solid white `#ffffff` glowing pills in dark mode.
+  - In-stream agent status summaries and task cards flow borderless with subtle typographic hierarchy.
+- **Progressive Disclosure SlideDrawer for Task References in Chat**:
+  - Clicking task links or task cards inside the chat stream opens an on-demand `SlideDrawer` from the right edge, eliminating canvas disruptions and preserving 100% of the active conversation stream.
 - **Things 3 Pure Task Rows (Zero Action Buttons on Rows)**:
   - Task lists across desktop and mobile adhere to pure Things 3 design: subtle `StatusDot` micro-indicators on the left, spacious Geist typography in the center, and muted tabular relative timestamps on the right.
   - Complete elimination of loud `action-primary` buttons (*View result*, *Live Terminal*, *Retry*) from row surfaces. Every row is an expansive tap target that opens deep task actions inside an on-demand side drawer (`SlideDrawer` / `TaskSidePeek`).

@@ -4,7 +4,7 @@
 **Target Audience:** Solopreneurs, small teams, creator businesses, and non-technical entrepreneurs
 **Repository:** `cuan` (`RPcd484fc4229ae192d17a0f01`)
 **Status:** Living Design System Guideline
-**Version:** 1.1.0 (Updated in Sprint 60: Things 3 Pure Task Rows & Bear Notes Stream)
+**Version:** 1.2.0 (Updated in Sprint 61: Things 3 & Bear Notes Total Overhaul — Apple Mail Inset List, Calm Low-Contrast Chat Bubbles & SlideDrawer Task Integration)
 **Author:** Buchin <buchin@dropsugar.com>  
 
 ---
@@ -68,6 +68,25 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
   - Font Mono: `@fontsource-variable/geist-mono` (`font-mono`, `'Geist Mono Variable'`) untuk ID tugas (`#GQATE`), durasi, hash git, dan angka monospaced.
   - Hierarki Spacing: Gunakan standard spacing Tailwind (skala 4px): `gap-1` (4px), `gap-2` (8px), `gap-3` (12px), `gap-4` (16px), `gap-6` (24px).
   - Touch Target Accessibility: Seluruh elemen interaktif memiliki area sentuh minimum 44x44px pada viewport layar sentuh/mobile (`min-h-[44px]`).
+
+### 2.7. Apple Mail & Bear Inset List (Format 3 Tingkat Bebas Bar Redundan)
+- **Aturan Utama:** Daftar percakapan di subpanel Inbox murni berformat baris Apple Mail & Bear Inset List 3 tingkat:
+  1. **Tingkat 1 (Pengirim & Waktu):** Nama kontak/agen di sisi kiri (`font-semibold/medium text-foreground`) dan timestamp abu-abu teredam di sisi kanan dengan angka tabular (`tabular-nums`).
+  2. **Tingkat 2 (Subjek & Indikator Mikro):** Subjek/judul percakapan berbobot Geist bersih, didampingi indikator mikro `StatusDot` jika terdapat tugas latar belakang yang aktif (`data-testid="task-count-badge"`).
+  3. **Tingkat 3 (Cuplikan 2 Baris):** Cuplikan ringkasan pesan maksimal 2 baris (`line-clamp-2`) dengan warna teredam (`text-zinc-400`).
+- **Larangan Keras:** Dilarang memasang bar selebar layar `[+ New Idea / Task]` di atas daftar kontak yang memicu *call-to-action fatigue*. Pembuatan ide baru dipusatkan di header utama atau Studio Canvas.
+- **Pemisah Baris:** Menggunakan garis batas setipis helai rambut (`border-b border-border/40`), bebas dari kotak bertingkat (*nested box cards*).
+
+### 2.8. Calm Low-Contrast Chat Bubbles & Quiet Date Dividers
+- **Aturan Utama:**
+  - Gelembung percakapan membedakan lawan bicara secara intuitif (kiri untuk incoming/agen, kanan untuk outgoing/owner).
+  - Kontras latar belakang menggunakan mikro-tint monokromatik (`#1b1c1f` vs `#25272c`) yang menyatu lembut dengan kanvas dark mode (`#141416`), tanpa garis border stroke putih kaku (`1px solid border`).
+  - Pembatas tanggal (`Today`, `Yesterday`) menggunakan teks abu-abu teredam (`calm-day-label text-xs font-medium text-muted-foreground`) tanpa pil putih solid (`#ffffff`) yang menyilaukan mata di dark mode.
+  - Kartu status dan kartu tugas di dalam stream pesan mengalir borderless dengan tipografi elegan dan badge mikro.
+
+### 2.9. Progressive Disclosure SlideDrawer untuk Referensi Tugas di Chat
+- **Aturan Utama:** Mengklik referensi tugas dari gelembung percakapan (atau kartu aksi tugas) meluncurkan laci samping kanan (`SlideDrawer` / `TaskSidePeek`), bukan mengganti kanvas obrolan (*zero canvas disruption*).
+- **Hasil Pengalaman Pengguna:** Aliran percakapan di sebelah kiri tetap utuh, terlihat, dan aktif, sehingga pengguna dapat memeriksa detail teknis tugas tanpa kehilangan konteks diskusi dengan asisten AI.
 
 ---
 

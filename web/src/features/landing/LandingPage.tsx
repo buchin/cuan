@@ -82,7 +82,7 @@ export function LandingPage() {
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span>{t('Calm & Layered UI System · Things 3 Inspired')}</span>
+              <span>{t('Calm & Layered UI System · Things 3 & Bear Notes Inspired')}</span>
             </div>
             <p className="mb-4 text-sm font-medium text-muted-foreground">
               {t('Your always-on project manager.')}
@@ -245,12 +245,22 @@ export function LandingPage() {
           <div className="mt-8 grid gap-x-8 gap-y-7 sm:grid-cols-2">
             {[
               {
+                Icon: Mail,
+                title: 'Apple Mail & Bear Inset List in Inbox.',
+                text: '3-tier conversation list with sender and tabular-nums time, Geist typography subject with micro-indicator StatusDot, 2-line snippet in muted zinc-400, hairline dividers, and zero screen-wide quick bar clutter.',
+              },
+              {
                 Icon: MessageSquare,
-                title: 'Standalone Studio Canvas & Calm Stream.',
-                text: 'Spacious Studio canvas (/studio) with 75ch desktop bounds and seamless redirect to chat threads upon submission. Clean thread list with StatusDot and zero mobile clashes.',
+                title: 'Calm Low-Contrast Chat Bubbles & Quiet Dividers.',
+                text: 'Monochromatic micro-tint chat bubbles, quiet muted date dividers with zero solid white pill glare, and borderless inline status and task cards.',
               },
               {
                 Icon: Sparkles,
+                title: 'SlideDrawer Progressive Disclosure.',
+                text: 'Tap task references directly inside chat bubbles to slide open rich task inspection on the right without interrupting or obscuring the conversation stream.',
+              },
+              {
+                Icon: CheckCircle2,
                 title: 'Things 3 Task Rows & Bear Notes Stream.',
                 text: 'Inspired by Things 3 and Bear Notes. Pure task rows with zero loud buttons, glitch-free mobile render, zero nested cards, progressive disclosure drawers, and peaceful typography.',
               },
