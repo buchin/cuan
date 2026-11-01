@@ -55,8 +55,8 @@ test('2. Single Source of Truth: docs/sprints/S59.md sprint documentation valida
 
   // Verify Sprint Status and Metadata
   assert.ok(
-    content.includes('**Status:** Running') || content.includes('**Status:** Siap Sprint Review'),
-    'Sprint 59 must be marked as Running or Siap Sprint Review'
+    content.includes('**Status:** Running') || content.includes('**Status:** Siap Sprint Review') || content.includes('**Status:** Completed'),
+    'Sprint 59 must be marked as Running, Siap Sprint Review, or Completed'
   )
   assert.ok(content.includes('Sprint Number:** 59'), 'Sprint number must be 59')
   assert.ok(content.includes('feature/calm-design-system-and-unified-workspace'), 'Active branch must be documented')

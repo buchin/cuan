@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Folder,
   Terminal,
@@ -18,6 +18,7 @@ import { agentsApi } from '../../api/agents'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { StatusDot, type StatusDotVariant } from '../../components/ui/StatusDot'
 import './task-workspace.css'
 import {
   workStatus,
@@ -32,6 +33,29 @@ import {
   relativeTime,
   agentDisplayName,
 } from './task-ui'
+
+function getTaskDotVariant(status: string): StatusDotVariant {
+  switch (status) {
+    case 'Working':
+      return 'working'
+    case 'Queued':
+    case 'Waiting to start':
+      return 'warning'
+    case 'Needs attention':
+      return 'exception'
+    case 'Ready for review':
+      return 'neutral'
+    case 'Completed':
+    case 'Answered':
+      return 'healthy'
+    case 'Cancelled':
+      return 'neutral'
+    case 'Not running':
+    case 'Not started':
+    default:
+      return 'neutral'
+  }
+}
 
 export interface TaskItemCardProps {
   task: Task
@@ -62,6 +86,7 @@ export function TaskItemCard({
 }: TaskItemCardProps) {
   const { t } = useLanguage()
   const location = useLocation()
+  const navigate = useNavigate()
   const currentReturnTo = returnTo ?? location.pathname
 
   const [currentTask, setCurrentTask] = useState<Task>(task)
@@ -235,219 +260,82 @@ export function TaskItemCard({
   }
 
   if (variant === 'row') {
+    const dotVariant = getTaskDotVariant(status)
+
     return (
       <div
-        onClick={onClick ? () => onClick(currentTask) : undefined}
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.preventDefault()
+          if (onClick) {
+            onClick(currentTask)
+          } else {
+            navigate(detailUrl, { state: { taskReturnTo: currentReturnTo } })
+          }
+          onNavigate?.()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            if (onClick) {
+              onClick(currentTask)
+            } else {
+              navigate(detailUrl, { state: { taskReturnTo: currentReturnTo } })
+            }
+            onNavigate?.()
+          }
+        }}
         className={cn(
-          'group flex min-h-16 items-center gap-3 border-b px-2 py-3 transition-colors hover:bg-muted/50 focus-within:bg-muted/30',
-          onClick && 'cursor-pointer',
+          'group flex min-h-[48px] items-center gap-3 border-b border-border/40 px-2.5 py-3 transition-colors hover:bg-muted/40 active:bg-muted/60 cursor-pointer select-none',
           className
         )}
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                {taskRef(currentTask.id)}
-              </span>
-              <span
-                className={cn(
-                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
-                  statusBadgeClass
-                )}
-              >
-                {isWorking ? (
-                  <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400" />
-                  </span>
-                ) : isQueued ? (
-                  <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                    <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
-                  </span>
-                ) : status === 'Ready for review' ? (
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
-                ) : status === 'Completed' || status === 'Answered' ? (
-                  <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                ) : status === 'Cancelled' ? (
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-zinc-500 dark:bg-zinc-400 shrink-0" />
-                ) : status === 'Needs attention' ? (
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-destructive shrink-0" />
-                ) : (
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
-                )}
-                {isQueued && queuePosition ? `${t('Queued')} #${queuePosition}` : t(status)}
-              </span>
-              {showProject && currentTask.project_name && (
-                <span className="inline-flex items-center gap-1 truncate text-xs font-medium text-muted-foreground">
-                  <Folder className="h-3 w-3 shrink-0" />
-                  {currentTask.project_name}
-                </span>
-              )}
-            </div>
-            <time
-              dateTime={currentTask.updated_at}
-              title={new Date(currentTask.updated_at).toLocaleString()}
-              className="shrink-0 text-xs text-muted-foreground"
-            >
-              {t(relativeTime(currentTask.updated_at))}
-            </time>
-          </div>
-
-          <Link
-            to={targetUrl}
-            state={{ taskReturnTo: currentReturnTo }}
-            onClick={
-              onClick
-                ? (e) => {
-                    e.preventDefault()
-                    onClick(currentTask)
-                  }
-                : onNavigate
-            }
-            className="mt-1 block focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            <span className="line-clamp-2 break-words text-sm font-medium leading-5 transition-colors group-hover:text-primary">
-              {currentTask.title}
-            </span>
-          </Link>
-
-          {isWorking ? (
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
-              <span className="relative flex h-1.5 w-1.5 shrink-0 items-center justify-center">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400" />
-              </span>
-              <span className="line-clamp-1 truncate text-[11px] font-medium">
-                {liveActivity}
-              </span>
-            </div>
-          ) : isQueued ? (
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-              <span className="relative flex h-1.5 w-1.5 shrink-0 items-center justify-center">
-                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
-              </span>
-              <span className="line-clamp-1 truncate text-[11px] font-medium">
-                {queuePosition ? `${t('Antrean')} #${queuePosition} · ` : ''}
-                {currentTask.latest_progress
-                  ? cleanTerminalText(currentTask.latest_progress)
-                  : (summary || t('Menunggu giliran eksekusi runner...'))}
-              </span>
-            </div>
-          ) : summary ? (
-            <p className="mt-0.5 line-clamp-1 break-words text-xs text-muted-foreground">
-              {summary}
-            </p>
-          ) : null}
-
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-            {agent && (
-              <span className="font-mono text-[11px]">
-                {agentDisplayName(agent)}
-              </span>
-            )}
-            {currentTask.priority && currentTask.priority !== 'normal' && (
-              <span
-                className={cn(
-                  'capitalize font-medium',
-                  currentTask.priority === 'urgent' && 'text-destructive',
-                  currentTask.priority === 'high' && 'text-amber-600 dark:text-amber-400'
-                )}
-              >
-                {currentTask.priority}
-              </span>
-            )}
-          </div>
-          {retryError && (
-            <p className="mt-1 text-[11px] font-medium text-destructive">{retryError}</p>
-          )}
+        {/* Kiri: Indikator status halus (StatusDot netral/halus) */}
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center">
+          <StatusDot
+            status={dotVariant}
+            size="sm"
+            aria-label={t(status)}
+            title={t(status)}
+          />
         </div>
 
-        {showActions && (
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              to={detailUrl}
-              state={{ taskReturnTo: currentReturnTo }}
-              onClick={(e) => {
-                e.stopPropagation()
-                onNavigate?.()
-              }}
-              className="action-secondary min-h-11 min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
-              aria-label={`${t('Detail')} for ${currentTask.title}`}
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t('Detail')}</span>
-            </Link>
-
-            {status === 'Not started' && (
-              <button
-                type="button"
-                onClick={handleOpenDeleteModal}
-                className="action-secondary min-h-11 min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20 transition-colors cursor-pointer"
-                aria-label={`${t('Cancel draft')} ${currentTask.title}`}
-                title={t('Cancel draft')}
-              >
-                <Trash2 className="h-3.5 w-3.5 shrink-0 text-destructive/80" />
-                <span className="hidden sm:inline">{t('Cancel draft')}</span>
-              </button>
-            )}
-
-            {status === 'Needs attention' ? (
-              <button
-                type="button"
-                disabled={retrying}
-                onClick={handleRetry}
-                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
-              >
-                <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
-                <span>{retrying ? t('Retrying...') : t('Retry')}</span>
-              </button>
-            ) : isRunning ? (
-              <Link
-                to={terminalUrl}
-                state={{ taskReturnTo: currentReturnTo }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onNavigate?.()
-                }}
-                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
-              >
-                <Terminal className="h-3.5 w-3.5" />
-                <span>{t('Live Terminal')}</span>
-              </Link>
-            ) : status === 'Ready for review' ||
-              status === 'Completed' ||
-              status === 'Answered' ? (
-              <Link
-                to={detailUrl}
-                state={{ taskReturnTo: currentReturnTo }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onNavigate?.()
-                }}
-                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>{t('View result')}</span>
-              </Link>
-            ) : (
-              <Link
-                to={terminalUrl}
-                state={{ taskReturnTo: currentReturnTo }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onNavigate?.()
-                }}
-                className="action-primary min-h-11 min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
-              >
-                <Play className="h-3.5 w-3.5" />
-                <span>{t('Start session')}</span>
-              </Link>
+        {/* Tengah: Judul tugas yang bernapas lega (font Geist) tanpa badge bertumpuk */}
+        <div className="min-w-0 flex-1 py-0.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-sans text-sm font-medium leading-normal text-foreground group-hover:text-primary transition-colors truncate">
+              {currentTask.title}
+            </span>
+            {showProject && currentTask.project_name && (
+              <span className="hidden sm:inline-flex shrink-0 items-center gap-1 text-[11px] font-normal text-muted-foreground/60">
+                <span>·</span>
+                <span className="truncate max-w-[120px]">{currentTask.project_name}</span>
+              </span>
             )}
           </div>
-        )}
+          {isWorking && liveActivity ? (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-blue-600 dark:text-blue-400 font-normal">
+              {liveActivity}
+            </p>
+          ) : isQueued ? (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-600 dark:text-amber-400 font-normal">
+              {queuePosition ? `${t('Antrean')} #${queuePosition} · ` : ''}
+              {currentTask.latest_progress
+                ? cleanTerminalText(currentTask.latest_progress)
+                : (summary || t('Menunggu giliran eksekusi runner...'))}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Kanan: Timestamp relatif abu-abu (muted) */}
+        <time
+          dateTime={currentTask.updated_at}
+          title={new Date(currentTask.updated_at).toLocaleString()}
+          className="shrink-0 text-xs text-muted-foreground/75 whitespace-nowrap tabular-nums font-normal"
+        >
+          {t(relativeTime(currentTask.updated_at))}
+        </time>
       </div>
     )
   }
