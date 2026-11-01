@@ -467,34 +467,6 @@ export function TaskCard({
             {taskRef(currentTask.id)}
           </span>
         </div>
-
-        {/* Live Terminal & Retry Actionable Controls in Header */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={handleOpenTerminal}
-            data-testid="task-card-terminal-btn"
-            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40"
-            title={t('Live Terminal')}
-            aria-label={t('Live Terminal')}
-          >
-            <Terminal className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-            <span className="hidden xs:inline sm:inline">{t('Live Terminal')}</span>
-          </button>
-
-          <button
-            type="button"
-            disabled={retrying}
-            onClick={handleRetry}
-            data-testid="task-card-retry-btn"
-            className="min-h-[32px] px-2.5 py-1 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40 disabled:opacity-50"
-            title={t('Coba Lagi')}
-            aria-label={t('Coba Lagi')}
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin text-primary')} />
-            <span className="hidden xs:inline sm:inline">{retrying ? t('Retrying...') : t('Coba Lagi')}</span>
-          </button>
-        </div>
       </div>
 
       {/* Title & Description */}
@@ -599,6 +571,7 @@ export function TaskCard({
               type="button"
               disabled={retrying}
               onClick={handleRetry}
+              data-testid="task-card-retry-btn"
               aria-label={t('Retry')}
               className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
             >
@@ -609,7 +582,8 @@ export function TaskCard({
 
           <button
             type="button"
-            onClick={handleActionClick}
+            onClick={isWorking ? handleOpenTerminal : handleActionClick}
+            data-testid="task-card-terminal-btn"
             aria-label={`${t('Open task')}: ${currentTask.title}`}
             className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
           >

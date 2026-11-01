@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { Button } from '../../components/ui/button'
 import { ChatMarkdown } from './ChatMarkdown'
@@ -10,6 +11,8 @@ import {
   Folder,
   Pencil,
   Play,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import type { ApprovalPlan } from '../../api/chat'
 
@@ -59,6 +62,8 @@ export function ApprovalCard({
   className,
 }: ApprovalCardProps) {
   const { t } = useLanguage()
+  const [planExpanded, setPlanExpanded] = useState(false)
+  const isLongPlan = !!plan.description && (plan.description.length > 250 || plan.description.split('\n').filter(Boolean).length > 4)
 
   return (
     <div
@@ -126,7 +131,33 @@ export function ApprovalCard({
       {/* Plan Markdown Description (Bullet points, bold, inline code, code blocks) */}
       {plan.description && (
         <div className="approval-card-description min-w-0 max-w-full text-foreground/90">
-          <ChatMarkdown content={plan.description} className="text-sm" />
+          <div
+            className={cn(
+              'relative transition-all duration-200',
+              !planExpanded && isLongPlan && 'max-h-[140px] overflow-hidden',
+            )}
+          >
+            <ChatMarkdown content={plan.description} className="text-sm" />
+            {!planExpanded && isLongPlan && (
+              <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card/95 via-card/60 to-transparent pointer-events-none" />
+            )}
+          </div>
+          {isLongPlan && (
+            <button
+              type="button"
+              onClick={() => setPlanExpanded(!planExpanded)}
+              aria-expanded={planExpanded}
+              data-testid="approval-card-toggle-plan"
+              className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
+            >
+              <span>{planExpanded ? t('Hide plan details') : t('Show full plan')}</span>
+              {planExpanded ? (
+                <ChevronUp className="h-3 w-3" />
+              ) : (
+                <ChevronDown className="h-3 w-3" />
+              )}
+            </button>
+          )}
         </div>
       )}
 
