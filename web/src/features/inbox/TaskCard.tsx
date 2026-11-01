@@ -44,6 +44,7 @@ export interface TaskCardProps {
   onOpenTerminal?: (task: Task) => void
   onRetry?: (task: Task) => Promise<void> | void
   disableCompletionCard?: boolean
+  isCustomerRoom?: boolean
 }
 
 export function TaskCard({
@@ -58,6 +59,7 @@ export function TaskCard({
   onOpenTerminal,
   onRetry,
   disableCompletionCard = false,
+  isCustomerRoom = false,
 }: TaskCardProps) {
   const { t } = useLanguage()
   const navigate = useNavigate()
@@ -379,6 +381,7 @@ export function TaskCard({
           onViewDetails={handleViewDetails}
           onOpenTerminal={onOpenTerminal}
           onRetry={onRetry}
+          isCustomerRoom={isCustomerRoom}
         />
       </div>
     )
@@ -514,14 +517,14 @@ export function TaskCard({
         ) : null}
       </div>
 
-      {/* Visitor Reply Draft Section if draft exists */}
-      {envelopeResult.draft && (
+      {/* Visitor Reply Draft Section if customer room and draft exists */}
+      {isCustomerRoom && envelopeResult.draft && (
         <div
           data-testid="task-card-draft-section"
           onClick={(e) => e.stopPropagation()}
-          className="rounded-xl border border-border/40 bg-muted/30 dark:bg-muted/20 p-3 space-y-2 cursor-default"
+          className="border-t border-border/30 pt-2.5 space-y-2 cursor-default"
         >
-          <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
               <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
               <span>{t('Draf Balasan Pengunjung')}</span>
@@ -530,18 +533,15 @@ export function TaskCard({
               type="button"
               onClick={(e) => handleUseDraft(e, envelopeResult.draft)}
               data-testid="task-card-use-draft-btn"
-              className="min-h-7 px-3 py-1 text-xs font-medium rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-none"
+              className="min-h-7 px-2.5 py-1 text-xs font-medium rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-none"
               title={t('Gunakan Draf di Input')}
             >
               <Send className="h-3 w-3 shrink-0" />
               <span>{t('Gunakan Draf di Input')}</span>
             </button>
           </div>
-          <p className="text-xs text-foreground/90 italic bg-background/50 p-2.5 rounded-lg border border-border/30 whitespace-pre-wrap leading-relaxed break-words">
+          <p className="text-xs text-foreground/90 italic border-l-2 border-primary/40 pl-3 py-1 whitespace-pre-wrap leading-relaxed break-words">
             "{envelopeResult.draft}"
-          </p>
-          <p className="text-[10px] text-muted-foreground">
-            {t('1-klik mengisi composer obrolan dan fokus kursor otomatis.')}
           </p>
         </div>
       )}

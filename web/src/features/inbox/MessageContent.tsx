@@ -43,6 +43,7 @@ export function MessageContent({
   onUseDraft,
   onRetry,
   onContinueChat,
+  isCustomerRoom,
 }: {
   content: string
   hideTaskActions?: boolean
@@ -52,6 +53,7 @@ export function MessageContent({
   onUseDraft?: (draftText: string) => void
   onRetry?: (task: Task) => Promise<void> | void
   onContinueChat?: (suggestedText: string) => void
+  isCustomerRoom?: boolean
 }) {
   const { language, t } = useLanguage()
   const { body, actions } = messageNavigation(content)
@@ -85,12 +87,12 @@ export function MessageContent({
           <StatusReportCard report={report} />
           {report.dodDetails?.remainingText && (
             <div className="pt-1">
-              <ChatMarkdown content={report.dodDetails.remainingText} onTaskClick={onTaskClick} />
+              <ChatMarkdown content={report.dodDetails.remainingText} onTaskClick={onTaskClick} isCustomerRoom={isCustomerRoom} />
             </div>
           )}
         </div>
       ) : (
-        effectiveBody ? <ChatMarkdown content={effectiveBody} onTaskClick={onTaskClick} /> : null
+        effectiveBody ? <ChatMarkdown content={effectiveBody} onTaskClick={onTaskClick} isCustomerRoom={isCustomerRoom} /> : null
       )}
       {extractedReceipt && (
         <ReceiptPreviewCard extraction={extractedReceipt} />
@@ -112,6 +114,7 @@ export function MessageContent({
                   onUseDraft={onUseDraft}
                   onRetry={onRetry}
                   onContinueChat={onContinueChat}
+                  isCustomerRoom={isCustomerRoom}
                 />
               )
             }

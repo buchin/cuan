@@ -18,6 +18,7 @@ export function InboxTaskAction({
   onOpenTerminal,
   onUseDraft,
   onRetry,
+  isCustomerRoom,
 }: {
   conversationId: string
   messageId: string
@@ -28,6 +29,7 @@ export function InboxTaskAction({
   onOpenTerminal?: (task: Task) => void
   onUseDraft?: (draftText: string) => void
   onRetry?: (task: Task) => Promise<void> | void
+  isCustomerRoom?: boolean
 }) {
   const { t } = useLanguage()
 
@@ -97,6 +99,7 @@ export function InboxTaskAction({
             onViewDetails={onViewTask}
             onOpenTerminal={onOpenTerminal}
             onRetry={onRetry}
+            isCustomerRoom={isCustomerRoom}
           />
         </div>
       )
@@ -113,6 +116,7 @@ export function InboxTaskAction({
           onUseDraft={onUseDraft}
           onRetry={onRetry}
           onContinueChat={onContinueChat}
+          isCustomerRoom={isCustomerRoom}
         />
       </div>
     )

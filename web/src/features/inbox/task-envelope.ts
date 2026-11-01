@@ -148,7 +148,7 @@ export function parseTaskReviewEnvelope(
     } else if (isReview) {
       draft = `Halo! Terkait kebutuhan "${task.title}", kami telah menindaklanjutinya dan menyiapkan langkah terbaik untuk Anda. Silakan beri tahu kami jika ada detail yang ingin disesuaikan.`
     } else {
-      draft = `Halo! Tim kami sedang menindaklanjuti "${task.title}" dan akan segera mengabari Anda setelah ada pembaruan.`
+      draft = ''
     }
   }
 

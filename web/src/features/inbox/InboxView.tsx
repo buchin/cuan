@@ -1613,6 +1613,7 @@ export function InboxView({
                           onUseDraft={handleUseDraft}
                           onRetry={handleTaskRetry}
                           onContinueChat={handleUseDraft}
+                          isCustomerRoom={activeContact.type === 'customer'}
                         />
                       ) : (
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
@@ -1745,6 +1746,7 @@ export function InboxView({
                           onUseDraft={handleUseDraft}
                           onRetry={handleTaskRetry}
                           onContinueChat={handleUseDraft}
+                          isCustomerRoom={activeContact.type === 'customer'}
                         />
                       )}
                       {msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
@@ -1829,6 +1831,7 @@ export function InboxView({
                       onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
                       onRetry={handleTaskRetry}
                       onViewDetails={() => handleOpenTaskDrawer(completedTask)}
+                      isCustomerRoom={activeContact.type === 'customer'}
                     />
                   </div>
                 </div>
