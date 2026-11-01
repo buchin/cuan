@@ -289,6 +289,11 @@ export function LandingPage() {
                 text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
               },
               {
+                Icon: ShieldCheck,
+                title: 'Standalone agent runner & process supervisor.',
+                text: 'Powered by independent open-source agentrunner library for bulletproof CLI execution, workspace isolation, secret redaction, and sub-second reliability.',
+              },
+              {
                 Icon: Clock,
                 title: 'Zero-interruption worker & proactive chat.',
                 text: 'Decoupled worker runs independently with progressive timeouts. Once completed, friendly zero-jargon updates and strategic next steps arrive in your chat.',

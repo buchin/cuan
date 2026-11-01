@@ -7,262 +7,41 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
+	"github.com/buchin/agentrunner"
 	"github.com/buchin/cuan/internal/agent"
 )
 
+type TaskWorkspace = agentrunner.TaskWorkspace
+type WorkspaceConfig = agentrunner.WorkspaceConfig
+
 var (
-	ErrDefaultBranchProtected = errors.New("cannot push directly to protected default branch (main/master). Changes must be pushed via task branch and reviewed through Pull Request")
-	ErrWorkspaceEmpty         = errors.New("workspace directory is empty or invalid")
-	ErrNoCommitsToPush        = errors.New("no commits to push on task branch")
+	ErrDefaultBranchProtected = agentrunner.ErrDefaultBranchProtected
+	ErrWorkspaceEmpty         = agentrunner.ErrWorkspaceEmpty
+	ErrNoCommitsToPush        = agentrunner.ErrNoCommitsToPush
 )
 
-// TaskWorkspace represents an isolated git checkout dedicated to a specific task.
-type TaskWorkspace struct {
-	TaskID        string `json:"task_id"`
-	ProjectID     string `json:"project_id"`
-	Path          string `json:"path"`
-	BranchName    string `json:"branch_name"`
-	DefaultBranch string `json:"default_branch"`
-	AuthorName    string `json:"author_name"`
-	AuthorEmail   string `json:"author_email"`
-}
-
-// WorkspaceConfig contains parameters needed to prepare an isolated task workspace.
-type WorkspaceConfig struct {
-	TaskID           string
-	ProjectID        string
-	BaseRepoDir      string
-	WorkspacesBaseDir string
-	BranchName       string
-	DefaultBranch    string
-	AuthorName       string
-	AuthorEmail      string
-	RemoteURL        string
-	Token            string
-}
-
-// PrepareTaskWorkspace ensures an isolated workspace directory exists for the given task.
-// If the workspace already exists, it resumes execution on the existing branch.
-// If it is new, it creates an isolated local clone from the base repository,
-// sets the task branch, configures human author identity, and installs pre-push protection.
+// PrepareTaskWorkspace ensures an isolated workspace directory exists for the given task
+// utilizing the standalone github.com/buchin/agentrunner library.
 func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) (*TaskWorkspace, error) {
-	if cfg.TaskID == "" {
-		return nil, errors.New("task ID is required to prepare workspace")
-	}
-
-	branchName := cfg.BranchName
-	if branchName == "" {
-		branchName = fmt.Sprintf("task/%s", cfg.TaskID)
-	}
-
-	defaultBranch := cfg.DefaultBranch
-	if defaultBranch == "" {
-		defaultBranch = "main"
-	}
-
-	authorName := cfg.AuthorName
-	if authorName == "" {
-		authorName = "Buchin"
-	}
-
-	authorEmail := cfg.AuthorEmail
-	if authorEmail == "" {
-		authorEmail = "buchin@dropsugar.com"
-	}
-
-	workspacesBase := cfg.WorkspacesBaseDir
-	if workspacesBase == "" {
-		workspacesBase = filepath.Join("data", "workspaces")
-	}
-
-	workspacePath := filepath.Join(workspacesBase, cfg.TaskID)
-
-	ws := &TaskWorkspace{
-		TaskID:        cfg.TaskID,
-		ProjectID:     cfg.ProjectID,
-		Path:          workspacePath,
-		BranchName:    branchName,
-		DefaultBranch: defaultBranch,
-		AuthorName:    authorName,
-		AuthorEmail:   authorEmail,
-	}
-
-	gitDir := filepath.Join(workspacePath, ".git")
-	if fi, err := os.Stat(gitDir); err == nil && fi.IsDir() {
-		// Workspace exists -> resume cycle
-		// Ensure checked out to task branch
-		checkoutCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "checkout", "-B", branchName)
-		if out, err := checkoutCmd.CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("checkout existing task branch %s: %s", branchName, string(out))
-		}
-
-		// Re-ensure git config and pre-push hook
-		_ = c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail)
-		_ = c.installBranchProtectionHook(workspacePath, defaultBranch)
-		c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
-
-		return ws, nil
-	}
-
-	// New workspace -> Create parent directory
-	if err := os.MkdirAll(workspacesBase, 0755); err != nil {
-		return nil, fmt.Errorf("create workspaces base dir: %w", err)
-	}
-
-	// Perform clone
-	// If BaseRepoDir exists and has .git, clone locally from BaseRepoDir for speed and object sharing
-	baseGitDir := filepath.Join(cfg.BaseRepoDir, ".git")
-	if cfg.BaseRepoDir != "" {
-		if fi, err := os.Stat(baseGitDir); err == nil && fi.IsDir() {
-			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--local", cfg.BaseRepoDir, workspacePath)
-			if out, err := cloneCmd.CombinedOutput(); err != nil {
-				return nil, fmt.Errorf("local clone from base repo failed: %s", string(out))
-			}
-		}
-	}
-
-	// If workspace wasn't cloned from BaseRepoDir, clone from RemoteURL or init
-	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-		if cfg.RemoteURL != "" {
-			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", cfg.RemoteURL, workspacePath)
-			if out, err := cloneCmd.CombinedOutput(); err != nil {
-				return nil, fmt.Errorf("remote clone failed: %s", string(out))
-			}
-		} else {
-			// Fallback: init empty repo with default branch
-			_ = os.MkdirAll(workspacePath, 0755)
-			initCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "init", "-b", defaultBranch)
-			if out, err := initCmd.CombinedOutput(); err != nil {
-				return nil, fmt.Errorf("git init failed: %s", string(out))
-			}
-		}
-	}
-
-	// Configure remote origin if RemoteURL provided
-	if cfg.RemoteURL != "" {
-		_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "remote", "set-url", "origin", cfg.RemoteURL).Run()
-	}
-
-	// Create and switch to task branch
-	checkoutCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "checkout", "-B", branchName)
-	if out, err := checkoutCmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("create task branch %s: %s", branchName, string(out))
-	}
-
-	// Configure human author identity
-	if err := c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail); err != nil {
-		return nil, err
-	}
-
-	// Install branch protection pre-push hook
-	if err := c.installBranchProtectionHook(workspacePath, defaultBranch); err != nil {
-		return nil, err
-	}
-
-	c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
-
-	return ws, nil
+	return agentrunner.PrepareTaskWorkspace(ctx, c.gitBinary, cfg)
 }
 
 // configureWorkspaceGitIdentity sets user.name and user.email in local repository config.
 func (c *Client) configureWorkspaceGitIdentity(workspacePath, name, email string) error {
-	cmdName := exec.Command(c.gitBinary, "-C", workspacePath, "config", "user.name", name)
-	if out, err := cmdName.CombinedOutput(); err != nil {
-		return fmt.Errorf("set git user.name: %s", string(out))
-	}
-
-	cmdEmail := exec.Command(c.gitBinary, "-C", workspacePath, "config", "user.email", email)
-	if out, err := cmdEmail.CombinedOutput(); err != nil {
-		return fmt.Errorf("set git user.email: %s", string(out))
-	}
-
-	return nil
+	return agentrunner.ConfigureWorkspaceGitIdentity(c.gitBinary, workspacePath, name, email)
 }
 
 // installBranchProtectionHook places an executable pre-push hook in the workspace repository
 // that rejects direct pushes to the default branch (main/master).
 func (c *Client) installBranchProtectionHook(workspacePath, defaultBranch string) error {
-	hooksDir := filepath.Join(workspacePath, ".git", "hooks")
-	if err := os.MkdirAll(hooksDir, 0755); err != nil {
-		return fmt.Errorf("create hooks dir: %w", err)
-	}
-
-	prePushScript := fmt.Sprintf(`#!/bin/sh
-# Cuan Pre-Push Hook: Branch Protection Guardrail
-# Prevents coding agents from pushing directly to the protected default branch.
-
-protected_branch="%s"
-
-while read local_ref local_oid remote_ref remote_oid
-do
-    if [ "$remote_ref" = "refs/heads/$protected_branch" ] || [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
-        echo "============================================================" >&2
-        echo "ERROR: Direct push to protected default branch '$remote_ref' is PROHIBITED." >&2
-        echo "All changes must be committed to a task branch and merged via Pull Request." >&2
-        echo "============================================================" >&2
-        exit 1
-    fi
-done
-
-exit 0
-`, defaultBranch)
-
-	hookPath := filepath.Join(hooksDir, "pre-push")
-	if err := os.WriteFile(hookPath, []byte(prePushScript), 0755); err != nil {
-		return fmt.Errorf("write pre-push hook: %w", err)
-	}
-
-	return nil
+	return agentrunner.InstallBranchProtectionHook(workspacePath, defaultBranch)
 }
 
-// linkWorkspaceDependencies links node_modules and built web assets into the workspace
-// from base repository or shared cache to ensure lean fast execution and reliable tests.
+// linkWorkspaceDependencies links node_modules and built web assets into the workspace.
 func (c *Client) linkWorkspaceDependencies(workspacePath, baseRepoDir string) {
-	webDir := filepath.Join(workspacePath, "web")
-	if _, err := os.Stat(webDir); err != nil {
-		return
-	}
-
-	targetNodeModules := filepath.Join(webDir, "node_modules")
-	if _, err := os.Lstat(targetNodeModules); err != nil {
-		candidates := []string{
-			filepath.Join(baseRepoDir, "web", "node_modules"),
-			filepath.Join(baseRepoDir, "node_modules"),
-			"/opt/cuan/data/projects/default/web/node_modules",
-			"/opt/cuan/data/projects/task-workspaces/8405093f307a3e147d1170d23842c8c3575c98adfbec715451e76e215a9a530b/web/node_modules",
-		}
-		for _, cand := range candidates {
-			if cand != "" {
-				if realPath, rErr := filepath.EvalSymlinks(cand); rErr == nil {
-					if fi, sErr := os.Stat(realPath); sErr == nil && fi.IsDir() {
-						_ = os.Symlink(cand, targetNodeModules)
-						break
-					}
-				}
-			}
-		}
-	}
-
-	targetDist := filepath.Join(webDir, "dist")
-	if _, err := os.Lstat(targetDist); err != nil {
-		candidates := []string{
-			filepath.Join(baseRepoDir, "web", "dist"),
-			os.Getenv("CUAN_STATIC_DIR"),
-			"/opt/cuan/current/web/dist",
-			"/opt/cuan/data/projects/default/web/dist",
-		}
-		for _, cand := range candidates {
-			if cand != "" {
-				if fi, sErr := os.Stat(cand); sErr == nil && fi.IsDir() {
-					_ = os.Symlink(cand, targetDist)
-					break
-				}
-			}
-		}
-	}
+	agentrunner.LinkWorkspaceDependencies(workspacePath, baseRepoDir)
 }
 
 // CommitChanges stages all changes in workspace and commits with configured author identity.

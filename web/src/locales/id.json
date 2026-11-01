@@ -3,6 +3,8 @@
   "Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.": "Web Audio chime harmonis memutar nada lembut dan memperbarui lencana tab browser saat tugas selesai di latar belakang, dilengkapi fallback senyap tanpa hambatan.",
   "Worker observability & queue health.": "Observabilitas worker & kesehatan antrean.",
   "Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.": "Pantau kesehatan daemon cuan-runner, kedalaman antrean tugas, dan detak jantung langsung di Pengaturan dengan indikator visual jernih tanpa membuka terminal.",
+  "Standalone agent runner & process supervisor.": "Agent runner & supervisor proses mandiri.",
+  "Powered by independent open-source agentrunner library for bulletproof CLI execution, workspace isolation, secret redaction, and sub-second reliability.": "Ditenagai oleh library open-source agentrunner mandiri untuk eksekusi CLI yang tangguh, isolasi ruang kerja, penyuntingan rahasia, dan keandalan tingkat tinggi.",
   "Kesehatan Worker & Antrean": "Kesehatan Worker & Antrean",
   "Status daemon cuan-runner, kedalaman antrean tugas toko, dan detak jantung terakhir.": "Status daemon cuan-runner, kedalaman antrean tugas toko, dan detak jantung terakhir.",
   "Status Daemon": "Status Daemon",
